@@ -27,6 +27,7 @@ import {
 } from "@/constant/pricing";
 import { extractTokenUsageMetrics, hasTokenValue, normalizeTokenBreakdown } from "@/util/token-usage.util";
 import {
+  parseAllowedModelsJson,
   parseRelayRequestFormats,
   supportsRelayRequestFormat,
   type RelayConfiguredRequestFormat,
@@ -43,6 +44,8 @@ import type {
   CreateRelayChannelProbeRunsResponse,
   ClearRelayChannelProbeRunHistoryResponse,
   RelayChannelProbeOverviewItemDto,
+  RelayChannelProbeMemberDto,
+  RelayChannelProbeTargetDto,
   RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeProfileDto,
   RelayChannelProbeRunDto,
@@ -107,6 +110,11 @@ export type RelayChannelProbeTopologyItem = Pick<
 type ProbeFormat = RelayProbeFormat;
 type ConfiguredProbeFormat = RelayConfiguredRequestFormat;
 type ProbeBalanceSnapshot = { balance: number; observedAt: string };
+type RelayChannelWithProbeMembers = RelayChannel & {
+  pooledChildren?: RelayChannel[];
+  poolMembers?: Array<{ enabled: boolean; memberChannel?: RelayChannel | null }>;
+};
+type ProbePoolMember = { channel: RelayChannel; membershipEnabled: boolean };
 
 /** Keep probe format availability aligned with the channel request-format contract. */
 export function resolveAllowedProbeFormats(value: string | null | undefined): ConfiguredProbeFormat[] {
@@ -708,19 +716,129 @@ export class RelayChannelProbeService {
       this.repository.listLatestRuns(channelIds),
     ]);
     const profileMap = new Map(profiles.map((profile) => [profile.relayChannelId, profile]));
-    const runMap = new Map(runs.map((run) => [run.relayChannelId, run]));
-    return probeableChannels.map((channel) => ({
-      channelId: channel.id,
-      channelName: channel.name,
-      enabled: channel.enabled,
-      visibilityMode: channel.visibilityMode,
-      customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
-      multiplier: channel.multiplier,
-      allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats),
-      allowedProbeModels: channel.allowedModels,
-      profile: profileMap.has(channel.id) ? this.toProfileDto(profileMap.get(channel.id)!) : undefined,
-      latestRun: runMap.has(channel.id) ? this.toRunDto(runMap.get(channel.id)!) : undefined,
-    }));
+    const runMap = new Map(runs.map((run) => [`${run.relayChannelId}:${run.probeMemberChannelId || ""}`, run]));
+    return Promise.all(
+      probeableChannels.map(async (channel) => {
+        const profile = profileMap.get(channel.id);
+        const members =
+          channel.channelType === "pooled" ? await this.toProbeMembers(channel.id, profile, runMap) : undefined;
+        return {
+          channelId: channel.id,
+          channelName: channel.name,
+          channelType: channel.channelType,
+          enabled: channel.enabled,
+          visibilityMode: channel.visibilityMode,
+          customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
+          multiplier: channel.multiplier,
+          allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats),
+          allowedProbeModels: channel.allowedModels,
+          profile: profile ? this.toProfileDto(profile) : undefined,
+          latestRun:
+            channel.channelType === "pooled"
+              ? undefined
+              : runMap.has(`${channel.id}:`)
+                ? this.toRunDto(runMap.get(`${channel.id}:`)!)
+                : undefined,
+          ...(members ? { members } : {}),
+        };
+      }),
+    );
+  }
+
+  private async toProbeMembers(
+    channelId: string,
+    profile:
+      | Pick<
+          ProbeProfileRecord,
+          "encryptedCredentials" | "credentialIv" | "credentialAuthTag" | "probeFormat" | "probeModel"
+        >
+      | undefined,
+    runMap: Map<string, ProbeRunRecord>,
+  ): Promise<RelayChannelProbeMemberDto[]> {
+    const members = await this.resolvePoolMembers(channelId);
+    const credentialMap = profile ? this.tryDecryptCredentials(profile) : {};
+    return members.map((member) => {
+      const compatibility = profile
+        ? this.getProbeChannelCompatibility(member.channel, profile.probeFormat, profile.probeModel)
+        : { compatible: true };
+      const latestRun = runMap.get(`${channelId}:${member.channel.id}`);
+      return {
+        channelId: member.channel.id,
+        channelName: member.channel.name,
+        enabled: member.membershipEnabled && this.isEnabledProbeMember(member.channel),
+        hasCredentials: Boolean(credentialMap[member.channel.id]),
+        compatible: compatibility.compatible,
+        ...(compatibility.reason ? { incompatibilityReason: compatibility.reason } : {}),
+        ...(latestRun ? { latestRun: this.toRunDto(latestRun) } : {}),
+      };
+    });
+  }
+
+  private async resolvePoolMembers(channelId: string): Promise<ProbePoolMember[]> {
+    const pooled = (await this.relayChannelRepository.findVisibleById(
+      channelId,
+    )) as RelayChannelWithProbeMembers | null;
+    if (!pooled || pooled.channelType !== "pooled") return [];
+    // A strict parent-child topology takes precedence whenever it is configured.
+    // Keep unavailable members in the projection so an operator can see why an
+    // account cannot be selected; execution validates its enabled state below.
+    const strictMembers = pooled.pooledChildren ?? [];
+    if (strictMembers.length) return strictMembers.map((channel) => ({ channel, membershipEnabled: true }));
+    return (pooled.poolMembers ?? [])
+      .filter((edge) => edge.memberChannel)
+      .map((edge) => ({ channel: edge.memberChannel!, membershipEnabled: edge.enabled }));
+  }
+
+  private isEnabledProbeMember(member: RelayChannel): boolean {
+    return (
+      member.status === RELAY_CHANNEL_STATUS.ENABLED &&
+      member.providerServiceEnabled !== false &&
+      member.pooledMemberEnabled !== false
+    );
+  }
+
+  private async assertPoolMember(channelId: string, memberChannelId?: string): Promise<RelayChannel> {
+    if (!memberChannelId) throw new BadRequestError("逻辑混池探针必须指定物理成员");
+    const member = (await this.resolvePoolMembers(channelId)).find(
+      (candidate) => candidate.channel.id === memberChannelId,
+    );
+    if (!member || !member.membershipEnabled || !this.isEnabledProbeMember(member.channel))
+      throw new BadRequestError("物理成员不属于该逻辑混池或当前不可用");
+    return member.channel;
+  }
+
+  private tryDecryptCredentials(
+    profile: Pick<ProbeProfileRecord, "encryptedCredentials" | "credentialIv" | "credentialAuthTag">,
+  ) {
+    try {
+      return this.decryptCredentials(profile as ProbeProfileRecord);
+    } catch {
+      return {};
+    }
+  }
+
+  private getProbeChannelCompatibility(member: RelayChannel, format: string, model: string) {
+    try {
+      this.assertProbeRelayChannelCompatibility(member, format, model);
+      return { compatible: true };
+    } catch (error) {
+      return { compatible: false, reason: error instanceof Error ? error.message : "物理成员不支持当前探针配置" };
+    }
+  }
+
+  private assertProbeRelayChannelCompatibility(channel: RelayChannel, format: string, model: string): void {
+    if (!supportsRelayRequestFormat(channel.allowedFormats, format as RelayRequestFormat))
+      throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`);
+    const allowedModels = parseAllowedModelsJson(channel.allowedModels) ?? [];
+    if (allowedModels.length && !allowedModels.includes(model))
+      throw new BadRequestError(`渠道不支持探针模型 ${model}，请从渠道已配置模型中选择`);
+    const upstreamConfigured =
+      format === "openai" || format.startsWith("openai-")
+        ? Boolean(channel.openaiUpstreamUrl && channel.openaiUpstreamApiKey)
+        : format === "anthropic"
+          ? Boolean(channel.anthropicUpstreamUrl && channel.anthropicUpstreamApiKey)
+          : Boolean(channel.geminiUpstreamUrl && channel.geminiUpstreamApiKey);
+    if (!upstreamConfigured) throw new BadRequestError(`渠道缺少 ${format} 格式的上游地址或凭据`);
   }
 
   /**
@@ -772,8 +890,9 @@ export class RelayChannelProbeService {
   async upsertProfile(channelId: string, body: UpsertRelayChannelProbeProfileRequest, actorUserId: string) {
     const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     if (!isProbeableChannelType(channel.channelType)) throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针");
-    this.assertProbeChannelCompatibility(channel, body.probeFormat, body.probeModel);
     const existing = await this.repository.findProfile(channelId);
+    if (channel.channelType !== "pooled")
+      this.assertProbeChannelCompatibility(channel, body.probeFormat, body.probeModel);
     const probeEndpoint = body.probeEndpoint ?? normalizeProbeEndpoint(existing?.probeEndpoint, body.probeFormat);
     assertProbeEndpointCompatibility(probeEndpoint, body.probeFormat);
     const cacheMode: RelayChannelProbeCacheMode =
@@ -787,30 +906,29 @@ export class RelayChannelProbeService {
       ? cacheMode === "cache-bust"
       : (body.preventCache ?? existing?.preventCache ?? true);
     const encrypted = body.credentials ? this.encryptCredentials(body.credentials) : undefined;
-    const memberCredentials = body.memberCredentials
-      ? Object.fromEntries(
-          Object.entries(body.memberCredentials).map(([memberId, credentials]) => [memberId, credentials]),
-        )
-      : undefined;
-    const encryptedMemberCredentials = memberCredentials ? this.encryptCredentials(memberCredentials) : undefined;
+    let encryptedMemberCredentials: { ciphertext: string; iv: string; authTag: string } | undefined;
     if (channel.channelType === "pooled") {
       if (body.credentials) throw new BadRequestError("逻辑混池必须按物理成员配置探针凭据");
-      const pooled = await this.relayChannelRepository.findVisibleById(channelId);
-      const activeMemberIds = (
-        (pooled as (RelayChannel & { pooledChildren?: RelayChannel[] }) | null)?.pooledChildren ?? []
-      )
-        .filter(
-          (member: RelayChannel) =>
-            member.channelType === "pooled-member" &&
-            member.status === RELAY_CHANNEL_STATUS.ENABLED &&
-            member.providerServiceEnabled !== false &&
-            member.pooledMemberEnabled !== false,
-        )
-        .map((member: RelayChannel) => member.id);
-      const supplied = memberCredentials ? new Set(Object.keys(memberCredentials)) : undefined;
-      if (!existing && !supplied) throw new BadRequestError("首次配置逻辑混池探针必须提供各物理成员凭据");
-      if (supplied && activeMemberIds.some((memberId: string) => !supplied.has(memberId)))
+      const members = await this.resolvePoolMembers(channelId);
+      const activeMembers = members.filter(
+        (member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel),
+      );
+      if (!activeMembers.length) throw new BadRequestError("逻辑混池没有可用的物理成员用于探针");
+      const memberIds = new Set(members.map((member) => member.channel.id));
+      const existingCredentials = existing ? this.tryDecryptCredentials(existing) : {};
+      if (body.memberCredentials && Object.keys(body.memberCredentials).some((id) => !memberIds.has(id)))
+        throw new BadRequestError("逻辑混池包含无效的物理成员探针凭据");
+      const mergedCredentials = { ...existingCredentials, ...(body.memberCredentials ?? {}) };
+      if (!existing && !body.memberCredentials) throw new BadRequestError("首次配置逻辑混池探针必须提供各物理成员凭据");
+      if (activeMembers.some((member) => !mergedCredentials[member.channel.id]))
         throw new BadRequestError("逻辑混池缺少启用物理成员的探针凭据");
+      encryptedMemberCredentials = this.encryptCredentials(
+        Object.fromEntries(
+          [...memberIds].flatMap((memberId) =>
+            mergedCredentials[memberId] ? [[memberId, mergedCredentials[memberId]]] : [],
+          ),
+        ),
+      );
     } else if (body.memberCredentials) {
       throw new BadRequestError("仅逻辑混池可按成员配置探针凭据");
     } else if (!existing && !encrypted) {
@@ -886,16 +1004,19 @@ export class RelayChannelProbeService {
   }
 
   /** Cancels stuck queued/running work and releases its queue slot without changing the probe profile. */
-  async resetRunState(channelId: string, actorUserId: string): Promise<void> {
+  async resetRunState(channelId: string, actorUserId: string, memberChannelId?: string): Promise<void> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-    const runIds = await this.repository.cancelActiveRuns(channelId, "探针任务已由操作人员重置");
+    if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
+    const runIds = await this.repository.cancelActiveRuns(channelId, "探针任务已由操作人员重置", memberChannelId);
     await Promise.all(
-      runIds.map((runId) => this.redis.deleteIfValueMatches(this.getRunQueueSlotKey(channelId), runId)),
+      runIds.map((runId) =>
+        this.redis.deleteIfValueMatches(this.getRunQueueSlotKey(channelId, memberChannelId), runId),
+      ),
     );
     // A process restart can leave only the Redis reservation behind. At this point
     // all persisted active runs have been cancelled, so force-release the exact
     // channel slot even when there was no matching database row.
-    await this.redis.delete(this.getRunQueueSlotKey(channelId));
+    await this.redis.delete(this.getRunQueueSlotKey(channelId, memberChannelId));
   }
 
   async createRun(
@@ -907,16 +1028,23 @@ export class RelayChannelProbeService {
     const profile = await this.repository.findProfileWithChannel(channelId);
     if (!profile) throw new NotFoundError("渠道探针档案不存在");
     if (!profile.enabled) throw new BadRequestError("渠道探针已停用");
-    this.assertProbeChannelCompatibility(channel, profile.probeFormat, profile.probeModel);
     const probeEndpoint = normalizeProbeEndpoint(profile.probeEndpoint, profile.probeFormat as ProbeFormat);
     if (!isProbeableChannelType(profile.relayChannel.channelType as RelayChannelType))
       throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针");
-    const active = await this.repository.findActiveRun(channelId);
+    const executionChannel =
+      profile.relayChannel.channelType === "pooled"
+        ? await this.assertPoolMember(channelId, body.memberChannelId)
+        : profile.relayChannel;
+    if (profile.relayChannel.channelType !== "pooled" && body.memberChannelId)
+      throw new BadRequestError("仅逻辑混池可指定物理成员探针目标");
+    this.assertProbeRelayChannelCompatibility(executionChannel, profile.probeFormat, profile.probeModel);
+    const memberChannelId = profile.relayChannel.channelType === "pooled" ? executionChannel.id : null;
+    const active = await this.repository.findActiveRun(channelId, memberChannelId);
     if (active) throw new ConflictError("该渠道已有探针任务正在排队或执行");
     if (!this.redis.isRedisAvailable())
       throw new LockBackendUnavailableError("Relay channel probe queue backend unavailable");
     const reservationId = randomUUID();
-    const queueKey = this.getRunQueueSlotKey(channelId);
+    const queueKey = this.getRunQueueSlotKey(channelId, memberChannelId || undefined);
     const reserved = await this.redis.setIfNotExists(queueKey, reservationId, RUN_QUEUE_SLOT_TTL_MS);
     if (reserved === null) throw new LockBackendUnavailableError("Relay channel probe queue backend unavailable");
     if (!reserved) throw new ConflictError("该渠道已有探针任务正在排队或执行");
@@ -924,6 +1052,8 @@ export class RelayChannelProbeService {
     try {
       const run = await this.repository.createRun({
         relayChannelId: channelId,
+        probeMemberChannelId: memberChannelId,
+        probeMemberChannelName: memberChannelId ? executionChannel.name : null,
         profileId: profile.id,
         requestedByUserId: actorUserId,
         distributionMultiplier: body.distributionMultiplier ?? profile.distributionMultiplier,
@@ -955,16 +1085,33 @@ export class RelayChannelProbeService {
     actorUserId: string,
   ): Promise<CreateRelayChannelProbeRunsResponse> {
     const queued: RelayChannelProbeRunDto[] = [];
-    const rejected: Array<{ channelId: string; reason: string }> = [];
+    const rejected: Array<{ channelId: string; memberChannelId?: string; reason: string }> = [];
+    const targets: RelayChannelProbeTargetDto[] = [...(body.targets ?? [])];
+    for (const channelId of body.channelIds ?? []) {
+      try {
+        const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
+        if (channel.channelType === "pooled") {
+          const members = await this.resolvePoolMembers(channelId);
+          targets.push(
+            ...members
+              .filter((member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel))
+              .map((member) => ({ channelId, memberChannelId: member.channel.id })),
+          );
+        } else targets.push({ channelId });
+      } catch (error) {
+        rejected.push({ channelId, reason: error instanceof Error ? error.message : "探针任务创建失败" });
+      }
+    }
 
     // Queue one record at a time so a blocked or already-running channel never prevents
     // independent channels from being scheduled.
-    for (const channelId of body.channelIds) {
+    for (const target of targets) {
       try {
         queued.push(
           await this.createRun(
-            channelId,
+            target.channelId,
             {
+              memberChannelId: target.memberChannelId,
               distributionMultiplier: body.distributionMultiplier,
               forceWithoutCacheBuster: body.forceWithoutCacheBuster,
             },
@@ -973,7 +1120,8 @@ export class RelayChannelProbeService {
         );
       } catch (error) {
         rejected.push({
-          channelId,
+          channelId: target.channelId,
+          ...(target.memberChannelId ? { memberChannelId: target.memberChannelId } : {}),
           reason: error instanceof Error ? error.message : "探针任务创建失败",
         });
       }
@@ -1035,9 +1183,10 @@ export class RelayChannelProbeService {
     return { copied, rejected };
   }
 
-  async listRuns(channelId: string, actorUserId: string, page = 1, pageSize = 20) {
+  async listRuns(channelId: string, actorUserId: string, page = 1, pageSize = 20, memberChannelId?: string) {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-    const result = await this.repository.listRuns(channelId, page, pageSize);
+    if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
+    const result = await this.repository.listRuns(channelId, page, pageSize, memberChannelId);
     return { items: result.items.map((record) => this.toRunDto(record)), total: result.total, page, pageSize };
   }
 
@@ -1045,9 +1194,11 @@ export class RelayChannelProbeService {
     channelId: string,
     scope: RelayChannelProbeRunHistoryScope,
     actorUserId: string,
+    memberChannelId?: string,
   ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-    const result = await this.repository.clearRunHistory(channelId, scope);
+    if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
+    const result = await this.repository.clearRunHistory(channelId, scope, memberChannelId);
     return { deleted: result.count };
   }
 
@@ -1087,6 +1238,7 @@ export class RelayChannelProbeService {
         ) {
           const previous = await this.repository.findRecentVerifiedRuns(
             run.relayChannelId,
+            run.probeMemberChannelId,
             run.id,
             new Date(Date.now() - SUGGESTION_MAX_AGE_MS),
           );
@@ -1189,9 +1341,10 @@ export class RelayChannelProbeService {
     try {
       const profile = run.profile;
       const pricing = await this.resolveProbeModelPricing(profile);
+      const lockChannelId = run.probeMemberChannelId || profile.relayChannelId;
       const executeSamples = () =>
         this.channelLockService.withWrite(
-          profile.relayChannelId,
+          lockChannelId,
           () => this.executeSamples(profile, run, pricing),
           PROBE_LOCK_ACQUIRE_TIMEOUT_MS,
         );
@@ -1250,7 +1403,10 @@ export class RelayChannelProbeService {
     } finally {
       clearInterval(leaseHeartbeat);
       await this.redis
-        .deleteIfValueMatches(this.getRunQueueSlotKey(run.profile.relayChannelId), runId)
+        .deleteIfValueMatches(
+          this.getRunQueueSlotKey(run.profile.relayChannelId, run.probeMemberChannelId || undefined),
+          runId,
+        )
         .catch(() => null);
     }
   }
@@ -1269,7 +1425,7 @@ export class RelayChannelProbeService {
     const balanceReads = profile.balanceSettlementReads;
     for (let index = 0; index < run.sampleCount; index += 1) {
       try {
-        const executionChannel = this.resolveProbeExecutionChannel(profile, index);
+        const executionChannel = this.resolveProbeExecutionChannel(profile, run.probeMemberChannelId);
         const variables = this.resolveProbeVariables(profile, executionChannel.id);
         const cacheBusterId = run.cacheMode === "allow-cache" ? undefined : randomUUID();
         if (run.cacheMode === "warm-and-read") {
@@ -1765,19 +1921,21 @@ export class RelayChannelProbeService {
     return parsed as Record<string, unknown>;
   }
 
-  private resolveProbeExecutionChannel(profile: ProbeProfileRecord, sampleIndex: number) {
+  private resolveProbeExecutionChannel(profile: ProbeProfileRecord, memberChannelId: string | null) {
     if (profile.relayChannel.channelType !== "pooled") return profile.relayChannel;
-    const members = (
-      (profile.relayChannel as RelayChannel & { pooledChildren?: RelayChannel[] }).pooledChildren ?? []
-    ).filter(
-      (member) =>
-        member.channelType === "pooled-member" &&
-        member.status === RELAY_CHANNEL_STATUS.ENABLED &&
-        member.providerServiceEnabled !== false &&
-        member.pooledMemberEnabled !== false,
+    if (!memberChannelId) throw new BadRequestError("逻辑混池探针缺少物理成员目标");
+    const pooled = profile.relayChannel as RelayChannelWithProbeMembers;
+    const strictMembers = pooled.pooledChildren ?? [];
+    const members = strictMembers.length
+      ? strictMembers
+      : (pooled.poolMembers ?? [])
+          .filter((edge) => edge.enabled && edge.memberChannel && this.isEnabledProbeMember(edge.memberChannel))
+          .map((edge) => edge.memberChannel!);
+    const member = members.find(
+      (candidate) => candidate.id === memberChannelId && this.isEnabledProbeMember(candidate),
     );
-    if (!members.length) throw new BadRequestError("逻辑混池没有可用的物理成员用于探针");
-    return members[sampleIndex % members.length]!;
+    if (!member) throw new BadRequestError("逻辑混池物理成员已不可用");
+    return member;
   }
 
   private resolveProbeVariables(profile: ProbeProfileRecord, memberId: string): Record<string, string> {
@@ -1824,6 +1982,8 @@ export class RelayChannelProbeService {
     return {
       id: run.id,
       relayChannelId: run.relayChannelId,
+      probeMemberChannelId: run.probeMemberChannelId || undefined,
+      probeMemberChannelName: run.probeMemberChannelName || undefined,
       profileId: run.profileId || undefined,
       status: run.status as RelayChannelProbeRunDto["status"],
       queuedAt: run.queuedAt,
@@ -1934,7 +2094,7 @@ export class RelayChannelProbeService {
     await this.repository.deleteRunsBefore(new Date(Date.now() - RUN_RETENTION_MS));
   }
 
-  private getRunQueueSlotKey(channelId: string): string {
-    return `${RUN_QUEUE_SLOT_PREFIX}:${channelId}`;
+  private getRunQueueSlotKey(channelId: string, memberChannelId?: string): string {
+    return `${RUN_QUEUE_SLOT_PREFIX}:${channelId}:${memberChannelId || "channel"}`;
   }
 }

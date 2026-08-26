@@ -1,4 +1,4 @@
-import type { RelayChannelVisibilityMode } from "@/api/dto/relay/relay-channel.dto";
+import type { RelayChannelType, RelayChannelVisibilityMode } from "@/api/dto/relay/relay-channel.dto";
 import type { RelayConfiguredRequestFormat, RelayProbeFormat } from "@appserver/shared";
 
 export type RelayChannelProbeFormat = RelayProbeFormat;
@@ -91,6 +91,8 @@ export interface UpsertRelayChannelProbeProfileRequest {
 }
 
 export interface CreateRelayChannelProbeRunRequest {
+  /** Physical member to probe when the channel is a logical pool. */
+  memberChannelId?: string;
   distributionMultiplier?: number;
   /** Continue only when cache-buster injection cannot be applied to the configured payload. */
   forceWithoutCacheBuster?: boolean;
@@ -102,9 +104,22 @@ export interface ClearRelayChannelProbeRunHistoryResponse {
   deleted: number;
 }
 
-/** Queues one probe per standalone channel. Individual channels may be rejected without cancelling the batch. */
+export interface RelayChannelProbeTargetDto {
+  channelId: string;
+  /** Required for an individual member of a logical pooled channel. */
+  memberChannelId?: string;
+}
+
+/** Optional physical member filter for an operation scoped to one logical pool. */
+export interface RelayChannelProbeMemberTargetDto {
+  memberChannelId?: string;
+}
+
+/** Queues one probe per explicit channel/member target. Individual targets may be rejected without cancelling the batch. */
 export interface CreateRelayChannelProbeRunsRequest {
-  channelIds: string[];
+  /** Legacy target list. A pooled channel expands to its active members. */
+  channelIds?: string[];
+  targets?: RelayChannelProbeTargetDto[];
   distributionMultiplier?: number;
   forceWithoutCacheBuster?: boolean;
 }
@@ -127,7 +142,7 @@ export interface RelayChannelProbeCostBreakdownDto {
 
 export interface CreateRelayChannelProbeRunsResponse {
   queued: RelayChannelProbeRunDto[];
-  rejected: Array<{ channelId: string; reason: string }>;
+  rejected: Array<{ channelId: string; memberChannelId?: string; reason: string }>;
 }
 
 /** Copies a saved probe profile, including its encrypted workflow credentials, to standalone channels. */
@@ -146,6 +161,9 @@ export interface CopyRelayChannelProbeProfileResponse {
 export interface RelayChannelProbeRunDto {
   id: string;
   relayChannelId: string;
+  /** Physical account used by this run when relayChannelId is a logical pool. */
+  probeMemberChannelId?: string;
+  probeMemberChannelName?: string;
   profileId?: string;
   status: RelayChannelProbeRunStatus;
   queuedAt: Date;
@@ -238,6 +256,7 @@ export interface RelayChannelProbeCustomerFacingTargetDto {
 export interface RelayChannelProbeOverviewItemDto {
   channelId: string;
   channelName: string;
+  channelType: RelayChannelType;
   enabled: boolean;
   /** Visibility of the standalone upstream channel itself. */
   visibilityMode: RelayChannelVisibilityMode;
@@ -252,6 +271,18 @@ export interface RelayChannelProbeOverviewItemDto {
   /** Explicit model allow-list for the channel. Empty means no channel-level model allow-list. */
   allowedProbeModels: string[];
   profile?: RelayChannelProbeProfileDto;
+  latestRun?: RelayChannelProbeRunDto;
+  /** Physical accounts that can be independently probed from this logical pool. */
+  members?: RelayChannelProbeMemberDto[];
+}
+
+export interface RelayChannelProbeMemberDto {
+  channelId: string;
+  channelName: string;
+  enabled: boolean;
+  hasCredentials: boolean;
+  compatible: boolean;
+  incompatibilityReason?: string;
   latestRun?: RelayChannelProbeRunDto;
 }
 

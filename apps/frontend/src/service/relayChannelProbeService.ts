@@ -54,8 +54,11 @@ class RelayChannelProbeService {
     return checkApiResult<any>(await api.createRun({ path: { channelId }, body }), true).data
   }
 
-  async resetRunState(channelId: string): Promise<void> {
-    checkApiResult(await api.resetRunState({ path: { channelId } }), false)
+  async resetRunState(channelId: string, memberChannelId?: string): Promise<void> {
+    checkApiResult(
+      await api.resetRunState({ path: { channelId }, body: { memberChannelId } }),
+      false,
+    )
   }
 
   async createRuns(body: CreateRelayChannelProbeRunsRequest) {
@@ -70,16 +73,16 @@ class RelayChannelProbeService {
     return checkApiResult<any>(await api.copyProfile({ body }), true).data
   }
 
-  async listRuns(channelId: string, page = 1, pageSize = 20) {
+  async listRuns(channelId: string, page = 1, pageSize = 20, memberChannelId?: string) {
     return checkApiResult<any>(
-      await api.listRuns({ path: { channelId }, params: { page, pageSize } }),
+      await api.listRuns({ path: { channelId }, params: { page, pageSize, memberChannelId } }),
       true,
     ).data
   }
 
-  async clearRunHistory(channelId: string, scope: 'all' | 'failed') {
+  async clearRunHistory(channelId: string, scope: 'all' | 'failed', memberChannelId?: string) {
     return checkApiResult<any>(
-      await api.clearRunHistory({ path: { channelId }, params: { scope } }),
+      await api.clearRunHistory({ path: { channelId }, params: { scope, memberChannelId } }),
       true,
     ).data
   }

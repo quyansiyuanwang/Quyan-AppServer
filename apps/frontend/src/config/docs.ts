@@ -50,6 +50,7 @@ const docsRouteToSlug = {
   relayTokenManagement: 'relay-token-management',
   apiDocumentation: 'api-documentation',
   relaySettings: 'relay-settings',
+  relayChannelProbes: 'relay-channel-probes',
   relayChannelProvider: 'channel-provider-revenue',
   upstreamStatus: 'upstream-status',
   remoteTerminal: 'remote-terminal',
