@@ -3310,6 +3310,7 @@ const zhCN: DeepStringify<typeof en> = {
     channelProbeWorkflow: '余额工作流',
     channelProbeCredentials: '探针凭据',
     channelProbeCredentialsHelp: '仅在新增或更新凭据时填写，保存后仅显示变量名。',
+    channelProbeSourceMember: '来源账号',
     channelProbeDistribution: '分销倍率',
     channelProbeUpstreamDelta: '上游余额变化',
     channelProbeStatusQueued: '排队中',

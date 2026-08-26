@@ -3,6 +3,13 @@ import { RELAY_PROBE_FORMATS } from "@appserver/shared";
 
 const variablePathSchema = z.string().trim().min(1).max(200);
 const credentialMapSchema = z.record(z.string().trim().min(1).max(80), z.string().min(1).max(2000));
+const memberCredentialMapSchema = z
+  .record(z.string().trim().min(1).max(100), credentialMapSchema)
+  .refine((value) => Object.keys(value).length <= 200, "Too many member credential entries");
+const probeTargetSchema = z.object({
+  channelId: z.string().trim().min(1),
+  memberChannelId: z.string().trim().min(1).optional(),
+});
 const probeEndpointSchema = z.enum([
   "openai-chat-completions",
   "openai-responses",
@@ -42,9 +49,14 @@ export const relayChannelProbeRunParamsSchema = z.object({ runId: z.string().tri
 export const relayChannelProbeRunsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(10_000).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  memberChannelId: z.string().trim().min(1).optional(),
 });
 export const clearRelayChannelProbeRunHistoryQuerySchema = z.object({
   scope: z.enum(["all", "failed"]),
+  memberChannelId: z.string().trim().min(1).optional(),
+});
+export const relayChannelProbeMemberBodySchema = z.object({
+  memberChannelId: z.string().trim().min(1).optional(),
 });
 export const upsertRelayChannelProbeProfileBodySchema = z
   .object({
@@ -84,6 +96,7 @@ export const upsertRelayChannelProbeProfileBodySchema = z
     distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
     workflow: z.array(workflowStepSchema).min(1).max(3),
     credentials: credentialMapSchema.optional(),
+    memberCredentials: memberCredentialMapSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.workflow.filter((step) => step.balancePath).length !== 1)
@@ -103,18 +116,34 @@ export const upsertRelayChannelProbeProfileBodySchema = z
       });
   });
 export const createRelayChannelProbeRunBodySchema = z.object({
+  memberChannelId: z.string().trim().min(1).optional(),
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
   forceWithoutCacheBuster: z.boolean().optional(),
 });
-export const createRelayChannelProbeRunsBodySchema = z.object({
-  channelIds: z
-    .array(z.string().trim().min(1))
-    .min(1)
-    .max(100)
-    .refine((ids) => new Set(ids).size === ids.length),
-  distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
-  forceWithoutCacheBuster: z.boolean().optional(),
-});
+export const createRelayChannelProbeRunsBodySchema = z
+  .object({
+    channelIds: z
+      .array(z.string().trim().min(1))
+      .min(1)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length)
+      .optional(),
+    targets: z
+      .array(probeTargetSchema)
+      .min(1)
+      .max(200)
+      .refine(
+        (targets) =>
+          new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size ===
+          targets.length,
+      )
+      .optional(),
+    distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
+    forceWithoutCacheBuster: z.boolean().optional(),
+  })
+  .refine((value) => Boolean(value.channelIds?.length || value.targets?.length), {
+    message: "At least one channelId or target is required",
+  });
 export const copyRelayChannelProbeProfileBodySchema = z
   .object({
     sourceChannelId: z.string().trim().min(1),

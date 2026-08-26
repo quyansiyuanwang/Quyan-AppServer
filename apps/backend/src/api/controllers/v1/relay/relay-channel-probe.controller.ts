@@ -28,6 +28,7 @@ import {
   createRelayChannelProbeRunBodySchema,
   createRelayChannelProbeRunsBodySchema,
   relayChannelProbeChannelParamsSchema,
+  relayChannelProbeMemberBodySchema,
   relayChannelProbeRunsQuerySchema,
   upsertRelayChannelProbeProfileBodySchema,
 } from "@/api/schema/relay/relay-channel-probe.schema";
@@ -45,6 +46,7 @@ import type {
   RelayChannelProbeRunDto,
   RelayChannelProbeRunHistoryScope,
   RelayChannelProbeRunPageDto,
+  RelayChannelProbeMemberTargetDto,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
 
@@ -130,10 +132,15 @@ export class RelayChannelProbeController extends Controller {
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     validateParams(relayChannelProbeChannelParamsSchema),
+    validateBody(relayChannelProbeMemberBodySchema),
     replayProtectionMiddleware,
   )
-  public async resetRunState(@Path() channelId: string, @Request() request: TypedRequest): Promise<void> {
-    await this.service.resetRunState(channelId, request.user!.userId);
+  public async resetRunState(
+    @Path() channelId: string,
+    @Body() body: RelayChannelProbeMemberTargetDto,
+    @Request() request: TypedRequest,
+  ): Promise<void> {
+    await this.service.resetRunState(channelId, request.user!.userId, body.memberChannelId);
     this.setStatus(204);
   }
 
@@ -181,8 +188,9 @@ export class RelayChannelProbeController extends Controller {
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
+    @Query() memberChannelId?: string,
   ): Promise<RelayChannelProbeRunPageDto> {
-    return this.service.listRuns(channelId, request.user!.userId, page, pageSize);
+    return this.service.listRuns(channelId, request.user!.userId, page, pageSize, memberChannelId);
   }
 
   @Delete("{channelId}/runs")
@@ -200,8 +208,9 @@ export class RelayChannelProbeController extends Controller {
     @Path() channelId: string,
     @Query() scope: RelayChannelProbeRunHistoryScope,
     @Request() request: TypedRequest,
+    @Query() memberChannelId?: string,
   ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
-    return this.service.clearRunHistory(channelId, scope, request.user!.userId);
+    return this.service.clearRunHistory(channelId, scope, request.user!.userId, memberChannelId);
   }
 
   @Post("runs/apply")

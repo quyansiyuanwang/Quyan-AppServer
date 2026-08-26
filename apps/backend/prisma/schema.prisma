@@ -1184,6 +1184,8 @@ model RelayChannelProbeProfile {
 model RelayChannelProbeRun {
   id                          String    @id @default(cuid())
   relayChannelId              String
+  probeMemberChannelId        String?
+  probeMemberChannelName      String?   @db.VarChar(100)
   profileId                   String?
   requestedByUserId           String
   status                      String    @default("queued") @db.VarChar(20)
@@ -1243,6 +1245,7 @@ model RelayChannelProbeRun {
   profile      RelayChannelProbeProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
 
   @@index([relayChannelId, status])
+  @@index([relayChannelId, probeMemberChannelId, status])
   @@index([profileId, createTime])
   @@index([status, leaseExpiresAt])
   @@index([createTime])

@@ -78,7 +78,7 @@
       v-if="canExecute"
       type="primary"
       plain
-      :disabled="runnableChannelIds.length === 0"
+      :disabled="runnableTargets.length === 0"
       :loading="batchRunning"
       @click="confirmBatchRun"
       >{{ i18ns.t('relay.channelProbeBatchRun') }}</el-button
@@ -104,6 +104,70 @@
     class="w-full"
     @selection-change="onSelectionChange"
   >
+    <el-table-column type="expand" width="44">
+      <template #default="{ row }">
+        <el-table v-if="row.channelType === 'pooled'" :data="row.members ?? []" size="small">
+          <el-table-column
+            prop="channelName"
+            :label="i18ns.t('relay.channelName')"
+            min-width="180"
+          />
+          <el-table-column :label="i18ns.t('status')" width="112">
+            <template #default="{ row: member }">
+              <el-tag size="small" :type="member.enabled ? 'success' : 'info'">
+                {{ member.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.channelProbeConfigured')" width="128">
+            <template #default="{ row: member }">
+              <el-tag size="small" :type="member.hasCredentials ? 'success' : 'warning'">
+                {{ member.hasCredentials ? i18ns.t('yes') : i18ns.t('no') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('relay.channelProbeLatest')" width="128">
+            <template #default="{ row: member }">
+              {{ member.latestRun ? statusLabel(member.latestRun.status) : '-' }}
+            </template>
+          </el-table-column>
+          <el-table-column :label="i18ns.t('actions')" width="260" fixed="right">
+            <template #default="{ row: member }">
+              <el-button link type="primary" @click="openMemberDrawer(row, member)">
+                {{ i18ns.t('relay.channelProbeManage') }}
+              </el-button>
+              <el-button
+                v-if="canExecute"
+                link
+                type="primary"
+                :disabled="
+                  !row.profile || !member.enabled || !member.compatible || !member.hasCredentials
+                "
+                :loading="runningId === `${row.channelId}:${member.channelId}`"
+                @click="run(row, member.channelId)"
+                >{{ i18ns.t('relay.channelProbeRun') }}</el-button
+              >
+              <el-button
+                v-if="canExecute"
+                link
+                type="warning"
+                :loading="resettingChannelId === `${row.channelId}:${member.channelId}`"
+                @click="confirmResetRunState(row, member.channelId)"
+                >{{ i18ns.t('relay.channelProbeResetState') }}</el-button
+              >
+              <el-button
+                v-if="canAdjust"
+                link
+                type="success"
+                :disabled="!isApplicable(member.latestRun)"
+                @click="confirmApply([member.latestRun!.id])"
+                >{{ i18ns.t('relay.channelProbeApply') }}</el-button
+              >
+            </template>
+          </el-table-column>
+        </el-table>
+      </template>
+    </el-table-column>
     <el-table-column type="selection" width="46" :selectable="canSelectRow" />
     <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="180" />
     <el-table-column :label="i18ns.t('status')" width="108"
@@ -139,19 +203,34 @@
           i18ns.t('relay.channelProbeManage')
         }}</el-button>
         <el-button
-          v-if="canExecute"
+          v-if="canExecute && row.channelType !== 'pooled'"
           link
           type="primary"
           :disabled="!row.profile || !row.enabled"
-          :loading="runningId === row.channelId"
+          :loading="runningId === `${row.channelId}:`"
           @click="run(row)"
           >{{ i18ns.t('relay.channelProbeRun') }}</el-button
+        >
+        <el-button
+          v-if="canExecute && row.channelType === 'pooled'"
+          link
+          type="primary"
+          :disabled="
+            !row.profile ||
+            !(row.members ?? []).some(
+              (member: RelayChannelProbeMemberDto) =>
+                member.enabled && member.compatible && member.hasCredentials,
+            )
+          "
+          :loading="batchRunning"
+          @click="confirmRunAllMembers(row)"
+          >{{ i18ns.t('relay.channelProbeBatchRun') }}</el-button
         >
         <el-button
           v-if="canExecute"
           link
           type="warning"
-          :loading="resettingChannelId === row.channelId"
+          :loading="resettingChannelId === `${row.channelId}:`"
           @click="confirmResetRunState(row)"
           >{{ i18ns.t('relay.channelProbeResetState') }}</el-button
         >
@@ -174,6 +253,7 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
+import type { RelayChannelProbeMemberDto } from '@/client/types.gen'
 import { useRelayChannelProbeManagementContext } from '../context'
 
 const {
@@ -185,6 +265,7 @@ const {
   canSelectRow,
   changeDialogOpen,
   confirmApply,
+  confirmRunAllMembers,
   confirmBatchRun,
   confirmResetRunState,
   enabledFilter,
@@ -197,6 +278,7 @@ const {
   onSelectionChange,
   openBatchProfileDialog,
   openDrawer,
+  openMemberDrawer,
   pageError,
   profileFilter,
   resettingChannelId,
@@ -204,7 +286,7 @@ const {
   runStatuses,
   runStatusFilter,
   runningId,
-  runnableChannelIds,
+  runnableTargets,
   selectedRows,
   selectedRuns,
   statusLabel,

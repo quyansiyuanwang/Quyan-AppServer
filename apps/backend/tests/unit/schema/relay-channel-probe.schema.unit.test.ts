@@ -114,6 +114,33 @@ describe("relay channel probe schemas", () => {
     ).toBe(true);
   });
 
+  it("accepts member credentials and explicit pooled-member targets without changing legacy batches", () => {
+    expect(
+      upsertRelayChannelProbeProfileBodySchema.safeParse({
+        ...validProfile,
+        memberCredentials: { "member-a": { token: "secret-value" } },
+      }).success,
+    ).toBe(true);
+    expect(
+      createRelayChannelProbeRunsBodySchema.safeParse({
+        targets: [{ channelId: "pool-a", memberChannelId: "member-a" }],
+      }).success,
+    ).toBe(true);
+    expect(createRelayChannelProbeRunsBodySchema.safeParse({ channelIds: ["standalone-a"] }).success).toBe(true);
+  });
+
+  it("rejects duplicate member targets and requests without a target", () => {
+    expect(
+      createRelayChannelProbeRunsBodySchema.safeParse({
+        targets: [
+          { channelId: "pool-a", memberChannelId: "member-a" },
+          { channelId: "pool-a", memberChannelId: "member-a" },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(createRelayChannelProbeRunsBodySchema.safeParse({}).success).toBe(false);
+  });
+
   it("accepts bounded profile copy targets but rejects copying onto the source", () => {
     expect(
       copyRelayChannelProbeProfileBodySchema.safeParse({

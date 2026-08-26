@@ -3432,6 +3432,7 @@ export default {
     channelProbeCredentials: 'Probe credentials',
     channelProbeCredentialsHelp:
       'Only enter credentials to create or replace them; saved values remain masked.',
+    channelProbeSourceMember: 'Source account',
     channelProbeDistribution: 'Distribution multiplier',
     channelProbeUpstreamDelta: 'Upstream balance change',
     channelProbeStatusQueued: 'Queued',

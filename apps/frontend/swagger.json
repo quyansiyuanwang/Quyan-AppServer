@@ -19386,6 +19386,14 @@
 							"format": "double",
 							"type": "number"
 						}
+					},
+					{
+						"in": "query",
+						"name": "memberChannelId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			},
@@ -19427,6 +19435,14 @@
 						"schema": {
 							"$ref": "#/components/schemas/RelayChannelProbeRunHistoryScope"
 						}
+					},
+					{
+						"in": "query",
+						"name": "memberChannelId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			}
@@ -19457,6 +19473,16 @@
 						}
 					}
 				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RelayChannelProbeMemberTargetDto"
+							}
+						}
+					}
+				},
 				"X-Replay-Protected": true,
 				"X-Two-Factor-Challenge": {
 					"required": true,
@@ -48785,6 +48811,13 @@
 					"relayChannelId": {
 						"type": "string"
 					},
+					"probeMemberChannelId": {
+						"type": "string",
+						"description": "Physical account used by this run when relayChannelId is a logical pool."
+					},
+					"probeMemberChannelName": {
+						"type": "string"
+					},
 					"profileId": {
 						"type": "string"
 					},
@@ -49027,6 +49060,40 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelProbeMemberDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"hasCredentials": {
+						"type": "boolean"
+					},
+					"compatible": {
+						"type": "boolean"
+					},
+					"incompatibilityReason": {
+						"type": "string"
+					},
+					"latestRun": {
+						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+					}
+				},
+				"required": [
+					"channelId",
+					"channelName",
+					"enabled",
+					"hasCredentials",
+					"compatible"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelProbeOverviewItemDto": {
 				"properties": {
 					"channelId": {
@@ -49034,6 +49101,9 @@
 					},
 					"channelName": {
 						"type": "string"
+					},
+					"channelType": {
+						"$ref": "#/components/schemas/RelayChannelType"
 					},
 					"enabled": {
 						"type": "boolean"
@@ -49072,11 +49142,19 @@
 					},
 					"latestRun": {
 						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+					},
+					"members": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeMemberDto"
+						},
+						"type": "array",
+						"description": "Physical accounts that can be independently probed from this logical pool."
 					}
 				},
 				"required": [
 					"channelId",
 					"channelName",
+					"channelType",
 					"enabled",
 					"visibilityMode",
 					"customerFacingTargets",
@@ -49191,6 +49269,10 @@
 			},
 			"CreateRelayChannelProbeRunRequest": {
 				"properties": {
+					"memberChannelId": {
+						"type": "string",
+						"description": "Physical member to probe when the channel is a logical pool."
+					},
 					"distributionMultiplier": {
 						"type": "number",
 						"format": "double"
@@ -49198,6 +49280,16 @@
 					"forceWithoutCacheBuster": {
 						"type": "boolean",
 						"description": "Continue only when cache-buster injection cannot be applied to the configured payload."
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeMemberTargetDto": {
+				"description": "Optional physical member filter for an operation scoped to one logical pool.",
+				"properties": {
+					"memberChannelId": {
+						"type": "string"
 					}
 				},
 				"type": "object",
@@ -49215,6 +49307,9 @@
 						"items": {
 							"properties": {
 								"reason": {
+									"type": "string"
+								},
+								"memberChannelId": {
 									"type": "string"
 								},
 								"channelId": {
@@ -49237,12 +49332,35 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelProbeTargetDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string",
+						"description": "Required for an individual member of a logical pooled channel."
+					}
+				},
+				"required": [
+					"channelId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"CreateRelayChannelProbeRunsRequest": {
-				"description": "Queues one probe per standalone channel. Individual channels may be rejected without cancelling the batch.",
+				"description": "Queues one probe per explicit channel/member target. Individual targets may be rejected without cancelling the batch.",
 				"properties": {
 					"channelIds": {
 						"items": {
 							"type": "string"
+						},
+						"type": "array",
+						"description": "Legacy target list. A pooled channel expands to its active members."
+					},
+					"targets": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeTargetDto"
 						},
 						"type": "array"
 					},
@@ -49254,9 +49372,6 @@
 						"type": "boolean"
 					}
 				},
-				"required": [
-					"channelIds"
-				],
 				"type": "object",
 				"additionalProperties": false
 			},
