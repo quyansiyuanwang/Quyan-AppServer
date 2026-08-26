@@ -8,7 +8,8 @@ import {
   type RelayChannelProbeManagementState,
 } from '@/views/relay/relay-channel-probe/useRelayChannelProbeManagement'
 
-const { listOverviewMock, listChannelsMock } = vi.hoisted(() => ({
+const { createRunsMock, listOverviewMock, listChannelsMock } = vi.hoisted(() => ({
+  createRunsMock: vi.fn(),
   listOverviewMock: vi.fn(),
   listChannelsMock: vi.fn(),
 }))
@@ -21,7 +22,7 @@ vi.mock('@/service/relayChannelProbeService', () => ({
     clearProfile: vi.fn(),
     createRun: vi.fn(),
     resetRunState: vi.fn(),
-    createRuns: vi.fn(),
+    createRuns: createRunsMock,
     copyProfile: vi.fn(),
     listRuns: vi.fn(),
     clearRunHistory: vi.fn(),
@@ -144,7 +145,9 @@ describe('useRelayChannelProbeManagement', () => {
 
   it('waits for a polling refresh to finish before scheduling the next one', async () => {
     vi.useFakeTimers()
-    let resolveRefresh: ((value: { hasCustomerFacingTargets: boolean; items: object[] }) => void) | undefined
+    let resolveRefresh:
+      | ((value: { hasCustomerFacingTargets: boolean; items: object[] }) => void)
+      | undefined
     const activeOverview = {
       hasCustomerFacingTargets: true,
       items: [createItem({ latestRun: { id: 'run-1', status: 'queued' } })],
@@ -172,6 +175,46 @@ describe('useRelayChannelProbeManagement', () => {
     expect(listOverviewMock).toHaveBeenCalledTimes(2)
     await vi.advanceTimersByTimeAsync(1)
     expect(listOverviewMock).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+  })
+
+  it('queues selected pooled members as explicit targets', async () => {
+    listOverviewMock.mockResolvedValue({
+      hasCustomerFacingTargets: true,
+      items: [
+        createItem({
+          channelId: 'pool-1',
+          channelType: 'pooled',
+          profile: { enabled: true },
+          members: [
+            {
+              channelId: 'member-available',
+              channelName: 'Available account',
+              enabled: true,
+              compatible: true,
+              hasCredentials: true,
+            },
+            {
+              channelId: 'member-disabled',
+              channelName: 'Disabled account',
+              enabled: false,
+              compatible: true,
+              hasCredentials: true,
+            },
+          ],
+        }),
+      ],
+    })
+    createRunsMock.mockResolvedValue({ queued: [], rejected: [] })
+
+    const { state, wrapper } = await mountComposable()
+    state.selectedRows.value = [state.items.value[0]!]
+    await state.confirmBatchRun()
+
+    expect(createRunsMock).toHaveBeenCalledWith({
+      targets: [{ channelId: 'pool-1', memberChannelId: 'member-available' }],
+      forceWithoutCacheBuster: false,
+    })
     wrapper.unmount()
   })
 })

@@ -3465,6 +3465,7 @@ const emoji: DeepStringify<typeof en> = {
     channelProbeWorkflow: '🔁',
     channelProbeCredentials: '🔐',
     channelProbeCredentialsHelp: '🔒',
+    channelProbeSourceMember: '👤',
     channelProbeDistribution: '📈',
     channelProbeUpstreamDelta: '💳',
     channelProbeStatusQueued: '⏳',

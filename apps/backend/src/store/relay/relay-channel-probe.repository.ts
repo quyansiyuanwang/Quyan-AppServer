@@ -31,7 +31,7 @@ export class RelayChannelProbeRepository {
     return prisma.relayChannelProbeRun.findMany({
       where: { relayChannelId: { in: channelIds } },
       orderBy: { createTime: "desc" },
-      distinct: ["relayChannelId"],
+      distinct: ["relayChannelId", "probeMemberChannelId"],
     });
   }
 
@@ -42,7 +42,7 @@ export class RelayChannelProbeRepository {
   public findProfileWithChannel(channelId: string): Promise<RelayChannelProbeProfileRecord | null> {
     return prisma.relayChannelProbeProfile.findUnique({
       where: { relayChannelId: channelId },
-      include: { relayChannel: { include: { pooledChildren: true } } },
+      include: { relayChannel: { include: { pooledChildren: true, poolMembers: { include: { memberChannel: true } } } } },
     });
   }
 
@@ -87,9 +87,13 @@ export class RelayChannelProbeRepository {
     return prisma.relayChannelProbeProfile.delete({ where: { relayChannelId: channelId } });
   }
 
-  public findActiveRun(channelId: string) {
+  public findActiveRun(channelId: string, memberChannelId?: string | null) {
     return prisma.relayChannelProbeRun.findFirst({
-      where: { relayChannelId: channelId, status: { in: ["queued", "running"] } },
+      where: {
+        relayChannelId: channelId,
+        status: { in: ["queued", "running"] },
+        ...(memberChannelId === undefined ? {} : { probeMemberChannelId: memberChannelId }),
+      },
     });
   }
 
@@ -97,8 +101,8 @@ export class RelayChannelProbeRepository {
     return prisma.relayChannelProbeRun.create({ data });
   }
 
-  public async listRuns(channelId: string, page: number, pageSize: number) {
-    const where = { relayChannelId: channelId };
+  public async listRuns(channelId: string, page: number, pageSize: number, memberChannelId?: string) {
+    const where = { relayChannelId: channelId, ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}) };
     const [total, items] = await prisma.$transaction([
       prisma.relayChannelProbeRun.count({ where }),
       prisma.relayChannelProbeRun.findMany({
@@ -112,11 +116,11 @@ export class RelayChannelProbeRepository {
   }
 
   /** Never removes queued/running work; emergency state reset owns those states. */
-  public clearRunHistory(channelId: string, scope: "all" | "failed"): Promise<{ count: number }> {
+  public clearRunHistory(channelId: string, scope: "all" | "failed", memberChannelId?: string): Promise<{ count: number }> {
     const statuses =
       scope === "failed" ? ["failed", "timed_out", "cancelled"] : ["succeeded", "failed", "timed_out", "cancelled"];
     return prisma.relayChannelProbeRun.deleteMany({
-      where: { relayChannelId: channelId, status: { in: statuses } },
+      where: { relayChannelId: channelId, status: { in: statuses }, ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}) },
     });
   }
 
@@ -127,10 +131,16 @@ export class RelayChannelProbeRepository {
     });
   }
 
-  public findRecentVerifiedRuns(channelId: string, excludingRunId: string, since: Date) {
+  public findRecentVerifiedRuns(
+    channelId: string,
+    memberChannelId: string | null,
+    excludingRunId: string,
+    since: Date,
+  ) {
     return prisma.relayChannelProbeRun.findMany({
       where: {
         relayChannelId: channelId,
+        probeMemberChannelId: memberChannelId,
         id: { not: excludingRunId },
         status: "succeeded",
         calibrationStatus: "verified",
@@ -185,11 +195,19 @@ export class RelayChannelProbeRepository {
   }
 
   public findRunWithProfile(runId: string): Promise<Prisma.RelayChannelProbeRunGetPayload<{
-    include: { profile: { include: { relayChannel: { include: { pooledChildren: true } } } } };
+    include: {
+      profile: {
+        include: { relayChannel: { include: { pooledChildren: true; poolMembers: { include: { memberChannel: true } } } } };
+      };
+    };
   }> | null> {
     return prisma.relayChannelProbeRun.findUnique({
       where: { id: runId },
-      include: { profile: { include: { relayChannel: { include: { pooledChildren: true } } } } },
+      include: {
+        profile: {
+          include: { relayChannel: { include: { pooledChildren: true, poolMembers: { include: { memberChannel: true } } } } },
+        },
+      },
     });
   }
 
@@ -211,10 +229,14 @@ export class RelayChannelProbeRepository {
     });
   }
 
-  public async cancelActiveRuns(channelId: string, message: string): Promise<string[]> {
+  public async cancelActiveRuns(channelId: string, message: string, memberChannelId?: string): Promise<string[]> {
     return prisma.$transaction(async (tx) => {
       const active = await tx.relayChannelProbeRun.findMany({
-        where: { relayChannelId: channelId, status: { in: ["queued", "running"] } },
+        where: {
+          relayChannelId: channelId,
+          status: { in: ["queued", "running"] },
+          ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}),
+        },
         select: { id: true },
       });
       if (!active.length) return [];

@@ -59,6 +59,9 @@
     >
       <el-table-column type="selection" width="46" reserve-selection />
       <el-table-column prop="channelName" :label="i18ns.t('relay.channelName')" min-width="140" />
+      <el-table-column :label="i18ns.t('relay.channelProbeSourceMember')" min-width="140">
+        <template #default="{ row }">{{ row.memberChannelName ?? '-' }}</template>
+      </el-table-column>
       <el-table-column :label="i18ns.t('relay.channelProbeCostFactors')" width="148" align="right">
         <template #default="{ row }">{{
           formatNumber(row.run.upstreamRateMultiplier) +

@@ -5,8 +5,8 @@
       v-if="canExecute"
       type="primary"
       :disabled="!selected?.profile"
-      :loading="runningId === selected?.channelId"
-      @click="selected && run(selected)"
+      :loading="runningId === `${selected?.channelId ?? ''}:${selectedMemberChannelId ?? ''}`"
+      @click="selected && run(selected, selectedMemberChannelId)"
       >{{ i18ns.t('relay.channelProbeRun') }}</el-button
     >
     <el-checkbox v-if="canExecute" v-model="forceWithoutCacheBuster" :disabled="runningId !== ''">
@@ -16,8 +16,10 @@
       v-if="canExecute && selected"
       type="warning"
       plain
-      :loading="resettingChannelId === selected?.channelId"
-      @click="selected && confirmResetRunState(selected)"
+      :loading="
+        resettingChannelId === `${selected?.channelId ?? ''}:${selectedMemberChannelId ?? ''}`
+      "
+      @click="selected && confirmResetRunState(selected, selectedMemberChannelId)"
       >{{ i18ns.t('relay.channelProbeResetState') }}</el-button
     >
     <el-button
@@ -56,6 +58,10 @@
       >
     </div>
     <el-descriptions :column="2" border size="small"
+      ><el-descriptions-item
+        v-if="runItem.probeMemberChannelName"
+        :label="i18ns.t('relay.channelProbeSourceMember')"
+        >{{ runItem.probeMemberChannelName }}</el-descriptions-item
       ><el-descriptions-item :label="i18ns.t('relay.channelProbeBalanceBefore')">{{
         formatNumber(runItem.upstreamBalanceBefore)
       }}</el-descriptions-item
@@ -244,6 +250,7 @@ const {
   runningId,
   sampleStatusLabel,
   selected,
+  selectedMemberChannelId,
   statusLabel,
   statusType,
   suggestionUnavailableReason,

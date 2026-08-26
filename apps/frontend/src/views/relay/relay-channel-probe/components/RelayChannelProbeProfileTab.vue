@@ -329,44 +329,85 @@
           </el-collapse>
         </section>
 
-        <div class="section-heading">
-          <strong>{{ i18ns.t('relay.channelProbeCredentials') }}</strong
-          ><span>{{ i18ns.t('relay.channelProbeCredentialsHelp') }}</span
-          ><el-button v-if="canExecute" link type="primary" @click="addCredential()">{{
-            i18ns.t('relay.channelProbeAddCredential')
-          }}</el-button>
-        </div>
-        <el-alert
-          v-if="credentialNames.length"
-          type="info"
-          :closable="false"
-          class="mb-3"
-          :title="
-            i18ns.t('relay.channelProbeSavedCredentials', {
-              names: credentialNames.join(', '),
-            })
-          "
-        />
-        <div v-for="(credential, index) in credentials" :key="credential.id" class="credential-row">
-          <el-input
-            v-model.trim="credential.name"
-            :disabled="!canExecute"
-            :placeholder="i18ns.t('relay.channelProbeCredentialName')"
-          /><el-input
-            v-model="credential.value"
-            type="password"
-            show-password
-            :disabled="!canExecute"
-            :placeholder="i18ns.t('relay.channelProbeCredentialValue')"
-          /><el-button
-            v-if="canExecute"
-            :icon="Delete"
-            circle
-            plain
-            type="danger"
-            @click="credentials.splice(index, 1)"
+        <template v-if="selected?.channelType === 'pooled'">
+          <div class="section-heading">
+            <strong>{{ i18ns.t('relay.channelProbeCredentials') }}</strong
+            ><span>{{ i18ns.t('relay.channelProbeCredentialsHelp') }}</span>
+          </div>
+          <section v-for="member in memberCredentials" :key="member.memberChannelId" class="workflow-step">
+            <header class="workflow-step-header">
+              <div class="workflow-step-title">
+                <strong>{{ member.memberChannelName }}</strong>
+                <el-tag size="small" :type="member.hasCredentials ? 'success' : 'warning'">
+                  {{ member.hasCredentials ? i18ns.t('yes') : i18ns.t('no') }}
+                </el-tag>
+              </div>
+              <el-button v-if="canExecute" link type="primary" @click="addMemberCredential(member.memberChannelId)">
+                {{ i18ns.t('relay.channelProbeAddCredential') }}
+              </el-button>
+            </header>
+            <div v-for="(credential, index) in member.credentials" :key="credential.id" class="credential-row">
+              <el-input
+                v-model.trim="credential.name"
+                :disabled="!canExecute"
+                :placeholder="i18ns.t('relay.channelProbeCredentialName')"
+              /><el-input
+                v-model="credential.value"
+                type="password"
+                show-password
+                :disabled="!canExecute"
+                :placeholder="i18ns.t('relay.channelProbeCredentialValue')"
+              /><el-button
+                v-if="canExecute"
+                :icon="Delete"
+                circle
+                plain
+                type="danger"
+                @click="member.credentials.splice(index, 1)"
+              />
+            </div>
+          </section>
+        </template>
+        <template v-else>
+          <div class="section-heading">
+            <strong>{{ i18ns.t('relay.channelProbeCredentials') }}</strong
+            ><span>{{ i18ns.t('relay.channelProbeCredentialsHelp') }}</span
+            ><el-button v-if="canExecute" link type="primary" @click="addCredential()">{{
+              i18ns.t('relay.channelProbeAddCredential')
+            }}</el-button>
+          </div>
+          <el-alert
+            v-if="credentialNames.length"
+            type="info"
+            :closable="false"
+            class="mb-3"
+            :title="
+              i18ns.t('relay.channelProbeSavedCredentials', {
+                names: credentialNames.join(', '),
+              })
+            "
           />
-        </div>
+          <div v-for="(credential, index) in credentials" :key="credential.id" class="credential-row">
+            <el-input
+              v-model.trim="credential.name"
+              :disabled="!canExecute"
+              :placeholder="i18ns.t('relay.channelProbeCredentialName')"
+            /><el-input
+              v-model="credential.value"
+              type="password"
+              show-password
+              :disabled="!canExecute"
+              :placeholder="i18ns.t('relay.channelProbeCredentialValue')"
+            /><el-button
+              v-if="canExecute"
+              :icon="Delete"
+              circle
+              plain
+              type="danger"
+              @click="credentials.splice(index, 1)"
+            />
+          </div>
+        </template>
         <div class="profile-actions">
           <el-button v-if="canExecute" native-type="submit" type="primary" :loading="saving">{{
             i18ns.t('save')
@@ -532,6 +573,7 @@ import { useRelayChannelProbeManagementContext } from '../context'
 
 const {
   addCredential,
+  addMemberCredential,
   addWorkflowStep,
   applyPayloadPreset,
   availableVariables,
@@ -544,6 +586,7 @@ const {
   copyVariable,
   credentialNames,
   credentials,
+  memberCredentials,
   currenciesMatch,
   downloadConfiguration,
   form,
