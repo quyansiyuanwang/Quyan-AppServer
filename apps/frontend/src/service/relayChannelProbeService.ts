@@ -55,7 +55,10 @@ class RelayChannelProbeService {
   }
 
   async resetRunState(channelId: string, memberChannelId?: string): Promise<void> {
-    checkApiResult(await api.resetRunState({ path: { channelId }, body: { memberChannelId } }), false)
+    checkApiResult(
+      await api.resetRunState({ path: { channelId }, body: { memberChannelId } }),
+      false,
+    )
   }
 
   async createRuns(body: CreateRelayChannelProbeRunsRequest) {

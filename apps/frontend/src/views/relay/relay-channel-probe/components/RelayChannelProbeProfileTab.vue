@@ -334,7 +334,11 @@
             <strong>{{ i18ns.t('relay.channelProbeCredentials') }}</strong
             ><span>{{ i18ns.t('relay.channelProbeCredentialsHelp') }}</span>
           </div>
-          <section v-for="member in memberCredentials" :key="member.memberChannelId" class="workflow-step">
+          <section
+            v-for="member in memberCredentials"
+            :key="member.memberChannelId"
+            class="workflow-step"
+          >
             <header class="workflow-step-header">
               <div class="workflow-step-title">
                 <strong>{{ member.memberChannelName }}</strong>
@@ -342,11 +346,20 @@
                   {{ member.hasCredentials ? i18ns.t('yes') : i18ns.t('no') }}
                 </el-tag>
               </div>
-              <el-button v-if="canExecute" link type="primary" @click="addMemberCredential(member.memberChannelId)">
+              <el-button
+                v-if="canExecute"
+                link
+                type="primary"
+                @click="addMemberCredential(member.memberChannelId)"
+              >
                 {{ i18ns.t('relay.channelProbeAddCredential') }}
               </el-button>
             </header>
-            <div v-for="(credential, index) in member.credentials" :key="credential.id" class="credential-row">
+            <div
+              v-for="(credential, index) in member.credentials"
+              :key="credential.id"
+              class="credential-row"
+            >
               <el-input
                 v-model.trim="credential.name"
                 :disabled="!canExecute"
@@ -387,7 +400,11 @@
               })
             "
           />
-          <div v-for="(credential, index) in credentials" :key="credential.id" class="credential-row">
+          <div
+            v-for="(credential, index) in credentials"
+            :key="credential.id"
+            class="credential-row"
+          >
             <el-input
               v-model.trim="credential.name"
               :disabled="!canExecute"

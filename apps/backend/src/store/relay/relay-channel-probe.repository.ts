@@ -42,7 +42,9 @@ export class RelayChannelProbeRepository {
   public findProfileWithChannel(channelId: string): Promise<RelayChannelProbeProfileRecord | null> {
     return prisma.relayChannelProbeProfile.findUnique({
       where: { relayChannelId: channelId },
-      include: { relayChannel: { include: { pooledChildren: true, poolMembers: { include: { memberChannel: true } } } } },
+      include: {
+        relayChannel: { include: { pooledChildren: true, poolMembers: { include: { memberChannel: true } } } },
+      },
     });
   }
 
@@ -116,11 +118,19 @@ export class RelayChannelProbeRepository {
   }
 
   /** Never removes queued/running work; emergency state reset owns those states. */
-  public clearRunHistory(channelId: string, scope: "all" | "failed", memberChannelId?: string): Promise<{ count: number }> {
+  public clearRunHistory(
+    channelId: string,
+    scope: "all" | "failed",
+    memberChannelId?: string,
+  ): Promise<{ count: number }> {
     const statuses =
       scope === "failed" ? ["failed", "timed_out", "cancelled"] : ["succeeded", "failed", "timed_out", "cancelled"];
     return prisma.relayChannelProbeRun.deleteMany({
-      where: { relayChannelId: channelId, status: { in: statuses }, ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}) },
+      where: {
+        relayChannelId: channelId,
+        status: { in: statuses },
+        ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}),
+      },
     });
   }
 
@@ -197,7 +207,9 @@ export class RelayChannelProbeRepository {
   public findRunWithProfile(runId: string): Promise<Prisma.RelayChannelProbeRunGetPayload<{
     include: {
       profile: {
-        include: { relayChannel: { include: { pooledChildren: true; poolMembers: { include: { memberChannel: true } } } } };
+        include: {
+          relayChannel: { include: { pooledChildren: true; poolMembers: { include: { memberChannel: true } } } };
+        };
       };
     };
   }> | null> {
@@ -205,7 +217,9 @@ export class RelayChannelProbeRepository {
       where: { id: runId },
       include: {
         profile: {
-          include: { relayChannel: { include: { pooledChildren: true, poolMembers: { include: { memberChannel: true } } } } },
+          include: {
+            relayChannel: { include: { pooledChildren: true, poolMembers: { include: { memberChannel: true } } } },
+          },
         },
       },
     });

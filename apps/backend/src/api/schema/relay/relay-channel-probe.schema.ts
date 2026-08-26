@@ -134,7 +134,8 @@ export const createRelayChannelProbeRunsBodySchema = z
       .max(200)
       .refine(
         (targets) =>
-          new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size === targets.length,
+          new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size ===
+          targets.length,
       )
       .optional(),
     distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
