@@ -1,6 +1,7 @@
 import { prisma } from "@/config/database";
 import type { RedemptionCode, Prisma } from "@prisma/client";
 import type { RedemptionCodeStore, RedemptionCodeListItem } from "./redemption-code.store";
+import { applyBalanceAccountMutation } from "./balance-account-mutation";
 
 export type { RedemptionCodeListItem } from "./redemption-code.store";
 
@@ -52,30 +53,27 @@ export class RedemptionCodeRepository implements RedemptionCodeStore {
         data: { usedBy: userId, usedAt: new Date() },
       });
 
-      const currentAccount = await tx.balanceAccount.findUnique({ where: { userId } });
-      const balanceBefore = currentAccount ? Number(currentAccount.balance) : 0;
-
-      const balanceAccount = await tx.balanceAccount.upsert({
-        where: { userId },
-        create: { userId, balance: redemptionCode.amount, totalRecharged: redemptionCode.amount },
-        update: { balance: { increment: redemptionCode.amount }, totalRecharged: { increment: redemptionCode.amount } },
+      const mutation = await applyBalanceAccountMutation(tx, {
+        userId,
+        balanceDelta: redemptionCode.amount,
+        totalRechargedDelta: redemptionCode.amount,
+        createIfMissing: true,
       });
-
-      const balanceAfter = Number(balanceAccount.balance);
+      if (!mutation) throw new Error("Balance account mutation unexpectedly failed");
 
       await tx.balanceTransaction.create({
         data: {
           userId,
           type: "redemption",
           amount: Number(redemptionCode.amount),
-          balanceBefore,
-          balanceAfter,
+          balanceBefore: mutation.balanceBefore,
+          balanceAfter: mutation.balanceAfter,
           relatedId: redemptionCode.id,
           description: `兑换码: ${redemptionCode.code}`,
         },
       });
 
-      return { balance: balanceAfter, amount: Number(redemptionCode.amount) };
+      return { balance: Number(mutation.balanceAfter), amount: Number(redemptionCode.amount) };
     });
   }
 }

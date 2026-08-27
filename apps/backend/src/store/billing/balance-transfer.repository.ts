@@ -5,6 +5,7 @@ import type {
   BalanceTransferStore,
   CreateGiftCodeParams,
 } from "./balance-transfer.store";
+import { applyBalanceAccountMutation, lockBalanceAccounts } from "./balance-account-mutation";
 
 const round4 = (value: number): number => Math.round((value + Number.EPSILON) * 10000) / 10000;
 
@@ -18,15 +19,12 @@ export class BalanceTransferRepository implements BalanceTransferStore {
 
   async createGiftCode(params: CreateGiftCodeParams) {
     return prisma.$transaction(async (tx) => {
-      const updated = await tx.balanceAccount.updateMany({
-        where: { userId: params.senderId, balance: { gte: params.totalDebit } },
-        data: { balance: { decrement: params.totalDebit } },
+      const mutation = await applyBalanceAccountMutation(tx, {
+        userId: params.senderId,
+        balanceDelta: -params.totalDebit,
+        minimumBalance: 0,
       });
-      if (updated.count !== 1) throw new BadRequestError("余额不足");
-
-      const account = await tx.balanceAccount.findUniqueOrThrow({ where: { userId: params.senderId } });
-      const balanceAfter = Number(account.balance);
-      const balanceBefore = round4(balanceAfter + params.totalDebit);
+      if (!mutation) throw new BadRequestError("余额不足");
       const giftCode = await tx.balanceGiftCode.create({
         data: {
           code: params.code,
@@ -44,13 +42,13 @@ export class BalanceTransferRepository implements BalanceTransferStore {
           userId: params.senderId,
           type: "gift_code_create",
           amount: -params.totalDebit,
-          balanceBefore,
-          balanceAfter,
+          balanceBefore: mutation.balanceBefore,
+          balanceAfter: mutation.balanceAfter,
           relatedId: giftCode.id,
           description: `用户兑换码创建: ${params.code.slice(-6)}`,
         },
       });
-      return { giftCode, balance: balanceAfter };
+      return { giftCode, balance: Number(mutation.balanceAfter) };
     });
   }
 
@@ -83,25 +81,26 @@ export class BalanceTransferRepository implements BalanceTransferStore {
       });
       if (claimed.count !== 1) throw new ConflictError("兑换码已被使用");
 
-      const account = await tx.balanceAccount.upsert({
-        where: { userId },
-        create: { userId, balance: giftCode.amount, totalRecharged: giftCode.amount },
-        update: { balance: { increment: giftCode.amount }, totalRecharged: { increment: giftCode.amount } },
+      const mutation = await applyBalanceAccountMutation(tx, {
+        userId,
+        balanceDelta: giftCode.amount,
+        totalRechargedDelta: giftCode.amount,
+        createIfMissing: true,
       });
-      const balanceAfter = Number(account.balance);
+      if (!mutation) throw new ConflictError("余额账户更新失败");
       const amount = Number(giftCode.amount);
       await tx.balanceTransaction.create({
         data: {
           userId,
           type: "gift_code_redeem",
           amount,
-          balanceBefore: round4(balanceAfter - amount),
-          balanceAfter,
+          balanceBefore: mutation.balanceBefore,
+          balanceAfter: mutation.balanceAfter,
           relatedId: giftCode.id,
           description: `用户兑换码兑换: ${code.slice(-6)}`,
         },
       });
-      return { balance: balanceAfter, amount };
+      return { balance: Number(mutation.balanceAfter), amount };
     });
   }
 
@@ -121,25 +120,25 @@ export class BalanceTransferRepository implements BalanceTransferStore {
       const refund = round4(
         Number(giftCode.amount) + (Number(giftCode.feeAmount) * Number(giftCode.cancelFeeRefundPercent)) / 100,
       );
-      const account = await tx.balanceAccount.upsert({
-        where: { userId: senderId },
-        create: { userId: senderId, balance: refund },
-        update: { balance: { increment: refund } },
+      const mutation = await applyBalanceAccountMutation(tx, {
+        userId: senderId,
+        balanceDelta: refund,
+        createIfMissing: true,
       });
-      const balanceAfter = Number(account.balance);
+      if (!mutation) throw new ConflictError("余额账户更新失败");
       await tx.balanceGiftCode.update({ where: { id }, data: { refundedAmount: refund } });
       await tx.balanceTransaction.create({
         data: {
           userId: senderId,
           type: "gift_code_cancel",
           amount: refund,
-          balanceBefore: round4(balanceAfter - refund),
-          balanceAfter,
+          balanceBefore: mutation.balanceBefore,
+          balanceAfter: mutation.balanceAfter,
           relatedId: id,
           description: `用户兑换码取消: ${giftCode.code.slice(-6)}`,
         },
       });
-      return { refundedAmount: refund, balance: balanceAfter };
+      return { refundedAmount: refund, balance: Number(mutation.balanceAfter) };
     });
   }
 
@@ -173,24 +172,28 @@ export class BalanceTransferRepository implements BalanceTransferStore {
     description?: string;
   }) {
     return prisma.$transaction(async (tx) => {
-      const debited = await tx.balanceAccount.updateMany({
-        where: { userId: params.senderId, balance: { gte: params.totalDebit } },
-        data: { balance: { decrement: params.totalDebit } },
+      await lockBalanceAccounts(tx, [
+        { userId: params.senderId },
+        { userId: params.recipientId, createIfMissing: true },
+      ]);
+      const senderMutation = await applyBalanceAccountMutation(tx, {
+        userId: params.senderId,
+        balanceDelta: -params.totalDebit,
+        minimumBalance: 0,
       });
-      if (debited.count !== 1) throw new BadRequestError("余额不足");
+      if (!senderMutation) throw new BadRequestError("余额不足");
+      const recipientMutation = await applyBalanceAccountMutation(tx, {
+        userId: params.recipientId,
+        balanceDelta: params.amount,
+        totalRechargedDelta: params.amount,
+        createIfMissing: true,
+      });
+      if (!recipientMutation) throw new ConflictError("余额账户更新失败");
 
-      const [senderAccount, recipientAccount, sender, recipient] = await Promise.all([
-        tx.balanceAccount.findUniqueOrThrow({ where: { userId: params.senderId } }),
-        tx.balanceAccount.upsert({
-          where: { userId: params.recipientId },
-          create: { userId: params.recipientId, balance: params.amount, totalRecharged: params.amount },
-          update: { balance: { increment: params.amount }, totalRecharged: { increment: params.amount } },
-        }),
+      const [sender, recipient] = await Promise.all([
         tx.user.findUniqueOrThrow({ where: { id: params.senderId }, select: { username: true } }),
         tx.user.findUniqueOrThrow({ where: { id: params.recipientId }, select: { username: true } }),
       ]);
-      const senderBalance = Number(senderAccount.balance);
-      const recipientBalance = Number(recipientAccount.balance);
       const transfer = await tx.balanceTransfer.create({ data: params });
       await tx.balanceTransaction.createMany({
         data: [
@@ -198,8 +201,8 @@ export class BalanceTransferRepository implements BalanceTransferStore {
             userId: params.senderId,
             type: "peer_transfer_out",
             amount: -params.totalDebit,
-            balanceBefore: round4(senderBalance + params.totalDebit),
-            balanceAfter: senderBalance,
+            balanceBefore: senderMutation.balanceBefore,
+            balanceAfter: senderMutation.balanceAfter,
             relatedId: transfer.id,
             description: `转账给用户 ${recipient.username}${params.description ? `：${params.description}` : ""}`,
           },
@@ -207,14 +210,14 @@ export class BalanceTransferRepository implements BalanceTransferStore {
             userId: params.recipientId,
             type: "peer_transfer_in",
             amount: params.amount,
-            balanceBefore: round4(recipientBalance - params.amount),
-            balanceAfter: recipientBalance,
+            balanceBefore: recipientMutation.balanceBefore,
+            balanceAfter: recipientMutation.balanceAfter,
             relatedId: transfer.id,
             description: `来自用户 ${sender.username} 的转账${params.description ? `：${params.description}` : ""}`,
           },
         ],
       });
-      return { transfer, balance: senderBalance };
+      return { transfer, balance: Number(senderMutation.balanceAfter) };
     });
   }
 }

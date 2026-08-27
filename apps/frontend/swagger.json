@@ -10884,6 +10884,9 @@
 							"application/json": {
 								"schema": {
 									"properties": {
+										"responseAiAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
 										"responseAiEnabled": {
 											"type": "boolean"
 										},
@@ -10892,6 +10895,9 @@
 										},
 										"responseEnabled": {
 											"type": "boolean"
+										},
+										"requestAiAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
 										},
 										"requestAiEnabled": {
 											"type": "boolean"
@@ -10904,9 +10910,11 @@
 										}
 									},
 									"required": [
+										"responseAiAction",
 										"responseAiEnabled",
 										"responseAction",
 										"responseEnabled",
+										"requestAiAction",
 										"requestAiEnabled",
 										"requestAction",
 										"requestEnabled"
@@ -10945,6 +10953,9 @@
 							"application/json": {
 								"schema": {
 									"properties": {
+										"responseAiAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
 										"responseAiEnabled": {
 											"type": "boolean"
 										},
@@ -10953,6 +10964,9 @@
 										},
 										"responseEnabled": {
 											"type": "boolean"
+										},
+										"requestAiAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
 										},
 										"requestAiEnabled": {
 											"type": "boolean"
@@ -10965,9 +10979,11 @@
 										}
 									},
 									"required": [
+										"responseAiAction",
 										"responseAiEnabled",
 										"responseAction",
 										"responseEnabled",
+										"requestAiAction",
 										"requestAiEnabled",
 										"requestAction",
 										"requestEnabled"
@@ -12188,12 +12204,6 @@
 													"matchContext": {
 														"type": "string"
 													},
-													"blocked": {
-														"type": "boolean"
-													},
-													"replaced": {
-														"type": "boolean"
-													},
 													"auditDurationMs": {
 														"type": "number",
 														"format": "double"
@@ -12219,11 +12229,17 @@
 													"channelId": {
 														"type": "string"
 													},
+													"relayTokenId": {
+														"type": "string"
+													},
 													"requestId": {
 														"type": "string"
 													},
-													"relayTokenId": {
-														"type": "string"
+													"blocked": {
+														"type": "boolean"
+													},
+													"replaced": {
+														"type": "boolean"
 													},
 													"rule": {
 														"properties": {
@@ -12269,13 +12285,13 @@
 													},
 													"id": {
 														"type": "string"
-													}
+													},
+													"channelName": {},
+													"relayTokenName": {}
 												},
 												"required": [
 													"matchText",
 													"matchContext",
-													"blocked",
-													"replaced",
 													"auditDurationMs",
 													"auditCost",
 													"auditTotalTokens",
@@ -12283,8 +12299,10 @@
 													"auditInputTokens",
 													"auditModel",
 													"channelId",
-													"requestId",
 													"relayTokenId",
+													"requestId",
+													"blocked",
+													"replaced",
 													"rule",
 													"ruleId",
 													"action",
@@ -12293,7 +12311,9 @@
 													"statusCode",
 													"userId",
 													"createTime",
-													"id"
+													"id",
+													"channelName",
+													"relayTokenName"
 												],
 												"type": "object"
 											},
@@ -12346,6 +12366,110 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "startTime",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endTime",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "direction",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"request",
+								"response"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "source",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"rule",
+								"ai"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "processingStatus",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"allow",
+								"replaced",
+								"blocked"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "requestId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "relayTokenName",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "channelName",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "sortBy",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"createTime",
+								"requestId",
+								"action",
+								"source",
+								"statusCode"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "sortOrder",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"asc",
+								"desc"
+							]
+						}
 					}
 				]
 			}
@@ -12373,12 +12497,6 @@
 													"matchContext": {
 														"type": "string"
 													},
-													"blocked": {
-														"type": "boolean"
-													},
-													"replaced": {
-														"type": "boolean"
-													},
 													"auditDurationMs": {
 														"type": "number",
 														"format": "double"
@@ -12404,11 +12522,17 @@
 													"channelId": {
 														"type": "string"
 													},
+													"relayTokenId": {
+														"type": "string"
+													},
 													"requestId": {
 														"type": "string"
 													},
-													"relayTokenId": {
-														"type": "string"
+													"blocked": {
+														"type": "boolean"
+													},
+													"replaced": {
+														"type": "boolean"
 													},
 													"rule": {
 														"properties": {
@@ -12454,13 +12578,13 @@
 													},
 													"id": {
 														"type": "string"
-													}
+													},
+													"channelName": {},
+													"relayTokenName": {}
 												},
 												"required": [
 													"matchText",
 													"matchContext",
-													"blocked",
-													"replaced",
 													"auditDurationMs",
 													"auditCost",
 													"auditTotalTokens",
@@ -12468,8 +12592,10 @@
 													"auditInputTokens",
 													"auditModel",
 													"channelId",
-													"requestId",
 													"relayTokenId",
+													"requestId",
+													"blocked",
+													"replaced",
 													"rule",
 													"ruleId",
 													"action",
@@ -12478,7 +12604,9 @@
 													"statusCode",
 													"userId",
 													"createTime",
-													"id"
+													"id",
+													"channelName",
+													"relayTokenName"
 												],
 												"type": "object"
 											},
@@ -12522,6 +12650,110 @@
 							"default": 50,
 							"format": "double",
 							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startTime",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endTime",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "direction",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"request",
+								"response"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "source",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"rule",
+								"ai"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "processingStatus",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"allow",
+								"replaced",
+								"blocked"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "requestId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "relayTokenName",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "channelName",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "sortBy",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"createTime",
+								"requestId",
+								"action",
+								"source",
+								"statusCode"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "sortOrder",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"asc",
+								"desc"
+							]
 						}
 					}
 				]
@@ -39048,6 +39280,9 @@
 					"requestAiEnabled": {
 						"type": "boolean"
 					},
+					"requestAiAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
 					"responseEnabled": {
 						"type": "boolean"
 					},
@@ -39056,6 +39291,9 @@
 					},
 					"responseAiEnabled": {
 						"type": "boolean"
+					},
+					"responseAiAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
 					},
 					"aiUpstreamUrl": {
 						"type": "string"
@@ -39087,6 +39325,14 @@
 					},
 					"userConfig": {
 						"properties": {
+							"responseAiAction": {
+								"allOf": [
+									{
+										"$ref": "#/components/schemas/ContentSafetyAction"
+									}
+								],
+								"nullable": true
+							},
 							"responseAiEnabled": {
 								"type": "boolean",
 								"nullable": true
@@ -39101,6 +39347,14 @@
 							},
 							"responseEnabled": {
 								"type": "boolean",
+								"nullable": true
+							},
+							"requestAiAction": {
+								"allOf": [
+									{
+										"$ref": "#/components/schemas/ContentSafetyAction"
+									}
+								],
 								"nullable": true
 							},
 							"requestAiEnabled": {
@@ -39121,9 +39375,11 @@
 							}
 						},
 						"required": [
+							"responseAiAction",
 							"responseAiEnabled",
 							"responseAction",
 							"responseEnabled",
+							"requestAiAction",
 							"requestAiEnabled",
 							"requestAction",
 							"requestEnabled"
@@ -39135,9 +39391,11 @@
 					"requestEnabled",
 					"requestAction",
 					"requestAiEnabled",
+					"requestAiAction",
 					"responseEnabled",
 					"responseAction",
 					"responseAiEnabled",
+					"responseAiAction",
 					"aiUpstreamUrl",
 					"aiApiKeyConfigured",
 					"aiModel",
@@ -39168,6 +39426,14 @@
 						"type": "boolean",
 						"nullable": true
 					},
+					"requestAiAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
 					"responseEnabled": {
 						"type": "boolean",
 						"nullable": true
@@ -39184,6 +39450,14 @@
 						"type": "boolean",
 						"nullable": true
 					},
+					"responseAiAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
 					"targetUserId": {
 						"type": "string"
 					}
@@ -39192,9 +39466,11 @@
 					"requestEnabled",
 					"requestAction",
 					"requestAiEnabled",
+					"requestAiAction",
 					"responseEnabled",
 					"responseAction",
-					"responseAiEnabled"
+					"responseAiEnabled",
+					"responseAiAction"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -39416,6 +39692,9 @@
 					"requestAiEnabled": {
 						"type": "boolean"
 					},
+					"requestAiAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
 					"responseEnabled": {
 						"type": "boolean"
 					},
@@ -39424,6 +39703,9 @@
 					},
 					"responseAiEnabled": {
 						"type": "boolean"
+					},
+					"responseAiAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
 					},
 					"aiUpstreamUrl": {
 						"type": "string"
@@ -43254,6 +43536,14 @@
 						"type": "boolean",
 						"nullable": true
 					},
+					"requestAiAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
 					"responseEnabled": {
 						"type": "boolean",
 						"nullable": true
@@ -43268,6 +43558,14 @@
 					},
 					"responseAiEnabled": {
 						"type": "boolean",
+						"nullable": true
+					},
+					"responseAiAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
 						"nullable": true
 					}
 				},
@@ -47125,6 +47423,12 @@
 					"name": {
 						"type": "string"
 					},
+					"allowedModels": {
+						"type": "string"
+					},
+					"modelMapping": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
 					"openaiUpstreamUrl": {
 						"type": "string"
 					},
@@ -47141,14 +47445,8 @@
 					"allowedFormats": {
 						"type": "string"
 					},
-					"allowedModels": {
-						"type": "string"
-					},
 					"inputTokensIncludeCacheRead": {
 						"type": "boolean"
-					},
-					"modelMapping": {
-						"$ref": "#/components/schemas/Record_string.string_"
 					},
 					"timePeriodMultipliers": {
 						"items": {

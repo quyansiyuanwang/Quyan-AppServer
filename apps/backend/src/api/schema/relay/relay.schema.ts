@@ -153,9 +153,11 @@ const contentSafetyPolicyOverrideSchema = z.object({
   requestEnabled: z.boolean().nullable().optional(),
   requestAction: z.enum(["unreachable", "blackhole", "allow"]).nullable().optional(),
   requestAiEnabled: z.boolean().nullable().optional(),
+  requestAiAction: z.enum(["unreachable", "blackhole", "allow"]).nullable().optional(),
   responseEnabled: z.boolean().nullable().optional(),
   responseAction: z.enum(["unreachable", "blackhole", "allow"]).nullable().optional(),
   responseAiEnabled: z.boolean().nullable().optional(),
+  responseAiAction: z.enum(["unreachable", "blackhole", "allow"]).nullable().optional(),
 });
 
 export const createRelayTokenBodySchema = z

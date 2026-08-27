@@ -35,7 +35,14 @@ export const batchBalanceAccountsBodySchema = z.object({
 
 export const rechargeBodySchema = z.object({
   userId: z.string().trim().min(1).max(50),
-  amount: z.coerce.number().min(-100000).max(100000),
+  amount: z.coerce
+    .number()
+    .finite()
+    .min(-100000)
+    .max(100000)
+    .refine((value) => Math.abs(value * 10000 - Math.round(value * 10000)) < 1e-7, {
+      message: "amount must have at most 4 decimal places",
+    }),
   description: z.string().max(500).optional(),
   countAsStatistics: z.coerce.boolean().optional(),
 });

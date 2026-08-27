@@ -15,9 +15,11 @@ export const contentSafetyConfigSchema = z.object({
   requestEnabled: z.coerce.boolean(),
   requestAction: z.enum(["unreachable", "blackhole", "allow"]),
   requestAiEnabled: z.coerce.boolean(),
+  requestAiAction: z.enum(["unreachable", "blackhole", "allow"]).optional(),
   responseEnabled: z.coerce.boolean(),
   responseAction: z.enum(["unreachable", "blackhole", "allow"]),
   responseAiEnabled: z.coerce.boolean(),
+  responseAiAction: z.enum(["unreachable", "blackhole", "allow"]).optional(),
   aiUpstreamUrl: z.string().max(500),
   aiApiKey: z.string().max(1000).optional(),
   clearAiApiKey: z.coerce.boolean().optional(),
@@ -61,9 +63,11 @@ export const contentSafetyUserConfigSchema = z.object({
   requestEnabled: z.boolean().nullable(),
   requestAction: z.enum(["unreachable", "blackhole", "allow"]).nullable(),
   requestAiEnabled: z.boolean().nullable(),
+  requestAiAction: z.enum(["unreachable", "blackhole", "allow"]).nullable(),
   responseEnabled: z.boolean().nullable(),
   responseAction: z.enum(["unreachable", "blackhole", "allow"]).nullable(),
   responseAiEnabled: z.boolean().nullable(),
+  responseAiAction: z.enum(["unreachable", "blackhole", "allow"]).nullable(),
   targetUserId: z.string().trim().min(1).optional(),
 });
 

@@ -6,18 +6,22 @@ export interface ContentSafetyPolicyOverride {
   requestEnabled?: boolean | null
   requestAction?: ContentSafetyAction | null
   requestAiEnabled?: boolean | null
+  requestAiAction?: ContentSafetyAction | null
   responseEnabled?: boolean | null
   responseAction?: ContentSafetyAction | null
   responseAiEnabled?: boolean | null
+  responseAiAction?: ContentSafetyAction | null
 }
 
 export interface ContentSafetyUserConfig extends ContentSafetyPolicyOverride {
   requestEnabled: boolean | null
   requestAction: ContentSafetyAction | null
   requestAiEnabled: boolean | null
+  requestAiAction: ContentSafetyAction | null
   responseEnabled: boolean | null
   responseAction: ContentSafetyAction | null
   responseAiEnabled: boolean | null
+  responseAiAction: ContentSafetyAction | null
 }
 
 export interface ContentSafetyRuleInput {
