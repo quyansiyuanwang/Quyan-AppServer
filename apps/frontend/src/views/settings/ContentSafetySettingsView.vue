@@ -92,6 +92,8 @@
               i18ns.t('contentSafety.myIncidents')
             }}</span></template
           >
+          <ContentSafetyIncidentTable scope="user" />
+          <!--
           <el-table :data="incidents" border size="small">
             <el-table-column prop="createTime" :label="i18ns.t('contentSafety.time')" width="170" />
             <el-table-column
@@ -138,15 +140,7 @@
               width="90"
             />
             <el-table-column prop="blocked" :label="i18ns.t('contentSafety.blocked')" width="90" />
-          </el-table>
-          <el-pagination
-            v-model:current-page="incidentPage"
-            v-model:page-size="incidentPageSize"
-            :total="incidentTotal"
-            layout="prev, pager, next, sizes"
-            @current-change="loadIncidents"
-            @size-change="loadIncidents"
-          />
+          </el-table> -->
         </el-collapse-item>
       </el-collapse>
     </div>
@@ -308,6 +302,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import ContentSafetyPolicyFields from '@/components/content-safety/ContentSafetyPolicyFields.vue'
+import ContentSafetyIncidentTable from '@/components/content-safety/ContentSafetyIncidentTable.vue'
 import { i18ns } from '@/locales'
 import { useRequestStore } from '@/stores/request'
 import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
@@ -322,6 +317,7 @@ const escapeHtml = (value: unknown) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+/* Legacy formatter retained for compatibility with saved templates. */
 const formatMatchedContext = (incident: any) => {
   const context = incident.matchContext || incident.matchText || ''
   if (!context || !incident.matchText)
@@ -370,9 +366,11 @@ const policy = reactive<any>({
   requestEnabled: true,
   requestAction: 'unreachable',
   requestAiEnabled: false,
+  requestAiAction: 'unreachable',
   responseEnabled: true,
   responseAction: 'unreachable',
   responseAiEnabled: false,
+  responseAiAction: 'unreachable',
 })
 const rule = reactive<any>({
   name: '',
@@ -394,19 +392,10 @@ const load = async () => {
   loading.value = true
   try {
     Object.assign(policy, unwrap(await api().getUserConfig()))
-    await Promise.all([loadRules(), loadIncidents()])
+    await Promise.all([loadRules()])
   } finally {
     loading.value = false
   }
-}
-const loadIncidents = async () => {
-  const r = unwrap(
-    await api().listUserIncidents({
-      params: { page: incidentPage.value, pageSize: incidentPageSize.value },
-    }),
-  )
-  incidents.value = r?.incidents ?? []
-  incidentTotal.value = r?.total ?? 0
 }
 const saveConfig = async () => {
   saving.value = true

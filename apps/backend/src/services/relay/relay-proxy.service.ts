@@ -2200,6 +2200,7 @@ export class RelayProxyService {
   private shouldFailoverOnError(error: unknown): boolean {
     // 余额不足错误不应该 failover，因为切换渠道也会遇到同样的问题
     if (error instanceof RelayChannelSkipError && error.reason === "insufficient-balance") return false;
+    if (error instanceof ContentSafetyBlockedError) return false;
 
     // 其他所有错误都应该尝试 failover
     return true;
@@ -2208,13 +2209,13 @@ export class RelayProxyService {
   private sendStreamTransportError(res: any, error: unknown): void {
     if (res.headersSent || res.writableEnded) return;
 
-    const statusCode = error instanceof GatewayTimeoutError ? 504 : 502;
+    const statusCode = error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502;
     const message = error instanceof Error ? error.message : "Upstream request failed";
 
     res.status(statusCode).json({
       error: {
         message,
-        type: "upstream_error",
+        type: error instanceof ContentSafetyBlockedError ? "content_safety_blocked" : "upstream_error",
         code: statusCode,
         upstream_status: statusCode,
       },
@@ -4017,7 +4018,7 @@ export class RelayProxyService {
                   attemptedUpstream: upstreamRequestStarted,
                 });
               this.sendStreamTransportError(res, error);
-              return { status: error instanceof GatewayTimeoutError ? 504 : 502, headers: {}, data: {} };
+              return { status: error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502, headers: {}, data: {} };
             }
 
             throw error;

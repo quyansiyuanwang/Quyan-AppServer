@@ -1076,6 +1076,16 @@
                       </el-radio-group>
                     </template>
                   </el-table-column>
+                  <el-table-column :label="i18ns.t('contentSafety.aiAction')" min-width="300">
+                    <template #default="{ row }">
+                      <el-radio-group v-model="editForm.contentSafetyConfig[row.aiActionKey]" size="small">
+                        <el-radio-button :label="null">{{ i18ns.t('contentSafety.inherit') }}</el-radio-button>
+                        <el-radio-button label="unreachable">{{ i18ns.t('contentSafety.unreachable') }}</el-radio-button>
+                        <el-radio-button label="blackhole">{{ i18ns.t('contentSafety.blackhole') }}</el-radio-button>
+                        <el-radio-button label="allow">{{ i18ns.t('contentSafety.allow') }}</el-radio-button>
+                      </el-radio-group>
+                    </template>
+                  </el-table-column>
                 </el-table>
               </div>
             </div>
@@ -1271,18 +1281,21 @@ const contentSafetyOverrideRows: Array<{
   enabledKey: 'requestEnabled' | 'responseEnabled'
   actionKey: 'requestAction' | 'responseAction'
   aiKey: 'requestAiEnabled' | 'responseAiEnabled'
+  aiActionKey: 'requestAiAction' | 'responseAiAction'
 }> = [
   {
     direction: i18ns.t('contentSafety.request'),
     enabledKey: 'requestEnabled',
     actionKey: 'requestAction',
     aiKey: 'requestAiEnabled',
+    aiActionKey: 'requestAiAction',
   },
   {
     direction: i18ns.t('contentSafety.response'),
     enabledKey: 'responseEnabled',
     actionKey: 'responseAction',
     aiKey: 'responseAiEnabled',
+    aiActionKey: 'responseAiAction',
   },
 ] as const
 

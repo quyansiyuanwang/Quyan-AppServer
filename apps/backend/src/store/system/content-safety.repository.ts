@@ -1,5 +1,6 @@
 import { prisma } from "@/config/database";
 import type { ContentSafetyIncident, Prisma } from "@prisma/client";
+import type { ContentSafetyIncidentQuery } from "@/api/dto/system/content-safety.dto";
 
 export class ContentSafetyRepository {
   private static instance: ContentSafetyRepository;
@@ -216,14 +217,47 @@ export class ContentSafetyRepository {
   createIncident(data: Prisma.ContentSafetyIncidentUncheckedCreateInput): Promise<ContentSafetyIncident> {
     return prisma.contentSafetyIncident.create({ data });
   }
-  listIncidents(page = 1, pageSize = 50, userId?: string) {
+  async listIncidents(query: ContentSafetyIncidentQuery = {}) {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 50;
     const skip = (Math.max(1, page) - 1) * Math.min(100, Math.max(1, pageSize));
     const take = Math.min(100, Math.max(1, pageSize));
-    const where = { status: 1, ...(userId ? { userId } : {}) };
-    return Promise.all([
+    const tokenName = query.relayTokenName?.trim();
+    const channelName = query.channelName?.trim();
+    const [tokenIds, channelIds] = await Promise.all([
+      tokenName
+        ? prisma.relayToken.findMany({ where: { name: { contains: tokenName } }, select: { id: true } })
+        : Promise.resolve([]),
+      channelName
+        ? prisma.relayChannel.findMany({ where: { name: { contains: channelName } }, select: { id: true } })
+        : Promise.resolve([]),
+    ]);
+    const startTime = query.startTime ? new Date(query.startTime) : undefined;
+    const endTime = query.endTime ? new Date(query.endTime) : undefined;
+    const where: Prisma.ContentSafetyIncidentWhereInput = {
+      status: 1,
+      ...(query.userId ? { userId: query.userId } : {}),
+      ...(query.direction ? { direction: query.direction } : {}),
+      ...(query.source ? { source: query.source } : {}),
+      ...(query.requestId?.trim() ? { requestId: { contains: query.requestId.trim() } } : {}),
+      ...(tokenName ? { relayTokenId: { in: tokenIds.map((token) => token.id) } } : {}),
+      ...(channelName ? { channelId: { in: channelIds.map((channel) => channel.id) } } : {}),
+      ...(query.processingStatus === "blocked" ? { blocked: true } : {}),
+      ...(query.processingStatus === "replaced" ? { replaced: true, blocked: false } : {}),
+      ...(query.processingStatus === "allow" ? { replaced: false, blocked: false } : {}),
+      ...(startTime && !Number.isNaN(startTime.valueOf()) ? { createTime: { gte: startTime } } : {}),
+      ...(endTime && !Number.isNaN(endTime.valueOf())
+        ? { createTime: { ...(startTime && !Number.isNaN(startTime.valueOf()) ? { gte: startTime } : {}), lte: endTime } }
+        : {}),
+    };
+    const sortBy = ["createTime", "requestId", "action", "source", "statusCode"].includes(query.sortBy || "")
+      ? query.sortBy!
+      : "createTime";
+    const sortOrder = query.sortOrder === "asc" ? "asc" : "desc";
+    const [incidents, total] = await Promise.all([
       prisma.contentSafetyIncident.findMany({
         where,
-        orderBy: { createTime: "desc" },
+        orderBy: [{ [sortBy]: sortOrder }, { id: "desc" }],
         skip,
         take,
         select: {
@@ -252,9 +286,26 @@ export class ContentSafetyRepository {
         },
       }),
       prisma.contentSafetyIncident.count({ where }),
-    ]).then(([incidents, total]) => ({
-      incidents,
+    ]);
+    const relayTokenIds = [...new Set(incidents.map((incident) => incident.relayTokenId).filter(Boolean))] as string[];
+    const incidentChannelIds = [...new Set(incidents.map((incident) => incident.channelId).filter(Boolean))] as string[];
+    const [tokens, channels] = await Promise.all([
+      relayTokenIds.length
+        ? prisma.relayToken.findMany({ where: { id: { in: relayTokenIds } }, select: { id: true, name: true } })
+        : Promise.resolve([]),
+      incidentChannelIds.length
+        ? prisma.relayChannel.findMany({ where: { id: { in: incidentChannelIds } }, select: { id: true, name: true } })
+        : Promise.resolve([]),
+    ]);
+    const tokenNameById = new Map(tokens.map((token) => [token.id, token.name]));
+    const channelNameById = new Map(channels.map((channel) => [channel.id, channel.name]));
+    return {
+      incidents: incidents.map((incident) => ({
+        ...incident,
+        relayTokenName: incident.relayTokenId ? (tokenNameById.get(incident.relayTokenId) ?? null) : null,
+        channelName: incident.channelId ? (channelNameById.get(incident.channelId) ?? null) : null,
+      })),
       total,
-    }));
+    };
   }
 }

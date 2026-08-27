@@ -122,6 +122,8 @@
         <template #title
           ><span class="collapse-title">{{ i18ns.t('contentSafety.incidents') }}</span></template
         >
+        <ContentSafetyIncidentTable scope="system" />
+        <!-- legacy table removed; shared incident table owns filtering and paging
         <el-table :data="incidents" border size="small"
           ><el-table-column
             prop="createTime"
@@ -175,7 +177,7 @@
           layout="prev, pager, next, sizes"
           @current-change="loadIncidents"
           @size-change="loadIncidents"
-        />
+        /> -->
       </el-collapse-item>
     </el-collapse>
   </section>
@@ -325,6 +327,7 @@ import { i18ns } from '@/locales'
 import { useRequestStore } from '@/stores/request'
 import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
 import ContentSafetyPolicyFields from './ContentSafetyPolicyFields.vue'
+import ContentSafetyIncidentTable from './ContentSafetyIncidentTable.vue'
 const api = () => createContentSafetyControllerApi(useRequestStore().getAxios())
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
 const escapeHtml = (value: unknown) =>
@@ -391,9 +394,11 @@ const form = reactive<any>({
   requestEnabled: true,
   requestAction: 'unreachable',
   requestAiEnabled: false,
+  requestAiAction: 'unreachable',
   responseEnabled: true,
   responseAction: 'unreachable',
   responseAiEnabled: false,
+  responseAiAction: 'unreachable',
   aiUpstreamUrl: '',
   aiApiKeyConfigured: false,
   aiModel: '',
@@ -410,24 +415,11 @@ const loadRules = async () => {
   rules.value = r?.rules ?? []
   ruleTotal.value = r?.total ?? 0
 }
-const loadIncidents = async () => {
-  const r = unwrap(
-    await api().listIncidents({
-      params: {
-        page: incidentPage.value,
-        pageSize: incidentPageSize.value,
-        userId: incidentUserId.value || undefined,
-      },
-    }),
-  )
-  incidents.value = r?.incidents ?? []
-  incidentTotal.value = r?.total ?? 0
-}
 const load = async () => {
   loading.value = true
   try {
     Object.assign(form, unwrap(await api().getConfig()))
-    await Promise.all([loadRules(), loadIncidents()])
+    await Promise.all([loadRules()])
   } finally {
     loading.value = false
   }
