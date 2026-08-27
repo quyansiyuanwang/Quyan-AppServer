@@ -17,6 +17,7 @@ import { BadRequestError, ForbiddenError, NotFoundError, TooManyRequestsError, U
 import { CustomCode } from "@/constant/custom-code";
 import { assertSafeOutboundUrl, isUnsafeOutboundAddress } from "@/util/developer-outbound-url";
 import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
+import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 import type {
   CreateDeveloperApiKeyDto,
   CreateDeveloperProjectDto,
@@ -477,25 +478,22 @@ export class DeveloperProjectRepository {
             throw new ForbiddenError("今日免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
           let chargeAmount = 0;
           if (usage.requestCount > dailyFreeQuota && overagePrice > 0) {
-            const account = await tx.balanceAccount.findUnique({ where: { userId: project.userId } });
-            const balanceBefore = Number(account?.balance ?? 0);
-            const charged = await tx.balanceAccount.updateMany({
-              where: { userId: project.userId, status: 1, balance: { gte: new Decimal(overagePrice) } },
-              data: {
-                balance: { decrement: new Decimal(overagePrice) },
-                totalUsed: { increment: new Decimal(overagePrice) },
-              },
+            const mutation = await applyBalanceAccountMutation(tx, {
+              userId: project.userId,
+              balanceDelta: new Decimal(-overagePrice),
+              totalUsedDelta: new Decimal(overagePrice),
+              minimumBalance: 0,
+              requireActive: true,
             });
-            if (!charged.count)
+            if (!mutation)
               throw new ForbiddenError("余额不足，无法执行超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
-            const balanceAfter = Math.round((balanceBefore - overagePrice) * 10_000) / 10_000;
             await tx.balanceTransaction.create({
               data: {
                 userId: project.userId,
                 type: "developer_overage",
                 amount: new Decimal(-overagePrice),
-                balanceBefore: new Decimal(balanceBefore),
-                balanceAfter: new Decimal(balanceAfter),
+                balanceBefore: Number(mutation.balanceBefore),
+                balanceAfter: Number(mutation.balanceAfter),
                 relatedId: usage.id,
                 model: `developer:${service}`,
                 description: `开发者服务 ${service} 超额调用`,
@@ -526,26 +524,19 @@ export class DeveloperProjectRepository {
         data: { requestCount: { decrement: 1 } },
       });
       if (!receipt.chargeAmount) return;
-      const account = await tx.balanceAccount.findUnique({ where: { userId: receipt.userId } });
-      if (!account) return;
-      const balanceBefore = Number(account.balance);
-      const updated = await tx.balanceAccount.updateMany({
-        where: { userId: receipt.userId },
-        data: {
-          balance: { increment: new Decimal(receipt.chargeAmount) },
-          totalUsed: { decrement: new Decimal(receipt.chargeAmount) },
-        },
+      const mutation = await applyBalanceAccountMutation(tx, {
+        userId: receipt.userId,
+        balanceDelta: new Decimal(receipt.chargeAmount),
+        totalUsedDelta: new Decimal(-receipt.chargeAmount),
       });
-      if (!updated.count) return;
-      const accountAfter = await tx.balanceAccount.findUnique({ where: { userId: receipt.userId } });
-      if (!accountAfter) return;
+      if (!mutation) return;
       await tx.balanceTransaction.create({
         data: {
           userId: receipt.userId,
           type: "developer_overage_refund",
           amount: new Decimal(receipt.chargeAmount),
-          balanceBefore: new Decimal(balanceBefore),
-          balanceAfter: accountAfter.balance,
+          balanceBefore: Number(mutation.balanceBefore),
+          balanceAfter: Number(mutation.balanceAfter),
           relatedId: receipt.usageId,
           model: `developer:${receipt.service}`,
           description: `开发者服务 ${receipt.service} 调用失败退款`,

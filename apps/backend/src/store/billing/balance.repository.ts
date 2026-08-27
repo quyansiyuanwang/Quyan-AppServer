@@ -5,6 +5,7 @@ import type { BalanceStore, RechargeParams } from "./balance.store";
 import { NotificationService } from "@/services/notification/notification.service";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationEvent } from "@/constant/notification-event";
+import { applyBalanceAccountMutation } from "./balance-account-mutation";
 
 export type { RechargeParams } from "./balance.store";
 
@@ -33,47 +34,27 @@ export class BalanceRepository implements BalanceStore {
     const { userId, amount, description, countAsStatistics } = params;
 
     const result = await prisma.$transaction(async (tx) => {
-      let account = await tx.balanceAccount.findUnique({ where: { userId } });
-
-      if (!account) account = await tx.balanceAccount.create({ data: { userId, balance: 0 } });
-
-      const balanceBefore = Number(account.balance);
-      const updateData: Prisma.BalanceAccountUpdateInput = {};
-
-      if (countAsStatistics) {
-        if (amount > 0) updateData.totalRecharged = { increment: amount };
-        else updateData.totalUsed = { increment: Math.abs(amount) };
-
-        const currentTotalRecharged = Number(account.totalRecharged);
-        const currentTotalUsed = Number(account.totalUsed);
-        const newTotalRecharged = amount > 0 ? currentTotalRecharged + amount : currentTotalRecharged;
-        const newTotalUsed = amount < 0 ? currentTotalUsed + Math.abs(amount) : currentTotalUsed;
-        const newBalance = newTotalRecharged - newTotalUsed;
-
-        updateData.balance = new Decimal(newBalance);
-      } else {
-        const newBalance = Math.floor((balanceBefore + amount) * 10000) / 10000;
-        updateData.balance = new Decimal(newBalance);
-      }
-
-      const updatedAccount = await tx.balanceAccount.update({
-        where: { userId },
-        data: updateData,
+      const mutation = await applyBalanceAccountMutation(tx, {
+        userId,
+        balanceDelta: new Decimal(amount),
+        totalRechargedDelta: countAsStatistics && amount > 0 ? new Decimal(amount) : undefined,
+        totalUsedDelta: countAsStatistics && amount < 0 ? new Decimal(Math.abs(amount)) : undefined,
+        createIfMissing: true,
       });
-      const balanceAfter = Number(updatedAccount.balance);
+      if (!mutation) throw new Error("Balance account mutation unexpectedly failed");
 
       await tx.balanceTransaction.create({
         data: {
           userId,
           type: "recharge",
           amount,
-          balanceBefore,
-          balanceAfter,
+          balanceBefore: mutation.balanceBefore,
+          balanceAfter: mutation.balanceAfter,
           description: description || "管理员充值",
         },
       });
 
-      return updatedAccount;
+      return mutation.account;
     });
 
     // Fire-and-forget notifications

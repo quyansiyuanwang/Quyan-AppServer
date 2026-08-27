@@ -29,7 +29,6 @@ import type {
   ContentSafetyBatchUpdateResponse,
   ContentSafetyExportDto,
   ContentSafetyExportRequest,
-  ContentSafetyIncidentQuery,
 } from "@/api/dto/system/content-safety.dto";
 import {
   contentSafetyConfigSchema,
