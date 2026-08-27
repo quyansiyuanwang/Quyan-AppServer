@@ -3,6 +3,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import type { Prisma } from "@prisma/client";
 import type { OJChargeAndRecordUsageParams, OJUsageStatsResult, OJUsageStore } from "./oj-usage.store";
 import { RECORD_STATUS } from "@/constant/status";
+import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 
 export type { OJChargeAndRecordUsageParams } from "./oj-usage.store";
 
@@ -38,28 +39,21 @@ export class OJUsageRepository implements OJUsageStore {
     } = params;
 
     return prisma.$transaction(async (tx) => {
-      const account = await tx.balanceAccount.findUnique({ where: { userId } });
-      if (!account) return false;
-
-      const balanceBefore = Number(account.balance);
-      const newBalance = Math.floor((balanceBefore - cost) * 10000) / 10000;
-      if (newBalance < 0) return false;
-
-      await tx.balanceAccount.update({
-        where: { userId },
-        data: {
-          balance: new Decimal(newBalance),
-          totalUsed: { increment: new Decimal(cost) },
-        },
+      const mutation = await applyBalanceAccountMutation(tx, {
+        userId,
+        balanceDelta: new Decimal(-cost),
+        totalUsedDelta: new Decimal(cost),
+        minimumBalance: 0,
       });
+      if (!mutation) return false;
 
       await tx.balanceTransaction.create({
         data: {
           userId,
           type: "api_usage",
           amount: new Decimal(-cost),
-          balanceBefore: new Decimal(balanceBefore),
-          balanceAfter: new Decimal(newBalance),
+          balanceBefore: mutation.balanceBefore,
+          balanceAfter: mutation.balanceAfter,
           relatedId: keyId,
           description: "OJSubmitter AI问答",
           model,

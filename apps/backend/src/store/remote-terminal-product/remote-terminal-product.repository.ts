@@ -13,6 +13,7 @@ import type {
   RemoteTerminalProductTemplateRecord,
   RemoteTerminalProductTemplateFilterOption,
 } from "./remote-terminal-product.store";
+import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 
 type RemoteTerminalUserEntitlementRecord = Prisma.RemoteTerminalUserEntitlementGetPayload<Record<string, never>>;
 type RemoteTerminalEntitlementTokenRecord = Prisma.RemoteTerminalEntitlementTokenGetPayload<Record<string, never>>;
@@ -74,31 +75,21 @@ export class RemoteTerminalProductRepository implements RemoteTerminalProductSto
   ): Promise<void> {
     if (data.purchaseAmount <= 0) return;
 
-    const account = await tx.balanceAccount.findUnique({ where: { userId: data.userId } });
-    const balanceBefore = account ? Number(account.balance) : 0;
-
-    if (!account || balanceBefore < data.purchaseAmount) throw new BadRequestError("Insufficient balance");
-
-    const currentTotalRecharged = Number(account.totalRecharged);
-    const currentTotalUsed = Number(account.totalUsed);
-    const newTotalUsed = currentTotalUsed + data.purchaseAmount;
-    const newBalance = currentTotalRecharged - newTotalUsed;
-
-    const updatedAccount = await tx.balanceAccount.update({
-      where: { userId: data.userId },
-      data: {
-        balance: new Decimal(newBalance),
-        totalUsed: { increment: data.purchaseAmount },
-      },
+    const mutation = await applyBalanceAccountMutation(tx, {
+      userId: data.userId,
+      balanceDelta: new Decimal(-data.purchaseAmount),
+      totalUsedDelta: new Decimal(data.purchaseAmount),
+      minimumBalance: 0,
     });
+    if (!mutation) throw new BadRequestError("Insufficient balance");
 
     await tx.balanceTransaction.create({
       data: {
         userId: data.userId,
         type: "remote_terminal_purchase",
         amount: new Decimal(-data.purchaseAmount),
-        balanceBefore: new Decimal(balanceBefore),
-        balanceAfter: new Decimal(updatedAccount.balance),
+        balanceBefore: mutation.balanceBefore,
+        balanceAfter: mutation.balanceAfter,
         description: `远程终端购买: ${data.templateName}`,
         model: "remote_terminal_product",
       },

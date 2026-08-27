@@ -76,9 +76,11 @@ export interface ContentSafetyConfigDto {
   requestEnabled: boolean;
   requestAction: ContentSafetyAction;
   requestAiEnabled: boolean;
+  requestAiAction: ContentSafetyAction;
   responseEnabled: boolean;
   responseAction: ContentSafetyAction;
   responseAiEnabled: boolean;
+  responseAiAction: ContentSafetyAction;
   aiUpstreamUrl: string;
   aiApiKeyConfigured: boolean;
   aiModel: string;
@@ -91,18 +93,22 @@ export interface ContentSafetyConfigDto {
     requestEnabled: boolean | null;
     requestAction: ContentSafetyAction | null;
     requestAiEnabled: boolean | null;
+    requestAiAction: ContentSafetyAction | null;
     responseEnabled: boolean | null;
     responseAction: ContentSafetyAction | null;
     responseAiEnabled: boolean | null;
+    responseAiAction: ContentSafetyAction | null;
   };
 }
 export interface ContentSafetyConfigRequest {
   requestEnabled: boolean;
   requestAction: ContentSafetyAction;
   requestAiEnabled: boolean;
+  requestAiAction?: ContentSafetyAction;
   responseEnabled: boolean;
   responseAction: ContentSafetyAction;
   responseAiEnabled: boolean;
+  responseAiAction?: ContentSafetyAction;
   aiUpstreamUrl: string;
   aiApiKey?: string;
   clearAiApiKey?: boolean;
@@ -118,9 +124,11 @@ export interface ContentSafetyUserConfigRequest {
   requestEnabled: boolean | null;
   requestAction: ContentSafetyAction | null;
   requestAiEnabled: boolean | null;
+  requestAiAction: ContentSafetyAction | null;
   responseEnabled: boolean | null;
   responseAction: ContentSafetyAction | null;
   responseAiEnabled: boolean | null;
+  responseAiAction: ContentSafetyAction | null;
   targetUserId?: string;
 }
 
@@ -134,6 +142,7 @@ export interface ContentSafetyIncidentDto {
   createTime: string;
   userId: string;
   relayTokenId?: string | null;
+  relayTokenName?: string | null;
   requestId?: string | null;
   direction: string;
   action: string;
@@ -141,6 +150,7 @@ export interface ContentSafetyIncidentDto {
   ruleId?: string | null;
   rule?: { name: string; type: string; pattern?: string } | null;
   channelId?: string | null;
+  channelName?: string | null;
   statusCode?: number | null;
   model?: string | null;
   auditModel?: string | null;
@@ -154,4 +164,24 @@ export interface ContentSafetyIncidentDto {
   matchText?: string | null;
   /** One combined excerpt; the UI highlights the matching portion temporarily. */
   matchContext?: string | null;
+}
+
+export type ContentSafetyIncidentSortBy = "createTime" | "requestId" | "action" | "source" | "statusCode";
+export type ContentSafetyIncidentSortOrder = "asc" | "desc";
+export type ContentSafetyIncidentStatus = "allow" | "replaced" | "blocked";
+
+export interface ContentSafetyIncidentQuery {
+  page?: number;
+  pageSize?: number;
+  userId?: string;
+  startTime?: string;
+  endTime?: string;
+  direction?: ContentSafetyDirection;
+  source?: "rule" | "ai";
+  processingStatus?: ContentSafetyIncidentStatus;
+  requestId?: string;
+  relayTokenName?: string;
+  channelName?: string;
+  sortBy?: ContentSafetyIncidentSortBy;
+  sortOrder?: ContentSafetyIncidentSortOrder;
 }

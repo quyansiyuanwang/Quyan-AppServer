@@ -5,6 +5,7 @@ import {
   RelayChannelProviderRevenueRepository,
   type RelayChannelProviderRevenueTransactionClient,
 } from "@/store/relay/relay-channel-provider-revenue.repository";
+import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 
 const round4 = (value: number) => Math.round(value * 10000) / 10000;
 
@@ -183,22 +184,13 @@ export class RelayChannelProviderRevenueService {
     });
     if (!earnings.length) throw new ConflictError("Channel revenue has already been settled");
     const amount = round4(earnings.reduce((sum, earning) => sum + Number(earning.commissionAmount), 0));
-    const account = await tx.balanceAccount.findUnique({ where: { userId: provider.userId } });
-    const balanceBefore = Number(account?.balance || 0);
-    const balanceAfter = round4(balanceBefore + amount);
-    if (account)
-      await tx.balanceAccount.update({
-        where: { userId: provider.userId },
-        data: { balance: new Decimal(balanceAfter), totalCommissionEarned: { increment: new Decimal(amount) } },
-      });
-    else
-      await tx.balanceAccount.create({
-        data: {
-          userId: provider.userId,
-          balance: new Decimal(balanceAfter),
-          totalCommissionEarned: new Decimal(amount),
-        },
-      });
+    const mutation = await applyBalanceAccountMutation(tx, {
+      userId: provider.userId,
+      balanceDelta: new Decimal(amount),
+      totalCommissionEarnedDelta: new Decimal(amount),
+      createIfMissing: true,
+    });
+    if (!mutation) throw new ConflictError("Channel revenue settlement balance mutation failed");
     const settlement = await tx.relayChannelProviderSettlement.create({
       data: { providerId, amount: new Decimal(amount), settlementMode: mode },
     });
@@ -207,8 +199,8 @@ export class RelayChannelProviderRevenueService {
         userId: provider.userId,
         type: "channel_commission",
         amount: new Decimal(amount),
-        balanceBefore: new Decimal(balanceBefore),
-        balanceAfter: new Decimal(balanceAfter),
+        balanceBefore: mutation.balanceBefore,
+        balanceAfter: mutation.balanceAfter,
         relatedId: settlement.id,
         description: "渠道提供分成结算",
       },

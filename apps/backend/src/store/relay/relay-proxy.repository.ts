@@ -10,6 +10,7 @@ import { NotificationService } from "@/services/notification/notification.servic
 import { NotificationEvent } from "@/constant/notification-event";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { RelayChannelProviderRevenueService } from "@/services/relay/relay-channel-provider-revenue.service";
+import { applyBalanceAccountMutation, lockBalanceAccount } from "@/store/billing/balance-account-mutation";
 import type {
   RelayBalanceChargeMode,
   RelayFinalizeChargeInput,
@@ -336,7 +337,7 @@ export class RelayProxyRepository implements RelayProxyStore {
           }
 
           const shouldChargeBalance = remainingCost > 0;
-          const currentAccount = await tx.balanceAccount.findUnique({ where: { userId: data.userId } });
+          const currentAccount = await lockBalanceAccount(tx, data.userId);
 
           const balanceBefore = currentAccount ? Number(currentAccount.balance) : 0;
 
@@ -459,21 +460,16 @@ export class RelayProxyRepository implements RelayProxyStore {
             });
 
           if (shouldChargeBalance) {
-            const currentTotalRecharged = Number(currentAccount!.totalRecharged);
-            const currentTotalUsed = Number(currentAccount!.totalUsed);
-            const newTotalUsed = currentTotalUsed + remainingCost;
-            const rawBalance = currentTotalRecharged + Number(currentAccount!.totalCommissionEarned) - newTotalUsed;
-            const newBalance = balanceChargeMode === "skip-when-non-positive" ? Math.max(0, rawBalance) : rawBalance;
-
-            const updatedAccount = await tx.balanceAccount.update({
-              where: { userId: data.userId },
-              data: {
-                balance: new Decimal(newBalance),
-                totalUsed: { increment: remainingCost },
-              },
+            const mutation = await applyBalanceAccountMutation(tx, {
+              userId: data.userId,
+              balanceDelta: new Decimal(-remainingCost),
+              totalUsedDelta: new Decimal(remainingCost),
+              minimumBalance: balanceChargeMode === "strict" ? 0 : undefined,
+              clampMinimumBalance: balanceChargeMode === "skip-when-non-positive" ? 0 : undefined,
             });
+            if (!mutation) return { applied: false };
 
-            balanceAfter = Number(updatedAccount.balance);
+            balanceAfter = Number(mutation.balanceAfter);
           }
 
           const chargeDesc = data.originalModel

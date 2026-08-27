@@ -75,10 +75,20 @@
             <el-input v-model="adjustForm.currentBalance" disabled />
           </el-form-item>
           <el-form-item :label="i18ns.t('balance.amount')">
-            <el-input-number v-model="adjustForm.amount" style="width: 100%" />
+            <el-input-number
+              v-model="adjustForm.amount"
+              :precision="4"
+              :step="0.0001"
+              style="width: 100%"
+            />
           </el-form-item>
           <el-form-item :label="i18ns.t('balance.resultBalance')">
-            <el-input-number v-model="adjustForm.resultBalance" style="width: 100%" />
+            <el-input-number
+              v-model="adjustForm.resultBalance"
+              :precision="4"
+              :step="0.0001"
+              style="width: 100%"
+            />
           </el-form-item>
           <el-form-item :label="i18ns.t('balance.countAsStatistics')">
             <el-switch v-model="adjustForm.countAsStatistics" />
@@ -186,10 +196,18 @@
             ><el-input v-model="adjustForm.currentBalance" disabled
           /></el-form-item>
           <el-form-item :label="i18ns.t('balance.amount')"
-            ><el-input-number v-model="adjustForm.amount" style="width: 100%"
+            ><el-input-number
+              v-model="adjustForm.amount"
+              :precision="4"
+              :step="0.0001"
+              style="width: 100%"
           /></el-form-item>
           <el-form-item :label="i18ns.t('balance.resultBalance')"
-            ><el-input-number v-model="adjustForm.resultBalance" style="width: 100%"
+            ><el-input-number
+              v-model="adjustForm.resultBalance"
+              :precision="4"
+              :step="0.0001"
+              style="width: 100%"
           /></el-form-item>
           <el-form-item :label="i18ns.t('balance.countAsStatistics')">
             <el-switch v-model="adjustForm.countAsStatistics" />
@@ -279,6 +297,8 @@ let isUpdatingAmount = false
 let isUpdatingResult = false
 
 const BALANCE_AMOUNT_MAX_DECIMALS = 8
+const roundBalanceAmount = (value: number): number =>
+  Math.round((value + Number.EPSILON) * 10000) / 10000
 
 const formatBalanceAmount = (value: number): string => {
   if (!Number.isFinite(value)) return '0.00000000'
@@ -290,7 +310,7 @@ watch(
   () => {
     if (isUpdatingAmount) return
     isUpdatingResult = true
-    adjustForm.resultBalance = adjustForm.currentBalance + adjustForm.amount
+    adjustForm.resultBalance = roundBalanceAmount(adjustForm.currentBalance + adjustForm.amount)
     isUpdatingResult = false
   },
 )
@@ -300,7 +320,7 @@ watch(
   () => {
     if (isUpdatingResult) return
     isUpdatingAmount = true
-    adjustForm.amount = adjustForm.resultBalance - adjustForm.currentBalance
+    adjustForm.amount = roundBalanceAmount(adjustForm.resultBalance - adjustForm.currentBalance)
     isUpdatingAmount = false
   },
 )

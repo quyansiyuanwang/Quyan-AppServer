@@ -1024,7 +1024,6 @@ export class RelayChannelProbeService {
     body: CreateRelayChannelProbeRunRequest,
     actorUserId: string,
   ): Promise<RelayChannelProbeRunDto> {
-    const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     const profile = await this.repository.findProfileWithChannel(channelId);
     if (!profile) throw new NotFoundError("渠道探针档案不存在");
     if (!profile.enabled) throw new BadRequestError("渠道探针已停用");

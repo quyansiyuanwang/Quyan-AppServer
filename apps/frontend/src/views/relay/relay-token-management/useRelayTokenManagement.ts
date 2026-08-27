@@ -607,9 +607,11 @@ export const useRelayTokenManagement = () => {
       requestEnabled: null,
       requestAction: null,
       requestAiEnabled: null,
+      requestAiAction: null,
       responseEnabled: null,
       responseAction: null,
       responseAiEnabled: null,
+      responseAiAction: null,
     } as {
       [key: string]: boolean | SharedContentSafetyAction | null
       requestEnabled: boolean | null
@@ -1732,9 +1734,11 @@ export const useRelayTokenManagement = () => {
         requestEnabled: row.contentSafetyConfig?.requestEnabled ?? null,
         requestAction: row.contentSafetyConfig?.requestAction ?? null,
         requestAiEnabled: row.contentSafetyConfig?.requestAiEnabled ?? null,
+        requestAiAction: row.contentSafetyConfig?.requestAiAction ?? null,
         responseEnabled: row.contentSafetyConfig?.responseEnabled ?? null,
         responseAction: row.contentSafetyConfig?.responseAction ?? null,
         responseAiEnabled: row.contentSafetyConfig?.responseAiEnabled ?? null,
+        responseAiAction: row.contentSafetyConfig?.responseAiAction ?? null,
       },
     }
 

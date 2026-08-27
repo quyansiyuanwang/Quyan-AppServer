@@ -14,6 +14,7 @@ import type {
   UserMonthlyPassWithTemplate,
 } from "./monthly-pass.store";
 import { MANAGED_STATUS } from "@/constant/status";
+import { applyBalanceAccountMutation } from "./balance-account-mutation";
 
 export type {
   ActiveMonthlyPassCandidate,
@@ -70,26 +71,21 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   ): Promise<void> {
     if (data.purchaseAmount <= 0) return;
 
-    const debit = await tx.balanceAccount.updateMany({
-      where: { userId: data.userId, balance: { gte: data.purchaseAmount } },
-      data: {
-        balance: { decrement: data.purchaseAmount },
-        totalUsed: { increment: data.purchaseAmount },
-      },
+    const mutation = await applyBalanceAccountMutation(tx, {
+      userId: data.userId,
+      balanceDelta: new Decimal(-data.purchaseAmount),
+      totalUsedDelta: new Decimal(data.purchaseAmount),
+      minimumBalance: 0,
     });
-    if (debit.count !== 1) throw new BadRequestError("Insufficient balance");
-
-    const updatedAccount = await tx.balanceAccount.findUniqueOrThrow({ where: { userId: data.userId } });
-    const balanceAfter = Number(updatedAccount.balance);
-    const balanceBefore = balanceAfter + data.purchaseAmount;
+    if (!mutation) throw new BadRequestError("Insufficient balance");
 
     await tx.balanceTransaction.create({
       data: {
         userId: data.userId,
         type: "monthly_pass_purchase",
         amount: new Decimal(-data.purchaseAmount),
-        balanceBefore: new Decimal(balanceBefore),
-        balanceAfter: new Decimal(updatedAccount.balance),
+        balanceBefore: mutation.balanceBefore,
+        balanceAfter: mutation.balanceAfter,
         relatedId: data.templateId,
         description: `月卡购买: ${data.templateName}`,
         model: "monthly_pass",
