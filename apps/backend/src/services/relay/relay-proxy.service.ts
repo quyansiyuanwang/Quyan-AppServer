@@ -2209,7 +2209,8 @@ export class RelayProxyService {
   private sendStreamTransportError(res: any, error: unknown): void {
     if (res.headersSent || res.writableEnded) return;
 
-    const statusCode = error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502;
+    const statusCode =
+      error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502;
     const message = error instanceof Error ? error.message : "Upstream request failed";
 
     res.status(statusCode).json({
@@ -4018,7 +4019,12 @@ export class RelayProxyService {
                   attemptedUpstream: upstreamRequestStarted,
                 });
               this.sendStreamTransportError(res, error);
-              return { status: error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502, headers: {}, data: {} };
+              return {
+                status:
+                  error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502,
+                headers: {},
+                data: {},
+              };
             }
 
             throw error;

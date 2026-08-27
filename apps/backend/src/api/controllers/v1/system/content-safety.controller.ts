@@ -235,23 +235,67 @@ export class ContentSafetyController extends Controller {
   @Get("incidents")
   @RequirePermission(Permission.SYSTEM_CONFIG)
   async listIncidents(
-    @Query() page = 1, @Query() pageSize = 50, @Query() userId?: string, @Query() startTime?: string,
-    @Query() endTime?: string, @Query() direction?: "request" | "response", @Query() source?: "rule" | "ai",
-    @Query() processingStatus?: "allow" | "replaced" | "blocked", @Query() requestId?: string,
-    @Query() relayTokenName?: string, @Query() channelName?: string,
-    @Query() sortBy?: "createTime" | "requestId" | "action" | "source" | "statusCode", @Query() sortOrder?: "asc" | "desc",
+    @Query() page = 1,
+    @Query() pageSize = 50,
+    @Query() userId?: string,
+    @Query() startTime?: string,
+    @Query() endTime?: string,
+    @Query() direction?: "request" | "response",
+    @Query() source?: "rule" | "ai",
+    @Query() processingStatus?: "allow" | "replaced" | "blocked",
+    @Query() requestId?: string,
+    @Query() relayTokenName?: string,
+    @Query() channelName?: string,
+    @Query() sortBy?: "createTime" | "requestId" | "action" | "source" | "statusCode",
+    @Query() sortOrder?: "asc" | "desc",
   ) {
-    return this.service.listIncidents({ page, pageSize, userId, startTime, endTime, direction, source, processingStatus, requestId, relayTokenName, channelName, sortBy, sortOrder });
+    return this.service.listIncidents({
+      page,
+      pageSize,
+      userId,
+      startTime,
+      endTime,
+      direction,
+      source,
+      processingStatus,
+      requestId,
+      relayTokenName,
+      channelName,
+      sortBy,
+      sortOrder,
+    });
   }
 
   @Get("user-incidents")
   async listUserIncidents(
-    @Request() request: TypedRequest, @Query() page = 1, @Query() pageSize = 50, @Query() startTime?: string,
-    @Query() endTime?: string, @Query() direction?: "request" | "response", @Query() source?: "rule" | "ai",
-    @Query() processingStatus?: "allow" | "replaced" | "blocked", @Query() requestId?: string,
-    @Query() relayTokenName?: string, @Query() channelName?: string,
-    @Query() sortBy?: "createTime" | "requestId" | "action" | "source" | "statusCode", @Query() sortOrder?: "asc" | "desc",
+    @Request() request: TypedRequest,
+    @Query() page = 1,
+    @Query() pageSize = 50,
+    @Query() startTime?: string,
+    @Query() endTime?: string,
+    @Query() direction?: "request" | "response",
+    @Query() source?: "rule" | "ai",
+    @Query() processingStatus?: "allow" | "replaced" | "blocked",
+    @Query() requestId?: string,
+    @Query() relayTokenName?: string,
+    @Query() channelName?: string,
+    @Query() sortBy?: "createTime" | "requestId" | "action" | "source" | "statusCode",
+    @Query() sortOrder?: "asc" | "desc",
   ) {
-    return this.service.listIncidents({ page, pageSize, userId: request.user!.userId, startTime, endTime, direction, source, processingStatus, requestId, relayTokenName, channelName, sortBy, sortOrder });
+    return this.service.listIncidents({
+      page,
+      pageSize,
+      userId: request.user!.userId,
+      startTime,
+      endTime,
+      direction,
+      source,
+      processingStatus,
+      requestId,
+      relayTokenName,
+      channelName,
+      sortBy,
+      sortOrder,
+    });
   }
 }

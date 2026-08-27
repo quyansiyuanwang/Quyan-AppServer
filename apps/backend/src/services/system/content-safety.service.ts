@@ -100,11 +100,15 @@ export class ContentSafetyService {
       requestEnabled: values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ENABLED] !== "false",
       requestAction: action(values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ACTION]),
       requestAiEnabled: values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_AI_ENABLED] === "true",
-      requestAiAction: action(values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_AI_ACTION] || values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ACTION]),
+      requestAiAction: action(
+        values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_AI_ACTION] || values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ACTION],
+      ),
       responseEnabled: values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ENABLED] !== "false",
       responseAction: action(values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ACTION]),
       responseAiEnabled: values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_AI_ENABLED] === "true",
-      responseAiAction: action(values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_AI_ACTION] || values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ACTION]),
+      responseAiAction: action(
+        values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_AI_ACTION] || values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ACTION],
+      ),
       aiUpstreamUrl: values[CONFIG_KEYS.CONTENT_SAFETY.AI_UPSTREAM_URL] || "",
       aiApiKeyConfigured: Boolean(values[CONFIG_KEYS.CONTENT_SAFETY.AI_API_KEY]),
       aiModel: values[CONFIG_KEYS.CONTENT_SAFETY.AI_MODEL] || "",
@@ -570,7 +574,15 @@ export class ContentSafetyService {
             matchContext: matchContext?.context,
           };
         })()
-      : { text, action: "allow", matched: false, auditInputTokens: 0, auditOutputTokens: 0, auditDurationMs: 0, auditCost: 0 };
+      : {
+          text,
+          action: "allow",
+          matched: false,
+          auditInputTokens: 0,
+          auditOutputTokens: 0,
+          auditDurationMs: 0,
+          auditCost: 0,
+        };
     const aiEvaluation = await this.audit(text, direction, config);
     return this.combineEvaluations(text, [ruleEvaluation, aiEvaluation]);
   }
@@ -648,28 +660,32 @@ export class ContentSafetyService {
   }) {
     if (!input.evaluation.matched) return;
     const evaluations = input.evaluation.components || [input.evaluation];
-    await Promise.all(evaluations.map((evaluation) => this.repository.createIncident({
-      userId: input.userId,
-      relayTokenId: input.relayTokenId,
-      requestId: input.requestId,
-      direction: input.direction,
-      action: evaluation.action,
-      source: evaluation.source || "ai",
-      ruleId: evaluation.ruleId,
-      model: input.model,
-      channelId: input.channelId,
-      statusCode: input.statusCode,
-      auditModel: evaluation.auditModel,
-      auditInputTokens: evaluation.auditInputTokens,
-      auditOutputTokens: evaluation.auditOutputTokens,
-      auditTotalTokens: evaluation.auditInputTokens + evaluation.auditOutputTokens,
-      auditCost: evaluation.auditCost,
-      auditDurationMs: evaluation.auditDurationMs,
-      replaced: evaluation.action === "blackhole",
-      blocked: evaluation.action === "unreachable",
-      matchText: evaluation.matchText,
-      matchContext: evaluation.matchContext,
-    })));
+    await Promise.all(
+      evaluations.map((evaluation) =>
+        this.repository.createIncident({
+          userId: input.userId,
+          relayTokenId: input.relayTokenId,
+          requestId: input.requestId,
+          direction: input.direction,
+          action: evaluation.action,
+          source: evaluation.source || "ai",
+          ruleId: evaluation.ruleId,
+          model: input.model,
+          channelId: input.channelId,
+          statusCode: input.statusCode,
+          auditModel: evaluation.auditModel,
+          auditInputTokens: evaluation.auditInputTokens,
+          auditOutputTokens: evaluation.auditOutputTokens,
+          auditTotalTokens: evaluation.auditInputTokens + evaluation.auditOutputTokens,
+          auditCost: evaluation.auditCost,
+          auditDurationMs: evaluation.auditDurationMs,
+          replaced: evaluation.action === "blackhole",
+          blocked: evaluation.action === "unreachable",
+          matchText: evaluation.matchText,
+          matchContext: evaluation.matchContext,
+        }),
+      ),
+    );
     const notification = {
       subject: "Content safety event",
       summary: "A request or response was intercepted by content safety policy.",

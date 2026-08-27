@@ -247,7 +247,12 @@ export class ContentSafetyRepository {
       ...(query.processingStatus === "allow" ? { replaced: false, blocked: false } : {}),
       ...(startTime && !Number.isNaN(startTime.valueOf()) ? { createTime: { gte: startTime } } : {}),
       ...(endTime && !Number.isNaN(endTime.valueOf())
-        ? { createTime: { ...(startTime && !Number.isNaN(startTime.valueOf()) ? { gte: startTime } : {}), lte: endTime } }
+        ? {
+            createTime: {
+              ...(startTime && !Number.isNaN(startTime.valueOf()) ? { gte: startTime } : {}),
+              lte: endTime,
+            },
+          }
         : {}),
     };
     const sortBy = ["createTime", "requestId", "action", "source", "statusCode"].includes(query.sortBy || "")
@@ -288,7 +293,9 @@ export class ContentSafetyRepository {
       prisma.contentSafetyIncident.count({ where }),
     ]);
     const relayTokenIds = [...new Set(incidents.map((incident) => incident.relayTokenId).filter(Boolean))] as string[];
-    const incidentChannelIds = [...new Set(incidents.map((incident) => incident.channelId).filter(Boolean))] as string[];
+    const incidentChannelIds = [
+      ...new Set(incidents.map((incident) => incident.channelId).filter(Boolean)),
+    ] as string[];
     const [tokens, channels] = await Promise.all([
       relayTokenIds.length
         ? prisma.relayToken.findMany({ where: { id: { in: relayTokenIds } }, select: { id: true, name: true } })

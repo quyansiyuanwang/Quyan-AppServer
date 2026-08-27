@@ -35,8 +35,12 @@
         <el-table-column :label="i18ns.t('contentSafety.aiAction')" min-width="300">
           <template #default="{ row }">
             <el-radio-group v-model="localModel[row.aiActionKey]" size="small">
-              <el-radio-button label="unreachable">{{ i18ns.t('contentSafety.unreachable') }}</el-radio-button>
-              <el-radio-button label="blackhole">{{ i18ns.t('contentSafety.blackhole') }}</el-radio-button>
+              <el-radio-button label="unreachable">{{
+                i18ns.t('contentSafety.unreachable')
+              }}</el-radio-button>
+              <el-radio-button label="blackhole">{{
+                i18ns.t('contentSafety.blackhole')
+              }}</el-radio-button>
               <el-radio-button label="allow">{{ i18ns.t('contentSafety.allow') }}</el-radio-button>
             </el-radio-group>
           </template>
