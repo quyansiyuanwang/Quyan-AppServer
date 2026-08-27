@@ -130,6 +130,7 @@ import { i18ns } from '@/locales'
 import { useRequestStore } from '@/stores/request'
 import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
 import { copyTextWithFallback } from '@/utils/clipboard'
+import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 
 const props = withDefaults(defineProps<{ scope?: 'system' | 'user' }>(), { scope: 'user' })
 const t = (key: any) => i18ns.t(key)
@@ -300,12 +301,12 @@ const handleSort = ({ prop, order }: any) => {
     reload()
   }
 }
-watch(visibleColumns, (value) => localStorage.setItem(storageKey.value, JSON.stringify(value)), {
+watch(visibleColumns, (value) => TypedLocalStorage.set(storageKey.value, value), {
   deep: true,
 })
 onMounted(() => {
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey.value) || 'null')
+    const saved = TypedLocalStorage.get<string[]>(storageKey.value)
     if (Array.isArray(saved) && saved.length) visibleColumns.value = saved
   } catch {
     /* ignore invalid local settings */
