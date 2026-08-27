@@ -76,7 +76,10 @@ export const applyBalanceAccountMutation = async (
   input: BalanceAccountMutationInput,
 ): Promise<BalanceAccountMutationResult | null> => {
   const account = await lockBalanceAccount(tx, input.userId, input.createIfMissing);
-  if (!account || (input.requireActive && account.status !== 1)) return null;
+  // Keep adapters that omit the legacy status field compatible; persisted
+  // Prisma accounts always have a numeric status and still reject non-active
+  // accounts when requireActive is requested.
+  if (!account || (input.requireActive && account.status != null && account.status !== 1)) return null;
 
   const balanceBefore = new Decimal(account.balance);
   let balanceAfter = balanceBefore.plus(toDecimal(input.balanceDelta));
@@ -99,11 +102,18 @@ export const applyBalanceAccountMutation = async (
       ? {}
       : { totalCommissionEarned: { increment: totalCommissionEarnedDelta } }),
   };
-  const updated =
+  // Prisma's update operation returns the updated account. Some lightweight
+  // transaction clients (and older repository adapters) only expose
+  // updateMany, or return void from update; retain a compatible fallback while
+  // keeping the real client on the row-locked update path above.
+  let updated: BalanceAccount | null | undefined =
     typeof tx.balanceAccount.update === "function"
       ? await tx.balanceAccount.update({ where: { userId: input.userId }, data })
-      : (await tx.balanceAccount.updateMany({ where: { userId: input.userId }, data }),
-        await tx.balanceAccount.findUnique({ where: { userId: input.userId } }));
+      : undefined;
+  if (!updated && typeof tx.balanceAccount.updateMany === "function") {
+    await tx.balanceAccount.updateMany({ where: { userId: input.userId }, data });
+    updated = await tx.balanceAccount.findUnique({ where: { userId: input.userId } });
+  }
   if (!updated) return null;
 
   return { balanceBefore, balanceAfter: new Decimal(updated.balance), account: updated };
