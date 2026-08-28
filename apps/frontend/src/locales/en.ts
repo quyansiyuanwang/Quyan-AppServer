@@ -3763,11 +3763,12 @@ export default {
     channelMultiplier: 'Channel Multiplier',
     channelMultiplierHelp: 'Price multiplier for this channel, stacked with global multiplier',
     channelSettings: 'Channel Settings',
-    inputTokensIncludeCacheRead: 'input_tokens and Cache Read Relationship',
-    inputTokensContainsCacheRead: 'input_tokens already includes cache_read_tokens',
-    inputTokensExcludesCacheRead: 'input_tokens excludes cache_read_tokens',
+    inputTokensIncludeCacheRead: 'input_tokens and Cache Read/Write Relationship',
+    inputTokensContainsCacheRead:
+      'input_tokens already includes cache read and cache creation tokens',
+    inputTokensExcludesCacheRead: 'input_tokens excludes cache tokens',
     inputTokensIncludeCacheReadHelp:
-      'Some upstreams include cache_read_tokens in input_tokens. Enable to subtract cache read tokens to avoid double charging. Disable to use upstream input_tokens directly.',
+      'Some upstreams include cache read and cache creation tokens in input_tokens. Enable to subtract both cache buckets to avoid double charging. Disable to use upstream input_tokens directly.',
     apiKeyNewPlaceholder: 'Enter upstream API Key',
     apiKeyReplacePlaceholder: 'Enter a new API Key to replace the current value',
     apiKeyReplaceHelp:
