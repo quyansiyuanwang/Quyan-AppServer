@@ -73,15 +73,13 @@ describe("DeveloperProductPlatformService", () => {
   });
 
   it("refunds an overage when its quota record was deleted concurrently", async () => {
-    mocks.prisma.developerProductRefundRetry.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: "refund-1",
-        usageId: "usage-1",
-        accountOwnerId: "user-1",
-        chargeAmount: new Decimal(1),
-        completedAt: null,
-      });
+    mocks.prisma.developerProductRefundRetry.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      id: "refund-1",
+      usageId: "usage-1",
+      accountOwnerId: "user-1",
+      chargeAmount: new Decimal(1),
+      completedAt: null,
+    });
     mocks.prisma.developerProductQuotaUsage.updateMany.mockResolvedValue({ count: 0 });
     mocks.prisma.balanceAccount.findUnique.mockResolvedValueOnce({ balance: 4 }).mockResolvedValueOnce({ balance: 5 });
     mocks.prisma.balanceAccount.updateMany.mockResolvedValue({ count: 1 });
