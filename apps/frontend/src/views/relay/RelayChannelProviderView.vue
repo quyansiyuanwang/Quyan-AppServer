@@ -196,6 +196,7 @@ import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { relayChannelService } from '@/service/relayChannelService'
+import { modelPricingService } from '@/service/modelPricingService'
 import RelayStandaloneChannelDrawer, {
   type StandaloneChannelFormState,
 } from './components/RelayStandaloneChannelDrawer.vue'
@@ -587,27 +588,15 @@ const claim = async () => {
 }
 const loadAvailableModels = async () => {
   try {
-    const catalog = await relayChannelService.listCatalogOptions()
-    const options = new Map<string, ProviderModelOption>()
-    for (const channel of catalog) {
-      for (const capability of channel.modelCapabilities) {
-        const model = capability.catalogModelName.trim()
-        if (!model) continue
-        const existing = options.get(model)
-        const supportedFormats = new Set([
-          ...(existing?.supportedFormats || '').split(',').filter(Boolean),
-          ...capability.supportedRequestFormats,
-        ])
-        options.set(model, {
-          model,
-          modelId: capability.requestModelId,
-          supportedFormats: [...supportedFormats].join(','),
-        })
-      }
-    }
-    availableModels.value = [...options.values()]
+    const models = await modelPricingService.getModelPricing()
+    availableModels.value = models
+      .map((item) => ({
+        model: item.model.trim(),
+        supportedFormats: item.supportedFormats,
+      }))
+      .filter((item) => item.model)
   } catch (error) {
-    console.error('加载中转模型目录失败:', error)
+    console.error('加载模型价目表失败:', error)
   }
 }
 onMounted(() => {

@@ -82,6 +82,28 @@ export const normalizeTokenBreakdown = (
   };
 };
 
+/**
+ * Resolve the fresh-input portion used for token-based billing.
+ * Cache-inclusive providers report cache reads and writes inside input tokens;
+ * cache-exclusive providers already report fresh input and must not be reduced.
+ */
+export const resolveFreshInputTokens = (
+  inputTokens: number,
+  cacheReadTokens: number,
+  cacheCreationTokens: number,
+  inputIncludesCacheRead: boolean,
+): number => {
+  const input = Math.max(0, parseNumericTokenValue(inputTokens));
+  if (!inputIncludesCacheRead) return input;
+
+  return Math.max(
+    0,
+    input -
+      Math.max(0, parseNumericTokenValue(cacheReadTokens)) -
+      Math.max(0, parseNumericTokenValue(cacheCreationTokens)),
+  );
+};
+
 export const extractTokenUsageMetrics = (usage: unknown): TokenUsageMetrics => {
   const usageData: Record<string, unknown> = isRecord(usage) ? usage : {};
   const cacheCreationData = isRecord(usageData.cache_creation) ? usageData.cache_creation : {};

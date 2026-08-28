@@ -25,7 +25,12 @@ import {
   DEFAULT_CACHE_READ_MULTIPLIER,
   TOKEN_PRICE_DIVISOR,
 } from "@/constant/pricing";
-import { extractTokenUsageMetrics, hasTokenValue, normalizeTokenBreakdown } from "@/util/token-usage.util";
+import {
+  extractTokenUsageMetrics,
+  hasTokenValue,
+  normalizeTokenBreakdown,
+  resolveFreshInputTokens,
+} from "@/util/token-usage.util";
 import {
   parseAllowedModelsJson,
   parseRelayRequestFormats,
@@ -123,6 +128,15 @@ export function resolveAllowedProbeFormats(value: string | null | undefined): Co
 
 const isProbeableChannelType = (channelType: RelayChannelType | undefined): boolean =>
   channelType === "standalone" || channelType === "pooled";
+
+export function resolveProbeBillableInputTokens(
+  requestTokens: number,
+  cacheReadTokens: number,
+  cacheCreationTokens: number,
+  inputIncludesCacheRead: boolean,
+): number {
+  return resolveFreshInputTokens(requestTokens, cacheReadTokens, cacheCreationTokens, inputIncludesCacheRead);
+}
 
 export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndpoint {
   return format === "openai-responses"
@@ -1795,9 +1809,13 @@ export class RelayChannelProbeService {
       new Date(),
     );
     const globalMultiplier = Number(relayConfig.globalMultiplier);
+    const contextInputTokens =
+      profile.relayChannel.inputTokensIncludeCacheRead === true
+        ? usage.requestTokens
+        : usage.requestTokens + usage.cacheCreationTokens + usage.cacheReadTokens;
     const contextMatch = resolveContextLengthMultiplier(
       profile.relayChannel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
-      usage.requestTokens + usage.cacheCreationTokens + usage.cacheReadTokens,
+      contextInputTokens,
     );
     const multiplier = globalMultiplier * timeMultiplier * contextMatch.multiplier;
     const cacheCreationMultiplier = Number(rate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER);
@@ -1827,10 +1845,12 @@ export class RelayChannelProbeService {
 
     const inputRate = Number(rate.inputPrice || 0) / TOKEN_PRICE_DIVISOR;
     const outputRate = Number(rate.outputPrice || 0) / TOKEN_PRICE_DIVISOR;
-    const billableInputTokens =
-      profile.relayChannel.inputTokensIncludeCacheRead === true
-        ? Math.max(0, usage.requestTokens - usage.cacheReadTokens)
-        : usage.requestTokens;
+    const billableInputTokens = resolveProbeBillableInputTokens(
+      usage.requestTokens,
+      usage.cacheReadTokens,
+      usage.cacheCreationTokens,
+      profile.relayChannel.inputTokensIncludeCacheRead === true,
+    );
     const rawCost =
       (billableInputTokens * inputRate +
         usage.cacheCreationTokens * inputRate * cacheCreationMultiplier +

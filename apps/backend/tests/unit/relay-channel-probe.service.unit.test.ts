@@ -20,6 +20,7 @@ import {
   readProbeJsonPath,
   requiresLargeMultiplierConfirmation,
   resolveProbeModelPricing,
+  resolveProbeBillableInputTokens,
   resolveProbeCustomerFacingTargets,
   resolveAllowedProbeFormats,
   waitForProbeSettlement,
@@ -28,6 +29,11 @@ import type { RelayChannelProbeTopologyItem } from "../../src/services/relay/rel
 import type { RelayChannelProbeSampleDto } from "../../src/api/dto/relay/relay-channel-probe.dto";
 
 describe("relay channel probe helpers", () => {
+  it("subtracts cache reads and writes from cache-inclusive probe input", () => {
+    expect(resolveProbeBillableInputTokens(1000, 300, 200, true)).toBe(500);
+    expect(resolveProbeBillableInputTokens(1000, 300, 200, false)).toBe(1000);
+  });
+
   it("requires an independent stable result only for unconfirmed large multiplier changes", () => {
     expect(requiresLargeMultiplierConfirmation(1, 1.1)).toBe(false);
     expect(requiresLargeMultiplierConfirmation(1, 1.5)).toBe(true);
