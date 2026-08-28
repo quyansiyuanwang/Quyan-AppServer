@@ -2243,6 +2243,103 @@ describe("RelayProxyService failover", () => {
     }
   });
 
+  it("charges Gemini streaming usage with fresh input after cached content", async () => {
+    const relayToken = createRelayToken();
+    const req = new EventEmitter() as any;
+    req.method = "POST";
+    req.path = "/relay/proxy/v1beta/models/gemini-2.5-pro:streamGenerateContent";
+    req.ip = "127.0.0.1";
+    req.connection = { remoteAddress: "127.0.0.1" };
+
+    const res = {
+      headersSent: false,
+      writableEnded: false,
+      finished: false,
+      writeHead: vi.fn(() => {
+        res.headersSent = true;
+      }),
+      write: vi.fn(),
+      end: vi.fn(() => {
+        res.finished = true;
+        res.writableEnded = true;
+      }),
+    };
+
+    const { service, usageChargeService } = createService();
+    const requestSpy = vi.spyOn(http, "request").mockImplementation((_options: any, callback: any) => {
+      const proxyReq = new EventEmitter() as any;
+      proxyReq.write = vi.fn();
+      proxyReq.end = vi.fn(() => {
+        const proxyRes = new EventEmitter() as any;
+        proxyRes.statusCode = 200;
+        proxyRes.headers = { "content-type": "application/x-ndjson" };
+
+        callback(proxyRes);
+        proxyRes.emit(
+          "data",
+          Buffer.from(
+            '{"candidates":[{"content":{"parts":[{"text":"hello"}]}}],"usageMetadata":{"promptTokenCount":1000,"cachedContentTokenCount":300,"candidatesTokenCount":20,"totalTokenCount":1020}}\n',
+          ),
+        );
+        proxyRes.emit("end");
+      });
+      proxyReq.destroy = vi.fn((err?: Error) => {
+        if (err) proxyReq.emit("error", err);
+      });
+      return proxyReq;
+    });
+
+    try {
+      const result = await (service as any).forwardStreamRequest(
+        relayToken,
+        req,
+        res,
+        "http://primary.example.com/v1beta/models/gemini-2.5-pro:streamGenerateContent",
+        { Authorization: "Bearer test-key" },
+        {
+          pricingType: "token-based",
+          input: 0.000001,
+          output: 0.000002,
+          multiplier: 1,
+          cacheCreationMultiplier: 1.25,
+          cacheReadMultiplier: 0.1,
+        },
+        "gemini-2.5-pro",
+        "gemini-2.5-pro",
+        1,
+        1,
+        undefined,
+        { model: "gemini-2.5-pro", contents: [], stream: true },
+        "gemini",
+        1,
+        1,
+        "channel-primary",
+        "channel-primary",
+        "Primary",
+        "channel-primary",
+        new Date("2026-01-01T00:00:00.000Z"),
+        30000,
+        false,
+        [],
+        true,
+      );
+
+      expect(result).toEqual(expect.objectContaining({ handled: true, success: true, statusCode: 200 }));
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestTokens: 700,
+          responseTokens: 20,
+          totalTokens: 720,
+          cacheReadTokens: 300,
+          cacheCreationTokens: 0,
+          isStreaming: true,
+        }),
+      );
+    } finally {
+      requestSpy.mockRestore();
+    }
+  });
+
   it("records zero-cost streaming usage with the allow-negative settlement policy", async () => {
     const relayToken = createRelayToken();
     const { service, usageChargeService } = createService();
@@ -2464,6 +2561,81 @@ describe("RelayProxyService failover", () => {
       totalTokens: 16,
       cacheCreationTokens: 0,
       cacheReadTokens: 90,
+    });
+  });
+
+  it("subtracts cache reads and writes from cache-inclusive OpenAI input", () => {
+    const { service } = createService();
+
+    expect(
+      service.calculateTokens(
+        { model: "gpt-4o", messages: [{ role: "user", content: "hello" }] },
+        {
+          usage: {
+            prompt_tokens: 1000,
+            completion_tokens: 20,
+            total_tokens: 1020,
+            prompt_tokens_details: { cached_tokens: 300 },
+            cache_creation_input_tokens: 200,
+          },
+        },
+        true,
+      ),
+    ).toEqual({
+      requestTokens: 500,
+      responseTokens: 20,
+      totalTokens: 520,
+      cacheCreationTokens: 200,
+      cacheReadTokens: 300,
+    });
+  });
+
+  it("subtracts Gemini cached content tokens from cache-inclusive prompt tokens", () => {
+    const { service } = createService();
+
+    expect(
+      service.calculateTokens(
+        { model: "gemini-2.5-pro", contents: [{ role: "user", parts: [{ text: "hello" }] }] },
+        {
+          usageMetadata: {
+            promptTokenCount: 1000,
+            candidatesTokenCount: 20,
+            totalTokenCount: 1020,
+            cachedContentTokenCount: 300,
+          },
+        },
+        true,
+      ),
+    ).toEqual({
+      requestTokens: 700,
+      responseTokens: 20,
+      totalTokens: 720,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 300,
+    });
+  });
+
+  it("keeps Anthropic fresh input unchanged when cache tokens are reported separately", () => {
+    const { service } = createService();
+
+    expect(
+      service.calculateTokens(
+        { model: "claude-sonnet", messages: [{ role: "user", content: "hello" }] },
+        {
+          usage: {
+            input_tokens: 700,
+            output_tokens: 20,
+            cache_read_input_tokens: 300,
+            cache_creation_input_tokens: 100,
+          },
+        },
+        false,
+      ),
+    ).toMatchObject({
+      requestTokens: 700,
+      responseTokens: 20,
+      cacheCreationTokens: 100,
+      cacheReadTokens: 300,
     });
   });
 

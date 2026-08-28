@@ -74,7 +74,12 @@ import { resolveContextLengthMultiplier } from "./context-length-multiplier.serv
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { trackErrorForIp } from "@/middleware/error-tracker";
-import { extractTokenUsageMetrics, hasTokenValue, normalizeTokenBreakdown } from "@/util/token-usage.util";
+import {
+  extractTokenUsageMetrics,
+  hasTokenValue,
+  normalizeTokenBreakdown,
+  resolveFreshInputTokens,
+} from "@/util/token-usage.util";
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import { resolveMappedModel } from "@/util/model-mapping.util";
 import {
@@ -4107,8 +4112,8 @@ export class RelayProxyService {
       const inputRate = Number(rateConfig.input);
       const outputRate = Number(rateConfig.output);
 
-      // requestTokens is already processed to represent billing-ready value
-      // (cache read tokens have been subtracted if inputTokensIncludeCacheRead was true)
+      // requestTokens is already processed to represent billing-ready fresh input
+      // (cache read and creation tokens have been subtracted when inputTokensIncludeCacheRead is true)
       const inputCost =
         requestTokens * inputRate +
         cacheCreationTokens * inputRate * cacheCreationMultiplier +
@@ -4172,9 +4177,12 @@ export class RelayProxyService {
         const hasExplicitInputTokens =
           hasTokenValue(resBody.usage.prompt_tokens) || hasTokenValue(resBody.usage.input_tokens);
         // Process requestTokens to always represent billing-ready value
-        const processedInputTokens = inputTokensIncludeCacheRead
-          ? Math.max(0, usage.inputTokens - usage.cacheReadTokens)
-          : usage.inputTokens;
+        const processedInputTokens = resolveFreshInputTokens(
+          usage.inputTokens,
+          usage.cacheReadTokens,
+          usage.cacheCreationTokens,
+          inputTokensIncludeCacheRead,
+        );
 
         const resolvedTokens = normalizeTokenBreakdown(
           processedInputTokens,
@@ -4193,22 +4201,33 @@ export class RelayProxyService {
       }
     }
 
-    // Gemini format: has usageMetadata
-    if (resBody?.usageMetadata) {
-      const normalizedGeminiTokens = normalizeTokenBreakdown(
-        resBody.usageMetadata.promptTokenCount || 0,
-        resBody.usageMetadata.candidatesTokenCount || 0,
-        resBody.usageMetadata.totalTokenCount || 0,
-        requestTokens,
-      );
+    // Gemini format: usageMetadata uses the same cache-inclusive input semantics.
+    if (resBody?.usageMetadata && typeof resBody.usageMetadata === "object") {
+      const usage = extractTokenUsageMetrics(resBody.usageMetadata);
+      const hasUsageTokens = usage.totalTokens > 0 || usage.inputTokens > 0 || usage.outputTokens > 0;
+      if (hasUsageTokens) {
+        const hasExplicitInputTokens = hasTokenValue(resBody.usageMetadata.promptTokenCount);
+        const processedInputTokens = resolveFreshInputTokens(
+          usage.inputTokens,
+          usage.cacheReadTokens,
+          usage.cacheCreationTokens,
+          inputTokensIncludeCacheRead,
+        );
+        const normalizedGeminiTokens = normalizeTokenBreakdown(
+          processedInputTokens,
+          usage.outputTokens,
+          usage.totalTokens,
+          hasExplicitInputTokens ? 0 : requestTokens,
+        );
 
-      return {
-        requestTokens: normalizedGeminiTokens.requestTokens,
-        responseTokens: normalizedGeminiTokens.responseTokens,
-        totalTokens: normalizedGeminiTokens.totalTokens,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
-      };
+        return {
+          requestTokens: normalizedGeminiTokens.requestTokens,
+          responseTokens: normalizedGeminiTokens.responseTokens,
+          totalTokens: normalizedGeminiTokens.totalTokens,
+          cacheCreationTokens: usage.cacheCreationTokens,
+          cacheReadTokens: usage.cacheReadTokens,
+        };
+      }
     }
 
     if (resBody?.__relayForwardedResponseByteLength != null)
@@ -4285,18 +4304,25 @@ export class RelayProxyService {
 
       const usageData = usagePayload as Record<string, unknown>;
       const usage = extractTokenUsageMetrics(usageData);
-      const hasInputTokens = hasTokenValue(usageData.prompt_tokens) || hasTokenValue(usageData.input_tokens);
+      const hasInputTokens =
+        hasTokenValue(usageData.prompt_tokens) ||
+        hasTokenValue(usageData.input_tokens) ||
+        hasTokenValue(usageData.promptTokenCount);
       const hasOutputTokens = hasTokenValue(usageData.completion_tokens) || hasTokenValue(usageData.output_tokens);
+      const hasGeminiOutputTokens = hasTokenValue(usageData.candidatesTokenCount);
 
       if (usage.totalTokens > 0) totalTokens = usage.totalTokens;
-      if (hasOutputTokens) responseTokens = usage.outputTokens;
+      if (hasOutputTokens || hasGeminiOutputTokens) responseTokens = usage.outputTokens;
       if (usage.cacheCreationTokens > 0) cacheCreationTokens = usage.cacheCreationTokens;
       if (usage.cacheReadTokens > 0) cacheReadTokens = usage.cacheReadTokens;
       if (hasInputTokens) {
         hasExplicitStreamInputTokens = true;
-        requestTokens = inputTokensIncludeCacheRead
-          ? Math.max(0, usage.inputTokens - usage.cacheReadTokens)
-          : usage.inputTokens;
+        requestTokens = resolveFreshInputTokens(
+          usage.inputTokens,
+          usage.cacheReadTokens,
+          usage.cacheCreationTokens,
+          inputTokensIncludeCacheRead,
+        );
       }
     };
 
@@ -4620,18 +4646,14 @@ export class RelayProxyService {
                       applyUsage(json.message?.usage);
                       applyUsage(json.usage);
                       applyUsage(json.response?.usage);
+                      applyUsage(json.usageMetadata);
                     } catch {
                       /* partial SSE */
                     }
                 } else if (requestFormat === "gemini" && (trimmed.startsWith("{") || trimmed.startsWith("["))) {
                   try {
                     const json = JSON.parse(trimmed);
-                    if (json.usageMetadata) {
-                      const u = json.usageMetadata;
-                      if (u.promptTokenCount > 0) requestTokens = u.promptTokenCount;
-                      if (u.candidatesTokenCount > 0) responseTokens = u.candidatesTokenCount;
-                      if (u.totalTokenCount > 0) totalTokens = u.totalTokenCount;
-                    }
+                    applyUsage(json.usageMetadata);
                   } catch {
                     /* partial JSON */
                   }
@@ -4885,6 +4907,7 @@ export class RelayProxyService {
                 applyUsage(json.message?.usage);
                 applyUsage(json.usage);
                 applyUsage(json.response?.usage);
+                applyUsage(json.usageMetadata);
               } catch {
                 // Ignore JSON parse errors
               }
@@ -4894,12 +4917,7 @@ export class RelayProxyService {
             if (requestFormat === "gemini" && (trimmedLine.startsWith("{") || trimmedLine.startsWith("[")))
               try {
                 const json = JSON.parse(trimmedLine);
-                if (json.usageMetadata) {
-                  const u = json.usageMetadata;
-                  if (u.promptTokenCount > 0) requestTokens = u.promptTokenCount;
-                  if (u.candidatesTokenCount > 0) responseTokens = u.candidatesTokenCount;
-                  if (u.totalTokenCount > 0) totalTokens = u.totalTokenCount;
-                }
+                applyUsage(json.usageMetadata);
               } catch {
                 // Ignore JSON parse errors
               }

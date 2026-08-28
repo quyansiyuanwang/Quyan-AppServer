@@ -7,13 +7,13 @@ import RelayChannelProviderView from '@/views/relay/RelayChannelProviderView.vue
 const {
   listMySubmittedChannelsMock,
   listMyChangeRequestsMock,
-  listCatalogOptionsMock,
+  getModelPricingMock,
   updateSubmittedChannelServiceStatusMock,
   confirmMock,
 } = vi.hoisted(() => ({
   listMySubmittedChannelsMock: vi.fn(),
   listMyChangeRequestsMock: vi.fn(),
-  listCatalogOptionsMock: vi.fn(),
+  getModelPricingMock: vi.fn(),
   updateSubmittedChannelServiceStatusMock: vi.fn(),
   confirmMock: vi.fn(),
 }))
@@ -37,12 +37,17 @@ vi.mock('@/service/relayChannelService', () => ({
   relayChannelService: {
     listMySubmittedChannels: listMySubmittedChannelsMock,
     listMyChangeRequests: listMyChangeRequestsMock,
-    listCatalogOptions: listCatalogOptionsMock,
     updateSubmittedChannelServiceStatus: updateSubmittedChannelServiceStatusMock,
     submitChannel: vi.fn(),
     createChangeRequest: vi.fn(),
     deleteSubmittedChannel: vi.fn(),
     listUpstreamModels: vi.fn(),
+  },
+}))
+
+vi.mock('@/service/modelPricingService', () => ({
+  modelPricingService: {
+    getModelPricing: getModelPricingMock,
   },
 }))
 
@@ -101,7 +106,13 @@ const mountView = () =>
         'el-pagination': slotStub('ElPagination'),
         'el-tag': slotStub('ElTag', 'span'),
         'el-button': slotStub('ElButton', 'button'),
-        RelayStandaloneChannelDrawer: slotStub('RelayStandaloneChannelDrawer'),
+        RelayStandaloneChannelDrawer: defineComponent({
+          name: 'RelayStandaloneChannelDrawer',
+          props: { modelOptions: { type: Array, default: () => [] } },
+          setup(_props, { slots }) {
+            return () => h('div', slots.default?.())
+          },
+        }),
       },
     },
   })
@@ -110,7 +121,7 @@ describe('RelayChannelProviderView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     confirmMock.mockResolvedValue(undefined)
-    listCatalogOptionsMock.mockResolvedValue([])
+    getModelPricingMock.mockResolvedValue([])
     listMyChangeRequestsMock.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 100 })
     updateSubmittedChannelServiceStatusMock.mockResolvedValue(channel())
   })
@@ -161,5 +172,22 @@ describe('RelayChannelProviderView', () => {
     expect(updateSubmittedChannelServiceStatusMock).toHaveBeenCalledWith('channel-1', {
       enabled: true,
     })
+  })
+
+  it('loads all configured models for channel submission', async () => {
+    getModelPricingMock.mockResolvedValue([
+      { model: 'gpt-4o', supportedFormats: 'openai-chat-completions' },
+      { model: 'claude-3-7-sonnet', supportedFormats: 'openai-chat-completions' },
+    ])
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(getModelPricingMock).toHaveBeenCalledOnce()
+    const drawer = wrapper.findComponent({ name: 'RelayStandaloneChannelDrawer' })
+    expect(drawer.props('modelOptions')).toEqual([
+      { value: 'gpt-4o', label: 'gpt-4o' },
+      { value: 'claude-3-7-sonnet', label: 'claude-3-7-sonnet' },
+    ])
   })
 })

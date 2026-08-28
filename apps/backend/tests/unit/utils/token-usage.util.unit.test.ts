@@ -4,6 +4,7 @@ import {
   hasTokenValue,
   normalizeTokenBreakdown,
   parseNumericTokenValue,
+  resolveFreshInputTokens,
 } from "@/util/token-usage.util";
 
 describe("token-usage util", () => {
@@ -82,6 +83,20 @@ describe("token-usage util", () => {
     });
   });
 
+  describe("resolveFreshInputTokens", () => {
+    it("subtracts cache reads and writes for cache-inclusive input", () => {
+      expect(resolveFreshInputTokens(1000, 300, 200, true)).toBe(500);
+    });
+
+    it("keeps fresh input unchanged for cache-exclusive input", () => {
+      expect(resolveFreshInputTokens(1000, 300, 200, false)).toBe(1000);
+    });
+
+    it("clamps malformed cache-inclusive values at zero", () => {
+      expect(resolveFreshInputTokens(100, 80, 50, true)).toBe(0);
+    });
+  });
+
   describe("extractTokenUsageMetrics", () => {
     it("extracts and normalizes openai-style usage", () => {
       const usage = {
@@ -136,6 +151,22 @@ describe("token-usage util", () => {
         totalTokens: 100,
         cacheCreationTokens: 0,
         cacheReadTokens: 24,
+      });
+    });
+
+    it("extracts OpenAI cache creation fields alongside cache reads", () => {
+      expect(
+        extractTokenUsageMetrics({
+          input_tokens: 1000,
+          output_tokens: 20,
+          cache_read_input_tokens: 300,
+          cache_creation_input_tokens: 200,
+        }),
+      ).toMatchObject({
+        inputTokens: 1000,
+        outputTokens: 20,
+        cacheCreationTokens: 200,
+        cacheReadTokens: 300,
       });
     });
 
