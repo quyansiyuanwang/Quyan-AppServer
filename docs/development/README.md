@@ -7,9 +7,9 @@
 | 文档                                                       | 内容                                                          |
 | ---------------------------------------------------------- | ------------------------------------------------------------- |
 | [01-architecture.md](./01-architecture.md)                 | 项目技术全景概述：架构、技术栈、核心模块亮点（求职展示入口）  |
-| [02-backend.md](./02-backend.md)                           | 后端详解：TSOA 3层模式、47 Controllers、60 Services、中间件链 |
+| [02-backend.md](./02-backend.md)                           | 后端详解：TSOA 3层模式、数十个 Controllers/Services、中间件链 |
 | [03-frontend.md](./03-frontend.md)                         | 前端详解：143 页面、12 Pinia stores、52 Services、事件总线    |
-| [04-shared-package.md](./04-shared-package.md)             | 共享包：135+ Permission 枚举、47 CustomCode、22 种通知事件    |
+| [04-shared-package.md](./04-shared-package.md)             | 共享包：百余项 Permission 枚举、CustomCode、通知事件          |
 | [05-database.md](./05-database.md)                         | 数据库：71 个 Prisma 模型、关系、软删除模式                   |
 | [06-api-development.md](./06-api-development.md)           | API 开发流程：添加 Controller、DTO、Service、Repository       |
 | [07-authentication.md](./07-authentication.md)             | 认证与授权：JWT、OAuth 2.0、RAM 权限、2FA、重放保护           |

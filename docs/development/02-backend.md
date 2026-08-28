@@ -67,7 +67,7 @@ export class UserController extends Controller {
 
 ### Service (`src/services/`)
 
-56 个 Service 文件，按功能域组织：
+数十个 Service 文件，按功能域组织：
 
 | 域 | 核心 Service | 职责 |
 |----|-------------|------|

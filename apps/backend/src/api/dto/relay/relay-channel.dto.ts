@@ -226,6 +226,8 @@ export interface RelayCatalogOptionDto {
   id: string;
   name: string;
   enabled: boolean;
+  /** Whether this catalog entry represents an automatic proxy pool. */
+  isAutomaticProxyPool: boolean;
   allowedFormats: string;
   modelCapabilities: RelayChannelModelCapabilityDto[];
   pricingMode: "fixed" | "range";

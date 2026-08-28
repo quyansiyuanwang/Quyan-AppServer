@@ -127,14 +127,13 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { i18ns } from '@/locales'
-import { useRequestStore } from '@/stores/request'
-import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
+import { contentSafetyService } from '@/service/contentSafetyService'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 
 const props = withDefaults(defineProps<{ scope?: 'system' | 'user' }>(), { scope: 'user' })
 const t = (key: any) => i18ns.t(key)
-const api = () => createContentSafetyControllerApi(useRequestStore().getAxios()) as any
+const api = () => contentSafetyService.getApi() as any
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
 const storageKey = computed(() => `content-safety-incidents-columns:${props.scope}`)
 type IncidentColumn = {

@@ -48,7 +48,6 @@ __screenshots__/
 
 # analysis tool files
 stats.html
-CLAUDE.md
 
 .claude/
 
@@ -58,5 +57,4 @@ test-*.html
 *-explanation.md
 
 # Documentation files (except README.md)
-/*.md
 !README.md

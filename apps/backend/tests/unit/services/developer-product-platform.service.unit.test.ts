@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Decimal } from "@prisma/client/runtime/library";
 
 const mocks = vi.hoisted(() => ({
   prisma: {
@@ -6,6 +7,13 @@ const mocks = vi.hoisted(() => ({
     developerProductEntitlement: { findUnique: vi.fn() },
     developerProductConfig: { findUnique: vi.fn() },
     developerProductQuotaUsage: { create: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
+    developerProductRefundRetry: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      updateMany: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
     balanceAccount: { findUnique: vi.fn(), updateMany: vi.fn() },
     balanceTransaction: { create: vi.fn() },
   },
@@ -19,6 +27,10 @@ describe("DeveloperProductPlatformService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (DeveloperProductPlatformService as any).instance = undefined;
+    mocks.prisma.developerProductRefundRetry.findUnique.mockResolvedValue(null);
+    mocks.prisma.developerProductRefundRetry.upsert.mockResolvedValue({ id: "refund-1" });
+    mocks.prisma.developerProductRefundRetry.updateMany.mockResolvedValue({ count: 1 });
+    mocks.prisma.developerProductRefundRetry.update.mockResolvedValue({});
     mocks.prisma.$transaction.mockImplementation(async (callback: (tx: unknown) => unknown) => callback(mocks.prisma));
   });
 
@@ -61,6 +73,15 @@ describe("DeveloperProductPlatformService", () => {
   });
 
   it("refunds an overage when its quota record was deleted concurrently", async () => {
+    mocks.prisma.developerProductRefundRetry.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: "refund-1",
+        usageId: "usage-1",
+        accountOwnerId: "user-1",
+        chargeAmount: new Decimal(1),
+        completedAt: null,
+      });
     mocks.prisma.developerProductQuotaUsage.updateMany.mockResolvedValue({ count: 0 });
     mocks.prisma.balanceAccount.findUnique.mockResolvedValueOnce({ balance: 4 }).mockResolvedValueOnce({ balance: 5 });
     mocks.prisma.balanceAccount.updateMany.mockResolvedValue({ count: 1 });

@@ -4384,6 +4384,7 @@ const emoji: DeepStringify<typeof en> = {
     moreSettings: '➕ ⚙️',
     hideMoreSettings: '➖ ⚙️',
     showCacheMultipliers: '👁️ 💾 ✖️',
+    showAutomaticProxyPools: '👁️ 🤖 🔁 🏊',
     hideIndependentChannels: '🙈 📡',
     hidePooledChannels: '🙈 🏊',
     hideAutomaticProxyPools: '🙈 🤖 🔁 🏊',

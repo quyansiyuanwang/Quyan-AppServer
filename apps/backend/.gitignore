@@ -5,7 +5,6 @@ dist/
 logs/
 
 .eslintcache
-CLAUDE.md
 
 *.bak
 .env
@@ -13,7 +12,6 @@ CLAUDE.md
 .env.*.local
 
 # Documentation files (except README.md)
-/*.md
 !README.md
 
 # auto-generated files

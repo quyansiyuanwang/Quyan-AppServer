@@ -17,6 +17,8 @@
     "**/coverage/**",
     "*.generated.*",
     "**/.git/**",
+    "integrations/**",
+    "products/**",
     "**/*.svg",
     "**/*.png",
     "**/*.jpg",

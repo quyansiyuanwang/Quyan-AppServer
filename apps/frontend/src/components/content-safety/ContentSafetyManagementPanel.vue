@@ -324,11 +324,10 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
-import { useRequestStore } from '@/stores/request'
-import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
+import { contentSafetyService } from '@/service/contentSafetyService'
 import ContentSafetyPolicyFields from './ContentSafetyPolicyFields.vue'
 import ContentSafetyIncidentTable from './ContentSafetyIncidentTable.vue'
-const api = () => createContentSafetyControllerApi(useRequestStore().getAxios())
+const api = () => contentSafetyService.getApi()
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
 const escapeHtml = (value: unknown) =>
   String(value ?? '')

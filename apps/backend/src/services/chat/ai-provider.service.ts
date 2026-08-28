@@ -3,6 +3,9 @@ import https from "https";
 import http from "http";
 import { extractTokenUsageMetrics, normalizeTokenBreakdown } from "@/util/token-usage.util";
 import type { RelayRequestFormat } from "@/util/relay-model-availability.util";
+import { getLogger, LogCategory } from "@/util/logger";
+
+const logger = getLogger("AIProvider", LogCategory.BUSINESS);
 
 // Reuse HTTP agents for connection pooling
 const httpsAgent = new https.Agent({
@@ -235,7 +238,7 @@ export class AIProviderService {
     options?: ChatCompletionOptions,
   ): AsyncGenerator<StreamChunk> {
     const url = this.buildOpenAIUrl(upstreamUrl);
-    console.log("[AIProvider] Calling OpenAI API:", url, "model:", model);
+    logger.info("Calling OpenAI API", { url, model });
     const startAt = Date.now();
     let response;
     try {
@@ -261,7 +264,7 @@ export class AIProviderService {
       const status = (error as { response?: { status?: number } })?.response?.status;
       if (status !== 400 && status !== 422) throw error;
 
-      console.warn("[AIProvider] stream_options not supported by upstream, retrying without it");
+      logger.warn("OpenAI stream_options unsupported; retrying without it", { model });
       response = await axios.post(
         url,
         {
@@ -280,7 +283,7 @@ export class AIProviderService {
       );
     }
 
-    console.log("[AIProvider] Response received, starting to read stream");
+    logger.debug("AI provider response received; reading stream", { model });
     const estimatedRequestTokens = this.estimateInputTokens(messages);
     let tokenMetrics: TokenMetrics = {
       inputTokens: 0,
@@ -318,7 +321,8 @@ export class AIProviderService {
         };
 
         const endAt = Date.now();
-        console.log("[AIProvider] Stream done, tokens:", {
+        logger.info("AI provider stream completed", {
+          model,
           inputTokens: tokenMetrics.inputTokens,
           outputTokens: tokenMetrics.outputTokens,
         });
@@ -346,7 +350,7 @@ export class AIProviderService {
         if (content.length > 0) {
           if (!firstContentAt) firstContentAt = Date.now();
           assistantContentLength += content.length;
-          console.log("[AIProvider] Yielding content:", content);
+          logger.debug("AI provider yielded content", { model, contentLength: content.length });
           yield { content, done: false };
         }
 
@@ -364,7 +368,10 @@ export class AIProviderService {
             tokenMetrics.inputTokens > 0 ? tokenMetrics.inputTokens : estimatedRequestTokens,
           );
       } catch (e) {
-        console.error("[AIProvider] Parse error:", e);
+        logger.error("AI provider response parse error", {
+          model,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     };
 
@@ -391,7 +398,7 @@ export class AIProviderService {
         if (out.done) return;
       }
 
-    console.log("[AIProvider] Stream ended");
+    logger.debug("AI provider stream ended", { model });
     if (tokenMetrics.inputTokens === 0) tokenMetrics.inputTokens = estimatedRequestTokens;
     if (tokenMetrics.outputTokens === 0 && assistantContentLength > 0)
       tokenMetrics.outputTokens = Math.ceil(assistantContentLength / 4);
@@ -520,7 +527,10 @@ export class AIProviderService {
         const payloadType = isRecord(parsed) && typeof parsed.type === "string" ? parsed.type : "";
         if (payloadType === "message_stop") yield finalizeDoneChunk();
       } catch (error) {
-        console.error("[AIProvider] Anthropic parse error:", error);
+        logger.error("Anthropic response parse error", {
+          model,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     };
 
@@ -643,7 +653,10 @@ export class AIProviderService {
             tokenMetrics.inputTokens > 0 ? tokenMetrics.inputTokens : estimatedRequestTokens,
           );
       } catch (error) {
-        console.error("[AIProvider] Gemini parse error:", error);
+        logger.error("Gemini response parse error", {
+          model,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     };
 

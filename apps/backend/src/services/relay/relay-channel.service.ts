@@ -589,7 +589,10 @@ export class RelayChannelService {
       const type = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
       return (
         (channel.visibilityMode as RelayChannelVisibilityMode | undefined) !== "hidden" &&
-        (relayConfig.apiCatalogPoolVisibility === "anonymous-range" || !isPoolType(type)) &&
+        // Automatic proxy pools are controlled by the API documentation page's local display
+        // preference. The relay setting only governs logical pooled channels.
+        type !== "pooled-member" &&
+        (relayConfig.apiCatalogPoolVisibility === "anonymous-range" || type !== "pooled") &&
         !publishedPoolMemberIds.has(channel.id)
       );
     });
@@ -608,6 +611,7 @@ export class RelayChannelService {
             id: channel.id,
             name: channel.name,
             enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+            isAutomaticProxyPool: true,
             allowedFormats: formatRelayRequestFormats([
               ...new Set(modelCapabilities.flatMap((item) => item.supportedRequestFormats)),
             ]),
@@ -623,6 +627,7 @@ export class RelayChannelService {
           id: channel.id,
           name: channel.name,
           enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
+          isAutomaticProxyPool: false,
           allowedFormats:
             channelType === "pooled"
               ? formatRelayRequestFormats([

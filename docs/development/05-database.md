@@ -5,7 +5,7 @@
 - **数据库**: MySQL
 - **ORM**: Prisma 6.x
 - **Schema 位置**: `apps/backend/prisma/schema.prisma` (1666 行)
-- **模型总数**: 68 个
+- **模型总数**: 百余个
 
 ## 通用字段模式
 

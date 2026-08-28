@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run"
   },
   "exports": {
     ".": {
@@ -19,5 +20,8 @@
       "import": "./src/permission.ts",
       "default": "./src/permission.ts"
     }
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
   }
 }
