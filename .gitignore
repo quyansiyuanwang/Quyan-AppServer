@@ -5,7 +5,6 @@ coverage/
 *.local
 .DS_Store
 *.generated.*
-pnpm-lock.yaml
 *.tsbuildinfo
 .eslintcache
 

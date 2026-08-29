@@ -46664,6 +46664,10 @@
 					"enabled": {
 						"type": "boolean"
 					},
+					"isAutomaticProxyPool": {
+						"type": "boolean",
+						"description": "Whether this catalog entry represents an automatic proxy pool."
+					},
 					"allowedFormats": {
 						"type": "string"
 					},
@@ -46708,6 +46712,7 @@
 					"id",
 					"name",
 					"enabled",
+					"isAutomaticProxyPool",
 					"allowedFormats",
 					"modelCapabilities",
 					"pricingMode",

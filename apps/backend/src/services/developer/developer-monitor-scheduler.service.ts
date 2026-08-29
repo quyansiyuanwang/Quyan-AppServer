@@ -44,6 +44,7 @@ export class DeveloperMonitorSchedulerService {
             ),
           ),
           DeveloperProjectService.getInstance().retryScheduledPushDeliveries(),
+          DeveloperProductPlatformService.getInstance().retryScheduledRefunds(),
         ]).then(() => undefined),
       );
     } catch (error) {

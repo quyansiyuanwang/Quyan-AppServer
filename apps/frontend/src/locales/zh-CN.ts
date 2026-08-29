@@ -4517,6 +4517,7 @@ const zhCN: DeepStringify<typeof en> = {
     moreSettings: '更多设置',
     hideMoreSettings: '收起更多设置',
     showCacheMultipliers: '显示缓存倍率',
+    showAutomaticProxyPools: '显示自动代理池',
     hideIndependentChannels: '屏蔽独立渠道',
     hidePooledChannels: '屏蔽混池渠道',
     hideAutomaticProxyPools: '屏蔽自动代理池',

@@ -11,6 +11,7 @@ import { PermissionService } from "@/services/users/permission.service";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
 import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
 import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
+import { getLogger, LogCategory } from "@/util/logger";
 import type {
   CreateDeveloperProductApiKeyDto,
   CreateDeveloperProductInstanceDto,
@@ -30,6 +31,9 @@ import type {
 
 const PRODUCT_KEY_PREFIX = "dpk_";
 const QUOTA_TRANSACTION_MAX_ATTEMPTS = 8;
+const REFUND_RETRY_BATCH_SIZE = 50;
+const REFUND_RETRY_DELAY_MS = 60_000;
+const logger = getLogger("DeveloperProductPlatform", LogCategory.BUSINESS);
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const asIso = (value: Date | null | undefined) => value?.toISOString();
 
@@ -900,32 +904,96 @@ export class DeveloperProductPlatformService {
   }
 
   private async refundQuota(receipt: ProductQuotaReceipt): Promise<void> {
-    await prisma.$transaction(async (tx) => {
-      await tx.developerProductQuotaUsage.updateMany({
-        where: { id: receipt.usageId },
-        data: { requestCount: { decrement: 1 } },
-      });
-      if (!receipt.chargeAmount) return;
-      const mutation = await applyBalanceAccountMutation(tx, {
-        userId: receipt.accountOwnerId,
-        balanceDelta: new Decimal(receipt.chargeAmount),
-        totalUsedDelta: new Decimal(-receipt.chargeAmount),
-      });
-      if (!mutation) return;
-      await tx.balanceTransaction.create({
-        data: {
-          userId: receipt.accountOwnerId,
-          type: "developer_product_overage_refund",
-          amount: new Decimal(receipt.chargeAmount),
-          balanceBefore: Number(mutation.balanceBefore),
-          balanceAfter: Number(mutation.balanceAfter),
-          relatedId: receipt.usageId,
-          model: "product-refund",
-          description: "产品调用失败退款",
-          fixedPrice: new Decimal(receipt.chargeAmount),
-        },
-      });
+    const existing = await prisma.developerProductRefundRetry.findUnique({ where: { usageId: receipt.usageId } });
+    if (existing?.completedAt) return;
+    const retry = await prisma.developerProductRefundRetry.upsert({
+      where: { usageId: receipt.usageId },
+      update: { status: 1, nextAttemptAt: new Date(), lastError: null },
+      create: {
+        usageId: receipt.usageId,
+        accountOwnerId: receipt.accountOwnerId,
+        chargeAmount: new Decimal(receipt.chargeAmount),
+      },
     });
+
+    try {
+      await this.processRefundRetry(retry.id);
+    } catch (error) {
+      logger.error("Product quota refund queued for retry", {
+        usageId: receipt.usageId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async processRefundRetry(id: string): Promise<void> {
+    const retry = await prisma.developerProductRefundRetry.findUnique({ where: { id } });
+    if (!retry || retry.completedAt) return;
+    const claimed = await prisma.developerProductRefundRetry.updateMany({
+      where: { id, status: 1, completedAt: null, nextAttemptAt: { lte: new Date() } },
+      data: { status: 2, attempts: { increment: 1 } },
+    });
+    if (!claimed.count) return;
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.developerProductQuotaUsage.updateMany({
+          where: { id: retry.usageId },
+          data: { requestCount: { decrement: 1 } },
+        });
+        if (retry.chargeAmount.greaterThan(0)) {
+          const mutation = await applyBalanceAccountMutation(tx, {
+            userId: retry.accountOwnerId,
+            balanceDelta: retry.chargeAmount,
+            totalUsedDelta: retry.chargeAmount.negated(),
+          });
+          if (mutation)
+            await tx.balanceTransaction.create({
+              data: {
+                userId: retry.accountOwnerId,
+                type: "developer_product_overage_refund",
+                amount: retry.chargeAmount,
+                balanceBefore: Number(mutation.balanceBefore),
+                balanceAfter: Number(mutation.balanceAfter),
+                relatedId: retry.usageId,
+                model: "product-refund",
+                description: "产品调用失败退款",
+                fixedPrice: retry.chargeAmount,
+              },
+            });
+        }
+        await tx.developerProductRefundRetry.update({
+          where: { id },
+          data: { status: 0, completedAt: new Date(), lastError: null },
+        });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await prisma.developerProductRefundRetry.update({
+        where: { id },
+        data: { status: 1, nextAttemptAt: new Date(Date.now() + REFUND_RETRY_DELAY_MS), lastError: message },
+      });
+      throw error;
+    }
+  }
+
+  async retryScheduledRefunds(): Promise<void> {
+    const pending = await prisma.developerProductRefundRetry.findMany({
+      where: { status: 1, completedAt: null, nextAttemptAt: { lte: new Date() } },
+      orderBy: { nextAttemptAt: "asc" },
+      take: REFUND_RETRY_BATCH_SIZE,
+      select: { id: true },
+    });
+    for (const retry of pending) {
+      try {
+        await this.processRefundRetry(retry.id);
+      } catch (error) {
+        logger.error("Scheduled product quota refund failed", {
+          retryId: retry.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   }
 
   async executeMetered<T>(context: ProductMeteringContext, action: string, callback: () => Promise<T>): Promise<T> {
@@ -945,7 +1013,7 @@ export class DeveloperProductPlatformService {
       });
       return result;
     } catch (error) {
-      await this.refundQuota(receipt).catch(() => {});
+      await this.refundQuota(receipt);
       await prisma.developerProductCallLog
         .create({
           data: {

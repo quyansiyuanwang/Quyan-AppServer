@@ -79,7 +79,7 @@ import { i18ns } from '@/locales'
 import router, { currentSiteProfile } from '@/router'
 import { useRequestStore } from '@/stores/request'
 import { readSseStream, SseStreamError } from '@/utils/streaming/sseStream'
-import { createSupportControllerApi } from '@/client/services/support-controller.gen'
+import { supportService } from '@/service/supportService'
 import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 
 type Message = { id: string; role: 'user' | 'assistant'; content: string }
@@ -96,7 +96,7 @@ const useUserRelay = ref(false)
 const relayBaseUrl = ref('')
 const relayModel = ref('')
 const relayToken = ref('')
-const api = () => createSupportControllerApi(useRequestStore().getAxios())
+const api = () => supportService.getApi()
 
 const streamStatusLabel = computed(() => {
   if (streamStatus.value === 'thinking') return i18ns.t('support.thinking')

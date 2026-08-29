@@ -16,7 +16,7 @@
 export enum Permission {
   USER_CREATE = 'user:create',
   USER_READ = 'user:read',
-  // ... 130+ 个权限
+  // ... 百余项权限
 }
 
 export const ALL_PERMISSIONS = Object.values(Permission);
@@ -56,7 +56,7 @@ export function getPermissionCategory(permission: Permission | string): string;
 | Passkey | 1 | `passkey:manage` |
 | 特殊/调试 | 2 | `debug:access`, `debug:openapi:read` |
 
-**总计：130+ 个权限**
+**总计：百余项权限**
 
 ### `custom-code.ts` — 业务错误码
 

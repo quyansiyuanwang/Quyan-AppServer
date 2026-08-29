@@ -304,10 +304,9 @@ import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import ContentSafetyPolicyFields from '@/components/content-safety/ContentSafetyPolicyFields.vue'
 import ContentSafetyIncidentTable from '@/components/content-safety/ContentSafetyIncidentTable.vue'
 import { i18ns } from '@/locales'
-import { useRequestStore } from '@/stores/request'
-import { createContentSafetyControllerApi } from '@/client/services/content-safety-controller.gen'
+import { contentSafetyService } from '@/service/contentSafetyService'
 const { embedded = false } = defineProps<{ embedded?: boolean }>()
-const api = () => createContentSafetyControllerApi(useRequestStore().getAxios())
+const api = () => contentSafetyService.getApi()
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
 const escapeHtml = (value: unknown) =>
   String(value ?? '')

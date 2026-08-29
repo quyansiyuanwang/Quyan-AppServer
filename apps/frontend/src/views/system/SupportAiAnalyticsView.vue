@@ -80,8 +80,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { i18ns } from '@/locales'
-import { useRequestStore } from '@/stores/request'
-import { createSupportControllerApi } from '@/client/services/support-controller.gen'
+import { supportService } from '@/service/supportService'
 import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 const now = new Date()
 const start = new Date(Date.now() - 29 * 86400000)
@@ -101,7 +100,7 @@ const data = ref<any>({
   trends: [],
   users: [],
 })
-const api = () => createSupportControllerApi(useRequestStore().getAxios())
+const api = () => supportService.getApi()
 const unwrap = (value: any) => value?.data?.data ?? value?.data ?? value
 const rangeLabel = computed(() => `${range.value[0]} - ${range.value[1]}`)
 const load = async () => {

@@ -31,9 +31,10 @@ AppServerMonorepo/
 │   └── docs-site/         # @appserver/docs-site  Vue 3 文档站点
 ├── packages/
 │   ├── shared/            # @appserver/shared     前后端共享类型与常量（权限、错误码等）
-│   ├── config-typescript/ # 共享 TypeScript 配置
-│   ├── config-prettier/   # 共享 Prettier 配置
-│   └── utils/             # 共享工具函数
+│   └── appserver-mcp/     # @appserver/mcp        AI 代理 stdio MCP
+├── integrations/          # 独立 git 子模块（server-sdk、remote-agent）
+├── products/              # 独立产品子模块（remote-terminal-cloud）
+├── deployment/            # Nginx 反向代理示例
 ├── scripts/               # 仓库级编排脚本
 ├── docs/development/      # 详细开发文档
 ├── package.json           # 根编排脚本
@@ -163,13 +164,13 @@ pnpm run openapi:gen:all          # 完整流水线
 - **`src/client/` 禁止手动编辑**（自动生成，被 ESLint 忽略）
 - **Service 层**: 单例模式，封装 generated client 调用
 - **Store 层**: Pinia stores 管理状态（request, permission, userInfo, chat 等）
-- **事件总线**: 6 个 EventBus 实例（auth, web, customCode, i18n, window, global）
+- **事件总线**: 由 i18n、window、aprilFools 等模块提供的单例事件总线
 - **路径别名**: `@` → `./src`
 
 ### 数据库
 
 - MySQL + Prisma ORM
-- 68 个模型，CUID 主键
+- 120 个模型，CUID 主键
 - 所有模型有 `status` 字段（1=正常, 0=禁用, -1=删除）
 - 所有模型有 `createTime`、`updateTime` 时间戳
 
@@ -196,10 +197,10 @@ pnpm run openapi:gen:all          # 完整流水线
 | --------------------------------------------------------------------------- | ---------------------------------------------------- |
 | [README.md](./docs/development/README.md)                                   | 文档索引、常用命令速查、关键文件速查                 |
 | [01-architecture.md](./docs/development/01-architecture.md)                 | 系统架构：monorepo 结构、技术栈、请求生命周期        |
-| [02-backend.md](./docs/development/02-backend.md)                           | 后端：47 Controllers、56 Services、中间件链          |
+| [02-backend.md](./docs/development/02-backend.md)                           | 后端：数十个 Controllers/Services、中间件链          |
 | [03-frontend.md](./docs/development/03-frontend.md)                         | 前端：组件层次、11 Stores、事件总线、i18n            |
-| [04-shared-package.md](./docs/development/04-shared-package.md)             | 共享包：130+ Permission、CustomCode、所有模块        |
-| [05-database.md](./docs/development/05-database.md)                         | 数据库：68 模型、关系、软删除、迁移流程              |
+| [04-shared-package.md](./docs/development/04-shared-package.md)             | 共享包：百余项 Permission、CustomCode、所有模块      |
+| [05-database.md](./docs/development/05-database.md)                         | 数据库：百余模型、关系、软删除、迁移流程             |
 | [06-api-development.md](./docs/development/06-api-development.md)           | API 开发：Controller→DTO→Service→Repository 完整流程 |
 | [07-authentication.md](./docs/development/07-authentication.md)             | 认证：JWT/OAuth/RAM/2FA/重放保护/CAPTCHA             |
 | [08-openapi-pipeline.md](./docs/development/08-openapi-pipeline.md)         | OpenAPI：TSOA→swagger.json→前端 typed SDK            |
@@ -208,6 +209,7 @@ pnpm run openapi:gen:all          # 完整流水线
 | [11-testing-and-ci.md](./docs/development/11-testing-and-ci.md)             | 测试分类、并行隔离、数据库 worker 与 CI 策略         |
 | [12-git-workflow-and-mcp.md](./docs/development/12-git-workflow-and-mcp.md) | Git 交付、commit hook 与项目 MCP                     |
 | [13-docs-site.md](./docs/development/13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                   |
+| [14-domain-deployment.md](./docs/development/14-domain-deployment.md)       | 多域名、Cookie、CORS 与部署边界                       |
 
 各项目的 CLAUDE.md/AGENTS.md 位于：
 
