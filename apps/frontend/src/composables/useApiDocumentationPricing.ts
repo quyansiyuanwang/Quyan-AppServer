@@ -58,6 +58,7 @@ export const useApiDocumentationPricing = () => {
   const loadErrorMessage = ref('')
   const pricingData = ref<PricingModelRow[]>([])
   const channels = ref<RelayCatalogOptionDto[]>([])
+  const showAutomaticProxyPools = ref(false)
 
   const filterFormat = ref<string>('')
   const filterChannelIds = ref<string[]>([])
@@ -95,9 +96,13 @@ export const useApiDocumentationPricing = () => {
 
   const selectedChannelIdsSet = computed(() => new Set(filterChannelIds.value))
 
-  // The catalog is already an access-controlled, topology-free projection. Client filters must
-  // not infer channel implementation from differences in the returned directory.
-  const visibleChannels = computed(() => channels.value)
+  // The catalog is already an access-controlled, topology-free projection. Automatic proxy
+  // pools are an optional documentation view and remain hidden by default.
+  const visibleChannels = computed(() =>
+    showAutomaticProxyPools.value
+      ? channels.value
+      : channels.value.filter((channel) => channel.isAutomaticProxyPool !== true),
+  )
 
   const filterChannel = computed<string>({
     get: () => filterChannelIds.value[0] || '',
@@ -570,6 +575,7 @@ export const useApiDocumentationPricing = () => {
     filterPricingType.value = ''
     filterModelKeyword.value = ''
     onlyModelsWithChannels.value = true
+    showAutomaticProxyPools.value = false
     channelMatchMode.value = 'match-any'
     channelPriceMode.value = 'selected-lowest'
     pricingTableMode.value = 'summary'
@@ -636,6 +642,7 @@ export const useApiDocumentationPricing = () => {
     loadErrorMessage,
     channels,
     visibleChannels,
+    showAutomaticProxyPools,
     selectedChannels,
     filterFormat,
     filterChannel,

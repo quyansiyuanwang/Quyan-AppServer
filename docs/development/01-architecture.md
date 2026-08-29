@@ -94,7 +94,7 @@ graph TD
 
 | 维度 | 指标 | 说明 |
 |------|------|------|
-| **后端 Controllers** | 49 个 | 覆盖 16 个业务模块，按 v1/v2 版本组织 |
+| **后端 Controllers** | 数十个 | 覆盖多个业务模块，按 v1/v2 版本组织 |
 | **后端 Services** | 60 个 | 按功能域分 13 个目录（auth, relay, billing, users 等） |
 | **后端 Repositories** | 93 个 | Repository + Store 双层数据访问模式 |
 | **后端 Middleware** | 23 个 | 21 层中间件链（含内部子中间件） |
@@ -105,9 +105,9 @@ graph TD
 | **前端 Pinia Stores** | 12 个 | 全局状态管理 |
 | **前端路由** | 67+ 条 | 带权限守卫的细粒度路由控制 |
 | **前端 Components** | 30+ 个 | 共享组件（布局/认证/权限/编辑器等） |
-| **共享权限枚举** | 135+ 个 | `resource:action` 格式，唯一规范源 |
+| **共享权限枚举** | 百余项 | `resource:action` 格式，唯一规范源 |
 | **业务错误码** | 47 个 | 覆盖认证/校验/权限/限流等场景 |
-| **通知事件类型** | 22 种 | 按域分组（账单/安全/RAM/工单） |
+| **通知事件类型** | 数十种 | 按域分组（账单/安全/RAM/工单） |
 
 ## 核心架构与设计模式
 
@@ -144,7 +144,7 @@ Repository (数据访问层) — 封装 Prisma 查询
 Store (缓存层) — Redis 缓存，双层数据访问
 ```
 
-- **Controller**（49 个）：TSOA 装饰器定义路由路径、HTTP 方法、参数校验、安全方案。不含业务逻辑，职责仅限于 HTTP 协议适配。
+- **Controller**（数十个）：TSOA 装饰器定义路由路径、HTTP 方法、参数校验、安全方案。不含业务逻辑，职责仅限于 HTTP 协议适配。
 - **Service**（60 个）：单例模式（`getInstance()`），编排多个 Repository 实现业务规则。按功能域分 13 个目录。
 - **Repository**（93 个）：封装 Prisma 查询。部分"热点数据"模块额外存在 Store 层（Redis 缓存），如权限缓存、配置缓存等，实现双层数据访问模式。
 - **DTO**（42 个）：使用 TSOA 校验装饰器（`@IsString`, `@IsInt`, `@Min`, `@Max` 等）定义请求体验证规则和响应数据结构。
@@ -270,7 +270,7 @@ Relay 模块是平台的核心能力，提供对 OpenAI、Anthropic、Google Gem
 - 用户组（Group）承载权限集合
 - 权限计算公式：`最终权限 = 组权限 + 附加权限 - 移除权限`
 - `@CheckPermission()` 装饰器支持 ALL（AND）和 ANY（OR）两种检查模式
-- 135+ 个细粒度权限（`resource:action` 格式），覆盖全部业务模块
+- 百余项细粒度权限（`resource:action` 格式），覆盖全部业务模块
 
 **RAM（Resource Access Management）— 类 AWS IAM 子账户体系**：
 
@@ -301,7 +301,7 @@ Relay 模块是平台的核心能力，提供对 OpenAI、Anthropic、Google Gem
 
 ### 5. 通知系统
 
-事件驱动架构，支持 22 种通知事件，按域分组：
+事件驱动架构，支持多种通知事件，按域分组：
 
 | 域 | 事件数 | 示例 |
 |----|--------|------|
@@ -328,7 +328,7 @@ Relay 模块是平台的核心能力，提供对 OpenAI、Anthropic、Google Gem
 |------|------|
 | 状态管理 | 12 个 Pinia Store（userInfo, permission, chat, i18n, theme 等） |
 | 业务封装 | 52 个 Service（单例模式 `getInstance()`） |
-| 事件总线 | 6 个 EventBus 实例：auth / web / customCode / i18n / window / global |
+| 事件总线 | 多个按模块提供的单例 EventBus |
 | 国际化 | 3 种语言（zh-CN / en / emoji），类型安全翻译键，懒加载 |
 | 异步管理 | TanStack Vue Query（staleTime: 5min, gcTime: 10min, 指数退避重试） |
 | 数据可视化 | ECharts 5（图表、漏斗图）+ heatmap.js（热力图） |

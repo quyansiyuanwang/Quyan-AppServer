@@ -13,6 +13,7 @@ const filterChannelIds = state.filterChannelIds
 const filterPricingType = state.filterPricingType
 const filterModelKeyword = state.filterModelKeyword
 const onlyModelsWithChannels = state.onlyModelsWithChannels
+const showAutomaticProxyPools = state.showAutomaticProxyPools
 const channelMatchMode = state.channelMatchMode
 const channelPriceMode = state.channelPriceMode
 const pricingTableMode = state.pricingTableMode
@@ -215,6 +216,11 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
             <div class="pricing-more-settings-item pricing-more-settings-item--between">
               <span class="pricing-inline-label">{{ t('apiDoc.showCacheMultipliers') }}</span>
               <el-switch v-model="showCacheMultipliers" />
+            </div>
+
+            <div class="pricing-more-settings-item pricing-more-settings-item--between">
+              <span class="pricing-inline-label">{{ t('apiDoc.showAutomaticProxyPools') }}</span>
+              <el-switch v-model="showAutomaticProxyPools" />
             </div>
 
             <div class="pricing-more-settings-item">
@@ -541,6 +547,13 @@ const formatChannelOptionMultiplier = (channel: RelayCatalogOptionDto) => {
                     {{ t('apiDoc.showCacheMultipliers') }}
                   </span>
                   <el-switch v-model="showCacheMultipliers" />
+                </div>
+
+                <div class="pricing-mobile-switch">
+                  <span class="pricing-mobile-switch-label">
+                    {{ t('apiDoc.showAutomaticProxyPools') }}
+                  </span>
+                  <el-switch v-model="showAutomaticProxyPools" />
                 </div>
 
                 <div class="pricing-inline-control pricing-inline-control--mobile">

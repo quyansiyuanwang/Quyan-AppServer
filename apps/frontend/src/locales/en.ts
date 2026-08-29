@@ -4713,6 +4713,7 @@ export default {
     moreSettings: 'More settings',
     hideMoreSettings: 'Hide more settings',
     showCacheMultipliers: 'Show cache multipliers',
+    showAutomaticProxyPools: 'Show automatic proxy pools',
     hideIndependentChannels: 'Hide independent channels',
     hidePooledChannels: 'Hide pooled channels',
     hideAutomaticProxyPools: 'Hide automatic proxy pools',

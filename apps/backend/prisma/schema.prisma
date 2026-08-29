@@ -172,6 +172,7 @@ model ContentSafetyUserConfig {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("content_safety_user_configs")
 }
 
@@ -213,11 +214,11 @@ model ContentSafetyIncident {
   auditOutputTokens Int      @default(0)
   auditTotalTokens  Int      @default(0)
   auditCost         Decimal  @default(0) @db.Decimal(14, 6)
-    auditDurationMs   Int      @default(0)
-    replaced          Boolean  @default(false)
-    blocked           Boolean  @default(false)
-      matchContext      String?  @db.VarChar(720)
-      matchText         String?  @db.VarChar(240)
+  auditDurationMs   Int      @default(0)
+  replaced          Boolean  @default(false)
+  blocked           Boolean  @default(false)
+  matchContext      String?  @db.VarChar(720)
+  matchText         String?  @db.VarChar(240)
 
   user User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   rule ContentSafetyRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
@@ -319,6 +320,7 @@ model DeveloperProductInstance {
 
   @@unique([entitlementId, slug])
   @@index([entitlementId, enabled])
+  @@index([backingProjectId])
   @@map("developer_product_instances")
 }
 
@@ -380,6 +382,23 @@ model DeveloperProductCallLog {
   @@index([entitlementId, createTime])
   @@index([instanceId, createTime])
   @@map("developer_product_call_logs")
+}
+
+model DeveloperProductRefundRetry {
+  id             String    @id @default(cuid())
+  status         Int       @default(1)
+  createTime     DateTime  @default(now())
+  updateTime     DateTime  @updatedAt
+  usageId        String    @unique
+  accountOwnerId String
+  chargeAmount   Decimal   @default(0) @db.Decimal(18, 6)
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime  @default(now())
+  lastError      String?   @db.Text
+  completedAt    DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@map("developer_product_refund_retries")
 }
 
 model DeveloperProjectApiKey {
@@ -534,6 +553,7 @@ model DeveloperPushDelivery {
   @@index([projectId, createTime])
   @@index([projectId, idempotencyKey])
   @@index([deliveryStatus, nextRetryAt])
+  @@index([channelId])
   @@map("developer_push_deliveries")
 }
 
@@ -1052,6 +1072,7 @@ model RelayChannel {
   @@index([pooledParentId, pooledPriority])
   @@index([submissionStatus])
   @@index([submittedByUserId])
+  @@index([reviewedByUserId])
   @@map("relay_channels")
 }
 
@@ -1077,6 +1098,7 @@ model RelayChannelChangeRequest {
 
   @@index([relayChannelId, reviewStatus])
   @@index([submittedByUserId, createTime])
+  @@index([reviewedByUserId])
   @@map("relay_channel_change_requests")
 }
 
@@ -1178,6 +1200,7 @@ model RelayChannelProbeProfile {
   runs         RelayChannelProbeRun[]
 
   @@index([enabled])
+  @@index([relayChannelId])
   @@map("relay_channel_probe_profiles")
 }
 
@@ -2015,6 +2038,7 @@ model RemoteTerminalEntitlementToken {
 
   @@index([token])
   @@index([status, expiresAt])
+  @@index([entitlementId])
   @@map("remote_terminal_entitlement_tokens")
 }
 
@@ -2555,6 +2579,7 @@ model McpCredential {
 
   server McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
 
+  @@index([serverId])
   @@map("mcp_credentials")
 }
 
@@ -2591,6 +2616,8 @@ model AgentTask {
   @@index([userId, createTime])
   @@index([workspaceId, taskStatus])
   @@index([taskStatus, leaseExpiresAt])
+  @@index([conversationId])
+  @@index([relayTokenId])
   @@map("agent_tasks")
 }
 
@@ -2634,6 +2661,8 @@ model AgentApproval {
 
   @@index([taskId, status])
   @@index([status, expiresAt])
+  @@index([stepId])
+  @@index([decidedBy])
   @@map("agent_approvals")
 }
 
@@ -2920,6 +2949,7 @@ model DataLifecycleRun {
 
   @@index([dataset, createTime])
   @@index([runStatus, createTime])
+  @@index([policyId])
   @@map("data_lifecycle_runs")
 }
 
@@ -2940,6 +2970,7 @@ model ArchiveArtifact {
 
   @@index([dataset, expiresAt])
   @@index([expiresAt, deletedAt])
+  @@index([lifecycleRunId])
   @@map("archive_artifacts")
 }
 

@@ -205,7 +205,8 @@ GitHub Actions 工作流按目录路径过滤，仅变更相关项目时触发�
 
 - `quality-check.yml` — 全量质量检查
 - `test-backend.yml` / `test-frontend.yml` — 按路径过滤的测试
-- `deploy-*.yml` — 各应用独立部署
+- `deploy.yml` — 后端部署；前端和 docs-site 当前通过独立静态站点部署
+- `ai-pr-review.yml` / `auto-pr.yml` — PR 自动化与审核
 
 ## 项目文档
 

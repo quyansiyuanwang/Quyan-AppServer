@@ -14,16 +14,17 @@ AppServerMonorepo/
 │   └── docs-site/         # @appserver/docs-site  Vue 3 文档站点 (VitePress 风格)
 ├── packages/
 │   ├── shared/            # @appserver/shared     前后端共享类型与常量（权限、错误码等）
-│   ├── config-typescript/ # 共享 TypeScript 配置 (tsconfig.base.json)
-│   ├── config-prettier/   # 共享 Prettier 配置 (.prettierrc.json)
-│   └── utils/             # 共享工具函数 (src/index.ts)
+│   └── appserver-mcp/     # @appserver/mcp        AI 代理 stdio MCP
+├── integrations/          # 独立 git 子模块
+├── products/              # 独立产品子模块
+├── deployment/            # Nginx 反向代理示例
 ├── scripts/               # 仓库级脚本
 ├── package.json           # 根编排脚本
 ├── pnpm-workspace.yaml    # Workspace 配置
 └── CLAUDE.md
 ```
 
-所有工作都在 `apps/*` 子目录中完成。
+应用代码位于 `apps/*`，共享契约和 MCP 位于 `packages/*`；子模块目录由各自仓库管理。
 
 ## 常用命令
 
@@ -131,17 +132,10 @@ pnpm run openapi:gen:all          # 完整流水线（上述两步）
 PR 标题、正文和标签的整理流程以 [AGENTS.md](./AGENTS.md) 和
 [docs/development/10-pr-management.md](./docs/development/10-pr-management.md) 为准。编辑前必须参考近期同目标分支已合并 PR 的元数据风格，并在编辑后使用 `gh pr view` 回读确认。
 
-## 共享配置包
+## 项目配置
 
-### TypeScript 配置
-
-各项目在 `tsconfig.json` 中引用：
-
-```json
-{
-  "extends": "@appserver/config-typescript/tsconfig.base.json"
-}
-```
+各应用维护自己的 TypeScript/ESLint 配置；`packages/appserver-mcp/tsconfig.base.json`
+仅作为 MCP 包的基础配置，不是共享 workspace 配置包。
 
 ### ESLint 配置
 
@@ -170,10 +164,10 @@ export default [
 | ------------------------------------------------------------------- | ---------------------------------------------------- |
 | [README.md](./docs/development/README.md)                           | 文档索引、常用命令速查、关键文件速查                 |
 | [01-architecture.md](./docs/development/01-architecture.md)         | 系统架构：monorepo 结构、技术栈、请求生命周期        |
-| [02-backend.md](./docs/development/02-backend.md)                   | 后端：47 Controllers、56 Services、中间件链          |
+| [02-backend.md](./docs/development/02-backend.md)                   | 后端：数十个 Controllers/Services、中间件链          |
 | [03-frontend.md](./docs/development/03-frontend.md)                 | 前端：组件层次、11 Stores、事件总线、i18n            |
-| [04-shared-package.md](./docs/development/04-shared-package.md)     | 共享包：130+ Permission、CustomCode、所有模块        |
-| [05-database.md](./docs/development/05-database.md)                 | 数据库：68 模型、关系、软删除、迁移流程              |
+| [04-shared-package.md](./docs/development/04-shared-package.md)     | 共享包：百余项 Permission、CustomCode、所有模块      |
+| [05-database.md](./docs/development/05-database.md)                 | 数据库：百余模型、关系、软删除、迁移流程             |
 | [06-api-development.md](./docs/development/06-api-development.md)   | API 开发：Controller→DTO→Service→Repository 完整流程 |
 | [07-authentication.md](./docs/development/07-authentication.md)     | 认证：JWT/OAuth/RAM/2FA/重放保护/CAPTCHA             |
 | [08-openapi-pipeline.md](./docs/development/08-openapi-pipeline.md) | OpenAPI：TSOA→swagger.json→前端 typed SDK            |

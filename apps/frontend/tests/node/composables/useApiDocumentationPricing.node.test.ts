@@ -39,6 +39,7 @@ const createChannel = (overrides: Partial<RelayCatalogOptionDto> = {}): RelayCat
   id: 'channel-1',
   name: 'Test Channel',
   enabled: true,
+  isAutomaticProxyPool: false,
   allowedFormats: 'openai',
   modelCapabilities: [
     {
@@ -173,10 +174,28 @@ describe('useApiDocumentationPricing', () => {
     dispose()
   })
 
-  it('does not expose topology controls in the public catalog composable', () => {
+  it('hides variable-price automatic pools by default and allows opting in', () => {
     const { composable, dispose } = createComposable()
     expect('hidePooledChannels' in composable).toBe(false)
     expect('hideAutomaticProxyPools' in composable).toBe(false)
+    const standalone = createChannel({ id: 'standalone' })
+    const automaticPool = createChannel({
+      id: 'automatic-pool',
+      pricingMode: 'range',
+      modelPriceRanges: [],
+      multiplier: undefined,
+      isAutomaticProxyPool: true,
+      priceMayVary: true,
+    })
+    composable.channels.value = [standalone, automaticPool]
+    expect(composable.showAutomaticProxyPools.value).toBe(false)
+    expect(composable.visibleChannels.value.map((channel) => channel.id)).toEqual(['standalone'])
+
+    composable.showAutomaticProxyPools.value = true
+    expect(composable.visibleChannels.value.map((channel) => channel.id)).toEqual([
+      'standalone',
+      'automatic-pool',
+    ])
     dispose()
   })
 })

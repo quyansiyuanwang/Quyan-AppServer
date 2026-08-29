@@ -80,8 +80,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { i18ns } from '@/locales'
-import { useRequestStore } from '@/stores/request'
-import { createSupportControllerApi } from '@/client/services/support-controller.gen'
+import { supportService } from '@/service/supportService'
 import type { SupportAiConfigDto } from '@/client/types.gen'
 const loading = ref(false)
 const saving = ref(false)
@@ -104,7 +103,7 @@ const form = reactive<SupportAiConfigDto>({
   inputPricePerMillion: 0,
   outputPricePerMillion: 0,
 })
-const api = () => createSupportControllerApi(useRequestStore().getAxios())
+const api = () => supportService.getApi()
 const load = async () => {
   loading.value = true
   try {

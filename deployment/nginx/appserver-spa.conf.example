@@ -1,0 +1,22 @@
+# Static frontend site example. Replace the hostname and dist path per site.
+server {
+  listen 80;
+  server_name console.example.com;
+  root /srv/appserver/frontend/dist;
+  index index.html;
+
+  client_max_body_size 20M;
+
+  # Let Vue Router handle deep links; API traffic belongs on api.example.com.
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+
+  location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$ {
+    try_files $uri =404;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header X-Frame-Options "SAMEORIGIN" always;
+}

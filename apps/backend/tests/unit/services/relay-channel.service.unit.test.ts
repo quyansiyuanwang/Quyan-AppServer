@@ -371,6 +371,12 @@ describe("RelayChannelService", () => {
         channelType: "automatic-proxy-pool",
         visibilityMode: "public",
       },
+      {
+        ...sampleChannel,
+        id: "physical-pool-member",
+        channelType: "pooled-member",
+        visibilityMode: "public",
+      },
     ]);
     relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([
       {
@@ -414,6 +420,27 @@ describe("RelayChannelService", () => {
     const result = await service.listCatalogOptions("actor-user");
 
     expect(result.map((channel) => channel.id)).toEqual(["standalone-channel"]);
+  });
+
+  it("keeps automatic proxy pools independent from pooled publication", async () => {
+    relayChannelRepository.listActive.mockResolvedValue([
+      { ...sampleChannel, id: "standalone-channel", channelType: "standalone", visibilityMode: "public" },
+      { ...sampleChannel, id: "pooled-channel", channelType: "pooled", visibilityMode: "public" },
+      {
+        ...sampleChannel,
+        id: "automatic-pool-channel",
+        channelType: "automatic-proxy-pool",
+        visibilityMode: "public",
+      },
+    ]);
+    relayConfigService.getRelayConfig.mockResolvedValue({ apiCatalogPoolVisibility: "hidden" });
+
+    const result = await service.listCatalogOptions("actor-user");
+
+    expect(result.map((channel) => channel.id)).toEqual(
+      expect.arrayContaining(["automatic-pool-channel", "standalone-channel"]),
+    );
+    expect(result).toHaveLength(2);
   });
 
   it("resolves a unique accessible direct pooled parent for balance display", async () => {

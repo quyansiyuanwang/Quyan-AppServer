@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import { loggingMiddleware } from "./middleware/logging";
 import { exceptionMiddleware } from "./middleware/exception";
 import { requestIdMiddleware } from "./middleware/request_id";
@@ -41,6 +42,10 @@ function parseContentLength(value: string | string[] | undefined): number | null
 export function createApp() {
   const app = express();
   const requestSizeLimitConfig = env.runtime.requestSizeLimits;
+
+  // Keep Swagger's existing inline assets working; CSP can be introduced separately
+  // after auditing the generated documentation page.
+  app.use(helmet({ contentSecurityPolicy: false }));
 
   const corsAllowedOrigins = createCorsOriginAllowlist(env.runtime.corsAllowedOrigins);
 
