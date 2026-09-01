@@ -65,6 +65,7 @@
         /><el-option :label="t('contentSafety.statusBlocked')" value="blocked" />
       </el-select>
       <el-button type="primary" @click="reload">{{ t('contentSafety.filter') }}</el-button>
+      <el-button :icon="Refresh" :loading="loading" @click="load">{{ t('refresh') }}</el-button>
       <el-popover placement="bottom-end" :width="260" trigger="click">
         <template #reference
           ><el-button>{{ t('contentSafety.columnSettings') }}</el-button></template
@@ -102,6 +103,14 @@
           <template v-else-if="column.key === 'context'"
             ><span class="matched-context" v-html="formatContext(row)"
           /></template>
+          <template v-else-if="column.key === 'rule'">
+            <div class="rule-cell">
+              <span>{{ row.rule?.name || (row.source === 'ai' ? 'AI' : '-') }}</span>
+              <small v-if="row.rule"
+                >{{ row.rule.type }} · {{ row.rule.pattern || row.ruleId }}</small
+              >
+            </div>
+          </template>
           <template v-else-if="column.key === 'status'"
             ><el-tag :type="statusType(row)">{{ statusLabel(row) }}</el-tag></template
           >
@@ -126,6 +135,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { contentSafetyService } from '@/service/contentSafetyService'
 import { copyTextWithFallback } from '@/utils/clipboard'
@@ -162,8 +172,7 @@ const columns: IncidentColumn[] = [
   {
     key: 'rule',
     label: t('contentSafety.triggerRule'),
-    value: (r: any) => r.rule?.name || '-',
-    width: 150,
+    width: 220,
   },
   {
     key: 'type',
@@ -205,6 +214,7 @@ const defaults = [
   'source',
   'requestId',
   'tokenName',
+  'rule',
   'context',
   'status',
 ]
@@ -240,7 +250,17 @@ const escape = (value: unknown) =>
     (char) =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[char] || char,
   )
-const formatContext = (row: any) => escape(row.matchContext || row.matchText || t('noData'))
+const formatContext = (row: any) => {
+  const context = String(row.matchContext || row.matchText || '')
+  const matchText = String(row.matchText || '')
+  if (!context) return escape(t('noData'))
+  if (!matchText) return escape(context)
+  const start = context.indexOf(matchText)
+  if (start < 0) return escape(context)
+  return `${escape(context.slice(0, start))}<mark>${escape(matchText)}</mark>${escape(
+    context.slice(start + matchText.length),
+  )}`
+}
 const statusLabel = (row: any) =>
   row.blocked
     ? t('contentSafety.statusBlocked')
@@ -347,5 +367,24 @@ onMounted(() => {
 .matched-context {
   white-space: pre-wrap;
   word-break: break-word;
+}
+.matched-context :deep(mark) {
+  padding: 1px 3px;
+  border-radius: 3px;
+  background: var(--el-color-warning-light-5);
+  color: var(--el-text-color-primary);
+  font-weight: 700;
+}
+.rule-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.rule-cell small {
+  overflow: hidden;
+  color: var(--el-text-color-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

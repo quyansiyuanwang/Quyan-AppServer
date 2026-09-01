@@ -3,9 +3,14 @@
     <div class="content-safety-user" v-loading="loading">
       <div class="page-header">
         <h1 class="page-title">{{ i18ns.t('contentSafety.title') }}</h1>
-        <el-button type="primary" :loading="saving" @click="saveConfig">{{
-          i18ns.t('save')
-        }}</el-button>
+        <div class="page-header__actions">
+          <el-button :icon="Refresh" :loading="loading" @click="load">{{
+            i18ns.t('refresh')
+          }}</el-button>
+          <el-button type="primary" :loading="saving" @click="saveConfig">{{
+            i18ns.t('save')
+          }}</el-button>
+        </div>
       </div>
       <el-alert type="info" :closable="false" class="mb-4">{{
         i18ns.t('contentSafety.userDescription')
@@ -42,15 +47,18 @@
             <el-button @click="exportPolicy('csv')">{{
               i18ns.t('contentSafety.exportCsv')
             }}</el-button>
-            <el-button v-if="selectedRules.length" @click="openBatchDialog">{{
+            <el-button v-if="canEditAll" @click="openBatchDialog">{{
               i18ns.t('contentSafety.batchEdit')
             }}</el-button>
-            <el-button v-if="selectedRules.length" type="success" @click="batchSetEnabled(true)">{{
+            <el-button v-if="canEditAll" type="success" @click="batchSetEnabled(true)">{{
               i18ns.t('contentSafety.batchEnable')
             }}</el-button>
-            <el-button v-if="selectedRules.length" type="warning" @click="batchSetEnabled(false)">{{
+            <el-button v-if="canEditAll" type="warning" @click="batchSetEnabled(false)">{{
               i18ns.t('contentSafety.batchDisable')
             }}</el-button>
+            <el-button v-if="canEditAll" @click="batchSetAction('allow')">
+              {{ i18ns.t('contentSafety.observationMode') }}
+            </el-button>
           </div>
           <el-table :data="rules" border size="small" @selection-change="selectedRules = $event">
             <el-table-column type="selection" width="42" />
@@ -93,54 +101,6 @@
             }}</span></template
           >
           <ContentSafetyIncidentTable scope="user" />
-          <!--
-          <el-table :data="incidents" border size="small">
-            <el-table-column prop="createTime" :label="i18ns.t('contentSafety.time')" width="170" />
-            <el-table-column
-              prop="direction"
-              :label="i18ns.t('contentSafety.direction')"
-              width="100"
-            />
-            <el-table-column prop="action" :label="i18ns.t('contentSafety.action')" width="130" />
-            <el-table-column prop="source" :label="i18ns.t('contentSafety.source')" width="110" />
-            <el-table-column
-              prop="rule.name"
-              :label="i18ns.t('contentSafety.triggerRule')"
-              min-width="150"
-            />
-            <el-table-column prop="rule.type" :label="i18ns.t('contentSafety.type')" width="90" />
-            <el-table-column
-              prop="requestId"
-              :label="i18ns.t('contentSafety.requestId')"
-              min-width="150"
-            />
-            <el-table-column
-              prop="relayTokenId"
-              :label="i18ns.t('contentSafety.tokenId')"
-              min-width="150"
-            />
-            <el-table-column
-              prop="channelId"
-              :label="i18ns.t('contentSafety.channelId')"
-              min-width="130"
-            />
-            <el-table-column :label="i18ns.t('contentSafety.matchedContext')" min-width="360">
-              <template #default="{ row }">
-                <span class="matched-context" v-html="formatMatchedContext(row)" />
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="auditTotalTokens"
-              :label="i18ns.t('contentSafety.auditTokens')"
-              width="110"
-            />
-            <el-table-column
-              prop="replaced"
-              :label="i18ns.t('contentSafety.replaced')"
-              width="90"
-            />
-            <el-table-column prop="blocked" :label="i18ns.t('contentSafety.blocked')" width="90" />
-          </el-table> -->
         </el-collapse-item>
       </el-collapse>
     </div>
@@ -300,6 +260,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import ContentSafetyPolicyFields from '@/components/content-safety/ContentSafetyPolicyFields.vue'
 import ContentSafetyIncidentTable from '@/components/content-safety/ContentSafetyIncidentTable.vue'
@@ -308,34 +269,6 @@ import { contentSafetyService } from '@/service/contentSafetyService'
 const { embedded = false } = defineProps<{ embedded?: boolean }>()
 const api = () => contentSafetyService.getApi()
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
-const escapeHtml = (value: unknown) =>
-  String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-/* Legacy formatter retained for compatibility with saved templates. */
-const formatMatchedContext = (incident: any) => {
-  const context = incident.matchContext || incident.matchText || ''
-  if (!context || !incident.matchText)
-    return `<span class="matched-context__empty">${escapeHtml(i18ns.t('noData'))}</span>`
-  let match: RegExpExecArray | null = null
-  try {
-    const pattern = incident.rule?.pattern || incident.matchText
-    const source = incident.rule?.type === 'regex' ? pattern : escapeRegExp(pattern)
-    const expression = new RegExp(source, 'iu')
-    const candidate = expression.exec(context)
-    if (candidate?.[0]) match = candidate
-  } catch {
-    // Fall back to the exact bounded match below.
-  }
-  const start = match?.index ?? context.indexOf(incident.matchText)
-  const matchedText = match?.[0] || incident.matchText
-  if (start < 0) return escapeHtml(context)
-  return `${escapeHtml(context.slice(0, start))}<mark>${escapeHtml(matchedText)}</mark>${escapeHtml(context.slice(start + matchedText.length))}`
-}
 const loading = ref(false),
   saving = ref(false),
   sections = ref<string[]>([]),
@@ -344,10 +277,6 @@ const rules = ref<any[]>([]),
   page = ref(1),
   pageSize = ref(20),
   total = ref(0),
-  incidents = ref<any[]>([]),
-  incidentPage = ref(1),
-  incidentPageSize = ref(20),
-  incidentTotal = ref(0),
   ruleDialog = ref(false),
   editingId = ref<string | null>(null)
 const selectedRules = ref<any[]>([])
@@ -364,10 +293,12 @@ const canEditAll = computed(
 const policy = reactive<any>({
   requestEnabled: true,
   requestAction: 'unreachable',
+  requestMaxAction: null,
   requestAiEnabled: false,
   requestAiAction: 'unreachable',
   responseEnabled: true,
   responseAction: 'unreachable',
+  responseMaxAction: null,
   responseAiEnabled: false,
   responseAiAction: 'unreachable',
 })
@@ -461,8 +392,27 @@ const openBatchDialog = () => {
   batchDialog.value = true
 }
 const batchSetEnabled = async (enabled: boolean) => {
+  if (!canEditAll.value) return
   await api().batchUpdateUserRules({
     body: { ids: selectedRules.value.map((row) => row.id), changes: { enabled } },
+  })
+  selectedRules.value = []
+  await loadRules()
+}
+const batchSetAction = async (action: 'unreachable' | 'blackhole' | 'allow') => {
+  if (!canEditAll.value) return
+  if (action === 'allow')
+    try {
+      await ElMessageBox.confirm(
+        i18ns.t('contentSafety.confirmObservationMode'),
+        i18ns.t('contentSafety.observationMode'),
+        { type: 'warning' },
+      )
+    } catch {
+      return
+    }
+  await api().batchUpdateUserRules({
+    body: { ids: selectedRules.value.map((row) => row.id), changes: { action } },
   })
   selectedRules.value = []
   await loadRules()
@@ -542,6 +492,11 @@ onMounted(() => void load())
   gap: 12px;
   margin-bottom: 16px;
 }
+.page-header__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .content-safety-user__collapse {
   border: none;
   display: flex;
@@ -573,6 +528,9 @@ onMounted(() => void load())
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+.content-safety-user__toolbar :deep(.el-button) {
+  margin-left: 0;
 }
 .content-safety-user__actions {
   margin-top: 12px;

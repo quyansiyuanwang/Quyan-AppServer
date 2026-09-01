@@ -54,6 +54,9 @@ const normalizeText = (value: string) =>
   value.normalize("NFKC").replace(ZERO_WIDTH_AND_CONTROL_CHARS, "").replace(/\s+/g, " ").trim();
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const validActions = new Set<ContentSafetyAction>(["unreachable", "blackhole", "allow"]);
+const actionRank: Record<ContentSafetyAction, number> = { allow: 0, blackhole: 1, unreachable: 2 };
+const capAction = (action: ContentSafetyAction, maxAction: ContentSafetyAction) =>
+  actionRank[action] > actionRank[maxAction] ? maxAction : action;
 const INCIDENT_CONTEXT_BEFORE = 240;
 const INCIDENT_CONTEXT_MATCH = 240;
 const INCIDENT_CONTEXT_AFTER = 240;
@@ -99,12 +102,14 @@ export class ContentSafetyService {
     return {
       requestEnabled: values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ENABLED] !== "false",
       requestAction: action(values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ACTION]),
+      requestMaxAction: action(values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_MAX_ACTION] || "unreachable"),
       requestAiEnabled: values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_AI_ENABLED] === "true",
       requestAiAction: action(
         values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_AI_ACTION] || values[CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ACTION],
       ),
       responseEnabled: values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ENABLED] !== "false",
       responseAction: action(values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ACTION]),
+      responseMaxAction: action(values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_MAX_ACTION] || "unreachable"),
       responseAiEnabled: values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_AI_ENABLED] === "true",
       responseAiAction: action(
         values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_AI_ACTION] || values[CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ACTION],
@@ -128,10 +133,12 @@ export class ContentSafetyService {
     const updates: Record<string, string> = {
       [CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ENABLED]: String(body.requestEnabled),
       [CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ACTION]: body.requestAction,
+      [CONFIG_KEYS.CONTENT_SAFETY.REQUEST_MAX_ACTION]: body.requestMaxAction,
       [CONFIG_KEYS.CONTENT_SAFETY.REQUEST_AI_ENABLED]: String(body.requestAiEnabled),
       [CONFIG_KEYS.CONTENT_SAFETY.REQUEST_AI_ACTION]: body.requestAiAction || body.requestAction,
       [CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ENABLED]: String(body.responseEnabled),
       [CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_ACTION]: body.responseAction,
+      [CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_MAX_ACTION]: body.responseMaxAction,
       [CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_AI_ENABLED]: String(body.responseAiEnabled),
       [CONFIG_KEYS.CONTENT_SAFETY.RESPONSE_AI_ACTION]: body.responseAiAction || body.responseAction,
       [CONFIG_KEYS.CONTENT_SAFETY.AI_UPSTREAM_URL]: body.aiUpstreamUrl.trim(),
@@ -155,12 +162,14 @@ export class ContentSafetyService {
     return {
       requestEnabled: toNullable(row?.requestEnabled),
       requestAction: toNullable(row?.requestAction) as ContentSafetyAction | null,
+      requestMaxAction: toNullable(row?.requestMaxAction) as ContentSafetyAction | null,
       requestAiEnabled: toNullable(row?.requestAiEnabled),
-      requestAiAction: toNullable(row?.requestAction) as ContentSafetyAction | null,
+      requestAiAction: toNullable(row?.requestAiAction) as ContentSafetyAction | null,
       responseEnabled: toNullable(row?.responseEnabled),
       responseAction: toNullable(row?.responseAction) as ContentSafetyAction | null,
+      responseMaxAction: toNullable(row?.responseMaxAction) as ContentSafetyAction | null,
       responseAiEnabled: toNullable(row?.responseAiEnabled),
-      responseAiAction: toNullable(row?.responseAction) as ContentSafetyAction | null,
+      responseAiAction: toNullable(row?.responseAiAction) as ContentSafetyAction | null,
     } satisfies ContentSafetyUserConfig;
   }
 
@@ -168,10 +177,14 @@ export class ContentSafetyService {
     await this.repository.upsertUserConfig(userId, {
       requestEnabled: body.requestEnabled,
       requestAction: body.requestAction,
+      requestMaxAction: body.requestMaxAction,
       requestAiEnabled: body.requestAiEnabled,
+      requestAiAction: body.requestAiAction,
       responseEnabled: body.responseEnabled,
       responseAction: body.responseAction,
+      responseMaxAction: body.responseMaxAction,
       responseAiEnabled: body.responseAiEnabled,
+      responseAiAction: body.responseAiAction,
     });
     return this.getUserConfig(userId);
   }
@@ -283,13 +296,21 @@ export class ContentSafetyService {
         : user[key] !== null && user[key] !== undefined
           ? user[key]
           : fallback;
+    const cap = (key: "requestMaxAction" | "responseMaxAction") => {
+      const configured = [system[key], user[key], tokenConfig?.[key]].filter((value): value is ContentSafetyAction =>
+        validActions.has(value as ContentSafetyAction),
+      );
+      return configured.reduce((current, value) => (actionRank[value] < actionRank[current] ? value : current));
+    };
     return {
       requestEnabled: pick("requestEnabled", system.requestEnabled),
       requestAction: pick("requestAction", system.requestAction),
+      requestMaxAction: cap("requestMaxAction"),
       requestAiEnabled: pick("requestAiEnabled", system.requestAiEnabled),
       requestAiAction: pick("requestAiAction", system.requestAiAction),
       responseEnabled: pick("responseEnabled", system.responseEnabled),
       responseAction: pick("responseAction", system.responseAction),
+      responseMaxAction: cap("responseMaxAction"),
       responseAiEnabled: pick("responseAiEnabled", system.responseAiEnabled),
       responseAiAction: pick("responseAiAction", system.responseAiAction),
     };
@@ -309,6 +330,12 @@ export class ContentSafetyService {
         const candidate =
           (effective?.[`${prefix === "REQUEST" ? "request" : "response"}Action`] as ContentSafetyAction) ||
           (values[key[`${prefix}_ACTION` as "REQUEST_ACTION" | "RESPONSE_ACTION"]] as ContentSafetyAction);
+        return validActions.has(candidate) ? candidate : "unreachable";
+      })(),
+      maxAction: (() => {
+        const candidate = effective?.[
+          `${prefix === "REQUEST" ? "request" : "response"}MaxAction`
+        ] as ContentSafetyAction;
         return validActions.has(candidate) ? candidate : "unreachable";
       })(),
       aiAction: (() => {
@@ -429,6 +456,28 @@ export class ContentSafetyService {
       auditDurationMs: evaluations.reduce((total, evaluation) => total + evaluation.auditDurationMs, 0),
       auditCost: evaluations.reduce((total, evaluation) => total + evaluation.auditCost, 0),
       components: matched,
+    };
+  }
+
+  private capEvaluation(
+    text: string,
+    evaluation: ContentSafetyEvaluation,
+    maxAction: ContentSafetyAction,
+  ): ContentSafetyEvaluation {
+    if (!evaluation.matched) return evaluation;
+    const action = capAction(evaluation.action, maxAction);
+    if (action === evaluation.action) return evaluation;
+    return {
+      ...evaluation,
+      action,
+      text:
+        action === "blackhole"
+          ? evaluation.text !== text
+            ? evaluation.text
+            : evaluation.matchText
+              ? text.replace(evaluation.matchText, "[REDACTED]")
+              : text
+          : text,
     };
   }
 
@@ -584,7 +633,10 @@ export class ContentSafetyService {
           auditCost: 0,
         };
     const aiEvaluation = await this.audit(text, direction, config);
-    return this.combineEvaluations(text, [ruleEvaluation, aiEvaluation]);
+    return this.combineEvaluations(
+      text,
+      [ruleEvaluation, aiEvaluation].map((evaluation) => this.capEvaluation(text, evaluation, config.maxAction)),
+    );
   }
 
   async evaluateLocal(
@@ -632,19 +684,23 @@ export class ContentSafetyService {
         auditCost: 0,
       };
     const matchContext = this.extractMatchContext(text, match.expression);
-    return {
-      text: match.rule.action === "blackhole" ? text.replace(match.expression, "[REDACTED]") : text,
-      action: match.rule.action,
-      matched: true,
-      source: "rule",
-      ruleId: match.rule.id,
-      auditInputTokens: 0,
-      auditOutputTokens: 0,
-      auditDurationMs: 0,
-      auditCost: 0,
-      matchText: matchContext?.text,
-      matchContext: matchContext?.context,
-    };
+    return this.capEvaluation(
+      text,
+      {
+        text: match.rule.action === "blackhole" ? text.replace(match.expression, "[REDACTED]") : text,
+        action: match.rule.action,
+        matched: true,
+        source: "rule",
+        ruleId: match.rule.id,
+        auditInputTokens: 0,
+        auditOutputTokens: 0,
+        auditDurationMs: 0,
+        auditCost: 0,
+        matchText: matchContext?.text,
+        matchContext: matchContext?.context,
+      },
+      config.maxAction,
+    );
   }
 
   async recordIncident(input: {
@@ -694,24 +750,10 @@ export class ContentSafetyService {
       source: input.evaluation.source || "ai",
       auditTokens: input.evaluation.auditInputTokens + input.evaluation.auditOutputTokens,
     };
-    await this.notificationService
-      .dispatch(input.userId, NotificationEvent.CONTENT_SAFETY_BLOCKED, notification)
-      .catch(() => undefined);
-    try {
-      const administrators = await this.repository.findAdministratorIds();
-      await Promise.all(
-        administrators
-          .filter((userId) => userId !== input.userId)
-          .map((userId) =>
-            this.notificationService.dispatch(userId, NotificationEvent.CONTENT_SAFETY_BLOCKED, {
-              ...notification,
-              summary: "A content safety incident was recorded for a user.",
-            }),
-          ),
-      );
-    } catch {
-      /* notification lookup/delivery must not change the safety decision */
-    }
+    if (input.evaluation.action === "unreachable")
+      await this.notificationService
+        .dispatch(input.userId, NotificationEvent.CONTENT_SAFETY_BLOCKED, notification)
+        .catch(() => undefined);
     await this.businessLog
       .logOperation({
         operationType: OperationType.RELAY_PROXY_REQUEST_FAILED,

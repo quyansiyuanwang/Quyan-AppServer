@@ -32,6 +32,30 @@
             </el-radio-group>
           </template>
         </el-table-column>
+        <el-table-column min-width="300">
+          <template #header>
+            <span class="label-with-help">
+              {{ i18ns.t('contentSafety.maxAction') }}
+              <el-tooltip :content="i18ns.t('contentSafety.maxActionHelp')" placement="top">
+                <el-icon><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </span>
+          </template>
+          <template #default="{ row }">
+            <el-radio-group v-model="localModel[row.maxActionKey]" size="small">
+              <el-radio-button v-if="allowInherit" :label="null">{{
+                i18ns.t('contentSafety.inherit')
+              }}</el-radio-button>
+              <el-radio-button label="unreachable">{{
+                i18ns.t('contentSafety.unreachable')
+              }}</el-radio-button>
+              <el-radio-button label="blackhole">{{
+                i18ns.t('contentSafety.blackhole')
+              }}</el-radio-button>
+              <el-radio-button label="allow">{{ i18ns.t('contentSafety.allow') }}</el-radio-button>
+            </el-radio-group>
+          </template>
+        </el-table-column>
         <el-table-column :label="i18ns.t('contentSafety.aiAction')" min-width="300">
           <template #default="{ row }">
             <el-radio-group v-model="localModel[row.aiActionKey]" size="small">
@@ -69,6 +93,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { QuestionFilled } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import type { ContentSafetyAction } from '@appserver/shared'
 
@@ -76,10 +101,12 @@ interface PolicyModel {
   [key: string]: boolean | null | ContentSafetyAction
   requestEnabled: boolean | null
   requestAction: ContentSafetyAction | null
+  requestMaxAction: ContentSafetyAction | null
   requestAiEnabled: boolean | null
   requestAiAction: ContentSafetyAction | null
   responseEnabled: boolean | null
   responseAction: ContentSafetyAction | null
+  responseMaxAction: ContentSafetyAction | null
   responseAiEnabled: boolean | null
   responseAiAction: ContentSafetyAction | null
 }
@@ -131,6 +158,7 @@ const policyRows: Array<{
   direction: string
   enabledKey: 'requestEnabled' | 'responseEnabled'
   actionKey: 'requestAction' | 'responseAction'
+  maxActionKey: 'requestMaxAction' | 'responseMaxAction'
   aiKey: 'requestAiEnabled' | 'responseAiEnabled'
   aiActionKey: 'requestAiAction' | 'responseAiAction'
 }> = [
@@ -138,6 +166,7 @@ const policyRows: Array<{
     direction: i18ns.t('contentSafety.request'),
     enabledKey: 'requestEnabled',
     actionKey: 'requestAction',
+    maxActionKey: 'requestMaxAction',
     aiKey: 'requestAiEnabled',
     aiActionKey: 'requestAiAction',
   },
@@ -145,6 +174,7 @@ const policyRows: Array<{
     direction: i18ns.t('contentSafety.response'),
     enabledKey: 'responseEnabled',
     actionKey: 'responseAction',
+    maxActionKey: 'responseMaxAction',
     aiKey: 'responseAiEnabled',
     aiActionKey: 'responseAiAction',
   },
@@ -161,5 +191,14 @@ const policyRows: Array<{
 }
 .direction-label {
   font-weight: 600;
+}
+.label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.label-with-help .el-icon {
+  color: var(--el-text-color-secondary);
+  cursor: help;
 }
 </style>

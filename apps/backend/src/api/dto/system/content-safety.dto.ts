@@ -75,10 +75,12 @@ export interface ContentSafetyExportDto {
 export interface ContentSafetyConfigDto {
   requestEnabled: boolean;
   requestAction: ContentSafetyAction;
+  requestMaxAction: ContentSafetyAction;
   requestAiEnabled: boolean;
   requestAiAction: ContentSafetyAction;
   responseEnabled: boolean;
   responseAction: ContentSafetyAction;
+  responseMaxAction: ContentSafetyAction;
   responseAiEnabled: boolean;
   responseAiAction: ContentSafetyAction;
   aiUpstreamUrl: string;
@@ -92,10 +94,12 @@ export interface ContentSafetyConfigDto {
   userConfig?: {
     requestEnabled: boolean | null;
     requestAction: ContentSafetyAction | null;
+    requestMaxAction: ContentSafetyAction | null;
     requestAiEnabled: boolean | null;
     requestAiAction: ContentSafetyAction | null;
     responseEnabled: boolean | null;
     responseAction: ContentSafetyAction | null;
+    responseMaxAction: ContentSafetyAction | null;
     responseAiEnabled: boolean | null;
     responseAiAction: ContentSafetyAction | null;
   };
@@ -103,10 +107,12 @@ export interface ContentSafetyConfigDto {
 export interface ContentSafetyConfigRequest {
   requestEnabled: boolean;
   requestAction: ContentSafetyAction;
+  requestMaxAction: ContentSafetyAction;
   requestAiEnabled: boolean;
   requestAiAction?: ContentSafetyAction;
   responseEnabled: boolean;
   responseAction: ContentSafetyAction;
+  responseMaxAction: ContentSafetyAction;
   responseAiEnabled: boolean;
   responseAiAction?: ContentSafetyAction;
   aiUpstreamUrl: string;
@@ -123,10 +129,12 @@ export interface ContentSafetyConfigRequest {
 export interface ContentSafetyUserConfigRequest {
   requestEnabled: boolean | null;
   requestAction: ContentSafetyAction | null;
+  requestMaxAction: ContentSafetyAction | null;
   requestAiEnabled: boolean | null;
   requestAiAction: ContentSafetyAction | null;
   responseEnabled: boolean | null;
   responseAction: ContentSafetyAction | null;
+  responseMaxAction: ContentSafetyAction | null;
   responseAiEnabled: boolean | null;
   responseAiAction: ContentSafetyAction | null;
   targetUserId?: string;
