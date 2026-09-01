@@ -26,29 +26,29 @@
 
 ## 阶段 0：状态与安全速修
 
-| 编号 | 级别 | 当前证据                                                                    | 目标                                                | 状态   | 验证                                                     |
-| ---- | ---- | --------------------------------------------------------------------------- | --------------------------------------------------- | ------ | -------------------------------------------------------- |
-| P0-1 | P0   | `.gitmodules` 注册 `integrations/remote-agent`，HEAD 无 gitlink，目录未跟踪 | 保留现状并等待单独的子模块版本决策                  | 延期   | `git ls-tree HEAD integrations/`; `git submodule status` |
-| P1-1 | P1   | `apps/backend/prisma/seed.prod.ts` 固定 `admin123` 并打印密码               | 随机强密码写入受限一次性文件，seed 幂等且不记录凭据 | 已完成 | backend type-check；凭据路径不含密码日志                 |
-| P1-2 | P1   | `ai-provider.service.ts` 多处 `console.log`，包含流式正文                   | 使用项目 logger，仅记录可审计元数据                 | 已完成 | AI Provider unit tests；日志扫描                         |
+| 编号 | 级别 | 当前证据                                                                    | 目标                                                | 状态   | 验证                                                                                         |
+| ---- | ---- | --------------------------------------------------------------------------- | --------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------- |
+| P0-1 | P0   | `.gitmodules` 注册 `integrations/remote-agent`，HEAD 无 gitlink，目录未跟踪 | 保留现状并等待单独的子模块版本决策                  | 延期   | `git ls-tree HEAD integrations/`; `git submodule status`                                     |
+| P1-1 | P1   | `apps/backend/prisma/seed.prod.ts` 固定 `admin123` 并打印密码               | 随机强密码写入受限一次性文件，seed 幂等且不记录凭据 | 已完成 | backend type-check；凭据路径不含密码日志                                                     |
+| P1-2 | P1   | `ai-provider.service.ts` 多处 `console.log`，包含流式正文                   | 使用项目 logger，仅记录可审计元数据                 | 已完成 | AI Provider unit tests；日志扫描                                                             |
 | P1-3 | P1   | `refundQuota(receipt).catch(() => {})` 静默吞错                             | 落库可重试补偿任务，幂等执行并结构化告警            | 已完成 | Prisma migration `20260828232408_add_developer_product_refund_retries`；相关 unit tests 通过 |
-| P2-1 | P2   | `.gitignore` 忽略已跟踪 `pnpm-lock.yaml`                                    | 删除冲突条目                                        | 已完成 | `git diff --check`                                       |
+| P2-1 | P2   | `.gitignore` 忽略已跟踪 `pnpm-lock.yaml`                                    | 删除冲突条目                                        | 已完成 | `git diff --check`                                                                           |
 
 ## 阶段 1：依赖、测试和 CI
 
-| 编号  | 当前结论与动作                                                                | 状态   |
-| ----- | ----------------------------------------------------------------------------- | ------ |
-| P1-7  | 接入 helmet；清理生产依赖；tsoa alpha 单独评估                                | 已完成 |
-| P1-13 | 删除无引用 vue-query、heatmap、github-markdown-css、nvm；保留实际使用的 xterm | 已完成 |
-| P1-18 | shared 增加 Vitest 入口并在 CI 独立执行；补 mcp lint/test                     | 已完成 |
-| P2-2  | 修正为“应用检查会被 packages 变化触发，但 shared/mcp 缺少独立检查”            | 已完成 |
-| P2-3  | quality-check 增加根级工程文件过滤器                                          | 已完成 |
-| P2-4  | 删除未被引用的 `CD:check:*` 脚本及实现                                        | 已完成 |
-| P2-5  | lint-staged 覆盖 `packages/**`                                                | 已完成 |
-| P2-6  | cspell 排除 `integrations/**`、`products/**` 子模块文本                       | 已完成 |
-| P2-7  | 评估后移除 `shamefully-hoist=true`                                            | 已完成 |
-| P2-8  | backend 补 `engines.node`，清理重复 package 元数据                            | 已完成 |
-| P2-9  | 仅清理被 Git 跟踪的残留，不动用户未跟踪目录                                   | 待修复 |
+| 编号  | 当前结论与动作                                                                  | 状态   |
+| ----- | ------------------------------------------------------------------------------- | ------ |
+| P1-7  | 接入 helmet；清理生产依赖；tsoa alpha 单独评估                                  | 已完成 |
+| P1-13 | 删除无引用 vue-query、heatmap、github-markdown-css、nvm；保留实际使用的 xterm   | 已完成 |
+| P1-18 | shared 增加 Vitest 入口并在 CI 独立执行；补 mcp lint/test                       | 已完成 |
+| P2-2  | 修正为“应用检查会被 packages 变化触发，但 shared/mcp 缺少独立检查”              | 已完成 |
+| P2-3  | quality-check 增加根级工程文件过滤器                                            | 已完成 |
+| P2-4  | 恢复 EdgeOne 仍引用的 `CD:check:*` 兼容脚本；GitHub Actions 仍使用 paths-filter | 更正   |
+| P2-5  | lint-staged 覆盖 `packages/**`                                                  | 已完成 |
+| P2-6  | cspell 排除 `integrations/**`、`products/**` 子模块文本                         | 已完成 |
+| P2-7  | 评估后移除 `shamefully-hoist=true`                                              | 已完成 |
+| P2-8  | backend 补 `engines.node`，清理重复 package 元数据                              | 已完成 |
+| P2-9  | 仅清理被 Git 跟踪的残留，不动用户未跟踪目录                                     | 待修复 |
 
 ## 阶段 2：文档与部署
 
@@ -65,8 +65,8 @@
 
 ## 阶段 3：数据库与性能
 
-| 编号 | 当前证据                             | 目标                               | 状态   | 验证                                         |
-| ---- | ------------------------------------ | ---------------------------------- | ------ | -------------------------------------------- |
+| 编号 | 当前证据                             | 目标                               | 状态   | 验证                                                                                                       |
+| ---- | ------------------------------------ | ---------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
 | P1-6 | 当前脚本报告 14 个无覆盖索引的外键列 | 补 `@@index`，通过 Prisma 生成迁移 | 已完成 | `node tmp/check-fk-index.mjs`：0 个缺失；迁移 `20260828232408_add_developer_product_refund_retries` 已应用 |
 
 ## 阶段 4：结构重构与测试
@@ -91,10 +91,10 @@
 
 ## 阶段验收记录
 
-| 阶段 | 完成日期   | 命令与结果                                                                     | 备注                                                      |
-| ---- | ---------- | ------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| 0    | 2026-08-29 | backend AI/product unit tests；backend/frontend type-check；`git diff --check` | P1-1/P1-2/P2-1 已完成；本地数据库已允许并完成 reset                  |
-| 1    | 2026-08-29 | shared test 3/3；MCP test 11/11；shared/MCP lint；CI 配置审阅                  | 依赖清理与入口已完成，CI 需远端 workflow 验证             |
-| 2    | 2026-08-29 | 文档结构/统计复核；SPA 示例存在；项目级文档已解除 ignore                       | P1-16/P1-17 已完成；P1-15 和 docs-site 专项校验待继续     |
+| 阶段 | 完成日期   | 命令与结果                                                                                                                                                                                        | 备注                                                                          |
+| ---- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 0    | 2026-08-29 | backend AI/product unit tests；backend/frontend type-check；`git diff --check`                                                                                                                    | P1-1/P1-2/P2-1 已完成；本地数据库已允许并完成 reset                           |
+| 1    | 2026-08-29 | shared test 3/3；MCP test 11/11；shared/MCP lint；CI 配置审阅                                                                                                                                     | 依赖清理与入口已完成，CI 需远端 workflow 验证                                 |
+| 2    | 2026-08-29 | 文档结构/统计复核；SPA 示例存在；项目级文档已解除 ignore                                                                                                                                          | P1-16/P1-17 已完成；P1-15 和 docs-site 专项校验待继续                         |
 | 3    | 2026-08-29 | `prisma migrate reset --force`；`db:migrate:dev -- add-developer-product-refund-retries`；`prisma migrate status`；`node tmp/check-fk-index.mjs`；backend type-check；退款/AI Provider unit tests | 数据库重置后重新应用 52 个迁移；迁移状态 up to date；索引缺失 0；相关测试通过 |
-| 4    | -          | -                                                                              | 结构重构待后续按边界逐块实施                              |
+| 4    | -          | -                                                                                                                                                                                                 | 结构重构待后续按边界逐块实施                                                  |
