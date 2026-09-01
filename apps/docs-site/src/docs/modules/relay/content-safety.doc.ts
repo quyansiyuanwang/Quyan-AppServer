@@ -11,5 +11,6 @@ export default defineDocsPage({
     'zh-CN': '管理分级内容安全策略、规则、导入和导出。',
   },
   tags: ['relay', 'content safety', 'security'],
+  updatedAt: '2026-09-01',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

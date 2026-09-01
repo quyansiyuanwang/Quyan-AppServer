@@ -32,7 +32,15 @@
             </el-radio-group>
           </template>
         </el-table-column>
-        <el-table-column :label="i18ns.t('contentSafety.maxAction')" min-width="300">
+        <el-table-column min-width="300">
+          <template #header>
+            <span class="label-with-help">
+              {{ i18ns.t('contentSafety.maxAction') }}
+              <el-tooltip :content="i18ns.t('contentSafety.maxActionHelp')" placement="top">
+                <el-icon><QuestionFilled /></el-icon>
+              </el-tooltip>
+            </span>
+          </template>
           <template #default="{ row }">
             <el-radio-group v-model="localModel[row.maxActionKey]" size="small">
               <el-radio-button v-if="allowInherit" :label="null">{{
@@ -85,6 +93,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { QuestionFilled } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import type { ContentSafetyAction } from '@appserver/shared'
 
@@ -182,5 +191,14 @@ const policyRows: Array<{
 }
 .direction-label {
   font-weight: 600;
+}
+.label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.label-with-help .el-icon {
+  color: var(--el-text-color-secondary);
+  cursor: help;
 }
 </style>

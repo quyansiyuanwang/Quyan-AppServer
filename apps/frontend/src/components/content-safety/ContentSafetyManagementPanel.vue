@@ -41,7 +41,7 @@
           /></el-form-item>
         </el-form>
         <div class="policy-actions">
-          <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
           <el-button type="primary" :loading="saving" @click="save">{{
             i18ns.t('save')
           }}</el-button>
@@ -131,61 +131,6 @@
           ><span class="collapse-title">{{ i18ns.t('contentSafety.incidents') }}</span></template
         >
         <ContentSafetyIncidentTable scope="system" />
-        <!-- legacy table removed; shared incident table owns filtering and paging
-        <el-table :data="incidents" border size="small"
-          ><el-table-column
-            prop="createTime"
-            :label="i18ns.t('contentSafety.time')" /><el-table-column
-            prop="direction"
-            :label="i18ns.t('contentSafety.direction')" /><el-table-column
-            prop="action"
-            :label="i18ns.t('contentSafety.action')" /><el-table-column
-            prop="source"
-            :label="i18ns.t('contentSafety.source')" /><el-table-column
-            prop="rule.name"
-            :label="i18ns.t('contentSafety.triggerRule')"
-            min-width="150" /><el-table-column
-            prop="rule.type"
-            :label="i18ns.t('contentSafety.type')"
-            width="90" /><el-table-column
-            prop="requestId"
-            :label="i18ns.t('contentSafety.requestId')"
-            min-width="150" /><el-table-column
-            prop="relayTokenId"
-            :label="i18ns.t('contentSafety.tokenId')"
-            min-width="150" /><el-table-column
-            prop="channelId"
-            :label="i18ns.t('contentSafety.channelId')"
-            min-width="130" /><el-table-column
-            :label="i18ns.t('contentSafety.matchedContext')"
-            min-width="360"
-            ><template #default="{ row }"
-              ><span
-                class="matched-context"
-                v-html="formatMatchedContext(row)" /></template></el-table-column
-          ><el-table-column
-            prop="auditTotalTokens"
-            :label="i18ns.t('contentSafety.auditTokens')" /><el-table-column
-            prop="blocked"
-            :label="i18ns.t('contentSafety.blocked')"
-        /></el-table>
-        <div class="incident-filter">
-          <el-input
-            v-model="incidentUserId"
-            clearable
-            :placeholder="i18ns.t('contentSafety.userIdFilter')"
-            @keyup.enter="loadIncidents"
-          />
-          <el-button @click="loadIncidents">{{ i18ns.t('contentSafety.filter') }}</el-button>
-        </div>
-        <el-pagination
-          v-model:current-page="incidentPage"
-          v-model:page-size="incidentPageSize"
-          :total="incidentTotal"
-          layout="prev, pager, next, sizes"
-          @current-change="loadIncidents"
-          @size-change="loadIncidents"
-        /> -->
       </el-collapse-item>
     </el-collapse>
   </section>
@@ -331,46 +276,19 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { contentSafetyService } from '@/service/contentSafetyService'
 import ContentSafetyPolicyFields from './ContentSafetyPolicyFields.vue'
 import ContentSafetyIncidentTable from './ContentSafetyIncidentTable.vue'
 const api = () => contentSafetyService.getApi()
 const unwrap = (v: any) => v?.data?.data ?? v?.data ?? v
-const escapeHtml = (value: unknown) =>
-  String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-const formatMatchedContext = (incident: any) => {
-  const context = incident.matchContext || incident.matchText || ''
-  if (!context || !incident.matchText)
-    return `<span class="matched-context__empty">${escapeHtml(i18ns.t('noData'))}</span>`
-  let match: RegExpExecArray | null = null
-  try {
-    const pattern = incident.rule?.pattern || incident.matchText
-    const source = incident.rule?.type === 'regex' ? pattern : escapeRegExp(pattern)
-    const expression = new RegExp(source, 'iu')
-    const candidate = expression.exec(context)
-    if (candidate?.[0]) match = candidate
-  } catch {
-    // Fall back to the exact bounded match below.
-  }
-  const start = match?.index ?? context.indexOf(incident.matchText)
-  const matchedText = match?.[0] || incident.matchText
-  if (start < 0) return escapeHtml(context)
-  return `${escapeHtml(context.slice(0, start))}<mark>${escapeHtml(matchedText)}</mark>${escapeHtml(context.slice(start + matchedText.length))}`
-}
 const loading = ref(false),
   saving = ref(false),
   apiKey = ref(''),
   sections = ref<string[]>([])
 const csvInput = ref<HTMLInputElement | null>(null),
-  rules = ref<any[]>([]),
-  incidents = ref<any[]>([])
+  rules = ref<any[]>([])
 const ruleDialog = ref(false),
   editingId = ref<string | null>(null)
 const rule = reactive<any>({
@@ -384,11 +302,7 @@ const rule = reactive<any>({
 })
 const rulePage = ref(1),
   rulePageSize = ref(20),
-  ruleTotal = ref(0),
-  incidentPage = ref(1),
-  incidentPageSize = ref(20),
-  incidentTotal = ref(0),
-  incidentUserId = ref('')
+  ruleTotal = ref(0)
 const selectedRules = ref<any[]>([])
 const batchDialog = ref(false)
 const batchFields = reactive({ action: false, direction: false, priority: false })
@@ -507,6 +421,16 @@ const batchSetEnabled = async (enabled: boolean) => {
   await loadRules()
 }
 const batchSetAction = async (action: 'unreachable' | 'blackhole' | 'allow') => {
+  if (action === 'allow')
+    try {
+      await ElMessageBox.confirm(
+        i18ns.t('contentSafety.confirmObservationMode'),
+        i18ns.t('contentSafety.observationMode'),
+        { type: 'warning' },
+      )
+    } catch {
+      return
+    }
   await api().batchUpdateRules({
     body: { ids: selectedRules.value.map((row) => row.id), changes: { action } },
   })
@@ -591,27 +515,13 @@ onMounted(() => void load())
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
+.toolbar :deep(.el-button) {
+  margin-left: 0;
+}
 .policy-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
-}
-.matched-context {
-  display: block;
-  overflow: hidden;
-  line-height: 1.5;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.matched-context :deep(mark) {
-  padding: 1px 3px;
-  border-radius: 3px;
-  background: var(--el-color-warning-light-5);
-  color: var(--el-text-color-primary);
-  font-weight: 700;
-}
-.matched-context__empty {
-  color: var(--el-text-color-secondary);
 }
 </style>
