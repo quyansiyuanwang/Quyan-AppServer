@@ -165,10 +165,14 @@ model ContentSafetyUserConfig {
   userId            String   @unique
   requestEnabled    Boolean?
   requestAction     String?  @db.VarChar(20)
+  requestMaxAction  String?  @db.VarChar(20)
   requestAiEnabled  Boolean?
+  requestAiAction   String?  @db.VarChar(20)
   responseEnabled   Boolean?
   responseAction    String?  @db.VarChar(20)
+  responseMaxAction String?  @db.VarChar(20)
   responseAiEnabled Boolean?
+  responseAiAction  String?  @db.VarChar(20)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

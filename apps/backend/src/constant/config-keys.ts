@@ -150,10 +150,12 @@ export const CONFIG_KEYS = {
   CONTENT_SAFETY: {
     REQUEST_ENABLED: "security.contentSafety.request.enabled",
     REQUEST_ACTION: "security.contentSafety.request.action",
+    REQUEST_MAX_ACTION: "security.contentSafety.request.maxAction",
     REQUEST_AI_ENABLED: "security.contentSafety.request.aiEnabled",
     REQUEST_AI_ACTION: "security.contentSafety.request.aiAction",
     RESPONSE_ENABLED: "security.contentSafety.response.enabled",
     RESPONSE_ACTION: "security.contentSafety.response.action",
+    RESPONSE_MAX_ACTION: "security.contentSafety.response.maxAction",
     RESPONSE_AI_ENABLED: "security.contentSafety.response.aiEnabled",
     RESPONSE_AI_ACTION: "security.contentSafety.response.aiAction",
     AI_UPSTREAM_URL: "security.contentSafety.ai.upstreamUrl",

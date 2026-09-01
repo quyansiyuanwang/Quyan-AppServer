@@ -9,6 +9,43 @@ const CONTROL_CHARS = new RegExp(
 const normalize = (value: string) => value.normalize("NFKC").replace(CONTROL_CHARS, "").replace(/\s+/g, " ").trim();
 
 describe("content safety rule data", () => {
+  it("caps matched actions at the configured maximum", () => {
+    const service = Object.create(ContentSafetyService.prototype) as ContentSafetyService;
+    const capEvaluation = (service as any).capEvaluation.bind(service);
+    const base = {
+      text: "secret",
+      action: "unreachable",
+      matched: true,
+      source: "rule",
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+      matchText: "secret",
+      matchContext: "secret",
+    };
+    expect(capEvaluation("secret", base, "allow").action).toBe("allow");
+    expect(capEvaluation("secret", base, "blackhole").action).toBe("blackhole");
+    expect(capEvaluation("secret", { ...base, action: "allow" }, "unreachable").action).toBe("allow");
+  });
+
+  it("keeps the strongest action when combining evaluations", () => {
+    const service = Object.create(ContentSafetyService.prototype) as ContentSafetyService;
+    const combine = (service as any).combineEvaluations.bind(service);
+    const evaluation = (action: string) => ({
+      text: "secret",
+      action,
+      matched: true,
+      source: "rule",
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    });
+    expect(combine("secret", [evaluation("allow"), evaluation("blackhole")]).action).toBe("blackhole");
+    expect(combine("secret", [evaluation("blackhole"), evaluation("unreachable")]).action).toBe("unreachable");
+  });
+
   it("ships high-confidence defaults as importable data", () => {
     expect(DEFAULT_CONTENT_SAFETY_RULES.length).toBeGreaterThan(10);
     expect(DEFAULT_CONTENT_SAFETY_RULES.some((rule) => rule.pattern === "process.env")).toBe(true);

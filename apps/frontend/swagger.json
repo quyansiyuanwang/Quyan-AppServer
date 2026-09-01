@@ -10890,6 +10890,9 @@
 										"responseAiEnabled": {
 											"type": "boolean"
 										},
+										"responseMaxAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
 										"responseAction": {
 											"$ref": "#/components/schemas/ContentSafetyAction"
 										},
@@ -10902,6 +10905,9 @@
 										"requestAiEnabled": {
 											"type": "boolean"
 										},
+										"requestMaxAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
 										"requestAction": {
 											"$ref": "#/components/schemas/ContentSafetyAction"
 										},
@@ -10912,10 +10918,12 @@
 									"required": [
 										"responseAiAction",
 										"responseAiEnabled",
+										"responseMaxAction",
 										"responseAction",
 										"responseEnabled",
 										"requestAiAction",
 										"requestAiEnabled",
+										"requestMaxAction",
 										"requestAction",
 										"requestEnabled"
 									],
@@ -10959,6 +10967,9 @@
 										"responseAiEnabled": {
 											"type": "boolean"
 										},
+										"responseMaxAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
 										"responseAction": {
 											"$ref": "#/components/schemas/ContentSafetyAction"
 										},
@@ -10971,6 +10982,9 @@
 										"requestAiEnabled": {
 											"type": "boolean"
 										},
+										"requestMaxAction": {
+											"$ref": "#/components/schemas/ContentSafetyAction"
+										},
 										"requestAction": {
 											"$ref": "#/components/schemas/ContentSafetyAction"
 										},
@@ -10981,10 +10995,12 @@
 									"required": [
 										"responseAiAction",
 										"responseAiEnabled",
+										"responseMaxAction",
 										"responseAction",
 										"responseEnabled",
 										"requestAiAction",
 										"requestAiEnabled",
+										"requestMaxAction",
 										"requestAction",
 										"requestEnabled"
 									],
@@ -39277,6 +39293,9 @@
 					"requestAction": {
 						"$ref": "#/components/schemas/ContentSafetyAction"
 					},
+					"requestMaxAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
 					"requestAiEnabled": {
 						"type": "boolean"
 					},
@@ -39287,6 +39306,9 @@
 						"type": "boolean"
 					},
 					"responseAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"responseMaxAction": {
 						"$ref": "#/components/schemas/ContentSafetyAction"
 					},
 					"responseAiEnabled": {
@@ -39337,6 +39359,14 @@
 								"type": "boolean",
 								"nullable": true
 							},
+							"responseMaxAction": {
+								"allOf": [
+									{
+										"$ref": "#/components/schemas/ContentSafetyAction"
+									}
+								],
+								"nullable": true
+							},
 							"responseAction": {
 								"allOf": [
 									{
@@ -39361,6 +39391,14 @@
 								"type": "boolean",
 								"nullable": true
 							},
+							"requestMaxAction": {
+								"allOf": [
+									{
+										"$ref": "#/components/schemas/ContentSafetyAction"
+									}
+								],
+								"nullable": true
+							},
 							"requestAction": {
 								"allOf": [
 									{
@@ -39377,10 +39415,12 @@
 						"required": [
 							"responseAiAction",
 							"responseAiEnabled",
+							"responseMaxAction",
 							"responseAction",
 							"responseEnabled",
 							"requestAiAction",
 							"requestAiEnabled",
+							"requestMaxAction",
 							"requestAction",
 							"requestEnabled"
 						],
@@ -39390,10 +39430,12 @@
 				"required": [
 					"requestEnabled",
 					"requestAction",
+					"requestMaxAction",
 					"requestAiEnabled",
 					"requestAiAction",
 					"responseEnabled",
 					"responseAction",
+					"responseMaxAction",
 					"responseAiEnabled",
 					"responseAiAction",
 					"aiUpstreamUrl",
@@ -39415,6 +39457,14 @@
 						"nullable": true
 					},
 					"requestAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
+					"requestMaxAction": {
 						"allOf": [
 							{
 								"$ref": "#/components/schemas/ContentSafetyAction"
@@ -39446,6 +39496,14 @@
 						],
 						"nullable": true
 					},
+					"responseMaxAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true
+					},
 					"responseAiEnabled": {
 						"type": "boolean",
 						"nullable": true
@@ -39465,10 +39523,12 @@
 				"required": [
 					"requestEnabled",
 					"requestAction",
+					"requestMaxAction",
 					"requestAiEnabled",
 					"requestAiAction",
 					"responseEnabled",
 					"responseAction",
+					"responseMaxAction",
 					"responseAiEnabled",
 					"responseAiAction"
 				],
@@ -39689,6 +39749,9 @@
 					"requestAction": {
 						"$ref": "#/components/schemas/ContentSafetyAction"
 					},
+					"requestMaxAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
 					"requestAiEnabled": {
 						"type": "boolean"
 					},
@@ -39699,6 +39762,9 @@
 						"type": "boolean"
 					},
 					"responseAction": {
+						"$ref": "#/components/schemas/ContentSafetyAction"
+					},
+					"responseMaxAction": {
 						"$ref": "#/components/schemas/ContentSafetyAction"
 					},
 					"responseAiEnabled": {
@@ -39742,9 +39808,11 @@
 				"required": [
 					"requestEnabled",
 					"requestAction",
+					"requestMaxAction",
 					"requestAiEnabled",
 					"responseEnabled",
 					"responseAction",
+					"responseMaxAction",
 					"responseAiEnabled",
 					"aiUpstreamUrl",
 					"aiModel",
@@ -43532,6 +43600,15 @@
 						],
 						"nullable": true
 					},
+					"requestMaxAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true,
+						"description": "Caps the strongest request-side disposition allowed by this scope."
+					},
 					"requestAiEnabled": {
 						"type": "boolean",
 						"nullable": true
@@ -43555,6 +43632,15 @@
 							}
 						],
 						"nullable": true
+					},
+					"responseMaxAction": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyAction"
+							}
+						],
+						"nullable": true,
+						"description": "Caps the strongest response-side disposition allowed by this scope."
 					},
 					"responseAiEnabled": {
 						"type": "boolean",

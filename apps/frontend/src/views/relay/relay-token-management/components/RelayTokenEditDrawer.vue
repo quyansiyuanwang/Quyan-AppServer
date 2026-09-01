@@ -1058,6 +1058,16 @@
                       </el-radio-group>
                     </template>
                   </el-table-column>
+                  <el-table-column :label="i18ns.t('contentSafety.maxAction')" min-width="360">
+                    <template #default="{ row }">
+                      <el-radio-group v-model="editForm.contentSafetyConfig[row.maxActionKey]" size="small">
+                        <el-radio-button :label="null">{{ i18ns.t('contentSafety.inherit') }}</el-radio-button>
+                        <el-radio-button label="unreachable">{{ i18ns.t('contentSafety.unreachable') }}</el-radio-button>
+                        <el-radio-button label="blackhole">{{ i18ns.t('contentSafety.blackhole') }}</el-radio-button>
+                        <el-radio-button label="allow">{{ i18ns.t('contentSafety.allow') }}</el-radio-button>
+                      </el-radio-group>
+                    </template>
+                  </el-table-column>
                   <el-table-column :label="i18ns.t('contentSafety.aiEnabled')" min-width="230">
                     <template #default="{ row }">
                       <el-radio-group
@@ -1291,6 +1301,7 @@ const contentSafetyOverrideRows: Array<{
   direction: string
   enabledKey: 'requestEnabled' | 'responseEnabled'
   actionKey: 'requestAction' | 'responseAction'
+  maxActionKey: 'requestMaxAction' | 'responseMaxAction'
   aiKey: 'requestAiEnabled' | 'responseAiEnabled'
   aiActionKey: 'requestAiAction' | 'responseAiAction'
 }> = [
@@ -1298,6 +1309,7 @@ const contentSafetyOverrideRows: Array<{
     direction: i18ns.t('contentSafety.request'),
     enabledKey: 'requestEnabled',
     actionKey: 'requestAction',
+    maxActionKey: 'requestMaxAction',
     aiKey: 'requestAiEnabled',
     aiActionKey: 'requestAiAction',
   },
@@ -1305,6 +1317,7 @@ const contentSafetyOverrideRows: Array<{
     direction: i18ns.t('contentSafety.response'),
     enabledKey: 'responseEnabled',
     actionKey: 'responseAction',
+    maxActionKey: 'responseMaxAction',
     aiKey: 'responseAiEnabled',
     aiActionKey: 'responseAiAction',
   },

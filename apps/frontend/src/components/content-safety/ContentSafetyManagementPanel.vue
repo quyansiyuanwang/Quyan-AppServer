@@ -40,7 +40,10 @@
             ><el-input-number v-model="form.aiMaxTextLength" :min="1000" :max="100000" :step="1000"
           /></el-form-item>
         </el-form>
-        <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
+        <div class="policy-actions">
+          <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
+          <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
+        </div>
       </el-collapse-item>
       <el-collapse-item name="rules">
         <template #title
@@ -80,6 +83,9 @@
             @click="batchSetEnabled(false)"
             >{{ i18ns.t('contentSafety.batchDisable') }}</el-button
           >
+          <el-button v-if="selectedRules.length" size="small" @click="batchSetAction('allow')">
+            {{ i18ns.t('contentSafety.observationMode') }}
+          </el-button>
         </div>
         <el-table :data="rules" border size="small" @selection-change="selectedRules = $event"
           ><el-table-column type="selection" width="42" /><el-table-column
@@ -392,10 +398,12 @@ const importPreview = ref<any>(null)
 const form = reactive<any>({
   requestEnabled: true,
   requestAction: 'unreachable',
+  requestMaxAction: 'unreachable',
   requestAiEnabled: false,
   requestAiAction: 'unreachable',
   responseEnabled: true,
   responseAction: 'unreachable',
+  responseMaxAction: 'unreachable',
   responseAiEnabled: false,
   responseAiAction: 'unreachable',
   aiUpstreamUrl: '',
@@ -496,6 +504,13 @@ const batchSetEnabled = async (enabled: boolean) => {
   selectedRules.value = []
   await loadRules()
 }
+const batchSetAction = async (action: 'unreachable' | 'blackhole' | 'allow') => {
+  await api().batchUpdateRules({
+    body: { ids: selectedRules.value.map((row) => row.id), changes: { action } },
+  })
+  selectedRules.value = []
+  await loadRules()
+}
 const saveBatch = async () => {
   const changes: any = {}
   if (batchFields.action) changes.action = batchChanges.action
@@ -573,6 +588,12 @@ onMounted(() => void load())
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 12px;
+}
+.policy-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
 }
 .matched-context {
   display: block;

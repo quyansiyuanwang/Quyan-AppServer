@@ -1721,9 +1721,11 @@ export default {
     response: 'Upstream responses',
     enabled: 'Enabled',
     action: 'Default action',
+    maxAction: 'Maximum action',
     unreachable: 'Block with error',
     blackhole: 'Replace sensitive text',
     allow: 'Allow',
+    observationMode: 'Set to allow for observation',
     aiEnabled: 'AI audit',
     aiAction: 'AI action',
     aiCostWarning:

@@ -3,9 +3,10 @@
     <div class="content-safety-user" v-loading="loading">
       <div class="page-header">
         <h1 class="page-title">{{ i18ns.t('contentSafety.title') }}</h1>
-        <el-button type="primary" :loading="saving" @click="saveConfig">{{
-          i18ns.t('save')
-        }}</el-button>
+        <div class="page-header__actions">
+          <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
+          <el-button type="primary" :loading="saving" @click="saveConfig">{{ i18ns.t('save') }}</el-button>
+        </div>
       </div>
       <el-alert type="info" :closable="false" class="mb-4">{{
         i18ns.t('contentSafety.userDescription')
@@ -51,6 +52,9 @@
             <el-button v-if="selectedRules.length" type="warning" @click="batchSetEnabled(false)">{{
               i18ns.t('contentSafety.batchDisable')
             }}</el-button>
+            <el-button v-if="canEditAll" @click="batchSetAction('allow')">
+              {{ i18ns.t('contentSafety.observationMode') }}
+            </el-button>
           </div>
           <el-table :data="rules" border size="small" @selection-change="selectedRules = $event">
             <el-table-column type="selection" width="42" />
@@ -364,10 +368,12 @@ const canEditAll = computed(
 const policy = reactive<any>({
   requestEnabled: true,
   requestAction: 'unreachable',
+  requestMaxAction: null,
   requestAiEnabled: false,
   requestAiAction: 'unreachable',
   responseEnabled: true,
   responseAction: 'unreachable',
+  responseMaxAction: null,
   responseAiEnabled: false,
   responseAiAction: 'unreachable',
 })
@@ -467,6 +473,14 @@ const batchSetEnabled = async (enabled: boolean) => {
   selectedRules.value = []
   await loadRules()
 }
+const batchSetAction = async (action: 'unreachable' | 'blackhole' | 'allow') => {
+  if (!canEditAll.value) return
+  await api().batchUpdateUserRules({
+    body: { ids: selectedRules.value.map((row) => row.id), changes: { action } },
+  })
+  selectedRules.value = []
+  await loadRules()
+}
 const saveBatch = async () => {
   if (!canEditAll.value) return
   const changes: any = {}
@@ -541,6 +555,11 @@ onMounted(() => void load())
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+.page-header__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .content-safety-user__collapse {
   border: none;
