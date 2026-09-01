@@ -117,8 +117,16 @@ describe("content safety rule data", () => {
     };
 
     await service.recordIncident({ userId: "user-1", direction: "request", evaluation: { ...base, action: "allow" } });
-    await service.recordIncident({ userId: "user-1", direction: "request", evaluation: { ...base, action: "blackhole" } });
-    await service.recordIncident({ userId: "user-1", direction: "request", evaluation: { ...base, action: "unreachable" } });
+    await service.recordIncident({
+      userId: "user-1",
+      direction: "request",
+      evaluation: { ...base, action: "blackhole" },
+    });
+    await service.recordIncident({
+      userId: "user-1",
+      direction: "request",
+      evaluation: { ...base, action: "unreachable" },
+    });
 
     expect(repository.createIncident).toHaveBeenCalledTimes(3);
     expect(notificationService.dispatch).toHaveBeenCalledTimes(1);

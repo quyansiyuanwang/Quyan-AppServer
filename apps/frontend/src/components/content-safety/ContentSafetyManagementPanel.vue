@@ -41,7 +41,9 @@
           /></el-form-item>
         </el-form>
         <div class="policy-actions">
-          <el-button :icon="Refresh" :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="load">{{
+            i18ns.t('refresh')
+          }}</el-button>
           <el-button type="primary" :loading="saving" @click="save">{{
             i18ns.t('save')
           }}</el-button>

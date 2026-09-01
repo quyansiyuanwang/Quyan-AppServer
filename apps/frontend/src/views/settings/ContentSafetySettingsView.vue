@@ -4,7 +4,9 @@
       <div class="page-header">
         <h1 class="page-title">{{ i18ns.t('contentSafety.title') }}</h1>
         <div class="page-header__actions">
-          <el-button :icon="Refresh" :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="load">{{
+            i18ns.t('refresh')
+          }}</el-button>
           <el-button type="primary" :loading="saving" @click="saveConfig">{{
             i18ns.t('save')
           }}</el-button>

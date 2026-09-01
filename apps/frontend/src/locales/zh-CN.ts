@@ -1666,7 +1666,8 @@ const zhCN: DeepStringify<typeof en> = {
     blackhole: '替换敏感内容',
     allow: '放行',
     observationMode: '设为放行观察',
-    confirmObservationMode: '将所选规则设为放行后，命中仍会记录，但内容不会被替换或阻断。是否继续？',
+    confirmObservationMode:
+      '将所选规则设为放行后，命中仍会记录，但内容不会被替换或阻断。是否继续？',
     aiEnabled: 'AI 审计',
     aiAction: 'AI 动作',
     aiCostWarning: 'AI 审计会将文本发送到配置的模型，并按输入/输出 token 产生费用。',
