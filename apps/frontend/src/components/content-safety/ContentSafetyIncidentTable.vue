@@ -106,7 +106,9 @@
           <template v-else-if="column.key === 'rule'">
             <div class="rule-cell">
               <span>{{ row.rule?.name || (row.source === 'ai' ? 'AI' : '-') }}</span>
-              <small v-if="row.rule">{{ row.rule.type }} · {{ row.rule.pattern || row.ruleId }}</small>
+              <small v-if="row.rule"
+                >{{ row.rule.type }} · {{ row.rule.pattern || row.ruleId }}</small
+              >
             </div>
           </template>
           <template v-else-if="column.key === 'status'"

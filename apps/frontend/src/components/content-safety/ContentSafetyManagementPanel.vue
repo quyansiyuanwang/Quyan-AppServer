@@ -42,7 +42,9 @@
         </el-form>
         <div class="policy-actions">
           <el-button :loading="loading" @click="load">{{ i18ns.t('refresh') }}</el-button>
-          <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
+          <el-button type="primary" :loading="saving" @click="save">{{
+            i18ns.t('save')
+          }}</el-button>
         </div>
       </el-collapse-item>
       <el-collapse-item name="rules">

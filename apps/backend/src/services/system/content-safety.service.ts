@@ -333,7 +333,9 @@ export class ContentSafetyService {
         return validActions.has(candidate) ? candidate : "unreachable";
       })(),
       maxAction: (() => {
-        const candidate = effective?.[`${prefix === "REQUEST" ? "request" : "response"}MaxAction`] as ContentSafetyAction;
+        const candidate = effective?.[
+          `${prefix === "REQUEST" ? "request" : "response"}MaxAction`
+        ] as ContentSafetyAction;
         return validActions.has(candidate) ? candidate : "unreachable";
       })(),
       aiAction: (() => {
@@ -682,19 +684,23 @@ export class ContentSafetyService {
         auditCost: 0,
       };
     const matchContext = this.extractMatchContext(text, match.expression);
-    return this.capEvaluation(text, {
-      text: match.rule.action === "blackhole" ? text.replace(match.expression, "[REDACTED]") : text,
-      action: match.rule.action,
-      matched: true,
-      source: "rule",
-      ruleId: match.rule.id,
-      auditInputTokens: 0,
-      auditOutputTokens: 0,
-      auditDurationMs: 0,
-      auditCost: 0,
-      matchText: matchContext?.text,
-      matchContext: matchContext?.context,
-    }, config.maxAction);
+    return this.capEvaluation(
+      text,
+      {
+        text: match.rule.action === "blackhole" ? text.replace(match.expression, "[REDACTED]") : text,
+        action: match.rule.action,
+        matched: true,
+        source: "rule",
+        ruleId: match.rule.id,
+        auditInputTokens: 0,
+        auditOutputTokens: 0,
+        auditDurationMs: 0,
+        auditCost: 0,
+        matchText: matchContext?.text,
+        matchContext: matchContext?.context,
+      },
+      config.maxAction,
+    );
   }
 
   async recordIncident(input: {
