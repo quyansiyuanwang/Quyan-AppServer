@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { DEFAULT_CONTENT_SAFETY_RULES } from "@/util/content-safety-defaults";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
 
@@ -9,6 +9,43 @@ const CONTROL_CHARS = new RegExp(
 const normalize = (value: string) => value.normalize("NFKC").replace(CONTROL_CHARS, "").replace(/\s+/g, " ").trim();
 
 describe("content safety rule data", () => {
+  it("caps matched actions at the configured maximum", () => {
+    const service = Object.create(ContentSafetyService.prototype) as ContentSafetyService;
+    const capEvaluation = (service as any).capEvaluation.bind(service);
+    const base = {
+      text: "secret",
+      action: "unreachable",
+      matched: true,
+      source: "rule",
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+      matchText: "secret",
+      matchContext: "secret",
+    };
+    expect(capEvaluation("secret", base, "allow").action).toBe("allow");
+    expect(capEvaluation("secret", base, "blackhole").action).toBe("blackhole");
+    expect(capEvaluation("secret", { ...base, action: "allow" }, "unreachable").action).toBe("allow");
+  });
+
+  it("keeps the strongest action when combining evaluations", () => {
+    const service = Object.create(ContentSafetyService.prototype) as ContentSafetyService;
+    const combine = (service as any).combineEvaluations.bind(service);
+    const evaluation = (action: string) => ({
+      text: "secret",
+      action,
+      matched: true,
+      source: "rule",
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+    });
+    expect(combine("secret", [evaluation("allow"), evaluation("blackhole")]).action).toBe("blackhole");
+    expect(combine("secret", [evaluation("blackhole"), evaluation("unreachable")]).action).toBe("unreachable");
+  });
+
   it("ships high-confidence defaults as importable data", () => {
     expect(DEFAULT_CONTENT_SAFETY_RULES.length).toBeGreaterThan(10);
     expect(DEFAULT_CONTENT_SAFETY_RULES.some((rule) => rule.pattern === "process.env")).toBe(true);
@@ -56,5 +93,114 @@ describe("content safety rule data", () => {
       context: "prefix command cat /etc/shadow suffix",
       text: "/etc/shadow",
     });
+  });
+
+  it("records every match but only notifies for unreachable", async () => {
+    const service = Object.create(ContentSafetyService.prototype) as any;
+    const repository = { createIncident: vi.fn().mockResolvedValue({}) };
+    const notificationService = { dispatch: vi.fn().mockResolvedValue(undefined) };
+    const businessLog = { logOperation: vi.fn().mockResolvedValue(undefined) };
+    service.repository = repository;
+    service.notificationService = notificationService;
+    service.businessLog = businessLog;
+    const base = {
+      text: "redacted",
+      matched: true,
+      source: "rule",
+      auditInputTokens: 0,
+      auditOutputTokens: 0,
+      auditDurationMs: 0,
+      auditCost: 0,
+      ruleId: "rule-1",
+      matchText: "secret",
+      matchContext: "a secret",
+    };
+
+    await service.recordIncident({ userId: "user-1", direction: "request", evaluation: { ...base, action: "allow" } });
+    await service.recordIncident({
+      userId: "user-1",
+      direction: "request",
+      evaluation: { ...base, action: "blackhole" },
+    });
+    await service.recordIncident({
+      userId: "user-1",
+      direction: "request",
+      evaluation: { ...base, action: "unreachable" },
+    });
+
+    expect(repository.createIncident).toHaveBeenCalledTimes(3);
+    expect(notificationService.dispatch).toHaveBeenCalledTimes(1);
+    expect(notificationService.dispatch).toHaveBeenCalledWith(
+      "user-1",
+      expect.anything(),
+      expect.objectContaining({ action: "unreachable" }),
+    );
+  });
+
+  it("takes the strictest maximum action across system, user, and token scopes", async () => {
+    const service = Object.create(ContentSafetyService.prototype) as ContentSafetyService;
+    vi.spyOn(service, "getPublicConfig").mockResolvedValue({
+      requestEnabled: true,
+      requestAction: "unreachable",
+      requestMaxAction: "unreachable",
+      requestAiEnabled: false,
+      requestAiAction: "unreachable",
+      responseEnabled: true,
+      responseAction: "unreachable",
+      responseMaxAction: "blackhole",
+      responseAiEnabled: false,
+      responseAiAction: "unreachable",
+    } as any);
+    vi.spyOn(service, "getUserConfig").mockResolvedValue({
+      requestEnabled: null,
+      requestAction: null,
+      requestMaxAction: "blackhole",
+      requestAiEnabled: null,
+      requestAiAction: null,
+      responseEnabled: null,
+      responseAction: null,
+      responseMaxAction: "unreachable",
+      responseAiEnabled: null,
+      responseAiAction: null,
+    });
+
+    const policy = await service.getEffectivePolicy("user-1", {
+      requestMaxAction: "unreachable",
+      responseMaxAction: "allow",
+    });
+    expect(policy.requestMaxAction).toBe("blackhole");
+    expect(policy.responseMaxAction).toBe("allow");
+  });
+
+  it("does not dispatch notifications while updating system policy", async () => {
+    const service = Object.create(ContentSafetyService.prototype) as any;
+    const configService = {
+      getMultiple: vi.fn().mockResolvedValue({}),
+      set: vi.fn().mockResolvedValue(undefined),
+    };
+    const notificationService = { dispatch: vi.fn() };
+    service.configService = configService;
+    service.notificationService = notificationService;
+    await service.updateConfig(
+      {
+        requestEnabled: true,
+        requestAction: "unreachable",
+        requestMaxAction: "unreachable",
+        requestAiEnabled: false,
+        responseEnabled: true,
+        responseAction: "unreachable",
+        responseMaxAction: "unreachable",
+        responseAiEnabled: false,
+        aiUpstreamUrl: "",
+        aiModel: "",
+        aiRequestFormat: "openai-chat-completions",
+        aiTimeoutMs: 5000,
+        aiInputPricePerMillion: 0,
+        aiOutputPricePerMillion: 0,
+        aiMaxTextLength: 16000,
+      },
+      "admin-1",
+    );
+    expect(notificationService.dispatch).not.toHaveBeenCalled();
   });
 });

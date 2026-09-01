@@ -606,19 +606,23 @@ export const useRelayTokenManagement = () => {
     contentSafetyConfig: {
       requestEnabled: null,
       requestAction: null,
+      requestMaxAction: null,
       requestAiEnabled: null,
       requestAiAction: null,
       responseEnabled: null,
       responseAction: null,
+      responseMaxAction: null,
       responseAiEnabled: null,
       responseAiAction: null,
     } as {
       [key: string]: boolean | SharedContentSafetyAction | null
       requestEnabled: boolean | null
       requestAction: SharedContentSafetyAction | null
+      requestMaxAction: SharedContentSafetyAction | null
       requestAiEnabled: boolean | null
       responseEnabled: boolean | null
       responseAction: SharedContentSafetyAction | null
+      responseMaxAction: SharedContentSafetyAction | null
       responseAiEnabled: boolean | null
     },
   })
@@ -1733,10 +1737,12 @@ export const useRelayTokenManagement = () => {
       contentSafetyConfig: {
         requestEnabled: row.contentSafetyConfig?.requestEnabled ?? null,
         requestAction: row.contentSafetyConfig?.requestAction ?? null,
+        requestMaxAction: row.contentSafetyConfig?.requestMaxAction ?? null,
         requestAiEnabled: row.contentSafetyConfig?.requestAiEnabled ?? null,
         requestAiAction: row.contentSafetyConfig?.requestAiAction ?? null,
         responseEnabled: row.contentSafetyConfig?.responseEnabled ?? null,
         responseAction: row.contentSafetyConfig?.responseAction ?? null,
+        responseMaxAction: row.contentSafetyConfig?.responseMaxAction ?? null,
         responseAiEnabled: row.contentSafetyConfig?.responseAiEnabled ?? null,
         responseAiAction: row.contentSafetyConfig?.responseAiAction ?? null,
       },

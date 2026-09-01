@@ -1721,9 +1721,15 @@ export default {
     response: 'Upstream responses',
     enabled: 'Enabled',
     action: 'Default action',
+    maxAction: 'Maximum action',
+    maxActionHelp:
+      'Caps the strongest final disposition for this direction; lower scopes can only keep or tighten it.',
     unreachable: 'Block with error',
     blackhole: 'Replace sensitive text',
     allow: 'Allow',
+    observationMode: 'Set to allow for observation',
+    confirmObservationMode:
+      'Selected matches will still be recorded, but their content will not be replaced or blocked. Continue?',
     aiEnabled: 'AI audit',
     aiAction: 'AI action',
     aiCostWarning:

@@ -5,10 +5,14 @@ export type ContentSafetyRuleType = 'literal' | 'regex'
 export interface ContentSafetyPolicyOverride {
   requestEnabled?: boolean | null
   requestAction?: ContentSafetyAction | null
+  /** Caps the strongest request-side disposition allowed by this scope. */
+  requestMaxAction?: ContentSafetyAction | null
   requestAiEnabled?: boolean | null
   requestAiAction?: ContentSafetyAction | null
   responseEnabled?: boolean | null
   responseAction?: ContentSafetyAction | null
+  /** Caps the strongest response-side disposition allowed by this scope. */
+  responseMaxAction?: ContentSafetyAction | null
   responseAiEnabled?: boolean | null
   responseAiAction?: ContentSafetyAction | null
 }
@@ -16,10 +20,12 @@ export interface ContentSafetyPolicyOverride {
 export interface ContentSafetyUserConfig extends ContentSafetyPolicyOverride {
   requestEnabled: boolean | null
   requestAction: ContentSafetyAction | null
+  requestMaxAction: ContentSafetyAction | null
   requestAiEnabled: boolean | null
   requestAiAction: ContentSafetyAction | null
   responseEnabled: boolean | null
   responseAction: ContentSafetyAction | null
+  responseMaxAction: ContentSafetyAction | null
   responseAiEnabled: boolean | null
   responseAiAction: ContentSafetyAction | null
 }
