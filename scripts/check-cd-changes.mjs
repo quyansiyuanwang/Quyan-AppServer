@@ -8,10 +8,12 @@ const APP_PATTERNS = {
 
 const app = process.argv[2]
 const mode = process.argv[3]
-const strict = mode === '--strict'
-if (!app || !APP_PATTERNS[app] || (mode && !strict)) {
+const allowNoMatch = mode === '--allow-no-match'
+const strict = !allowNoMatch
+const validMode = !mode || mode === '--strict' || mode === '--allow-no-match'
+if (!app || !APP_PATTERNS[app] || !validMode) {
   console.error(
-    `Usage: node scripts/check-cd-changes.mjs <${Object.keys(APP_PATTERNS).join('|')}> [--strict]`,
+    `Usage: node scripts/check-cd-changes.mjs <${Object.keys(APP_PATTERNS).join('|')}> [--allow-no-match]`,
   )
   process.exit(2)
 }
@@ -47,7 +49,6 @@ if (strict) {
   process.exit(1)
 }
 
-// EdgeOne invokes this command as part of its install command. A missing
-// path match must not prevent dependency installation and the later build.
+// The default is a deployment/CI gate: no matching app changes is an error.
 console.log(`CD change check (${app}): ${reason}; continuing.`)
 process.exit(0)
