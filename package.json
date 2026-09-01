@@ -81,7 +81,10 @@
     "precommit": "pnpm run openapi:gen:all && pnpm run validate:permissions && pnpm run check:env-examples && pnpm run check:all",
     "commit": "pnpm run precommit && git commit",
     "mcp:serve": "pnpm --filter @appserver/mcp run start",
-    "_13_cd": "",
+    "_13_edgeone": "",
+    "CD:check:frontend": "node scripts/check-cd-changes.mjs frontend",
+    "CD:check:docs": "node scripts/check-cd-changes.mjs docs",
+    "CD:check:backend": "node scripts/check-cd-changes.mjs backend",
     "_14_lifecycle": "",
     "prepare": "husky"
   },
