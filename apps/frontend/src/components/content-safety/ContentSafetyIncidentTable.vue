@@ -115,7 +115,9 @@
             ><el-tag :type="statusType(row)">{{ statusLabel(row) }}</el-tag></template
           >
           <template v-else-if="column.key === 'action'"
-            ><el-tag :type="actionTagType(row.action)" size="small">{{ actionLabel(row.action) }}</el-tag></template
+            ><el-tag :type="actionTagType(row.action)" size="small">{{
+              actionLabel(row.action)
+            }}</el-tag></template
           >
           <template v-else>{{
             column.value ? column.value(row) : column.path ? get(row, column.path) : '-'

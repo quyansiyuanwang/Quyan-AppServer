@@ -98,9 +98,7 @@
           /><el-table-column prop="type" :label="i18ns.t('contentSafety.type')" /><el-table-column
             prop="direction"
             :label="i18ns.t('contentSafety.direction')"
-          /><el-table-column
-            :label="i18ns.t('contentSafety.action')"
-            width="110"
+          /><el-table-column :label="i18ns.t('contentSafety.action')" width="110"
             ><template #default="{ row }"
               ><el-tag :type="actionTagType(row.action)" size="small">{{
                 actionLabel(row.action)
