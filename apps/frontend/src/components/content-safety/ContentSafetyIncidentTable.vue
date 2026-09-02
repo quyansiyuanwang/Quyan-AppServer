@@ -157,9 +157,26 @@ type IncidentColumn = {
 }
 const columns: IncidentColumn[] = [
   { key: 'time', label: t('contentSafety.time'), prop: 'createTime', width: 160, sortable: true },
-  { key: 'direction', label: t('contentSafety.direction'), prop: 'direction', width: 100 },
+  {
+    key: 'direction',
+    label: t('contentSafety.direction'),
+    prop: 'direction',
+    width: 100,
+    value: (r: any) =>
+      r.direction === 'request'
+        ? t('contentSafety.request')
+        : r.direction === 'response'
+          ? t('contentSafety.response')
+          : '-',
+  },
   { key: 'action', label: t('contentSafety.action'), prop: 'action', width: 110 },
-  { key: 'source', label: t('contentSafety.source'), prop: 'source', width: 100 },
+  {
+    key: 'source',
+    label: t('contentSafety.source'),
+    prop: 'source',
+    width: 100,
+    value: (r: any) => (r.source === 'ai' ? 'AI' : r.source === 'rule' ? 'rule' : '-'),
+  },
   {
     key: 'requestId',
     label: t('contentSafety.requestId'),
