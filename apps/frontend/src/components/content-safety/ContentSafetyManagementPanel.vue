@@ -99,9 +99,14 @@
             prop="direction"
             :label="i18ns.t('contentSafety.direction')"
           /><el-table-column
-            prop="action"
             :label="i18ns.t('contentSafety.action')"
-          /><el-table-column
+            width="110"
+            ><template #default="{ row }"
+              ><el-tag :type="actionTagType(row.action)" size="small">{{
+                actionLabel(row.action)
+              }}</el-tag></template
+            ></el-table-column
+          ><el-table-column
             prop="priority"
             :label="i18ns.t('contentSafety.priority')"
             width="90"
@@ -307,6 +312,24 @@ const rulePage = ref(1),
   ruleTotal = ref(0)
 const selectedRules = ref<any[]>([])
 const batchDialog = ref(false)
+const actionLabel = (action: string) =>
+  (
+    ({
+      unreachable: i18ns.t('contentSafety.unreachable'),
+      blackhole: i18ns.t('contentSafety.blackhole'),
+      allow: i18ns.t('contentSafety.allow'),
+    }) as Record<string, string>
+  )[action] ||
+  action ||
+  '-'
+const actionTagType = (action: string) =>
+  (
+    ({
+      unreachable: 'danger',
+      blackhole: 'warning',
+      allow: 'success',
+    }) as Record<string, 'danger' | 'warning' | 'success'>
+  )[action] || 'info'
 const batchFields = reactive({ action: false, direction: false, priority: false })
 const batchChanges = reactive<any>({ action: 'unreachable', direction: 'both', priority: 100 })
 const importDialog = ref(false)

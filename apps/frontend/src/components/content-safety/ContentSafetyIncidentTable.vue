@@ -114,7 +114,9 @@
           <template v-else-if="column.key === 'status'"
             ><el-tag :type="statusType(row)">{{ statusLabel(row) }}</el-tag></template
           >
-          <template v-else-if="column.key === 'action'">{{ actionLabel(row.action) }}</template>
+          <template v-else-if="column.key === 'action'"
+            ><el-tag :type="actionTagType(row.action)" size="small">{{ actionLabel(row.action) }}</el-tag></template
+          >
           <template v-else>{{
             column.value ? column.value(row) : column.path ? get(row, column.path) : '-'
           }}</template>
@@ -295,6 +297,14 @@ const actionLabel = (action: string) =>
   )[action] ||
   action ||
   '-'
+const actionTagType = (action: string) =>
+  (
+    ({
+      unreachable: 'danger',
+      blackhole: 'warning',
+      allow: 'success',
+    }) as Record<string, 'danger' | 'warning' | 'success'>
+  )[action] || 'info'
 const copy = async (value: string) => {
   try {
     if (!(await copyTextWithFallback(value))) throw new Error('copy failed')
