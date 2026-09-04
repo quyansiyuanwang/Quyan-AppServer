@@ -114,7 +114,11 @@
           <template v-else-if="column.key === 'status'"
             ><el-tag :type="statusType(row)">{{ statusLabel(row) }}</el-tag></template
           >
-          <template v-else-if="column.key === 'action'">{{ actionLabel(row.action) }}</template>
+          <template v-else-if="column.key === 'action'"
+            ><el-tag :type="actionTagType(row.action)" size="small">{{
+              actionLabel(row.action)
+            }}</el-tag></template
+          >
           <template v-else>{{
             column.value ? column.value(row) : column.path ? get(row, column.path) : '-'
           }}</template>
@@ -157,9 +161,26 @@ type IncidentColumn = {
 }
 const columns: IncidentColumn[] = [
   { key: 'time', label: t('contentSafety.time'), prop: 'createTime', width: 160, sortable: true },
-  { key: 'direction', label: t('contentSafety.direction'), prop: 'direction', width: 100 },
+  {
+    key: 'direction',
+    label: t('contentSafety.direction'),
+    prop: 'direction',
+    width: 100,
+    value: (r: any) =>
+      r.direction === 'request'
+        ? t('contentSafety.request')
+        : r.direction === 'response'
+          ? t('contentSafety.response')
+          : '-',
+  },
   { key: 'action', label: t('contentSafety.action'), prop: 'action', width: 110 },
-  { key: 'source', label: t('contentSafety.source'), prop: 'source', width: 100 },
+  {
+    key: 'source',
+    label: t('contentSafety.source'),
+    prop: 'source',
+    width: 100,
+    value: (r: any) => (r.source === 'ai' ? 'AI' : r.source === 'rule' ? 'rule' : '-'),
+  },
   {
     key: 'requestId',
     label: t('contentSafety.requestId'),
@@ -278,6 +299,14 @@ const actionLabel = (action: string) =>
   )[action] ||
   action ||
   '-'
+const actionTagType = (action: string) =>
+  (
+    ({
+      unreachable: 'danger',
+      blackhole: 'warning',
+      allow: 'success',
+    }) as Record<string, 'danger' | 'warning' | 'success'>
+  )[action] || 'info'
 const copy = async (value: string) => {
   try {
     if (!(await copyTextWithFallback(value))) throw new Error('copy failed')

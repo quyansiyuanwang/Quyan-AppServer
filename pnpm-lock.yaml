@@ -579,6 +579,9 @@ importers:
       globals:
         specifier: ^17.7.0
         version: 17.7.0
+      prettier:
+        specifier: ^3.6.2
+        version: 3.6.2
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

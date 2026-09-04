@@ -1,7 +1,7 @@
 <template>
   <RouterView v-slot="{ Component, route }">
     <Transition :name="getShellTransitionName(route)" mode="out-in" appear>
-      <component :is="Component" :key="getViewTransitionKey(route)" />
+      <component :is="Component" :key="getViewTransitionKey(route, sessionStore.identityKey)" />
     </Transition>
   </RouterView>
   <TopLoadingProgress />
@@ -35,6 +35,7 @@ import WaterMark from '@/components/layout/WaterMark.vue'
 import FloatingWorkspaceManager from '@/components/workspace/FloatingWorkspaceManager.vue'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { computed } from 'vue'
+import { useSessionStore } from '@/stores/sessionStore'
 import TopLoadingProgress from '@/components/layout/TopLoadingProgress.vue'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import LanguageSwitcher from '@/components/common/LanguageSwitcher.vue'
@@ -48,6 +49,7 @@ import { heartbeatService } from '@/service/heartbeatService'
 
 const themeToggleStore = useThemeToggleStore()
 const route = useRoute()
+const sessionStore = useSessionStore()
 const { isDesktop } = usePageDevice()
 const { isHidden: floatingOverlayHidden } = useFloatingOverlayVisibility()
 const isEmbeddedShell = computed(() => route.query.embed === '1')
@@ -77,10 +79,10 @@ const getShellTransitionName = (route: RouteLocationNormalizedLoaded) => {
     : undefined
 }
 
-const getViewTransitionKey = (route: RouteLocationNormalizedLoaded) => {
+const getViewTransitionKey = (route: RouteLocationNormalizedLoaded, identityKey?: string) => {
   const matchedRecords = route.matched as Array<{ name?: string | symbol | null }>
   const primaryChildName = matchedRecords[1]?.name
-  return String(primaryChildName ?? route.name ?? '')
+  return `${String(primaryChildName ?? route.name ?? '')}:${identityKey || 'anonymous'}`
 }
 
 onBeforeUnmount(() => {

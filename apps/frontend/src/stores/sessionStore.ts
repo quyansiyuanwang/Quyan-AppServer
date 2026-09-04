@@ -16,10 +16,14 @@ export const useSessionStore = defineStore('session', () => {
   const status = ref<SessionStatus>('unknown')
   const accessToken = ref<string | null>(null)
   const user = ref<UserDto | null>(null)
+  const identityProjectionVersion = ref(0)
   const permissionsStatus = ref<PermissionLoadStatus>('idle')
   const error = ref<unknown>(null)
 
   const isAuthenticated = computed(() => status.value === 'authenticated')
+  const identityKey = computed(
+    () => `${user.value?.id || 'anonymous'}:${identityProjectionVersion.value}`,
+  )
 
   /**
    * A cold Cookie restore has no trusted UI state yet. A token rotation during
@@ -43,7 +47,7 @@ export const useSessionStore = defineStore('session', () => {
     nextStatus: Extract<SessionStatus, 'anonymous' | 'expired'> = 'anonymous',
   ) => {
     accessToken.value = null
-    user.value = null
+    setUser(null)
     permissionsStatus.value = 'idle'
     status.value = nextStatus
     error.value = null
@@ -51,14 +55,16 @@ export const useSessionStore = defineStore('session', () => {
 
   const setFailed = (cause: unknown) => {
     accessToken.value = null
-    user.value = null
+    setUser(null)
     permissionsStatus.value = 'failed'
     status.value = 'failed'
     error.value = cause
   }
 
-  const setUser = (nextUser: UserDto | null) => {
-    user.value = nextUser
+  const setUser = (nextUser: Partial<UserDto> | null) => {
+    const nextUserId = nextUser?.id || null
+    if ((user.value?.id || null) !== nextUserId) identityProjectionVersion.value += 1
+    user.value = nextUser ? (nextUser as UserDto) : null
   }
 
   const setPermissionsStatus = (nextStatus: PermissionLoadStatus) => {
@@ -72,6 +78,8 @@ export const useSessionStore = defineStore('session', () => {
     permissionsStatus,
     error,
     isAuthenticated,
+    identityProjectionVersion,
+    identityKey,
     beginRestore,
     setAuthenticated,
     setAnonymous,

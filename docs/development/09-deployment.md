@@ -65,9 +65,9 @@ EdgeOne 等仓外构建平台不会随 Git 仓库同步控制台里的构建设�
 - 编译命令：`pnpm run build:frontend`
 - 输出目录：`apps/frontend/dist`
 
-根 `package.json` 的 `"_13_edgeone"` 分组专门保留 `CD:check:frontend`、`CD:check:backend` 和 `CD:check:docs`，作为外部平台的兼容入口。命令名请勿随意重命名：EdgeOne 控制台可能直接引用它们。脚本只检查最近一次提交是否包含对应目录的改动，命中时返回 `0`，未命中时返回 `1`。GitHub Actions 使用 `dorny/paths-filter`，不依赖这些脚本。
+根 `package.json` 的 `"_13_edgeone"` 分组专门保留 `CD:check:frontend`、`CD:check:backend` 和 `CD:check:docs`，作为外部平台的兼容入口。命令名请勿随意重命名：EdgeOne 控制台可能直接引用它们。默认命令检查最近一次提交，命中返回 `0`，未命中返回 `1`，用于阻断不相关应用的部署。`*:strict` 是同义的显式门禁入口；只有明确需要放行未命中时才使用 `*:allow-no-match`。GitHub Actions 使用 `dorny/paths-filter`，不依赖这些脚本。
 
-历史 EdgeOne 配置可能仍使用 `pnpm CD:check:frontend && pnpm install`。该命令依赖上述兼容入口，且在未命中前端改动时会以状态码 `1` 终止构建；因此不应继续作为常规安装命令，更新 EdgeOne 配置时请改用上面的安装命令。删除或重命名这些脚本前，必须先检查 EdgeOne 等仓外构建平台的引用。
+历史 EdgeOne 配置可能仍使用 `pnpm CD:check:frontend && pnpm install`。由于该检查在无前端改动时会按设计返回 `1`，这会阻断安装；EdgeOne 应改用上面的独立安装命令，不要把路径门禁串在安装命令前。删除或重命名这些脚本前，必须先检查 EdgeOne 等仓外构建平台的引用。
 
 ### Monorepo 构建
 

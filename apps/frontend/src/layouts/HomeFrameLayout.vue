@@ -273,7 +273,7 @@ import {
   UserFilled,
   Wallet,
 } from '@element-plus/icons-vue'
-import { computed, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
@@ -423,14 +423,18 @@ const copyIdentity = (value?: string | null) => {
 
 const logout = () => void authorizationService.logout()
 
-onMounted(() => {
-  if (!isAuthenticated.value) {
-    waterMarkTextStore.clearText()
-    return
-  }
+watch(
+  () => [sessionStore.identityKey, isAuthenticated.value, userInfoStore.userInfo.username] as const,
+  () => {
+    if (!isAuthenticated.value) {
+      waterMarkTextStore.clearText()
+      return
+    }
 
-  waterMarkTextStore.setText(`${userInfoStore.userInfo.username}`)
-})
+    waterMarkTextStore.setText(`${userInfoStore.userInfo.username}`)
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

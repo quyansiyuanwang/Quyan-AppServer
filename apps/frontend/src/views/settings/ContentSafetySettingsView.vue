@@ -65,7 +65,13 @@
             <el-table-column prop="name" :label="i18ns.t('contentSafety.name')" />
             <el-table-column prop="type" :label="i18ns.t('contentSafety.type')" />
             <el-table-column prop="direction" :label="i18ns.t('contentSafety.direction')" />
-            <el-table-column prop="action" :label="i18ns.t('contentSafety.action')" />
+            <el-table-column :label="i18ns.t('contentSafety.action')" width="110"
+              ><template #default="{ row }"
+                ><el-tag :type="actionTagType(row.action)" size="small">{{
+                  actionLabel(row.action)
+                }}</el-tag></template
+              ></el-table-column
+            >
             <el-table-column :label="i18ns.t('contentSafety.enabled')" width="100"
               ><template #default="{ row }"
                 ><el-switch v-model="row.enabled" @change="toggleRule(row)" /></template
@@ -290,6 +296,24 @@ const importPreview = ref<any>(null)
 const canEditAll = computed(
   () => selectedRules.value.length > 0 && selectedRules.value.every((row) => row.canEdit),
 )
+const actionLabel = (action: string) =>
+  (
+    ({
+      unreachable: i18ns.t('contentSafety.unreachable'),
+      blackhole: i18ns.t('contentSafety.blackhole'),
+      allow: i18ns.t('contentSafety.allow'),
+    }) as Record<string, string>
+  )[action] ||
+  action ||
+  '-'
+const actionTagType = (action: string) =>
+  (
+    ({
+      unreachable: 'danger',
+      blackhole: 'warning',
+      allow: 'success',
+    }) as Record<string, 'danger' | 'warning' | 'success'>
+  )[action] || 'info'
 const policy = reactive<any>({
   requestEnabled: true,
   requestAction: 'unreachable',
