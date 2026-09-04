@@ -64,6 +64,7 @@ export class SessionCoordinator {
   private applyAccessToken(token: string, user?: Partial<UserDto>) {
     setAccessToken(token)
     saveTokenExpiration(token)
+    const session = useSessionStore()
     const userId = getUserIdFromToken(token) || user?.id
     const userUpdatedAt = getUserUpdatedAtFromToken(token)
     if (userId) {
@@ -72,12 +73,12 @@ export class SessionCoordinator {
       if (userInfoStore.userInfo.id && userInfoStore.userInfo.id !== userId) {
         userInfoStore.clear()
         permissionStore.clearCurrentUserPermissions()
-        useSessionStore().setPermissionsStatus('idle')
+        session.setPermissionsStatus('idle')
+        session.setUser(null)
         this.projectedUserId = null
         this.projectedUserVersion = null
       }
       setCurrentStorageScopeForUserId(userId)
-      const session = useSessionStore()
       const hasCurrentSessionProjection =
         this.projectedUserId === userId &&
         this.projectedUserVersion === userUpdatedAt &&
@@ -110,7 +111,8 @@ export class SessionCoordinator {
         }
       }
     }
-    useSessionStore().setAuthenticated(token)
+    session.setAuthenticated(token)
+    if (user?.id) session.setUser(user)
   }
 
   completeLogin(auth: { access_token: string; user?: Partial<UserDto> }) {

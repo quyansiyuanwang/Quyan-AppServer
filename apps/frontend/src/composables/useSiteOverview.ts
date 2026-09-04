@@ -1,4 +1,4 @@
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { DeveloperProductCode } from '@/client/types.gen'
 import { siteOverviewMetricProfileIds } from '@/config/site-overview'
 import { siteOverviewFeatures } from '@/config/site-overview-features'
@@ -22,6 +22,7 @@ import { remoteTerminalProductService } from '@/service/remoteTerminalProductSer
 import systemService from '@/service/systemService'
 import { userService } from '@/service/userService'
 import { usePermissionStore } from '@/stores/permissionStore'
+import { useSessionStore } from '@/stores/sessionStore'
 import type { RouteName } from '@/types/route-types.gen'
 
 export type SiteOverviewMetric = {
@@ -160,12 +161,14 @@ const asRecords = (items: unknown): Record<string, unknown>[] =>
 
 export const useSiteOverview = () => {
   const permissionStore = usePermissionStore()
+  const sessionStore = useSessionStore()
   const metrics = ref<SiteOverviewMetric[]>([])
   const details = ref<SiteOverviewDetail[]>([])
   const breakdown = ref<SiteOverviewBreakdown[]>([])
   const charts = ref<SiteOverviewChart[]>([])
   const loading = ref(false)
   const partialFailure = ref(false)
+  let loadGeneration = 0
 
   const can = (permissions: Permission | readonly Permission[]) => {
     const values = Array.isArray(permissions) ? permissions : [permissions]
@@ -385,6 +388,7 @@ export const useSiteOverview = () => {
   })
 
   const load = async () => {
+    const generation = ++loadGeneration
     loading.value = true
     partialFailure.value = false
     breakdown.value = []
@@ -1286,6 +1290,7 @@ export const useSiteOverview = () => {
     }
 
     const results = await Promise.allSettled(requests)
+    if (generation !== loadGeneration) return
     partialFailure.value = results.some((result) => result.status === 'rejected')
     addDetailsForMetrics()
     if (!breakdown.value.length && resourceBreakdownProfileIds.has(currentSiteProfile.id)) {
@@ -1322,6 +1327,18 @@ export const useSiteOverview = () => {
   }
 
   onMounted(() => void load())
+  watch(
+    () => [sessionStore.identityKey, sessionStore.permissionsStatus] as const,
+    ([identityKey, permissionsStatus], previous) => {
+      const [previousIdentityKey, previousPermissionsStatus] = previous || []
+      if (
+        identityKey !== previousIdentityKey ||
+        (permissionsStatus === 'ready' && previousPermissionsStatus !== 'ready')
+      ) {
+        void load()
+      }
+    },
+  )
 
   return {
     actions,

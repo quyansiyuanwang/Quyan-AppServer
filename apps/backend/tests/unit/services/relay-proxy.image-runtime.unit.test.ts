@@ -333,6 +333,49 @@ describe("RelayProxyService image runtime", () => {
     expect(normalize(singleLegacyBody)).toBe(singleLegacyBody);
   });
 
+  it("rewrites the multipart model field when a mapped upstream model is selected", () => {
+    const { service } = createService();
+    const body = Buffer.from(
+      [
+        "------test-boundary",
+        'Content-Disposition: form-data; name="model"',
+        "",
+        "customer-image",
+        "------test-boundary",
+        'Content-Disposition: form-data; name="image"; filename="cat.png"',
+        "Content-Type: image/png",
+        "",
+        "fake-image",
+        "------test-boundary--",
+        "",
+      ].join("\r\n"),
+    );
+
+    const rewritten = (service as any).normalizeOpenAIImageEditsMultipartBody(
+      body,
+      "openai",
+      "/relay/proxy/v1/images/edits",
+      "multipart/form-data; boundary=----test-boundary",
+      "gpt-image-1",
+    ) as Buffer;
+
+    expect(rewritten.toString("utf8")).toContain("\r\n\r\ngpt-image-1\r\n------test-boundary");
+    expect(rewritten.toString("utf8")).not.toContain("customer-image");
+  });
+
+  it("rejects mapped multipart requests that cannot be safely parsed", () => {
+    const { service } = createService();
+    expect(() =>
+      (service as any).normalizeOpenAIImageEditsMultipartBody(
+        Buffer.from("------test-boundary\r\ninvalid"),
+        "openai",
+        "/relay/proxy/v1/images/edits",
+        "multipart/form-data; boundary=----test-boundary",
+        "gpt-image-1",
+      ),
+    ).toThrow("Unable to safely rewrite multipart model field");
+  });
+
   it("rejects oversized streamed image responses before charging usage", async () => {
     const relayToken = createRelayToken();
     const req = createMultipartImageRequest(
