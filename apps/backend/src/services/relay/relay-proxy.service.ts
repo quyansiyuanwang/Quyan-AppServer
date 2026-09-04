@@ -1055,36 +1055,92 @@ export class RelayProxyService {
     requestFormat: RelayRequestFormat,
     requestPath: string,
     contentType: unknown,
+    upstreamModelId?: string,
   ): any {
-    if (
-      !["openai", "openai-chat-completions"].includes(requestFormat) ||
-      !Buffer.isBuffer(requestBody) ||
-      !this.isOpenAIImageEditsPath(requestPath) ||
-      !String(contentType || "")
-        .toLowerCase()
-        .startsWith("multipart/form-data")
-    )
-      return requestBody;
+    const isMultipart = String(contentType || "")
+      .toLowerCase()
+      .startsWith("multipart/form-data");
+    if (!Buffer.isBuffer(requestBody) || !isMultipart) return requestBody;
 
+    let normalizedBody = requestBody;
     const boundary = this.getMultipartBoundary(contentType);
-    if (!boundary) return requestBody;
+    if (upstreamModelId) {
+      if (!boundary || /[\r\n]/.test(upstreamModelId))
+        throw new BadRequestError("Unable to safely rewrite multipart model field");
+      const marker = Buffer.from(`--${boundary}`, "ascii");
+      const headerSeparator = Buffer.from("\r\n\r\n", "ascii");
+      const replacements: Array<{ start: number; end: number; value: Buffer }> = [];
+      let modelFieldCount = 0;
+      let sawClosingBoundary = false;
+      let boundaryOffset = this.findMultipartBoundary(normalizedBody, marker, 0);
 
-    const marker = Buffer.from(`--${boundary}`, "ascii");
+      while (boundaryOffset !== -1) {
+        const boundaryEnd = boundaryOffset + marker.length;
+        if (normalizedBody[boundaryEnd] === 45 && normalizedBody[boundaryEnd + 1] === 45) {
+          sawClosingBoundary = true;
+          break;
+        }
+        if (normalizedBody[boundaryEnd] !== 13 || normalizedBody[boundaryEnd + 1] !== 10)
+          throw new BadRequestError("Unable to safely rewrite multipart model field");
+
+        const headerStart = boundaryEnd + 2;
+        const headerEnd = normalizedBody.indexOf(headerSeparator, headerStart);
+        if (headerEnd === -1) throw new BadRequestError("Unable to safely rewrite multipart model field");
+        const headerText = normalizedBody.subarray(headerStart, headerEnd).toString("latin1");
+        const dispositionMatch = /(?:^|\r\n)content-disposition\s*:\s*form-data[^\r\n]*/i.exec(headerText);
+        const nameMatch = dispositionMatch?.[0].match(/\bname\s*=\s*(?:"([^"]*)"|([^;\s]*))/i);
+        const fieldName = nameMatch?.[1] ?? nameMatch?.[2];
+        const nextBoundary = this.findMultipartBoundary(normalizedBody, marker, headerEnd + headerSeparator.length);
+        if (nextBoundary === -1) throw new BadRequestError("Unable to safely rewrite multipart model field");
+
+        if (fieldName === "model") {
+          modelFieldCount += 1;
+          if (modelFieldCount > 1 || !dispositionMatch || /\bfilename\s*=/i.test(dispositionMatch[0]))
+            throw new BadRequestError("Unable to safely rewrite multipart model field");
+          const valueStart = headerEnd + headerSeparator.length;
+          const valueEnd =
+            nextBoundary >= 2 && normalizedBody[nextBoundary - 2] === 13 && normalizedBody[nextBoundary - 1] === 10
+              ? nextBoundary - 2
+              : nextBoundary;
+          if (valueEnd < valueStart) throw new BadRequestError("Unable to safely rewrite multipart model field");
+          replacements.push({ start: valueStart, end: valueEnd, value: Buffer.from(upstreamModelId, "utf8") });
+        }
+        boundaryOffset = nextBoundary;
+      }
+
+      if (modelFieldCount !== 1 || !sawClosingBoundary)
+        throw new BadRequestError("Unable to safely rewrite multipart model field");
+      const chunks: Buffer[] = [];
+      let offset = 0;
+      for (const replacement of replacements) {
+        chunks.push(normalizedBody.subarray(offset, replacement.start), replacement.value);
+        offset = replacement.end;
+      }
+      chunks.push(normalizedBody.subarray(offset));
+      normalizedBody = Buffer.concat(chunks);
+    }
+
+    if (!["openai", "openai-chat-completions"].includes(requestFormat) || !this.isOpenAIImageEditsPath(requestPath))
+      return normalizedBody;
+    const normalizedBoundary = this.getMultipartBoundary(contentType);
+    if (!normalizedBoundary) return normalizedBody;
+
+    const marker = Buffer.from(`--${normalizedBoundary}`, "ascii");
     const headerSeparator = Buffer.from("\r\n\r\n", "ascii");
     const replacements: Array<{ start: number; end: number; value: Buffer }> = [];
     let sourceImageCount = 0;
-    let boundaryOffset = this.findMultipartBoundary(requestBody, marker, 0);
+    let boundaryOffset = this.findMultipartBoundary(normalizedBody, marker, 0);
 
     while (boundaryOffset !== -1) {
       const boundaryEnd = boundaryOffset + marker.length;
-      if (requestBody[boundaryEnd] === 45 && requestBody[boundaryEnd + 1] === 45) break;
-      if (requestBody[boundaryEnd] !== 13 || requestBody[boundaryEnd + 1] !== 10) return requestBody;
+      if (normalizedBody[boundaryEnd] === 45 && normalizedBody[boundaryEnd + 1] === 45) break;
+      if (normalizedBody[boundaryEnd] !== 13 || normalizedBody[boundaryEnd + 1] !== 10) return normalizedBody;
 
       const headerStart = boundaryEnd + 2;
-      const headerEnd = requestBody.indexOf(headerSeparator, headerStart);
-      if (headerEnd === -1) return requestBody;
+      const headerEnd = normalizedBody.indexOf(headerSeparator, headerStart);
+      if (headerEnd === -1) return normalizedBody;
 
-      const headerText = requestBody.subarray(headerStart, headerEnd).toString("latin1");
+      const headerText = normalizedBody.subarray(headerStart, headerEnd).toString("latin1");
       const dispositionMatch = /(?:^|\r\n)content-disposition\s*:\s*form-data[^\r\n]*/i.exec(headerText);
       const nameMatch = dispositionMatch?.[0].match(/\bname\s*=\s*(?:"([^"]*)"|([^;\s]*))/i);
       const fieldName = nameMatch?.[1] ?? nameMatch?.[2];
@@ -1100,18 +1156,18 @@ export class RelayProxyService {
         }
       }
 
-      boundaryOffset = this.findMultipartBoundary(requestBody, marker, headerEnd + headerSeparator.length);
+      boundaryOffset = this.findMultipartBoundary(normalizedBody, marker, headerEnd + headerSeparator.length);
     }
 
-    if (sourceImageCount < 2 || replacements.length === 0) return requestBody;
+    if (sourceImageCount < 2 || replacements.length === 0) return normalizedBody;
 
     const chunks: Buffer[] = [];
     let offset = 0;
     for (const replacement of replacements) {
-      chunks.push(requestBody.subarray(offset, replacement.start), replacement.value);
+      chunks.push(normalizedBody.subarray(offset, replacement.start), replacement.value);
       offset = replacement.end;
     }
-    chunks.push(requestBody.subarray(offset));
+    chunks.push(normalizedBody.subarray(offset));
 
     return Buffer.concat(chunks);
   }
@@ -3101,13 +3157,6 @@ export class RelayProxyService {
                 ? Number(billingDisplayChannel.multiplier)
                 : upstreamConfig.channelMultiplier;
 
-            if (Buffer.isBuffer(req.body) && selectedModelId !== normalizedRequestedModel)
-              logger.warn("Multipart relay request keeps original model field because body rewrite is not supported", {
-                requestedModel: normalizedRequestedModel,
-                upstreamModelId: selectedModelId,
-                path: req.path,
-              });
-
             const monthlyPassCoverageAt = new Date();
 
             const hasChargeCoverage = await this.usageChargeService.hasCoverageOrPositiveBalance({
@@ -3161,7 +3210,20 @@ export class RelayProxyService {
               headers["anthropic-version"] = "2023-06-01";
             }
 
-            const sourceForwardedBody = this.buildForwardBody(req.body, clientRequestFormat, selectedModelId);
+            let sourceForwardedBody = this.buildForwardBody(req.body, clientRequestFormat, selectedModelId);
+            if (
+              Buffer.isBuffer(sourceForwardedBody) &&
+              this.isMultipartRequest(req) &&
+              selectedModelId !== normalizedRequestedModel
+            ) {
+              sourceForwardedBody = this.normalizeOpenAIImageEditsMultipartBody(
+                sourceForwardedBody,
+                clientRequestFormat,
+                req.path,
+                this.getHeaderValue(req.headers, "content-type"),
+                selectedModelId,
+              );
+            }
             const forwardedBody = this.normalizeOpenAIImageEditsMultipartBody(
               requestFormatTransform
                 ? convertRelayRequest(
@@ -3172,7 +3234,7 @@ export class RelayProxyService {
                 : sourceForwardedBody,
               requestFormat,
               requestFormatTransform ? path : req.path,
-              req.headers["content-type"],
+              this.getHeaderValue(req.headers, "content-type"),
             );
             let { body: convertedBody, autoInjected: autoInjectedStreamUsageOption } = this.addOpenAIStreamUsageOption(
               forwardedBody,
@@ -3449,12 +3511,16 @@ export class RelayProxyService {
             upstreamRequestStarted = true;
             let firstPayloadTime: number | null = null;
             const maxResponseBytes = resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024;
+            const upstreamBody = this.buildForwardBodyBuffer(convertedBody);
+            delete headers["content-length"];
+            delete headers["Content-Length"];
+            headers["Content-Length"] = upstreamBody.length;
             const response = await this.relayChannelProbeLockService.withRead(channel.id, () =>
               axios({
                 method: req.method,
                 url: fullUpstreamUrl,
                 headers,
-                data: this.buildForwardBodyBuffer(convertedBody),
+                data: upstreamBody,
                 params: req.query,
                 timeout: resourceGuard.nonStreamUpstreamTimeoutMs,
                 maxBodyLength: maxBodyLimitBytes,
