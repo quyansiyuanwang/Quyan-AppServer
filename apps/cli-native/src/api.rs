@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context, Result};
 use hmac::{Hmac, Mac};
@@ -71,12 +71,21 @@ impl ApiClient {
             &self.api_base_url
         };
         let url = Url::parse(&format!("{}{}", base, normalize_path(path)))?;
+        let request_id = Uuid::new_v4().to_string();
+        let started = Instant::now();
+        tracing::debug!(
+            method = %method,
+            path,
+            request_id = %request_id,
+            relay,
+            "sending API request"
+        );
         let mut request = self
             .client
             .request(method.clone(), url)
             .header("Accept", "application/json")
             .header("X-Locale", &self.locale)
-            .header("X-Request-Id", Uuid::new_v4().to_string());
+            .header("X-Request-Id", &request_id);
         if let Some(token) = auth.token(&self.credentials) {
             request = request.bearer_auth(token);
         }
@@ -84,6 +93,7 @@ impl ApiClient {
             && !path.contains("replay-signing-session")
         {
             if let Some(material) = self.replay_material().await? {
+                tracing::debug!(path, "applying replay signing session");
                 let nonce = Uuid::new_v4().to_string();
                 let timestamp = chrono::Utc::now().timestamp().to_string();
                 let body_text = body.as_ref().map(ToString::to_string).unwrap_or_default();
@@ -103,6 +113,14 @@ impl ApiClient {
         }
         let response = request.send().await.context("request failed")?;
         let status = response.status();
+        tracing::debug!(
+            method = %method,
+            path,
+            request_id = %request_id,
+            status = %status,
+            elapsed_ms = started.elapsed().as_millis(),
+            "received API response"
+        );
         let payload: serde_json::Value = response.json().await.context("invalid JSON response")?;
         if !status.is_success() {
             return Err(anyhow!("HTTP {}: {}", status, payload));
@@ -120,6 +138,7 @@ impl ApiClient {
     }
 
     async fn replay_material(&self) -> Result<Option<ReplayMaterial>> {
+        tracing::debug!("requesting replay signing session");
         let token = AuthKind::OAuth.token(&self.credentials);
         let mut request = self.client.get(format!(
             "{}/v1/auth/replay-signing-session",
@@ -130,6 +149,7 @@ impl ApiClient {
         }
         let response = request.header("X-Locale", &self.locale).send().await?;
         if !response.status().is_success() {
+            tracing::debug!(status = %response.status(), "replay signing session is unavailable");
             return Ok(None);
         }
         let value: serde_json::Value = response.json().await?;

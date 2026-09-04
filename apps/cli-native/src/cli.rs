@@ -15,6 +15,7 @@ use crate::{
     branding, config,
     credentials::{self, Credentials},
     integrations,
+    logging::{self, EventBuffer},
     services::{account, json_endpoint_product as product, relay},
     tui,
 };
@@ -142,6 +143,13 @@ enum ProductJsonCommand {
 
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
+    let log = logging::init(args.debug, args.debug && !args.json)?;
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        platform = %logging::platform_description(),
+        debug = args.debug,
+        "Quyan CLI started"
+    );
     if args.version {
         if !args.json {
             branding::print();
@@ -154,8 +162,30 @@ pub async fn run() -> Result<()> {
         }
         return Ok(());
     }
-    let mut cfg = config::load()?;
-    let mut creds = credentials::load()?;
+    let mut startup_errors = Vec::new();
+    let mut cfg = match config::load() {
+        Ok(config) => config,
+        Err(error) if args.command.is_none() => {
+            startup_errors.push(format!("Configuration unavailable: {error:#}"));
+            config::Config::default()
+        }
+        Err(error) => return Err(error).context("failed to load Quyan configuration"),
+    };
+    tracing::debug!(config_path = %config::path().display(), "loaded CLI configuration");
+    let mut creds = match credentials::load() {
+        Ok(credentials) => credentials,
+        Err(error) if args.command.is_none() => {
+            startup_errors.push(format!("Credential store unavailable: {error:#}"));
+            Credentials::default()
+        }
+        Err(error) => return Err(error).context("failed to load Quyan credentials"),
+    };
+    tracing::debug!(
+        account_configured = creds.access_token.is_some() || creds.access_key.is_some(),
+        relay_configured = creds.relay_token.is_some(),
+        product_configured = creds.product_key.is_some(),
+        "loaded credential availability"
+    );
     if let Some(command) = args.command {
         match command {
             Command::Version => {
@@ -230,26 +260,46 @@ pub async fn run() -> Result<()> {
             }
         }
     }
-    let api = ApiClient::new(creds, &cfg.locale)?;
-    let value = relay::tokens(&api)
-        .await
-        .unwrap_or_else(|error| json!({"error":error.to_string()}));
-    let items = value
-        .get("records")
-        .or_else(|| value.get("items"))
-        .and_then(Value::as_array)
-        .map(|rows| {
-            rows.iter()
-                .map(|v| {
-                    v.get("name")
-                        .and_then(Value::as_str)
-                        .unwrap_or("Relay token")
-                        .to_string()
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    tui::run(&items)
+    let mut events = EventBuffer::new();
+    events.push("INFO", "CLI started");
+    if startup_errors.is_empty() {
+        events.push("INFO", "Configuration and credentials loaded");
+    } else {
+        for error in startup_errors {
+            tracing::error!("{error}");
+            events.push("ERROR", error);
+        }
+    }
+    events.push(
+        "INFO",
+        if creds.access_token.is_some() || creds.access_key.is_some() {
+            "Account credential configured"
+        } else {
+            "Account credential is not configured"
+        },
+    );
+    events.push(
+        "INFO",
+        if creds.relay_token.is_some() {
+            "Relay credential configured"
+        } else {
+            "Relay credential is not configured"
+        },
+    );
+    events.push("INFO", format!("Log file: {}", log.path().display()));
+    let config_path = config::path().display().to_string();
+    let log_path = log.path().display().to_string();
+    tui::run(tui::StatusView {
+        api_base_url: &cfg.api_base_url,
+        relay_base_url: &cfg.relay_base_url,
+        locale: &cfg.locale,
+        config_path: &config_path,
+        account_configured: creds.access_token.is_some() || creds.access_key.is_some(),
+        relay_configured: creds.relay_token.is_some(),
+        product_configured: creds.product_key.is_some(),
+        log_path: &log_path,
+        events: &events,
+    })
 }
 
 async fn dispatch(
@@ -343,6 +393,7 @@ async fn browser_login(base: &str) -> Result<Credentials> {
     let redirect = format!("http://127.0.0.1:{port}/callback");
     let mut url = Url::parse(&format!("{base}/v1/oauth/authorize"))?;
     url.query_pairs_mut().append_pair("response_type","code").append_pair("client_id", "quyan-cli").append_pair("redirect_uri", &redirect).append_pair("scope", "profile relay:token:read relay:token:create relay:token:update relay:token:delete relay:channel:read relay:usage:read balance:read").append_pair("state", &state).append_pair("code_challenge", &challenge).append_pair("code_challenge_method", "S256");
+    tracing::debug!(redirect_uri = %redirect, "opening browser for OAuth login");
     open::that(url.as_str())?;
     let (mut stream, _) = listener.accept()?;
     let mut request = [0u8; 4096];
@@ -366,6 +417,7 @@ async fn browser_login(base: &str) -> Result<Credentials> {
         .find(|(k, _)| k == "code")
         .map(|(_, v)| v.into_owned())
         .context("OAuth authorization code missing")?;
+    tracing::debug!("received OAuth callback after state validation");
     stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nQuyan login complete. You can close this window.")?;
     let response = reqwest::Client::new()
         .post(format!("{base}/v1/oauth/token"))
@@ -378,6 +430,7 @@ async fn browser_login(base: &str) -> Result<Credentials> {
         ])
         .send()
         .await?;
+    tracing::debug!(status = %response.status(), "received OAuth token response");
     let body: Value = response.json().await?;
     Ok(Credentials {
         access_token: body
@@ -394,6 +447,7 @@ async fn browser_login(base: &str) -> Result<Credentials> {
 
 async fn qr_login(base: &str, locale: &str) -> Result<Credentials> {
     let client = reqwest::Client::new();
+    tracing::debug!("creating QR login session");
     let session: Value = client
         .post(format!("{base}/v1/auth/qr-login/session"))
         .header("X-Locale", locale)
@@ -427,6 +481,13 @@ async fn qr_login(base: &str, locale: &str) -> Result<Credentials> {
             .json()
             .await?;
         let data = status.get("data").unwrap_or(&status);
+        tracing::debug!(
+            status = data
+                .get("status")
+                .and_then(|value| value.as_str())
+                .unwrap_or("pending"),
+            "polled QR login session"
+        );
         if data.get("status").and_then(Value::as_str) == Some("approved") {
             let auth = data.get("auth").context("QR auth missing")?;
             return Ok(Credentials {

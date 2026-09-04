@@ -4,6 +4,7 @@ pub mod cli;
 pub mod config;
 pub mod credentials;
 pub mod integrations;
+pub mod logging;
 pub mod services;
 pub mod tui;
 

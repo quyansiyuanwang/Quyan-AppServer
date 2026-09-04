@@ -4,6 +4,8 @@
 
 Quyan CLI 的正式实现是 `apps/cli-native` 中的 Rust + Ratatui 原生程序，提供账户状态、AI Relay 管理、凭证管理、配置适配和 JSON Endpoints 产品访问。它不依赖 Node.js 运行时。
 
+无子命令执行 `quyan` 时打开 Ratatui 状态页：显示共享的 QuYan 字符画、版本、服务地址、语言、配置路径、凭证配置状态与最近事件。它不会显示任何凭证值；按 `q` 或 `Esc` 退出。配置或系统密钥链不可用时，状态页显示错误并使用安全默认值，以便用户仍能找到诊断信息。
+
 ## 目录边界
 
 | 目录                       | 职责                                       |
@@ -21,6 +23,12 @@ Quyan CLI 的正式实现是 `apps/cli-native` 中的 Rust + Ratatui 原生程�
 | JSON Endpoints | `dpk_` Product API Key                         | `https://api.qysyw.cn/v1/products/json-endpoints` |
 
 三类凭证必须隔离保存和使用。refresh token、Access Key、Relay Token、Product Key 只写入系统密钥链；普通配置文件仅保存非敏感元数据。
+
+## 日志与调试
+
+每次 CLI 启动都会将诊断日志写入平台数据目录的 `Quyan/logs/`。默认仅保存必要的生命周期事件；`--debug` 将 HTTP 方法、路径、请求 ID、状态码、耗时及 OAuth、二维码和重放保护阶段同步输出到 stderr。日志和错误输出必须脱敏，禁止记录 access/refresh token、`ak_`、`rlt_`、`dpk_`、Authorization、签名数据、请求体或响应体。
+
+`--json` 的 stdout 只能输出机器可解析的 JSON，不得混入字符画、进度或日志；诊断仍写入日志文件，错误仅写 stderr。
 
 ## OpenAPI 生成
 
