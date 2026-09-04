@@ -365,6 +365,12 @@
   color: var(--el-text-color-secondary);
   font-size: 13px;
 }
+.probe-apply-dialog .el-dialog__body {
+  padding-top: 16px;
+}
+.probe-apply-dialog .el-table {
+  min-width: 1180px;
+}
 .apply-dialog-footer {
   display: grid;
   gap: 12px;

@@ -19797,6 +19797,45 @@
 				}
 			}
 		},
+		"/v1/relay-channel-probes/runs/latest": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerListLatestRuns",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayChannelProbeLatestRunDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RelayChannelProbeLatestRunRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/relay-channel-probes/runs/batch": {
 			"post": {
 				"operationId": "RelayChannelProbeControllerCreateRuns",
@@ -50005,6 +50044,58 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelProbeLatestRunDto": {
+				"description": "Latest state for one requested channel/member target. A missing run means no history remains for it.",
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string",
+						"description": "Required for an individual member of a logical pooled channel."
+					},
+					"latestRun": {
+						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+					}
+				},
+				"required": [
+					"channelId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeTargetDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string",
+						"description": "Required for an individual member of a logical pooled channel."
+					}
+				},
+				"required": [
+					"channelId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeLatestRunRequest": {
+				"description": "Explicit channels whose latest probe state should be refreshed without reloading the full overview.",
+				"properties": {
+					"targets": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeTargetDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"CreateRelayChannelProbeRunsResponse": {
 				"properties": {
 					"queued": {
@@ -50038,22 +50129,6 @@
 				"required": [
 					"queued",
 					"rejected"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"RelayChannelProbeTargetDto": {
-				"properties": {
-					"channelId": {
-						"type": "string"
-					},
-					"memberChannelId": {
-						"type": "string",
-						"description": "Required for an individual member of a logical pooled channel."
-					}
-				},
-				"required": [
-					"channelId"
 				],
 				"type": "object",
 				"additionalProperties": false

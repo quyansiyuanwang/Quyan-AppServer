@@ -51,6 +51,8 @@ import type {
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeMemberDto,
   RelayChannelProbeTargetDto,
+  RelayChannelProbeLatestRunDto,
+  RelayChannelProbeLatestRunRequest,
   RelayChannelProbeCustomerFacingTargetDto,
   RelayChannelProbeProfileDto,
   RelayChannelProbeRunDto,
@@ -1201,6 +1203,31 @@ export class RelayChannelProbeService {
     if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
     const result = await this.repository.listRuns(channelId, page, pageSize, memberChannelId);
     return { items: result.items.map((record) => this.toRunDto(record)), total: result.total, page, pageSize };
+  }
+
+  /**
+   * Poll only the channels the console knows are active. This deliberately
+   * avoids rebuilding profiles, pool topology, and every channel overview on
+   * each polling interval.
+   */
+  async listLatestRuns(
+    body: RelayChannelProbeLatestRunRequest,
+    actorUserId: string,
+  ): Promise<RelayChannelProbeLatestRunDto[]> {
+    const targets = body.targets;
+    const uniqueChannelIds = [...new Set(targets.map((target) => target.channelId))];
+    await Promise.all(
+      uniqueChannelIds.map((channelId) => RelayChannelService.getInstance().getChannel(channelId, actorUserId)),
+    );
+    const runs = await this.repository.listLatestRuns(uniqueChannelIds);
+    const runMap = new Map(runs.map((run) => [`${run.relayChannelId}:${run.probeMemberChannelId || ""}`, run]));
+    return targets.map((target) => {
+      const latestRun = runMap.get(`${target.channelId}:${target.memberChannelId || ""}`);
+      return {
+        ...target,
+        ...(latestRun ? { latestRun: this.toRunDto(latestRun) } : {}),
+      };
+    });
   }
 
   async clearRunHistory(

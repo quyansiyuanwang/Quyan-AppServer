@@ -110,6 +110,16 @@ export interface RelayChannelProbeTargetDto {
   memberChannelId?: string;
 }
 
+/** Explicit channels whose latest probe state should be refreshed without reloading the full overview. */
+export interface RelayChannelProbeLatestRunRequest {
+  targets: RelayChannelProbeTargetDto[];
+}
+
+/** Latest state for one requested channel/member target. A missing run means no history remains for it. */
+export interface RelayChannelProbeLatestRunDto extends RelayChannelProbeTargetDto {
+  latestRun?: RelayChannelProbeRunDto;
+}
+
 /** Optional physical member filter for an operation scoped to one logical pool. */
 export interface RelayChannelProbeMemberTargetDto {
   memberChannelId?: string;

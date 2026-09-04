@@ -7,6 +7,7 @@ import type {
   CreateRelayChannelProbeRunRequest,
   CreateRelayChannelProbeRunsRequest,
   RelayChannelProbeOverviewItemDto,
+  RelayChannelProbeLatestRunRequest,
   UpsertRelayChannelProbeProfileRequest,
 } from '@/client/types.gen'
 
@@ -63,6 +64,10 @@ class RelayChannelProbeService {
 
   async createRuns(body: CreateRelayChannelProbeRunsRequest) {
     return checkApiResult<any>(await api.createRuns({ body }), true).data
+  }
+
+  async listLatestRuns(body: RelayChannelProbeLatestRunRequest) {
+    return checkApiResult<any>(await api.listLatestRuns({ body }), true).data
   }
 
   async copyProfile(body: {

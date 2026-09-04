@@ -120,6 +120,18 @@ export const createRelayChannelProbeRunBodySchema = z.object({
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
   forceWithoutCacheBuster: z.boolean().optional(),
 });
+export const relayChannelProbeLatestRunsBodySchema = z.object({
+  targets: z
+    .array(probeTargetSchema)
+    .min(1)
+    .max(200)
+    .refine(
+      (targets) =>
+        new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size ===
+        targets.length,
+      "Duplicate probe targets are not allowed",
+    ),
+});
 export const createRelayChannelProbeRunsBodySchema = z
   .object({
     channelIds: z
