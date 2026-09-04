@@ -14,7 +14,7 @@
 │   apps/backend/src/build/swagger.json                   │
 │     → apps/frontend/swagger.json                        │
 ├─────────────────────────────────────────────────────────┤
-│ Step 3: Frontend and CLI (openapi-ts)                   │
+│ Step 3: Frontend client (openapi-ts)                    │
 │   swagger.json → @hey-api/openapi-ts → src/client/      │
 │     ├── *.gen.ts           (typed SDK services)         │
 │     ├── types.gen.ts       (TypeScript types)           │
@@ -27,6 +27,13 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
+Rust CLI client generation is a separate consumer of the same backend
+contract. `apps/cli-native/build.rs` reads
+`apps/backend/src/build/swagger.json` and uses Progenitor to generate a typed
+client into Cargo `OUT_DIR`; generated Rust code is never hand-edited or
+committed. Run `cargo check --manifest-path apps/cli-native/Cargo.toml` after
+`pnpm run openapi:gen` to validate the CLI contract.
+
 ## 命令速查
 
 ```bash
@@ -38,7 +45,7 @@ pnpm run openapi:gen
 # 同步 swagger.json 到前端 + 生成前端客户端
 pnpm run openapi:sync
 
-# 完整流水线 (后端生成 + 同步 + 前端/CLI 客户端)
+# 完整流水线 (后端生成 + 同步 + 前端客户端；Rust CLI 在 Cargo 构建时生成)
 pnpm run openapi:gen:all
 
 # 针对单个项目

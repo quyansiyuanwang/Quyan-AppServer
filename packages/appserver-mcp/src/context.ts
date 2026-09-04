@@ -1,5 +1,6 @@
 const DOCUMENTS = [
   'AGENTS.md',
+  '.agents/skills/appserver-cli-development/SKILL.md',
   'apps/cli-native/README.md',
   'docs/development/15-cli.md',
   'docs/development/01-architecture.md',
@@ -29,6 +30,7 @@ export function getRepositoryContext(domain?: string) {
     ],
     cli: [
       'apps/cli-native/',
+      'appserver-cli-development',
       'appserver-contracts',
       'appserver-testing-ci',
       'appserver-git-workflow',
@@ -65,6 +67,7 @@ export function getRepositoryContext(domain?: string) {
       'appserver-skill-authoring',
       'appserver-vue-view-splitting',
       'appserver-docs-site-development',
+      'appserver-cli-development',
     ],
     documents: DOCUMENTS,
     scripts: [

@@ -40,7 +40,7 @@ describe('git impact helpers', () => {
 
   test('suggests CLI checks for CLI changes', () => {
     expect(suggestProfiles(['cli'], []).map(({ profile }) => profile)).toEqual(
-      expect.arrayContaining(['cli-type-check', 'cli-test']),
+      expect.arrayContaining(['cli-type-check', 'cli-test', 'cli-format']),
     )
   })
 })

@@ -12,6 +12,7 @@ describe('MCP server', () => {
     expect(context.skills).toContain('appserver-skill-authoring')
     expect(context.applications).toContain('quyan-native')
     expect(context.documents).toContain('apps/cli-native/README.md')
+    expect(context.skills).toContain('appserver-cli-development')
     expect(context.scripts).toContain('pnpm run mcp:serve')
   })
 

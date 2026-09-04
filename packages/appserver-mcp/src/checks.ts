@@ -18,6 +18,7 @@ export const CHECK_PROFILES = [
   'frontend-taxonomy',
   'cli-type-check',
   'cli-test',
+  'cli-format',
   'lint-check',
   'format-check',
   'backend-quality',
@@ -83,12 +84,16 @@ const CHECKS: Record<
     timeoutMs: 2 * 60_000,
   },
   'cli-type-check': {
-    args: ['run', 'check:cli:native'],
+    args: ['run', 'type-check:cli'],
     timeoutMs: 10 * 60_000,
   },
   'cli-test': {
     args: ['exec', 'cargo', 'test', '--manifest-path', 'apps/cli-native/Cargo.toml'],
     timeoutMs: 15 * 60_000,
+  },
+  'cli-format': {
+    args: ['run', 'format:check:cli'],
+    timeoutMs: 5 * 60_000,
   },
   'lint-check': { args: ['run', 'lint:check'], timeoutMs: 15 * 60_000 },
   'format-check': { args: ['run', 'format:check'], timeoutMs: 10 * 60_000 },
@@ -155,6 +160,7 @@ export function suggestProfiles(
   if (domains.includes('cli')) {
     add('cli-type-check', 'CLI 源码变更')
     add('cli-test', 'CLI 源码变更')
+    add('cli-format', 'CLI 源码变更')
   }
   if (domains.includes('tests')) {
     if (domains.includes('backend')) add('backend-taxonomy', '后端测试目录或后缀变更')

@@ -38,6 +38,11 @@ pnpm run check:cli:native
 cargo test --manifest-path apps/cli-native/Cargo.toml
 ```
 
+CLI 领域的代理规则位于
+[`appserver-cli-development`](../../.agents/skills/appserver-cli-development/SKILL.md)。项目 MCP 的
+`repo_context(domain: "cli")` 会返回该技能和 CLI 文档；`run_check` 提供
+`cli-type-check`、`cli-test` 与 `cli-format` 三个无发布副作用的精确 profile。
+
 ## 打包与发布
 
 CLI 只发布不依赖 Node.js 的 Rust 原生可执行文件。发布工作流使用 `ubuntu-latest` 和 `cargo-zigbuild` 交叉编译，避免依赖 `macos-13` runner 队列。支持的目标为 `windows-x64`、`linux-x64`、`linux-arm64`、`macos-x64` 和 `macos-arm64`。

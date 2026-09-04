@@ -39,7 +39,7 @@ pnpm run build                   # 构建所有项目
 pnpm run build:backend           # 只构建后端
 pnpm run build:frontend          # 只构建前端
 pnpm run build:docs              # 只构建文档站点
-pnpm run build:cli               # 只构建 CLI
+pnpm run build:cli:native        # 构建 Rust 原生 CLI
 pnpm run openapi:gen:all         # 完整 OpenAPI 生成流水线
 pnpm run test                    # 运行所有测试
 pnpm run lint                    # 运行所有 lint
@@ -125,10 +125,10 @@ pnpm run openapi:gen:all          # 完整流水线（上述两步）
 
 ## 仓库级脚本
 
-| 脚本                                        | 用途                                            |
-| ------------------------------------------- | ----------------------------------------------- |
-| `scripts/sync-swagger-to-frontend.mjs`      | 将后端 `swagger.json` 复制到前端 `src/client/`  |
-| `scripts/validate-frontend-permissions.mjs` | 校验前端权限常量与后端 `@quyan/shared` 一致 |
+| 脚本                                        | 用途                                           |
+| ------------------------------------------- | ---------------------------------------------- |
+| `scripts/sync-swagger-to-frontend.mjs`      | 将后端 `swagger.json` 复制到前端 `src/client/` |
+| `scripts/validate-frontend-permissions.mjs` | 校验前端权限常量与后端 `@quyan/shared` 一致    |
 
 ## GitHub PR 管理
 

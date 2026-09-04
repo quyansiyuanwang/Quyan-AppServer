@@ -97,7 +97,6 @@ pnpm run dev:cli          # 启动 Quyan CLI
 pnpm run build:backend    # 只构建后端
 pnpm run build:frontend   # 只构建前端
 pnpm run build:docs       # 只构建文档站点
-pnpm run build:cli        # 只构建 CLI
 pnpm run build:cli:native # 构建 Rust 原生 CLI
 pnpm run build            # 后端与前端并行构建（文档站使用空出的构建槽）
 pnpm run build:full       # 先生成 OpenAPI，再并行构建所有应用

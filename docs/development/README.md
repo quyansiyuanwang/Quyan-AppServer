@@ -56,7 +56,7 @@ pnpm run dev:docs                # 只启动文档站点 (port 4173)
 pnpm run dev:cli                 # 启动 Quyan CLI
 
 # OpenAPI
-pnpm run openapi:gen:all         # 完整流水线（后端 spec → 前端/CLI 客户端）
+pnpm run openapi:gen:all         # 完整流水线（后端 spec → 前端客户端；Rust CLI 在 Cargo 构建时生成）
 
 # 测试：根级命令并行运行 backend、frontend 和 CLI
 pnpm run test

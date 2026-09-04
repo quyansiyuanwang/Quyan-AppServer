@@ -18,8 +18,9 @@
 | [appserver-skill-authoring](./.agents/skills/appserver-skill-authoring/SKILL.md)             | 仓库技能编写、精简、中文化与校验               |
 | [appserver-vue-view-splitting](./.agents/skills/appserver-vue-view-splitting/SKILL.md)       | 大型 Vue View 的结构化拆分与状态边界           |
 | [appserver-docs-site-development](./.agents/skills/appserver-docs-site-development/SKILL.md) | docs-site 文档编写、注册与用户可见功能同步     |
+| [appserver-cli-development](./.agents/skills/appserver-cli-development/SKILL.md)             | Rust CLI、Ratatui、OpenAPI client 与跨平台发布 |
 
-涉及多个领域时，同时读取对应技能；例如 Controller/DTO 变更使用后端与 contracts，权限或 Token 变更再加入 security，测试命令选择加入 testing-ci。优先用 `pnpm run mcp:serve` 提供的项目 MCP 获取紧凑上下文，再按需读取完整文档。
+涉及多个领域时，同时读取对应技能；例如 Controller/DTO 变更使用后端与 contracts，权限或 Token 变更再加入 security，Rust CLI 变更加入 `appserver-cli-development`，测试命令选择加入 testing-ci。优先用 `pnpm run mcp:serve` 提供的项目 MCP 获取紧凑上下文，再按需读取完整文档。
 
 ## Monorepo 结构
 
@@ -56,7 +57,7 @@ pnpm run build                   # 构建所有项目
 pnpm run build:backend           # 只构建后端
 pnpm run build:frontend          # 只构建前端
 pnpm run build:docs              # 只构建文档站点
-pnpm run build:cli               # 只构建 CLI
+pnpm run build:cli:native        # 构建 Rust 原生 CLI
 pnpm run openapi:gen:all         # 完整 OpenAPI 生成流水线
 pnpm run test                    # 运行所有测试
 pnpm run lint                    # 运行所有 lint
@@ -84,13 +85,13 @@ cargo run --manifest-path apps/cli-native/Cargo.toml # CLI dev
 
 测试必须按变更影响面选择，优先执行最小、可证明正确性的验证命令。**不得因为一次局部修复默认执行裸 `pnpm test`、全量 `test:unit`、全量构建或 `precommit`。**
 
-| 变更范围                                                 | 必需验证                                                               | 仅在需要时扩大                             |
-| -------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------ |
+| 变更范围                                                 | 必需验证                                                           | 仅在需要时扩大                             |
+| -------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------ |
 | 单个后端 util/service/repository                         | 对应 Vitest 文件 + `pnpm --filter @quyan/backend type-check`       | 该模块的相邻单测                           |
 | 单个前端组件/composable/store                            | 对应组件测试（如存在）+ `pnpm --filter @quyan/frontend type-check` | 该页面的相关测试                           |
-| Controller、DTO、Zod schema、TSOA 路由                   | `pnpm run openapi:gen:all` + 对应 API/单测 + 后端类型检查              | 前端类型检查（生成客户端被业务代码使用时） |
-| Prisma schema/迁移、认证、权限、共享包、跨应用契约       | 受影响单测/API 测试 + 相关应用类型检查                                 | 合并前执行完整 `precommit`                 |
-| 发布候选、明确要求全量、无法可靠限定影响面的基础设施改动 | `pnpm run precommit`；仅用户明确要求时再执行 `pnpm run test`           | 生产构建按发布流程执行                     |
+| Controller、DTO、Zod schema、TSOA 路由                   | `pnpm run openapi:gen:all` + 对应 API/单测 + 后端类型检查          | 前端类型检查（生成客户端被业务代码使用时） |
+| Prisma schema/迁移、认证、权限、共享包、跨应用契约       | 受影响单测/API 测试 + 相关应用类型检查                             | 合并前执行完整 `precommit`                 |
+| 发布候选、明确要求全量、无法可靠限定影响面的基础设施改动 | `pnpm run precommit`；仅用户明确要求时再执行 `pnpm run test`       | 生产构建按发布流程执行                     |
 
 `check:all` 会并行执行仓库级 lint、格式和类型检查；`check:backend`、`check:frontend`、`check:docs` 分别并行检查单一应用。日常局部变更优先使用对应应用命令，不要以 `check:all` 代替精确测试。
 
@@ -213,8 +214,8 @@ pnpm run openapi:gen:all          # 完整流水线
 | [11-testing-and-ci.md](./docs/development/11-testing-and-ci.md)             | 测试分类、并行隔离、数据库 worker 与 CI 策略         |
 | [12-git-workflow-and-mcp.md](./docs/development/12-git-workflow-and-mcp.md) | Git 交付、commit hook 与项目 MCP                     |
 | [13-docs-site.md](./docs/development/13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                   |
-| [14-domain-deployment.md](./docs/development/14-domain-deployment.md)       | 多域名、Cookie、CORS 与部署边界                       |
-| [15-cli.md](./docs/development/15-cli.md)                                   | Quyan CLI 架构、凭证边界与验证                         |
+| [14-domain-deployment.md](./docs/development/14-domain-deployment.md)       | 多域名、Cookie、CORS 与部署边界                      |
+| [15-cli.md](./docs/development/15-cli.md)                                   | Quyan CLI 架构、凭证边界与验证                       |
 
 各项目的 CLAUDE.md/AGENTS.md 位于：
 

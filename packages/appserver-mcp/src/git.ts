@@ -31,6 +31,7 @@ function classifyFiles(files: string[]): {
     }
     if (file.startsWith('apps/cli-native/')) {
       domains.add('cli')
+      skills.add('appserver-cli-development')
       skills.add('appserver-contracts')
       skills.add('appserver-testing-ci')
     }

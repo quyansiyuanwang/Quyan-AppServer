@@ -36,7 +36,7 @@ pnpm run commit -- -m "fix(relay): preserve pooled route identity"
 pnpm run mcp:serve
 ```
 
-仓库根目录的 `.mcp.json` 提供通用 `mcpServers` 配置。支持该格式的客户端可直接导入；其他客户端应登记等价配置：
+仓库根目录的 `.mcp.json` 提供通用 `mcpServers` 配置，统一通过根脚本启动 MCP。支持该格式的客户端可直接导入；其他客户端应登记等价配置：
 
 ```json
 {
@@ -60,13 +60,13 @@ pnpm run mcp:serve
 | `read_file`            | 按行读取受路径、大小和敏感文件规则限制的文本            |
 | `run_check`            | 直接执行固定白名单验证 profile                          |
 
-`run_check` 允许精确后端/前端测试、类型检查、taxonomy、`lint:check`、`format:check`、应用质量检查和 `openapi:gen:all`。数据库、集成、runtime 测试与 OpenAPI 也会按调用直接执行，但 MCP 永远拒绝任意命令、额外参数、`db push`、迁移、部署、依赖安装和 Git 写操作。
+`run_check` 允许精确后端/前端测试、Rust CLI 类型检查（`cli-type-check`）、单测（`cli-test`）和格式检查（`cli-format`）、taxonomy、`lint:check`、`format:check`、应用质量检查和 `openapi:gen:all`。CLI 的发布打包属于本地发布流程，不由 MCP 自动触发。数据库、集成、runtime 测试与 OpenAPI 也会按调用直接执行，但 MCP 永远拒绝任意命令、额外参数、`db push`、迁移、部署、依赖安装和 Git 写操作。
 
 `read_file` 拒绝仓库外路径、symlink 逃逸、`.git`、`.env*`、私钥、认证文件、`node_modules`、构建产物、coverage 与二进制文件。所有工具的输出有固定大小上限，并在截断时标记，避免将大文件或完整 diff 送入上下文。
 
 ### Codex 接入
 
-Codex 会自动读取仓库根目录的 `AGENTS.md`，并按当前工作目录继续读取更近的嵌套 `AGENTS.md`。`.agents/skills/` 保持仓库内的技能唯一来源；按任务需要显式使用 `appserver-backend-development`、`appserver-contracts`、`appserver-testing-ci` 等技能即可，不需要复制到用户目录。
+Codex 会自动读取仓库根目录的 `AGENTS.md`，并按当前工作目录继续读取更近的嵌套 `AGENTS.md`。`.agents/skills/` 保持仓库内的技能唯一来源；按任务需要显式使用 `appserver-backend-development`、`appserver-contracts`、`appserver-cli-development`、`appserver-testing-ci` 等技能即可，不需要复制到用户目录。
 
 仓库同时提供项目级 `.codex/config.toml`，将本地 MCP 注册为 `quyan`。在受信任的仓库目录启动 Codex 后，可用以下命令确认配置：
 
