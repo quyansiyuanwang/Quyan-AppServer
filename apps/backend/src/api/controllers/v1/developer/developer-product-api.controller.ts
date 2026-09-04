@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Middlewares, Path, Post, Request, Route, Security, Tags } from "@tsoa/runtime";
+import { Body, Controller, Delete, Get, Middlewares, Path, Post, Put, Request, Route, Security, Tags } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
 import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
@@ -10,6 +10,7 @@ import type {
   SendDeveloperVerificationDto,
   SetKvValueDto,
   VerifyDeveloperCodeDto,
+  UpdateDeveloperJsonEndpointDto,
 } from "@/api/dto/developer/developer.dto";
 import {
   kvKeyParamsSchema,
@@ -17,9 +18,11 @@ import {
   sendVerificationBodySchema,
   setKvValueBodySchema,
   verifyCodeBodySchema,
+  updateJsonEndpointBodySchema,
 } from "@/api/schema/developer/developer.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
 import { extractClientIp } from "@/util/ip-extractor";
+import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 
 @Route("v1/products/kv")
 @Tags("KV Product API")
@@ -131,5 +134,42 @@ export class DeveloperProductPushApiController extends Controller {
     return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_PUSH_SEND, () =>
       this.project.sendPush(request.productApiKey!.backingProjectId, body, { skipQuota: true }),
     );
+  }
+}
+
+@Route("v1/products/json-endpoints")
+@Tags("JSON Endpoint Product API")
+export class DeveloperProductJsonEndpointApiController extends Controller {
+  private readonly products = DeveloperProductPlatformService.getInstance();
+
+  @Get("")
+  @Security("product-key", [Permission.PRODUCT_JSON_ENDPOINT_READ])
+  public async get(@Request() request: TypedRequest) {
+    return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_JSON_ENDPOINT_READ, () =>
+      this.products.getJsonEndpoint(request.productApiKey!.instanceId),
+    );
+  }
+
+  @Put("")
+  @Security("product-key", [Permission.PRODUCT_JSON_ENDPOINT_WRITE])
+  @Middlewares(replayProtectionMiddleware, validateBody(updateJsonEndpointBodySchema))
+  public async update(
+    @Body() body: UpdateDeveloperJsonEndpointDto,
+    @Request() request: TypedRequest,
+  ) {
+    return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_JSON_ENDPOINT_WRITE, () =>
+      this.products.updateJsonEndpoint(request.productApiKey!.instanceId, body.jsonContent),
+    );
+  }
+
+  @Delete("")
+  @Security("product-key", [Permission.PRODUCT_JSON_ENDPOINT_WRITE])
+  @Middlewares(replayProtectionMiddleware)
+  public async clear(@Request() request: TypedRequest): Promise<{ success: true }> {
+    await this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_JSON_ENDPOINT_WRITE, async () => {
+      await this.products.updateJsonEndpoint(request.productApiKey!.instanceId, {});
+      return true;
+    });
+    return { success: true };
   }
 }

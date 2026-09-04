@@ -6,6 +6,7 @@ export const DEVELOPER_PRODUCT_CODES = [
   'verification',
   'ip_geolocation',
   'push',
+  'json_endpoint',
 ] as const
 
 export type DeveloperProductCode = (typeof DEVELOPER_PRODUCT_CODES)[number]
@@ -42,6 +43,13 @@ export const DEVELOPER_PRODUCTS: readonly DeveloperProductDefinition[] = [
     urlSlug: 'push',
     name: 'Push Aggregation',
     apiPath: '/v1/products/push',
+    supportsExternalApi: true,
+  },
+  {
+    code: 'json_endpoint',
+    urlSlug: 'json-endpoints',
+    name: 'JSON Endpoints',
+    apiPath: '/v1/products/json-endpoints',
     supportsExternalApi: true,
   },
 ]

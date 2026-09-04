@@ -802,6 +802,7 @@ const siteIcons: Record<SiteProfileId, Component> = {
   'product-verification': Key,
   'product-ip_geolocation': Connection,
   'product-push': Bell,
+  'product-json_endpoint': Document,
   'product-oj': Cpu,
   'management-core': Setting,
   'management-ai': Connection,

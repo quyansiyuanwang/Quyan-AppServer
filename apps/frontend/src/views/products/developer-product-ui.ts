@@ -68,6 +68,15 @@ export const PRODUCT_COPY: Record<
       Permission.PRODUCT_PUSH_MANAGE,
     ],
   },
+  json_endpoint: {
+    nameKey: 'nav.productJsonEndpoints',
+    descriptionKey: 'developerProducts.jsonEndpointDescription',
+    actions: [
+      Permission.PRODUCT_JSON_ENDPOINT_READ,
+      Permission.PRODUCT_JSON_ENDPOINT_WRITE,
+      Permission.PRODUCT_JSON_ENDPOINT_MANAGE,
+    ],
+  },
 }
 
 export const productCopy = (product: DeveloperProductCode) => ({
@@ -101,6 +110,9 @@ const PRODUCT_ACTION_EMOJI: Partial<Record<Permission, string>> = {
   [Permission.PRODUCT_PUSH_CHANNEL_MANAGE]: '🛠️ 📣',
   [Permission.PRODUCT_PUSH_DELIVERY_READ]: '👁️ 📬',
   [Permission.PRODUCT_PUSH_MANAGE]: '🛠️ 🔔',
+  [Permission.PRODUCT_JSON_ENDPOINT_READ]: '👁️ JSON',
+  [Permission.PRODUCT_JSON_ENDPOINT_WRITE]: '✍️ JSON',
+  [Permission.PRODUCT_JSON_ENDPOINT_MANAGE]: '🛠️ JSON',
 }
 
 export const productActionLabel = (permission: string) => {

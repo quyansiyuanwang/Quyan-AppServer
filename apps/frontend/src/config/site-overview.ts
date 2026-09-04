@@ -16,6 +16,7 @@ export const siteOverviewMetricProfileIds = [
   'product-verification',
   'product-ip_geolocation',
   'product-push',
+  'product-json_endpoint',
   'product-oj',
   'management-core',
   'management-ai',

@@ -149,6 +149,9 @@ export const sendPushBodySchema = z.object({
   content: z.string().trim().min(1).max(10_000),
   idempotencyKey: z.string().trim().min(1).max(100).optional(),
 });
+export const updateJsonEndpointBodySchema = z.object({
+  jsonContent: z.unknown(),
+});
 
 export const quotaOverrideIdParamsSchema = z.object({ id: z.string().trim().min(1) });
 export const upsertQuotaOverrideBodySchema = z.object({

@@ -26,16 +26,19 @@ type ProductCode =
   | 'verification'
   | 'ip_geolocation'
   | 'push'
+  | 'json_endpoint'
 type ProductSiteDefinition = SiteDefinition & { id: `product-${ProductCode}` }
 
 const productDefinitions: readonly ProductSiteDefinition[] = (
-  ['kv', 'short_link', 'secret', 'status', 'verification', 'ip_geolocation', 'push'] as const
+  ['kv', 'short_link', 'secret', 'status', 'verification', 'ip_geolocation', 'push', 'json_endpoint'] as const
 ).map((product) => {
   const slug =
     product === 'short_link'
       ? 'short-link'
       : product === 'ip_geolocation'
         ? 'ip-geolocation'
+        : product === 'json_endpoint'
+          ? 'json-endpoints'
         : product
   const id = `product-${product}` as const
 
@@ -59,7 +62,9 @@ const productDefinitions: readonly ProductSiteDefinition[] = (
                 ? 'nav.productVerification'
                 : product === 'ip_geolocation'
                   ? 'nav.productIpGeolocation'
-                  : 'nav.productPush',
+                  : product === 'push'
+                    ? 'nav.productPush'
+                    : 'nav.productJsonEndpoints',
   } satisfies ProductSiteDefinition
 })
 

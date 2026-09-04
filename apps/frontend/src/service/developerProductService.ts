@@ -236,6 +236,14 @@ export class DeveloperProductService {
     return this.unwrap(await resourceApi().listPushDeliveries({ path: { instanceId } }))
   }
 
+  async getJsonEndpointResource(instanceId: string) {
+    return this.unwrap(await resourceApi().getJsonEndpoint({ path: { instanceId } }))
+  }
+
+  async updateJsonEndpointResource(instanceId: string, jsonContent: unknown) {
+    return this.unwrap(await resourceApi().updateJsonEndpoint({ path: { instanceId }, body: { jsonContent } }))
+  }
+
   async listConfigs() {
     return this.unwrap(await adminApi().listConfigs({}))
   }

@@ -114,6 +114,7 @@ for (const product of [
   'verification',
   'ip_geolocation',
   'push',
+  'json_endpoint',
 ]) {
   legacyRoutePathByName[`product-${product}`] = `/products/${product}`
   legacyRoutePathByName[`product-management-${product}`] = `/products/${product}/management`
@@ -134,6 +135,7 @@ const productEntries = [
   'verification',
   'ip_geolocation',
   'push',
+  'json_endpoint',
 ] as const
 
 const productUserPaths: Record<(typeof productEntries)[number], string> = {
@@ -144,6 +146,7 @@ const productUserPaths: Record<(typeof productEntries)[number], string> = {
   verification: '/verification',
   ip_geolocation: '/lookup',
   push: '/channels',
+  json_endpoint: '/endpoints',
 }
 
 export const routeCatalog = attachLegacyPaths([
@@ -161,6 +164,7 @@ export const routeCatalog = attachLegacyPaths([
   { name: 'productVerificationOverview', group: 'product-verification', path: '/overview' },
   { name: 'productIpGeolocationOverview', group: 'product-ip_geolocation', path: '/overview' },
   { name: 'productPushOverview', group: 'product-push', path: '/overview' },
+  { name: 'productJsonEndpointOverview', group: 'product-json_endpoint', path: '/overview' },
   { name: 'ojOverview', group: 'product-oj', path: '/overview' },
   { name: 'managementAiOverview', group: 'management-ai', path: '/overview' },
   { name: 'managementDeveloperOverview', group: 'management-developer', path: '/overview' },

@@ -1,5 +1,5 @@
 import type { Component } from 'vue'
-import { Bell, Connection, Key, Link, Lock, Monitor } from '@element-plus/icons-vue'
+import { Bell, Connection, Document, Key, Link, Lock, Monitor } from '@element-plus/icons-vue'
 import type { DeveloperProductCode } from '@appserver/shared'
 import type { RouteName } from '@/types/route-types.gen'
 import { Permission } from '@/constant/permission'
@@ -90,6 +90,17 @@ export const DEVELOPER_PRODUCT_NAVIGATION: readonly DeveloperProductNavigationIt
       Permission.PRODUCT_PUSH_CHANNEL_MANAGE,
       Permission.PRODUCT_PUSH_DELIVERY_READ,
       Permission.PRODUCT_PUSH_MANAGE,
+    ],
+  },
+  {
+    code: 'json_endpoint',
+    urlSlug: 'json-endpoints',
+    labelKey: 'nav.productJsonEndpoints',
+    icon: Document,
+    permissions: [
+      Permission.PRODUCT_JSON_ENDPOINT_READ,
+      Permission.PRODUCT_JSON_ENDPOINT_WRITE,
+      Permission.PRODUCT_JSON_ENDPOINT_MANAGE,
     ],
   },
 ]

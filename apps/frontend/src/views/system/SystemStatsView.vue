@@ -848,8 +848,8 @@ const { isDesktop } = usePageDevice()
 }
 
 .system-stats-container {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   width: 100%;
   min-width: 0;
@@ -972,6 +972,18 @@ const { isDesktop } = usePageDevice()
   .system-stats-page :deep(.el-col-md-8) {
     flex: 0 0 50%;
     max-width: 50%;
+  }
+}
+
+@media (min-width: 1600px) {
+  .system-stats-container {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 991px) {
+  .system-stats-container {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>
