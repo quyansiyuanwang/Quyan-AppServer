@@ -258,6 +258,30 @@ pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
                         };
                     }
                 },
+                KeyCode::Char(shortcut @ '1'..='6') => {
+                    let index = (shortcut as u8 - b'1') as usize;
+                    if let Some(action) = actions.get(index) {
+                        match action.kind {
+                            ActionKind::Relay => {
+                                let mut relay_state = RelayState {
+                                    notice: "Loading Relay Tokens...".into(),
+                                    ..Default::default()
+                                };
+                                refresh_relay(&api, &mut relay_state).await;
+                                screen = Screen::Relay(relay_state);
+                            }
+                            action => {
+                                let (title, content) =
+                                    run_home_action(action, &status, &mut api).await;
+                                screen = Screen::Output {
+                                    selected: index,
+                                    title,
+                                    content,
+                                };
+                            }
+                        }
+                    }
+                }
                 _ => {}
             },
             Screen::Relay(state) => match key.code {
@@ -547,7 +571,7 @@ fn render_home(
         render_footer(
             frame,
             footer,
-            "Up/Down or j/k: select  |  Enter: open  |  q/Esc: exit",
+            "1-6: open item  |  Up/Down or j/k: select  |  Enter: open  |  ?/h: help  |  q/Esc: exit",
         );
         return;
     }
@@ -582,7 +606,7 @@ fn render_home(
     render_footer(
         frame,
         footer,
-        "Up/Down or j/k: select  |  Enter: open selected tool  |  ?/h: help  |  q/Esc: exit",
+        "1-6: open item  |  Up/Down or j/k: select  |  Enter: open  |  ?/h: help  |  q/Esc: exit",
     );
 }
 
@@ -642,7 +666,10 @@ fn render_action_list(
 ) {
     let entries = actions
         .iter()
-        .map(|action| ListItem::new(Line::from(action.label)))
+        .enumerate()
+        .map(|(index, action)| {
+            ListItem::new(Line::from(format!("{}  {}", index + 1, action.label)))
+        })
         .collect::<Vec<_>>();
     render_list(frame, area, entries, selected, " Actions ");
 }
@@ -688,8 +715,9 @@ fn render_home_detail(
 ) {
     let lines = if show_help {
         vec![
-            Line::from("Enter opens interactive tools such as AI Relay."),
-            Line::from("Other entries show the exact command to run."),
+            Line::from("1-6 opens the matching home action immediately."),
+            Line::from("Up/Down or j/k changes selection; Enter opens it."),
+            Line::from("All listed actions perform their described workflow."),
             Line::from("Credentials are stored only in the OS keychain."),
             Line::from("Use --json for machine-readable command output."),
             Line::from("Use --debug for redacted diagnostic logging."),
@@ -699,6 +727,7 @@ fn render_home_detail(
             Line::from(format!("Selected: {}", action.label)),
             Line::from(action.description),
             Line::from(""),
+            Line::from("Keys: Enter opens selected action; 1-6 opens an item directly."),
             Line::from("Command:"),
             Line::from(format!("  {}", action.command))
                 .style(Style::default().add_modifier(Modifier::BOLD)),
@@ -863,6 +892,8 @@ mod tests {
             .expect("render");
         let output = format!("{:?}", terminal.backend().buffer());
         assert!(output.contains("AI 中转"));
+        assert!(output.contains("3  AI 中转"));
+        assert!(output.contains("1-6"));
         assert!(output.contains("按 Enter 打开"));
         assert!(output.contains("Recent events"));
     }

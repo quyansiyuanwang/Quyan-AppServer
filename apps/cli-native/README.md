@@ -22,7 +22,9 @@ the OS keychain.
 Running `quyan` without a subcommand opens the Ratatui control center. It
 shows the shared QuYan ASCII banner, a keyboard-navigable list of account,
 Relay, client configuration, JSON Endpoints and diagnostic workflows, and the
-exact command for the selected action. Use `Up`/`Down` or `j`/`k` to select.
+exact command for the selected action. Use `Up`/`Down` or `j`/`k` to select,
+`Enter` to open the selection, or `1` through `6` to open a home action
+directly. `?` or `h` shows this key guide.
 
 All home actions are active. Browser login runs the OAuth flow, account loads
 profile/balance/usage, JSON Endpoints reads the product instance, and
