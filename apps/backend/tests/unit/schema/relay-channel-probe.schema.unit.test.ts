@@ -133,10 +133,7 @@ describe("relay channel probe schemas", () => {
   it("accepts bounded unique latest-run refresh targets", () => {
     expect(
       relayChannelProbeLatestRunsBodySchema.safeParse({
-        targets: [
-          { channelId: "standalone-a" },
-          { channelId: "pool-a", memberChannelId: "member-a" },
-        ],
+        targets: [{ channelId: "standalone-a" }, { channelId: "pool-a", memberChannelId: "member-a" }],
       }).success,
     ).toBe(true);
     expect(

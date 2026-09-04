@@ -127,8 +127,7 @@ export const relayChannelProbeLatestRunsBodySchema = z.object({
     .max(200)
     .refine(
       (targets) =>
-        new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size ===
-        targets.length,
+        new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size === targets.length,
       "Duplicate probe targets are not allowed",
     ),
 });
