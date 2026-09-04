@@ -4,7 +4,9 @@
 
 Quyan CLI 的正式实现是 `apps/cli-native` 中的 Rust + Ratatui 原生程序，提供账户状态、AI Relay 管理、凭证管理、配置适配和 JSON Endpoints 产品访问。它不依赖 Node.js 运行时。
 
-无子命令执行 `quyan` 时打开 Ratatui 状态页：显示共享的 QuYan 字符画、版本、服务地址、语言、配置路径、凭证配置状态与最近事件。它不会显示任何凭证值；按 `q` 或 `Esc` 退出。配置或系统密钥链不可用时，状态页显示错误并使用安全默认值，以便用户仍能找到诊断信息。
+无子命令执行 `quyan` 时打开 Ratatui 控制台：显示共享的 QuYan 字符画、版本、服务地址、凭证配置状态与最近事件，并提供账户登录、AI Relay、客户端适配、JSON Endpoints、配置与诊断的可导航操作目录。按 `Up`/`Down` 或 `j`/`k` 选择后，右侧显示该操作的说明、所需凭证及可直接执行的命令；`?`/`h` 显示安全与输出帮助，`q` 或 `Esc` 退出。
+
+所有目录项在 TUI 内都有对应实际行为：浏览器登录启动 OAuth 流程，账户概览读取资料/余额/用量，JSON Endpoints 读取产品实例，配置与诊断显示脱敏运行状态。客户端适配在 TUI 中只执行 dry-run，防止单次 Enter 修改 Claude Code 或 Codex CLI 本地文件；实际写入仍须显式执行 `quyan apply`。AI Relay 进入 Token 列表后，`r` 刷新，`Enter` 查询选中 Token 的用量，`c` 创建默认 Quyan CLI Token，`d` 后按 `y` 才会删除 Token，`n` 取消写操作，`b`/`Esc` 返回控制台。Token 原文永不渲染、写入日志或进入事件缓冲区。配置或系统密钥链不可用时，状态页显示错误并使用安全默认值，以便用户仍能找到诊断信息。
 
 ## 目录边界
 

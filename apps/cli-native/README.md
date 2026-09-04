@@ -19,10 +19,19 @@ and `macos-arm64`. Credentials are separated by prefix: `ak_` for account
 APIs, `rlt_` for AI Relay, and `dpk_` for JSON Endpoints. Secrets are stored in
 the OS keychain.
 
-Running `quyan` without a subcommand opens the Ratatui status screen. It shows
-the shared QuYan ASCII banner, runtime endpoints, credential availability,
-configuration path and recent startup events; press `q` or `Esc` to exit.
-It never displays credential values.
+Running `quyan` without a subcommand opens the Ratatui control center. It
+shows the shared QuYan ASCII banner, a keyboard-navigable list of account,
+Relay, client configuration, JSON Endpoints and diagnostic workflows, and the
+exact command for the selected action. Use `Up`/`Down` or `j`/`k` to select.
+
+All home actions are active. Browser login runs the OAuth flow, account loads
+profile/balance/usage, JSON Endpoints reads the product instance, and
+configuration shows safe runtime state. AI client configuration is intentionally
+a `dry-run`; use the explicit `quyan apply` command to write local client
+files. The `AI Relay` item loads Relay Tokens; press `r` to refresh, `Enter`
+to load selected-token usage, `c` to create the default Quyan CLI token, and
+`d` then `y` to confirm deletion. `b` or `Esc` returns to the control center;
+`q` exits. The TUI never displays token values.
 
 Every invocation writes diagnostics to the platform data directory under
 `Quyan/logs`. Add `--debug` to mirror detailed, redacted request lifecycle

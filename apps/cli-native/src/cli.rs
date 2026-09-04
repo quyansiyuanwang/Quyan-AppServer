@@ -289,17 +289,22 @@ pub async fn run() -> Result<()> {
     events.push("INFO", format!("Log file: {}", log.path().display()));
     let config_path = config::path().display().to_string();
     let log_path = log.path().display().to_string();
-    tui::run(tui::StatusView {
-        api_base_url: &cfg.api_base_url,
-        relay_base_url: &cfg.relay_base_url,
-        locale: &cfg.locale,
-        config_path: &config_path,
-        account_configured: creds.access_token.is_some() || creds.access_key.is_some(),
-        relay_configured: creds.relay_token.is_some(),
-        product_configured: creds.product_key.is_some(),
-        log_path: &log_path,
-        events: &events,
-    })
+    let api = ApiClient::new(creds.clone(), &cfg.locale)?;
+    tui::run(
+        tui::StatusView {
+            api_base_url: &cfg.api_base_url,
+            relay_base_url: &cfg.relay_base_url,
+            locale: &cfg.locale,
+            config_path: &config_path,
+            account_configured: creds.access_token.is_some() || creds.access_key.is_some(),
+            relay_configured: creds.relay_token.is_some(),
+            product_configured: creds.product_key.is_some(),
+            log_path: &log_path,
+            events: &events,
+        },
+        api,
+    )
+    .await
 }
 
 async fn dispatch(
@@ -384,7 +389,7 @@ fn print_value(value: Value, json_output: bool) -> Result<()> {
     Ok(())
 }
 
-async fn browser_login(base: &str) -> Result<Credentials> {
+pub(crate) async fn browser_login(base: &str) -> Result<Credentials> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let port = listener.local_addr()?.port();
     let state = uuid::Uuid::new_v4().to_string();
