@@ -2,8 +2,8 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import type {
   ContentSafetyAction as SharedContentSafetyAction,
   RelayConfiguredRequestFormat as SharedRelayFormat,
-} from '@appserver/shared'
-import type { RelayConvertibleRequestFormat } from '@appserver/shared'
+} from '@quyan/shared'
+import type { RelayConvertibleRequestFormat } from '@quyan/shared'
 import StorageKey from '@/constant/storagekey'
 import { MANAGED_STATUS } from '@/constant/status'
 import { i18ns } from '@/locales'

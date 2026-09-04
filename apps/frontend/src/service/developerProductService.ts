@@ -241,7 +241,9 @@ export class DeveloperProductService {
   }
 
   async updateJsonEndpointResource(instanceId: string, jsonContent: unknown) {
-    return this.unwrap(await resourceApi().updateJsonEndpoint({ path: { instanceId }, body: { jsonContent } }))
+    return this.unwrap(
+      await resourceApi().updateJsonEndpoint({ path: { instanceId }, body: { jsonContent } }),
+    )
   }
 
   async listConfigs() {

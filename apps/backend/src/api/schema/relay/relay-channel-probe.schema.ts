@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RELAY_PROBE_FORMATS } from "@appserver/shared";
+import { RELAY_PROBE_FORMATS } from "@quyan/shared";
 
 const variablePathSchema = z.string().trim().min(1).max(200);
 const credentialMapSchema = z.record(z.string().trim().min(1).max(80), z.string().min(1).max(2000));

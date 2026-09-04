@@ -1,4 +1,17 @@
-import { Body, Controller, Delete, Get, Middlewares, Path, Post, Put, Request, Route, Security, Tags } from "@tsoa/runtime";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Middlewares,
+  Path,
+  Post,
+  Put,
+  Request,
+  Route,
+  Security,
+  Tags,
+} from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
 import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
@@ -153,10 +166,7 @@ export class DeveloperProductJsonEndpointApiController extends Controller {
   @Put("")
   @Security("product-key", [Permission.PRODUCT_JSON_ENDPOINT_WRITE])
   @Middlewares(replayProtectionMiddleware, validateBody(updateJsonEndpointBodySchema))
-  public async update(
-    @Body() body: UpdateDeveloperJsonEndpointDto,
-    @Request() request: TypedRequest,
-  ) {
+  public async update(@Body() body: UpdateDeveloperJsonEndpointDto, @Request() request: TypedRequest) {
     return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_JSON_ENDPOINT_WRITE, () =>
       this.products.updateJsonEndpoint(request.productApiKey!.instanceId, body.jsonContent),
     );

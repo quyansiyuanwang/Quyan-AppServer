@@ -6,6 +6,7 @@ describe('git impact helpers', () => {
   test('infers precise commit scopes from changed files', () => {
     expect(suggestScope(['apps/backend/src/api/controllers/v1/relay/channels.ts'])).toBe('relay')
     expect(suggestScope(['apps/frontend/src/views/HomeView.vue'])).toBe('frontend')
+    expect(suggestScope(['apps/cli-native/src/cli.rs'])).toBe('cli')
     expect(suggestScope(['docs/development/11-testing-and-ci.md'])).toBe('docs')
   })
 
@@ -34,6 +35,12 @@ describe('git impact helpers', () => {
         'openapi-generate',
         'backend-database',
       ]),
+    )
+  })
+
+  test('suggests CLI checks for CLI changes', () => {
+    expect(suggestProfiles(['cli'], []).map(({ profile }) => profile)).toEqual(
+      expect.arrayContaining(['cli-type-check', 'cli-test']),
     )
   })
 })

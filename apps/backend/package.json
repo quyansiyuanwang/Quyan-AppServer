@@ -1,5 +1,5 @@
 {
-  "name": "@appserver/backend",
+  "name": "@quyan/backend",
   "version": "1.0.23",
   "description": "",
   "type": "module",
@@ -115,7 +115,7 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "@appserver/shared": "workspace:*",
+    "@quyan/shared": "workspace:*",
     "@simplewebauthn/server": "^13.2.3",
     "@types/node-cron": "^3.0.11",
     "ali-oss": "^6.23.0",

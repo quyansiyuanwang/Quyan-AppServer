@@ -115,7 +115,7 @@ import {
   RelaySseFormatTransform,
   resolveRelayRequestFormatTransform,
 } from "./relay-request-format-transform.service";
-import type { RelayConvertibleRequestFormat } from "@appserver/shared";
+import type { RelayConvertibleRequestFormat } from "@quyan/shared";
 import {
   normalizeAnthropicRequestBeforeSend,
   normalizeRelayTokenNormalizerConfig,

@@ -1,6 +1,6 @@
 import type { Component } from 'vue'
 import { Bell, Connection, Document, Key, Link, Lock, Monitor } from '@element-plus/icons-vue'
-import type { DeveloperProductCode } from '@appserver/shared'
+import type { DeveloperProductCode } from '@quyan/shared'
 import type { RouteName } from '@/types/route-types.gen'
 import { Permission } from '@/constant/permission'
 

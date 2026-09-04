@@ -8,7 +8,7 @@ import { resolveWorkspaceRoot } from '../src/workspace.js'
 let root = ''
 
 beforeEach(async () => {
-  root = await mkdtemp(path.join(os.tmpdir(), 'appserver-mcp-'))
+  root = await mkdtemp(path.join(os.tmpdir(), 'quyan-mcp-'))
   await mkdir(path.join(root, '.git'))
   await writeFile(
     path.join(root, 'notes.md'),

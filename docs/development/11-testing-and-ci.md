@@ -9,20 +9,20 @@
 pnpm run test
 
 # Backend
-pnpm --filter @appserver/backend run test:unit
-pnpm --filter @appserver/backend run test:database
-pnpm --filter @appserver/backend run test:integration
-pnpm --filter @appserver/backend run test:contract
-pnpm --filter @appserver/backend run test:runtime
-pnpm --filter @appserver/backend run test:db:clean
+pnpm --filter @quyan/backend run test:unit
+pnpm --filter @quyan/backend run test:database
+pnpm --filter @quyan/backend run test:integration
+pnpm --filter @quyan/backend run test:contract
+pnpm --filter @quyan/backend run test:runtime
+pnpm --filter @quyan/backend run test:db:clean
 
 # Frontend
-pnpm --filter @appserver/frontend run test:node
-pnpm --filter @appserver/frontend run test:dom
-pnpm --filter @appserver/frontend run test:taxonomy
+pnpm --filter @quyan/frontend run test:node
+pnpm --filter @quyan/frontend run test:dom
+pnpm --filter @quyan/frontend run test:taxonomy
 ```
 
-`pnpm run test` 通过 pnpm 并行启动两个应用；应用内部的调度由 Vitest 管理。开发时不要因局部修改默认运行根级全量命令。
+`pnpm run test` 通过 pnpm 并行启动 backend、frontend 和 CLI；应用内部的调度由 Vitest 管理。开发时不要因局部修改默认运行根级全量命令。
 
 ## 分类与并行边界
 
@@ -61,7 +61,7 @@ worker 启动时接收独立 `DATABASE_URL` 和 Redis DB；每个数据库测试
 
 ## 故障处理
 
-- `Cannot find module '.prisma/client/default'`：使用仓库测试命令运行；运行器会先生成 Prisma Client。若单独执行 Vitest，先运行 `pnpm --filter @appserver/backend run db:generate`。
-- 数据库测试中断：运行 `pnpm --filter @appserver/backend run test:db:clean`，不要手工删除未知数据库。
+- `Cannot find module '.prisma/client/default'`：使用仓库测试命令运行；运行器会先生成 Prisma Client。若单独执行 Vitest，先运行 `pnpm --filter @quyan/backend run db:generate`。
+- 数据库测试中断：运行 `pnpm --filter @quyan/backend run test:db:clean`，不要手工删除未知数据库。
 - Redis 不可用：本地未启用 Redis 清理时可继续运行不依赖 Redis 的数据库测试；CI 及显式 Redis 清理模式会快速失败。
 - 分类校验失败：按文件真实依赖移动测试，保持目录与后缀约定；DOM 测试补充 jsdom 文件注释。

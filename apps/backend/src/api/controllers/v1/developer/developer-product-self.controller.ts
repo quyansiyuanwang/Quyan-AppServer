@@ -34,7 +34,7 @@ import {
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams } from "@/middleware/validation";
-import { DEVELOPER_PRODUCTS, type DeveloperProductCode } from "@appserver/shared";
+import { DEVELOPER_PRODUCTS, type DeveloperProductCode } from "@quyan/shared";
 
 @Route("v1/products")
 @Tags("Developer Products")

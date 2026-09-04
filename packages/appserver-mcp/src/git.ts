@@ -29,6 +29,11 @@ function classifyFiles(files: string[]): {
       domains.add('frontend')
       skills.add('appserver-frontend-development')
     }
+    if (file.startsWith('apps/cli-native/')) {
+      domains.add('cli')
+      skills.add('appserver-contracts')
+      skills.add('appserver-testing-ci')
+    }
     if (file.startsWith('packages/')) {
       domains.add('shared')
       skills.add('appserver-contracts')
@@ -125,6 +130,7 @@ export function suggestScope(files: string[]): string | undefined {
     ['apps/backend/src/api/controllers/v1/relay/', 'relay'],
     ['apps/backend/src/api/controllers/v1/chat/', 'chat'],
     ['apps/frontend/src/', 'frontend'],
+    ['apps/cli-native/', 'cli'],
     ['apps/backend/', 'backend'],
     ['packages/shared/', 'shared'],
     ['.github/', 'ci'],

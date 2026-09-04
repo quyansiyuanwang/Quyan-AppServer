@@ -5,5 +5,5 @@ export {
   parseAllowedModelsJson,
   parseRelayModelNameConstraint,
   resolveModelId,
-} from "@appserver/shared";
-export type { ModelIdentityLike, RelayModelNameConstraint } from "@appserver/shared";
+} from "@quyan/shared";
+export type { ModelIdentityLike, RelayModelNameConstraint } from "@quyan/shared";

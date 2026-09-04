@@ -50,8 +50,8 @@ apps/docs-site/src/docs/modules/<domain>/index.ts
 
 ```bash
 pnpm exec prettier --write <changed-docs-files>
-pnpm --filter @appserver/docs-site run type-check
-pnpm --filter @appserver/docs-site exec eslint <changed-source-files>
+pnpm --filter @quyan/docs-site run type-check
+pnpm --filter @quyan/docs-site exec eslint <changed-source-files>
 git diff --check
 ```
 

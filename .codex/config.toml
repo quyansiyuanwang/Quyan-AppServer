@@ -1,7 +1,7 @@
-[mcp_servers.appserver]
+[mcp_servers.quyan]
 command = "pnpm"
 args = ["run", "mcp:serve"]
 cwd = "."
 
-[mcp_servers.appserver.env]
-APPSERVER_MCP_ROOT = "."
+[mcp_servers.quyan.env]
+QUYAN_MCP_ROOT = "."

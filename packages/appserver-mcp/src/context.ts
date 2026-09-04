@@ -1,5 +1,7 @@
 const DOCUMENTS = [
   'AGENTS.md',
+  'apps/cli-native/README.md',
+  'docs/development/15-cli.md',
   'docs/development/01-architecture.md',
   'docs/development/02-backend.md',
   'docs/development/03-frontend.md',
@@ -25,6 +27,12 @@ export function getRepositoryContext(domain?: string) {
       'appserver-contracts',
       'appserver-testing-ci',
     ],
+    cli: [
+      'apps/cli-native/',
+      'appserver-contracts',
+      'appserver-testing-ci',
+      'appserver-git-workflow',
+    ],
     relay: [
       'apps/backend/src/services/relay/',
       'appserver-backend-development',
@@ -33,14 +41,19 @@ export function getRepositoryContext(domain?: string) {
     ],
     git: ['.husky/', 'commitlint.config.js', 'appserver-git-workflow', 'appserver-pr-workflow'],
     security: ['SECURITY.md', 'appserver-security', 'appserver-contracts'],
-    testing: ['apps/backend/tests/', 'apps/frontend/tests/', 'appserver-testing-ci'],
+    testing: [
+      'apps/backend/tests/',
+      'apps/frontend/tests/',
+      'apps/cli-native/src/',
+      'appserver-testing-ci',
+    ],
     skills: ['.agents/skills/', 'appserver-skill-authoring', 'AGENTS.md'],
   }
 
   return {
     workspace: 'AppServerMonorepo',
     packageManager: 'pnpm@10.33.0',
-    applications: ['@appserver/backend', '@appserver/frontend', '@appserver/docs-site'],
+    applications: ['@quyan/backend', '@quyan/frontend', '@quyan/docs-site', 'quyan-native'],
     skills: [
       'appserver-backend-development',
       'appserver-frontend-development',
@@ -51,6 +64,7 @@ export function getRepositoryContext(domain?: string) {
       'appserver-git-workflow',
       'appserver-skill-authoring',
       'appserver-vue-view-splitting',
+      'appserver-docs-site-development',
     ],
     documents: DOCUMENTS,
     scripts: [
@@ -66,6 +80,7 @@ export function getRepositoryContext(domain?: string) {
       'Controller/DTO/schema 变更必须生成 OpenAPI',
       '局部变更优先精确测试，数据库测试使用 worker 隔离',
       'src/client 为生成文件，禁止手动编辑',
+      'apps/cli-native 使用 Rust 和 Ratatui；OpenAPI client 由 Progenitor 在 build.rs 中生成',
     ],
   }
 }

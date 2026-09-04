@@ -1,4 +1,4 @@
-import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from "@appserver/shared";
+import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from "@quyan/shared";
 
 export interface TimePeriodMultiplierRule {
   name: string;

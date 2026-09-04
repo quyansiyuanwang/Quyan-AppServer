@@ -1,5 +1,5 @@
 import type { RelayChannelType, RelayChannelVisibilityMode } from "@/api/dto/relay/relay-channel.dto";
-import type { RelayConfiguredRequestFormat, RelayProbeFormat } from "@appserver/shared";
+import type { RelayConfiguredRequestFormat, RelayProbeFormat } from "@quyan/shared";
 
 export type RelayChannelProbeFormat = RelayProbeFormat;
 export type RelayChannelProbeEndpoint =

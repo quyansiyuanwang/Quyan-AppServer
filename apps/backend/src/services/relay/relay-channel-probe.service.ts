@@ -38,7 +38,7 @@ import {
   type RelayConfiguredRequestFormat,
   type RelayProbeFormat,
   type RelayRequestFormat,
-} from "@appserver/shared";
+} from "@quyan/shared";
 import type {
   ApplyRelayChannelProbeRunsRequest,
   ApplyRelayChannelProbeRunsResponse,

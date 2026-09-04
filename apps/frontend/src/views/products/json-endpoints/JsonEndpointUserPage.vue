@@ -1,5 +1,10 @@
 <template>
-  <ProductConsoleShell product="json_endpoint" :title="copy.name" :description="copy.description" :actions="copy.actions">
+  <ProductConsoleShell
+    product="json_endpoint"
+    :title="copy.name"
+    :description="copy.description"
+    :actions="copy.actions"
+  >
     <template #default="{ instance, hasPermission }">
       <JsonEndpointPanel :instance="instance" :has-permission="hasPermission" />
     </template>

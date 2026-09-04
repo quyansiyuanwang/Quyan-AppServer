@@ -16366,7 +16366,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:create"
+						]
 					}
 				],
 				"parameters": [],
@@ -16406,7 +16408,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:read"
+						]
 					}
 				],
 				"parameters": [
@@ -16459,7 +16463,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:read"
+						]
 					}
 				],
 				"parameters": [],
@@ -16495,7 +16501,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:create"
+						]
 					}
 				],
 				"parameters": [],
@@ -16537,7 +16545,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:read"
+						]
 					}
 				],
 				"parameters": [
@@ -16665,7 +16675,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:read"
+						]
 					}
 				],
 				"parameters": [
@@ -16714,7 +16726,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:delete"
+						]
 					}
 				],
 				"parameters": [
@@ -16761,7 +16775,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [
@@ -16812,7 +16828,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [
@@ -16866,7 +16884,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:create"
+						]
 					}
 				],
 				"parameters": [],
@@ -16908,7 +16928,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:create"
+						]
 					}
 				],
 				"parameters": [
@@ -16959,7 +16981,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [
@@ -17000,7 +17024,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [
@@ -17049,7 +17075,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [],
@@ -17091,7 +17119,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [],
@@ -17133,7 +17163,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:delete"
+						]
 					}
 				],
 				"parameters": [],
@@ -17175,7 +17207,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17234,7 +17268,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17311,7 +17347,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17401,7 +17439,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17436,7 +17476,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": []
@@ -17462,7 +17504,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17514,7 +17558,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17688,7 +17734,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17763,7 +17811,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17851,7 +17901,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": []
@@ -17881,7 +17933,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17928,7 +17982,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17967,7 +18023,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": []
@@ -28305,7 +28363,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"balance:read"
+						]
 					}
 				],
 				"parameters": []
@@ -28331,7 +28391,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"balance:read"
+						]
 					}
 				],
 				"parameters": []
@@ -28679,7 +28741,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"balance:read"
+						]
 					}
 				],
 				"parameters": [

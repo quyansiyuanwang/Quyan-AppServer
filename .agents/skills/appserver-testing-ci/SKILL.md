@@ -25,15 +25,15 @@ description: 为 AppServerMonorepo 选择、运行、排查和维护 Vitest 测�
 ## 常用命令
 
 ```bash
-pnpm --filter @appserver/backend run test:unit
-pnpm --filter @appserver/backend run test:database
-pnpm --filter @appserver/backend run test:integration
-pnpm --filter @appserver/backend run test:contract
-pnpm --filter @appserver/backend run test:runtime
-pnpm --filter @appserver/backend run test:db:clean
-pnpm --filter @appserver/frontend run test:node
-pnpm --filter @appserver/frontend run test:dom
-pnpm --filter @appserver/frontend run test:taxonomy
+pnpm --filter @quyan/backend run test:unit
+pnpm --filter @quyan/backend run test:database
+pnpm --filter @quyan/backend run test:integration
+pnpm --filter @quyan/backend run test:contract
+pnpm --filter @quyan/backend run test:runtime
+pnpm --filter @quyan/backend run test:db:clean
+pnpm --filter @quyan/frontend run test:node
+pnpm --filter @quyan/frontend run test:dom
+pnpm --filter @quyan/frontend run test:taxonomy
 ```
 
 后端依赖关联选择使用 `test:related`；仅在明确需要全量验证时运行根 `pnpm run test`。

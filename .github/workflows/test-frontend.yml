@@ -97,10 +97,10 @@ jobs:
       - name: Generate frontend SDK test prerequisite
         if: steps.frontend-sdk-cache.outputs.cache-hit != 'true'
         run: |
-          pnpm --filter @appserver/backend run build:info:stub
-          pnpm --filter @appserver/backend run openapi:generate
+          pnpm --filter @quyan/backend run build:info:stub
+          pnpm --filter @quyan/backend run openapi:generate
           node scripts/sync-swagger-to-frontend.mjs
-          pnpm --filter @appserver/frontend run openapi:generate
+          pnpm --filter @quyan/frontend run openapi:generate
       - name: Run the selected frontend suite
         env:
           CHANGED_FILES: ${{ needs.changes.outputs.files }}
@@ -109,9 +109,9 @@ jobs:
           MANUAL_SUITE: ${{ inputs.suite }}
         run: |
           if [ "${MANUAL_SUITE}" = "full" ] || [ "${FULL_CHANGED}" = "true" ]; then
-            pnpm --filter @appserver/frontend run test
+            pnpm --filter @quyan/frontend run test
           elif [ "${MANUAL_SUITE}" = "api" ] || [ "${API_CHANGED}" = "true" ]; then
-            pnpm --filter @appserver/frontend run test
+            pnpm --filter @quyan/frontend run test
           else
             node scripts/run-related-vitest.mjs apps/frontend apps/frontend "$CHANGED_FILES"
           fi

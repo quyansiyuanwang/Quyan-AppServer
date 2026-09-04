@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Validates that frontend and backend both re-export the canonical Permission
- * enum from @appserver/shared, and that frontend PERMISSION_META covers every
+ * enum from @quyan/shared, and that frontend PERMISSION_META covers every
  * enum member.
  *
  * Parses TypeScript source text directly via regex -- no jiti/tsx dependency.
@@ -51,7 +51,7 @@ function hasLocalEnum(filePath) {
 
 function hasSharedReExport(filePath) {
   const text = fs.readFileSync(filePath, 'utf-8')
-  return /@appserver\/shared/.test(text)
+  return /@quyan\/shared/.test(text)
 }
 
 // Parse canonical enum from shared package
@@ -64,26 +64,26 @@ let failed = false
 
 // Verify frontend re-exports from shared (no local enum)
 if (hasLocalEnum(frontendFile)) {
-  console.error('❌ Frontend permission.ts should not define a local Permission enum - it must re-export from @appserver/shared')
+  console.error('❌ Frontend permission.ts should not define a local Permission enum - it must re-export from @quyan/shared')
   failed = true
 }
 if (!hasSharedReExport(frontendFile)) {
-  console.error('❌ Frontend permission.ts must re-export from @appserver/shared')
+  console.error('❌ Frontend permission.ts must re-export from @quyan/shared')
   failed = true
 } else {
-  console.log('✅ Frontend re-exports from @appserver/shared')
+  console.log('✅ Frontend re-exports from @quyan/shared')
 }
 
 // Verify backend re-exports from shared (no local enum)
 if (hasLocalEnum(backendFile)) {
-  console.error('❌ Backend permission.ts should not define a local Permission enum - it must re-export from @appserver/shared')
+  console.error('❌ Backend permission.ts should not define a local Permission enum - it must re-export from @quyan/shared')
   failed = true
 }
 if (!hasSharedReExport(backendFile)) {
-  console.error('❌ Backend permission.ts must re-export from @appserver/shared')
+  console.error('❌ Backend permission.ts must re-export from @quyan/shared')
   failed = true
 } else {
-  console.log('✅ Backend re-exports from @appserver/shared')
+  console.log('✅ Backend re-exports from @quyan/shared')
 }
 
 // Verify frontend PERMISSION_META covers all canonical enum members

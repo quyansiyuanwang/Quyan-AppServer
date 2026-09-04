@@ -20,6 +20,7 @@
 | [12-git-workflow-and-mcp.md](./12-git-workflow-and-mcp.md) | Git 交付、commit hook 与项目 MCP                              |
 | [13-docs-site.md](./13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                            |
 | [14-domain-deployment.md](./14-domain-deployment.md)       | 多域名、反代、Cookie 与 CORS 运维部署                         |
+| [15-cli.md](./15-cli.md)                                   | Quyan CLI 架构、凭证边界与验证                                |
 
 ## 快速导航
 
@@ -39,6 +40,7 @@
 - **如何规范提交和使用项目 MCP** → [12-git-workflow-and-mcp.md](./12-git-workflow-and-mcp.md)
 - **如何同步和编写 docs-site 文档** → [13-docs-site.md](./13-docs-site.md)
 - **如何配置多域名与认证 Cookie** → [14-domain-deployment.md](./14-domain-deployment.md)
+- **如何开发和验证 CLI** → [15-cli.md](./15-cli.md)
 - **开源前如何检查安全配置** → [SECURITY.md](../../SECURITY.md)
 
 ### 常用命令速查
@@ -47,28 +49,33 @@
 cd AppServerMonorepo
 
 # 开发
-pnpm run dev                     # 并行启动 backend + frontend + docs-site
+pnpm run dev                     # 并行启动 backend + frontend + docs-site（CLI 单独启动）
 pnpm run dev:backend             # 只启动后端 (port 10001)
 pnpm run dev:frontend            # 只启动前端 (port 5173)
 pnpm run dev:docs                # 只启动文档站点 (port 4173)
+pnpm run dev:cli                 # 启动 Quyan CLI
 
 # OpenAPI
-pnpm run openapi:gen:all         # 完整流水线（后端 spec → 同步 → 前端客户端）
+pnpm run openapi:gen:all         # 完整流水线（后端 spec → 前端/CLI 客户端）
 
-# 测试：根级命令并行运行两个应用
+# 测试：根级命令并行运行 backend、frontend 和 CLI
 pnpm run test
 
 # 后端：按测试层级选择
-pnpm --filter @appserver/backend run test:unit
-pnpm --filter @appserver/backend run test:database
-pnpm --filter @appserver/backend run test:integration
-pnpm --filter @appserver/backend run test:contract
-pnpm --filter @appserver/backend run test:runtime
+pnpm --filter @quyan/backend run test:unit
+pnpm --filter @quyan/backend run test:database
+pnpm --filter @quyan/backend run test:integration
+pnpm --filter @quyan/backend run test:contract
+pnpm --filter @quyan/backend run test:runtime
 
 # 前端：Node 与 DOM 分层
-pnpm --filter @appserver/frontend run test:node
-pnpm --filter @appserver/frontend run test:dom
-pnpm --filter @appserver/frontend run test:taxonomy
+pnpm --filter @quyan/frontend run test:node
+pnpm --filter @quyan/frontend run test:dom
+pnpm --filter @quyan/frontend run test:taxonomy
+
+# CLI
+pnpm run check:cli:native
+cargo test --manifest-path apps/cli-native/Cargo.toml
 
 # 本地 Git 交付与 MCP
 pnpm run mcp:serve              # 启动本机 stdio MCP server

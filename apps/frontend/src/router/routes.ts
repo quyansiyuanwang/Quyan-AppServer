@@ -728,7 +728,10 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-json_endpoint',
-                component: lazyFeatureView('products', 'json-endpoints/JsonEndpointManagementPage.vue'),
+                component: lazyFeatureView(
+                  'products',
+                  'json-endpoints/JsonEndpointManagementPage.vue',
+                ),
                 props: { product: 'json_endpoint' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },

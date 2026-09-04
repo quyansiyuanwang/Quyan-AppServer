@@ -5,7 +5,7 @@ import {
   RELAY_REQUEST_FORMAT_ORDER,
   resolveModelId,
   type RelayConfiguredRequestFormat,
-} from "@appserver/shared";
+} from "@quyan/shared";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { BadRequestError } from "@/util/errors";
 import logger from "@/util/logger";

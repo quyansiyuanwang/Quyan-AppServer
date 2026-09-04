@@ -252,7 +252,7 @@
 
 <script setup lang="ts">
 import { computed, type PropType } from 'vue'
-import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from '@appserver/shared'
+import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from '@quyan/shared'
 import { Delete, Plus, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'

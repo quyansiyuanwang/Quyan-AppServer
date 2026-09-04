@@ -2,7 +2,7 @@ import {
   ALL_RELAY_REQUEST_FORMATS,
   RELAY_REQUEST_FORMATS,
   type RelayConfiguredRequestFormat,
-} from '@appserver/shared'
+} from '@quyan/shared'
 
 export type RelayFormat = RelayConfiguredRequestFormat
 

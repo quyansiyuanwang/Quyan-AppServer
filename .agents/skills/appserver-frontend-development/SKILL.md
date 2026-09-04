@@ -16,7 +16,7 @@ description: 实现或审查 AppServerMonorepo Vue 前端改动。涉及页面�
 5. 复用 request store 的 JWT 注入、刷新、进度、重放请求头与 custom-code/event-bus 处理。
 6. 同步维护 `zh-CN`、`en`、`emoji` 的 locale key。
 7. 沿用 Element Plus 与现有响应式模式；客户端检查不能掩盖服务端的授权失败。
-8. 后端契约变更时执行 `pnpm run openapi:gen:all`，再执行最小相关 Node/DOM 测试和 `pnpm --filter @appserver/frontend run type-check`。
+8. 后端契约变更时执行 `pnpm run openapi:gen:all`，再执行最小相关 Node/DOM 测试和 `pnpm --filter @quyan/frontend run type-check`。
 9. 所有可能持续增长的表格、记录列表和资源列表必须使用服务端分页或等价的分段加载；维护页码、每页条数和总数，翻页/改页大小重新请求，并在增删改后刷新列表。仅有明确上限的静态列表可免除分页。
 10. Relay 混池编辑按服务端 `channelTopologyMode` 构建候选与保存载荷：legacy 普通混池保留 `poolMembers` 并允许移除成员；strict 普通混池以 `pooled-member` 和 `pooledParentId` 批量绑定；自动代理池只保存逻辑 `pooled` 成员。父混池选项使用分页读取，管理接口为空或失败时回退完整详情接口，并重置旧选项和可见加载/空/失败状态。
 

@@ -26,12 +26,13 @@
 ```
 AppServerMonorepo/
 ├── apps/
-│   ├── backend/           # @appserver/backend    Express + Prisma + TSOA (port 10001)
-│   ├── frontend/          # @appserver/frontend   Vue 3 + Element Plus + Vite (port 5173)
-│   └── docs-site/         # @appserver/docs-site  Vue 3 文档站点
+│   ├── backend/           # @quyan/backend    Express + Prisma + TSOA (port 10001)
+│   ├── frontend/          # @quyan/frontend   Vue 3 + Element Plus + Vite (port 5173)
+│   ├── docs-site/         # @quyan/docs-site  Vue 3 文档站点
+│   └── cli-native/        # quyan            Rust + Ratatui CLI
 ├── packages/
-│   ├── shared/            # @appserver/shared     前后端共享类型与常量（权限、错误码等）
-│   └── appserver-mcp/     # @appserver/mcp        AI 代理 stdio MCP
+│   ├── shared/            # @quyan/shared     前后端共享类型与常量（权限、错误码等）
+│   └── appserver-mcp/     # @quyan/mcp        AI 代理 stdio MCP
 ├── integrations/          # 独立 git 子模块（server-sdk、remote-agent）
 ├── products/              # 独立产品子模块（remote-terminal-cloud）
 ├── deployment/            # Nginx 反向代理示例
@@ -46,14 +47,16 @@ AppServerMonorepo/
 ## 常用命令
 
 ```bash
-pnpm run dev                     # 并行启动 backend + frontend + docs-site
+pnpm run dev                     # 并行启动 backend + frontend + docs-site（CLI 单独启动）
 pnpm run dev:frontend            # 只启动前端
 pnpm run dev:backend             # 只启动后端
 pnpm run dev:docs                # 启动文档站点
+pnpm run dev:cli                 # 启动 Quyan CLI
 pnpm run build                   # 构建所有项目
 pnpm run build:backend           # 只构建后端
 pnpm run build:frontend          # 只构建前端
 pnpm run build:docs              # 只构建文档站点
+pnpm run build:cli               # 只构建 CLI
 pnpm run openapi:gen:all         # 完整 OpenAPI 生成流水线
 pnpm run test                    # 运行所有测试
 pnpm run lint                    # 运行所有 lint
@@ -66,14 +69,15 @@ pnpm run type-check              # 所有项目类型检查
 ### 针对单个项目
 
 ```bash
-pnpm --filter @appserver/backend dev        # 后端 dev
-pnpm --filter @appserver/backend test       # 后端测试
-pnpm --filter @appserver/backend test:unit  # 后端单元测试
-pnpm --filter @appserver/backend test:api   # 后端集成+契约测试
-pnpm --filter @appserver/backend build      # 后端构建
-pnpm --filter @appserver/frontend dev       # 前端 dev
-pnpm --filter @appserver/frontend build     # 前端构建
-pnpm --filter @appserver/docs-site dev      # 文档站点 dev
+pnpm --filter @quyan/backend dev        # 后端 dev
+pnpm --filter @quyan/backend test       # 后端测试
+pnpm --filter @quyan/backend test:unit  # 后端单元测试
+pnpm --filter @quyan/backend test:api   # 后端集成+契约测试
+pnpm --filter @quyan/backend build      # 后端构建
+pnpm --filter @quyan/frontend dev       # 前端 dev
+pnpm --filter @quyan/frontend build     # 前端构建
+pnpm --filter @quyan/docs-site dev      # 文档站点 dev
+cargo run --manifest-path apps/cli-native/Cargo.toml # CLI dev
 ```
 
 ## 测试选择工作流
@@ -82,8 +86,8 @@ pnpm --filter @appserver/docs-site dev      # 文档站点 dev
 
 | 变更范围                                                 | 必需验证                                                               | 仅在需要时扩大                             |
 | -------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------ |
-| 单个后端 util/service/repository                         | 对应 Vitest 文件 + `pnpm --filter @appserver/backend type-check`       | 该模块的相邻单测                           |
-| 单个前端组件/composable/store                            | 对应组件测试（如存在）+ `pnpm --filter @appserver/frontend type-check` | 该页面的相关测试                           |
+| 单个后端 util/service/repository                         | 对应 Vitest 文件 + `pnpm --filter @quyan/backend type-check`       | 该模块的相邻单测                           |
+| 单个前端组件/composable/store                            | 对应组件测试（如存在）+ `pnpm --filter @quyan/frontend type-check` | 该页面的相关测试                           |
 | Controller、DTO、Zod schema、TSOA 路由                   | `pnpm run openapi:gen:all` + 对应 API/单测 + 后端类型检查              | 前端类型检查（生成客户端被业务代码使用时） |
 | Prisma schema/迁移、认证、权限、共享包、跨应用契约       | 受影响单测/API 测试 + 相关应用类型检查                                 | 合并前执行完整 `precommit`                 |
 | 发布候选、明确要求全量、无法可靠限定影响面的基础设施改动 | `pnpm run precommit`；仅用户明确要求时再执行 `pnpm run test`           | 生产构建按发布流程执行                     |
@@ -93,17 +97,17 @@ pnpm --filter @appserver/docs-site dev      # 文档站点 dev
 运行 Vitest 时必须传入精确文件或目录，例如：
 
 ```bash
-pnpm --filter @appserver/backend test -- tests/unit/utils/developer-outbound-url.util.test.ts
-pnpm --filter @appserver/frontend test -- tests/utils/relay-formats.test.ts
+pnpm --filter @quyan/backend test -- tests/unit/utils/developer-outbound-url.util.test.ts
+pnpm --filter @quyan/frontend test -- tests/utils/relay-formats.test.ts
 ```
 
 执行验证前说明所选范围；完成后报告实际执行的命令和未执行的高成本检查。若修改后端 Controller/DTO/schema，OpenAPI 生成仍是强制步骤，不能因测试范围缩小而跳过。
 
 ### Prisma 迁移生成
 
-修改 `apps/backend/prisma/schema.prisma` 时，迁移 SQL 必须通过 `pnpm --filter @appserver/backend exec prisma migrate dev --name <migration-name>` 生成并执行。包装脚本已内置 `--name`，使用时传入名称即可：`pnpm run db:migrate:dev -- <migration-name>`。禁止手写、复制或事后编辑 `prisma/migrations/*/migration.sql`；生产环境只使用已提交迁移的 `pnpm run db:migrate` / `prisma migrate deploy`。
+修改 `apps/backend/prisma/schema.prisma` 时，迁移 SQL 必须通过 `pnpm --filter @quyan/backend exec prisma migrate dev --name <migration-name>` 生成并执行。包装脚本已内置 `--name`，使用时传入名称即可：`pnpm run db:migrate:dev -- <migration-name>`。禁止手写、复制或事后编辑 `prisma/migrations/*/migration.sql`；生产环境只使用已提交迁移的 `pnpm run db:migrate` / `prisma migrate deploy`。
 
-## 共享包 `@appserver/shared`
+## 共享包 `@quyan/shared`
 
 前后端共享的类型与常量，是权限、错误码等定义的**唯一规范数据源**。位于 `packages/shared/src/`：
 
@@ -118,7 +122,7 @@ pnpm --filter @appserver/frontend test -- tests/utils/relay-formats.test.ts
 | `client-fingerprint.ts` | 客户端指纹规范化                                     |
 | `notification-event.ts` | 通知事件枚举（25 个）                                |
 
-前后端通过 `"@appserver/shared": "workspace:*"` 依赖引用。**修改共享包后前后端自动生效。**
+前后端通过 `"@quyan/shared": "workspace:*"` 依赖引用。**修改共享包后前后端自动生效。**
 
 ## OpenAPI 生成流水线
 
@@ -210,6 +214,7 @@ pnpm run openapi:gen:all          # 完整流水线
 | [12-git-workflow-and-mcp.md](./docs/development/12-git-workflow-and-mcp.md) | Git 交付、commit hook 与项目 MCP                     |
 | [13-docs-site.md](./docs/development/13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                   |
 | [14-domain-deployment.md](./docs/development/14-domain-deployment.md)       | 多域名、Cookie、CORS 与部署边界                       |
+| [15-cli.md](./docs/development/15-cli.md)                                   | Quyan CLI 架构、凭证边界与验证                         |
 
 各项目的 CLAUDE.md/AGENTS.md 位于：
 

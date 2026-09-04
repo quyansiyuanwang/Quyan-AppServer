@@ -3,7 +3,7 @@ import type {
   ContentSafetyDirection,
   ContentSafetyRuleType,
   RelayRequestFormat,
-} from "@appserver/shared";
+} from "@quyan/shared";
 
 export interface ContentSafetyRuleDto {
   id: string;

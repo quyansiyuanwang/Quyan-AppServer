@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RELAY_CONVERTIBLE_REQUEST_FORMATS } from "@appserver/shared";
+import { RELAY_CONVERTIBLE_REQUEST_FORMATS } from "@quyan/shared";
 import {
   MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_MAX_AMOUNT_QUOTA,

@@ -1,5 +1,5 @@
-export { MANAGED_STATUS, HEARTBEAT_STATUS } from '@appserver/shared'
-export type { ManagedStatus, HeartbeatStatus } from '@appserver/shared'
+export { MANAGED_STATUS, HEARTBEAT_STATUS } from '@quyan/shared'
+export type { ManagedStatus, HeartbeatStatus } from '@quyan/shared'
 
 export const ACCOUNT_STATUS = {
   DELETED: -1,

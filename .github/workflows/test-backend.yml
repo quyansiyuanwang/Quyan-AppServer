@@ -84,7 +84,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Generate unit test prerequisites
         run: |
-          pnpm --filter @appserver/backend run build:info:stub
+          pnpm --filter @quyan/backend run build:info:stub
       - name: Run selected pure backend tests
         env:
           CHANGED_FILES: ${{ needs.changes.outputs.files }}
@@ -92,7 +92,7 @@ jobs:
           MANUAL_SUITE: ${{ inputs.suite }}
         run: |
           if [ "${MANUAL_SUITE}" = "full" ] || [ "${FULL_CHANGED}" = "true" ]; then
-            pnpm --filter @appserver/backend run test:unit
+            pnpm --filter @quyan/backend run test:unit
           else
             VITEST_PROJECT_SELECTOR=backend-unit node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
           fi
@@ -162,9 +162,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Generate runtime test prerequisites
         run: |
-          pnpm --filter @appserver/backend run build:info:stub
-          pnpm --filter @appserver/backend run openapi:generate
-          pnpm --filter @appserver/backend run db:generate
+          pnpm --filter @quyan/backend run build:info:stub
+          pnpm --filter @quyan/backend run openapi:generate
+          pnpm --filter @quyan/backend run db:generate
       - name: Run selected backend runtime tests
         env:
           CHANGED_FILES: ${{ needs.changes.outputs.files }}
@@ -173,9 +173,9 @@ jobs:
           MANUAL_SUITE: ${{ inputs.suite }}
         run: |
           if [ "${MANUAL_SUITE}" = "full" ] || [ "${FULL_CHANGED}" = "true" ]; then
-            pnpm --filter @appserver/backend run test:runtime
+            pnpm --filter @quyan/backend run test:runtime
           elif [ "${MANUAL_SUITE}" = "api" ] || [ "${API_CHANGED}" = "true" ]; then
-            pnpm --filter @appserver/backend run test:runtime
+            pnpm --filter @quyan/backend run test:runtime
           else
             VITEST_PROJECT_SELECTOR=backend-database,backend-contract node scripts/run-related-vitest.mjs apps/backend apps/backend "$CHANGED_FILES"
           fi

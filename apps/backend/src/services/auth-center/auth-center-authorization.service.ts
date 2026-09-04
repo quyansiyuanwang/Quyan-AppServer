@@ -187,7 +187,16 @@ export class AuthCenterAuthorizationService {
       response_types_supported: ["code"],
       grant_types_supported: ["authorization_code", "refresh_token", "client_credentials"],
       token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post", "none"],
-      scopes_supported: ["profile"],
+      scopes_supported: [
+        "profile",
+        "relay:token:read",
+        "relay:token:create",
+        "relay:token:update",
+        "relay:token:delete",
+        "relay:channel:read",
+        "relay:usage:read",
+        "balance:read",
+      ],
       code_challenge_methods_supported: ["S256", "plain"],
     };
   }

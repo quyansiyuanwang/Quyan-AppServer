@@ -2,7 +2,7 @@
 import { createHash, randomBytes } from "crypto";
 import { Decimal } from "@prisma/client/runtime/library";
 import type { Prisma } from "@prisma/client";
-import { DEVELOPER_PRODUCT_CODES, isDeveloperProductCode, type DeveloperProductCode } from "@appserver/shared";
+import { DEVELOPER_PRODUCT_CODES, isDeveloperProductCode, type DeveloperProductCode } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { Permission } from "@/constant/permission";
 import { CustomCode } from "@/constant/custom-code";
@@ -570,7 +570,12 @@ export class DeveloperProductPlatformService {
   async getJsonEndpoint(instanceId: string, productCode: DeveloperProductCode = "json_endpoint") {
     const endpoint = await prisma.jsonEndpoint.findFirst({
       where: { developerProductInstanceId: instanceId, status: 1 },
-      include: { user: { select: { username: true } }, developerProductInstance: { select: { id: true, name: true, slug: true, entitlement: { select: { productCode: true } } } } },
+      include: {
+        user: { select: { username: true } },
+        developerProductInstance: {
+          select: { id: true, name: true, slug: true, entitlement: { select: { productCode: true } } },
+        },
+      },
     });
     if (!endpoint || endpoint.developerProductInstance?.entitlement.productCode !== productCode)
       throw new NotFoundError("JSON 产品实例不存在");
@@ -589,7 +594,9 @@ export class DeveloperProductPlatformService {
   }
 
   async updateJsonEndpoint(instanceId: string, jsonContent: unknown) {
-    const endpoint = await prisma.jsonEndpoint.findFirst({ where: { developerProductInstanceId: instanceId, status: 1 } });
+    const endpoint = await prisma.jsonEndpoint.findFirst({
+      where: { developerProductInstanceId: instanceId, status: 1 },
+    });
     if (!endpoint) throw new NotFoundError("JSON 产品实例不存在");
     await prisma.jsonEndpoint.update({ where: { id: endpoint.id }, data: { jsonContent: jsonContent as any } });
     return this.getJsonEndpoint(instanceId);

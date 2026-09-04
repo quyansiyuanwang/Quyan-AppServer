@@ -39,7 +39,7 @@ import type {
   UpdateDeveloperJsonEndpointDto,
 } from "@/api/dto/developer/developer.dto";
 import type { DeveloperProductInstanceDto } from "@/api/dto/developer/product-platform.dto";
-import type { DeveloperProductCode } from "@appserver/shared";
+import type { DeveloperProductCode } from "@quyan/shared";
 import {
   createPushChannelBodySchema,
   createShortLinkBodySchema,
