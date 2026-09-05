@@ -4,6 +4,7 @@ import {
   copyRelayChannelProbeProfileBodySchema,
   createRelayChannelProbeRunBodySchema,
   createRelayChannelProbeRunsBodySchema,
+  relayChannelProbeLatestRunsBodySchema,
   upsertRelayChannelProbeProfileBodySchema,
 } from "../../../src/api/schema/relay/relay-channel-probe.schema";
 
@@ -127,6 +128,22 @@ describe("relay channel probe schemas", () => {
       }).success,
     ).toBe(true);
     expect(createRelayChannelProbeRunsBodySchema.safeParse({ channelIds: ["standalone-a"] }).success).toBe(true);
+  });
+
+  it("accepts bounded unique latest-run refresh targets", () => {
+    expect(
+      relayChannelProbeLatestRunsBodySchema.safeParse({
+        targets: [{ channelId: "standalone-a" }, { channelId: "pool-a", memberChannelId: "member-a" }],
+      }).success,
+    ).toBe(true);
+    expect(
+      relayChannelProbeLatestRunsBodySchema.safeParse({
+        targets: [
+          { channelId: "pool-a", memberChannelId: "member-a" },
+          { channelId: "pool-a", memberChannelId: "member-a" },
+        ],
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects duplicate member targets and requests without a target", () => {

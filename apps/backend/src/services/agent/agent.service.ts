@@ -1,7 +1,7 @@
 import { ForbiddenError, NotFoundError, BadRequestError } from "@/util/errors";
 import { randomUUID, createCipheriv, createHash, randomBytes } from "node:crypto";
 import { env } from "@/config/env";
-import type { AgentTaskStatus, AgentWorkspaceStatus, AgentStreamEvent, AgentToolCall } from "@appserver/shared";
+import type { AgentTaskStatus, AgentWorkspaceStatus, AgentStreamEvent, AgentToolCall } from "@quyan/shared";
 import type {
   CreateAgentWorkspaceRequest,
   CreateAgentRunRequest,

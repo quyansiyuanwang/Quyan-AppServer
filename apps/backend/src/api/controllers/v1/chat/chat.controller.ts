@@ -27,7 +27,7 @@ import type {
 import type { SuccessResponse } from "@/api/response";
 import { skipResponseWrapper } from "@/util/response-wrapper";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
-import type { ChatStreamEvent } from "@appserver/shared";
+import type { ChatStreamEvent } from "@quyan/shared";
 
 @Route("v1/chat")
 @Tags("Chat")

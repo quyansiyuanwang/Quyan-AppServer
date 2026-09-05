@@ -16,7 +16,15 @@ export const COMMIT_TYPES = [
 ] as const
 export type CommitType = (typeof COMMIT_TYPES)[number]
 
-export type ImpactDomain = 'backend' | 'frontend' | 'shared' | 'docs' | 'ci' | 'tests' | 'skills'
+export type ImpactDomain =
+  | 'backend'
+  | 'frontend'
+  | 'cli'
+  | 'shared'
+  | 'docs'
+  | 'ci'
+  | 'tests'
+  | 'skills'
 
 export type ImpactRisk = 'openapi' | 'database' | 'security' | 'generated-client'
 

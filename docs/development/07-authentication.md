@@ -122,12 +122,15 @@ permStore.hasAllPermissions([Permission.USER_UPDATE, Permission.USER_DELETE]);
 
 支持标准 OAuth 2.0 授权码流程：
 
-```
-1. GET /v1/oauth/authorize — 用户授权页面
-2. POST /v1/oauth/authorize — 用户确认授权
-3. POST /v1/oauth/token — 客户端换取 token
-4. POST /v1/oauth/revoke — 撤销 token
-```
+1. 浏览器打开认证站 `/oauth/authorize` — 用户授权页面
+2. 认证站页面调用 API `GET /v1/oauth/authorize` — 加载授权预览（需要已登录的 JWT 会话）
+3. 认证站页面调用 API `POST /v1/oauth/authorize` — 用户确认授权
+4. 客户端调用 API `POST /v1/oauth/token` — 换取 token
+5. 客户端调用 API `POST /v1/oauth/revoke` — 撤销 token
+
+`/v1/oauth/authorize` 是受保护的 API，不是可直接在浏览器地址栏打开的页面。
+CLI 或第三方客户端应打开认证站的 `/oauth/authorize`，完成登录后由页面调用 API；
+授权码换取令牌仍使用 API 的 `POST /v1/oauth/token`。
 
 OAuth 客户端通过 `OAuthClient` 模型管理，需要审核（`reviewStatus`）才能上线。
 

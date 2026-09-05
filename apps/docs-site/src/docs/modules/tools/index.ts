@@ -8,6 +8,7 @@ const modules = import.meta.glob<DocsPageModule>('./*.doc.ts', {
 const orderedModulePaths = [
   './support-assistant.doc.ts',
   './debug-tools.doc.ts',
+  './quyan-cli.doc.ts',
   './script-manager.doc.ts',
 ] as const
 

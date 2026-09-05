@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RELAY_UPSTREAM_FORMATS } from "@appserver/shared";
+import { RELAY_UPSTREAM_FORMATS } from "@quyan/shared";
 
 const RELAY_CHANNEL_MULTIPLIER_SCALE = 6;
 // Floating-point tolerance for decimal precision checks.

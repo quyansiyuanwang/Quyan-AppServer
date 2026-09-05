@@ -35,9 +35,11 @@ import type {
   UpdateDeveloperStatusPageDto,
   UpdateShortLinkDto,
   UpsertDeveloperSecretDto,
+  DeveloperJsonEndpointDto,
+  UpdateDeveloperJsonEndpointDto,
 } from "@/api/dto/developer/developer.dto";
 import type { DeveloperProductInstanceDto } from "@/api/dto/developer/product-platform.dto";
-import type { DeveloperProductCode } from "@appserver/shared";
+import type { DeveloperProductCode } from "@quyan/shared";
 import {
   createPushChannelBodySchema,
   createShortLinkBodySchema,
@@ -48,6 +50,7 @@ import {
   updateStatusMonitorBodySchema,
   updateStatusPageBodySchema,
   upsertSecretBodySchema,
+  updateJsonEndpointBodySchema,
 } from "@/api/schema/developer/developer.schema";
 import {
   productResourceAliasParamsSchema,
@@ -83,6 +86,31 @@ export class DeveloperProductResourceController extends Controller {
     if (!secretReference) return;
     await this.context(request, "secret", secretReference.secretInstanceId, Permission.PRODUCT_SECRET_READ);
     await this.context(request, "secret", secretReference.secretInstanceId, Permission.PRODUCT_SECRET_USE);
+  }
+
+  @Get("json-endpoints/instances/{instanceId}")
+  @Middlewares(validateParams(productResourceInstanceParamsSchema))
+  public async getJsonEndpoint(
+    @Path() instanceId: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperJsonEndpointDto> {
+    await this.context(request, "json_endpoint", instanceId, Permission.PRODUCT_JSON_ENDPOINT_READ);
+    return this.products.getJsonEndpoint(instanceId);
+  }
+
+  @Put("json-endpoints/instances/{instanceId}")
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(productResourceInstanceParamsSchema),
+    validateBody(updateJsonEndpointBodySchema),
+  )
+  public async updateJsonEndpoint(
+    @Path() instanceId: string,
+    @Body() body: UpdateDeveloperJsonEndpointDto,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperJsonEndpointDto> {
+    await this.context(request, "json_endpoint", instanceId, Permission.PRODUCT_JSON_ENDPOINT_WRITE);
+    return this.products.updateJsonEndpoint(instanceId, body.jsonContent);
   }
 
   @Get("kv/instances/{instanceId}/entries")

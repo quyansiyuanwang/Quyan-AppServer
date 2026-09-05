@@ -149,6 +149,21 @@ describe('profile route factory', () => {
     expect(collectRouteNames(productRoutes)).not.toContain('myTickets')
   })
 
+  it('registers JSON Endpoints only on its dedicated product console', () => {
+    const jsonProductRoutes = createRoutesForProfile(
+      getKnownProfile('json-endpoints.console.qysyw.cn'),
+    )
+    const managementRoutes = createRoutesForProfile(
+      getKnownProfile('developer.management.qysyw.cn'),
+    )
+
+    expect(findRoute(jsonProductRoutes, 'root')?.redirect).toBe('/overview')
+    expect(findRoute(jsonProductRoutes, 'product-json_endpoint')?.path).toBe('')
+    expect(collectRouteNames(jsonProductRoutes)).not.toContain('product-kv')
+    expect(collectRouteNames(jsonProductRoutes)).not.toContain('product-management-json_endpoint')
+    expect(collectRouteNames(managementRoutes)).toContain('product-management-json_endpoint')
+  })
+
   it('registers all OJ Submitter pages only in the OJ product console', () => {
     const ojRoutes = createRoutesForProfile(getKnownProfile('oj.console.qysyw.cn'))
     const accountRoutes = createRoutesForProfile(getKnownProfile('account.qysyw.cn'))

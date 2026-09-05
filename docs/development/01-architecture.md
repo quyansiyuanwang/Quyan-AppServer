@@ -118,11 +118,11 @@ graph TD
 ```
 AppServerMonorepo/
 ├── apps/                         # 应用
-│   ├── backend/                  # @appserver/backend  (Express + Prisma + TSOA)
-│   ├── frontend/                 # @appserver/frontend (Vue 3 + Element Plus + Vite)
-│   └── docs-site/                # @appserver/docs-site (Vue 3 文档站点)
+│   ├── backend/                  # @quyan/backend  (Express + Prisma + TSOA)
+│   ├── frontend/                 # @quyan/frontend (Vue 3 + Element Plus + Vite)
+│   └── docs-site/                # @quyan/docs-site (Vue 3 文档站点)
 ├── packages/                     # 共享包
-│   ├── shared/                   # @appserver/shared (Permission/CustomCode 等 — 唯一规范源)
+│   ├── shared/                   # @quyan/shared (Permission/CustomCode 等 — 唯一规范源)
 │   ├── config-typescript/        # 共享 tsconfig.base.json
 │   ├── config-prettier/          # 共享 .prettierrc.json
 │   └── utils/                    # 共享工具函数
@@ -130,7 +130,7 @@ AppServerMonorepo/
 └── pnpm-workspace.yaml           # 聚合所有 apps/* 和 packages/*
 ```
 
-**唯一规范源（SSOT）模式**：`@appserver/shared` 包是 Permission 枚举、CustomCode 业务错误码、NotificationEvent 通知事件等业务常量的唯一数据源。前后端通过 `workspace:*` 依赖引用，修改共享包后前后端自动生效。预提交脚本 `validate-frontend-permissions.mjs` 校验前后端权限定义的一致性。
+**唯一规范源（SSOT）模式**：`@quyan/shared` 包是 Permission 枚举、CustomCode 业务错误码、NotificationEvent 通知事件等业务常量的唯一数据源。前后端通过 `workspace:*` 依赖引用，修改共享包后前后端自动生效。预提交脚本 `validate-frontend-permissions.mjs` 校验前后端权限定义的一致性。
 
 ### 后端三层架构
 
@@ -350,7 +350,7 @@ frontend/ swagger.json → @hey-api/openapi-ts → src/client/ (typed SDK)
 
 - 后端：TSOA 装饰器类型推导 → OpenAPI 规范
 - 前端：OpenAPI → TypeScript SDK（类型安全 API 调用，不可手动编辑）
-- 共享包：`@appserver/shared` 唯一规范源（Permission, CustomCode 等）
+- 共享包：`@quyan/shared` 唯一规范源（Permission, CustomCode 等）
 - 运行时校验：Zod schema（`src/schemas/`）补充运行时数据验证
 - 泛型工具：`SuccessResponse<T>` 统一响应类型 + Z...
 - 前端生成的 `src/client/` 由 `.gitignore` 排除，构建时自动生成

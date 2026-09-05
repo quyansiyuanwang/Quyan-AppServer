@@ -16,6 +16,9 @@ export const CHECK_PROFILES = [
   'frontend-dom',
   'frontend-type-check',
   'frontend-taxonomy',
+  'cli-type-check',
+  'cli-test',
+  'cli-format',
   'lint-check',
   'format-check',
   'backend-quality',
@@ -37,48 +40,60 @@ const CHECKS: Record<
   CheckDefinition
 > = {
   'backend-unit': {
-    args: ['--filter', '@appserver/backend', 'run', 'test:unit'],
+    args: ['--filter', '@quyan/backend', 'run', 'test:unit'],
     timeoutMs: 15 * 60_000,
   },
   'backend-database': {
-    args: ['--filter', '@appserver/backend', 'run', 'test:database'],
+    args: ['--filter', '@quyan/backend', 'run', 'test:database'],
     timeoutMs: 30 * 60_000,
   },
   'backend-integration': {
-    args: ['--filter', '@appserver/backend', 'run', 'test:integration'],
+    args: ['--filter', '@quyan/backend', 'run', 'test:integration'],
     timeoutMs: 30 * 60_000,
   },
   'backend-contract': {
-    args: ['--filter', '@appserver/backend', 'run', 'test:contract'],
+    args: ['--filter', '@quyan/backend', 'run', 'test:contract'],
     timeoutMs: 30 * 60_000,
   },
   'backend-runtime': {
-    args: ['--filter', '@appserver/backend', 'run', 'test:runtime'],
+    args: ['--filter', '@quyan/backend', 'run', 'test:runtime'],
     timeoutMs: 30 * 60_000,
   },
   'backend-type-check': {
-    args: ['--filter', '@appserver/backend', 'run', 'type-check'],
+    args: ['--filter', '@quyan/backend', 'run', 'type-check'],
     timeoutMs: 10 * 60_000,
   },
   'backend-taxonomy': {
-    args: ['--filter', '@appserver/backend', 'run', 'test:taxonomy'],
+    args: ['--filter', '@quyan/backend', 'run', 'test:taxonomy'],
     timeoutMs: 2 * 60_000,
   },
   'frontend-node': {
-    args: ['--filter', '@appserver/frontend', 'run', 'test:node'],
+    args: ['--filter', '@quyan/frontend', 'run', 'test:node'],
     timeoutMs: 15 * 60_000,
   },
   'frontend-dom': {
-    args: ['--filter', '@appserver/frontend', 'run', 'test:dom'],
+    args: ['--filter', '@quyan/frontend', 'run', 'test:dom'],
     timeoutMs: 15 * 60_000,
   },
   'frontend-type-check': {
-    args: ['--filter', '@appserver/frontend', 'run', 'type-check'],
+    args: ['--filter', '@quyan/frontend', 'run', 'type-check'],
     timeoutMs: 10 * 60_000,
   },
   'frontend-taxonomy': {
-    args: ['--filter', '@appserver/frontend', 'run', 'test:taxonomy'],
+    args: ['--filter', '@quyan/frontend', 'run', 'test:taxonomy'],
     timeoutMs: 2 * 60_000,
+  },
+  'cli-type-check': {
+    args: ['run', 'type-check:cli'],
+    timeoutMs: 10 * 60_000,
+  },
+  'cli-test': {
+    args: ['exec', 'cargo', 'test', '--manifest-path', 'apps/cli-native/Cargo.toml'],
+    timeoutMs: 15 * 60_000,
+  },
+  'cli-format': {
+    args: ['run', 'format:check:cli'],
+    timeoutMs: 5 * 60_000,
   },
   'lint-check': { args: ['run', 'lint:check'], timeoutMs: 15 * 60_000 },
   'format-check': { args: ['run', 'format:check'], timeoutMs: 10 * 60_000 },
@@ -104,7 +119,7 @@ export async function runCheck(
     definition = {
       args: [
         '--filter',
-        '@appserver/backend',
+        '@quyan/backend',
         'run',
         'test',
         '--',
@@ -119,7 +134,7 @@ export async function runCheck(
     definition = {
       args: [
         '--filter',
-        '@appserver/frontend',
+        '@quyan/frontend',
         'run',
         'test',
         '--',
@@ -142,7 +157,16 @@ export function suggestProfiles(
 
   if (domains.includes('backend')) add('backend-type-check', '后端源码变更')
   if (domains.includes('frontend')) add('frontend-type-check', '前端源码变更')
-  if (domains.includes('tests')) add('backend-taxonomy', '测试目录或后缀变更')
+  if (domains.includes('cli')) {
+    add('cli-type-check', 'CLI 源码变更')
+    add('cli-test', 'CLI 源码变更')
+    add('cli-format', 'CLI 源码变更')
+  }
+  if (domains.includes('tests')) {
+    if (domains.includes('backend')) add('backend-taxonomy', '后端测试目录或后缀变更')
+    if (domains.includes('frontend')) add('frontend-taxonomy', '前端测试目录或后缀变更')
+    if (domains.includes('cli')) add('cli-test', 'CLI 测试变更')
+  }
   if (domains.includes('shared')) {
     add('backend-type-check', 'shared 契约影响后端')
     add('frontend-type-check', 'shared 契约影响前端')

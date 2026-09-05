@@ -174,9 +174,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
+import { sessionCoordinator } from '@/service/sessionCoordinator'
 import {
   OAuthAuthorizationFrontendService,
   type OAuthAuthorizeQuery,
@@ -184,6 +185,7 @@ import {
 } from '@/service/oauthAuthorizationService'
 
 const route = useRoute()
+const router = useRouter()
 const { isDesktop } = usePageDevice()
 const oauthAuthorizationService = OAuthAuthorizationFrontendService.getInstance()
 
@@ -251,8 +253,20 @@ const handleDecision = async (approve: boolean) => {
   }
 }
 
-onMounted(() => {
-  void loadPreview()
+onMounted(async () => {
+  // The OAuth authorization API is intentionally protected. Keep this page
+  // public as a routing entry, then send anonymous users through the normal
+  // login flow while preserving the complete authorization request.
+  const token = await sessionCoordinator.ensureSession()
+  if (!token) {
+    await router.replace({
+      name: 'login',
+      query: { redirect: route.fullPath },
+    })
+    return
+  }
+
+  await loadPreview()
 })
 
 const getClientInitial = (name: string) => {

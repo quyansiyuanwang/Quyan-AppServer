@@ -1,4 +1,4 @@
-import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@appserver/shared";
+import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@quyan/shared";
 import type { RelayTokenNormalizerConfig } from "@/util/anthropic-token-normalizer.util";
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";

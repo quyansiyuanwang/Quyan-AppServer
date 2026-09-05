@@ -304,7 +304,7 @@ If the docs site is meant to feel like a real open-platform documentation center
 ### Step 1: Redirect to the authorization page
 
 ```text
-GET https://api.qysyw.cn/v1/oauth/authorize
+GET https://auth.qysyw.cn/oauth/authorize
 	?response_type=code
 	&client_id=oc_live_xxx
 	&redirect_uri=https%3A%2F%2Fdemo.example.com%2Fcallback
@@ -313,6 +313,8 @@ GET https://api.qysyw.cn/v1/oauth/authorize
 	&code_challenge=pkce-challenge
 	&code_challenge_method=S256
 ```
+
+The authorization page is hosted by the identity site. `https://api.qysyw.cn/v1/oauth/authorize` is the authenticated API called by that page and should not be opened directly in a browser address bar.
 
 ### Step 2: Exchange the code on the backend
 

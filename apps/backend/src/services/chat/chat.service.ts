@@ -15,8 +15,8 @@ import type { RelayUsageStore } from "@/store/relay/relay-usage.store";
 import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import type { RelayConfigStore } from "@/store/relay/relay-config.store";
 import type { Message as PrismaMessage, RelayChannel } from "@prisma/client";
-import type { ChatStreamEvent, ChatStreamMessage } from "@appserver/shared";
-import { ALL_RELAY_REQUEST_FORMATS } from "@appserver/shared";
+import type { ChatStreamEvent, ChatStreamMessage } from "@quyan/shared";
+import { ALL_RELAY_REQUEST_FORMATS } from "@quyan/shared";
 import { TOKEN_PRICE_DIVISOR } from "@/constant/pricing";
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import {

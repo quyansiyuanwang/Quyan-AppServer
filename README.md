@@ -7,9 +7,10 @@
 ```
 AppServerMonorepo/
 ├── apps/
-│   ├── backend/           # @appserver/backend    Express + Prisma + TSOA API 服务
-│   ├── frontend/          # @appserver/frontend   Vue 3 + Element Plus 管理面板
-│   └── docs-site/         # @appserver/docs-site   Vue 3 文档站点
+│   ├── backend/           # @quyan/backend    Express + Prisma + TSOA API 服务
+│   ├── frontend/          # @quyan/frontend   Vue 3 + Element Plus 管理面板
+│   ├── docs-site/         # @quyan/docs-site   Vue 3 文档站点
+│   └── cli-native/        # quyan             Rust + Ratatui native CLI
 ├── packages/              # 共享包（配置、工具等）
 ├── integrations/server-sdk/
 │                           # Git submodule：面向接入方的 SDK、模板与 Demo
@@ -50,8 +51,8 @@ cd Quyan-AppServer
 pnpm install
 
 # 初始化后端数据库（首次）
-pnpm --filter @appserver/backend db:push
-pnpm --filter @appserver/backend db:seed
+pnpm --filter @quyan/backend db:push
+pnpm --filter @quyan/backend db:seed
 
 # 启动开发服务器
 pnpm run dev
@@ -83,10 +84,11 @@ git submodule update --init --recursive
 ### 开发
 
 ```bash
-pnpm run dev              # 并行启动 backend + frontend + docs-site
+pnpm run dev              # 并行启动 backend + frontend + docs-site（CLI 单独启动）
 pnpm run dev:backend      # 只启动后端
 pnpm run dev:frontend     # 只启动前端
 pnpm run dev:docs         # 启动文档站点
+pnpm run dev:cli          # 启动 Quyan CLI
 ```
 
 ### 构建
@@ -95,6 +97,7 @@ pnpm run dev:docs         # 启动文档站点
 pnpm run build:backend    # 只构建后端
 pnpm run build:frontend   # 只构建前端
 pnpm run build:docs       # 只构建文档站点
+pnpm run build:cli:native # 构建 Rust 原生 CLI
 pnpm run build            # 后端与前端并行构建（文档站使用空出的构建槽）
 pnpm run build:full       # 先生成 OpenAPI，再并行构建所有应用
 pnpm run build:full:production # production 版完整构建
@@ -110,6 +113,7 @@ pnpm run lint:all         # lint + format + type-check 并行
 pnpm run check:all        # lint:check + format:check + type-check 并行
 pnpm run spell:check      # 拼写检查
 pnpm run clean            # 清理所有 dist
+pnpm run package:cli:native # 打包当前平台原生制品
 ```
 
 ### 测试
@@ -119,16 +123,16 @@ pnpm run clean            # 清理所有 dist
 pnpm run test
 
 # Backend: 按依赖选择最小测试范围
-pnpm --filter @appserver/backend run test:unit
-pnpm --filter @appserver/backend run test:database
-pnpm --filter @appserver/backend run test:integration
-pnpm --filter @appserver/backend run test:contract
-pnpm --filter @appserver/backend run test:runtime
+pnpm --filter @quyan/backend run test:unit
+pnpm --filter @quyan/backend run test:database
+pnpm --filter @quyan/backend run test:integration
+pnpm --filter @quyan/backend run test:contract
+pnpm --filter @quyan/backend run test:runtime
 
 # Frontend: Node 逻辑与 DOM 组件分开执行
-pnpm --filter @appserver/frontend run test:node
-pnpm --filter @appserver/frontend run test:dom
-pnpm --filter @appserver/frontend run test:taxonomy
+pnpm --filter @quyan/frontend run test:node
+pnpm --filter @quyan/frontend run test:dom
+pnpm --filter @quyan/frontend run test:taxonomy
 ```
 
 测试分类、并行边界、数据库 worker 隔离和 CI 选择策略见 [测试与 CI 文档](./docs/development/11-testing-and-ci.md)。

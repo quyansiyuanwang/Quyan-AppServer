@@ -49,7 +49,7 @@ const selectedProjects = String(process.env.VITEST_PROJECT_SELECTOR || '')
   .filter(Boolean)
 const projectArgs = selectedProjects.flatMap((project) => ['--project', project])
 const command = backendWorkspace
-  ? ['--filter', '@appserver/backend', 'run', 'test:related', ...projectArgs, ...relatedFiles]
+  ? ['--filter', '@quyan/backend', 'run', 'test:related', ...projectArgs, ...relatedFiles]
   : ['exec', 'vitest', 'related', '--run', '--passWithNoTests', ...relatedFiles]
 
 const result = spawnSync('pnpm', command, {

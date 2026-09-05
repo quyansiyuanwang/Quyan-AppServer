@@ -85,6 +85,7 @@ const productCodeByProfile: Partial<
   'product-verification': 'verification',
   'product-ip_geolocation': 'ip_geolocation',
   'product-push': 'push',
+  'product-json_endpoint': 'json_endpoint',
 }
 
 const productRouteByCode: Record<DeveloperProductCode, RouteName> = {
@@ -95,6 +96,7 @@ const productRouteByCode: Record<DeveloperProductCode, RouteName> = {
   verification: 'product-verification',
   ip_geolocation: 'product-ip_geolocation',
   push: 'product-push',
+  json_endpoint: 'product-json_endpoint',
 }
 
 const productLabelKeyByCode: Record<DeveloperProductCode, I18nENAvailableKeys> = {
@@ -105,6 +107,7 @@ const productLabelKeyByCode: Record<DeveloperProductCode, I18nENAvailableKeys> =
   verification: 'nav.productVerification',
   ip_geolocation: 'nav.productIpGeolocation',
   push: 'nav.productPush',
+  json_endpoint: 'nav.productJsonEndpoints',
 }
 
 const managementProductCodes: readonly DeveloperProductCode[] = [
@@ -115,6 +118,7 @@ const managementProductCodes: readonly DeveloperProductCode[] = [
   'verification',
   'ip_geolocation',
   'push',
+  'json_endpoint',
 ]
 
 const resourceBreakdownProfileIds = new Set<(typeof currentSiteProfile)['id']>([

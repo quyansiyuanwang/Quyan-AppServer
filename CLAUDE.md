@@ -9,12 +9,13 @@
 ```
 AppServerMonorepo/
 ├── apps/
-│   ├── backend/           # @appserver/backend    Express + Prisma + TSOA (port 10001)
-│   ├── frontend/          # @appserver/frontend   Vue 3 + Element Plus + Vite (port 5173)
-│   └── docs-site/         # @appserver/docs-site  Vue 3 文档站点 (VitePress 风格)
+│   ├── backend/           # @quyan/backend    Express + Prisma + TSOA (port 10001)
+│   ├── frontend/          # @quyan/frontend   Vue 3 + Element Plus + Vite (port 5173)
+│   ├── docs-site/         # @quyan/docs-site  Vue 3 文档站点 (VitePress 风格)
+│   └── cli-native/        # quyan            Rust + Ratatui CLI
 ├── packages/
-│   ├── shared/            # @appserver/shared     前后端共享类型与常量（权限、错误码等）
-│   └── appserver-mcp/     # @appserver/mcp        AI 代理 stdio MCP
+│   ├── shared/            # @quyan/shared     前后端共享类型与常量（权限、错误码等）
+│   └── appserver-mcp/     # @quyan/mcp        AI 代理 stdio MCP
 ├── integrations/          # 独立 git 子模块
 ├── products/              # 独立产品子模块
 ├── deployment/            # Nginx 反向代理示例
@@ -29,14 +30,16 @@ AppServerMonorepo/
 ## 常用命令
 
 ```bash
-pnpm run dev                     # 并行启动 backend + frontend + docs-site
+pnpm run dev                     # 并行启动 backend + frontend + docs-site（CLI 单独启动）
 pnpm run dev:frontend            # 只启动前端
 pnpm run dev:backend             # 只启动后端
 pnpm run dev:docs                # 启动文档站点
+pnpm run dev:cli                 # 启动 Quyan CLI
 pnpm run build                   # 构建所有项目
 pnpm run build:backend           # 只构建后端
 pnpm run build:frontend          # 只构建前端
 pnpm run build:docs              # 只构建文档站点
+pnpm run build:cli:native        # 构建 Rust 原生 CLI
 pnpm run openapi:gen:all         # 完整 OpenAPI 生成流水线
 pnpm run test                    # 运行所有测试
 pnpm run lint                    # 运行所有 lint
@@ -49,14 +52,14 @@ pnpm run type-check              # 所有项目类型检查
 ### 针对单个项目
 
 ```bash
-pnpm --filter @appserver/backend dev        # 后端 dev
-pnpm --filter @appserver/backend test       # 后端测试
-pnpm --filter @appserver/backend build      # 后端构建
-pnpm --filter @appserver/backend test:unit  # 后端单元测试
-pnpm --filter @appserver/backend test:api   # 后端集成+契约测试
-pnpm --filter @appserver/frontend dev       # 前端 dev
-pnpm --filter @appserver/frontend build     # 前端构建
-pnpm --filter @appserver/docs-site dev      # 文档站点 dev
+pnpm --filter @quyan/backend dev        # 后端 dev
+pnpm --filter @quyan/backend test       # 后端测试
+pnpm --filter @quyan/backend build      # 后端构建
+pnpm --filter @quyan/backend test:unit  # 后端单元测试
+pnpm --filter @quyan/backend test:api   # 后端集成+契约测试
+pnpm --filter @quyan/frontend dev       # 前端 dev
+pnpm --filter @quyan/frontend build     # 前端构建
+pnpm --filter @quyan/docs-site dev      # 文档站点 dev
 ```
 
 ## 测试选择工作流
@@ -76,13 +79,13 @@ pnpm --filter @appserver/docs-site dev      # 文档站点 dev
 Vitest 必须使用精确文件或目录：
 
 ```bash
-pnpm --filter @appserver/backend test -- tests/unit/utils/developer-outbound-url.util.test.ts
-pnpm --filter @appserver/frontend test -- tests/utils/relay-formats.test.ts
+pnpm --filter @quyan/backend test -- tests/unit/utils/developer-outbound-url.util.test.ts
+pnpm --filter @quyan/frontend test -- tests/utils/relay-formats.test.ts
 ```
 
 开始验证前说明范围；完成后报告已执行命令及未执行的高成本检查。后端 Controller/DTO/schema 变更无论测试范围如何，都必须执行完整 OpenAPI 生成。
 
-## 共享包 `@appserver/shared`
+## 共享包 `@quyan/shared`
 
 前后端共享的类型与常量，是权限、错误码等定义的**唯一规范数据源**（single source of truth）。位于 `packages/shared/src/`：
 
@@ -97,7 +100,7 @@ pnpm --filter @appserver/frontend test -- tests/utils/relay-formats.test.ts
 | `client-fingerprint.ts` | 客户端指纹规范化函数                                                                       |
 | `notification-event.ts` | 通知事件枚举                                                                               |
 
-前后端通过 `"@appserver/shared": "workspace:*"` 依赖引用。修改共享包后前后端自动生效（无需重新构建包）。
+前后端通过 `"@quyan/shared": "workspace:*"` 依赖引用。修改共享包后前后端自动生效（无需重新构建包）。
 
 ## OpenAPI 生成流水线
 
@@ -122,10 +125,10 @@ pnpm run openapi:gen:all          # 完整流水线（上述两步）
 
 ## 仓库级脚本
 
-| 脚本                                        | 用途                                            |
-| ------------------------------------------- | ----------------------------------------------- |
-| `scripts/sync-swagger-to-frontend.mjs`      | 将后端 `swagger.json` 复制到前端 `src/client/`  |
-| `scripts/validate-frontend-permissions.mjs` | 校验前端权限常量与后端 `@appserver/shared` 一致 |
+| 脚本                                        | 用途                                           |
+| ------------------------------------------- | ---------------------------------------------- |
+| `scripts/sync-swagger-to-frontend.mjs`      | 将后端 `swagger.json` 复制到前端 `src/client/` |
+| `scripts/validate-frontend-permissions.mjs` | 校验前端权限常量与后端 `@quyan/shared` 一致    |
 
 ## GitHub PR 管理
 
@@ -140,7 +143,7 @@ PR 标题、正文和标签的整理流程以 [AGENTS.md](./AGENTS.md) 和
 ### ESLint 配置
 
 ```ts
-import appserverConfig from '@appserver/config-eslint'
+import appserverConfig from '@quyan/config-eslint'
 export default [
   ...appserverConfig,
   {

@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { RelayProbeFormat as SharedRelayChannelProbeFormat } from '@appserver/shared'
-import { RELAY_PROBE_FORMATS } from '@appserver/shared'
+import type { RelayProbeFormat as SharedRelayChannelProbeFormat } from '@quyan/shared'
+import { RELAY_PROBE_FORMATS } from '@quyan/shared'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
@@ -16,6 +16,7 @@ import type {
   RelayChannelProbeEndpoint,
   RelayChannelProbeCacheMode,
   RelayChannelProbeCustomerFacingTargetDto,
+  RelayChannelProbeLatestRunDto,
   RelayChannelProbeMemberDto,
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeRunDto,
@@ -331,6 +332,17 @@ export const useRelayChannelProbeManagement = () => {
         ),
     ),
   )
+  const activeRunTargets = computed(() => {
+    const targets: Array<{ channelId: string; memberChannelId?: string }> = []
+    for (const item of items.value) {
+      if (item.latestRun && isActiveRun(item.latestRun)) targets.push({ channelId: item.channelId })
+      for (const member of item.members ?? []) {
+        if (member.latestRun && isActiveRun(member.latestRun))
+          targets.push({ channelId: item.channelId, memberChannelId: member.channelId })
+      }
+    }
+    return targets
+  })
   const runnableTargets = computed(() =>
     selectedRows.value.flatMap((row) => {
       if (!isRunnable(row)) return []
@@ -430,6 +442,7 @@ export const useRelayChannelProbeManagement = () => {
   )
   let overviewRequest = 0
   let runsRequest = 0
+  let latestRunRefreshRequest = 0
   let pollTimer: ReturnType<typeof setTimeout> | undefined
   let polling = false
   let pollingEnabled = false
@@ -492,6 +505,9 @@ export const useRelayChannelProbeManagement = () => {
               ? 'relay.channelProbeCalibrationUnstable'
               : 'relay.channelProbeCalibrationPending'
     return i18ns.t(key)
+  }
+  function isActiveRun(run: RelayChannelProbeRunDto) {
+    return run.status === 'queued' || run.status === 'running'
   }
   function defaultEndpointForFormat(format: RelayChannelProbeFormat): RelayChannelProbeEndpoint {
     return format === 'openai-responses'
@@ -1440,6 +1456,43 @@ export const useRelayChannelProbeManagement = () => {
     }
     updateChannelItem(channelId, (item) => ({ ...item, latestRun: runs.value[0] }))
   }
+  function isSelectedProbeTarget(target: { channelId: string; memberChannelId?: string }) {
+    return (
+      selected.value?.channelId === target.channelId &&
+      selectedMemberChannelId.value === target.memberChannelId
+    )
+  }
+  function syncVisibleLatestRun(latest: RelayChannelProbeLatestRunDto) {
+    if (!isSelectedProbeTarget(latest)) return
+    if (!latest.latestRun) {
+      runs.value = runs.value.filter((run) => run.id !== selected.value?.latestRun?.id)
+      return
+    }
+    const index = runs.value.findIndex((run) => run.id === latest.latestRun!.id)
+    if (index >= 0) runs.value.splice(index, 1, latest.latestRun)
+    else runs.value = [latest.latestRun, ...runs.value].slice(0, 20)
+  }
+  async function refreshActiveRunStates() {
+    const targets = activeRunTargets.value
+    if (!targets.length) return
+    const requestId = ++latestRunRefreshRequest
+    try {
+      const latestRuns = await relayChannelProbeService.listLatestRuns({ targets })
+      if (requestId !== latestRunRefreshRequest) return
+      for (const latest of latestRuns as RelayChannelProbeLatestRunDto[]) {
+        if (latest.memberChannelId)
+          updateMemberItem(latest.channelId, latest.memberChannelId, (member) => ({
+            ...member,
+            latestRun: latest.latestRun,
+          }))
+        else
+          updateChannelItem(latest.channelId, (item) => ({ ...item, latestRun: latest.latestRun }))
+        syncVisibleLatestRun(latest)
+      }
+    } catch {
+      // Polling is best-effort. Preserve the visible result and retry on the next interval.
+    }
+  }
   async function openDrawer(row: RelayChannelProbeOverviewItemDto) {
     // Complete the drawer render before starting any remote request. A slow or stalled
     // run-history request must never delay the management surface becoming usable.
@@ -1963,14 +2016,7 @@ export const useRelayChannelProbeManagement = () => {
       if (!pollingEnabled || !hasActiveProbeRuns.value) return
       polling = true
       try {
-        const refreshes = [loadOverview()]
-        if (
-          selected.value &&
-          (selected.value.latestRun?.status === 'queued' ||
-            selected.value.latestRun?.status === 'running')
-        )
-          refreshes.push(loadRuns())
-        await Promise.all(refreshes)
+        await refreshActiveRunStates()
       } finally {
         polling = false
         schedulePolling()
@@ -2124,6 +2170,7 @@ export const useRelayChannelProbeManagement = () => {
     selectedProbeFormats,
     selectedProbeModels,
     hasActiveProbeRuns,
+    activeRunTargets,
     runnableTargets,
     batchProfileSources,
     batchProfileTargets,
@@ -2224,6 +2271,7 @@ export const useRelayChannelProbeManagement = () => {
     formWorkflow,
     resolveCustomerFacingTargets,
     loadOverview,
+    refreshActiveRunStates,
     updateChannelItem,
     syncSelectedLatestRun,
     openDrawer,

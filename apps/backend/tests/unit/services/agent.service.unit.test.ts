@@ -7,7 +7,7 @@ describe("agent workspace runtime safety", () => {
   });
 
   it("keeps task statuses explicit", async () => {
-    const shared = await import("@appserver/shared");
+    const shared = await import("@quyan/shared");
     expect(shared).toBeDefined();
     expect(["queued", "running", "waiting_approval", "completed", "failed", "cancelled", "expired"]).toContain(
       "waiting_approval",

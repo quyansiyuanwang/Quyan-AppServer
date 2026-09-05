@@ -83,7 +83,7 @@ export class UserController extends Controller {
 ### Relay 模型与混池契约
 
 - 渠道限制使用 `ModelPricing.model` 的目录名称；令牌允许模型、模型映射和实际路由使用 `resolveModelId()` 解析出的请求模型 ID。两个身份域不得混用。
-- 模型限制的缺失值表示不限制，有效空数组表示禁止全部；历史格式损坏时记录告警并按兼容策略放行。规范解析位于 `@appserver/shared`，前后端不得复制实现。
+- 模型限制的缺失值表示不限制，有效空数组表示禁止全部；历史格式损坏时记录告警并按兼容策略放行。规范解析位于 `@quyan/shared`，前后端不得复制实现。
 - 混池渠道通过 `RelayPoolResolverService` 解析。模型、请求格式、映射和叶子渠道身份必须沿同一条根到叶路径保持关联，不能分别求并集后再组合。
 - legacy `RelayChannelMember` 与 strict `pooledChildren` 必须先投影为同一有效成员集，再供详情 DTO、管理列表成员数与 `RelayPoolResolverService` 使用；按成员 ID 去重，冲突时 strict 的优先级、权重和启用状态优先，禁止各处分别读取不同关系。
 - 面向业务客户端的渠道 options 使用结构化 `modelCapabilities`，混池和普通渠道采用相同契约；不向用户暴露混池拓扑。

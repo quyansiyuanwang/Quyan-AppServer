@@ -6,7 +6,7 @@
 
 ```bash
 # 标准构建
-pnpm --filter @appserver/backend build
+pnpm --filter @quyan/backend build
 
 # 构建步骤：
 # 1. clean (rimraf dist/) 与 build:info:inject（注入构建信息）
@@ -24,7 +24,7 @@ pnpm --filter @appserver/backend build
 **生产构建**：
 
 ```bash
-pnpm --filter @appserver/backend build:prod
+pnpm --filter @quyan/backend build:prod
 # NODE_ENV=production
 ```
 
@@ -32,7 +32,7 @@ pnpm --filter @appserver/backend build:prod
 
 ```bash
 # 标准构建
-pnpm --filter @appserver/frontend build
+pnpm --filter @quyan/frontend build
 
 # 构建步骤：
 # 1. type:generate (生成路由类型)
@@ -52,7 +52,7 @@ pnpm --filter @appserver/frontend build
 **生产构建**：
 
 ```bash
-pnpm --filter @appserver/frontend build:production
+pnpm --filter @quyan/frontend build:production
 ```
 
 ### EdgeOne 前端部署
@@ -101,10 +101,10 @@ pnpm run dev:backend
 
 ```bash
 # 直接运行
-pnpm --filter @appserver/backend start:prod
+pnpm --filter @quyan/backend start:prod
 
 # 或通过 PM2
-pnpm --filter @appserver/backend pm2:start:prod
+pnpm --filter @quyan/backend pm2:start:prod
 ```
 
 ### 前端开发模式
@@ -195,20 +195,20 @@ module.exports = {
 
 ```bash
 # 启动
-pnpm --filter @appserver/backend pm2:start          # 开发
-pnpm --filter @appserver/backend pm2:start:prod     # 生产
+pnpm --filter @quyan/backend pm2:start          # 开发
+pnpm --filter @quyan/backend pm2:start:prod     # 生产
 
 # 监控
-pnpm --filter @appserver/backend pm2:status          # 状态
-pnpm --filter @appserver/backend pm2:logs            # 日志
+pnpm --filter @quyan/backend pm2:status          # 状态
+pnpm --filter @quyan/backend pm2:logs            # 日志
 
 # 管理
-pnpm --filter @appserver/backend pm2:stop            # 停止
-pnpm --filter @appserver/backend pm2:restart         # 重启
-pnpm --filter @appserver/backend pm2:delete          # 删除
+pnpm --filter @quyan/backend pm2:stop            # 停止
+pnpm --filter @quyan/backend pm2:restart         # 重启
+pnpm --filter @quyan/backend pm2:delete          # 删除
 
 # 重建（清旧构建 + 生产构建 + 启动）
-pnpm --filter @appserver/backend pm2:rebuild
+pnpm --filter @quyan/backend pm2:rebuild
 # = pm2:delete + build:prod + pm2:start:prod
 ```
 
@@ -321,7 +321,7 @@ SUPPORT_KNOWLEDGE_CACHE_TTL_SECONDS=300
 TWO_FACTOR_TRUSTED_DEVICE_SECRET=<64+字符>
 ```
 
-客服知识 JSON 是 docs-site 的构建产物，不提交到 Git。`pnpm --filter @appserver/docs-site run build`、
+客服知识 JSON 是 docs-site 的构建产物，不提交到 Git。`pnpm --filter @quyan/docs-site run build`、
 `build:production` 以及文档站开发启动都会先从 `src/content/` 生成 manifest、语言目录和文档章节，
 随后由 Vite 原样复制到 `dist/`。部署时必须发布同一次构建生成的整套 `dist/` 文件；不要只覆盖
 `support-knowledge.json`，否则它指向的带 hash 目录或文档分片可能尚未部署。
@@ -342,9 +342,9 @@ VITE_TURNSTILE_SITE_KEY=
 
 ```bash
 # 正式环境：浏览器直接调用受 CORS 保护的公共 API。
-# PLATFORM_ROOT_DOMAIN=qysyw.cn SITE_ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn pnpm --filter @appserver/frontend run build:production
+# PLATFORM_ROOT_DOMAIN=qysyw.cn SITE_ROOT_DOMAIN=qysyw.cn VITE_PUBLIC_SITE_HOST=www.qysyw.cn pnpm --filter @quyan/frontend run build:production
 # 预览环境：同样调用受 CORS 保护的公共 API。
-# PLATFORM_ROOT_DOMAIN=qysyw.cn SITE_ROOT_DOMAIN=staging.qysyw.cn VITE_PUBLIC_SITE_HOST=staging.qysyw.cn pnpm --filter @appserver/frontend run build:staging
+# PLATFORM_ROOT_DOMAIN=qysyw.cn SITE_ROOT_DOMAIN=staging.qysyw.cn VITE_PUBLIC_SITE_HOST=staging.qysyw.cn pnpm --filter @quyan/frontend run build:staging
 
 # 生产环境调整
 JWT_ACCESS_EXPIRES_IN=900        # 15 分钟

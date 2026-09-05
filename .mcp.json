@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "appserver": {
-      "command": "bun",
-      "args": ["packages/appserver-mcp/src/index.ts"],
+    "quyan": {
+      "command": "pnpm",
+      "args": ["run", "mcp:serve"],
       "cwd": "${workspaceFolder}"
     }
   }

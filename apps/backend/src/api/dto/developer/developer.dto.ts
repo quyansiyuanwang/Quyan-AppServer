@@ -253,3 +253,18 @@ export interface DeveloperPushDeliveryDto {
   createTime: string;
   updateTime: string;
 }
+
+export interface DeveloperJsonEndpointDto {
+  id: string;
+  instanceId: string;
+  name: string;
+  slug: string;
+  jsonContent: unknown;
+  publicUrl: string;
+  isPublic: boolean;
+  lastUpdated: string;
+}
+
+export interface UpdateDeveloperJsonEndpointDto {
+  jsonContent: unknown;
+}

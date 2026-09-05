@@ -200,6 +200,11 @@ export const routes = [
           },
           {
             path: 'overview',
+            name: 'productJsonEndpointOverview',
+            component: () => import('@/views/overview/SiteOverviewView.vue'),
+          },
+          {
+            path: 'overview',
             name: 'ojOverview',
             component: () => import('@/views/overview/SiteOverviewView.vue'),
           },
@@ -705,6 +710,41 @@ export const routes = [
             ],
           },
           {
+            path: 'products/json_endpoint',
+            children: [
+              {
+                path: '',
+                name: 'product-json_endpoint',
+                component: lazyFeatureView('products', 'json-endpoints/JsonEndpointUserPage.vue'),
+                props: { product: 'json_endpoint' },
+                meta: {
+                  anyPermissions: [
+                    Permission.PRODUCT_JSON_ENDPOINT_READ,
+                    Permission.PRODUCT_JSON_ENDPOINT_WRITE,
+                    Permission.PRODUCT_JSON_ENDPOINT_MANAGE,
+                  ],
+                },
+              },
+              {
+                path: 'management',
+                name: 'product-management-json_endpoint',
+                component: lazyFeatureView(
+                  'products',
+                  'json-endpoints/JsonEndpointManagementPage.vue',
+                ),
+                props: { product: 'json_endpoint' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
+              },
+              {
+                path: 'configuration',
+                name: 'product-config-json_endpoint',
+                component: lazyFeatureView('products', 'json-endpoints/JsonEndpointConfigPage.vue'),
+                props: { product: 'json_endpoint' },
+                meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
+              },
+            ],
+          },
+          {
             path: 'kv',
             redirect: { name: 'product-kv' },
           },
@@ -731,6 +771,10 @@ export const routes = [
           {
             path: 'push',
             redirect: { name: 'product-push' },
+          },
+          {
+            path: 'endpoints',
+            redirect: { name: 'product-json_endpoint' },
           },
           {
             path: 'management/products/kv',
@@ -761,6 +805,10 @@ export const routes = [
             redirect: { name: 'product-management-push' },
           },
           {
+            path: 'management/products/json_endpoint',
+            redirect: { name: 'product-management-json_endpoint' },
+          },
+          {
             path: 'system/products/kv',
             redirect: { name: 'product-config-kv' },
           },
@@ -787,6 +835,10 @@ export const routes = [
           {
             path: 'system/products/push',
             redirect: { name: 'product-config-push' },
+          },
+          {
+            path: 'system/products/json_endpoint',
+            redirect: { name: 'product-config-json_endpoint' },
           },
           {
             path: 'billing/balance',

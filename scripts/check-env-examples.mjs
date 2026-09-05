@@ -3,8 +3,17 @@ import { join, relative } from 'node:path'
 
 const workspaceRoot = process.cwd()
 const backendSource = join(workspaceRoot, 'apps/backend/src')
-const allowedRuntimeEnvFile = 'config/env.ts'
-const viteBuiltIns = new Set(['BASE_URL', 'MODE', 'DEV'])
+const allowedRuntimeEnvFiles = new Set(['config/env.ts', 'config/env/source.ts'])
+const viteBuiltIns = new Set([
+  'BASE_URL',
+  'MODE',
+  'DEV',
+  // These values are injected by apps/frontend/vite.config.ts from the
+  // unprefixed build-time variables documented in apps/frontend/.env.example.
+  'VITE_PLATFORM_ROOT_DOMAIN',
+  'VITE_SITE_ROOT_DOMAIN',
+  'VITE_LOCAL_ROOT_DOMAIN',
+])
 
 async function listFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
@@ -23,7 +32,9 @@ async function readExampleKeys(appDirectory) {
 }
 
 async function assertExampleCoverage(appDirectory, expression) {
-  const files = (await listFiles(join(workspaceRoot, appDirectory, 'src'))).filter((file) => file.endsWith('.ts') || file.endsWith('.vue'))
+  const files = (await listFiles(join(workspaceRoot, appDirectory, 'src'))).filter(
+    (file) => file.endsWith('.ts') || file.endsWith('.vue'),
+  )
   const keys = new Set()
   for (const file of files) {
     const contents = await readFile(file, 'utf8')
@@ -32,18 +43,24 @@ async function assertExampleCoverage(appDirectory, expression) {
 
   const exampleKeys = await readExampleKeys(appDirectory)
   const missing = [...keys].filter((key) => !viteBuiltIns.has(key) && !exampleKeys.has(key))
-  if (missing.length) throw new Error(`${appDirectory}/.env.example is missing: ${missing.join(', ')}`)
+  if (missing.length)
+    throw new Error(`${appDirectory}/.env.example is missing: ${missing.join(', ')}`)
 }
 
 const backendFiles = (await listFiles(backendSource)).filter((file) => file.endsWith('.ts'))
 const violations = []
 for (const file of backendFiles) {
   const contents = await readFile(file, 'utf8')
-  if (contents.includes('process.env') && relative(backendSource, file).replaceAll('\\', '/') !== allowedRuntimeEnvFile)
+  if (
+    contents.includes('process.env') &&
+    !allowedRuntimeEnvFiles.has(relative(backendSource, file).replaceAll('\\', '/'))
+  )
     violations.push(relative(workspaceRoot, file))
 }
 if (violations.length)
-  throw new Error(`Runtime process.env access is only allowed in ${allowedRuntimeEnvFile}: ${violations.join(', ')}`)
+  throw new Error(
+    `Runtime process.env access is only allowed in ${[...allowedRuntimeEnvFiles].join(' or ')}: ${violations.join(', ')}`,
+  )
 
 await assertExampleCoverage('apps/backend', /process\.env\.([A-Z0-9_]+)/g)
 await assertExampleCoverage('apps/frontend', /import\.meta\.env\.([A-Z0-9_]+)/g)

@@ -1,4 +1,4 @@
-import type { AgentTaskStatus, AgentWorkspaceStatus, AgentToolCall } from "@appserver/shared";
+import type { AgentTaskStatus, AgentWorkspaceStatus, AgentToolCall } from "@quyan/shared";
 
 export interface AgentWorkspacePolicyDto {
   allowedCommands?: string[];

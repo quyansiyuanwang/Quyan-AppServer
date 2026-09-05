@@ -1,4 +1,4 @@
-import type { ContentSafetyRuleInput } from "@appserver/shared";
+import type { ContentSafetyRuleInput } from "@quyan/shared";
 
 // Data used by the explicit administrator import action. Matching always reads the database.
 export const DEFAULT_CONTENT_SAFETY_RULES: ContentSafetyRuleInput[] = [

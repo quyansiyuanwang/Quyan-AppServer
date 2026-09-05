@@ -2,7 +2,7 @@
 import { createHash, randomBytes } from "crypto";
 import { Decimal } from "@prisma/client/runtime/library";
 import type { Prisma } from "@prisma/client";
-import { DEVELOPER_PRODUCT_CODES, isDeveloperProductCode, type DeveloperProductCode } from "@appserver/shared";
+import { DEVELOPER_PRODUCT_CODES, isDeveloperProductCode, type DeveloperProductCode } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { Permission } from "@/constant/permission";
 import { CustomCode } from "@/constant/custom-code";
@@ -73,6 +73,11 @@ const PRODUCT_PERMISSIONS: Record<DeveloperProductCode, Permission[]> = {
     Permission.PRODUCT_PUSH_CHANNEL_MANAGE,
     Permission.PRODUCT_PUSH_DELIVERY_READ,
     Permission.PRODUCT_PUSH_MANAGE,
+  ],
+  json_endpoint: [
+    Permission.PRODUCT_JSON_ENDPOINT_READ,
+    Permission.PRODUCT_JSON_ENDPOINT_WRITE,
+    Permission.PRODUCT_JSON_ENDPOINT_MANAGE,
   ],
 };
 
@@ -484,10 +489,23 @@ export class DeveloperProductPlatformService {
           overageEnabled: false,
         },
       });
-      return tx.developerProductInstance.create({
+      const created = await tx.developerProductInstance.create({
         data: { entitlementId: entitlement.id, name: body.name, slug: body.slug, backingProjectId: backingProject.id },
         include: { entitlement: { select: { productCode: true } } },
       });
+      if (productCode === "json_endpoint") {
+        await tx.jsonEndpoint.create({
+          data: {
+            userId: ownerId,
+            developerProductInstanceId: created.id,
+            name: body.name,
+            slug: body.slug,
+            jsonContent: {},
+            isPublic: true,
+          },
+        });
+      }
+      return created;
     });
     return this.instanceDto(instance);
   }
@@ -541,9 +559,47 @@ export class DeveloperProductPlatformService {
         where: { instanceId: instance.id, status: 1 },
         data: { status: -1 },
       });
+      if (productCode === "json_endpoint") {
+        await tx.jsonEndpoint.deleteMany({ where: { developerProductInstanceId: instance.id } });
+      }
       const deleted = await tx.developerProject.deleteMany({ where: { id: instance.backingProjectId } });
       if (!deleted.count) throw new NotFoundError("产品实例不存在");
     });
+  }
+
+  async getJsonEndpoint(instanceId: string, productCode: DeveloperProductCode = "json_endpoint") {
+    const endpoint = await prisma.jsonEndpoint.findFirst({
+      where: { developerProductInstanceId: instanceId, status: 1 },
+      include: {
+        user: { select: { username: true } },
+        developerProductInstance: {
+          select: { id: true, name: true, slug: true, entitlement: { select: { productCode: true } } },
+        },
+      },
+    });
+    if (!endpoint || endpoint.developerProductInstance?.entitlement.productCode !== productCode)
+      throw new NotFoundError("JSON 产品实例不存在");
+    return {
+      id: endpoint.id,
+      instanceId,
+      name: endpoint.name,
+      slug: endpoint.slug,
+      jsonContent: endpoint.jsonContent,
+      publicUrl: endpoint.isRootSlug
+        ? `/v1/json/${endpoint.slug}`
+        : `/v1/json/${endpoint.user.username}/${endpoint.slug}`,
+      isPublic: endpoint.isPublic,
+      lastUpdated: endpoint.updateTime.toISOString(),
+    };
+  }
+
+  async updateJsonEndpoint(instanceId: string, jsonContent: unknown) {
+    const endpoint = await prisma.jsonEndpoint.findFirst({
+      where: { developerProductInstanceId: instanceId, status: 1 },
+    });
+    if (!endpoint) throw new NotFoundError("JSON 产品实例不存在");
+    await prisma.jsonEndpoint.update({ where: { id: endpoint.id }, data: { jsonContent: jsonContent as any } });
+    return this.getJsonEndpoint(instanceId);
   }
 
   private async getAuthorizedInstance(

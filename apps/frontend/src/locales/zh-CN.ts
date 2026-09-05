@@ -272,6 +272,7 @@ const zhCN: DeepStringify<typeof en> = {
     statusDescription: '监控上游可用性，并发布公开状态页。',
     verificationDescription: '通过 API 发送和校验邮箱或已启用短信渠道的验证码。',
     ipGeolocationDescription: '查询公网 IP 的标准化地域与 ASN 信息。',
+    jsonEndpointDescription: '为应用提供可编辑、可分享并支持 API Key 访问的 JSON 端点。',
     pushDescription: '通过 Webhook、钉钉、飞书和企业微信渠道投递统一消息。',
   },
 
@@ -849,6 +850,7 @@ const zhCN: DeepStringify<typeof en> = {
     productVerification: '验证码服务',
     productIpGeolocation: 'IP 定位',
     productPush: '推送聚合',
+    productJsonEndpoints: 'JSON 端点',
     productUserPage: '控制台',
     productManagementPage: '运营管理',
     productConfigPage: '产品配置',

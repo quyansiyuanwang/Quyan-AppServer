@@ -95,7 +95,7 @@
 import { computed } from 'vue'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
-import type { ContentSafetyAction } from '@appserver/shared'
+import type { ContentSafetyAction } from '@quyan/shared'
 
 interface PolicyModel {
   [key: string]: boolean | null | ContentSafetyAction

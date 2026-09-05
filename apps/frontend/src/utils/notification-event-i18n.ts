@@ -4,7 +4,7 @@ import {
   NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
   THRESHOLD_NOTIFICATION_EVENTS,
   type NotificationEvent,
-} from '@appserver/shared'
+} from '@quyan/shared'
 import { i18ns } from '@/locales'
 
 const notificationEventSet = new Set<string>(ALL_NOTIFICATION_EVENTS)

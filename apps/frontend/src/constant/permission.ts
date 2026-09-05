@@ -1,4 +1,4 @@
-import { Permission, ALL_PERMISSIONS } from '@appserver/shared'
+import { Permission, ALL_PERMISSIONS } from '@quyan/shared'
 export { Permission, ALL_PERMISSIONS }
 
 /**
@@ -968,6 +968,27 @@ export const PERMISSION_META: PermissionMetaMap = {
     labelEn: 'Manage Push Product',
     tooltip: '允许管理推送实例与密钥',
     tooltipEn: 'Allows managing push instances and keys',
+    category: 'product',
+  },
+  [Permission.PRODUCT_JSON_ENDPOINT_READ]: {
+    label: '读取 JSON 端点',
+    labelEn: 'Read JSON Endpoints',
+    tooltip: '允许读取 JSON 产品内容',
+    tooltipEn: 'Allows reading JSON endpoint content',
+    category: 'product',
+  },
+  [Permission.PRODUCT_JSON_ENDPOINT_WRITE]: {
+    label: '写入 JSON 端点',
+    labelEn: 'Write JSON Endpoints',
+    tooltip: '允许更新或删除 JSON 产品内容',
+    tooltipEn: 'Allows updating or deleting JSON endpoint content',
+    category: 'product',
+  },
+  [Permission.PRODUCT_JSON_ENDPOINT_MANAGE]: {
+    label: '管理 JSON 端点产品',
+    labelEn: 'Manage JSON Endpoint Product',
+    tooltip: '允许管理 JSON 端点产品实例与密钥',
+    tooltipEn: 'Allows managing JSON endpoint product instances and keys',
     category: 'product',
   },
 

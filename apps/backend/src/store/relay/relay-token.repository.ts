@@ -15,7 +15,7 @@ import type {
 } from "./relay-token.store";
 import type { RelayTokenWithRelations } from "./relay-token.store";
 import { MANAGED_STATUS } from "@/constant/status";
-import type { ContentSafetyPolicyOverride } from "@appserver/shared";
+import type { ContentSafetyPolicyOverride } from "@quyan/shared";
 
 export type { RelayTokenWithRelations } from "./relay-token.store";
 export type RelayTokenWithChannel = RelayTokenWithRelations;

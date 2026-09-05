@@ -1,8 +1,8 @@
-# 04 — 共享包 `@appserver/shared`
+# 04 — 共享包 `@quyan/shared`
 
 ## 概述
 
-`@appserver/shared` 是前后端共享类型与常量的**唯一规范数据源（single source of truth）**。前后端都通过 `"@appserver/shared": "workspace:*"` 依赖此包并 re-export 所需内容。修改共享包后前后端自动生效。
+`@quyan/shared` 是前后端共享类型与常量的**唯一规范数据源（single source of truth）**。前后端都通过 `"@quyan/shared": "workspace:*"` 依赖此包并 re-export 所需内容。修改共享包后前后端自动生效。
 
 位置：`packages/shared/src/`
 
@@ -130,20 +130,20 @@ export function normalizeFingerprint(value: string): string | undefined;
 
 ```typescript
 // 直接从 shared 包 re-export
-export { Permission, ALL_PERMISSIONS } from '@appserver/shared';
+export { Permission, ALL_PERMISSIONS } from '@quyan/shared';
 ```
 
 ### 前端 (`apps/frontend/src/constant/permission.ts`)
 
 ```typescript
 // 直接从 shared 包 re-export
-export { Permission, ALL_PERMISSIONS } from '@appserver/shared';
+export { Permission, ALL_PERMISSIONS } from '@quyan/shared';
 ```
 
 ## 一致性校验
 
 `scripts/validate-frontend-permissions.mjs` 验证：
-1. 前后端都从 `@appserver/shared` re-export（非本地定义）
+1. 前后端都从 `@quyan/shared` re-export（非本地定义）
 2. 前端的 `PERMISSION_META` 覆盖了所有 `Permission` 枚举值
 3. 没有多余或缺失的权限条目
 

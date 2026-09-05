@@ -14,7 +14,7 @@ import {
   supportsRelayRequestFormat,
   type RelayConfiguredRequestFormat,
   type RelayRequestFormat,
-} from "@appserver/shared";
+} from "@quyan/shared";
 
 export {
   ALL_RELAY_REQUEST_FORMATS,

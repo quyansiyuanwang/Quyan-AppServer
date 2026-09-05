@@ -4,7 +4,7 @@
 - 单测不会创建数据库，也不连接 MySQL/Redis。
 - 运行时项目按运行和 worker 派生 MySQL 数据库：`<base>__vitest_<run>_<worker>`。
 - 每个 worker 使用独立 Redis logical DB。`TEST_DB_WORKERS` 与 `TEST_REDIS_DB_BASE` 不能超出 Redis 默认的 16 个 DB。
-- 每个数据库测试文件先清空 worker 的 MySQL/Redis 状态；中断后运行 `pnpm --filter @appserver/backend run test:db:clean`。
+- 每个数据库测试文件先清空 worker 的 MySQL/Redis 状态；中断后运行 `pnpm --filter @quyan/backend run test:db:clean`。
 
 ## 项目与 CI
 

@@ -76,7 +76,7 @@ export class RelayController extends Controller {
   private relayTokenService = new RelayTokenService();
 
   @Post("tokens")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:create"])
   @RequirePermission(Permission.RELAY_TOKEN_CREATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -89,7 +89,7 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/export")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateBody(exportRelayTokensBodySchema))
   async exportTokens(
@@ -100,7 +100,7 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/import")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:create"])
   @RequirePermission(Permission.RELAY_TOKEN_CREATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -116,7 +116,7 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateQuery(relayTokenListQuerySchema))
   async listTokens(
@@ -129,7 +129,7 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/usage-summaries")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateQuery(relayTokenUsageSummaryQuerySchema))
   async getUsageSummaries(
@@ -174,7 +174,7 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateParams(relayTokenIdParamsSchema))
   async getToken(
@@ -186,7 +186,7 @@ export class RelayController extends Controller {
   }
 
   @Delete("tokens/{id}")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:delete"])
   @RequirePermission(Permission.RELAY_TOKEN_DELETE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -201,7 +201,7 @@ export class RelayController extends Controller {
   }
 
   @Put("tokens/{id}/channel")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:update"])
   @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -219,7 +219,7 @@ export class RelayController extends Controller {
   }
 
   @Put("tokens/{id}")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:update"])
   @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -237,7 +237,7 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/batch/duplicate")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:create"])
   @RequirePermission(Permission.RELAY_TOKEN_CREATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -253,7 +253,7 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/{id}/duplicate")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:create"])
   @RequirePermission(Permission.RELAY_TOKEN_CREATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -271,7 +271,7 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/{id}/refresh")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:update"])
   @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -284,7 +284,7 @@ export class RelayController extends Controller {
   }
 
   @Patch("tokens/{id}/toggle")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:update"])
   @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -301,7 +301,7 @@ export class RelayController extends Controller {
   }
 
   @Patch("tokens/batch/status")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:update"])
   @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -317,7 +317,7 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/batch/content-safety")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:update"])
   @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -333,7 +333,7 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/batch/delete")
-  @Security("jwt")
+  @Security("jwt", ["relay:token:delete"])
   @RequirePermission(Permission.RELAY_TOKEN_DELETE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -349,7 +349,7 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}/usage")
-  @Security("jwt")
+  @Security("jwt", ["relay:usage:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenUsageQuerySchema))
   async getUsage(
@@ -365,7 +365,7 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}/usage-summary")
-  @Security("jwt")
+  @Security("jwt", ["relay:usage:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenUsageDetailQuerySchema))
   async getUsageSummary(
@@ -383,7 +383,7 @@ export class RelayController extends Controller {
   }
 
   @Get("request-diagnostics")
-  @Security("jwt")
+  @Security("jwt", ["relay:usage:read"])
   @RequirePermission(Permission.RELAY_REQUEST_DIAGNOSTICS_READ)
   @Middlewares(validateQuery(relayRequestDiagnosticsQuerySchema))
   async getRequestDiagnostics(
@@ -408,7 +408,7 @@ export class RelayController extends Controller {
   }
 
   @Get("request-diagnostics/{requestId}/route-trace")
-  @Security("jwt")
+  @Security("jwt", ["relay:usage:read"])
   @RequireAllPermissions([
     Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
     Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
@@ -422,14 +422,14 @@ export class RelayController extends Controller {
   }
 
   @Get("available-models")
-  @Security("jwt")
+  @Security("jwt", ["relay:channel:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   async getAvailableModels(): Promise<RelayAvailableModelsMapDto> {
     return this.relayTokenService.getAvailableModels();
   }
 
   @Get("tokens/{id}/switch-logs")
-  @Security("jwt")
+  @Security("jwt", ["relay:usage:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenSwitchLogsQuerySchema))
   async getTokenSwitchLogs(
@@ -442,7 +442,7 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}/available-models")
-  @Security("jwt")
+  @Security("jwt", ["relay:channel:read"])
   @RequirePermission(Permission.RELAY_TOKEN_READ)
   @Middlewares(validateParams(relayTokenIdParamsSchema))
   async getTokenAvailableModels(

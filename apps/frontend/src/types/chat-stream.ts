@@ -1,4 +1,4 @@
-import type { ChatStreamEvent } from '@appserver/shared'
+import type { ChatStreamEvent } from '@quyan/shared'
 import type { MessageResponse } from '@/client/types.gen'
 
 export type ChatStreamClientEvent =

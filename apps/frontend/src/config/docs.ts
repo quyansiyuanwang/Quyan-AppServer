@@ -84,6 +84,7 @@ const docsRouteToSlug = {
   'product-verification': 'developer-product-verification',
   'product-ip_geolocation': 'developer-product-ip-geolocation',
   'product-push': 'developer-product-push',
+  'product-json_endpoint': 'developer-product-json-endpoint',
 } as const
 
 export const normalizeDocsLocale = (locale?: string | null): DocsLocale => {
