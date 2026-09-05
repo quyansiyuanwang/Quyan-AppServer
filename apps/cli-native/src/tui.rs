@@ -26,6 +26,7 @@ use crate::{
 pub struct StatusView<'a> {
     pub api_base_url: &'a str,
     pub relay_base_url: &'a str,
+    pub auth_base_url: &'a str,
     pub locale: &'a str,
     pub config_path: &'a str,
     pub account_configured: bool,
@@ -353,7 +354,7 @@ async fn run_home_action(
     api: &mut ApiClient,
 ) -> (String, String) {
     let result = match action {
-        ActionKind::BrowserLogin => match cli::browser_login(&api.api_base_url).await {
+        ActionKind::BrowserLogin => match cli::browser_login(&api.api_base_url, status.auth_base_url).await {
             Ok(new_credentials) => match credentials::save(&new_credentials) {
                 Ok(()) => {
                     api.credentials = new_credentials;
@@ -850,6 +851,7 @@ mod tests {
         StatusView {
             api_base_url: "https://api.qysyw.cn",
             relay_base_url: "https://ai.qysyw.cn",
+            auth_base_url: "https://auth.qysyw.cn",
             locale: "zh-CN",
             config_path: "C:/config.json",
             account_configured: false,

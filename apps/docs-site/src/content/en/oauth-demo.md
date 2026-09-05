@@ -125,7 +125,7 @@ app.get('/', (_req, res) => {
 
 app.get('/login', (_req, res) => {
   const state = crypto.randomUUID()
-  const authorizeUrl = new URL('/v1/oauth/authorize', apiBaseUrl)
+  const authorizeUrl = new URL('/oauth/authorize', process.env.AUTH_FRONTEND_URL || 'https://auth.qysyw.cn')
   authorizeUrl.searchParams.set('response_type', 'code')
   authorizeUrl.searchParams.set('client_id', clientId)
   authorizeUrl.searchParams.set('redirect_uri', redirectUri)
@@ -336,7 +336,7 @@ function createPkcePair() {
 const { codeVerifier, codeChallenge, codeChallengeMethod } = createPkcePair()
 const state = crypto.randomUUID()
 
-const authorizeUrl = new URL('/v1/oauth/authorize', process.env.APPSERVER_BASE_URL)
+const authorizeUrl = new URL('/oauth/authorize', process.env.AUTH_FRONTEND_URL || 'https://auth.qysyw.cn')
 authorizeUrl.searchParams.set('response_type', 'code')
 authorizeUrl.searchParams.set('client_id', process.env.CLIENT_ID)
 authorizeUrl.searchParams.set('redirect_uri', process.env.REDIRECT_URI)
@@ -404,7 +404,7 @@ authorize_query = urlencode(
 )
 
 print("Open this URL in the browser:")
-print(f"{os.getenv('APPSERVER_BASE_URL', 'http://localhost:10001')}/v1/oauth/authorize?{authorize_query}")
+print(f"{os.getenv('AUTH_FRONTEND_URL', 'https://auth.qysyw.cn')}/oauth/authorize?{authorize_query}")
 
 # After the browser redirects back, paste the callback code here.
 code = "paste_callback_code_here"

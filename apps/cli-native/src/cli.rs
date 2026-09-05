@@ -10,6 +10,8 @@ use std::{
 };
 use url::Url;
 
+const OAUTH_CALLBACK_PORT: u16 = 40016;
+
 use crate::{
     api::ApiClient,
     branding, config,
@@ -199,7 +201,7 @@ pub async fn run() -> Result<()> {
                     branding::print();
                 }
                 creds = if login.browser {
-                    browser_login(&cfg.api_base_url).await?
+                    browser_login(&cfg.api_base_url, &cfg.auth_base_url).await?
                 } else if login.qrcode {
                     qr_login(&cfg.api_base_url, &cfg.locale).await?
                 } else {
@@ -294,6 +296,7 @@ pub async fn run() -> Result<()> {
         tui::StatusView {
             api_base_url: &cfg.api_base_url,
             relay_base_url: &cfg.relay_base_url,
+            auth_base_url: &cfg.auth_base_url,
             locale: &cfg.locale,
             config_path: &config_path,
             account_configured: creds.access_token.is_some() || creds.access_key.is_some(),
@@ -389,15 +392,18 @@ fn print_value(value: Value, json_output: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn browser_login(base: &str) -> Result<Credentials> {
-    let listener = TcpListener::bind("127.0.0.1:0")?;
+pub(crate) async fn browser_login(api_base: &str, auth_base: &str) -> Result<Credentials> {
+    let listener = TcpListener::bind(("127.0.0.1", OAUTH_CALLBACK_PORT)).with_context(|| {
+        format!(
+            "failed to bind OAuth callback on 127.0.0.1:{OAUTH_CALLBACK_PORT}; close another QuYan login session and retry"
+        )
+    })?;
     let port = listener.local_addr()?.port();
     let state = uuid::Uuid::new_v4().to_string();
     let verifier = format!("{}{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
     let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
     let redirect = format!("http://127.0.0.1:{port}/callback");
-    let mut url = Url::parse(&format!("{base}/v1/oauth/authorize"))?;
-    url.query_pairs_mut().append_pair("response_type","code").append_pair("client_id", "quyan-cli").append_pair("redirect_uri", &redirect).append_pair("scope", "profile relay:token:read relay:token:create relay:token:update relay:token:delete relay:channel:read relay:usage:read balance:read").append_pair("state", &state).append_pair("code_challenge", &challenge).append_pair("code_challenge_method", "S256");
+    let url = build_browser_authorization_url(auth_base, &redirect, &state, &challenge)?;
     tracing::debug!(redirect_uri = %redirect, "opening browser for OAuth login");
     open::that(url.as_str())?;
     let (mut stream, _) = listener.accept()?;
@@ -425,7 +431,7 @@ pub(crate) async fn browser_login(base: &str) -> Result<Credentials> {
     tracing::debug!("received OAuth callback after state validation");
     stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nQuyan login complete. You can close this window.")?;
     let response = reqwest::Client::new()
-        .post(format!("{base}/v1/oauth/token"))
+        .post(format!("{}/v1/oauth/token", api_base.trim_end_matches('/')))
         .form(&[
             ("grant_type", "authorization_code"),
             ("client_id", "quyan-cli"),
@@ -448,6 +454,62 @@ pub(crate) async fn browser_login(base: &str) -> Result<Credentials> {
             .map(String::from),
         ..Default::default()
     })
+}
+
+/// Builds the browser-facing authorization URL. The UI is hosted by the
+/// identity SPA; the API host is deliberately not accepted here.
+pub(crate) fn build_browser_authorization_url(
+    auth_base: &str,
+    redirect_uri: &str,
+    state: &str,
+    code_challenge: &str,
+) -> Result<Url> {
+    let mut url = Url::parse(&format!(
+        "{}/oauth/authorize",
+        auth_base.trim_end_matches('/')
+    ))?;
+    url.query_pairs_mut()
+        .append_pair("response_type", "code")
+        .append_pair("client_id", "quyan-cli")
+        .append_pair("redirect_uri", redirect_uri)
+        .append_pair(
+            "scope",
+            "profile relay:token:read relay:token:create relay:token:update relay:token:delete relay:channel:read relay:usage:read balance:read",
+        )
+        .append_pair("state", state)
+        .append_pair("code_challenge", code_challenge)
+        .append_pair("code_challenge_method", "S256");
+    Ok(url)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_browser_authorization_url;
+
+    #[test]
+    fn browser_authorization_uses_identity_site_route() {
+        let url = build_browser_authorization_url(
+            "https://auth.qysyw.cn/",
+            "http://127.0.0.1:40016/callback",
+            "state-1",
+            "challenge-1",
+        )
+        .expect("valid authorization URL");
+
+        assert_eq!(url.host_str(), Some("auth.qysyw.cn"));
+        assert_eq!(url.path(), "/oauth/authorize");
+        assert_eq!(
+            url.query_pairs()
+                .find(|(key, _)| key == "client_id")
+                .unwrap()
+                .1,
+            "quyan-cli"
+        );
+        assert_eq!(
+            url.query_pairs().find(|(key, _)| key == "state").unwrap().1,
+            "state-1"
+        );
+    }
 }
 
 async fn qr_login(base: &str, locale: &str) -> Result<Credentials> {

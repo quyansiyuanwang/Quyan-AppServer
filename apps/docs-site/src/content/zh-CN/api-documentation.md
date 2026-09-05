@@ -306,7 +306,7 @@ for item in payload["data"]["items"]:
 ### 第一步：跳转到授权页
 
 ```text
-GET https://api.qysyw.cn/v1/oauth/authorize
+GET https://auth.qysyw.cn/oauth/authorize
 	?response_type=code
 	&client_id=oc_live_xxx
 	&redirect_uri=https%3A%2F%2Fdemo.example.com%2Fcallback
@@ -315,6 +315,8 @@ GET https://api.qysyw.cn/v1/oauth/authorize
 	&code_challenge=pkce-challenge
 	&code_challenge_method=S256
 ```
+
+授权页面位于认证站；`https://api.qysyw.cn/v1/oauth/authorize` 是由该页面调用、且需要登录会话的 API，不应直接在浏览器地址栏打开。
 
 ### 第二步：后端换 token
 

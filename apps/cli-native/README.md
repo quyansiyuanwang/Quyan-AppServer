@@ -35,6 +35,12 @@ to load selected-token usage, `c` to create the default Quyan CLI token, and
 `d` then `y` to confirm deletion. `b` or `Esc` returns to the control center;
 `q` exits. The TUI never displays token values.
 
+Browser login opens the identity site at `/oauth/authorize` (normally
+`https://auth.qysyw.cn`) and exchanges the returned code through the API at
+`/v1/oauth/token`. The API authorization endpoint is protected and is not a
+browser page. The CLI uses the pre-registered loopback callback
+`http://127.0.0.1:40016/callback`.
+
 Every invocation writes diagnostics to the platform data directory under
 `Quyan/logs`. Add `--debug` to mirror detailed, redacted request lifecycle
 information to stderr. Logs record only HTTP method, path, request ID, status
