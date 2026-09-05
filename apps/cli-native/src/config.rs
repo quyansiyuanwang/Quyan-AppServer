@@ -10,6 +10,8 @@ pub struct Config {
     pub locale: String,
     pub api_base_url: String,
     pub relay_base_url: String,
+    #[serde(default = "default_auth_base_url")]
+    pub auth_base_url: String,
     #[serde(default)]
     pub metadata: serde_json::Map<String, serde_json::Value>,
 }
@@ -21,9 +23,14 @@ impl Default for Config {
             locale: "zh-CN".into(),
             api_base_url: "https://api.qysyw.cn".into(),
             relay_base_url: "https://ai.qysyw.cn".into(),
+            auth_base_url: "https://auth.qysyw.cn".into(),
             metadata: serde_json::Map::new(),
         }
     }
+}
+
+fn default_auth_base_url() -> String {
+    "https://auth.qysyw.cn".into()
 }
 
 pub fn directory() -> PathBuf {
@@ -67,6 +74,7 @@ pub fn masked(config: &Config, credentials: &Credentials) -> serde_json::Value {
         "locale": config.locale,
         "apiBaseUrl": config.api_base_url,
         "relayBaseUrl": config.relay_base_url,
+        "authBaseUrl": config.auth_base_url,
         "metadata": config.metadata,
         "credentials": {
             "accessToken": credentials.access_token.as_deref().map(crate::credentials::mask),
