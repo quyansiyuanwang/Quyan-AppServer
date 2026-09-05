@@ -1,4 +1,4 @@
-import type { RelayConvertibleRequestFormat, RelayRequestFormatTransform } from "@appserver/shared";
+import type { RelayConvertibleRequestFormat, RelayRequestFormatTransform } from "@quyan/shared";
 import { Transform } from "stream";
 
 type JsonObject = Record<string, any>;

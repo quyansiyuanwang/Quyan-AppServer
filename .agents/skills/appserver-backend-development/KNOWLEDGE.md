@@ -23,11 +23,11 @@
 ## 常用命令
 
 ```bash
-pnpm --filter @appserver/backend run type-check
-pnpm --filter @appserver/backend run test:unit
-pnpm --filter @appserver/backend run test:database
-pnpm --filter @appserver/backend run test:integration
-pnpm --filter @appserver/backend run test:contract
+pnpm --filter @quyan/backend run type-check
+pnpm --filter @quyan/backend run test:unit
+pnpm --filter @quyan/backend run test:database
+pnpm --filter @quyan/backend run test:integration
+pnpm --filter @quyan/backend run test:contract
 pnpm run openapi:gen:all
 pnpm run db:migrate:dev -- <migration-name>
 ```

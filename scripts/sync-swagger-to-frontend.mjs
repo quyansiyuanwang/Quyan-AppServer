@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Root-level coordinator: copies backend's swagger.json to frontend.
+ * Root-level coordinator: copies backend's swagger.json to frontend and CLI.
  *
  * Run after:  pnpm run openapi:gen  (backend generates swagger.json)
- * Run before: pnpm run openapi:gen:frontend (frontend generates client)
+ * Run before: pnpm run openapi:gen:frontend / openapi:gen:cli
  */
 import fs from 'node:fs'
 import path from 'node:path'

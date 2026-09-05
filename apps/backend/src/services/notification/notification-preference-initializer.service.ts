@@ -1,4 +1,4 @@
-import { ALL_NOTIFICATION_EVENTS } from "@appserver/shared";
+import { ALL_NOTIFICATION_EVENTS } from "@quyan/shared";
 import type { NotificationPreference } from "@prisma/client";
 import { ConfigService } from "@/services/system/config.service";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";

@@ -8,8 +8,9 @@ import {
   type RelayChannelProbeManagementState,
 } from '@/views/relay/relay-channel-probe/useRelayChannelProbeManagement'
 
-const { createRunsMock, listOverviewMock, listChannelsMock } = vi.hoisted(() => ({
+const { createRunsMock, listLatestRunsMock, listOverviewMock, listChannelsMock } = vi.hoisted(() => ({
   createRunsMock: vi.fn(),
+  listLatestRunsMock: vi.fn(),
   listOverviewMock: vi.fn(),
   listChannelsMock: vi.fn(),
 }))
@@ -23,6 +24,7 @@ vi.mock('@/service/relayChannelProbeService', () => ({
     createRun: vi.fn(),
     resetRunState: vi.fn(),
     createRuns: createRunsMock,
+    listLatestRuns: listLatestRunsMock,
     copyProfile: vi.fn(),
     listRuns: vi.fn(),
     clearRunHistory: vi.fn(),
@@ -124,7 +126,7 @@ describe('useRelayChannelProbeManagement', () => {
     wrapper.unmount()
   })
 
-  it('polls overview data while a queued probe run is active', async () => {
+  it('polls only active probe targets instead of reloading the overview', async () => {
     vi.useFakeTimers()
     listOverviewMock.mockResolvedValue({
       hasCustomerFacingTargets: true,
@@ -134,47 +136,49 @@ describe('useRelayChannelProbeManagement', () => {
         }),
       ],
     })
+    listLatestRunsMock.mockResolvedValue([
+      { channelId: 'channel-1', latestRun: { id: 'run-1', status: 'running' } },
+    ])
 
     const { wrapper } = await mountComposable()
     expect(listOverviewMock).toHaveBeenCalledTimes(1)
 
     await vi.advanceTimersByTimeAsync(3000)
-    expect(listOverviewMock).toHaveBeenCalledTimes(2)
+    expect(listOverviewMock).toHaveBeenCalledTimes(1)
+    expect(listLatestRunsMock).toHaveBeenCalledWith({ targets: [{ channelId: 'channel-1' }] })
     wrapper.unmount()
   })
 
   it('waits for a polling refresh to finish before scheduling the next one', async () => {
     vi.useFakeTimers()
-    let resolveRefresh:
-      | ((value: { hasCustomerFacingTargets: boolean; items: object[] }) => void)
-      | undefined
+    let resolveRefresh: ((value: object[]) => void) | undefined
     const activeOverview = {
       hasCustomerFacingTargets: true,
       items: [createItem({ latestRun: { id: 'run-1', status: 'queued' } })],
     }
-    listOverviewMock
-      .mockResolvedValueOnce(activeOverview)
+    listOverviewMock.mockResolvedValue(activeOverview)
+    listLatestRunsMock
       .mockImplementationOnce(
         () =>
           new Promise((resolve) => {
             resolveRefresh = resolve
           }),
       )
-      .mockResolvedValue(activeOverview)
+      .mockResolvedValue([{ channelId: 'channel-1', latestRun: { id: 'run-1', status: 'queued' } }])
 
     const { wrapper } = await mountComposable()
     await vi.advanceTimersByTimeAsync(3000)
-    expect(listOverviewMock).toHaveBeenCalledTimes(2)
+    expect(listLatestRunsMock).toHaveBeenCalledTimes(1)
 
     await vi.advanceTimersByTimeAsync(9000)
-    expect(listOverviewMock).toHaveBeenCalledTimes(2)
+    expect(listLatestRunsMock).toHaveBeenCalledTimes(1)
 
-    resolveRefresh?.(activeOverview)
+    resolveRefresh?.([{ channelId: 'channel-1', latestRun: { id: 'run-1', status: 'queued' } }])
     await flushPromises()
     await vi.advanceTimersByTimeAsync(2999)
-    expect(listOverviewMock).toHaveBeenCalledTimes(2)
+    expect(listLatestRunsMock).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1)
-    expect(listOverviewMock).toHaveBeenCalledTimes(3)
+    expect(listLatestRunsMock).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
 

@@ -10,6 +10,7 @@ const orderedModulePaths = [
   './developer-product-verification.doc.ts',
   './developer-product-ip-geolocation.doc.ts',
   './developer-product-push.doc.ts',
+  './developer-product-json-endpoint.doc.ts',
 ] as const
 
 export const registerDeveloperProductDocs = (registry: DocsRegistryBuilder) => {

@@ -16366,7 +16366,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:create"
+						]
 					}
 				],
 				"parameters": [],
@@ -16406,7 +16408,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:read"
+						]
 					}
 				],
 				"parameters": [
@@ -16459,7 +16463,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:read"
+						]
 					}
 				],
 				"parameters": [],
@@ -16495,7 +16501,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:create"
+						]
 					}
 				],
 				"parameters": [],
@@ -16537,7 +16545,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:read"
+						]
 					}
 				],
 				"parameters": [
@@ -16665,7 +16675,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:read"
+						]
 					}
 				],
 				"parameters": [
@@ -16714,7 +16726,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:delete"
+						]
 					}
 				],
 				"parameters": [
@@ -16761,7 +16775,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [
@@ -16812,7 +16828,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [
@@ -16866,7 +16884,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:create"
+						]
 					}
 				],
 				"parameters": [],
@@ -16908,7 +16928,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:create"
+						]
 					}
 				],
 				"parameters": [
@@ -16959,7 +16981,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [
@@ -17000,7 +17024,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [
@@ -17049,7 +17075,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [],
@@ -17091,7 +17119,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:update"
+						]
 					}
 				],
 				"parameters": [],
@@ -17133,7 +17163,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:token:delete"
+						]
 					}
 				],
 				"parameters": [],
@@ -17175,7 +17207,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17234,7 +17268,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17311,7 +17347,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17401,7 +17439,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17436,7 +17476,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": []
@@ -17462,7 +17504,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:usage:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17514,7 +17558,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17688,7 +17734,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17763,7 +17811,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17851,7 +17901,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": []
@@ -17881,7 +17933,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17928,7 +17982,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": [
@@ -17967,7 +18023,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"relay:channel:read"
+						]
 					}
 				],
 				"parameters": []
@@ -19736,6 +19794,45 @@
 					"required": true,
 					"purpose": "stepup",
 					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channel-probes/runs/latest": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerListLatestRuns",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayChannelProbeLatestRunDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RelayChannelProbeLatestRunRequest"
+							}
+						}
+					}
 				}
 			}
 		},
@@ -23753,7 +23850,8 @@
 													"short_link",
 													"secret",
 													"verification",
-													"ip_geolocation"
+													"ip_geolocation",
+													"json_endpoint"
 												]
 											},
 											"config": {
@@ -24246,6 +24344,85 @@
 						}
 					}
 				],
+				"X-Replay-Protected": true
+			}
+		},
+		"/v1/products/json-endpoints/instances/{instanceId}": {
+			"get": {
+				"operationId": "DeveloperProductResourceControllerGetJsonEndpoint",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperJsonEndpointDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"put": {
+				"operationId": "DeveloperProductResourceControllerUpdateJsonEndpoint",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperJsonEndpointDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Product Resources"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "instanceId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperJsonEndpointDto"
+							}
+						}
+					}
+				},
 				"X-Replay-Protected": true
 			}
 		},
@@ -25837,6 +26014,180 @@
 						}
 					}
 				}
+			}
+		},
+		"/v1/products/json-endpoints": {
+			"get": {
+				"operationId": "DeveloperProductJsonEndpointApiControllerGet",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"lastUpdated": {
+											"type": "string"
+										},
+										"isPublic": {
+											"type": "boolean"
+										},
+										"publicUrl": {
+											"type": "string"
+										},
+										"jsonContent": {
+											"$ref": "#/components/schemas/JsonValue"
+										},
+										"slug": {
+											"type": "string"
+										},
+										"name": {
+											"type": "string"
+										},
+										"instanceId": {
+											"type": "string"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"lastUpdated",
+										"isPublic",
+										"publicUrl",
+										"jsonContent",
+										"slug",
+										"name",
+										"instanceId",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"JSON Endpoint Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:json_endpoint:read"
+						]
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "DeveloperProductJsonEndpointApiControllerUpdate",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"lastUpdated": {
+											"type": "string"
+										},
+										"isPublic": {
+											"type": "boolean"
+										},
+										"publicUrl": {
+											"type": "string"
+										},
+										"jsonContent": {
+											"$ref": "#/components/schemas/JsonValue"
+										},
+										"slug": {
+											"type": "string"
+										},
+										"name": {
+											"type": "string"
+										},
+										"instanceId": {
+											"type": "string"
+										},
+										"id": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"lastUpdated",
+										"isPublic",
+										"publicUrl",
+										"jsonContent",
+										"slug",
+										"name",
+										"instanceId",
+										"id"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"JSON Endpoint Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:json_endpoint:write"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateDeveloperJsonEndpointDto"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "DeveloperProductJsonEndpointApiControllerClear",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"success": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"success"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"JSON Endpoint Product API"
+				],
+				"security": [
+					{
+						"product-key": [
+							"product:json_endpoint:write"
+						]
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/v1/admin/products/configs": {
@@ -28051,7 +28402,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"balance:read"
+						]
 					}
 				],
 				"parameters": []
@@ -28077,7 +28430,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"balance:read"
+						]
 					}
 				],
 				"parameters": []
@@ -28425,7 +28780,9 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"jwt": [
+							"balance:read"
+						]
 					}
 				],
 				"parameters": [
@@ -33595,6 +33952,9 @@
 					"product:push:channel:manage",
 					"product:push:delivery:read",
 					"product:push:manage",
+					"product:json_endpoint:read",
+					"product:json_endpoint:write",
+					"product:json_endpoint:manage",
 					"monthly_pass:template:read",
 					"monthly_pass:template:write",
 					"monthly_pass:assignment:read",
@@ -49684,6 +50044,58 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelProbeLatestRunDto": {
+				"description": "Latest state for one requested channel/member target. A missing run means no history remains for it.",
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string",
+						"description": "Required for an individual member of a logical pooled channel."
+					},
+					"latestRun": {
+						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+					}
+				},
+				"required": [
+					"channelId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeTargetDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string",
+						"description": "Required for an individual member of a logical pooled channel."
+					}
+				},
+				"required": [
+					"channelId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeLatestRunRequest": {
+				"description": "Explicit channels whose latest probe state should be refreshed without reloading the full overview.",
+				"properties": {
+					"targets": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeTargetDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"CreateRelayChannelProbeRunsResponse": {
 				"properties": {
 					"queued": {
@@ -49717,22 +50129,6 @@
 				"required": [
 					"queued",
 					"rejected"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"RelayChannelProbeTargetDto": {
-				"properties": {
-					"channelId": {
-						"type": "string"
-					},
-					"memberChannelId": {
-						"type": "string",
-						"description": "Required for an individual member of a logical pooled channel."
-					}
-				},
-				"required": [
-					"channelId"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -52712,7 +53108,8 @@
 					"short_link",
 					"secret",
 					"verification",
-					"ip_geolocation"
+					"ip_geolocation",
+					"json_endpoint"
 				]
 			},
 			"DeveloperProductConfigDto": {
@@ -53003,6 +53400,54 @@
 					"name",
 					"subjectUserId",
 					"actions"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperJsonEndpointDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"instanceId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"jsonContent": {},
+					"publicUrl": {
+						"type": "string"
+					},
+					"isPublic": {
+						"type": "boolean"
+					},
+					"lastUpdated": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"instanceId",
+					"name",
+					"slug",
+					"jsonContent",
+					"publicUrl",
+					"isPublic",
+					"lastUpdated"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateDeveloperJsonEndpointDto": {
+				"properties": {
+					"jsonContent": {}
+				},
+				"required": [
+					"jsonContent"
 				],
 				"type": "object",
 				"additionalProperties": false

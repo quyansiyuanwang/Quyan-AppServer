@@ -7,10 +7,10 @@ async function main() {
   const server = createMcpServer(root)
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  console.error('[appserver-mcp] 已启动，仓库根目录：' + root)
+  console.error('[quyan-mcp] 已启动，仓库根目录：' + root)
 }
 
 main().catch((error: unknown) => {
-  console.error('[appserver-mcp] 启动失败：', error)
+  console.error('[quyan-mcp] 启动失败：', error)
   process.exitCode = 1
 })

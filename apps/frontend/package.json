@@ -1,5 +1,5 @@
 {
-  "name": "@appserver/frontend",
+  "name": "@quyan/frontend",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -53,7 +53,7 @@
     "precommit": "pnpm run check"
   },
   "dependencies": {
-    "@appserver/shared": "workspace:*",
+    "@quyan/shared": "workspace:*",
     "@element-plus/icons-vue": "^2.3.1",
     "@simplewebauthn/browser": "^13.2.2",
     "@types/dompurify": "^3.0.5",

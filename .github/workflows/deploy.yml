@@ -81,16 +81,16 @@ jobs:
         run: pnpm install --frozen-lockfile --prod=false
 
       - name: Inject Empty Build Info
-        run: pnpm --filter @appserver/backend run build:info:stub
+        run: pnpm --filter @quyan/backend run build:info:stub
 
       - name: Check explicit dependencies
-        run: pnpm --filter @appserver/backend run check:explicit-deps
+        run: pnpm --filter @quyan/backend run check:explicit-deps
 
       - name: Generate Prisma Client
-        run: pnpm --filter @appserver/backend run db:generate
+        run: pnpm --filter @quyan/backend run db:generate
 
       - name: Build
-        run: pnpm --filter @appserver/backend run build:full:prod
+        run: pnpm --filter @quyan/backend run build:full:prod
 
       - name: Log generated build info
         run: |
@@ -135,7 +135,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
             -p ${{ secrets.SSH_PORT || '22' }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.dependencies['@appserver/shared'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')\" && pnpm install --config.confirmModulesPurge=false"
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.dependencies['@quyan/shared'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')\" && pnpm install --config.confirmModulesPurge=false"
 
       - name: Ensure remote logs directory is writable
         run: |

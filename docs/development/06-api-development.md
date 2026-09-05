@@ -139,7 +139,7 @@ pnpm run dev:backend
 # http://localhost:10001/docs
 
 # 运行测试
-pnpm --filter @appserver/backend test
+pnpm --filter @quyan/backend test
 ```
 
 ## Controller 装饰器参考
@@ -244,16 +244,16 @@ public async getUsers(): Promise<SuccessResponse<User[]>> {
 
 ```bash
 # 所有后端测试
-pnpm --filter @appserver/backend run test
+pnpm --filter @quyan/backend run test
 
 # 仅单元测试
-pnpm --filter @appserver/backend run test:unit
+pnpm --filter @quyan/backend run test:unit
 
 # 仅 API 测试（集成 + 契约）
-pnpm --filter @appserver/backend run test:api
+pnpm --filter @quyan/backend run test:api
 
 # 运行单个测试文件
-pnpm --filter @appserver/backend run test:unit -- tests/unit/<area>/<name>.unit.test.ts
+pnpm --filter @quyan/backend run test:unit -- tests/unit/<area>/<name>.unit.test.ts
 ```
 
 测试框架：Vitest + Supertest。纯单测与隔离数据库测试按项目并行，数据库 worker 使用派生 MySQL 库和独立 Redis DB，避免共享数据冲突。完整命令、分类和 CI 策略见 [测试与 CI](./11-testing-and-ci.md)。

@@ -14,7 +14,7 @@
 │   apps/backend/src/build/swagger.json                   │
 │     → apps/frontend/swagger.json                        │
 ├─────────────────────────────────────────────────────────┤
-│ Step 3: Frontend (openapi-ts + post-processing)         │
+│ Step 3: Frontend client (openapi-ts)                    │
 │   swagger.json → @hey-api/openapi-ts → src/client/      │
 │     ├── *.gen.ts           (typed SDK services)         │
 │     ├── types.gen.ts       (TypeScript types)           │
@@ -27,6 +27,13 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
+Rust CLI client generation is a separate consumer of the same backend
+contract. `apps/cli-native/build.rs` reads
+`apps/backend/src/build/swagger.json` and uses Progenitor to generate a typed
+client into Cargo `OUT_DIR`; generated Rust code is never hand-edited or
+committed. Run `cargo check --manifest-path apps/cli-native/Cargo.toml` after
+`pnpm run openapi:gen` to validate the CLI contract.
+
 ## 命令速查
 
 ```bash
@@ -38,12 +45,13 @@ pnpm run openapi:gen
 # 同步 swagger.json 到前端 + 生成前端客户端
 pnpm run openapi:sync
 
-# 完整流水线 (后端生成 + 同步 + 前端客户端)
+# 完整流水线 (后端生成 + 同步 + 前端客户端；Rust CLI 在 Cargo 构建时生成)
 pnpm run openapi:gen:all
 
 # 针对单个项目
-pnpm --filter @appserver/backend openapi:generate
-pnpm --filter @appserver/frontend openapi:generate
+pnpm --filter @quyan/backend openapi:generate
+pnpm --filter @quyan/frontend openapi:generate
+cargo check --manifest-path apps/cli-native/Cargo.toml
 ```
 
 ## Step 1: 后端 TSOA 生成
@@ -78,21 +86,23 @@ pnpm --filter @appserver/frontend openapi:generate
 
 ### 生成产物
 
-| 文件 | 用途 |
-|------|------|
-| `src/build/swagger.json` | OpenAPI 3.0 规范文件 |
-| `src/build/routes.ts` | Express 路由注册代码 |
+| 文件                       | 用途                       |
+| -------------------------- | -------------------------- |
+| `src/build/swagger.json`   | OpenAPI 3.0 规范文件       |
+| `src/build/routes.ts`      | Express 路由注册代码       |
 | `src/build/route-paths.ts` | 路由路径常量（供脚本使用） |
 
 ### 附加处理
 
 `tsoa:spec-and-routes` 脚本还会运行：
+
 - `scripts/add-replay-protection-markers.js` — 标记 `@ReplayProtected` 端点
 - `scripts/generate-route-paths.ts` — 生成路由路径常量
 
 ## Step 2: Swagger 同步
 
 `scripts/sync-swagger-to-frontend.mjs`：
+
 1. 检查 `apps/backend/src/build/swagger.json` 是否存在
 2. 复制到 `apps/frontend/swagger.json`
 3. 如果源文件不存在则报错
@@ -118,15 +128,15 @@ pnpm --filter @appserver/frontend openapi:generate
 
 ```typescript
 // src/service/userService.ts
-import { createUserControllerApi } from '@/client/user-controller.gen';
-import { useRequestStore } from '@/stores/request';
+import { createUserControllerApi } from '@/client/user-controller.gen'
+import { useRequestStore } from '@/stores/request'
 
-const getApi = () => createUserControllerApi(useRequestStore().getAxios());
+const getApi = () => createUserControllerApi(useRequestStore().getAxios())
 
 export class UserService {
   async getUsers() {
-    const { data } = await getApi().getUsers();
-    return data;
+    const { data } = await getApi().getUsers()
+    return data
   }
 }
 ```
@@ -141,8 +151,8 @@ export class UserService {
 
 `scripts/validate-frontend-permissions.mjs` 在 `precommit` 时运行，验证：
 
-1. 前端 `src/constant/permission.ts` 从 `@appserver/shared` re-export（非本地定义）
-2. 后端 `src/constant/permission.ts` 从 `@appserver/shared` re-export（非本地定义）
+1. 前端 `src/constant/permission.ts` 从 `@quyan/shared` re-export（非本地定义）
+2. 后端 `src/constant/permission.ts` 从 `@quyan/shared` re-export（非本地定义）
 3. 前端 `PERMISSION_META` 对象覆盖了所有 `Permission` 枚举成员，没有多余或缺失
 
 此脚本确保前后端的权限定义始终一致。

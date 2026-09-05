@@ -10,13 +10,16 @@ describe('MCP server', () => {
     expect(context.workspace).toBe('AppServerMonorepo')
     expect(context.focus).toContain('appserver-skill-authoring')
     expect(context.skills).toContain('appserver-skill-authoring')
+    expect(context.applications).toContain('quyan-native')
+    expect(context.documents).toContain('apps/cli-native/README.md')
+    expect(context.skills).toContain('appserver-cli-development')
     expect(context.scripts).toContain('pnpm run mcp:serve')
   })
 
   test('lists the six constrained tools', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
     const server = createMcpServer(process.cwd())
-    const client = new Client({ name: 'appserver-mcp-test', version: '1.0.0' })
+    const client = new Client({ name: 'quyan-mcp-test', version: '1.0.0' })
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)])
     const response = await client.listTools()
     expect(response.tools.map((tool) => tool.name).sort()).toEqual([

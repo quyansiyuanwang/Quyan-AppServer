@@ -321,6 +321,7 @@ model DeveloperProductInstance {
   entitlement    DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
   backingProject DeveloperProject            @relation("DeveloperProductInstanceBackingProject", fields: [backingProjectId], references: [id], onDelete: Cascade)
   apiKeys        DeveloperProductApiKey[]
+  jsonEndpoint   JsonEndpoint?            @relation("JsonEndpointProductInstance")
 
   @@unique([entitlementId, slug])
   @@index([entitlementId, enabled])
@@ -2290,6 +2291,7 @@ model JsonEndpoint {
   createTime           DateTime  @default(now())
   updateTime           DateTime  @updatedAt
   userId               String
+  developerProductInstanceId String? @unique
   name                 String
   slug                 String
   isRootSlug           Boolean   @default(false)
@@ -2306,6 +2308,7 @@ model JsonEndpoint {
   lastAccessAt         DateTime?
 
   user User @relation(fields: [userId], references: [id])
+  developerProductInstance DeveloperProductInstance? @relation("JsonEndpointProductInstance", fields: [developerProductInstanceId], references: [id], onDelete: SetNull)
 
   @@unique([userId, slug])
   @@index([userId])

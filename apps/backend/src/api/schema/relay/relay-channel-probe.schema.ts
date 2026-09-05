@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RELAY_PROBE_FORMATS } from "@appserver/shared";
+import { RELAY_PROBE_FORMATS } from "@quyan/shared";
 
 const variablePathSchema = z.string().trim().min(1).max(200);
 const credentialMapSchema = z.record(z.string().trim().min(1).max(80), z.string().min(1).max(2000));
@@ -119,6 +119,17 @@ export const createRelayChannelProbeRunBodySchema = z.object({
   memberChannelId: z.string().trim().min(1).optional(),
   distributionMultiplier: z.coerce.number().min(0.000001).max(1000).optional(),
   forceWithoutCacheBuster: z.boolean().optional(),
+});
+export const relayChannelProbeLatestRunsBodySchema = z.object({
+  targets: z
+    .array(probeTargetSchema)
+    .min(1)
+    .max(200)
+    .refine(
+      (targets) =>
+        new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size === targets.length,
+      "Duplicate probe targets are not allowed",
+    ),
 });
 export const createRelayChannelProbeRunsBodySchema = z
   .object({

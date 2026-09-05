@@ -208,13 +208,13 @@ pnpm run db:seed                 # 种子数据（开发）
 pnpm run db:seed:prod            # 种子数据（生产）
 
 # 或针对 backend 直接运行
-pnpm --filter @appserver/backend db:push
-pnpm --filter @appserver/backend db:migrate:dev
+pnpm --filter @quyan/backend db:push
+pnpm --filter @quyan/backend db:migrate:dev
 ```
 
 ### 修改 Schema 的流程
 
 1. 编辑 `apps/backend/prisma/schema.prisma`
-2. 运行 `pnpm --filter @appserver/backend exec prisma migrate dev --name <migration-name>` 创建并执行迁移；也可使用包装命令 `pnpm run db:migrate:dev -- <migration-name>`。`migration.sql` 必须由 Prisma 生成，禁止手写、复制或事后编辑。
+2. 运行 `pnpm --filter @quyan/backend exec prisma migrate dev --name <migration-name>` 创建并执行迁移；也可使用包装命令 `pnpm run db:migrate:dev -- <migration-name>`。`migration.sql` 必须由 Prisma 生成，禁止手写、复制或事后编辑。
 3. Prisma client 自动重新生成
 4. 如有新的或变更的模型，更新相关的 Repository/Service

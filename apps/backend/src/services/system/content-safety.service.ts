@@ -7,7 +7,7 @@ import type {
   ContentSafetyRuleType,
   ContentSafetyPolicyOverride,
   ContentSafetyUserConfig,
-} from "@appserver/shared";
+} from "@quyan/shared";
 import { ConfigService } from "./config.service";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { ContentSafetyRepository } from "@/store/system/content-safety.repository";

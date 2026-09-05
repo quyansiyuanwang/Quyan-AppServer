@@ -11,7 +11,7 @@ import { BadRequestError, ForbiddenError, TooManyRequestsError } from "@/util/er
 import { extractClientIp } from "@/util/ip-extractor";
 import { createSupportRelayAuthorization } from "@/util/support-relay-authorization";
 import { SupportAiUsageRepository } from "@/store/support/support-ai-usage.repository";
-import type { RelayRequestFormat, SupportStreamEvent } from "@appserver/shared";
+import type { RelayRequestFormat, SupportStreamEvent } from "@quyan/shared";
 import type {
   SendSupportMessageDto,
   SupportPageContextDto,

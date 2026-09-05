@@ -44,7 +44,7 @@ function validateScope(scope: string | undefined): string | undefined {
 
 export function createMcpServer(root: string): McpServer {
   const server = new McpServer({
-    name: 'appserver-mcp',
+    name: 'quyan-mcp',
     version: '1.0.0',
   })
 
@@ -55,7 +55,7 @@ export function createMcpServer(root: string): McpServer {
       description: '返回紧凑的仓库结构、核心约束、技能与文档索引。',
       inputSchema: {
         domain: z
-          .enum(['backend', 'frontend', 'relay', 'git', 'security', 'testing', 'skills'])
+          .enum(['backend', 'frontend', 'cli', 'relay', 'git', 'security', 'testing', 'skills'])
           .optional(),
       },
       annotations: { readOnlyHint: true },

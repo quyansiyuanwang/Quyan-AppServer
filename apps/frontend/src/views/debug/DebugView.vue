@@ -3,121 +3,143 @@
     <div class="debug-view">
       <h1>{{ i18ns.t('DebugView.title') }}</h1>
 
-      <!-- Build Info -->
-      <el-descriptions
-        :title="i18ns.t('DebugView.frontendBuildInfo')"
-        :column="2"
-        border
-        size="small"
-      >
-        <el-descriptions-item :label="i18ns.t('DebugView.version')">{{
-          buildInfo.version
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('DebugView.branch')">{{
-          buildInfo.branch
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('DebugView.commit')">
-          <el-tag size="small" type="info">{{ buildInfo.commitHashShort }}</el-tag>
-          <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">{{
-            buildInfo.commitMessage
-          }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('DebugView.commitTime')">{{
-          new Date(buildInfo.commitTime).toLocaleString()
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('DebugView.buildTime')" :span="2">{{
-          new Date(buildInfo.buildTime).toLocaleString()
-        }}</el-descriptions-item>
-      </el-descriptions>
+      <div class="debug-build-grid">
+        <!-- Build Info -->
+        <el-descriptions
+          :title="i18ns.t('DebugView.frontendBuildInfo')"
+          :column="2"
+          border
+          size="small"
+        >
+          <el-descriptions-item :label="i18ns.t('DebugView.version')">{{
+            buildInfo.version
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('DebugView.branch')">{{
+            buildInfo.branch
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('DebugView.commit')">
+            <el-tag size="small" type="info">{{ buildInfo.commitHashShort }}</el-tag>
+            <span
+              style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)"
+              >{{ buildInfo.commitMessage }}</span
+            >
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('DebugView.commitTime')">{{
+            new Date(buildInfo.commitTime).toLocaleString()
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('DebugView.buildTime')" :span="2">{{
+            new Date(buildInfo.buildTime).toLocaleString()
+          }}</el-descriptions-item>
+        </el-descriptions>
 
-      <el-descriptions
-        :title="i18ns.t('DebugView.backendBuildInfo')"
-        :column="2"
-        border
-        size="small"
-        style="margin-top: 12px"
-      >
-        <el-descriptions-item :label="i18ns.t('DebugView.version')">{{
-          backendBuildInfo?.version
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('DebugView.branch')">{{
-          backendBuildInfo?.branch
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('DebugView.commit')">
-          <el-tag size="small" type="info">{{ backendBuildInfo?.commitHashShort }}</el-tag>
-          <span style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)">{{
-            backendBuildInfo?.commitMessage
-          }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('DebugView.commitTime')">{{
-          backendBuildInfo?.commitTime
-            ? new Date(backendBuildInfo.commitTime).toLocaleString()
-            : i18ns.t('DebugView.unknown')
-        }}</el-descriptions-item>
-        <el-descriptions-item :label="i18ns.t('DebugView.buildTime')" :span="2">{{
-          backendBuildInfo?.buildTime
-            ? new Date(backendBuildInfo.buildTime).toLocaleString()
-            : i18ns.t('DebugView.unknown')
-        }}</el-descriptions-item>
-      </el-descriptions>
+        <el-descriptions
+          :title="i18ns.t('DebugView.backendBuildInfo')"
+          :column="2"
+          border
+          size="small"
+          style="margin-top: 12px"
+        >
+          <el-descriptions-item :label="i18ns.t('DebugView.version')">{{
+            backendBuildInfo?.version
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('DebugView.branch')">{{
+            backendBuildInfo?.branch
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('DebugView.commit')">
+            <el-tag size="small" type="info">{{ backendBuildInfo?.commitHashShort }}</el-tag>
+            <span
+              style="margin-left: 8px; font-size: 12px; color: var(--el-text-color-secondary)"
+              >{{ backendBuildInfo?.commitMessage }}</span
+            >
+          </el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('DebugView.commitTime')">{{
+            backendBuildInfo?.commitTime
+              ? new Date(backendBuildInfo.commitTime).toLocaleString()
+              : i18ns.t('DebugView.unknown')
+          }}</el-descriptions-item>
+          <el-descriptions-item :label="i18ns.t('DebugView.buildTime')" :span="2">{{
+            backendBuildInfo?.buildTime
+              ? new Date(backendBuildInfo.buildTime).toLocaleString()
+              : i18ns.t('DebugView.unknown')
+          }}</el-descriptions-item>
+        </el-descriptions>
+      </div>
       <el-divider />
-      <el-input v-model="apiPoint"></el-input>
+      <section class="debug-section">
+        <div class="debug-field-row"><el-input v-model="apiPoint"></el-input></div>
+      </section>
       <el-divider />
 
       <!-- OpenAPI -->
-      <el-input v-model="docApiPrefix"></el-input>
-      <el-button type="primary" @click="JumpDocs">{{ i18ns.t('DebugView.openApiDocs') }}</el-button>
-      <el-button type="primary" @click="JumpDocsJson">{{
-        i18ns.t('DebugView.openApiJson')
-      }}</el-button>
-      <el-button type="success" @click="openAprilPreview">{{
-        i18ns.t('DebugView.aprilPreview')
-      }}</el-button>
-      <el-button type="info" plain @click="simulateAprilArrival">{{
-        i18ns.t('DebugView.aprilSimulate')
-      }}</el-button>
-      <el-button type="warning" plain @click="closeAprilPreview">{{
-        i18ns.t('DebugView.aprilClosePreview')
-      }}</el-button>
+      <section class="debug-section">
+        <div class="debug-field-row"><el-input v-model="docApiPrefix"></el-input></div>
+        <div class="debug-actions">
+          <el-button type="primary" @click="JumpDocs">{{
+            i18ns.t('DebugView.openApiDocs')
+          }}</el-button>
+          <el-button type="primary" @click="JumpDocsJson">{{
+            i18ns.t('DebugView.openApiJson')
+          }}</el-button>
+          <el-button type="success" @click="openAprilPreview">{{
+            i18ns.t('DebugView.aprilPreview')
+          }}</el-button>
+          <el-button type="info" plain @click="simulateAprilArrival">{{
+            i18ns.t('DebugView.aprilSimulate')
+          }}</el-button>
+          <el-button type="warning" plain @click="closeAprilPreview">{{
+            i18ns.t('DebugView.aprilClosePreview')
+          }}</el-button>
+        </div>
+      </section>
       <el-divider />
 
       <!-- Auth -->
-      <el-button type="primary" @click="testAuth">{{ i18ns.t('DebugView.testAuth') }}</el-button>
-      <el-button
-        v-if="isDevelopmentMode"
-        type="warning"
-        plain
-        :loading="clearingTrustedWindow"
-        @click="handleClearTrustedWindow"
-      >
-        {{ i18ns.t('DebugView.clearTrustedWindow') }}
-      </el-button>
+      <section class="debug-section">
+        <div class="debug-actions">
+          <el-button type="primary" @click="testAuth">{{
+            i18ns.t('DebugView.testAuth')
+          }}</el-button>
+          <el-button
+            v-if="isDevelopmentMode"
+            type="warning"
+            plain
+            :loading="clearingTrustedWindow"
+            @click="handleClearTrustedWindow"
+          >
+            {{ i18ns.t('DebugView.clearTrustedWindow') }}
+          </el-button>
+        </div>
+      </section>
       <el-divider />
 
       <!-- Permissions -->
-      <el-button type="primary" @click="loadPermissions">{{
-        i18ns.t('DebugView.loadPermissions')
-      }}</el-button>
-      <el-button type="primary" @click="displayPermissions">{{
-        i18ns.t('DebugView.displayPermissions')
-      }}</el-button>
-      <el-descriptions
-        :title="i18ns.t('DebugView.permissionsTitle')"
-        v-if="perms.length > 0"
-        border
-      >
-        <el-descriptions-item v-for="perm in perms" :key="perm">
-          {{ perm }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="perms.length > 0"
-          >{{ i18ns.t('DebugView.total') }}: {{ perms.length }}</el-descriptions-item
+      <section class="debug-section">
+        <div class="debug-actions">
+          <el-button type="primary" @click="loadPermissions">{{
+            i18ns.t('DebugView.loadPermissions')
+          }}</el-button>
+          <el-button type="primary" @click="displayPermissions">{{
+            i18ns.t('DebugView.displayPermissions')
+          }}</el-button>
+        </div>
+        <el-descriptions
+          :title="i18ns.t('DebugView.permissionsTitle')"
+          v-if="perms.length > 0"
+          border
         >
-        <el-descriptions-item v-if="perms.length > 0"
-          ><el-button @click="clearPermissions">{{
-            i18ns.t('DebugView.clearPermissions')
-          }}</el-button></el-descriptions-item
-        >
-      </el-descriptions>
+          <el-descriptions-item v-for="perm in perms" :key="perm">
+            {{ perm }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="perms.length > 0"
+            >{{ i18ns.t('DebugView.total') }}: {{ perms.length }}</el-descriptions-item
+          >
+          <el-descriptions-item v-if="perms.length > 0"
+            ><el-button @click="clearPermissions">{{
+              i18ns.t('DebugView.clearPermissions')
+            }}</el-button></el-descriptions-item
+          >
+        </el-descriptions>
+      </section>
       <el-divider />
 
       <!-- Relay Test -->
@@ -529,6 +551,42 @@ if (!isDesktop.value) {
 </script>
 
 <style scoped>
+.debug-view {
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 769px) {
+  .debug-build-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .debug-section {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .debug-field-row {
+    min-width: 0;
+  }
+
+  .debug-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 769px) {
+  .debug-build-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .mobile-adapter {
   padding: 8px 6px 16px;
   overflow-x: hidden;

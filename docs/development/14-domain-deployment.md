@@ -44,7 +44,7 @@ VITE_BACKEND_URL=https://api.qysyw.example
 # The AI gateway forwards this traffic to api.qysyw.example/relay/proxy.
 VITE_AI_PROXY_URL=https://ai.qysyw.example
 VITE_RELAY_PUBLIC_BASE_URL=https://ai.qysyw.example
-pnpm --filter @appserver/frontend run build:production
+pnpm --filter @quyan/frontend run build:production
 ```
 
 `VITE_*` 会被打包进浏览器，因此不能包含密钥。`PLATFORM_ROOT_DOMAIN` 只描述 API、Cookie 与公共基础设施域；`SITE_ROOT_DOMAIN` 只描述当前 SPA 站群。`api.<PLATFORM_ROOT_DOMAIN>` 是公开 API 边界而非内部拓扑；所有认证、配置、业务和 Relay 请求都应发送到它。SPA 域名不再代理 `/v1/*`、`/auth-center/*`、`/docs/*` 或 `/relay/proxy/*`。

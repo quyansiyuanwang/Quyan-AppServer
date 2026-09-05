@@ -293,7 +293,7 @@ export class BalanceController extends Controller {
   }
 
   @Get("account")
-  @Security("jwt")
+  @Security("jwt", ["balance:read"])
   public async getMyBalance(@Request() request: TypedRequest): Promise<BalanceAccountResponse> {
     const userId = request.user!.userId;
     const account = await this.balanceService.getBalance(userId);
@@ -307,7 +307,7 @@ export class BalanceController extends Controller {
   }
 
   @Get("usage")
-  @Security("jwt")
+  @Security("jwt", ["balance:read"])
   public async getUsage(@Request() request: TypedRequest): Promise<UserBalanceResponse> {
     const userId = request.user!.userId;
     const account = await this.balanceService.getBalance(userId);
@@ -447,7 +447,7 @@ export class BalanceController extends Controller {
   }
 
   @Get("transactions")
-  @Security("jwt")
+  @Security("jwt", ["balance:read"])
   @Middlewares(validateQuery(balanceTransactionsQuerySchema))
   public async getMyTransactions(
     @Query() type?: string,

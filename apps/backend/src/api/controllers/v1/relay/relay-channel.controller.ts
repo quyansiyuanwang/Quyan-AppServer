@@ -94,7 +94,7 @@ export class RelayChannelController extends Controller {
   private providerRevenueService = RelayChannelProviderRevenueService.getInstance();
 
   @Get()
-  @Security("jwt")
+  @Security("jwt", ["relay:channel:read"])
   @RequireAnyPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW])
   public async listChannels(
     @Request() request: TypedRequest,
@@ -104,7 +104,7 @@ export class RelayChannelController extends Controller {
   }
 
   @Get("management")
-  @Security("jwt")
+  @Security("jwt", ["relay:channel:read"])
   @RequireAnyPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW])
   @Middlewares(validateQuery(relayChannelManagementQuerySchema))
   public async listManagementChannels(
@@ -129,7 +129,7 @@ export class RelayChannelController extends Controller {
   }
 
   @Get("topology-audit")
-  @Security("jwt")
+  @Security("jwt", ["relay:channel:read"])
   @RequirePermission(Permission.RELAY_CHANNEL_READ)
   public async getTopologyAudit(@Request() request: TypedRequest): Promise<RelayChannelTopologyAuditDto> {
     return this.channelService.getTopologyAudit(request.user!.userId);
@@ -140,7 +140,7 @@ export class RelayChannelController extends Controller {
    * needed to disclose variable pricing, while upstream credentials, URLs, mappings, and visibility rules remain hidden.
    */
   @Get("options")
-  @Security("jwt")
+  @Security("jwt", ["relay:channel:read"])
   @RequireAnyPermission([
     Permission.RELAY_CHANNEL_READ,
     Permission.RELAY_TOKEN_CREATE,
@@ -161,7 +161,7 @@ export class RelayChannelController extends Controller {
 
   /** Safe directory for token and other end-user routing selectors. */
   @Get("routing-catalog")
-  @Security("jwt")
+  @Security("jwt", ["relay:channel:read"])
   @RequireAnyPermission([
     Permission.RELAY_TOKEN_CREATE,
     Permission.RELAY_TOKEN_READ,
@@ -183,7 +183,7 @@ export class RelayChannelController extends Controller {
    * model-level multiplier range; pool topology, members, and routing are never included.
    */
   @Get("catalog")
-  @Security("jwt")
+  @Security("jwt", ["relay:channel:read"])
   @RequireAnyPermission([
     Permission.RELAY_CHANNEL_SUBMIT,
     Permission.RELAY_TOKEN_CREATE,

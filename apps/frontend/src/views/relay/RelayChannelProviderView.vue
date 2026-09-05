@@ -187,7 +187,7 @@ import {
   RELAY_REQUEST_FORMATS,
   type RelayConfiguredRequestFormat,
   type RelayUpstreamFormat,
-} from '@appserver/shared'
+} from '@quyan/shared'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Edit, Plus, Wallet } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'

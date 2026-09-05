@@ -348,6 +348,7 @@ export const overviewRouteByProfile: Partial<Record<SiteProfileId, RouteName>> =
   'product-verification': 'productVerificationOverview',
   'product-ip_geolocation': 'productIpGeolocationOverview',
   'product-push': 'productPushOverview',
+  'product-json_endpoint': 'productJsonEndpointOverview',
   'product-oj': 'ojOverview',
   'management-core': 'iamOverview',
   'management-ai': 'managementAiOverview',

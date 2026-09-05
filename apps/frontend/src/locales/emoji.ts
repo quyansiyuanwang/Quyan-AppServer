@@ -271,6 +271,7 @@ const emoji: DeepStringify<typeof en> = {
     statusDescription: '📡 ✅ 🌐 🚦',
     verificationDescription: '📧 📱 🔢 ✅',
     ipGeolocationDescription: '🌍 📍 🧭',
+    jsonEndpointDescription: '📄 🔗 🔑',
     pushDescription: '📣 🪝 📱 💬',
   },
 
@@ -740,6 +741,7 @@ const emoji: DeepStringify<typeof en> = {
     productVerification: '🔢',
     productIpGeolocation: '🌍 🔗',
     productPush: '🔔',
+    productJsonEndpoints: '📄 🔗',
     productUserPage: '👤',
     productManagementPage: '📊',
     productConfigPage: '⚙️',

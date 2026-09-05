@@ -24,7 +24,7 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
-import type { DeveloperProductCode } from "@appserver/shared";
+import type { DeveloperProductCode } from "@quyan/shared";
 
 @Route("v1/admin/products")
 @Tags("Developer Product Administration")

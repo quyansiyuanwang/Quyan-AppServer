@@ -284,6 +284,7 @@ export default {
       'Send and verify email or enabled SMS verification codes through an API.',
     ipGeolocationDescription:
       'Look up standardized location and ASN details for public IP addresses.',
+    jsonEndpointDescription: 'Provide editable, shareable JSON endpoints with API key access.',
     pushDescription: 'Deliver one message through Webhook, DingTalk, Feishu, and WeCom channels.',
   },
 
@@ -889,6 +890,7 @@ export default {
     productVerification: 'Verification API',
     productIpGeolocation: 'IP Geolocation',
     productPush: 'Push Aggregation',
+    productJsonEndpoints: 'JSON Endpoints',
     productUserPage: 'Console',
     productManagementPage: 'Operations',
     productConfigPage: 'Product Configuration',

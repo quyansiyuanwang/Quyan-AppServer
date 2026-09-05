@@ -13,7 +13,7 @@ async function isWorkspaceRoot(candidate: string): Promise<boolean> {
 }
 
 export async function resolveWorkspaceRoot(
-  candidate = process.env.APPSERVER_MCP_ROOT ?? process.cwd(),
+  candidate = process.env.QUYAN_MCP_ROOT ?? process.cwd(),
 ): Promise<string> {
   let root = await realpath(candidate)
 

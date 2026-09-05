@@ -1,4 +1,4 @@
-import { DEVELOPER_PRODUCT_CODES } from "@appserver/shared";
+import { DEVELOPER_PRODUCT_CODES } from "@quyan/shared";
 import { z } from "zod";
 
 const productCode = z.enum(DEVELOPER_PRODUCT_CODES);

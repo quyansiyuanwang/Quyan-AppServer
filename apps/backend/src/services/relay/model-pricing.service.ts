@@ -4,7 +4,7 @@ import type {
   UpdateModelPricingRequest,
 } from "@/api/dto/relay/model-pricing.dto";
 import type { ModelPricing } from "@prisma/client";
-import { RELAY_REQUEST_FORMATS } from "@appserver/shared";
+import { RELAY_REQUEST_FORMATS } from "@quyan/shared";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";

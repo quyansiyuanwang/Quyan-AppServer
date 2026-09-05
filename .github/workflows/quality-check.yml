@@ -18,6 +18,10 @@ on:
         description: 'Check docs site'
         type: boolean
         default: true
+      check-cli:
+        description: 'Check CLI'
+        type: boolean
+        default: true
 
 jobs:
   changes:
@@ -29,6 +33,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       docs-site: ${{ steps.filter.outputs.docs-site }}
+      cli: ${{ steps.filter.outputs.cli }}
       shared: ${{ steps.filter.outputs.shared }}
       api: ${{ steps.filter.outputs.api }}
     steps:
@@ -52,6 +57,13 @@ jobs:
               - '.github/workflows/quality-check.yml'
               - 'scripts/**'
               - '*.{js,mjs,cjs,json,yml,yaml}'
+            cli:
+              - 'apps/cli-native/**'
+              - 'apps/backend/src/build/swagger.json'
+              - '.github/workflows/quality-check.yml'
+              - 'scripts/cli-native.ts'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
             shared:
               - 'packages/**'
               - 'package.json'
@@ -84,10 +96,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Generate backend prerequisites
         run: |
-          pnpm --filter @appserver/backend run build:info:stub
-          pnpm --filter @appserver/backend run openapi:generate
-          pnpm --filter @appserver/backend run db:generate
-          pnpm --filter @appserver/backend run check:explicit-deps
+          pnpm --filter @quyan/backend run build:info:stub
+          pnpm --filter @quyan/backend run openapi:generate
+          pnpm --filter @quyan/backend run db:generate
+          pnpm --filter @quyan/backend run check:explicit-deps
       - name: Check backend in parallel
         run: pnpm run check:backend
 
@@ -118,11 +130,11 @@ jobs:
       # ignored by Git, so this independent runner must create both first.
       - name: Generate frontend prerequisites
         run: |
-          pnpm --filter @appserver/backend run build:info:stub
-          pnpm --filter @appserver/backend run openapi:generate
+          pnpm --filter @quyan/backend run build:info:stub
+          pnpm --filter @quyan/backend run openapi:generate
           node scripts/sync-swagger-to-frontend.mjs
-          pnpm --filter @appserver/frontend run openapi:generate
-          pnpm --filter @appserver/frontend run type:generate
+          pnpm --filter @quyan/frontend run openapi:generate
+          pnpm --filter @quyan/frontend run type:generate
       - name: Check frontend in parallel
         run: pnpm run check:frontend
 
@@ -150,6 +162,35 @@ jobs:
       - name: Check docs site in parallel
         run: pnpm run check:docs
 
+  cli-quality:
+    needs: changes
+    if: |
+      !contains(github.event.pull_request.title, '[skip ci]') &&
+      !contains(github.event.pull_request.title, '[skip cicd]') &&
+      (github.event_name == 'workflow_dispatch' && inputs['check-cli'] ||
+       needs.changes.outputs.cli == 'true' || needs.changes.outputs.shared == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Generate backend Swagger
+        run: |
+          pnpm --filter @quyan/backend run build:info:stub
+          pnpm --filter @quyan/backend run openapi:generate
+      - name: Check native CLI
+        run: pnpm run check:cli:native
+
   packages-quality:
     needs: changes
     if: |
@@ -175,7 +216,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Check shared package
         if: matrix.package == 'shared'
-        run: pnpm --filter @appserver/shared lint && pnpm --filter @appserver/shared test
+        run: pnpm --filter @quyan/shared lint && pnpm --filter @quyan/shared test
       - name: Check MCP package
         if: matrix.package == 'mcp'
-        run: pnpm --filter @appserver/mcp lint:check && pnpm --filter @appserver/mcp type-check && pnpm --filter @appserver/mcp test
+        run: pnpm --filter @quyan/mcp lint:check && pnpm --filter @quyan/mcp type-check && pnpm --filter @quyan/mcp test

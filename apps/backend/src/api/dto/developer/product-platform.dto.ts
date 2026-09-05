@@ -1,4 +1,4 @@
-import type { DeveloperProductCode } from "@appserver/shared";
+import type { DeveloperProductCode } from "@quyan/shared";
 
 export interface DeveloperProductConfigDto {
   productCode: DeveloperProductCode;

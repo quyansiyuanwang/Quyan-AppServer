@@ -79,7 +79,7 @@ import { RateLimiterService } from "@/services/infrastructure/rate-limiter.servi
 import { backendI18n } from "@/locales";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
-import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@appserver/shared";
+import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@quyan/shared";
 import {
   DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
   normalizeRelayTokenNormalizerConfig,

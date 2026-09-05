@@ -2,7 +2,8 @@
   <el-dialog
     v-model="applyDialogOpen"
     :title="i18ns.t('relay.channelProbeApplyDialogTitle')"
-    width="min(70vw, 94vw)"
+    width="min(1440px, calc(100vw - 32px))"
+    class="probe-apply-dialog"
     append-to-body
     :close-on-click-modal="false"
   >

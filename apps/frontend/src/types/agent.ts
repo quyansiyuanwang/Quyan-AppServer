@@ -1,4 +1,4 @@
-import type { AgentStreamEvent } from '@appserver/shared'
+import type { AgentStreamEvent } from '@quyan/shared'
 
 export interface AgentWorkspace {
   id: string

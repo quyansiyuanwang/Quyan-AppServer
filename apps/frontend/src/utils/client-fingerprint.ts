@@ -1,6 +1,6 @@
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import StorageKey from '@/constant/storagekey'
-import { normalizeFingerprint } from '@appserver/shared'
+import { normalizeFingerprint } from '@quyan/shared'
 
 const randomHex = (bytes: number): string => {
   const arr = new Uint8Array(bytes)

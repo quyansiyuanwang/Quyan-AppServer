@@ -5,30 +5,30 @@ module.exports = {
     const relative = filenames.map((f) =>
       path.relative(path.resolve(__dirname, 'apps/backend'), f).replace(/\\/g, '/'),
     )
-    return `pnpm --filter @appserver/backend exec eslint --fix --cache ${relative.join(' ')}`
+    return `pnpm --filter @quyan/backend exec eslint --fix --cache ${relative.join(' ')}`
   },
   'apps/frontend/**/*.{ts,js,vue}': (filenames) => {
     const relative = filenames.map((f) =>
       path.relative(path.resolve(__dirname, 'apps/frontend'), f).replace(/\\/g, '/'),
     )
-    return `pnpm --filter @appserver/frontend exec eslint --fix --cache ${relative.join(' ')}`
+    return `pnpm --filter @quyan/frontend exec eslint --fix --cache ${relative.join(' ')}`
   },
   'apps/docs-site/**/*.{ts,js,vue}': (filenames) => {
     const relative = filenames.map((f) =>
       path.relative(path.resolve(__dirname, 'apps/docs-site'), f).replace(/\\/g, '/'),
     )
-    return `pnpm --filter @appserver/docs-site exec eslint --fix --cache ${relative.join(' ')}`
+    return `pnpm --filter @quyan/docs-site exec eslint --fix --cache ${relative.join(' ')}`
   },
   'packages/shared/**/*.{ts,js,mjs}': (filenames) => {
     const relative = filenames.map((f) =>
       path.relative(path.resolve(__dirname, 'packages/shared'), f).replace(/\\/g, '/'),
     )
-    return `pnpm --filter @appserver/shared exec eslint --fix --cache ${relative.join(' ')}`
+    return `pnpm --filter @quyan/shared exec eslint --fix --cache ${relative.join(' ')}`
   },
   'packages/appserver-mcp/**/*.{ts,js,mjs}': (filenames) => {
     const relative = filenames.map((f) =>
       path.relative(path.resolve(__dirname, 'packages/appserver-mcp'), f).replace(/\\/g, '/'),
     )
-    return `pnpm --filter @appserver/mcp exec eslint --config eslint.config.mjs --fix --cache ${relative.join(' ')}`
+    return `pnpm --filter @quyan/mcp exec eslint --config eslint.config.mjs --fix --cache ${relative.join(' ')}`
   },
 }

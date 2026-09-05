@@ -80,9 +80,9 @@ const main = async () => {
     '--kill-others-on-fail',
     '--names',
     'backend,frontend,docs',
-    'pnpm --filter @appserver/backend dev',
-    'pnpm --filter @appserver/frontend dev',
-    'pnpm --filter @appserver/docs-site dev',
+    'pnpm --filter @quyan/backend dev',
+    'pnpm --filter @quyan/frontend dev',
+    'pnpm --filter @quyan/docs-site dev',
   ])
   const teardownExitCode = await teardown()
 

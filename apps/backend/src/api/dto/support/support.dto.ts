@@ -1,4 +1,4 @@
-import type { RelayRequestFormat } from "@appserver/shared";
+import type { RelayRequestFormat } from "@quyan/shared";
 
 export interface SupportMessageDto {
   role: "user" | "assistant";

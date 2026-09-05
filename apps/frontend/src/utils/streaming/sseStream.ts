@@ -2,9 +2,9 @@ import {
   applySseRequestMiddlewares,
   type SseRequest,
   type SseRequestMiddleware,
-} from '@appserver/shared'
+} from '@quyan/shared'
 
-export type { SseRequest, SseRequestMiddleware } from '@appserver/shared'
+export type { SseRequest, SseRequestMiddleware } from '@quyan/shared'
 
 export type SseStreamErrorKind = 'aborted' | 'network' | 'http' | 'protocol'
 

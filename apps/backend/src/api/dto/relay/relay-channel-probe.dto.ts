@@ -1,5 +1,5 @@
 import type { RelayChannelType, RelayChannelVisibilityMode } from "@/api/dto/relay/relay-channel.dto";
-import type { RelayConfiguredRequestFormat, RelayProbeFormat } from "@appserver/shared";
+import type { RelayConfiguredRequestFormat, RelayProbeFormat } from "@quyan/shared";
 
 export type RelayChannelProbeFormat = RelayProbeFormat;
 export type RelayChannelProbeEndpoint =
@@ -108,6 +108,16 @@ export interface RelayChannelProbeTargetDto {
   channelId: string;
   /** Required for an individual member of a logical pooled channel. */
   memberChannelId?: string;
+}
+
+/** Explicit channels whose latest probe state should be refreshed without reloading the full overview. */
+export interface RelayChannelProbeLatestRunRequest {
+  targets: RelayChannelProbeTargetDto[];
+}
+
+/** Latest state for one requested channel/member target. A missing run means no history remains for it. */
+export interface RelayChannelProbeLatestRunDto extends RelayChannelProbeTargetDto {
+  latestRun?: RelayChannelProbeRunDto;
 }
 
 /** Optional physical member filter for an operation scoped to one logical pool. */

@@ -1,0 +1,26 @@
+name: CLI Native Smoke Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+          - runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build native CLI binary
+        run: cargo build --manifest-path apps/cli-native/Cargo.toml --release
+      - name: Run version smoke test
+        shell: bash
+        run: |
+          ./apps/cli-native/target/release/quyan --version

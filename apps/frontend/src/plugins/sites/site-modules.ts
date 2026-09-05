@@ -18,6 +18,7 @@ import productSecret from './product-secret/site'
 import productShortLink from './product-short_link/site'
 import productStatus from './product-status/site'
 import productVerification from './product-verification/site'
+import productJsonEndpoint from './product-json_endpoint/site'
 import publicSite from './public/site'
 import terminal from './terminal/site'
 
@@ -40,6 +41,7 @@ export const siteModules = {
   'product-short_link': productShortLink,
   'product-status': productStatus,
   'product-verification': productVerification,
+  'product-json_endpoint': productJsonEndpoint,
   public: publicSite,
   terminal,
 } satisfies Partial<Record<SiteProfileId, SiteModule>>

@@ -1,1 +1,1 @@
-export { CustomCode } from '@appserver/shared'
+export { CustomCode } from '@quyan/shared'

@@ -1,5 +1,5 @@
 import type { Request } from "express";
-import { normalizeFingerprint } from "@appserver/shared";
+import { normalizeFingerprint } from "@quyan/shared";
 
 export function extractClientFingerprint(req: Request): string | undefined {
   const direct = normalizeFingerprint(req.headers["x-client-fingerprint"]);

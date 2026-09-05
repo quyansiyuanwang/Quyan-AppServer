@@ -28,6 +28,7 @@ import {
   createRelayChannelProbeRunBodySchema,
   createRelayChannelProbeRunsBodySchema,
   relayChannelProbeChannelParamsSchema,
+  relayChannelProbeLatestRunsBodySchema,
   relayChannelProbeMemberBodySchema,
   relayChannelProbeRunsQuerySchema,
   upsertRelayChannelProbeProfileBodySchema,
@@ -47,6 +48,8 @@ import type {
   RelayChannelProbeRunHistoryScope,
   RelayChannelProbeRunPageDto,
   RelayChannelProbeMemberTargetDto,
+  RelayChannelProbeLatestRunDto,
+  RelayChannelProbeLatestRunRequest,
   UpsertRelayChannelProbeProfileRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
 
@@ -142,6 +145,17 @@ export class RelayChannelProbeController extends Controller {
   ): Promise<void> {
     await this.service.resetRunState(channelId, request.user!.userId, body.memberChannelId);
     this.setStatus(204);
+  }
+
+  @Post("runs/latest")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @Middlewares(validateBody(relayChannelProbeLatestRunsBodySchema))
+  public listLatestRuns(
+    @Body() body: RelayChannelProbeLatestRunRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelProbeLatestRunDto[]> {
+    return this.service.listLatestRuns(body, request.user!.userId);
   }
 
   @Post("runs/batch")

@@ -1,4 +1,4 @@
-import { RELAY_CHANNEL_STATUS, type RelayChannelStatus } from "@appserver/shared";
+import { RELAY_CHANNEL_STATUS, type RelayChannelStatus } from "@quyan/shared";
 export { RELAY_CHANNEL_STATUS };
 export type { RelayChannelStatus };
 

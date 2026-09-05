@@ -4,7 +4,7 @@ import {
   THRESHOLD_NOTIFICATION_EVENTS,
   NOTIFICATION_EVENT_I18N_KEYS,
   NOTIFICATION_EVENT_THRESHOLD_UNIT_I18N_KEYS,
-} from "@appserver/shared";
+} from "@quyan/shared";
 export {
   NotificationEvent,
   ALL_NOTIFICATION_EVENTS,
