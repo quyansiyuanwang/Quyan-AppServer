@@ -125,7 +125,10 @@ app.get('/', (_req, res) => {
 
 app.get('/login', (_req, res) => {
   const state = crypto.randomUUID()
-  const authorizeUrl = new URL('/oauth/authorize', process.env.AUTH_FRONTEND_URL || 'https://auth.qysyw.cn')
+  const authorizeUrl = new URL(
+    '/oauth/authorize',
+    process.env.AUTH_FRONTEND_URL || 'https://auth.qysyw.cn',
+  )
   authorizeUrl.searchParams.set('response_type', 'code')
   authorizeUrl.searchParams.set('client_id', clientId)
   authorizeUrl.searchParams.set('redirect_uri', redirectUri)
@@ -336,7 +339,10 @@ function createPkcePair() {
 const { codeVerifier, codeChallenge, codeChallengeMethod } = createPkcePair()
 const state = crypto.randomUUID()
 
-const authorizeUrl = new URL('/oauth/authorize', process.env.AUTH_FRONTEND_URL || 'https://auth.qysyw.cn')
+const authorizeUrl = new URL(
+  '/oauth/authorize',
+  process.env.AUTH_FRONTEND_URL || 'https://auth.qysyw.cn',
+)
 authorizeUrl.searchParams.set('response_type', 'code')
 authorizeUrl.searchParams.set('client_id', process.env.CLIENT_ID)
 authorizeUrl.searchParams.set('redirect_uri', process.env.REDIRECT_URI)
