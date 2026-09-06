@@ -98,6 +98,12 @@ pub(crate) async fn begin_browser_login(
     let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
     let redirect_uri = oauth_redirect_uri();
     let url = build_browser_authorization_url(auth_base, &redirect_uri, &state, &challenge)?;
+
+    // Print URL for debugging
+    eprintln!("Opening OAuth authorization URL:");
+    eprintln!("{}", url.as_str());
+    eprintln!("");
+
     open::that(url.as_str())?;
     Ok(BrowserLoginSession {
         listener,
