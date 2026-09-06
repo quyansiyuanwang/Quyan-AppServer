@@ -156,27 +156,27 @@ export class DeveloperProductJsonEndpointApiController extends Controller {
   private readonly products = DeveloperProductPlatformService.getInstance();
 
   @Get("")
-  @Security("product-key", [Permission.PRODUCT_JSON_ENDPOINT_READ])
+  @Security("product-key", [Permission.JSON_ENDPOINT_READ])
   public async get(@Request() request: TypedRequest) {
-    return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_JSON_ENDPOINT_READ, () =>
+    return this.products.executeMetered(request.productApiKey!, Permission.JSON_ENDPOINT_READ, () =>
       this.products.getJsonEndpoint(request.productApiKey!.instanceId),
     );
   }
 
   @Put("")
-  @Security("product-key", [Permission.PRODUCT_JSON_ENDPOINT_WRITE])
+  @Security("product-key", [Permission.JSON_ENDPOINT_UPDATE])
   @Middlewares(replayProtectionMiddleware, validateBody(updateJsonEndpointBodySchema))
   public async update(@Body() body: UpdateDeveloperJsonEndpointDto, @Request() request: TypedRequest) {
-    return this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_JSON_ENDPOINT_WRITE, () =>
+    return this.products.executeMetered(request.productApiKey!, Permission.JSON_ENDPOINT_UPDATE, () =>
       this.products.updateJsonEndpoint(request.productApiKey!.instanceId, body.jsonContent),
     );
   }
 
   @Delete("")
-  @Security("product-key", [Permission.PRODUCT_JSON_ENDPOINT_WRITE])
+  @Security("product-key", [Permission.JSON_ENDPOINT_UPDATE])
   @Middlewares(replayProtectionMiddleware)
   public async clear(@Request() request: TypedRequest): Promise<{ success: true }> {
-    await this.products.executeMetered(request.productApiKey!, Permission.PRODUCT_JSON_ENDPOINT_WRITE, async () => {
+    await this.products.executeMetered(request.productApiKey!, Permission.JSON_ENDPOINT_UPDATE, async () => {
       await this.products.updateJsonEndpoint(request.productApiKey!.instanceId, {});
       return true;
     });

@@ -790,6 +790,7 @@ const emoji: DeepStringify<typeof en> = {
     relay: '🔌 🔁',
     myTokens: '🤤 🪙',
     oauthClientManagement: '🪪 📱',
+    systemOAuthClientManagement: '🔒 🪪',
     oauthClientReviewManagement: '🪪 ✅',
     authCenterClientManagement: '🔐 🏢 📱',
     authCenterClientReviewManagement: '🔐 🏢 ✅',

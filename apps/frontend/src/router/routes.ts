@@ -302,6 +302,14 @@ export const routes = [
             },
           },
           {
+            path: 'applications/system-oauth',
+            name: 'systemOAuthClientManagement',
+            component: lazyFeatureView('settings', 'SystemOAuthClientManagementView.vue'),
+            meta: {
+              permission: Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
+            },
+          },
+          {
             path: 'applications/auth-center',
             name: 'authCenterClientManagement',
             component: lazyFeatureView('settings', 'AuthCenterClientManagementView.vue'),
@@ -719,9 +727,9 @@ export const routes = [
                 props: { product: 'json_endpoint' },
                 meta: {
                   anyPermissions: [
-                    Permission.PRODUCT_JSON_ENDPOINT_READ,
-                    Permission.PRODUCT_JSON_ENDPOINT_WRITE,
-                    Permission.PRODUCT_JSON_ENDPOINT_MANAGE,
+                    Permission.JSON_ENDPOINT_READ,
+                    Permission.JSON_ENDPOINT_UPDATE,
+                    Permission.JSON_ENDPOINT_MANAGE,
                   ],
                 },
               },

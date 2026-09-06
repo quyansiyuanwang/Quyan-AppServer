@@ -72,9 +72,9 @@ export const PRODUCT_COPY: Record<
     nameKey: 'nav.productJsonEndpoints',
     descriptionKey: 'developerProducts.jsonEndpointDescription',
     actions: [
-      Permission.PRODUCT_JSON_ENDPOINT_READ,
-      Permission.PRODUCT_JSON_ENDPOINT_WRITE,
-      Permission.PRODUCT_JSON_ENDPOINT_MANAGE,
+      Permission.JSON_ENDPOINT_READ,
+      Permission.JSON_ENDPOINT_UPDATE,
+      Permission.JSON_ENDPOINT_MANAGE,
     ],
   },
 }
@@ -110,9 +110,9 @@ const PRODUCT_ACTION_EMOJI: Partial<Record<Permission, string>> = {
   [Permission.PRODUCT_PUSH_CHANNEL_MANAGE]: '🛠️ 📣',
   [Permission.PRODUCT_PUSH_DELIVERY_READ]: '👁️ 📬',
   [Permission.PRODUCT_PUSH_MANAGE]: '🛠️ 🔔',
-  [Permission.PRODUCT_JSON_ENDPOINT_READ]: '👁️ JSON',
-  [Permission.PRODUCT_JSON_ENDPOINT_WRITE]: '✍️ JSON',
-  [Permission.PRODUCT_JSON_ENDPOINT_MANAGE]: '🛠️ JSON',
+  [Permission.JSON_ENDPOINT_READ]: '👁️ JSON',
+  [Permission.JSON_ENDPOINT_UPDATE]: '✍️ JSON',
+  [Permission.JSON_ENDPOINT_MANAGE]: '🛠️ JSON',
 }
 
 export const productActionLabel = (permission: string) => {

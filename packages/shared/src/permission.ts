@@ -173,9 +173,8 @@ export enum Permission {
   PRODUCT_PUSH_CHANNEL_MANAGE = 'product:push:channel:manage',
   PRODUCT_PUSH_DELIVERY_READ = 'product:push:delivery:read',
   PRODUCT_PUSH_MANAGE = 'product:push:manage',
-  PRODUCT_JSON_ENDPOINT_READ = 'product:json_endpoint:read',
-  PRODUCT_JSON_ENDPOINT_WRITE = 'product:json_endpoint:write',
-  PRODUCT_JSON_ENDPOINT_MANAGE = 'product:json_endpoint:manage',
+
+  // JSON端点权限
 
   // 月卡管理权限
   MONTHLY_PASS_TEMPLATE_READ = 'monthly_pass:template:read',

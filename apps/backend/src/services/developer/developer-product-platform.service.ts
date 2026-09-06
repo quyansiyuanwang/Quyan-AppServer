@@ -74,11 +74,7 @@ const PRODUCT_PERMISSIONS: Record<DeveloperProductCode, Permission[]> = {
     Permission.PRODUCT_PUSH_DELIVERY_READ,
     Permission.PRODUCT_PUSH_MANAGE,
   ],
-  json_endpoint: [
-    Permission.PRODUCT_JSON_ENDPOINT_READ,
-    Permission.PRODUCT_JSON_ENDPOINT_WRITE,
-    Permission.PRODUCT_JSON_ENDPOINT_MANAGE,
-  ],
+  json_endpoint: [Permission.JSON_ENDPOINT_READ, Permission.JSON_ENDPOINT_UPDATE, Permission.JSON_ENDPOINT_MANAGE],
 };
 
 export interface ProductKeyContext {
