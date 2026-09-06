@@ -42,9 +42,11 @@ export class DeveloperProductService {
     method: 'GET' | 'POST',
     body?: unknown,
   ): Promise<T> {
-    // Product consoles use the site's same-origin API gateway. This keeps API
-    // topology out of the browser bundle and lets the reverse proxy own it.
-    const response = await fetch(path, {
+    // Product API requests must go to the backend API server, not the console subdomain.
+    // Use the configured backend URL to ensure requests reach api.qysyw.cn.
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || ''
+    const fullUrl = `${backendUrl}${path}`
+    const response = await fetch(fullUrl, {
       method,
       credentials: 'omit',
       headers: {
