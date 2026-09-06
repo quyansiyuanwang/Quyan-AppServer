@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde_json::{Map, Value};
 use std::{fs, path::PathBuf};
 
-use crate::credentials::Credentials;
+use crate::core::credentials::Credentials;
 
 fn merge(file: PathBuf, patch: Value, dry_run: bool, backup: bool) -> Result<bool> {
     let current: Value = fs::read(&file)
