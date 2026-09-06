@@ -8,7 +8,7 @@ use serde::Deserialize;
 use sha2::Sha256;
 use uuid::Uuid;
 
-use crate::credentials::Credentials;
+use crate::core::credentials::Credentials;
 
 type HmacSha256 = Hmac<Sha256>;
 

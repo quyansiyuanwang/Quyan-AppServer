@@ -231,4 +231,17 @@ describe('route catalog', () => {
     const ram = getKnownProfile('ram.console.qysyw.cn')
     expect(resolveRouteMigration('/overview', ram)).toBeUndefined()
   })
+
+  it('keeps OAuth authorize query parameters on the identity profile', () => {
+    // Visiting the identity site's own canonical /oauth/authorize is not a
+    // cross-site migration, so sanitizeMigrationSearch must not strip the
+    // legitimate redirect_uri/state/code_challenge request parameters. A full
+    // OAuth authorize URL is exactly what an auth-entry route receives.
+    const identity = getKnownProfile('auth.qysyw.test')
+    const search =
+      '?response_type=code&client_id=quyan-cli' +
+      '&redirect_uri=http%3A%2F%2F127.0.0.1%3A40016%2Fcallback' +
+      '&scope=profile&state=abc&code_challenge=xyz&code_challenge_method=S256'
+    expect(resolveRouteMigrationUrl('/oauth/authorize', search, '', identity)).toBeUndefined()
+  })
 })

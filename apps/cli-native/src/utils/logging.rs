@@ -12,40 +12,67 @@ use tracing_subscriber::{
 
 const MAX_EVENTS: usize = 64;
 static CURRENT_LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
+/// Shared panel buffer the TUI renders. When set, a compact tracing layer
+/// mirrors log lines into it so interactive runs can show diagnostics on the
+/// "Recent events" panel without writing to stderr (which would corrupt the
+/// alternate screen).
+static PANEL_SINK: OnceLock<EventBuffer> = OnceLock::new();
 
-#[derive(Clone, Debug)]
+/// A bounded, shared log ring used by the TUI's "Recent events" panel.
+#[derive(Clone, Debug, Default)]
 pub struct EventBuffer {
-    entries: VecDeque<String>,
+    entries: Arc<Mutex<VecDeque<String>>>,
 }
 
 impl EventBuffer {
     pub fn new() -> Self {
-        Self {
-            entries: VecDeque::with_capacity(MAX_EVENTS),
-        }
+        Self::default()
     }
 
-    pub fn push(&mut self, level: &str, message: impl Into<String>) {
-        if self.entries.len() == MAX_EVENTS {
-            self.entries.pop_front();
+    pub fn push(&self, level: &str, message: impl Into<String>) {
+        let mut entries = self.entries.lock().expect("event buffer poisoned");
+        if entries.len() == MAX_EVENTS {
+            entries.pop_front();
         }
+        entries.push_back(format!("[{level}] {}", message.into()));
+    }
+
+    /// Appends a pre-formatted log line (no level bracket added).
+    pub fn push_line(&self, line: impl Into<String>) {
+        let mut entries = self.entries.lock().expect("event buffer poisoned");
+        if entries.len() == MAX_EVENTS {
+            entries.pop_front();
+        }
+        entries.push_back(line.into());
+    }
+
+    pub fn entries(&self) -> Vec<String> {
         self.entries
-            .push_back(format!("[{level}] {}", message.into()));
-    }
-
-    pub fn entries(&self) -> impl Iterator<Item = &String> {
-        self.entries.iter()
+            .lock()
+            .expect("event buffer poisoned")
+            .iter()
+            .cloned()
+            .collect()
     }
 
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.entries.lock().expect("event buffer poisoned").len()
+    }
+
+    pub fn clear(&self) {
+        self.entries.lock().expect("event buffer poisoned").clear();
     }
 }
 
-impl Default for EventBuffer {
-    fn default() -> Self {
-        Self::new()
-    }
+/// Registers the buffer that the TUI's "Recent events" panel reads from. Call
+/// before `init` when the process will render an interactive terminal.
+pub fn set_panel_sink(sink: EventBuffer) {
+    let _ = PANEL_SINK.set(sink);
+}
+
+/// Returns a clone of the registered panel sink, if any.
+pub fn panel_sink() -> Option<EventBuffer> {
+    PANEL_SINK.get().cloned()
 }
 
 #[derive(Clone, Debug)]
@@ -78,15 +105,23 @@ pub fn init(debug: bool, mirror_to_stderr: bool) -> Result<LogHandle> {
     } else {
         EnvFilter::new("info")
     };
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_ansi(false)
-                .with_writer(writer),
-        )
-        .try_init()
-        .ok();
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_ansi(false)
+        .with_writer(writer);
+    let subscriber = tracing_subscriber::registry().with(filter).with(file_layer);
+    if let Some(sink) = panel_sink() {
+        // Compact mirror for the TUI panel: no timestamp/target so a row fits
+        // the "Recent events" box. Only enabled for interactive runs.
+        let panel_writer = PanelSinkWriter { sink };
+        let panel_layer = tracing_subscriber::fmt::layer()
+            .with_ansi(false)
+            .without_time()
+            .with_target(false)
+            .with_writer(panel_writer);
+        subscriber.with(panel_layer).try_init().ok();
+    } else {
+        subscriber.try_init().ok();
+    }
     let _ = CURRENT_LOG_PATH.set(path.clone());
     Ok(LogHandle { path })
 }
@@ -140,6 +175,51 @@ struct DualWriter {
     mirror_to_stderr: bool,
 }
 
+/// Writer for the interactive "Recent events" panel. tracing's fmt layer
+/// formats one event then writes it as a single record (the backing buffer
+/// never reports a short write), so each `write` carries one complete line;
+/// push it into the shared panel buffer right away.
+#[derive(Clone)]
+struct PanelSinkWriter {
+    sink: EventBuffer,
+}
+
+impl<'a> MakeWriter<'a> for PanelSinkWriter {
+    type Writer = PanelSinkLine;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        PanelSinkLine {
+            sink: self.sink.clone(),
+        }
+    }
+}
+
+/// Receives one formatted log record and stores it as a panel row.
+struct PanelSinkLine {
+    sink: EventBuffer,
+}
+
+impl Write for PanelSinkLine {
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let text = String::from_utf8_lossy(bytes);
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            // tracing fmt (target-less) renders `INFO <message>`. Compact to
+            // `[INFO] <message>` so the row fits the on-screen box.
+            let row = match trimmed.find(char::is_whitespace) {
+                Some(split) => format!("[{}] {}", &trimmed[..split], &trimmed[split..].trim()),
+                None => format!("[{trimmed}]"),
+            };
+            self.sink.push_line(row);
+        }
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 struct DualWriterGuard {
     file: Arc<Mutex<File>>,
     stderr: Option<io::Stderr>,
@@ -180,14 +260,25 @@ mod tests {
 
     #[test]
     fn event_buffer_is_bounded() {
-        let mut events = EventBuffer::new();
+        let events = EventBuffer::new();
         for index in 0..100 {
             events.push("INFO", format!("event-{index}"));
         }
         assert_eq!(events.len(), 64);
         assert_eq!(
-            events.entries().next().map(String::as_str),
+            events.entries().first().map(String::as_str),
             Some("[INFO] event-36")
+        );
+    }
+
+    #[test]
+    fn panel_lines_are_buffered_like_manual_rows() {
+        let events = EventBuffer::new();
+        events.push_line("[INFO] a");
+        events.push_line("[DEBUG] b");
+        assert_eq!(
+            events.entries(),
+            vec!["[INFO] a".to_string(), "[DEBUG] b".to_string()]
         );
     }
 

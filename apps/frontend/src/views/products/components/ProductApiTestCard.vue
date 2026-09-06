@@ -39,6 +39,8 @@ const formattedResult = computed(() => JSON.stringify(props.result, null, 2))
 
 <style scoped>
 .api-test-card {
+  display: flex;
+  flex-direction: column;
   margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid var(--el-border-color-light);
@@ -65,6 +67,7 @@ const formattedResult = computed(() => JSON.stringify(props.result, null, 2))
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 16px;
 }
 .result {
   margin-top: 16px;
