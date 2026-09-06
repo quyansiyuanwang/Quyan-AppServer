@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { SYSTEM_OAUTH_CLIENTS } from "../src/constant/system-oauth-clients";
+import { SYSTEM_OAUTH_CLIENTS } from "../../src/constant/system-oauth-clients";
 
 const prisma = new PrismaClient();
 
