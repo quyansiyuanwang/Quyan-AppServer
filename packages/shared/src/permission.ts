@@ -124,6 +124,7 @@ export enum Permission {
   OAUTH_CLIENT_DELETE = 'oauth:client:delete',
   OAUTH_CLIENT_REVIEW_READ = 'oauth:client:review:read',
   OAUTH_CLIENT_REVIEW_UPDATE = 'oauth:client:review:update',
+  OAUTH_CLIENT_SYSTEM_MANAGE = 'oauth:client:system:manage', // 管理系统级 OAuth 客户端
 
   // Auth Center 应用权限
   AUTH_CENTER_CLIENT_CREATE = 'auth_center:client:create',

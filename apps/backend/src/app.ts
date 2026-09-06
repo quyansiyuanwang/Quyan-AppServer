@@ -224,6 +224,18 @@ export function setupService() {
   logger.info("Initializing services...");
   SystemService.getInstance(); // init for uptime
   RedisService.getInstance(); // init Redis connection
+
+  // 验证系统 OAuth 客户端（仅验证不创建）
+  import("./services/users/oauth-client-bootstrap.service")
+    .then(({ OAuthClientBootstrapService }) => {
+      import("./config/database").then(({ prisma }) => {
+        OAuthClientBootstrapService.getInstance(prisma)
+          .verifySystemClients()
+          .catch((error) => logger.error("Failed to verify system OAuth clients", { error }));
+      });
+    })
+    .catch((error) => logger.error("Failed to load OAuth client bootstrap service", { error }));
+
   DeveloperMonitorSchedulerService.getInstance().start();
   RelayChannelProbeService.getInstance().start();
   RelayChannelProviderSettlementSchedulerService.getInstance().start();
