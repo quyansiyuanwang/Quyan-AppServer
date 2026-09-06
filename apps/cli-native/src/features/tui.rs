@@ -21,8 +21,8 @@ use crate::{
     cli::handlers::auth,
     core::{api::ApiClient, branding::QUYAN_BANNER, credentials},
     features::integrations,
-    utils::logging::{self, EventBuffer},
     services::{account, json_endpoint_product, relay},
+    utils::logging::{self, EventBuffer},
 };
 
 pub struct StatusView<'a> {

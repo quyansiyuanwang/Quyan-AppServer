@@ -23,14 +23,14 @@ impl Default for Config {
             locale: "zh-CN".into(),
             api_base_url: "https://api.qysyw.cn".into(),
             relay_base_url: "https://ai.qysyw.cn".into(),
-            auth_base_url: "https://auth.qysyw.cn".into(),
+            auth_base_url: "https://www.qysyw.cn".into(),
             metadata: serde_json::Map::new(),
         }
     }
 }
 
 fn default_auth_base_url() -> String {
-    "https://auth.qysyw.cn".into()
+    "https://www.qysyw.cn".into()
 }
 
 pub fn directory() -> PathBuf {

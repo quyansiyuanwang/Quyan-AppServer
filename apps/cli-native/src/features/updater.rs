@@ -44,8 +44,8 @@ struct GitHubAsset {
 }
 
 pub async fn check_for_updates(force: bool) -> Result<Option<UpdateInfo>> {
-    let current = Version::parse(env!("CARGO_PKG_VERSION"))
-        .context("failed to parse current version")?;
+    let current =
+        Version::parse(env!("CARGO_PKG_VERSION")).context("failed to parse current version")?;
 
     if !force {
         if let Some(cached) = load_cache()? {
@@ -191,7 +191,8 @@ pub async fn download_and_install_update(update_info: &UpdateInfo) -> Result<()>
     let mut file = File::create(&temp_file).context("failed to create temp file")?;
     file.write_all(&bytes)
         .context("failed to write new binary")?;
-    file.sync_all().context("failed to sync new binary to disk")?;
+    file.sync_all()
+        .context("failed to sync new binary to disk")?;
     drop(file);
 
     #[cfg(unix)]

@@ -1,7 +1,11 @@
 use clap::{ArgAction, Args, Parser, Subcommand};
 
 #[derive(Debug, Parser)]
-#[command(name = "quyan", about = "Quyan native command-line client", disable_version_flag = true)]
+#[command(
+    name = "quyan",
+    about = "Quyan native command-line client",
+    disable_version_flag = true
+)]
 pub struct Cli {
     #[arg(short = 'v', long, global = true, action = ArgAction::SetTrue)]
     pub version: bool,
@@ -20,15 +24,30 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     Login(LoginArgs),
-    Credential { #[command(subcommand)] command: CredentialCommand },
+    Credential {
+        #[command(subcommand)]
+        command: CredentialCommand,
+    },
     Logout,
     Status,
     Account,
-    Relay { #[command(subcommand)] command: RelayCommand },
+    Relay {
+        #[command(subcommand)]
+        command: RelayCommand,
+    },
     Apply(ApplyArgs),
-    Config { #[command(subcommand)] command: ConfigCommand },
-    Product { #[command(subcommand)] command: ProductCommand },
-    Update { #[arg(long)] check: bool },
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
+    Product {
+        #[command(subcommand)]
+        command: ProductCommand,
+    },
+    Update {
+        #[arg(long)]
+        check: bool,
+    },
     Version,
 }
 
@@ -42,13 +61,22 @@ pub struct LoginArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum CredentialCommand {
-    Import { #[arg(long)] stdin: bool },
+    Import {
+        #[arg(long)]
+        stdin: bool,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 pub enum RelayCommand {
-    Token { #[command(subcommand)] command: RelayTokenCommand },
-    Channels { #[command(subcommand)] command: ChannelsCommand },
+    Token {
+        #[command(subcommand)]
+        command: RelayTokenCommand,
+    },
+    Channels {
+        #[command(subcommand)]
+        command: ChannelsCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -84,13 +112,19 @@ pub enum ConfigCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum ProductCommand {
-    JsonEndpoints { #[command(subcommand)] command: ProductJsonCommand },
+    JsonEndpoints {
+        #[command(subcommand)]
+        command: ProductJsonCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
 pub enum ProductJsonCommand {
     Get,
-    Update { #[arg(long)] file: String },
+    Update {
+        #[arg(long)]
+        file: String,
+    },
     Clear,
     Usage,
 }

@@ -4,7 +4,11 @@ use serde_json::json;
 
 use crate::{
     cli::{handlers, Cli, Command, CredentialCommand},
-    core::{api::ApiClient, branding, config, credentials::{self, Credentials}},
+    core::{
+        api::ApiClient,
+        branding, config,
+        credentials::{self, Credentials},
+    },
     features::{integrations, tui, updater},
     utils::logging::{self, EventBuffer},
 };
@@ -71,10 +75,19 @@ pub async fn run() -> Result<()> {
                 if !args.json {
                     branding::print();
                 }
-                return handlers::print_value(json!({"version": env!("CARGO_PKG_VERSION")}), args.json);
+                return handlers::print_value(
+                    json!({"version": env!("CARGO_PKG_VERSION")}),
+                    args.json,
+                );
             }
             Command::Login(login) => {
-                return handlers::handle_login(login, &cfg.api_base_url, &cfg.auth_base_url, args.json).await;
+                return handlers::handle_login(
+                    login,
+                    &cfg.api_base_url,
+                    &cfg.auth_base_url,
+                    args.json,
+                )
+                .await;
             }
             Command::Credential {
                 command: CredentialCommand::Import { stdin: _ },
@@ -109,7 +122,12 @@ pub async fn run() -> Result<()> {
                 if !args.json {
                     branding::print();
                 }
-                let value = integrations::apply(&creds, apply_args.client.as_deref(), apply_args.dry_run, !apply_args.no_backup)?;
+                let value = integrations::apply(
+                    &creds,
+                    apply_args.client.as_deref(),
+                    apply_args.dry_run,
+                    !apply_args.no_backup,
+                )?;
                 return handlers::print_value(value, args.json);
             }
             command => {
@@ -190,15 +208,15 @@ pub async fn run() -> Result<()> {
     .await
 }
 
-async fn dispatch_api_command(
-    command: Command,
-    api: ApiClient,
-    json_output: bool,
-) -> Result<()> {
+async fn dispatch_api_command(command: Command, api: ApiClient, json_output: bool) -> Result<()> {
     match command {
         Command::Account => handlers::handle_account(&api, json_output).await,
-        Command::Relay { command } => handlers::handle_relay_command(command, &api, json_output).await,
-        Command::Product { command } => handlers::handle_product_command(command, &api, json_output).await,
+        Command::Relay { command } => {
+            handlers::handle_relay_command(command, &api, json_output).await
+        }
+        Command::Product { command } => {
+            handlers::handle_product_command(command, &api, json_output).await
+        }
         _ => anyhow::bail!("unsupported command"),
     }
 }
