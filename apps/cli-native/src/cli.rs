@@ -25,7 +25,7 @@ use crate::{
     integrations,
     logging::{self, EventBuffer},
     services::{account, json_endpoint_product as product, relay},
-    tui,
+    tui, updater,
 };
 
 #[derive(Debug, Parser)]
@@ -71,6 +71,10 @@ enum Command {
     Product {
         #[command(subcommand)]
         command: ProductCommand,
+    },
+    Update {
+        #[arg(long)]
+        check: bool,
     },
     Version,
 }
@@ -275,6 +279,12 @@ pub async fn run() -> Result<()> {
                 }
                 return handle_config(command, &mut cfg, &creds, args.json);
             }
+            Command::Update { check } => {
+                if !args.json {
+                    branding::print();
+                }
+                return handle_update(check, args.json).await;
+            }
             command => {
                 if !args.json {
                     branding::print();
@@ -288,6 +298,28 @@ pub async fn run() -> Result<()> {
     // was created above; use it as the "Recent events" source.
     let events = panel.expect("interactive run must own the shared event buffer");
     events.push("INFO", "CLI started");
+
+    // Check for updates in the background (non-blocking)
+    if updater::should_check_for_updates() {
+        events.push("INFO", "Checking for updates...");
+        let events_clone = events.clone();
+        tokio::spawn(async move {
+            match updater::check_for_updates(false).await {
+                Ok(Some(info)) => {
+                    let msg = updater::format_update_notification(&info);
+                    tracing::info!("{}", msg);
+                    events_clone.push("INFO", msg);
+                }
+                Ok(None) => {
+                    tracing::debug!("no updates available");
+                }
+                Err(error) => {
+                    tracing::warn!(error = %error, "update check failed");
+                }
+            }
+        });
+    }
+
     if startup_errors.is_empty() {
         events.push("INFO", "Configuration and credentials loaded");
     } else {
@@ -405,6 +437,63 @@ fn read_json_stdin() -> Result<Value> {
     std::io::stdin().read_to_string(&mut input)?;
     Ok(serde_json::from_str(&input)?)
 }
+
+async fn handle_update(check_only: bool, json_output: bool) -> Result<()> {
+    if check_only {
+        match updater::check_for_updates(true).await? {
+            Some(info) => {
+                if json_output {
+                    print_value(
+                        json!({
+                            "updateAvailable": true,
+                            "currentVersion": info.current_version,
+                            "latestVersion": info.latest_version,
+                            "downloadUrl": info.download_url,
+                            "releaseNotes": info.release_notes,
+                            "publishedAt": info.published_at
+                        }),
+                        json_output,
+                    )
+                } else {
+                    println!("{}", updater::format_update_notification(&info));
+                    if !info.release_notes.is_empty() {
+                        println!("\nRelease notes:\n{}", info.release_notes);
+                    }
+                    Ok(())
+                }
+            }
+            None => print_value(
+                json!({"updateAvailable": false, "message": "You are using the latest version"}),
+                json_output,
+            ),
+        }
+    } else {
+        match updater::check_for_updates(true).await? {
+            Some(info) => {
+                if !json_output {
+                    println!(
+                        "Updating from {} to {}...",
+                        info.current_version, info.latest_version
+                    );
+                }
+                updater::download_and_install_update(&info).await?;
+                print_value(
+                    json!({
+                        "updated": true,
+                        "oldVersion": info.current_version,
+                        "newVersion": info.latest_version
+                    }),
+                    json_output,
+                )
+            }
+            None => print_value(
+                json!({"updated": false, "message": "Already up to date"}),
+                json_output,
+            ),
+        }
+    }
+}
+
 fn print_value(value: Value, json_output: bool) -> Result<()> {
     if json_output {
         println!("{}", serde_json::to_string(&value)?);

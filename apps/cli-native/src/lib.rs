@@ -7,6 +7,7 @@ pub mod integrations;
 pub mod logging;
 pub mod services;
 pub mod tui;
+pub mod updater;
 
 pub mod generated {
     #![allow(clippy::all)]
