@@ -23,9 +23,7 @@ const unsafeMigrationQueryKeys = new Set([
  * - OAuth authorize endpoints need redirect_uri, state, code_challenge for the OAuth flow
  * - Payment callback endpoints need order_id, payment_status for transaction tracking
  */
-const routesRequiringQueryPreservation = new Set([
-  '/oauth/authorize',
-])
+const routesRequiringQueryPreservation = new Set(['/oauth/authorize'])
 
 const sanitizeMigrationSearch = (search: string): string => {
   const params = new URLSearchParams(search)
