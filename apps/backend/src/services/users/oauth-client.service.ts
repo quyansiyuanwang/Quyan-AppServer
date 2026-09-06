@@ -15,8 +15,9 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OAuthClientRepository } from "@/store/users/oauth-client.repository";
 import type { OAuthClientStore, OAuthClientUpdateInput } from "@/store/users/oauth-client.store";
-import { BadRequestError, NotFoundError } from "@/util/errors";
+import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
+import { CustomCode } from "@quyan/shared";
 
 const DEFAULT_GRANT_TYPES = ["authorization_code", "refresh_token"];
 const DEFAULT_SCOPES = ["profile"];
@@ -110,6 +111,21 @@ export class OAuthClientService {
     request?: Request,
   ): Promise<OAuthClientDto> {
     const existing = await this.requireOwnedClient(id, userId);
+
+    // 系统客户端限制关键字段修改
+    if (existing.isSystemClient) {
+      const protectedFields = ["clientType", "redirectUris", "scopes"];
+      const attemptedFields = Object.keys(data);
+      const forbidden = attemptedFields.filter((f) => protectedFields.includes(f));
+
+      if (forbidden.length > 0) {
+        throw new ForbiddenError(
+          `系统 OAuth 客户端无法修改以下字段: ${forbidden.join(", ")}`,
+          CustomCode.SYSTEM_RESOURCE_PROTECTED,
+        );
+      }
+    }
+
     const updateData: OAuthClientUpdateInput = {};
 
     if (Object.prototype.hasOwnProperty.call(data, "name") && data.name !== undefined)
@@ -165,6 +181,12 @@ export class OAuthClientService {
 
   async deleteClient(id: string, userId: string, request?: Request): Promise<void> {
     const existing = await this.requireOwnedClient(id, userId);
+
+    // 保护系统客户端不被删除
+    if (existing.isSystemClient) {
+      throw new ForbiddenError("系统 OAuth 客户端无法删除", CustomCode.SYSTEM_RESOURCE_PROTECTED);
+    }
+
     await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
@@ -183,6 +205,11 @@ export class OAuthClientService {
   async deleteClientForReview(id: string, reviewerUserId: string, request?: Request): Promise<void> {
     const existing = await this.repository.findById(id);
     if (!existing) throw new NotFoundError("OAuth client not found");
+
+    // 保护系统客户端不被删除
+    if (existing.isSystemClient) {
+      throw new ForbiddenError("系统 OAuth 客户端无法删除", CustomCode.SYSTEM_RESOURCE_PROTECTED);
+    }
 
     await this.repository.delete(id);
 

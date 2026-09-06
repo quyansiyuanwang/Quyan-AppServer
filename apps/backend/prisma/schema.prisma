@@ -1535,6 +1535,7 @@ model OAuthClient {
   accessTokenLifetime  Int       @default(3600)
   refreshTokenLifetime Int       @default(2592000)
   lastUsedAt           DateTime?
+  isSystemClient       Boolean   @default(false)
 
   user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   reviewedBy         User?                    @relation("OAuthClientReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
@@ -1549,6 +1550,7 @@ model OAuthClient {
   @@index([reviewStatus, submittedAt])
   @@index([status])
   @@index([userId, status, createTime])
+  @@index([isSystemClient, status])
   @@map("oauth_clients")
 }
 

@@ -503,6 +503,7 @@ async function main() {
     where: { clientId: "quyan-cli" },
     update: {
       reviewStatus: "approved",
+      isSystemClient: true,
     },
     create: {
       clientId: "quyan-cli",
@@ -526,6 +527,7 @@ async function main() {
       accessTokenLifetime: 3600,
       refreshTokenLifetime: 604800,
       reviewStatus: "approved",
+      isSystemClient: true,
       userId: adminUser.id,
       homepageUrl: "https://github.com/your-org/quyan-cli",
       logoUrl: null,

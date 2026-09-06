@@ -47,6 +47,7 @@
     "db:migrate:resolve:baseline": "prisma migrate resolve --applied 20260706000000_baseline",
     "db:seed": "bun ./prisma/seed.ts",
     "db:seed:prod": "bun ./prisma/seed.prod.ts",
+    "db:seed:system-clients": "bun ./prisma/seed.system-clients.ts",
     "db:migrate:reset": "prisma migrate reset",
     "db:migrate:reset-seed": "prisma migrate reset && pnpm run db:seed",
     "--- g_lint_format -----------------": "",

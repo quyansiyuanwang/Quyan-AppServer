@@ -33914,6 +33914,7 @@
 					"oauth:client:delete",
 					"oauth:client:review:read",
 					"oauth:client:review:update",
+					"oauth:client:system:manage",
 					"auth_center:client:create",
 					"auth_center:client:read",
 					"auth_center:client:update",

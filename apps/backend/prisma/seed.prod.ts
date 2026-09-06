@@ -68,6 +68,67 @@ async function main() {
 
   console.log("✓ 超级管理员账号创建完成\n");
 
+  // ==================== 创建系统级 OAuth 客户端 ====================
+  console.log("创建系统级 OAuth 客户端...");
+
+  const adminUser = await prisma.user.findUnique({
+    where: { username: "admin" },
+  });
+
+  if (!adminUser) {
+    throw new Error("Admin user not found. Cannot create system OAuth clients.");
+  }
+
+  await prisma.oAuthClient.upsert({
+    where: { clientId: "quyan-cli" },
+    update: {
+      reviewStatus: "approved",
+      isSystemClient: true,
+      scopes: JSON.stringify([
+        "profile",
+        "relay:token:read",
+        "relay:token:create",
+        "relay:token:update",
+        "relay:token:delete",
+        "relay:channel:read",
+        "relay:usage:read",
+        "balance:read",
+      ]),
+    },
+    create: {
+      clientId: "quyan-cli",
+      name: "Quyan CLI",
+      description: "Official Quyan command-line interface",
+      clientType: "public",
+      clientSecretHash: null,
+      grantTypes: JSON.stringify(["authorization_code", "refresh_token"]),
+      redirectUris: JSON.stringify(["http://127.0.0.1:40016/callback"]),
+      scopes: JSON.stringify([
+        "profile",
+        "relay:token:read",
+        "relay:token:create",
+        "relay:token:update",
+        "relay:token:delete",
+        "relay:channel:read",
+        "relay:usage:read",
+        "balance:read",
+      ]),
+      isPkceRequired: true,
+      accessTokenLifetime: 3600,
+      refreshTokenLifetime: 604800,
+      reviewStatus: "approved",
+      isSystemClient: true,
+      userId: adminUser.id,
+      homepageUrl: "https://github.com/your-org/quyan-cli",
+      logoUrl: null,
+      policyUrl: null,
+      tosUrl: null,
+    },
+  });
+
+  console.log("  ✓ quyan-cli (Official CLI)");
+  console.log("✓ 系统级 OAuth 客户端创建完成\n");
+
   console.log("===========================================");
   console.log("数据库初始化完成！");
   console.log("===========================================");
