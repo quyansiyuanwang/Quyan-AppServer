@@ -701,6 +701,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows approving or rejecting OAuth applications',
     category: 'oauth',
   },
+  [Permission.OAUTH_CLIENT_SYSTEM_MANAGE]: {
+    label: '管理系统级 OAuth 客户端',
+    labelEn: 'Manage System OAuth Clients',
+    tooltip: '允许管理官方系统级 OAuth 客户端配置',
+    tooltipEn: 'Allows managing official system-level OAuth client configurations',
+    category: 'oauth',
+  },
 
   [Permission.AUTH_CENTER_CLIENT_CREATE]: {
     label: '创建 Auth Center 应用',
