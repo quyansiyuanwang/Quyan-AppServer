@@ -151,7 +151,23 @@ enum ProductJsonCommand {
 
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
-    let log = logging::init(args.debug, args.debug && !args.json)?;
+    // Interactive runs (no subcommand) render an alternate screen on stdout;
+    // diagnostics must not be mirrored to stderr or they would corrupt the
+    // TUI. Instead they are routed to the shared "Recent events" buffer that
+    // the TUI renders on the home screen. One-shot subcommands may mirror to
+    // stderr for debugging.
+    let panel = if args.command.is_none() {
+        Some(EventBuffer::new())
+    } else {
+        None
+    };
+    if let Some(sink) = &panel {
+        logging::set_panel_sink(sink.clone());
+    }
+    let log = logging::init(
+        args.debug,
+        args.debug && !args.json && args.command.is_some(),
+    )?;
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
         platform = %logging::platform_description(),
@@ -268,7 +284,9 @@ pub async fn run() -> Result<()> {
             }
         }
     }
-    let mut events = EventBuffer::new();
+    // Reaching here means no subcommand was given, so the shared panel buffer
+    // was created above; use it as the "Recent events" source.
+    let events = panel.expect("interactive run must own the shared event buffer");
     events.push("INFO", "CLI started");
     if startup_errors.is_empty() {
         events.push("INFO", "Configuration and credentials loaded");

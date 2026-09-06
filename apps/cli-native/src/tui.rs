@@ -796,7 +796,7 @@ fn render_home(
     let entries = status
         .events
         .entries()
-        .cloned()
+        .into_iter()
         .map(Line::from)
         .collect::<Vec<_>>();
     frame.render_widget(
@@ -1084,7 +1084,7 @@ mod tests {
     #[test]
     fn home_screen_exposes_the_interactive_ai_relay_entry() {
         let mut terminal = Terminal::new(TestBackend::new(120, 40)).expect("test terminal");
-        let mut events = EventBuffer::new();
+        let events = EventBuffer::new();
         events.push("INFO", "CLI started");
         let actions = actions("zh-CN");
         terminal
