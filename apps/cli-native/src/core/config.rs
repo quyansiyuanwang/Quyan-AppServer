@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
-use crate::credentials::Credentials;
+use crate::core::credentials::Credentials;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -65,7 +65,7 @@ pub fn save(config: &Config) -> Result<()> {
 
 pub fn reset() -> Result<()> {
     let _ = fs::remove_file(path());
-    crate::credentials::clear()
+    crate::core::credentials::clear()
 }
 
 pub fn masked(config: &Config, credentials: &Credentials) -> serde_json::Value {
@@ -77,11 +77,11 @@ pub fn masked(config: &Config, credentials: &Credentials) -> serde_json::Value {
         "authBaseUrl": config.auth_base_url,
         "metadata": config.metadata,
         "credentials": {
-            "accessToken": credentials.access_token.as_deref().map(crate::credentials::mask),
-            "refreshToken": credentials.refresh_token.as_deref().map(crate::credentials::mask),
-            "accessKey": credentials.access_key.as_deref().map(crate::credentials::mask),
-            "relayToken": credentials.relay_token.as_deref().map(crate::credentials::mask),
-            "productKey": credentials.product_key.as_deref().map(crate::credentials::mask),
+            "accessToken": credentials.access_token.as_deref().map(crate::core::credentials::mask),
+            "refreshToken": credentials.refresh_token.as_deref().map(crate::core::credentials::mask),
+            "accessKey": credentials.access_key.as_deref().map(crate::core::credentials::mask),
+            "relayToken": credentials.relay_token.as_deref().map(crate::core::credentials::mask),
+            "productKey": credentials.product_key.as_deref().map(crate::core::credentials::mask),
         }
     })
 }

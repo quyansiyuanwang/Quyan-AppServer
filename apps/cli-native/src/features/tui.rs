@@ -16,12 +16,12 @@ use serde_json::Value;
 use std::{io::stdout, time::Instant};
 use tokio::task::JoinHandle;
 
-use crate::credentials::Credentials;
+use crate::core::credentials::Credentials;
 use crate::{
-    api::ApiClient,
-    branding::QUYAN_BANNER,
-    cli, credentials, integrations,
-    logging::{self, EventBuffer},
+    cli::handlers::auth,
+    core::{api::ApiClient, branding::QUYAN_BANNER, credentials},
+    features::integrations,
+    utils::logging::{self, EventBuffer},
     services::{account, json_endpoint_product, relay},
 };
 
@@ -501,7 +501,7 @@ async fn start_browser_login(
     status: &StatusView<'_>,
     api: &ApiClient,
 ) -> HomeResult {
-    let session = match cli::begin_browser_login(&api.api_base_url, status.auth_base_url).await {
+    let session = match auth::begin_browser_login(&api.api_base_url, status.auth_base_url).await {
         Ok(session) => session,
         Err(error) => {
             return HomeResult::Output {
@@ -515,14 +515,14 @@ async fn start_browser_login(
     };
     tracing::debug!("waiting for OAuth callback");
     let exchange = tokio::spawn(async move {
-        let credentials = cli::complete_browser_login(session).await?;
+        let credentials = auth::complete_browser_login(session).await?;
         credentials::save(&credentials)?;
         Ok::<_, anyhow::Error>(credentials)
     });
     HomeResult::BrowserLogin(BrowserLoginView {
         selected,
         locale: status.locale.to_string(),
-        redirect_uri: cli::oauth_redirect_uri(),
+        redirect_uri: auth::oauth_redirect_uri(),
         started_at: Instant::now(),
         exchange: Some(exchange),
     })
@@ -1142,7 +1142,7 @@ mod tests {
                         view: BrowserLoginView {
                             selected: 0,
                             locale: "zh-CN".into(),
-                            redirect_uri: cli::oauth_redirect_uri(),
+                            redirect_uri: auth::oauth_redirect_uri(),
                             started_at: Instant::now(),
                             exchange: None,
                         },
@@ -1172,7 +1172,7 @@ mod tests {
                         view: BrowserLoginView {
                             selected: 0,
                             locale: "en-US".into(),
-                            redirect_uri: cli::oauth_redirect_uri(),
+                            redirect_uri: auth::oauth_redirect_uri(),
                             started_at: Instant::now(),
                             exchange: None,
                         },

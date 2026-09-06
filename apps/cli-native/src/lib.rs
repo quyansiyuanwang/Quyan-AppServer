@@ -1,13 +1,8 @@
-pub mod api;
-pub mod branding;
 pub mod cli;
-pub mod config;
-pub mod credentials;
-pub mod integrations;
-pub mod logging;
+pub mod core;
+pub mod features;
 pub mod services;
-pub mod tui;
-pub mod updater;
+pub mod utils;
 
 pub mod generated {
     #![allow(clippy::all)]

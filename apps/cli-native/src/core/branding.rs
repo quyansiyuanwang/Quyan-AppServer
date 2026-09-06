@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 
 /// Shared ASCII-only identity shown by the human-facing CLI and TUI.
-pub const QUYAN_BANNER: &str = include_str!("../assets/quyan-banner.txt");
+pub const QUYAN_BANNER: &str = include_str!("../../assets/quyan-banner.txt");
 
 pub fn print() {
     let mut stdout = io::stdout();

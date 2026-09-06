@@ -2,7 +2,7 @@ use anyhow::Result;
 use reqwest::Method;
 use serde_json::{json, Value};
 
-use crate::api::{ApiClient, AuthKind};
+use crate::core::api::{ApiClient, AuthKind};
 
 pub async fn get(api: &ApiClient) -> Result<Value> {
     api.request(

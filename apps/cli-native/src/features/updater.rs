@@ -256,7 +256,7 @@ fn replace_executable(temp_file: &Path, target: &Path) -> Result<()> {
 }
 
 fn cache_file_path() -> PathBuf {
-    crate::config::directory().join("update_check.json")
+    crate::core::config::directory().join("update_check.json")
 }
 
 fn load_cache() -> Result<Option<UpdateCheckCache>> {
@@ -270,7 +270,7 @@ fn load_cache() -> Result<Option<UpdateCheckCache>> {
 }
 
 fn save_cache(cache: &UpdateCheckCache) -> Result<()> {
-    fs::create_dir_all(crate::config::directory())?;
+    fs::create_dir_all(crate::core::config::directory())?;
     let path = cache_file_path();
     let contents = serde_json::to_string_pretty(cache)?;
     fs::write(&path, contents).context("failed to write update cache")?;
