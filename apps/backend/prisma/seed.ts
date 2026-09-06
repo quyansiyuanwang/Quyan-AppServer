@@ -203,7 +203,7 @@ async function main() {
 
   // 1. 超级管理员
   const adminPassword = md5(md5("admin123"));
-  await prisma.user.upsert({
+  const adminUser = await prisma.user.upsert({
     where: { username: "admin" },
     update: {
       groupId: adminGroup.id,
@@ -495,6 +495,47 @@ async function main() {
     });
 
   console.log("✓ 默认服务器配置创建完成\n");
+
+  // ==================== 创建 CLI OAuth 客户端 ====================
+  console.log("创建 CLI OAuth 客户端...");
+
+  await prisma.oAuthClient.upsert({
+    where: { clientId: "quyan-cli" },
+    update: {
+      reviewStatus: "approved",
+    },
+    create: {
+      clientId: "quyan-cli",
+      name: "Quyan CLI",
+      description: "Official Quyan command-line interface",
+      clientType: "public",
+      clientSecretHash: null,
+      grantTypes: JSON.stringify(["authorization_code", "refresh_token"]),
+      redirectUris: JSON.stringify(["http://127.0.0.1:40016/callback"]),
+      scopes: JSON.stringify([
+        "profile",
+        "relay:token:read",
+        "relay:token:create",
+        "relay:token:update",
+        "relay:token:delete",
+        "relay:channel:read",
+        "relay:usage:read",
+        "balance:read",
+      ]),
+      isPkceRequired: true,
+      accessTokenLifetime: 3600,
+      refreshTokenLifetime: 604800,
+      reviewStatus: "approved",
+      userId: adminUser.id,
+      homepageUrl: "https://github.com/your-org/quyan-cli",
+      logoUrl: null,
+      policyUrl: null,
+      tosUrl: null,
+    },
+  });
+
+  console.log("  - quyan-cli (Quyan CLI - 公共客户端, PKCE 必需)");
+  console.log("✓ CLI OAuth 客户端创建完成\n");
 
   console.log("===========================================");
   console.log("数据库初始化完成！");
