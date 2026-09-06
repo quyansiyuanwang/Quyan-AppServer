@@ -13,8 +13,10 @@ use ratatui::{
     Terminal,
 };
 use serde_json::Value;
-use std::io::stdout;
+use std::{io::stdout, time::Instant};
+use tokio::task::JoinHandle;
 
+use crate::credentials::Credentials;
 use crate::{
     api::ApiClient,
     branding::QUYAN_BANNER,
@@ -90,6 +92,21 @@ enum Screen {
         title: String,
         content: String,
     },
+    /// A browser OAuth login whose code exchange runs on a background task so
+    /// the terminal keeps rendering and can cancel with Esc or q.
+    BrowserLogin {
+        view: BrowserLoginView,
+    },
+}
+
+/// Live state for an in-progress browser OAuth login.
+struct BrowserLoginView {
+    /// Home-menu index to return to on success or cancel.
+    selected: usize,
+    locale: String,
+    redirect_uri: String,
+    started_at: Instant,
+    exchange: Option<JoinHandle<anyhow::Result<Credentials>>>,
 }
 
 fn actions(locale: &str) -> Vec<TuiAction> {
@@ -217,6 +234,34 @@ pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
     };
     let result = loop {
         terminal.draw(|frame| render(frame, &status, &actions, &screen))?;
+        if let Some(resolved) = resolve_browser_login(&mut screen).await {
+            let selected = match &screen {
+                Screen::BrowserLogin { view } => view.selected,
+                _ => 0,
+            };
+            screen = match resolved {
+                Ok(credentials) => {
+                    api.credentials = credentials;
+                    Screen::Output {
+                        selected,
+                        title: "Browser login".into(),
+                        content: safe_pretty_json(&serde_json::json!({
+                            "loggedIn": true,
+                            "message": "Browser login completed. Credentials were stored in the system keychain.",
+                        })),
+                    }
+                }
+                Err(error) => Screen::Output {
+                    selected,
+                    title: "Browser login".into(),
+                    content: format!(
+                        "Operation failed:\n{}",
+                        logging::redact(&format!("{error:#}"))
+                    ),
+                },
+            };
+            continue;
+        }
         if !event::poll(std::time::Duration::from_millis(200))? {
             continue;
         }
@@ -241,29 +286,33 @@ pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
                     *show_help = false;
                 }
                 KeyCode::Char('?') | KeyCode::Char('h') => *show_help = !*show_help,
-                KeyCode::Enter => match actions[*selected].kind {
-                    ActionKind::Relay => {
-                        let mut relay_state = RelayState {
-                            notice: "Loading Relay Tokens...".into(),
-                            ..Default::default()
-                        };
-                        refresh_relay(&api, &mut relay_state).await;
-                        screen = Screen::Relay(relay_state);
+                KeyCode::Enter => {
+                    match run_home_action(actions[*selected].kind, *selected, &status, &mut api)
+                        .await
+                    {
+                        HomeResult::OpenRelay => {
+                            let mut relay_state = RelayState {
+                                notice: "Loading Relay Tokens...".into(),
+                                ..Default::default()
+                            };
+                            refresh_relay(&api, &mut relay_state).await;
+                            screen = Screen::Relay(relay_state);
+                        }
+                        HomeResult::BrowserLogin(view) => screen = Screen::BrowserLogin { view },
+                        HomeResult::Output { title, content } => {
+                            screen = Screen::Output {
+                                selected: *selected,
+                                title,
+                                content,
+                            }
+                        }
                     }
-                    action => {
-                        let (title, content) = run_home_action(action, &status, &mut api).await;
-                        screen = Screen::Output {
-                            selected: *selected,
-                            title,
-                            content,
-                        };
-                    }
-                },
+                }
                 KeyCode::Char(shortcut @ '1'..='6') => {
                     let index = (shortcut as u8 - b'1') as usize;
                     if let Some(action) = actions.get(index) {
-                        match action.kind {
-                            ActionKind::Relay => {
+                        match run_home_action(action.kind, index, &status, &mut api).await {
+                            HomeResult::OpenRelay => {
                                 let mut relay_state = RelayState {
                                     notice: "Loading Relay Tokens...".into(),
                                     ..Default::default()
@@ -271,14 +320,15 @@ pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
                                 refresh_relay(&api, &mut relay_state).await;
                                 screen = Screen::Relay(relay_state);
                             }
-                            action => {
-                                let (title, content) =
-                                    run_home_action(action, &status, &mut api).await;
+                            HomeResult::BrowserLogin(view) => {
+                                screen = Screen::BrowserLogin { view }
+                            }
+                            HomeResult::Output { title, content } => {
                                 screen = Screen::Output {
                                     selected: index,
                                     title,
                                     content,
-                                };
+                                }
                             }
                         }
                     }
@@ -340,6 +390,19 @@ pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
                 }
                 _ => {}
             },
+            Screen::BrowserLogin { view } => match key.code {
+                KeyCode::Esc | KeyCode::Char('q') => {
+                    if let Some(handle) = view.exchange.take() {
+                        handle.abort();
+                    }
+                    tracing::debug!("OAuth login cancelled by user");
+                    screen = Screen::Home {
+                        selected: view.selected,
+                        show_help: false,
+                    }
+                }
+                _ => {}
+            },
         }
     };
     disable_raw_mode()?;
@@ -348,46 +411,78 @@ pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
     result
 }
 
+/// If the browser-login exchange task finished, take the credentials out of it.
+async fn resolve_browser_login(screen: &mut Screen) -> Option<anyhow::Result<Credentials>> {
+    let Screen::BrowserLogin { view } = screen else {
+        return None;
+    };
+    if !view.exchange.as_ref().is_some_and(JoinHandle::is_finished) {
+        return None;
+    }
+    let handle = view.exchange.take()?;
+    match handle.await {
+        Ok(result) => Some(result),
+        Err(join_error) => {
+            tracing::warn!(error = %join_error, "OAuth login task failed to join");
+            if join_error.is_cancelled() {
+                Some(Err(anyhow::anyhow!("OAuth login was cancelled")))
+            } else {
+                Some(Err(anyhow::anyhow!(
+                    "OAuth login task panicked: {join_error}"
+                )))
+            }
+        }
+    }
+}
+
+enum HomeResult {
+    Output { title: String, content: String },
+    OpenRelay,
+    BrowserLogin(BrowserLoginView),
+}
+
 async fn run_home_action(
     action: ActionKind,
+    selected: usize,
     status: &StatusView<'_>,
     api: &mut ApiClient,
-) -> (String, String) {
-    let result = match action {
-        ActionKind::BrowserLogin => match cli::browser_login(&api.api_base_url, status.auth_base_url).await {
-            Ok(new_credentials) => match credentials::save(&new_credentials) {
-                Ok(()) => {
-                    api.credentials = new_credentials;
-                    Ok(serde_json::json!({"loggedIn": true, "message": "Browser login completed. Credentials were stored in the system keychain."}))
-                }
-                Err(error) => Err(error),
-            },
-            Err(error) => Err(error),
-        },
-        ActionKind::Account => {
-            futures::try_join!(account::profile(api), account::balance(api), account::usage(api))
-                .map(|(profile, balance, usage)| serde_json::json!({"profile": profile, "balance": balance, "usage": usage}))
+) -> HomeResult {
+    let (title, result) = match action {
+        ActionKind::BrowserLogin => {
+            return start_browser_login(selected, status, api).await;
         }
-        ActionKind::Apply => integrations::apply(&api.credentials, None, true, true),
-        ActionKind::JsonEndpoints => json_endpoint_product::get(api).await,
-        ActionKind::Config => Ok(serde_json::json!({
-            "apiBaseUrl": status.api_base_url,
-            "relayBaseUrl": status.relay_base_url,
-            "configPath": status.config_path,
-            "accountConfigured": status.account_configured,
-            "relayConfigured": status.relay_configured,
-            "productConfigured": status.product_configured,
-            "logPath": status.log_path,
-        })),
-        ActionKind::Relay => unreachable!("Relay opens its dedicated TUI screen"),
-    };
-    let title = match action {
-        ActionKind::BrowserLogin => "Browser login",
-        ActionKind::Account => "Account overview",
-        ActionKind::Apply => "AI client configuration preview",
-        ActionKind::JsonEndpoints => "JSON Endpoints",
-        ActionKind::Config => "Configuration",
-        ActionKind::Relay => "AI Relay",
+        ActionKind::Account => {
+            let result = futures::try_join!(
+                account::profile(api),
+                account::balance(api),
+                account::usage(api)
+            )
+            .map(|(profile, balance, usage)| {
+                serde_json::json!({"profile": profile, "balance": balance, "usage": usage})
+            });
+            ("Account overview".to_string(), result)
+        }
+        ActionKind::Apply => (
+            "AI client configuration preview".to_string(),
+            integrations::apply(&api.credentials, None, true, true),
+        ),
+        ActionKind::JsonEndpoints => (
+            "JSON Endpoints".to_string(),
+            json_endpoint_product::get(api).await,
+        ),
+        ActionKind::Config => (
+            "Configuration".to_string(),
+            Ok(serde_json::json!({
+                "apiBaseUrl": status.api_base_url,
+                "relayBaseUrl": status.relay_base_url,
+                "configPath": status.config_path,
+                "accountConfigured": status.account_configured,
+                "relayConfigured": status.relay_configured,
+                "productConfigured": status.product_configured,
+                "logPath": status.log_path,
+            })),
+        ),
+        ActionKind::Relay => return HomeResult::OpenRelay,
     };
     let content = match result {
         Ok(value) => safe_pretty_json(&value),
@@ -396,7 +491,41 @@ async fn run_home_action(
             logging::redact(&format!("{error:#}"))
         ),
     };
-    (title.into(), content)
+    HomeResult::Output { title, content }
+}
+
+/// Binds the callback listener, opens the browser, and hands the exchange to a
+/// background task so the terminal stays interactive and cancellable.
+async fn start_browser_login(
+    selected: usize,
+    status: &StatusView<'_>,
+    api: &ApiClient,
+) -> HomeResult {
+    let session = match cli::begin_browser_login(&api.api_base_url, status.auth_base_url).await {
+        Ok(session) => session,
+        Err(error) => {
+            return HomeResult::Output {
+                title: "Browser login".into(),
+                content: format!(
+                    "Operation failed:\n{}",
+                    logging::redact(&format!("{error:#}"))
+                ),
+            };
+        }
+    };
+    tracing::debug!("waiting for OAuth callback");
+    let exchange = tokio::spawn(async move {
+        let credentials = cli::complete_browser_login(session).await?;
+        credentials::save(&credentials)?;
+        Ok::<_, anyhow::Error>(credentials)
+    });
+    HomeResult::BrowserLogin(BrowserLoginView {
+        selected,
+        locale: status.locale.to_string(),
+        redirect_uri: cli::oauth_redirect_uri(),
+        started_at: Instant::now(),
+        exchange: Some(exchange),
+    })
 }
 
 async fn refresh_relay(api: &ApiClient, state: &mut RelayState) {
@@ -527,7 +656,83 @@ fn render(
         } => render_home(frame, status, actions, *selected, *show_help),
         Screen::Relay(state) => render_relay(frame, status, state),
         Screen::Output { title, content, .. } => render_output(frame, title, content),
+        Screen::BrowserLogin { view } => render_browser_login(frame, view),
     }
+}
+
+fn render_browser_login(frame: &mut ratatui::Frame, view: &BrowserLoginView) {
+    let chinese = view.locale == "zh-CN";
+    let [header, body, footer] = Layout::vertical([
+        Constraint::Length(4),
+        Constraint::Min(8),
+        Constraint::Length(2),
+    ])
+    .areas(frame.area());
+    frame.render_widget(
+        Paragraph::new(format!(
+            "QuYan {}  |  {}",
+            env!("CARGO_PKG_VERSION"),
+            if chinese {
+                "浏览器登录"
+            } else {
+                "Browser login"
+            }
+        ))
+        .block(Block::default().borders(Borders::ALL).title(" QuYan ")),
+        header,
+    );
+    let elapsed = view.started_at.elapsed().as_secs();
+    let lines = vec![
+        Line::from(if chinese {
+            "浏览器授权进行中"
+        } else {
+            "Browser authorization in progress"
+        }),
+        Line::from(""),
+        Line::from(if chinese {
+            "请在浏览器中完成登录和授权。"
+        } else {
+            "Complete login and authorization in the browser that opened."
+        }),
+        Line::from(""),
+        Line::from(if chinese {
+            "回调地址："
+        } else {
+            "Callback address: "
+        }),
+        Line::from(format!("  {}", view.redirect_uri))
+            .style(Style::default().add_modifier(Modifier::BOLD)),
+        Line::from(""),
+        Line::from(if chinese {
+            "按 Esc 或 q 取消"
+        } else {
+            "Press Esc or q to cancel"
+        }),
+        Line::from(""),
+        Line::from(format!(
+            "{} {elapsed}s",
+            if chinese {
+                "等待授权回调"
+            } else {
+                "Waiting for authorization callback"
+            }
+        )),
+    ];
+    frame.render_widget(
+        Paragraph::new(Text::from(lines))
+            .block(Block::default().borders(Borders::ALL).title(" Result "))
+            .wrap(Wrap { trim: false }),
+        body,
+    );
+    render_footer(
+        frame,
+        footer,
+        if chinese {
+            "Esc 或 q: 取消"
+        } else {
+            "Esc or q: cancel"
+        },
+    );
 }
 
 fn render_output(frame: &mut ratatui::Frame, title: &str, content: &str) {
@@ -842,10 +1047,13 @@ fn configured(value: bool) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{actions, parse_relay_tokens, render, RelayState, Screen, StatusView};
-    use crate::logging::EventBuffer;
+    use super::{
+        actions, parse_relay_tokens, render, BrowserLoginView, RelayState, Screen, StatusView,
+    };
+    use crate::{cli, logging::EventBuffer};
     use ratatui::{backend::TestBackend, Terminal};
     use serde_json::json;
+    use std::time::Instant;
 
     fn status<'a>(events: &'a EventBuffer) -> StatusView<'a> {
         StatusView {
@@ -917,5 +1125,64 @@ mod tests {
         assert!(output.contains("AI Relay"));
         assert!(output.contains("Primary"));
         assert!(!output.contains("rlt_secret"));
+    }
+
+    #[test]
+    fn browser_login_screen_shows_waiting_hint_and_callback_address() {
+        let mut terminal = Terminal::new(TestBackend::new(120, 24)).expect("test terminal");
+        let events = EventBuffer::new();
+        let actions = actions("zh-CN");
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &status(&events),
+                    &actions,
+                    &Screen::BrowserLogin {
+                        view: BrowserLoginView {
+                            selected: 0,
+                            locale: "zh-CN".into(),
+                            redirect_uri: cli::oauth_redirect_uri(),
+                            started_at: Instant::now(),
+                            exchange: None,
+                        },
+                    },
+                )
+            })
+            .expect("render");
+        let output = format!("{:?}", terminal.backend().buffer());
+        assert!(output.contains("浏览器授权进行中"));
+        assert!(output.contains("http://127.0.0.1:40016/callback"));
+        assert!(output.contains("按 Esc 或 q 取消"));
+        assert!(output.contains("等待授权回调"));
+    }
+
+    #[test]
+    fn browser_login_screen_render_is_stable_without_a_running_exchange() {
+        let mut terminal = Terminal::new(TestBackend::new(80, 18)).expect("test terminal");
+        let events = EventBuffer::new();
+        let actions = actions("en-US");
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    &status(&events),
+                    &actions,
+                    &Screen::BrowserLogin {
+                        view: BrowserLoginView {
+                            selected: 0,
+                            locale: "en-US".into(),
+                            redirect_uri: cli::oauth_redirect_uri(),
+                            started_at: Instant::now(),
+                            exchange: None,
+                        },
+                    },
+                )
+            })
+            .expect("render");
+        let output = format!("{:?}", terminal.backend().buffer());
+        assert!(output.contains("Browser authorization in progress"));
+        assert!(output.contains("http://127.0.0.1:40016/callback"));
+        assert!(output.contains("Press Esc or q to cancel"));
     }
 }

@@ -31,6 +31,14 @@ export const resolveRouteMigrationUrl = (
   const migration = resolveRouteMigration(pathname, profile)
   if (!migration || migration.profileId === 'shared') return undefined
 
+  // A catalog entry that maps the current path to the current profile's own
+  // canonical path is not a real migration: the visitor is already on the
+  // destination site. Returning early (instead of after sanitizing the query)
+  // keeps legitimate request parameters intact — e.g. the OAuth authorize
+  // page must retain `redirect_uri`, `state`, and `code_challenge` rather than
+  // having them stripped as if they were leaked credentials from another site.
+  if (migration.profileId === profile.id && migration.path === pathname) return undefined
+
   const targetProfile = getSiteProfileForEnvironment(migration.profileId, profile)
   if (!targetProfile) return undefined
 
