@@ -16,6 +16,6 @@ mod tests {
     fn banner_is_ascii_and_branded() {
         assert!(QUYAN_BANNER.is_ascii());
         assert!(QUYAN_BANNER.contains("/ /_/"));
-        assert_eq!(QUYAN_BANNER, include_str!("../assets/quyan-banner.txt"));
+        assert_eq!(QUYAN_BANNER, include_str!("../../assets/quyan-banner.txt"));
     }
 }

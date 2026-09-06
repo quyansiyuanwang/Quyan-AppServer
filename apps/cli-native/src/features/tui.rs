@@ -1050,7 +1050,7 @@ mod tests {
     use super::{
         actions, parse_relay_tokens, render, BrowserLoginView, RelayState, Screen, StatusView,
     };
-    use crate::{cli, logging::EventBuffer};
+    use crate::{cli::handlers::auth, utils::logging::EventBuffer};
     use ratatui::{backend::TestBackend, Terminal};
     use serde_json::json;
     use std::time::Instant;
