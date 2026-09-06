@@ -1,16 +1,22 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, ensure, Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use clap::{ArgAction, Args, Parser, Subcommand};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{
-    io::{Read, Write},
+use std::{collections::HashMap, io::Read, time::Duration};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
     net::TcpListener,
-    time::Duration,
 };
 use url::Url;
+use uuid::Uuid;
 
+const CLI_CLIENT_ID: &str = "quyan-cli";
+const OAUTH_CALLBACK_HOST: &str = "127.0.0.1";
 const OAUTH_CALLBACK_PORT: u16 = 40016;
+const OAUTH_TIMEOUT_SECS: u64 = 300;
+const OAUTH_SCOPES: &str = "profile relay:token:read relay:token:create relay:token:update relay:token:delete relay:channel:read relay:usage:read balance:read";
+const CODE_CHALLENGE_METHOD: &str = "S256";
 
 use crate::{
     api::ApiClient,
@@ -145,7 +151,23 @@ enum ProductJsonCommand {
 
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
-    let log = logging::init(args.debug, args.debug && !args.json)?;
+    // Interactive runs (no subcommand) render an alternate screen on stdout;
+    // diagnostics must not be mirrored to stderr or they would corrupt the
+    // TUI. Instead they are routed to the shared "Recent events" buffer that
+    // the TUI renders on the home screen. One-shot subcommands may mirror to
+    // stderr for debugging.
+    let panel = if args.command.is_none() {
+        Some(EventBuffer::new())
+    } else {
+        None
+    };
+    if let Some(sink) = &panel {
+        logging::set_panel_sink(sink.clone());
+    }
+    let log = logging::init(
+        args.debug,
+        args.debug && !args.json && args.command.is_some(),
+    )?;
     tracing::info!(
         version = env!("CARGO_PKG_VERSION"),
         platform = %logging::platform_description(),
@@ -262,7 +284,9 @@ pub async fn run() -> Result<()> {
             }
         }
     }
-    let mut events = EventBuffer::new();
+    // Reaching here means no subcommand was given, so the shared panel buffer
+    // was created above; use it as the "Recent events" source.
+    let events = panel.expect("interactive run must own the shared event buffer");
     events.push("INFO", "CLI started");
     if startup_errors.is_empty() {
         events.push("INFO", "Configuration and credentials loaded");
@@ -393,50 +417,87 @@ fn print_value(value: Value, json_output: bool) -> Result<()> {
 }
 
 pub(crate) async fn browser_login(api_base: &str, auth_base: &str) -> Result<Credentials> {
-    let listener = TcpListener::bind(("127.0.0.1", OAUTH_CALLBACK_PORT)).with_context(|| {
-        format!(
-            "failed to bind OAuth callback on 127.0.0.1:{OAUTH_CALLBACK_PORT}; close another QuYan login session and retry"
-        )
-    })?;
-    let port = listener.local_addr()?.port();
-    let state = uuid::Uuid::new_v4().to_string();
-    let verifier = format!("{}{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let session = begin_browser_login(api_base, auth_base).await?;
+    complete_browser_login(session).await
+}
+
+/// An in-progress browser login whose callback wait can be cancelled by
+/// dropping the session (which closes the bound listener).
+pub(crate) struct BrowserLoginSession {
+    listener: TcpListener,
+    state: String,
+    verifier: String,
+    redirect_uri: String,
+    api_base: String,
+}
+
+/// Binds the callback listener, builds and validates the authorization URL,
+/// and opens the browser. Returns a session for the caller to complete or
+/// cancel. No secrets are written to the log.
+pub(crate) async fn begin_browser_login(
+    api_base: &str,
+    auth_base: &str,
+) -> Result<BrowserLoginSession> {
+    let listener = TcpListener::bind((OAUTH_CALLBACK_HOST, OAUTH_CALLBACK_PORT))
+        .await
+        .with_context(|| {
+            format!(
+                "failed to bind OAuth callback on {OAUTH_CALLBACK_HOST}:{OAUTH_CALLBACK_PORT}; close another QuYan login session and retry"
+            )
+        })?;
+    tracing::debug!("OAuth callback listener started");
+    let state = Uuid::new_v4().to_string();
+    let verifier = format!("{}{}", Uuid::new_v4(), Uuid::new_v4());
     let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
-    let redirect = format!("http://127.0.0.1:{port}/callback");
-    let url = build_browser_authorization_url(auth_base, &redirect, &state, &challenge)?;
-    tracing::debug!(redirect_uri = %redirect, "opening browser for OAuth login");
+    let redirect_uri = oauth_redirect_uri();
+    let url = build_browser_authorization_url(auth_base, &redirect_uri, &state, &challenge)?;
+    tracing::debug!(
+        host = %url.host_str().unwrap_or_default(),
+        path = %url.path(),
+        has_redirect_uri = query_has(&url, "redirect_uri"),
+        has_state = query_has(&url, "state"),
+        uses_pkce_s256 = query_value(&url, "code_challenge_method").as_deref() == Some(CODE_CHALLENGE_METHOD),
+        "OAuth authorization URL validated"
+    );
+    tracing::debug!("opening browser authorization page");
     open::that(url.as_str())?;
-    let (mut stream, _) = listener.accept()?;
-    let mut request = [0u8; 4096];
-    let size = stream.read(&mut request)?;
-    let first = String::from_utf8_lossy(&request[..size]);
-    let target = first
-        .split_whitespace()
-        .nth(1)
-        .context("invalid OAuth callback")?;
-    let callback = Url::parse(&format!("http://localhost{target}"))?;
-    if callback
-        .query_pairs()
-        .find(|(k, _)| k == "state")
-        .map(|(_, v)| v != state)
-        .unwrap_or(true)
+    Ok(BrowserLoginSession {
+        listener,
+        state,
+        verifier,
+        redirect_uri,
+        api_base: api_base.trim_end_matches('/').to_string(),
+    })
+}
+
+/// Waits for the callback, exchanges the authorization code, and returns the
+/// credentials. Consumes the session so the callback listener is released.
+pub(crate) async fn complete_browser_login(session: BrowserLoginSession) -> Result<Credentials> {
+    let BrowserLoginSession {
+        listener,
+        state,
+        verifier,
+        redirect_uri,
+        api_base,
+    } = session;
+    let code = match tokio::time::timeout(
+        Duration::from_secs(OAUTH_TIMEOUT_SECS),
+        wait_for_oauth_callback(listener, &state),
+    )
+    .await
     {
-        anyhow::bail!("OAuth state validation failed");
-    }
-    let code = callback
-        .query_pairs()
-        .find(|(k, _)| k == "code")
-        .map(|(_, v)| v.into_owned())
-        .context("OAuth authorization code missing")?;
+        Ok(Ok(code)) => code,
+        Ok(Err(error)) => return Err(error),
+        Err(_) => bail!("OAuth login timed out after {OAUTH_TIMEOUT_SECS}s; retry and complete the browser authorization within the window"),
+    };
     tracing::debug!("received OAuth callback after state validation");
-    stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nQuyan login complete. You can close this window.")?;
     let response = reqwest::Client::new()
-        .post(format!("{}/v1/oauth/token", api_base.trim_end_matches('/')))
+        .post(format!("{api_base}/v1/oauth/token"))
         .form(&[
             ("grant_type", "authorization_code"),
-            ("client_id", "quyan-cli"),
+            ("client_id", CLI_CLIENT_ID),
             ("code", &code),
-            ("redirect_uri", &redirect),
+            ("redirect_uri", redirect_uri.as_str()),
             ("code_verifier", &verifier),
         ])
         .send()
@@ -456,6 +517,66 @@ pub(crate) async fn browser_login(api_base: &str, auth_base: &str) -> Result<Cre
     })
 }
 
+pub(crate) fn oauth_redirect_uri() -> String {
+    format!("http://{OAUTH_CALLBACK_HOST}:{OAUTH_CALLBACK_PORT}/callback")
+}
+
+/// Waits for the single OAuth callback on the bound listener and returns the
+/// validated authorization code. The callback and the exchange request always
+/// share the same redirect URI so the authorization server can match them.
+async fn wait_for_oauth_callback(listener: TcpListener, expected_state: &str) -> Result<String> {
+    let (mut stream, _) = listener.accept().await?;
+    let mut request = [0u8; 4096];
+    let size = stream.read(&mut request).await?;
+    let first = String::from_utf8_lossy(&request[..size]);
+    let target = first
+        .split_whitespace()
+        .nth(1)
+        .context("invalid OAuth callback")?;
+    let code = extract_oauth_code(
+        &format!("http://{OAUTH_CALLBACK_HOST}{target}"),
+        expected_state,
+    )?;
+    stream
+        .write_all(
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nQuyan login complete. You can close this window.",
+        )
+        .await?;
+    Ok(code)
+}
+
+/// Parses a callback URL and returns the validated authorization code. Rejects
+/// provider errors, state mismatches, and missing codes before any code is
+/// exchanged. Takes a full URL (host is ignored) so it is testable.
+pub(crate) fn extract_oauth_code(callback_url: &str, expected_state: &str) -> Result<String> {
+    let url = Url::parse(callback_url).context("invalid OAuth callback URL")?;
+    let pairs: HashMap<String, String> = url.query_pairs().into_owned().collect();
+    if let Some(error) = pairs.get("error") {
+        bail!("OAuth provider returned an error: {error}");
+    }
+    let state = pairs
+        .get("state")
+        .context("OAuth callback is missing the state parameter")?;
+    ensure!(
+        state == expected_state,
+        "OAuth state validation failed (state mismatch)"
+    );
+    pairs
+        .get("code")
+        .cloned()
+        .context("OAuth authorization code missing")
+}
+
+fn query_value(url: &Url, key: &str) -> Option<String> {
+    url.query_pairs()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v.into_owned())
+}
+
+fn query_has(url: &Url, key: &str) -> bool {
+    url.query_pairs().any(|(k, _)| k == key)
+}
+
 /// Builds the browser-facing authorization URL. The UI is hosted by the
 /// identity SPA; the API host is deliberately not accepted here.
 pub(crate) fn build_browser_authorization_url(
@@ -470,24 +591,97 @@ pub(crate) fn build_browser_authorization_url(
     ))?;
     url.query_pairs_mut()
         .append_pair("response_type", "code")
-        .append_pair("client_id", "quyan-cli")
+        .append_pair("client_id", CLI_CLIENT_ID)
         .append_pair("redirect_uri", redirect_uri)
-        .append_pair(
-            "scope",
-            "profile relay:token:read relay:token:create relay:token:update relay:token:delete relay:channel:read relay:usage:read balance:read",
-        )
+        .append_pair("scope", OAUTH_SCOPES)
         .append_pair("state", state)
         .append_pair("code_challenge", code_challenge)
-        .append_pair("code_challenge_method", "S256");
+        .append_pair("code_challenge_method", CODE_CHALLENGE_METHOD);
+    validate_authorization_url(&url, redirect_uri, state, code_challenge)?;
     Ok(url)
+}
+
+/// Verifies every parameter the authorization server requires before the URL
+/// is handed to the browser. Catches malformed client-side URL construction
+/// before it reaches the identity site.
+fn validate_authorization_url(
+    url: &Url,
+    expected_redirect_uri: &str,
+    expected_state: &str,
+    expected_challenge: &str,
+) -> Result<()> {
+    let query: HashMap<String, String> = url.query_pairs().into_owned().collect();
+    ensure!(
+        query.get("response_type").map(String::as_str) == Some("code"),
+        "OAuth URL is missing response_type=code"
+    );
+    ensure!(
+        query.get("client_id").map(String::as_str) == Some(CLI_CLIENT_ID),
+        "OAuth URL has an invalid client_id"
+    );
+    ensure!(
+        query.get("redirect_uri").map(String::as_str) == Some(expected_redirect_uri),
+        "OAuth URL is missing the registered redirect_uri"
+    );
+    ensure!(
+        query.get("state").map(String::as_str) == Some(expected_state),
+        "OAuth URL has an invalid state"
+    );
+    ensure!(
+        query.get("code_challenge").map(String::as_str) == Some(expected_challenge),
+        "OAuth URL has an invalid code_challenge"
+    );
+    ensure!(
+        query.get("code_challenge_method").map(String::as_str) == Some(CODE_CHALLENGE_METHOD),
+        "OAuth URL must use PKCE S256"
+    );
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::build_browser_authorization_url;
+    use super::{
+        build_browser_authorization_url, extract_oauth_code, oauth_redirect_uri,
+        validate_authorization_url, CODE_CHALLENGE_METHOD,
+    };
+    use std::collections::HashMap;
 
     #[test]
-    fn browser_authorization_uses_identity_site_route() {
+    fn authorization_url_contains_registered_redirect_uri() {
+        let url = build_browser_authorization_url(
+            "https://auth.qysyw.cn",
+            "http://127.0.0.1:40016/callback",
+            "state-value",
+            "challenge-value",
+        )
+        .expect("valid authorization URL");
+
+        let query: HashMap<String, String> = url.query_pairs().into_owned().collect();
+        assert_eq!(
+            query.get("redirect_uri").map(String::as_str),
+            Some("http://127.0.0.1:40016/callback")
+        );
+        assert_eq!(query.get("response_type").map(String::as_str), Some("code"));
+        assert_eq!(
+            query.get("client_id").map(String::as_str),
+            Some("quyan-cli")
+        );
+        assert_eq!(
+            query.get("code_challenge_method").map(String::as_str),
+            Some(CODE_CHALLENGE_METHOD)
+        );
+        assert_eq!(query.get("state").map(String::as_str), Some("state-value"));
+        assert!(query.contains_key("code_challenge"));
+        assert_eq!(
+            query.get("scope").map(String::as_str),
+            Some(
+                "profile relay:token:read relay:token:create relay:token:update relay:token:delete relay:channel:read relay:usage:read balance:read"
+            )
+        );
+    }
+
+    #[test]
+    fn authorization_url_uses_the_identity_site_route() {
         let url = build_browser_authorization_url(
             "https://auth.qysyw.cn/",
             "http://127.0.0.1:40016/callback",
@@ -498,17 +692,98 @@ mod tests {
 
         assert_eq!(url.host_str(), Some("auth.qysyw.cn"));
         assert_eq!(url.path(), "/oauth/authorize");
-        assert_eq!(
-            url.query_pairs()
-                .find(|(key, _)| key == "client_id")
-                .unwrap()
-                .1,
-            "quyan-cli"
+    }
+
+    #[test]
+    fn validate_authorization_url_accepts_a_complete_url() {
+        let url = build_browser_authorization_url(
+            "https://auth.qysyw.cn",
+            "http://127.0.0.1:40016/callback",
+            "state-1",
+            "challenge-1",
+        )
+        .expect("valid URL");
+        validate_authorization_url(
+            &url,
+            "http://127.0.0.1:40016/callback",
+            "state-1",
+            "challenge-1",
+        )
+        .expect("complete URL validates");
+    }
+
+    #[test]
+    fn validate_authorization_url_rejects_a_missing_redirect_uri() {
+        let url = build_browser_authorization_url(
+            "https://auth.qysyw.cn",
+            "http://127.0.0.1:40016/callback",
+            "state-1",
+            "challenge-1",
+        )
+        .expect("valid URL");
+        let error = validate_authorization_url(
+            &url,
+            "http://127.0.0.1:9999/other",
+            "state-1",
+            "challenge-1",
+        )
+        .expect_err("mismatched redirect_uri must fail");
+        assert!(
+            format!("{error:#}").contains("redirect_uri"),
+            "unexpected error: {error:#}"
         );
-        assert_eq!(
-            url.query_pairs().find(|(key, _)| key == "state").unwrap().1,
-            "state-1"
-        );
+    }
+
+    #[test]
+    fn oauth_redirect_uri_is_the_registered_callback() {
+        assert_eq!(oauth_redirect_uri(), "http://127.0.0.1:40016/callback");
+    }
+
+    #[test]
+    fn extract_code_accepts_state_and_code() {
+        let code = extract_oauth_code(
+            "http://127.0.0.1:40016/callback?state=abc&code=secret-code",
+            "abc",
+        )
+        .expect("valid callback");
+        assert_eq!(code, "secret-code");
+    }
+
+    #[test]
+    fn extract_code_rejects_a_state_mismatch() {
+        let error = extract_oauth_code(
+            "http://127.0.0.1:40016/callback?state=wrong&code=code-1",
+            "expected",
+        )
+        .expect_err("state mismatch must fail");
+        assert!(format!("{error:#}").contains("state"));
+    }
+
+    #[test]
+    fn extract_code_rejects_a_missing_code() {
+        let error = extract_oauth_code("http://127.0.0.1:40016/callback?state=abc", "abc")
+            .expect_err("missing code must fail");
+        assert!(format!("{error:#}").contains("code"));
+    }
+
+    #[test]
+    fn extract_code_surfaces_provider_errors() {
+        let error = extract_oauth_code(
+            "http://127.0.0.1:40016/callback?error=access_denied&state=abc",
+            "abc",
+        )
+        .expect_err("provider error must fail");
+        assert!(format!("{error:#}").contains("access_denied"));
+    }
+
+    #[test]
+    fn extract_code_decodes_url_encoded_parameters() {
+        let code = extract_oauth_code(
+            "http://127.0.0.1:40016/callback?state=abc%20state&code=a%2Bb%3D1",
+            "abc state",
+        )
+        .expect("encoded callback parses");
+        assert_eq!(code, "a+b=1");
     }
 }
 

@@ -13,7 +13,7 @@
     "dev:frontend": "pnpm --filter @quyan/frontend dev",
     "production:frontend": "pnpm --filter @quyan/frontend production",
     "dev:docs": "pnpm --filter @quyan/docs-site dev",
-    "dev:cli": "cargo run --manifest-path apps/cli-native/Cargo.toml",
+    "dev:cli": "cargo run --manifest-path apps/cli-native/Cargo.toml -- --debug",
     "_2_build": "",
     "build:backend": "pnpm --filter @quyan/backend run build",
     "build:frontend": "pnpm --filter @quyan/frontend run build",
