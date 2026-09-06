@@ -94,7 +94,7 @@ export class DeveloperProductResourceController extends Controller {
     @Path() instanceId: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperJsonEndpointDto> {
-    await this.context(request, "json_endpoint", instanceId, Permission.PRODUCT_JSON_ENDPOINT_READ);
+    await this.context(request, "json_endpoint", instanceId, Permission.JSON_ENDPOINT_READ);
     return this.products.getJsonEndpoint(instanceId);
   }
 
@@ -109,7 +109,7 @@ export class DeveloperProductResourceController extends Controller {
     @Body() body: UpdateDeveloperJsonEndpointDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperJsonEndpointDto> {
-    await this.context(request, "json_endpoint", instanceId, Permission.PRODUCT_JSON_ENDPOINT_WRITE);
+    await this.context(request, "json_endpoint", instanceId, Permission.JSON_ENDPOINT_UPDATE);
     return this.products.updateJsonEndpoint(instanceId, body.jsonContent);
   }
 

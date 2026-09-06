@@ -98,9 +98,10 @@ export const DEVELOPER_PRODUCT_NAVIGATION: readonly DeveloperProductNavigationIt
     labelKey: 'nav.productJsonEndpoints',
     icon: Document,
     permissions: [
-      Permission.PRODUCT_JSON_ENDPOINT_READ,
-      Permission.PRODUCT_JSON_ENDPOINT_WRITE,
-      Permission.PRODUCT_JSON_ENDPOINT_MANAGE,
+      Permission.JSON_ENDPOINT_READ,
+      Permission.JSON_ENDPOINT_UPDATE,
+      Permission.JSON_ENDPOINT_DELETE,
+      Permission.JSON_ENDPOINT_MANAGE,
     ],
   },
 ]
