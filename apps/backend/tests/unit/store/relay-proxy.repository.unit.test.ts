@@ -33,4 +33,21 @@ describe("RelayProxyRepository", () => {
     await expect(repository.finalizeChargedUsage({} as any)).resolves.toEqual({ applied: true });
     expect(mocks.transaction).toHaveBeenCalledTimes(2);
   });
+
+  it("returns a retryable lock conflict when the transaction remains contested", async () => {
+    const writeConflict = Object.assign(new Error("deadlock"), { code: "P2034" });
+    mocks.transaction.mockRejectedValue(writeConflict);
+
+    const { RelayProxyRepository } = await import("../../../src/store/relay/relay-proxy.repository");
+    const { ResourceLockedError } = await import("../../../src/util/errors");
+    const repository = RelayProxyRepository.getInstance();
+
+    const error = await repository.finalizeChargedUsage({} as any).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    );
+    expect(error).toBeInstanceOf(ResourceLockedError);
+    expect(error).toMatchObject({ retryAfter: 1 });
+    expect(mocks.transaction).toHaveBeenCalledTimes(5);
+  });
 });

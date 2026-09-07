@@ -2,7 +2,7 @@ import { prisma } from "@/config/database";
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma, type BalanceAccount } from "@prisma/client";
 import { isMonthlyPassTemplateMatched } from "@/util/monthly-pass.util";
-import { ConflictError } from "@/util/errors";
+import { ConflictError, ResourceLockedError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import { MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS, MONTHLY_PASS_QUOTA_WINDOW_MS } from "@/constant/monthly-pass";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -24,6 +24,13 @@ export type { RelayUsageRecordInput, RelayZeroChargeUsageInput, RelayFinalizeCha
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const logger = getLogger("RelayProxyRepository", LogCategory.STORAGE);
 const RELAY_TRANSACTION_MAX_ATTEMPTS = 5;
+const RELAY_TRANSACTION_RETRY_AFTER_SECONDS = 1;
+
+const createRelayWriteConflictError = (): ResourceLockedError =>
+  new ResourceLockedError(
+    "Relay billing transaction is contended by another request; please retry later",
+    RELAY_TRANSACTION_RETRY_AFTER_SECONDS,
+  );
 
 const isWriteConflict = (error: unknown): boolean =>
   typeof error === "object" && error !== null && "code" in error && error.code === "P2034";
@@ -39,13 +46,12 @@ const runWithWriteConflictRetry = async <T>(operation: () => Promise<T>): Promis
       return await operation();
     } catch (error) {
       if (!isWriteConflict(error)) throw error;
-      if (attempt >= RELAY_TRANSACTION_MAX_ATTEMPTS - 1)
-        throw new ConflictError("Concurrent relay usage update detected, please retry");
+      if (attempt >= RELAY_TRANSACTION_MAX_ATTEMPTS - 1) throw createRelayWriteConflictError();
       await waitForWriteConflictRetry(attempt);
     }
   }
 
-  throw new ConflictError("Concurrent billing update detected, please retry");
+  throw createRelayWriteConflictError();
 };
 
 const normalizeQuotaUnit = (value?: string | null): "amount" | "request" | "token" => {
@@ -591,7 +597,7 @@ export class RelayProxyRepository implements RelayProxyStore {
           continue;
         }
 
-        if (isWriteConflict(error)) throw new ConflictError("Concurrent billing update detected, please retry");
+        if (isWriteConflict(error)) throw createRelayWriteConflictError();
 
         logger.error("Failed to finalize charged usage", {
           userId: data.userId,
@@ -606,7 +612,7 @@ export class RelayProxyRepository implements RelayProxyStore {
       }
     }
 
-    throw new ConflictError("Concurrent billing update detected, please retry");
+    throw createRelayWriteConflictError();
   }
 
   private async dispatchUsageNotifications(
