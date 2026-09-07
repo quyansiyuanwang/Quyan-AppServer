@@ -22,6 +22,7 @@ pnpm run db:seed:system-clients
 ```
 
 **特点**:
+
 - ✅ 一条命令完成
 - ✅ 幂等，可重复运行
 - ⚠️ 配置固定，无法自定义
@@ -33,6 +34,7 @@ pnpm run db:seed:system-clients
 📖 **完整文档**: [`../../docs/system-oauth-clients-admin-guide.md`](../../docs/system-oauth-clients-admin-guide.md)
 
 **特点**:
+
 - ✅ 完全可控，管理员明确每一步
 - ✅ 灵活，可自定义配置
 - ✅ 有完整审计日志
@@ -54,6 +56,7 @@ pnpm run db:seed:system-clients
 ```
 
 **输出示例**:
+
 ```
 开始初始化系统级 OAuth 客户端...
 
@@ -97,17 +100,20 @@ cargo run -- login --browser
 **用途**: 自动创建和更新系统级 OAuth 客户端
 
 **工作原理**:
+
 1. 从 `src/constant/system-oauth-clients.ts` 读取配置
 2. 使用 `upsert` 确保幂等性
 3. 自动设置 `isSystemClient: true` 和 `reviewStatus: "approved"`
 
 **何时使用**:
+
 - ✅ 新环境快速搭建
 - ✅ CI/CD 自动化流程
 - ✅ 开发/测试环境
 - ⚠️ 生产环境需谨慎（推荐手动注册）
 
 **何时不用**:
+
 - ❌ 需要自定义配置
 - ❌ 需要完整审计日志
 - ❌ 不确定配置是否正确
@@ -117,11 +123,13 @@ cargo run -- login --browser
 ### 生产环境建议
 
 **推荐**: 使用手动注册方式
+
 - 通过管理后台或 API 明确创建
 - 记录操作人、时间、用途
 - 有完整的审计日志
 
 **可选**: 使用自动脚本
+
 - 仅用于快速恢复或紧急修复
 - 运行前务必了解脚本的具体操作
 - 记录脚本执行时间和操作人
@@ -145,6 +153,7 @@ cargo run -- login --browser
 如需添加新的官方应用（如 Desktop、Mobile）：
 
 1. **更新常量** (`src/constant/system-oauth-clients.ts`):
+
    ```typescript
    DESKTOP: {
      clientId: "quyan-desktop",
@@ -158,11 +167,13 @@ cargo run -- login --browser
    - 修改配置（clientId、redirectUris 等）
 
 3. **更新验证** (`src/services/users/oauth-client-bootstrap.service.ts`):
+
    ```typescript
    const systemClientIds = ["quyan-cli", "quyan-desktop"];
    ```
 
 4. **运行初始化**:
+
    ```bash
    pnpm run db:seed:system-clients
    ```
@@ -178,6 +189,7 @@ cargo run -- login --browser
 **原因**: 数据库中没有 admin 用户
 
 **解决**: 先运行生产种子
+
 ```bash
 pnpm run db:seed:prod
 ```
@@ -186,7 +198,8 @@ pnpm run db:seed:prod
 
 **原因**: 客户端未创建或配置错误
 
-**解决**: 
+**解决**:
+
 1. 检查数据库:
    ```sql
    SELECT * FROM oauth_clients WHERE clientId = 'quyan-cli';

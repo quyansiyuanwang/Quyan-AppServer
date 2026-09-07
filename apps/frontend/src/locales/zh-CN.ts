@@ -795,6 +795,7 @@ const zhCN: DeepStringify<typeof en> = {
     relay: 'API 中转',
     myTokens: '我的令牌',
     oauthClientManagement: 'OAuth 应用',
+    systemOAuthClientManagement: '系统级 OAuth',
     oauthClientReviewManagement: '应用审核',
     authCenterClientManagement: '认证中心应用',
     authCenterClientReviewManagement: '认证中心审核',

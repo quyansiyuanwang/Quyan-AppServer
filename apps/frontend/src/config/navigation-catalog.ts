@@ -158,6 +158,9 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
   item('myRemoteTerminalProducts', 'nav.myRemoteTerminalProducts', Monitor),
   item('chat', 'nav.chat', ChatDotRound, [Permission.RELAY_TOKEN_READ]),
   item('oauthClientManagement', 'nav.oauthClientManagement', Link, [Permission.OAUTH_CLIENT_READ]),
+  item('systemOAuthClientManagement', 'nav.systemOAuthClientManagement', Lock, [
+    Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
+  ]),
   item('authCenterClientManagement', 'nav.authCenterClientManagement', Key, [
     Permission.AUTH_CENTER_CLIENT_READ,
   ]),

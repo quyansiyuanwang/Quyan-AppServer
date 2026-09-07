@@ -835,6 +835,7 @@ export default {
     relay: 'API Relay',
     myTokens: 'My Tokens',
     oauthClientManagement: 'OAuth Apps',
+    systemOAuthClientManagement: 'System OAuth',
     oauthClientReviewManagement: 'App Reviews',
     authCenterClientManagement: 'Auth Center Apps',
     authCenterClientReviewManagement: 'Auth Center Reviews',

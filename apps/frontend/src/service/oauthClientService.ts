@@ -74,6 +74,24 @@ export class OAuthClientService {
     return checkApiResult(result, false)
   }
 
+  // 系统级 OAuth 客户端管理
+  async listSystemClients() {
+    const result = await getOAuthClientControllerApi().listClients({
+      query: { isSystemClient: true },
+    })
+    return checkApiResult(result, true)
+  }
+
+  async createSystemClient(data: CreateOAuthClientDto & { isSystemClient: true }) {
+    const result = await getOAuthClientControllerApi().createClient({ body: data })
+    return checkApiResult(result, true)
+  }
+
+  async updateSystemClient(id: string, data: Partial<UpdateOAuthClientDto>) {
+    const result = await getOAuthClientControllerApi().updateClient({ path: { id }, body: data })
+    return checkApiResult(result, true)
+  }
+
   buildRedirectUrisText(client?: Pick<OAuthClientDto, 'redirectUris'> | null) {
     return client?.redirectUris?.join('\n') ?? ''
   }
