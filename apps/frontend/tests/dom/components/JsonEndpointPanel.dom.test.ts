@@ -36,7 +36,7 @@ const mountPanel = (hasWritePermission = true) =>
     props: {
       instance: { id: 'instance-1', name: 'Primary endpoint', slug: 'primary-endpoint' },
       hasPermission: (permission: string) =>
-        hasWritePermission && permission === Permission.PRODUCT_JSON_ENDPOINT_WRITE,
+        hasWritePermission && permission === Permission.JSON_ENDPOINT_UPDATE,
     },
     global: {
       directives: { loading: {} },

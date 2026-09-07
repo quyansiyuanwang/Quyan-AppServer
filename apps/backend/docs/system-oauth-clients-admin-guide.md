@@ -17,13 +17,14 @@
 3. 填写以下信息：
 
 **Quyan CLI 配置**:
+
 ```
 应用名称: Quyan CLI
 Client ID: quyan-cli
 客户端类型: public（公共客户端）
 授权类型: authorization_code, refresh_token
 回调地址: http://127.0.0.1:40016/callback
-权限范围: 
+权限范围:
   - profile
   - relay:token:read
   - relay:token:create
@@ -115,6 +116,7 @@ curl -X POST "http://localhost:10001/v1/oauth-clients/reviews/${CLIENT_ID}/revie
 ## 标记为系统客户端（可选）
 
 系统客户端标记提供额外保护：
+
 - 🚫 无法通过 API 删除
 - 🔒 关键字段（clientType, redirectUris, scopes）无法修改
 - ✅ 启动时自动验证
@@ -123,18 +125,18 @@ curl -X POST "http://localhost:10001/v1/oauth-clients/reviews/${CLIENT_ID}/revie
 
 ```sql
 -- 查找客户端 ID
-SELECT id, clientId, name, reviewStatus 
-FROM oauth_clients 
+SELECT id, clientId, name, reviewStatus
+FROM oauth_clients
 WHERE clientId = 'quyan-cli';
 
 -- 标记为系统客户端
-UPDATE oauth_clients 
-SET isSystemClient = true 
+UPDATE oauth_clients
+SET isSystemClient = true
 WHERE clientId = 'quyan-cli';
 
 -- 验证
-SELECT clientId, name, isSystemClient, reviewStatus 
-FROM oauth_clients 
+SELECT clientId, name, isSystemClient, reviewStatus
+FROM oauth_clients
 WHERE clientId = 'quyan-cli';
 ```
 
@@ -204,6 +206,7 @@ curl "http://localhost:10001/v1/oauth-clients?clientId=quyan-cli" \
 ```
 
 预期返回包含:
+
 - `reviewStatus: "approved"`
 - `isSystemClient: true` (如果已标记)
 
@@ -215,6 +218,7 @@ cargo run -- login --browser
 ```
 
 预期:
+
 1. 浏览器打开授权页面（不显示"无效请求"）
 2. 显示 "Quyan CLI" 应用信息
 3. 授权后成功回调
@@ -222,11 +226,13 @@ cargo run -- login --browser
 ### ✅ 启动验证通过
 
 启动后端应用，查看日志:
+
 ```
 [OAuthClientBootstrap] 系统 OAuth 客户端 quyan-cli 验证通过
 ```
 
 如缺失:
+
 ```
 [ERROR] 系统 OAuth 客户端缺失: quyan-cli. 请按照管理员手册注册。
 ```
@@ -236,14 +242,17 @@ cargo run -- login --browser
 ## 权限要求
 
 ### 创建 OAuth 客户端
+
 - **权限**: `OAUTH_CLIENT_CREATE`
 - **角色**: 超级管理员、用户管理员
 
 ### 审核 OAuth 应用
+
 - **权限**: `OAUTH_CLIENT_REVIEW_UPDATE`
 - **角色**: 超级管理员
 
 ### 管理系统客户端
+
 - **权限**: `OAUTH_CLIENT_SYSTEM_MANAGE`
 - **角色**: 仅超级管理员
 
@@ -275,6 +284,7 @@ cargo run -- login --browser
 **原因**: 数据库中缺少 `quyan-cli` 客户端或未批准
 
 **解决**:
+
 1. 检查客户端是否存在:
    ```sql
    SELECT * FROM oauth_clients WHERE clientId = 'quyan-cli';
@@ -287,6 +297,7 @@ cargo run -- login --browser
 **原因**: 客户端未创建或未标记为系统客户端
 
 **解决**:
+
 1. 按照"快速开始"创建客户端
 2. （可选）标记为系统客户端（见"数据库操作"部分）
 
@@ -295,6 +306,7 @@ cargo run -- login --browser
 **原因**: 代码层面的保护机制
 
 **说明**: 这是预期行为。如需删除:
+
 1. 在数据库中设置 `isSystemClient = false`
 2. 通过 API 删除
 
@@ -332,7 +344,8 @@ curl -X POST "$API_URL/v1/oauth-clients" \
 echo "请手动批准应用并标记为系统客户端（如需要）"
 ```
 
-**使用前提**: 
+**使用前提**:
+
 - 仅用于新环境初始化
 - 需要手动填入 admin token
 - 创建后仍需手动批准
@@ -351,12 +364,14 @@ echo "请手动批准应用并标记为系统客户端（如需要）"
 ## 总结
 
 **推荐流程**:
+
 1. 管理员通过**管理后台或 API 手动创建** OAuth 客户端
 2. 提交审核并批准
 3. （可选）通过数据库标记为系统客户端
 4. 验证 CLI 可以正常登录
 
 这种方式比自动脚本更加：
+
 - ✅ 可控 - 管理员明确知道创建了什么
 - ✅ 灵活 - 可以自定义配置
 - ✅ 安全 - 有完整的审计日志

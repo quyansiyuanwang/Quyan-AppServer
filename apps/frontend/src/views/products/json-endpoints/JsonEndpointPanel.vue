@@ -13,7 +13,7 @@
     <JsonEditor v-if="endpoint" v-model="draft" />
     <el-empty v-else-if="!loading" :description="i18ns.t('productFeedback.loadFailed')" />
     <footer
-      v-if="endpoint && hasPermission(Permission.PRODUCT_JSON_ENDPOINT_WRITE)"
+      v-if="endpoint && hasPermission(Permission.JSON_ENDPOINT_UPDATE)"
       class="json-product-panel__footer"
     >
       <el-button type="primary" :loading="saving" @click="save">{{ i18ns.t('save') }}</el-button>
