@@ -40,7 +40,9 @@ describe("OAuthClientService review workflow", () => {
   const repository = {
     create: vi.fn(),
     findById: vi.fn(),
+    findByClientId: vi.fn(),
     findByUserId: vi.fn(),
+    findSystemClients: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
     findReviewList: vi.fn(),
@@ -174,5 +176,39 @@ describe("OAuthClientService review workflow", () => {
     ).rejects.toBeInstanceOf(BadRequestError);
 
     expect(repository.update).not.toHaveBeenCalled();
+  });
+
+  it("creates an approved system client with the requested stable client id", async () => {
+    repository.findByClientId.mockResolvedValue(null);
+    repository.create.mockImplementation(async (data: Record<string, unknown>) =>
+      createClientRecord({
+        ...data,
+        id: "system-client-1",
+        clientId: data.clientId,
+        clientType: data.clientType,
+        reviewStatus: data.reviewStatus,
+        isSystemClient: data.isSystemClient,
+      }),
+    );
+
+    const result = await service.createSystemClient("admin-1", {
+      clientId: "quyan-cli",
+      name: "Quyan CLI",
+      redirectUris: ["http://127.0.0.1:40016/callback"],
+      scopes: ["profile"],
+      clientType: "public",
+    });
+
+    expect(repository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: "quyan-cli",
+        reviewStatus: "approved",
+        isSystemClient: true,
+        isPkceRequired: true,
+      }),
+    );
+    expect(result.clientId).toBe("quyan-cli");
+    expect(result.reviewStatus).toBe("approved");
+    expect(result.isSystemClient).toBe(true);
   });
 });

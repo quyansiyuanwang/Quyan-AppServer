@@ -32,7 +32,7 @@ export class OAuthClientBootstrapService {
       });
 
       if (!client) {
-        logger.error(`系统 OAuth 客户端缺失: ${clientId}. 请运行 'pnpm run db:seed:prod' 修复。`);
+        logger.error(`系统 OAuth 客户端缺失: ${clientId}. 请运行 'pnpm run db:seed:system-clients' 修复。`);
       } else if (!client.isSystemClient) {
         logger.warn(`OAuth 客户端 ${clientId} 未标记为系统客户端`);
       } else if (client.reviewStatus !== "approved") {

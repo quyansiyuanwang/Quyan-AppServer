@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header toolbar-row">
           <span>系统级 OAuth 客户端管理</span>
-          <el-button type="primary" @click="showCreateDialog = true">
+          <el-button type="primary" @click="openCreateDialog">
             <el-icon><Plus /></el-icon>
             创建系统客户端
           </el-button>
@@ -94,6 +94,7 @@
             default-first-option
             placeholder="输入回调 URL 后按回车"
             style="width: 100%"
+            :disabled="isEditing"
           >
           </el-select>
           <div class="form-tip">例如: http://127.0.0.1:40016/callback</div>
@@ -106,6 +107,7 @@
             filterable
             placeholder="选择权限范围"
             style="width: 100%"
+            :disabled="isEditing"
           >
             <el-option value="profile" label="profile - 用户基本信息" />
             <el-option value="relay:token:read" label="relay:token:read - 读取中继令牌" />
@@ -221,11 +223,32 @@ const rules = {
   scopes: [{ required: true, message: '请选择至少一个权限范围', trigger: 'change' }],
 }
 
+function resetForm() {
+  isEditing.value = false
+  selectedClient.value = null
+  Object.assign(form, {
+    clientId: '',
+    name: '',
+    description: '',
+    clientType: 'public',
+    redirectUris: [],
+    scopes: [],
+    isPkceRequired: true,
+    accessTokenLifetime: 3600,
+    refreshTokenLifetime: 604800,
+  })
+}
+
+function openCreateDialog() {
+  resetForm()
+  showCreateDialog.value = true
+}
+
 async function loadSystemClients() {
   loading.value = true
   try {
     const response = await oauthClientService.listSystemClients()
-    systemClients.value = response.data.items || []
+    systemClients.value = response.data || []
   } catch (error: any) {
     ElMessage.error(error.message || '加载失败')
   } finally {
@@ -242,10 +265,8 @@ async function handleSubmit() {
       name: form.name,
       description: form.description,
       clientType: form.clientType,
-      grantTypes: ['authorization_code', 'refresh_token'],
       redirectUris: form.redirectUris,
       scopes: form.scopes,
-      isPkceRequired: form.isPkceRequired,
       accessTokenLifetime: form.accessTokenLifetime,
       refreshTokenLifetime: form.refreshTokenLifetime,
     }

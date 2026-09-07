@@ -13,8 +13,13 @@
 ### 方式一：通过管理后台（推荐）
 
 1. 以超级管理员身份登录管理后台
-2. 进入 **OAuth 应用管理** → **创建应用**
-3. 填写以下信息：
+2. 打开管理站点：`https://management.qysyw.cn`
+   - 本地开发：`https://management.qysyw.test:5173`
+3. 进入 **系统配置与安全** → **系统级 OAuth**
+   - 直达路由：`/applications/system-oauth`
+   - 完整地址：`https://management.qysyw.cn/applications/system-oauth`
+4. 点击 **创建系统客户端**
+5. 填写以下信息：
 
 **Quyan CLI 配置**:
 
@@ -38,8 +43,7 @@ PKCE: 必需（启用）
 刷新令牌有效期: 604800 秒（7天）
 ```
 
-4. 创建后，**手动将应用标记为"已批准"状态**
-5. （可选）如需标记为系统客户端，见下方"数据库操作"部分
+6. 创建后系统接口会自动设置为 `approved` 和 `isSystemClient=true`，不需要再走普通 OAuth 审核流程。
 
 ---
 
@@ -58,10 +62,10 @@ curl -X POST http://localhost:10001/v1/auth/login \
 
 保存返回的 `accessToken`。
 
-#### 步骤 2: 创建 OAuth 客户端
+#### 步骤 2: 创建系统 OAuth 客户端
 
 ```bash
-curl -X POST http://localhost:10001/v1/oauth-clients \
+curl -X POST http://localhost:10001/v1/oauth-clients/system \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -80,40 +84,19 @@ curl -X POST http://localhost:10001/v1/oauth-clients \
       "relay:usage:read",
       "balance:read"
     ],
+    "homepageUrl": "https://github.com/your-org/quyan-cli",
+    "description": "Official Quyan command-line interface",
     "isPkceRequired": true,
     "accessTokenLifetime": 3600,
-    "refreshTokenLifetime": 604800,
-    "homepageUrl": "https://github.com/your-org/quyan-cli",
-    "description": "Official Quyan command-line interface"
+    "refreshTokenLifetime": 604800
   }'
 ```
 
-#### 步骤 3: 提交审核
-
-```bash
-# 获取创建的客户端 ID
-CLIENT_ID="<从上一步返回的 id>"
-
-# 提交审核
-curl -X POST "http://localhost:10001/v1/oauth-clients/${CLIENT_ID}/submit" \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-#### 步骤 4: 批准应用（需要审核权限）
-
-```bash
-curl -X POST "http://localhost:10001/v1/oauth-clients/reviews/${CLIENT_ID}/review" \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reviewStatus": "approved",
-    "reviewComment": "Official CLI application - auto-approved"
-  }'
-```
+系统接口会自动设置 `reviewStatus=approved` 和 `isSystemClient=true`，无需提交审核。
 
 ---
 
-## 标记为系统客户端（可选）
+## 标记为系统客户端（旧数据修复）
 
 系统客户端标记提供额外保护：
 
@@ -140,7 +123,7 @@ FROM oauth_clients
 WHERE clientId = 'quyan-cli';
 ```
 
-**重要提示**: 此操作不可逆（代码层面保护）。标记后无法通过 API 取消标记或删除。
+**重要提示**: 新客户端请使用系统级管理页面或 `db:seed:system-clients`，不要手动写数据库。以下 SQL 仅用于旧环境修复。
 
 ---
 
@@ -201,7 +184,7 @@ WHERE clientId = 'quyan-cli';
 
 ```bash
 # 通过 API 验证
-curl "http://localhost:10001/v1/oauth-clients?clientId=quyan-cli" \
+curl "http://localhost:10001/v1/oauth-clients/system" \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
@@ -290,7 +273,7 @@ cargo run -- login --browser
    SELECT * FROM oauth_clients WHERE clientId = 'quyan-cli';
    ```
 2. 如不存在，按照"快速开始"注册
-3. 如存在但 `reviewStatus != 'approved'`，批准应用
+3. 如存在但 `reviewStatus != 'approved'` 或 `isSystemClient != true`，运行 `pnpm run db:seed:system-clients` 修复
 
 ### 问题: 启动日志显示"系统 OAuth 客户端缺失"
 
@@ -299,7 +282,7 @@ cargo run -- login --browser
 **解决**:
 
 1. 按照"快速开始"创建客户端
-2. （可选）标记为系统客户端（见"数据库操作"部分）
+2. 运行 `pnpm run db:seed:system-clients` 修复系统标记和固定配置
 
 ### 问题: 无法删除系统客户端
 
@@ -325,14 +308,13 @@ API_URL="http://localhost:10001"
 ADMIN_TOKEN="your_admin_token_here"
 
 # 创建 CLI 客户端
-curl -X POST "$API_URL/v1/oauth-clients" \
+curl -X POST "$API_URL/v1/oauth-clients/system" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Quyan CLI",
     "clientId": "quyan-cli",
     "clientType": "public",
-    "grantTypes": ["authorization_code", "refresh_token"],
     "redirectUris": ["http://127.0.0.1:40016/callback"],
     "scopes": ["profile", "relay:token:read", "relay:token:create", "relay:token:update", "relay:token:delete", "relay:channel:read", "relay:usage:read", "balance:read"],
     "isPkceRequired": true,
@@ -341,14 +323,14 @@ curl -X POST "$API_URL/v1/oauth-clients" \
     "description": "Official Quyan command-line interface"
   }'
 
-echo "请手动批准应用并标记为系统客户端（如需要）"
+echo "系统客户端已自动批准并标记为系统客户端"
 ```
 
 **使用前提**:
 
 - 仅用于新环境初始化
 - 需要手动填入 admin token
-- 创建后仍需手动批准
+- 创建后无需再提交审核
 
 ---
 
@@ -365,10 +347,9 @@ echo "请手动批准应用并标记为系统客户端（如需要）"
 
 **推荐流程**:
 
-1. 管理员通过**管理后台或 API 手动创建** OAuth 客户端
-2. 提交审核并批准
-3. （可选）通过数据库标记为系统客户端
-4. 验证 CLI 可以正常登录
+1. 管理员在 `management.qysyw.cn/applications/system-oauth` 创建系统客户端
+2. 或调用 `POST /v1/oauth-clients/system`
+3. 验证客户端为 approved/system 后测试 CLI 登录
 
 这种方式比自动脚本更加：
 
