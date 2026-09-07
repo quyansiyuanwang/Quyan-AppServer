@@ -23,6 +23,30 @@ export type { RelayUsageRecordInput, RelayZeroChargeUsageInput, RelayFinalizeCha
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const logger = getLogger("RelayProxyRepository", LogCategory.STORAGE);
+const RELAY_TRANSACTION_MAX_ATTEMPTS = 5;
+
+const isWriteConflict = (error: unknown): boolean =>
+  typeof error === "object" && error !== null && "code" in error && error.code === "P2034";
+
+const waitForWriteConflictRetry = async (attempt: number): Promise<void> => {
+  // A short backoff lets the transaction that currently owns the row locks commit.
+  await new Promise((resolve) => setTimeout(resolve, Math.min(200, 20 * 2 ** attempt)));
+};
+
+const runWithWriteConflictRetry = async <T>(operation: () => Promise<T>): Promise<T> => {
+  for (let attempt = 0; attempt < RELAY_TRANSACTION_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isWriteConflict(error)) throw error;
+      if (attempt >= RELAY_TRANSACTION_MAX_ATTEMPTS - 1)
+        throw new ConflictError("Concurrent relay usage update detected, please retry");
+      await waitForWriteConflictRetry(attempt);
+    }
+  }
+
+  throw new ConflictError("Concurrent billing update detected, please retry");
+};
 
 const normalizeQuotaUnit = (value?: string | null): "amount" | "request" | "token" => {
   if (value === "request" || value === "token") return value;
@@ -72,504 +96,517 @@ export class RelayProxyRepository implements RelayProxyStore {
   }
 
   async recordUsageWithoutCharge(data: RelayUsageRecordInput): Promise<void> {
-    await prisma.$transaction(async (tx) => {
-      const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
-      await tx.relayUsage.create({
-        data: {
-          relayTokenId: data.relayTokenId,
-          logicalRequestId,
-          executionChannelId: data.executionChannelId || null,
-          displayChannelId: data.displayChannelId || null,
-          displayChannelName: data.displayChannelName || null,
-          requestTokens: data.requestTokens,
-          responseTokens: data.responseTokens,
-          totalTokens: data.totalTokens,
-          cacheCreationTokens: data.cacheCreationTokens,
-          cacheReadTokens: data.cacheReadTokens,
-          path: data.path,
-          method: data.method,
-          statusCode: data.statusCode,
-          ipAddress: data.ipAddress,
-          totalOutputTime: data.totalOutputTime,
-          timeToFirstByte: data.timeToFirstByte,
-          isStreaming: data.isStreaming,
-          auditInputTokens: data.auditInputTokens || 0,
-          auditOutputTokens: data.auditOutputTokens || 0,
-          auditTotalTokens: data.auditTotalTokens || 0,
-          auditCost: new Decimal(data.auditCost || 0),
-          auditDurationMs: data.auditDurationMs || 0,
-        },
-      });
-    });
+    await runWithWriteConflictRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
+        await tx.relayUsage.create({
+          data: {
+            relayTokenId: data.relayTokenId,
+            logicalRequestId,
+            executionChannelId: data.executionChannelId || null,
+            displayChannelId: data.displayChannelId || null,
+            displayChannelName: data.displayChannelName || null,
+            requestTokens: data.requestTokens,
+            responseTokens: data.responseTokens,
+            totalTokens: data.totalTokens,
+            cacheCreationTokens: data.cacheCreationTokens,
+            cacheReadTokens: data.cacheReadTokens,
+            path: data.path,
+            method: data.method,
+            statusCode: data.statusCode,
+            ipAddress: data.ipAddress,
+            totalOutputTime: data.totalOutputTime,
+            timeToFirstByte: data.timeToFirstByte,
+            isStreaming: data.isStreaming,
+            auditInputTokens: data.auditInputTokens || 0,
+            auditOutputTokens: data.auditOutputTokens || 0,
+            auditTotalTokens: data.auditTotalTokens || 0,
+            auditCost: new Decimal(data.auditCost || 0),
+            auditDurationMs: data.auditDurationMs || 0,
+          },
+        });
+      }),
+    );
   }
 
   async recordUsageWithZeroChargeTransaction(data: RelayZeroChargeUsageInput): Promise<void> {
-    await prisma.$transaction(async (tx) => {
-      const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
-      const usageRecord = await tx.relayUsage.create({
-        data: {
-          relayTokenId: data.relayTokenId,
-          logicalRequestId,
-          executionChannelId: data.executionChannelId || null,
-          displayChannelId: data.displayChannelId || null,
-          displayChannelName: data.displayChannelName || null,
-          requestTokens: data.requestTokens,
-          responseTokens: data.responseTokens,
-          totalTokens: data.totalTokens,
-          cacheCreationTokens: data.cacheCreationTokens,
-          cacheReadTokens: data.cacheReadTokens,
-          path: data.path,
-          method: data.method,
-          statusCode: data.statusCode,
-          ipAddress: data.ipAddress,
-          totalOutputTime: data.totalOutputTime,
-          timeToFirstByte: data.timeToFirstByte,
-          isStreaming: data.isStreaming,
-          auditInputTokens: data.auditInputTokens || 0,
-          auditOutputTokens: data.auditOutputTokens || 0,
-          auditTotalTokens: data.auditTotalTokens || 0,
-          auditCost: new Decimal(data.auditCost || 0),
-          auditDurationMs: data.auditDurationMs || 0,
-        },
-      });
+    await runWithWriteConflictRetry(() =>
+      prisma.$transaction(async (tx) => {
+        const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
+        const usageRecord = await tx.relayUsage.create({
+          data: {
+            relayTokenId: data.relayTokenId,
+            logicalRequestId,
+            executionChannelId: data.executionChannelId || null,
+            displayChannelId: data.displayChannelId || null,
+            displayChannelName: data.displayChannelName || null,
+            requestTokens: data.requestTokens,
+            responseTokens: data.responseTokens,
+            totalTokens: data.totalTokens,
+            cacheCreationTokens: data.cacheCreationTokens,
+            cacheReadTokens: data.cacheReadTokens,
+            path: data.path,
+            method: data.method,
+            statusCode: data.statusCode,
+            ipAddress: data.ipAddress,
+            totalOutputTime: data.totalOutputTime,
+            timeToFirstByte: data.timeToFirstByte,
+            isStreaming: data.isStreaming,
+            auditInputTokens: data.auditInputTokens || 0,
+            auditOutputTokens: data.auditOutputTokens || 0,
+            auditTotalTokens: data.auditTotalTokens || 0,
+            auditCost: new Decimal(data.auditCost || 0),
+            auditDurationMs: data.auditDurationMs || 0,
+          },
+        });
 
-      const currentAccount = await tx.balanceAccount.findUnique({ where: { userId: data.userId } });
-      const balanceSnapshot = currentAccount ? Number(currentAccount.balance) : 0;
+        const currentAccount = await tx.balanceAccount.findUnique({ where: { userId: data.userId } });
+        const balanceSnapshot = currentAccount ? Number(currentAccount.balance) : 0;
 
-      const zeroChargeDesc = data.originalModel
-        ? `API调用失败(上游错误，未扣费): ${data.path} (原始: ${data.originalModel} → 扣费: ${data.modelName})`
-        : data.description || `API调用失败(上游错误，未扣费): ${data.path}`;
+        const zeroChargeDesc = data.originalModel
+          ? `API调用失败(上游错误，未扣费): ${data.path} (原始: ${data.originalModel} → 扣费: ${data.modelName})`
+          : data.description || `API调用失败(上游错误，未扣费): ${data.path}`;
 
-      await tx.balanceTransaction.create({
-        data: {
-          userId: data.userId,
-          type: "api_usage",
-          amount: new Decimal(0),
-          balanceBefore: new Decimal(balanceSnapshot),
-          balanceAfter: new Decimal(balanceSnapshot),
-          relatedId: usageRecord.id,
-          description: zeroChargeDesc,
-          model: data.modelName,
-          tokens: data.totalTokens,
-          inputTokens: data.requestTokens,
-          outputTokens: data.responseTokens,
-          cacheCreationTokens: data.cacheCreationTokens,
-          cacheReadTokens: data.cacheReadTokens,
-          inputRate: new Decimal(data.inputRate),
-          outputRate: new Decimal(data.outputRate),
-          multiplier: new Decimal(data.multiplier),
-          cacheCreationMultiplier: data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
-          cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
-          displayChannelId: data.displayChannelId || null,
-          displayChannelName: data.displayChannelName || null,
-          channelMultiplier: new Decimal(data.channelMultiplier),
-          globalMultiplier: new Decimal(data.globalMultiplier),
-          timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,
-          contextTokens: data.contextTokens ?? null,
-          contextMultiplier: data.contextMultiplier != null ? new Decimal(data.contextMultiplier) : null,
-          contextRuleName: data.contextRuleName || null,
-          pricingType: data.pricingType || null,
-          fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
-        },
-      });
-    });
+        await tx.balanceTransaction.create({
+          data: {
+            userId: data.userId,
+            type: "api_usage",
+            amount: new Decimal(0),
+            balanceBefore: new Decimal(balanceSnapshot),
+            balanceAfter: new Decimal(balanceSnapshot),
+            relatedId: usageRecord.id,
+            description: zeroChargeDesc,
+            model: data.modelName,
+            tokens: data.totalTokens,
+            inputTokens: data.requestTokens,
+            outputTokens: data.responseTokens,
+            cacheCreationTokens: data.cacheCreationTokens,
+            cacheReadTokens: data.cacheReadTokens,
+            inputRate: new Decimal(data.inputRate),
+            outputRate: new Decimal(data.outputRate),
+            multiplier: new Decimal(data.multiplier),
+            cacheCreationMultiplier:
+              data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
+            cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
+            displayChannelId: data.displayChannelId || null,
+            displayChannelName: data.displayChannelName || null,
+            channelMultiplier: new Decimal(data.channelMultiplier),
+            globalMultiplier: new Decimal(data.globalMultiplier),
+            timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,
+            contextTokens: data.contextTokens ?? null,
+            contextMultiplier: data.contextMultiplier != null ? new Decimal(data.contextMultiplier) : null,
+            contextRuleName: data.contextRuleName || null,
+            pricingType: data.pricingType || null,
+            fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
+          },
+        });
+      }),
+    );
   }
 
   async finalizeChargedUsage(data: RelayFinalizeChargeInput): Promise<{ applied: boolean }> {
-    try {
-      const txResult = await prisma.$transaction(
-        async (tx) => {
-          const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
-          let remainingCost = round4(Math.max(0, data.cost));
-          let coveredByMonthlyPass = 0;
-          const balanceChargeMode = resolveBalanceChargeMode(data.balanceChargeMode);
+    for (let attempt = 0; attempt < RELAY_TRANSACTION_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const txResult = await prisma.$transaction(
+          async (tx) => {
+            const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
+            let remainingCost = round4(Math.max(0, data.cost));
+            let coveredByMonthlyPass = 0;
+            const balanceChargeMode = resolveBalanceChargeMode(data.balanceChargeMode);
 
-          const monthlyPassAllocationPlan: Array<{
-            userMonthlyPassId: string;
-            coveredAmount: number;
-            consumedQuota: number;
-            coveredRequests: number;
-            coveredTokens: number;
-            remainingRequestCost: number;
-          }> = [];
+            const monthlyPassAllocationPlan: Array<{
+              userMonthlyPassId: string;
+              coveredAmount: number;
+              consumedQuota: number;
+              coveredRequests: number;
+              coveredTokens: number;
+              remainingRequestCost: number;
+            }> = [];
 
-          if (remainingCost > 0) {
-            const coverageAt = data.monthlyPassCoverageAt ?? new Date();
-            const candidates = await tx.userMonthlyPass.findMany({
-              where: {
-                userId: data.userId,
-                status: MANAGED_STATUS.ENABLED,
-                remainingQuota: { gt: 0 },
-                startAt: { lte: coverageAt },
-                endAt: { gte: coverageAt },
-                template: {
-                  status: MANAGED_STATUS.ENABLED,
-                },
-              },
-              include: {
-                template: true,
-              },
-              orderBy: [{ endAt: "asc" }, { createTime: "asc" }],
-            });
-
-            const limitedByWindowCandidates = candidates.filter((pass) => pass.dailyQuota != null);
-            const usageSummaryByPassId = new Map<
-              string,
-              {
-                coveredAmount: number;
-                coveredRequests: number;
-                coveredTokens: number;
-              }
-            >();
-
-            if (limitedByWindowCandidates.length > 0) {
-              const windowFilters: Prisma.MonthlyPassUsageWhereInput[] = limitedByWindowCandidates.map((pass) => {
-                const windowHours =
-                  pass.quotaWindowHours && pass.quotaWindowHours > 0
-                    ? pass.quotaWindowHours
-                    : MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS;
-
-                return {
-                  userMonthlyPassId: pass.id,
-                  createTime: {
-                    gte: new Date(coverageAt.getTime() - windowHours * MONTHLY_PASS_QUOTA_WINDOW_MS),
-                    lte: coverageAt,
-                  },
-                };
-              });
-
-              const grouped = await tx.monthlyPassUsage.groupBy({
-                by: ["userMonthlyPassId"],
+            if (remainingCost > 0) {
+              const coverageAt = data.monthlyPassCoverageAt ?? new Date();
+              const candidates = await tx.userMonthlyPass.findMany({
                 where: {
+                  userId: data.userId,
                   status: MANAGED_STATUS.ENABLED,
-                  OR: windowFilters,
+                  remainingQuota: { gt: 0 },
+                  startAt: { lte: coverageAt },
+                  endAt: { gte: coverageAt },
+                  template: {
+                    status: MANAGED_STATUS.ENABLED,
+                  },
                 },
-                _sum: {
-                  coveredAmount: true,
-                  coveredRequests: true,
-                  coveredTokens: true,
+                include: {
+                  template: true,
                 },
+                orderBy: [{ endAt: "asc" }, { createTime: "asc" }],
               });
 
-              for (const item of grouped)
-                usageSummaryByPassId.set(item.userMonthlyPassId, {
-                  coveredAmount: Number(item._sum.coveredAmount || 0),
-                  coveredRequests: Number(item._sum.coveredRequests || 0),
-                  coveredTokens: Number(item._sum.coveredTokens || 0),
+              const limitedByWindowCandidates = candidates.filter((pass) => pass.dailyQuota != null);
+              const usageSummaryByPassId = new Map<
+                string,
+                {
+                  coveredAmount: number;
+                  coveredRequests: number;
+                  coveredTokens: number;
+                }
+              >();
+
+              if (limitedByWindowCandidates.length > 0) {
+                const windowFilters: Prisma.MonthlyPassUsageWhereInput[] = limitedByWindowCandidates.map((pass) => {
+                  const windowHours =
+                    pass.quotaWindowHours && pass.quotaWindowHours > 0
+                      ? pass.quotaWindowHours
+                      : MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS;
+
+                  return {
+                    userMonthlyPassId: pass.id,
+                    createTime: {
+                      gte: new Date(coverageAt.getTime() - windowHours * MONTHLY_PASS_QUOTA_WINDOW_MS),
+                      lte: coverageAt,
+                    },
+                  };
                 });
+
+                const grouped = await tx.monthlyPassUsage.groupBy({
+                  by: ["userMonthlyPassId"],
+                  where: {
+                    status: MANAGED_STATUS.ENABLED,
+                    OR: windowFilters,
+                  },
+                  _sum: {
+                    coveredAmount: true,
+                    coveredRequests: true,
+                    coveredTokens: true,
+                  },
+                });
+
+                for (const item of grouped)
+                  usageSummaryByPassId.set(item.userMonthlyPassId, {
+                    coveredAmount: Number(item._sum.coveredAmount || 0),
+                    coveredRequests: Number(item._sum.coveredRequests || 0),
+                    coveredTokens: Number(item._sum.coveredTokens || 0),
+                  });
+              }
+
+              for (const pass of candidates) {
+                if (remainingCost <= 0) break;
+                if (!isMonthlyPassTemplateMatched(pass.template, data.modelName, data.channelId)) continue;
+
+                const quotaUnit = normalizeQuotaUnit(pass.quotaUnit);
+
+                let availableQuota = Number(pass.remainingQuota);
+                if (availableQuota <= 0) continue;
+
+                if (pass.dailyQuota != null) {
+                  const usageSummary = usageSummaryByPassId.get(pass.id);
+                  let consumedInWindow = 0;
+
+                  if (quotaUnit === "request") consumedInWindow = usageSummary?.coveredRequests || 0;
+                  else if (quotaUnit === "token") consumedInWindow = usageSummary?.coveredTokens || 0;
+                  else consumedInWindow = usageSummary?.coveredAmount || 0;
+
+                  const windowRemaining = round4(Number(pass.dailyQuota) - consumedInWindow);
+                  if (windowRemaining <= 0) continue;
+                  availableQuota = Math.min(availableQuota, windowRemaining);
+                }
+
+                let coveredAmount = 0;
+                let consumedQuota = 0;
+                let coveredRequests = 0;
+                let coveredTokens = 0;
+
+                if (quotaUnit === "request") {
+                  if (availableQuota < 1) continue;
+                  consumedQuota = 1;
+                  coveredRequests = 1;
+                  coveredAmount = remainingCost;
+                } else if (quotaUnit === "token") {
+                  const tokenUnitsRequested = Math.max(1, data.totalTokens);
+                  const tokensCanCover = Math.min(tokenUnitsRequested, Math.floor(availableQuota));
+                  if (tokensCanCover <= 0) continue;
+
+                  consumedQuota = tokensCanCover;
+                  coveredTokens = tokensCanCover;
+
+                  const coverageRatio = tokensCanCover / tokenUnitsRequested;
+                  coveredAmount = round4(remainingCost * coverageRatio);
+                } else {
+                  consumedQuota = round4(Math.min(remainingCost, availableQuota));
+                  coveredAmount = consumedQuota;
+                }
+
+                if (coveredAmount <= 0 || consumedQuota <= 0) continue;
+
+                coveredByMonthlyPass = round4(coveredByMonthlyPass + coveredAmount);
+                remainingCost = round4(remainingCost - coveredAmount);
+
+                monthlyPassAllocationPlan.push({
+                  userMonthlyPassId: pass.id,
+                  coveredAmount,
+                  consumedQuota,
+                  coveredRequests,
+                  coveredTokens,
+                  remainingRequestCost: remainingCost,
+                });
+
+                if (pass.dailyQuota != null) {
+                  const previous = usageSummaryByPassId.get(pass.id) || {
+                    coveredAmount: 0,
+                    coveredRequests: 0,
+                    coveredTokens: 0,
+                  };
+
+                  usageSummaryByPassId.set(pass.id, {
+                    coveredAmount: round4(previous.coveredAmount + (quotaUnit === "amount" ? consumedQuota : 0)),
+                    coveredRequests: previous.coveredRequests + coveredRequests,
+                    coveredTokens: previous.coveredTokens + coveredTokens,
+                  });
+                }
+              }
             }
 
-            for (const pass of candidates) {
-              if (remainingCost <= 0) break;
-              if (!isMonthlyPassTemplateMatched(pass.template, data.modelName, data.channelId)) continue;
+            const shouldChargeBalance = remainingCost > 0;
+            const currentAccount = await lockBalanceAccount(tx, data.userId);
 
-              const quotaUnit = normalizeQuotaUnit(pass.quotaUnit);
+            const balanceBefore = currentAccount ? Number(currentAccount.balance) : 0;
 
-              let availableQuota = Number(pass.remainingQuota);
-              if (availableQuota <= 0) continue;
+            if (shouldChargeBalance) {
+              if (!currentAccount) return { applied: false };
 
-              if (pass.dailyQuota != null) {
-                const usageSummary = usageSummaryByPassId.get(pass.id);
-                let consumedInWindow = 0;
+              if (balanceChargeMode === "skip-when-non-positive" && balanceBefore <= 0) return { applied: false };
 
-                if (quotaUnit === "request") consumedInWindow = usageSummary?.coveredRequests || 0;
-                else if (quotaUnit === "token") consumedInWindow = usageSummary?.coveredTokens || 0;
-                else consumedInWindow = usageSummary?.coveredAmount || 0;
-
-                const windowRemaining = round4(Number(pass.dailyQuota) - consumedInWindow);
-                if (windowRemaining <= 0) continue;
-                availableQuota = Math.min(availableQuota, windowRemaining);
-              }
-
-              let coveredAmount = 0;
-              let consumedQuota = 0;
-              let coveredRequests = 0;
-              let coveredTokens = 0;
-
-              if (quotaUnit === "request") {
-                if (availableQuota < 1) continue;
-                consumedQuota = 1;
-                coveredRequests = 1;
-                coveredAmount = remainingCost;
-              } else if (quotaUnit === "token") {
-                const tokenUnitsRequested = Math.max(1, data.totalTokens);
-                const tokensCanCover = Math.min(tokenUnitsRequested, Math.floor(availableQuota));
-                if (tokensCanCover <= 0) continue;
-
-                consumedQuota = tokensCanCover;
-                coveredTokens = tokensCanCover;
-
-                const coverageRatio = tokensCanCover / tokenUnitsRequested;
-                coveredAmount = round4(remainingCost * coverageRatio);
-              } else {
-                consumedQuota = round4(Math.min(remainingCost, availableQuota));
-                coveredAmount = consumedQuota;
-              }
-
-              if (coveredAmount <= 0 || consumedQuota <= 0) continue;
-
-              coveredByMonthlyPass = round4(coveredByMonthlyPass + coveredAmount);
-              remainingCost = round4(remainingCost - coveredAmount);
-
-              monthlyPassAllocationPlan.push({
-                userMonthlyPassId: pass.id,
-                coveredAmount,
-                consumedQuota,
-                coveredRequests,
-                coveredTokens,
-                remainingRequestCost: remainingCost,
-              });
-
-              if (pass.dailyQuota != null) {
-                const previous = usageSummaryByPassId.get(pass.id) || {
-                  coveredAmount: 0,
-                  coveredRequests: 0,
-                  coveredTokens: 0,
-                };
-
-                usageSummaryByPassId.set(pass.id, {
-                  coveredAmount: round4(previous.coveredAmount + (quotaUnit === "amount" ? consumedQuota : 0)),
-                  coveredRequests: previous.coveredRequests + coveredRequests,
-                  coveredTokens: previous.coveredTokens + coveredTokens,
-                });
-              }
+              if (balanceChargeMode === "strict" && (balanceBefore <= 0 || balanceBefore < remainingCost))
+                return { applied: false };
             }
-          }
 
-          const shouldChargeBalance = remainingCost > 0;
-          const currentAccount = await lockBalanceAccount(tx, data.userId);
+            let balanceAfter = balanceBefore;
 
-          const balanceBefore = currentAccount ? Number(currentAccount.balance) : 0;
-
-          if (shouldChargeBalance) {
-            if (!currentAccount) return { applied: false };
-
-            if (balanceChargeMode === "skip-when-non-positive" && balanceBefore <= 0) return { applied: false };
-
-            if (balanceChargeMode === "strict" && (balanceBefore <= 0 || balanceBefore < remainingCost))
-              return { applied: false };
-          }
-
-          let balanceAfter = balanceBefore;
-
-          const usageRecord = await tx.relayUsage.create({
-            data: {
-              relayTokenId: data.relayTokenId,
-              logicalRequestId,
-              executionChannelId: data.executionChannelId || data.channelId,
-              displayChannelId: data.displayChannelId || null,
-              displayChannelName: data.displayChannelName || null,
-              requestTokens: data.requestTokens,
-              responseTokens: data.responseTokens,
-              totalTokens: data.totalTokens,
-              cacheCreationTokens: data.cacheCreationTokens,
-              cacheReadTokens: data.cacheReadTokens,
-              path: data.path,
-              method: data.method,
-              statusCode: data.statusCode,
-              ipAddress: data.ipAddress,
-              totalOutputTime: data.totalOutputTime,
-              timeToFirstByte: data.timeToFirstByte,
-              isStreaming: data.isStreaming,
-              auditInputTokens: data.auditInputTokens || 0,
-              auditOutputTokens: data.auditOutputTokens || 0,
-              auditTotalTokens: data.auditTotalTokens || 0,
-              auditCost: new Decimal(data.auditCost || 0),
-              auditDurationMs: data.auditDurationMs || 0,
-            },
-          });
-
-          for (const plan of monthlyPassAllocationPlan) {
-            // Guard against concurrent deductions: update succeeds only when quota is still sufficient.
-            const quotaUpdate = await tx.userMonthlyPass.updateMany({
-              where: {
-                id: plan.userMonthlyPassId,
-                status: MANAGED_STATUS.ENABLED,
-                remainingQuota: { gte: plan.consumedQuota },
-              },
+            const usageRecord = await tx.relayUsage.create({
               data: {
-                usedQuota: { increment: plan.consumedQuota },
-                remainingQuota: { decrement: plan.consumedQuota },
+                relayTokenId: data.relayTokenId,
+                logicalRequestId,
+                executionChannelId: data.executionChannelId || data.channelId,
+                displayChannelId: data.displayChannelId || null,
+                displayChannelName: data.displayChannelName || null,
+                requestTokens: data.requestTokens,
+                responseTokens: data.responseTokens,
+                totalTokens: data.totalTokens,
+                cacheCreationTokens: data.cacheCreationTokens,
+                cacheReadTokens: data.cacheReadTokens,
+                path: data.path,
+                method: data.method,
+                statusCode: data.statusCode,
+                ipAddress: data.ipAddress,
+                totalOutputTime: data.totalOutputTime,
+                timeToFirstByte: data.timeToFirstByte,
+                isStreaming: data.isStreaming,
+                auditInputTokens: data.auditInputTokens || 0,
+                auditOutputTokens: data.auditOutputTokens || 0,
+                auditTotalTokens: data.auditTotalTokens || 0,
+                auditCost: new Decimal(data.auditCost || 0),
+                auditDurationMs: data.auditDurationMs || 0,
               },
             });
 
-            if (quotaUpdate.count !== 1)
-              throw new ConflictError("Monthly pass quota changed concurrently, please retry");
+            for (const plan of monthlyPassAllocationPlan) {
+              // Guard against concurrent deductions: update succeeds only when quota is still sufficient.
+              const quotaUpdate = await tx.userMonthlyPass.updateMany({
+                where: {
+                  id: plan.userMonthlyPassId,
+                  status: MANAGED_STATUS.ENABLED,
+                  remainingQuota: { gte: plan.consumedQuota },
+                },
+                data: {
+                  usedQuota: { increment: plan.consumedQuota },
+                  remainingQuota: { decrement: plan.consumedQuota },
+                },
+              });
 
-            await tx.monthlyPassUsage.create({
-              data: {
-                userMonthlyPassId: plan.userMonthlyPassId,
+              if (quotaUpdate.count !== 1)
+                throw new ConflictError("Monthly pass quota changed concurrently, please retry");
+
+              await tx.monthlyPassUsage.create({
+                data: {
+                  userMonthlyPassId: plan.userMonthlyPassId,
+                  userId: data.userId,
+                  relayUsageId: usageRecord.id,
+                  model: data.modelName,
+                  channelId: data.channelId,
+                  displayChannelId: data.displayChannelId || null,
+                  displayChannelName: data.displayChannelName || null,
+                  coveredAmount: new Decimal(plan.coveredAmount),
+                  coveredRequests: plan.coveredRequests,
+                  coveredTokens: plan.coveredTokens,
+                  totalRequestCost: new Decimal(data.cost),
+                  remainingRequestCost: new Decimal(plan.remainingRequestCost),
+                  description: `Monthly pass coverage for ${data.path}`,
+                },
+              });
+            }
+
+            const coverageDesc = data.originalModel
+              ? `月卡抵扣: ${data.path} (曲${coveredByMonthlyPass}) (原始: ${data.originalModel} → 扣费: ${data.modelName})`
+              : `月卡抵扣: ${data.path} (曲${coveredByMonthlyPass})`;
+
+            if (coveredByMonthlyPass > 0)
+              await tx.balanceTransaction.create({
+                data: {
+                  userId: data.userId,
+                  type: "monthly_pass_coverage",
+                  amount: new Decimal(0),
+                  balanceBefore: new Decimal(balanceBefore),
+                  balanceAfter: new Decimal(balanceBefore),
+                  relatedId: usageRecord.id,
+                  description: coverageDesc,
+                  model: data.modelName,
+                  tokens: data.totalTokens,
+                  inputTokens: data.requestTokens,
+                  outputTokens: data.responseTokens,
+                  cacheCreationTokens: data.cacheCreationTokens,
+                  cacheReadTokens: data.cacheReadTokens,
+                  inputRate: new Decimal(data.inputRate),
+                  outputRate: new Decimal(data.outputRate),
+                  multiplier: new Decimal(data.multiplier),
+                  cacheCreationMultiplier:
+                    data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
+                  cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
+                  displayChannelId: data.displayChannelId || null,
+                  displayChannelName: data.displayChannelName || null,
+                  channelMultiplier: new Decimal(data.channelMultiplier),
+                  globalMultiplier: new Decimal(data.globalMultiplier),
+                  timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,
+                  contextTokens: data.contextTokens ?? null,
+                  contextMultiplier: data.contextMultiplier != null ? new Decimal(data.contextMultiplier) : null,
+                  contextRuleName: data.contextRuleName || null,
+                  pricingType: data.pricingType || null,
+                  fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
+                  auditInputTokens: data.auditInputTokens || 0,
+                  auditOutputTokens: data.auditOutputTokens || 0,
+                  auditTotalTokens: data.auditTotalTokens || 0,
+                  auditCost: new Decimal(data.auditCost || 0),
+                  auditDurationMs: data.auditDurationMs || 0,
+                },
+              });
+
+            if (shouldChargeBalance) {
+              const mutation = await applyBalanceAccountMutation(tx, {
                 userId: data.userId,
+                balanceDelta: new Decimal(-remainingCost),
+                totalUsedDelta: new Decimal(remainingCost),
+                minimumBalance: balanceChargeMode === "strict" ? 0 : undefined,
+                clampMinimumBalance: balanceChargeMode === "skip-when-non-positive" ? 0 : undefined,
+              });
+              if (!mutation) return { applied: false };
+
+              balanceAfter = Number(mutation.balanceAfter);
+            }
+
+            const chargeDesc = data.originalModel
+              ? `API调用: ${data.path} (原始: ${data.originalModel} → 扣费: ${data.modelName})`
+              : `API调用: ${data.path}`;
+
+            if (shouldChargeBalance)
+              await tx.balanceTransaction.create({
+                data: {
+                  userId: data.userId,
+                  type: "api_usage",
+                  amount: new Decimal(-remainingCost),
+                  balanceBefore: new Decimal(balanceBefore),
+                  balanceAfter: new Decimal(balanceAfter),
+                  relatedId: usageRecord.id,
+                  description: chargeDesc,
+                  model: data.modelName,
+                  tokens: data.totalTokens,
+                  inputTokens: data.requestTokens,
+                  outputTokens: data.responseTokens,
+                  cacheCreationTokens: data.cacheCreationTokens,
+                  cacheReadTokens: data.cacheReadTokens,
+                  inputRate: new Decimal(data.inputRate),
+                  outputRate: new Decimal(data.outputRate),
+                  multiplier: new Decimal(data.multiplier),
+                  cacheCreationMultiplier:
+                    data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
+                  cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
+                  displayChannelId: data.displayChannelId || null,
+                  displayChannelName: data.displayChannelName || null,
+                  channelMultiplier: new Decimal(data.channelMultiplier),
+                  globalMultiplier: new Decimal(data.globalMultiplier),
+                  timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,
+                  contextTokens: data.contextTokens ?? null,
+                  contextMultiplier: data.contextMultiplier != null ? new Decimal(data.contextMultiplier) : null,
+                  contextRuleName: data.contextRuleName || null,
+                  pricingType: data.pricingType || null,
+                  fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
+                  auditInputTokens: data.auditInputTokens || 0,
+                  auditOutputTokens: data.auditOutputTokens || 0,
+                  auditTotalTokens: data.auditTotalTokens || 0,
+                  auditCost: new Decimal(data.auditCost || 0),
+                  auditDurationMs: data.auditDurationMs || 0,
+                },
+              });
+
+            if (shouldChargeBalance)
+              await this.channelProviderRevenueService.recordChargedUsage(tx, {
                 relayUsageId: usageRecord.id,
-                model: data.modelName,
-                channelId: data.channelId,
-                displayChannelId: data.displayChannelId || null,
-                displayChannelName: data.displayChannelName || null,
-                coveredAmount: new Decimal(plan.coveredAmount),
-                coveredRequests: plan.coveredRequests,
-                coveredTokens: plan.coveredTokens,
-                totalRequestCost: new Decimal(data.cost),
-                remainingRequestCost: new Decimal(plan.remainingRequestCost),
-                description: `Monthly pass coverage for ${data.path}`,
-              },
-            });
-          }
+                relayChannelId: data.channelId,
+                grossAmount: remainingCost,
+              });
 
-          const coverageDesc = data.originalModel
-            ? `月卡抵扣: ${data.path} (曲${coveredByMonthlyPass}) (原始: ${data.originalModel} → 扣费: ${data.modelName})`
-            : `月卡抵扣: ${data.path} (曲${coveredByMonthlyPass})`;
+            const usedQuotaIncrement = round4(coveredByMonthlyPass + remainingCost);
 
-          if (coveredByMonthlyPass > 0)
-            await tx.balanceTransaction.create({
+            const updatedToken = await tx.relayToken.update({
+              where: { id: data.relayTokenId },
               data: {
-                userId: data.userId,
-                type: "monthly_pass_coverage",
-                amount: new Decimal(0),
-                balanceBefore: new Decimal(balanceBefore),
-                balanceAfter: new Decimal(balanceBefore),
-                relatedId: usageRecord.id,
-                description: coverageDesc,
-                model: data.modelName,
-                tokens: data.totalTokens,
-                inputTokens: data.requestTokens,
-                outputTokens: data.responseTokens,
-                cacheCreationTokens: data.cacheCreationTokens,
-                cacheReadTokens: data.cacheReadTokens,
-                inputRate: new Decimal(data.inputRate),
-                outputRate: new Decimal(data.outputRate),
-                multiplier: new Decimal(data.multiplier),
-                cacheCreationMultiplier:
-                  data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
-                cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
-                displayChannelId: data.displayChannelId || null,
-                displayChannelName: data.displayChannelName || null,
-                channelMultiplier: new Decimal(data.channelMultiplier),
-                globalMultiplier: new Decimal(data.globalMultiplier),
-                timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,
-                contextTokens: data.contextTokens ?? null,
-                contextMultiplier: data.contextMultiplier != null ? new Decimal(data.contextMultiplier) : null,
-                contextRuleName: data.contextRuleName || null,
-                pricingType: data.pricingType || null,
-                fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
-                auditInputTokens: data.auditInputTokens || 0,
-                auditOutputTokens: data.auditOutputTokens || 0,
-                auditTotalTokens: data.auditTotalTokens || 0,
-                auditCost: new Decimal(data.auditCost || 0),
-                auditDurationMs: data.auditDurationMs || 0,
+                totalTokens: { increment: data.totalTokens },
+                usedQuota: { increment: new Decimal(usedQuotaIncrement) },
+                lastUsedAt: new Date(),
               },
             });
 
-          if (shouldChargeBalance) {
-            const mutation = await applyBalanceAccountMutation(tx, {
-              userId: data.userId,
-              balanceDelta: new Decimal(-remainingCost),
-              totalUsedDelta: new Decimal(remainingCost),
-              minimumBalance: balanceChargeMode === "strict" ? 0 : undefined,
-              clampMinimumBalance: balanceChargeMode === "skip-when-non-positive" ? 0 : undefined,
-            });
-            if (!mutation) return { applied: false };
+            // Collect notification context for post-transaction dispatch
+            const notifyContext = {
+              balanceAfter,
+              monthlyPassAllocations: monthlyPassAllocationPlan,
+              relayTokenUsedQuota: Number(updatedToken.usedQuota),
+              relayTokenQuotaLimit: updatedToken.quotaLimit ? Number(updatedToken.quotaLimit) : null,
+              relayTokenName: updatedToken.name ?? "",
+            };
 
-            balanceAfter = Number(mutation.balanceAfter);
-          }
+            return { applied: true, notifyContext };
+          },
+          {
+            isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+          },
+        );
 
-          const chargeDesc = data.originalModel
-            ? `API调用: ${data.path} (原始: ${data.originalModel} → 扣费: ${data.modelName})`
-            : `API调用: ${data.path}`;
+        // Fire-and-forget notification dispatch (outside transaction to avoid blocking)
+        if (txResult.applied && txResult.notifyContext)
+          this.dispatchUsageNotifications(data.userId, txResult.notifyContext).catch(() => {});
 
-          if (shouldChargeBalance)
-            await tx.balanceTransaction.create({
-              data: {
-                userId: data.userId,
-                type: "api_usage",
-                amount: new Decimal(-remainingCost),
-                balanceBefore: new Decimal(balanceBefore),
-                balanceAfter: new Decimal(balanceAfter),
-                relatedId: usageRecord.id,
-                description: chargeDesc,
-                model: data.modelName,
-                tokens: data.totalTokens,
-                inputTokens: data.requestTokens,
-                outputTokens: data.responseTokens,
-                cacheCreationTokens: data.cacheCreationTokens,
-                cacheReadTokens: data.cacheReadTokens,
-                inputRate: new Decimal(data.inputRate),
-                outputRate: new Decimal(data.outputRate),
-                multiplier: new Decimal(data.multiplier),
-                cacheCreationMultiplier:
-                  data.cacheCreationMultiplier > 0 ? new Decimal(data.cacheCreationMultiplier) : null,
-                cacheReadMultiplier: data.cacheReadMultiplier > 0 ? new Decimal(data.cacheReadMultiplier) : null,
-                displayChannelId: data.displayChannelId || null,
-                displayChannelName: data.displayChannelName || null,
-                channelMultiplier: new Decimal(data.channelMultiplier),
-                globalMultiplier: new Decimal(data.globalMultiplier),
-                timeMultiplier: data.timeMultiplier != null ? new Decimal(data.timeMultiplier) : null,
-                contextTokens: data.contextTokens ?? null,
-                contextMultiplier: data.contextMultiplier != null ? new Decimal(data.contextMultiplier) : null,
-                contextRuleName: data.contextRuleName || null,
-                pricingType: data.pricingType || null,
-                fixedPrice: data.fixedPrice != null ? new Decimal(data.fixedPrice) : null,
-                auditInputTokens: data.auditInputTokens || 0,
-                auditOutputTokens: data.auditOutputTokens || 0,
-                auditTotalTokens: data.auditTotalTokens || 0,
-                auditCost: new Decimal(data.auditCost || 0),
-                auditDurationMs: data.auditDurationMs || 0,
-              },
-            });
+        return { applied: txResult.applied };
+      } catch (error) {
+        if (isWriteConflict(error) && attempt < RELAY_TRANSACTION_MAX_ATTEMPTS - 1) {
+          await waitForWriteConflictRetry(attempt);
+          continue;
+        }
 
-          if (shouldChargeBalance)
-            await this.channelProviderRevenueService.recordChargedUsage(tx, {
-              relayUsageId: usageRecord.id,
-              relayChannelId: data.channelId,
-              grossAmount: remainingCost,
-            });
+        if (isWriteConflict(error)) throw new ConflictError("Concurrent billing update detected, please retry");
 
-          const usedQuotaIncrement = round4(coveredByMonthlyPass + remainingCost);
+        logger.error("Failed to finalize charged usage", {
+          userId: data.userId,
+          relayTokenId: data.relayTokenId,
+          modelName: data.modelName,
+          channelId: data.channelId,
+          cost: data.cost,
+          error: error instanceof Error ? error.message : String(error),
+        });
 
-          const updatedToken = await tx.relayToken.update({
-            where: { id: data.relayTokenId },
-            data: {
-              totalTokens: { increment: data.totalTokens },
-              usedQuota: { increment: new Decimal(usedQuotaIncrement) },
-              lastUsedAt: new Date(),
-            },
-          });
-
-          // Collect notification context for post-transaction dispatch
-          const notifyContext = {
-            balanceAfter,
-            monthlyPassAllocations: monthlyPassAllocationPlan,
-            relayTokenUsedQuota: Number(updatedToken.usedQuota),
-            relayTokenQuotaLimit: updatedToken.quotaLimit ? Number(updatedToken.quotaLimit) : null,
-            relayTokenName: updatedToken.name ?? "",
-          };
-
-          return { applied: true, notifyContext };
-        },
-        {
-          isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
-        },
-      );
-
-      // Fire-and-forget notification dispatch (outside transaction to avoid blocking)
-      if (txResult.applied && txResult.notifyContext)
-        this.dispatchUsageNotifications(data.userId, txResult.notifyContext).catch(() => {});
-
-      return { applied: txResult.applied };
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034")
-        throw new ConflictError("Concurrent billing update detected, please retry");
-
-      logger.error("Failed to finalize charged usage", {
-        userId: data.userId,
-        relayTokenId: data.relayTokenId,
-        modelName: data.modelName,
-        channelId: data.channelId,
-        cost: data.cost,
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      throw error;
+        throw error;
+      }
     }
+
+    throw new ConflictError("Concurrent billing update detected, please retry");
   }
 
   private async dispatchUsageNotifications(
