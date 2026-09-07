@@ -158,7 +158,6 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
   item('myRemoteTerminalProducts', 'nav.myRemoteTerminalProducts', Monitor),
   item('chat', 'nav.chat', ChatDotRound, [Permission.RELAY_TOKEN_READ]),
   item('oauthClientManagement', 'nav.oauthClientManagement', Link, [Permission.OAUTH_CLIENT_READ]),
-  // @ts-expect-error - Route added but types not regenerated yet
   item('systemOAuthClientManagement', 'nav.systemOAuthClientManagement', Lock, [
     Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
   ]),
