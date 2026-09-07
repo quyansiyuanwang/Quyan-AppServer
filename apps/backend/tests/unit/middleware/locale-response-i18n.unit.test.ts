@@ -7,7 +7,7 @@ import { localeMiddleware } from "@/middleware/locale";
 import { responseWrapperMiddleware } from "@/middleware/response-wrapper";
 import { exceptionMiddleware } from "@/middleware/exception";
 import { CustomCode } from "@/constant/custom-code";
-import { BadRequestError, TooManyRequestsError } from "@/util/errors";
+import { BadRequestError, ResourceLockedError, TooManyRequestsError } from "@/util/errors";
 import { DEFAULT_BACKEND_LOCALE, translateMessage } from "@/locales";
 
 function createApp() {
@@ -38,6 +38,10 @@ function createApp() {
 
   app.get("/rate-limit", () => {
     throw new TooManyRequestsError();
+  });
+
+  app.get("/resource-locked", () => {
+    throw new ResourceLockedError("Relay billing transaction is contended", 2);
   });
 
   app.get("/pool-members-required", () => {
@@ -143,6 +147,32 @@ describe("backend locale-aware response messages", () => {
           code: CustomCode.TOO_MANY_REQUESTS,
           message: "Too many requests",
         });
+      });
+  });
+
+  it("returns a localized retry hint for locked resources", async () => {
+    const app = createApp();
+
+    await request(app)
+      .get("/resource-locked")
+      .set("X-Locale", "en")
+      .expect(409)
+      .expect(({ body, headers }) => {
+        expect(headers["retry-after"]).toBe("2");
+        expect(body).toMatchObject({
+          code: CustomCode.DISTRIBUTED_LOCK_CONFLICT,
+          message: "Resource is locked, please retry later",
+          data: { retryAfter: 2 },
+        });
+      });
+
+    await request(app)
+      .get("/resource-locked")
+      .set("X-Locale", "zh-CN")
+      .expect(409)
+      .expect(({ body }) => {
+        expect(body.message).toBe("资源当前被占用，请稍后重试");
+        expect(body.data).toMatchObject({ retryAfter: 2 });
       });
   });
 
