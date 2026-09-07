@@ -4879,6 +4879,176 @@
 				"parameters": []
 			}
 		},
+		"/v1/oauth-clients/system": {
+			"get": {
+				"operationId": "OAuthClientControllerListSystemClients",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/OAuthClientDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"OAuth Client Management"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "OAuthClientControllerCreateSystemClient",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OAuthClientWithSecretDto"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "创建失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"OAuth Client Management"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateSystemOAuthClientDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/oauth-clients/system/{id}": {
+			"put": {
+				"operationId": "OAuthClientControllerUpdateSystemClient",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OAuthClientDto"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "系统 OAuth 应用不存在",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"OAuth Client Management"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateSystemOAuthClientDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/oauth-clients/review": {
 			"get": {
 				"operationId": "OAuthClientControllerListClientsForReview",
@@ -26073,7 +26243,7 @@
 				"security": [
 					{
 						"product-key": [
-							"product:json_endpoint:read"
+							"json_endpoint:read"
 						]
 					}
 				],
@@ -26135,7 +26305,7 @@
 				"security": [
 					{
 						"product-key": [
-							"product:json_endpoint:write"
+							"json_endpoint:update"
 						]
 					}
 				],
@@ -26183,7 +26353,7 @@
 				"security": [
 					{
 						"product-key": [
-							"product:json_endpoint:write"
+							"json_endpoint:update"
 						]
 					}
 				],
@@ -32581,7 +32751,8 @@
 					1043,
 					1044,
 					1045,
-					1046
+					1046,
+					1047
 				],
 				"type": "number"
 			},
@@ -33953,9 +34124,6 @@
 					"product:push:channel:manage",
 					"product:push:delivery:read",
 					"product:push:manage",
-					"product:json_endpoint:read",
-					"product:json_endpoint:write",
-					"product:json_endpoint:manage",
 					"monthly_pass:template:read",
 					"monthly_pass:template:write",
 					"monthly_pass:assignment:read",
@@ -34844,6 +35012,9 @@
 					"hasClientSecret": {
 						"type": "boolean"
 					},
+					"isSystemClient": {
+						"type": "boolean"
+					},
 					"clientSecret": {
 						"type": "string"
 					}
@@ -34864,6 +35035,7 @@
 					"createTime",
 					"updateTime",
 					"hasClientSecret",
+					"isSystemClient",
 					"clientSecret"
 				],
 				"type": "object",
@@ -35002,6 +35174,9 @@
 					},
 					"hasClientSecret": {
 						"type": "boolean"
+					},
+					"isSystemClient": {
+						"type": "boolean"
 					}
 				},
 				"required": [
@@ -35019,8 +35194,104 @@
 					"refreshTokenLifetime",
 					"createTime",
 					"updateTime",
-					"hasClientSecret"
+					"hasClientSecret",
+					"isSystemClient"
 				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateSystemOAuthClientDto": {
+				"properties": {
+					"clientId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"redirectUris": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"scopes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"homepageUrl": {
+						"type": "string"
+					},
+					"logoUrl": {
+						"type": "string"
+					},
+					"policyUrl": {
+						"type": "string"
+					},
+					"tosUrl": {
+						"type": "string"
+					},
+					"clientType": {
+						"$ref": "#/components/schemas/OAuthClientType"
+					},
+					"isPkceRequired": {
+						"type": "boolean"
+					},
+					"accessTokenLifetime": {
+						"type": "number",
+						"format": "double"
+					},
+					"refreshTokenLifetime": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"clientId",
+					"name",
+					"redirectUris"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateSystemOAuthClientDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"homepageUrl": {
+						"type": "string",
+						"nullable": true
+					},
+					"logoUrl": {
+						"type": "string",
+						"nullable": true
+					},
+					"policyUrl": {
+						"type": "string",
+						"nullable": true
+					},
+					"tosUrl": {
+						"type": "string",
+						"nullable": true
+					},
+					"accessTokenLifetime": {
+						"type": "number",
+						"format": "double"
+					},
+					"refreshTokenLifetime": {
+						"type": "number",
+						"format": "double"
+					}
+				},
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -35115,6 +35386,9 @@
 					"hasClientSecret": {
 						"type": "boolean"
 					},
+					"isSystemClient": {
+						"type": "boolean"
+					},
 					"ownerUsername": {
 						"type": "string"
 					},
@@ -35137,7 +35411,8 @@
 					"refreshTokenLifetime",
 					"createTime",
 					"updateTime",
-					"hasClientSecret"
+					"hasClientSecret",
+					"isSystemClient"
 				],
 				"type": "object",
 				"additionalProperties": false

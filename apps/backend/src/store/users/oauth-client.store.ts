@@ -41,6 +41,7 @@ export interface OAuthClientCreateInput {
   isPkceRequired: boolean;
   accessTokenLifetime: number;
   refreshTokenLifetime: number;
+  isSystemClient?: boolean;
 }
 
 export interface OAuthClientUpdateInput {
@@ -72,6 +73,7 @@ export interface OAuthClientStore {
   findById(id: string): Promise<OAuthClient | null>;
   findByClientId(clientId: string): Promise<OAuthClient | null>;
   findByUserId(userId: string): Promise<OAuthClient[]>;
+  findSystemClients(): Promise<OAuthClient[]>;
   findReviewList(filters: OAuthClientReviewListFilters): Promise<{ items: OAuthClientReviewListItem[]; total: number }>;
   update(id: string, data: OAuthClientUpdateInput): Promise<OAuthClient>;
   delete(id: string): Promise<OAuthClient>;

@@ -13,6 +13,22 @@ export interface CreateOAuthClientDto {
   clientType?: OAuthClientType;
 }
 
+export interface CreateSystemOAuthClientDto {
+  clientId: string;
+  name: string;
+  description?: string;
+  redirectUris: string[];
+  scopes?: string[];
+  homepageUrl?: string;
+  logoUrl?: string;
+  policyUrl?: string;
+  tosUrl?: string;
+  clientType?: OAuthClientType;
+  isPkceRequired?: boolean;
+  accessTokenLifetime?: number;
+  refreshTokenLifetime?: number;
+}
+
 export interface UpdateOAuthClientDto {
   name?: string;
   description?: string | null;
@@ -23,6 +39,17 @@ export interface UpdateOAuthClientDto {
   policyUrl?: string | null;
   tosUrl?: string | null;
   clientType?: OAuthClientType;
+}
+
+export interface UpdateSystemOAuthClientDto {
+  name?: string;
+  description?: string | null;
+  homepageUrl?: string | null;
+  logoUrl?: string | null;
+  policyUrl?: string | null;
+  tosUrl?: string | null;
+  accessTokenLifetime?: number;
+  refreshTokenLifetime?: number;
 }
 
 export interface OAuthClientDto {
@@ -52,6 +79,7 @@ export interface OAuthClientDto {
   createTime: string;
   updateTime: string;
   hasClientSecret: boolean;
+  isSystemClient: boolean;
 }
 
 export interface OAuthClientWithSecretDto extends OAuthClientDto {

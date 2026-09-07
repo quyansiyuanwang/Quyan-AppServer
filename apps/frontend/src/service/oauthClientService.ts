@@ -3,10 +3,12 @@ import { checkApiResult } from '@/utils/service-utils'
 import { cache } from '@/utils/common'
 import type {
   CreateOAuthClientDto,
+  CreateSystemOAuthClientDto,
   OAuthClientControllerListClientsForReviewData,
   OAuthClientDto,
   ReviewOAuthClientDto,
   UpdateOAuthClientDto,
+  UpdateSystemOAuthClientDto,
 } from '@/client/types.gen'
 import { createOAuthClientControllerApi } from '@/client/services/o-auth-client-controller.gen'
 
@@ -76,19 +78,20 @@ export class OAuthClientService {
 
   // 系统级 OAuth 客户端管理
   async listSystemClients() {
-    const result = await getOAuthClientControllerApi().listClients({
-      query: { isSystemClient: true },
+    const result = await getOAuthClientControllerApi().listSystemClients({})
+    return checkApiResult(result, true)
+  }
+
+  async createSystemClient(data: CreateSystemOAuthClientDto) {
+    const result = await getOAuthClientControllerApi().createSystemClient({ body: data })
+    return checkApiResult(result, true)
+  }
+
+  async updateSystemClient(id: string, data: UpdateSystemOAuthClientDto) {
+    const result = await getOAuthClientControllerApi().updateSystemClient({
+      path: { id },
+      body: data,
     })
-    return checkApiResult(result, true)
-  }
-
-  async createSystemClient(data: CreateOAuthClientDto & { isSystemClient: true }) {
-    const result = await getOAuthClientControllerApi().createClient({ body: data })
-    return checkApiResult(result, true)
-  }
-
-  async updateSystemClient(id: string, data: Partial<UpdateOAuthClientDto>) {
-    const result = await getOAuthClientControllerApi().updateClient({ path: { id }, body: data })
     return checkApiResult(result, true)
   }
 

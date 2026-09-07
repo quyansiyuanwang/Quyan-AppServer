@@ -65,6 +65,18 @@ export class OAuthClientRepository implements OAuthClientStore {
     }
   }
 
+  async findSystemClients(): Promise<OAuthClient[]> {
+    try {
+      return await prisma.oAuthClient.findMany({
+        where: { isSystemClient: true, status: MANAGED_STATUS.ENABLED },
+        orderBy: { createTime: "desc" },
+      });
+    } catch (error) {
+      logger.error("Failed to list system OAuth clients", error);
+      throw error;
+    }
+  }
+
   async findReviewList(
     filters: OAuthClientReviewListFilters,
   ): Promise<{ items: OAuthClientReviewListItem[]; total: number }> {

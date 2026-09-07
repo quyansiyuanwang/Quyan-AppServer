@@ -20,11 +20,13 @@ import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { ErrorResponse } from "@/api/response";
 import type {
   CreateOAuthClientDto,
+  CreateSystemOAuthClientDto,
   OAuthClientDto,
   OAuthClientReviewListResponseDto,
   OAuthClientWithSecretDto,
   ReviewOAuthClientDto,
   UpdateOAuthClientDto,
+  UpdateSystemOAuthClientDto,
 } from "@/api/dto/users/oauth-client.dto";
 import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -35,10 +37,12 @@ import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/uti
 import { OAuthClientService } from "@/services/users/oauth-client.service";
 import {
   createOAuthClientBodySchema,
+  createSystemOAuthClientBodySchema,
   oauthClientIdParamsSchema,
   oauthClientReviewListQuerySchema,
   reviewOAuthClientBodySchema,
   updateOAuthClientBodySchema,
+  updateSystemOAuthClientBodySchema,
 } from "@/api/schema/users/oauth-client.schema";
 
 @Route("v1/oauth-clients")
@@ -63,6 +67,52 @@ export class OAuthClientController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<OAuthClientWithSecretDto> {
     return this.service.createClient(request.user!.userId, body, request);
+  }
+
+  @Get("system")
+  @Security("jwt")
+  @RequirePermission(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  public async listSystemClients(): Promise<OAuthClientDto[]> {
+    return this.service.listSystemClients();
+  }
+
+  @Post("system")
+  @Security("jwt")
+  @RequirePermission(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Response<ErrorResponse>(HttpStatusCode.BadRequest, "创建失败")
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createSystemOAuthClientBodySchema),
+  )
+  public async createSystemClient(
+    @Body() body: CreateSystemOAuthClientDto,
+    @Request() request: TypedRequest,
+  ): Promise<OAuthClientWithSecretDto> {
+    return this.service.createSystemClient(request.user!.userId, body, request);
+  }
+
+  @Put("system/{id}")
+  @Security("jwt")
+  @RequirePermission(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Response<ErrorResponse>(HttpStatusCode.NotFound, "系统 OAuth 应用不存在")
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(oauthClientIdParamsSchema),
+    validateBody(updateSystemOAuthClientBodySchema),
+  )
+  public async updateSystemClient(
+    @Path() id: string,
+    @Body() body: UpdateSystemOAuthClientDto,
+    @Request() request: TypedRequest,
+  ): Promise<OAuthClientDto> {
+    return this.service.updateSystemClient(id, request.user!.userId, body, request);
   }
 
   @Get("")
