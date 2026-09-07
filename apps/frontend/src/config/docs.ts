@@ -19,6 +19,7 @@ const docsRouteToSlug = {
   settingsPreferences: 'account-settings',
   settingsSecurity: 'account-settings',
   oauthClientManagement: 'oauth-app-management',
+  systemOAuthClientManagement: 'oauth-app-management',
   authCenterClientManagement: 'auth-center-app-management',
   oauthClientReviewManagement: 'oauth-app-review-management',
   authCenterClientReviewManagement: 'auth-center-client-review-management',

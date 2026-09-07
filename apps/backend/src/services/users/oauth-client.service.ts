@@ -4,12 +4,14 @@ import type { Request } from "express";
 import type { OAuthClient } from "@prisma/client";
 import type {
   CreateOAuthClientDto,
+  CreateSystemOAuthClientDto,
   OAuthClientDto,
   OAuthClientReviewListQueryDto,
   OAuthClientReviewListResponseDto,
   OAuthClientWithSecretDto,
   ReviewOAuthClientDto,
   UpdateOAuthClientDto,
+  UpdateSystemOAuthClientDto,
 } from "@/api/dto/users/oauth-client.dto";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import BusinessLogService from "@/services/system/businesslog.service";
@@ -97,6 +99,110 @@ export class OAuthClientService {
   async listClients(userId: string): Promise<OAuthClientDto[]> {
     const clients = await this.repository.findByUserId(userId);
     return clients.map((item) => this.toDto(item));
+  }
+
+  async listSystemClients(): Promise<OAuthClientDto[]> {
+    const clients = await this.repository.findSystemClients();
+    return clients.map((item) => this.toDto(item));
+  }
+
+  async createSystemClient(
+    userId: string,
+    data: CreateSystemOAuthClientDto,
+    request?: Request,
+  ): Promise<OAuthClientWithSecretDto> {
+    const clientId = data.clientId.trim();
+    const existing = await this.repository.findByClientId(clientId);
+    if (existing) throw new BadRequestError("OAuth client ID already exists");
+
+    const clientType = data.clientType ?? "public";
+    const rawClientSecret = clientType === "public" ? "" : this.generateClientSecret();
+    const clientSecretHash = rawClientSecret ? await bcrypt.hash(rawClientSecret, 10) : undefined;
+    const created = await this.repository.create({
+      userId,
+      name: data.name.trim(),
+      description: this.normalizeOptionalText(data.description),
+      clientId,
+      clientSecretHash,
+      clientSecretPreview: rawClientSecret ? this.buildSecretPreview(rawClientSecret) : undefined,
+      clientType,
+      reviewStatus: REVIEW_STATUS.APPROVED,
+      reviewComment: "System OAuth client",
+      submittedAt: null,
+      reviewedAt: new Date(),
+      reviewedByUserId: userId,
+      grantTypes: DEFAULT_GRANT_TYPES,
+      redirectUris: this.normalizeStringArray(data.redirectUris),
+      scopes: this.normalizeStringArray(data.scopes, DEFAULT_SCOPES),
+      homepageUrl: this.normalizeOptionalText(data.homepageUrl),
+      logoUrl: this.normalizeOptionalText(data.logoUrl),
+      policyUrl: this.normalizeOptionalText(data.policyUrl),
+      tosUrl: this.normalizeOptionalText(data.tosUrl),
+      isPkceRequired: data.isPkceRequired ?? true,
+      accessTokenLifetime: data.accessTokenLifetime ?? 3600,
+      refreshTokenLifetime: data.refreshTokenLifetime ?? 60 * 60 * 24 * 7,
+      isSystemClient: true,
+    });
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.OAUTH_CLIENT_CREATE,
+      operationCategory: OperationCategory.AUTH,
+      actorUserId: userId,
+      targetUserId: userId,
+      targetResourceId: created.id,
+      targetResourceType: "OAUTH_CLIENT",
+      description: `创建系统 OAuth 应用 '${created.name}'`,
+      changes: {
+        clientId: created.clientId,
+        clientType: created.clientType,
+        redirectUris: created.redirectUris,
+        scopes: created.scopes,
+        isSystemClient: true,
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return {
+      ...this.toDto(created),
+      clientSecret: rawClientSecret,
+    };
+  }
+
+  async updateSystemClient(
+    id: string,
+    userId: string,
+    data: UpdateSystemOAuthClientDto,
+    request?: Request,
+  ): Promise<OAuthClientDto> {
+    const existing = await this.repository.findById(id);
+    if (!existing || !existing.isSystemClient) throw new NotFoundError("System OAuth client not found");
+
+    const updateData: OAuthClientUpdateInput = {};
+    if (data.name !== undefined) updateData.name = data.name.trim();
+    if (data.description !== undefined) updateData.description = this.normalizeNullableText(data.description);
+    if (data.homepageUrl !== undefined) updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
+    if (data.logoUrl !== undefined) updateData.logoUrl = this.normalizeNullableText(data.logoUrl);
+    if (data.policyUrl !== undefined) updateData.policyUrl = this.normalizeNullableText(data.policyUrl);
+    if (data.tosUrl !== undefined) updateData.tosUrl = this.normalizeNullableText(data.tosUrl);
+    if (data.accessTokenLifetime !== undefined) updateData.accessTokenLifetime = data.accessTokenLifetime;
+    if (data.refreshTokenLifetime !== undefined) updateData.refreshTokenLifetime = data.refreshTokenLifetime;
+
+    const updated = await this.repository.update(id, updateData);
+    await this.businessLogService.logOperation({
+      operationType: OperationType.OAUTH_CLIENT_UPDATE,
+      operationCategory: OperationCategory.AUTH,
+      actorUserId: userId,
+      targetUserId: existing.userId,
+      targetResourceId: updated.id,
+      targetResourceType: "OAUTH_CLIENT",
+      description: `更新系统 OAuth 应用 '${updated.name}'`,
+      changes: { before: this.toDto(existing), after: this.toDto(updated) },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+
+    return this.toDto(updated);
   }
 
   async getClient(id: string, userId: string): Promise<OAuthClientDto> {
@@ -421,6 +527,7 @@ export class OAuthClientService {
       createTime: client.createTime.toISOString(),
       updateTime: client.updateTime.toISOString(),
       hasClientSecret: !!client.clientSecretHash,
+      isSystemClient: client.isSystemClient,
     };
   }
 }

@@ -763,6 +763,7 @@ const overviewCategoryDefinitions: readonly {
   { key: 'terminal', title: () => i18ns.t('nav.remoteTerminal'), icon: Monitor },
   { key: 'console-iam', title: () => i18ns.t('nav.iam'), icon: UserFilled },
   { key: 'console-operations', title: () => i18ns.t('nav.system'), icon: Monitor },
+  { key: 'management-core', title: () => i18ns.t('nav.systemConfigSecurity'), icon: Tools },
   { key: 'console-ai', title: () => i18ns.t('nav.relay'), icon: Connection },
   { key: 'console-developer', title: () => i18ns.t('nav.openPlatform'), icon: Grid },
   {
@@ -1459,6 +1460,13 @@ const overviewSections = computed<OverviewSection[]>(() => {
           icon: Tools,
           route: 'serverConfig',
           visible: can(Permission.SYSTEM_CONFIG),
+        },
+        {
+          key: 'systemOAuthClientManagement',
+          label: i18ns.t('nav.systemOAuthClientManagement'),
+          icon: Lock,
+          route: 'systemOAuthClientManagement',
+          visible: can(Permission.OAUTH_CLIENT_SYSTEM_MANAGE),
         },
         {
           key: 'ipMonitoring',

@@ -258,6 +258,12 @@ export const routeCatalog = attachLegacyPaths([
     legacyPaths: ['/account/oauth-apps'],
   },
   {
+    name: 'systemOAuthClientManagement',
+    group: 'management-core',
+    path: '/applications/system-oauth',
+    overviewCategory: 'management-core',
+  },
+  {
     name: 'authCenterClientManagement',
     group: 'console-developer',
     path: '/applications/auth-center',
