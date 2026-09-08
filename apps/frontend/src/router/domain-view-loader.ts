@@ -2,23 +2,26 @@ import type { Component } from 'vue'
 import type { SiteProfileId } from '@/config/site-registry'
 import { getRouteCatalogEntry } from '@/router/route-catalog'
 
-type ViewModule = Record<string, Component>
-type ViewModuleLoader = () => Promise<{ default: ViewModule }>
+export type ViewModule = Record<string, Component>
+type ViewSubscription = ViewModule | (() => Promise<ViewModule>)
 
-/**
- * Domain loaders are plugins, not a hand-maintained central registry. Adding
- * a site's `domain-views/<site-id>.ts` module registers it automatically;
- * underscores in a profile id map to URL-safe dashes in the filename.
- */
-const domainViewPlugins = import.meta.glob<{ default: ViewModule }>('./domain-views/*.ts')
+/** Site plugins subscribe their own views when their entry module is imported. */
+const siteViewSubscriptions = new Map<SiteProfileId, ViewSubscription>()
+const siteEntryLoaders = import.meta.glob('../plugins/sites/*/site.ts')
 
-const getDomainViewPlugin = (domain: SiteProfileId): ViewModuleLoader | undefined =>
-  domainViewPlugins[`./domain-views/${domain.replace(/_/g, '-')}.ts`]
+export const registerSiteViewSubscription = (
+  siteId: SiteProfileId,
+  views: ViewSubscription,
+): void => {
+  if (siteViewSubscriptions.has(siteId)) {
+    throw new Error(`Duplicate route-view subscription for site "${siteId}".`)
+  }
+  siteViewSubscriptions.set(siteId, views)
+}
 
 export const hasDomainViewLoader = (domain: SiteProfileId): boolean =>
-  Boolean(getDomainViewPlugin(domain))
-
-const loadedDomains = new Map<SiteProfileId, Promise<ViewModule>>()
+  siteViewSubscriptions.has(domain) ||
+  Boolean(siteEntryLoaders[`../plugins/sites/${domain}/site.ts`])
 
 const normalizeViewKey = (value: string): string =>
   value
@@ -27,7 +30,7 @@ const normalizeViewKey = (value: string): string =>
     .replace(/^(?:\.\.\/)+/, '')
     .replace(/^src\//, '')
 
-const resolveView = (views: ViewModule, requestedKey: string): Component | undefined => {
+const resolveView = <T>(views: Record<string, T>, requestedKey: string): T | undefined => {
   const direct = views[requestedKey]
   if (direct) return direct
 
@@ -42,16 +45,20 @@ const resolveView = (views: ViewModule, requestedKey: string): Component | undef
   return matched?.[1]
 }
 
-const loadDomain = async (domain: SiteProfileId): Promise<ViewModule> => {
-  const loader = getDomainViewPlugin(domain)
-  if (!loader) throw new Error(`No route-view loader is registered for site "${domain}".`)
-  return (await loader()).default
-}
+const loadedDomains = new Map<SiteProfileId, Promise<ViewModule>>()
 
 const getDomainViews = (domain: SiteProfileId): Promise<ViewModule> => {
   const existing = loadedDomains.get(domain)
   if (existing) return existing
-  const loading = loadDomain(domain)
+  const subscription = siteViewSubscriptions.get(domain)
+  if (!subscription) {
+    return Promise.reject(
+      new Error(`No route-view subscription is registered for site "${domain}".`),
+    )
+  }
+  const loading = Promise.resolve(
+    typeof subscription === 'function' ? subscription() : subscription,
+  )
   loadedDomains.set(domain, loading)
   return loading
 }
@@ -62,14 +69,17 @@ export const lazyRouteView = (routeName: string, feature: string, path: string) 
     throw new Error(`Route "${routeName}" has no site-owned domain bundle.`)
   }
   const domain = entry.group
+  const viewPath = feature === 'misc' ? path : `${feature}/${path}`
   const views = await getDomainViews(domain)
-  const key = `../../views/${feature === 'misc' ? path : `${feature}/${path}`}`
+  const key = `../../views/${viewPath}`
   const view = resolveView(views, key)
-  if (!view) {
-    const availableKeys = Object.keys(views).join(', ')
-    throw new Error(`Unknown ${domain} route view: ${key}. Available views: ${availableKeys}`)
-  }
-  return { default: view }
+  if (view) return { default: view }
+
+  const availableKeys = Object.keys(views).join(', ')
+  throw new Error(
+    `Unknown ${domain} route view for route "${routeName}". ` +
+      `Expected generated or legacy key: ${key}. Available views: ${availableKeys}`,
+  )
 }
 
 type TaggedLazyView = (() => ReturnType<ReturnType<typeof lazyRouteView>>) & {
