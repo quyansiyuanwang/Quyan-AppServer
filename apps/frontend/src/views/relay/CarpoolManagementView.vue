@@ -2,10 +2,11 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { carpoolService } from '@/service/carpoolService'
-const orders = ref<any[]>([])
+import type { CarpoolOrderDto } from '@/client/types.gen'
+const orders = ref<CarpoolOrderDto[]>([])
 const channelId = ref('')
 const load = async () => {
-  orders.value = (await carpoolService.admin()).data.records
+  orders.value = (await carpoolService.admin()).data.records as CarpoolOrderDto[]
 }
 const accept = async (id: string) => {
   await carpoolService.accept(id)

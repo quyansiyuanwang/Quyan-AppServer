@@ -3,16 +3,17 @@ import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { carpoolService } from '@/service/carpoolService'
+import type { CarpoolOrderDto, CarpoolPackageTemplateDto } from '@/client/types.gen'
 const router = useRouter()
-const packages = ref<any[]>([])
-const orders = ref<any[]>([])
+const packages = ref<CarpoolPackageTemplateDto[]>([])
+const orders = ref<CarpoolOrderDto[]>([])
 const loading = ref(false)
 const load = async () => {
   loading.value = true
   try {
     const [p, o] = await Promise.all([carpoolService.published(), carpoolService.mine()])
-    packages.value = p.data
-    orders.value = o.data.records
+    packages.value = p.data as CarpoolPackageTemplateDto[]
+    orders.value = o.data.records as CarpoolOrderDto[]
   } finally {
     loading.value = false
   }

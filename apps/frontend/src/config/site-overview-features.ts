@@ -90,6 +90,7 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   feature('myMonthlyPasses', 'nav.myMonthlyPasses', CreditCard, account, 'subscriptions', [
     Permission.RELAY_TOKEN_READ,
   ]),
+  feature('myCarpools', 'nav.myCarpools', CreditCard, account, 'subscriptions'),
   feature('scriptManager', 'nav.scriptManager', Cpu, account),
 
   feature('chat', 'nav.chat', ChatDotRound, chat, 'conversations', [Permission.RELAY_TOKEN_READ]),
@@ -165,6 +166,7 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   ),
   feature('balanceManagement', 'nav.balanceManagement', CreditCard, core),
   feature('monthlyPassManagement', 'nav.monthlyPassManagement', CreditCard, core),
+  feature('carpoolManagement', 'nav.carpoolManagement', CreditCard, core),
   feature('redemptionCodes', 'nav.redemptionCodes', Postcard, core),
   feature('jsonEndpointManagement', 'nav.jsonEndpoints', Document, core),
   feature('articleManagement', 'nav.articleManagement', Notebook, core),

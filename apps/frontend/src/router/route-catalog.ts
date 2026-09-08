@@ -190,20 +190,22 @@ export const routeCatalog = attachLegacyPaths([
   {
     name: 'myCarpools',
     group: 'account',
-    path: '/account/product-subscriptions/carpools',
+    path: '/subscriptions/carpools',
     overviewCategory: 'account',
+    legacyPaths: ['/account/product-subscriptions/carpools'],
   },
   {
     name: 'carpoolDetail',
     group: 'account',
-    path: '/account/product-subscriptions/carpools/:id',
-    overviewCategory: 'account',
+    path: '/subscriptions/carpools/:id',
+    legacyPaths: ['/account/product-subscriptions/carpools/:id'],
   },
   {
     name: 'carpoolManagement',
     group: 'management-core',
-    path: '/management/carpools',
+    path: '/billing/carpools',
     overviewCategory: 'console-operations',
+    legacyPaths: ['/management/carpools'],
   },
   {
     name: 'settingsProfile',
