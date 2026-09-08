@@ -90,6 +90,7 @@
 <script lang="ts" setup>
 import { HomeFilled, Operation } from '@element-plus/icons-vue'
 import { computed, useSlots } from 'vue'
+import { Permission } from '@/constant/permission'
 import { i18ns } from '@/locales'
 import router from '@/router'
 import { currentSiteProfile } from '@/router'
@@ -116,12 +117,19 @@ const props = withDefaults(
 const permissionStore = usePermissionStore()
 const slots = useSlots()
 const hasPinnedSlot = computed(() => Boolean(slots.pinned))
+const permissionsResolved = computed(
+  () => permissionStore.isLoaded === true || permissionStore.currentUserPermissions != null,
+)
 const overviewRoute = computed(() =>
   currentSiteProfile.id === 'rejected' ? undefined : overviewRouteByProfile[currentSiteProfile.id],
 )
 const visibleMenuNodes = computed(() =>
-  filterNavigationNodes(navigationMenuDefinition, permissionStore.effectivePermissions, (route) =>
-    hasFeatureRoute(currentSiteProfile, route),
+  filterNavigationNodes(
+    navigationMenuDefinition,
+    permissionsResolved.value
+      ? permissionStore.effectivePermissions
+      : (Object.values(Permission) as string[]),
+    (route) => hasFeatureRoute(currentSiteProfile, route),
   ),
 )
 const homeMenuNodes = computed(() => visibleMenuNodes.value.filter((node) => node.route === 'home'))
@@ -131,8 +139,12 @@ const navigationMenuNodes = computed(() =>
 const isDebugVisible = computed(
   () =>
     router.hasRoute('debug') &&
-    filterNavigationNodes([debugNavigationNode], permissionStore.effectivePermissions, (route) =>
-      hasFeatureRoute(currentSiteProfile, route),
+    filterNavigationNodes(
+      [debugNavigationNode],
+      permissionsResolved.value
+        ? permissionStore.effectivePermissions
+        : (Object.values(Permission) as string[]),
+      (route) => hasFeatureRoute(currentSiteProfile, route),
     ).length > 0,
 )
 const hasTrailingNavigation = computed(() => isDebugVisible.value)

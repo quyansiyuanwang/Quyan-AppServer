@@ -1,13 +1,14 @@
 import { createApp, type App } from 'vue'
 import { createPinia } from 'pinia'
 import router, { currentSiteProfile, installProfileRoutes } from '@/router'
-import { isKnownSiteProfile } from '@/config/site-registry'
+import { getPublicSiteProfile, isKnownSiteProfile } from '@/config/site-registry'
 import { loadProfileApp } from '@/app-roots/load-profile-app'
 import { i18ns, initializeI18n } from '@/locales'
 import { configureAll } from '@/config'
 import { installErrorReporter, reportClientError } from '@/service/errorReportService'
 import { clearLegacyAuthStorage } from '@/stores/request'
 import { installSessionExpiryRedirect } from '@/service/sessionExpiryRedirectService'
+import { replaceDocument } from '@/service/navigationService'
 
 export type AppRuntimePhase = 'created' | 'routes-ready' | 'session-ready' | 'mounted' | 'running'
 
@@ -40,6 +41,23 @@ export class AppRuntime {
   private async startInternal(): Promise<void> {
     startupMark('start')
     clearLegacyAuthStorage()
+
+    // The bare platform domain is an alias of the public site. Resolve it
+    // before installing the rejected-host fallback, otherwise `/` renders a
+    // 404 even though the canonical `www` host has the public routes.
+    if (!isKnownSiteProfile(currentSiteProfile) && typeof window !== 'undefined') {
+      const publicProfile = getPublicSiteProfile(window.location.hostname)
+      const target = new URL(window.location.href)
+      const canonical = new URL(publicProfile.canonicalOrigin)
+      if (target.hostname !== canonical.hostname) {
+        canonical.pathname = target.pathname
+        canonical.search = target.search
+        canonical.hash = target.hash
+        replaceDocument(canonical.toString())
+        return
+      }
+    }
+
     await initializeI18n()
     startupMark('i18n-ready')
     startupMeasure('i18n', 'start', 'i18n-ready')

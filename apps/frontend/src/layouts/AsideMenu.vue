@@ -672,6 +672,13 @@ const iconRef = computed(() => (isDark.value ? Sunny : Moon))
 const permissionStore = usePermissionStore()
 const siteNavigationStore = useSiteNavigationStore()
 
+// Permission data is hydrated after the shell mounts. Keep navigation
+// available while that request is pending; the API remains authoritative for
+// the eventual access decision.
+const permissionsResolved = computed(
+  () => permissionStore.isLoaded === true || permissionStore.currentUserPermissions != null,
+)
+
 const isCollapse = computed({
   get: () => props.collapsed,
   set: (collapsed: boolean) => emit('update:collapsed', collapsed),
@@ -783,8 +790,10 @@ const overviewCategoryDefinitions: readonly {
   },
 ]
 
-const can = (permission: Permission) => permissionStore.hasPermission(permission)
-const canAny = (...permissions: Permission[]) => permissionStore.hasAnyPermission(...permissions)
+const can = (permission: Permission) =>
+  !permissionsResolved.value || permissionStore.hasPermission(permission)
+const canAny = (...permissions: Permission[]) =>
+  !permissionsResolved.value || permissionStore.hasAnyPermission(...permissions)
 const isRouteVisible = (routeName?: RouteName): boolean => !routeName || router.hasRoute(routeName)
 
 const siteIcons: Record<SiteProfileId, Component> = {
@@ -824,7 +833,9 @@ const functionalAreaTooltip = computed(
 const availableSiteProfiles = computed(() =>
   currentSiteProfile.id === 'rejected'
     ? []
-    : getAccessibleSiteProfiles(currentSiteProfile, permissionStore.effectivePermissions),
+    : permissionsResolved.value
+      ? getAccessibleSiteProfiles(currentSiteProfile, permissionStore.effectivePermissions)
+      : getAccessibleSiteProfiles(currentSiteProfile, Object.values(Permission)),
 )
 
 const recentSiteProfiles = computed(() => {

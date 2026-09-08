@@ -172,11 +172,14 @@ export const useSiteOverview = () => {
   const charts = ref<SiteOverviewChart[]>([])
   const loading = ref(false)
   const partialFailure = ref(false)
+  const permissionsResolved = computed(
+    () => permissionStore.isLoaded === true || permissionStore.currentUserPermissions != null,
+  )
   let loadGeneration = 0
 
   const can = (permissions: Permission | readonly Permission[]) => {
     const values = Array.isArray(permissions) ? permissions : [permissions]
-    return permissionStore.hasAnyPermission(...values)
+    return !permissionsResolved.value || permissionStore.hasAnyPermission(...values)
   }
 
   const actions = computed<SiteOverviewAction[]>(() => {
@@ -342,6 +345,7 @@ export const useSiteOverview = () => {
 
   const hasRoutePermission = (route: RouteName) => {
     if (!router.hasRoute(route)) return false
+    if (!permissionsResolved.value) return true
     const meta = router.resolve({ name: route } as any).meta as {
       permission?: Permission
       anyPermissions?: Permission[]
@@ -360,6 +364,7 @@ export const useSiteOverview = () => {
       .filter((feature) => hasRoutePermission(feature.route))
       .filter((feature) => {
         if (!feature.permissions?.length) return true
+        if (!permissionsResolved.value) return true
         return feature.permissionMode === 'any'
           ? permissionStore.hasAnyPermission(...feature.permissions)
           : permissionStore.hasAllPermissions(...feature.permissions)
@@ -369,9 +374,10 @@ export const useSiteOverview = () => {
         const requiredPermissions = Array.from(
           new Set([...routePermissions(feature.route), ...(feature.permissions || [])]),
         )
-        const grantedPermissionCount = requiredPermissions.filter((permission) =>
-          permissionStore.hasPermission(permission),
-        ).length
+        const grantedPermissionCount = permissionsResolved.value
+          ? requiredPermissions.filter((permission) => permissionStore.hasPermission(permission))
+              .length
+          : requiredPermissions.length
         return {
           route: feature.route,
           labelKey: feature.labelKey,
