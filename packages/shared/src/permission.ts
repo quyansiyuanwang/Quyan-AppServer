@@ -182,6 +182,10 @@ export enum Permission {
   MONTHLY_PASS_ASSIGNMENT_READ = 'monthly_pass:assignment:read',
   MONTHLY_PASS_ASSIGNMENT_WRITE = 'monthly_pass:assignment:write',
   MONTHLY_PASS_USAGE_READ = 'monthly_pass:usage:read',
+  CARPOOL_TEMPLATE_READ = 'carpool:template:read',
+  CARPOOL_TEMPLATE_WRITE = 'carpool:template:write',
+  CARPOOL_ORDER_READ = 'carpool:order:read',
+  CARPOOL_ORDER_FULFILL = 'carpool:order:fulfill',
 
   // 工单管理权限
   TICKET_SUBMIT = 'ticket:submit',
