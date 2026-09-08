@@ -212,7 +212,6 @@
                   </span>
                 </template>
                 <div
-                  :ref="setChannelListRef"
                   class="channel-config-editor"
                   :class="isDesktop ? '' : 'mobile-channel-config-editor'"
                 >
@@ -276,50 +275,52 @@
                     v-model="selectedChannelConfigKeys"
                     class="channel-config-checkbox-group"
                   >
-                    <div
-                      v-for="(config, index) in editForm.channelConfigs"
-                      :key="config.tempKey"
-                      class="channel-config-row"
-                      :class="isDesktop ? '' : 'mobile-channel-config-row'"
-                      :data-index="index"
-                    >
-                      <div class="channel-config-drag-handle">
-                        <el-icon><Rank /></el-icon>
-                      </div>
-                      <div class="channel-config-checkbox">
-                        <el-checkbox :value="config.tempKey" />
-                      </div>
-                      <div class="channel-config-order">
-                        {{ index === 0 ? i18ns.t('relay.primaryChannel') : `#${index + 1}` }}
-                      </div>
-                      <el-select
-                        v-model="config.channelId"
-                        :placeholder="i18ns.t('relay.channel')"
-                        class="channel-config-select"
-                        filterable
-                      >
-                        <el-option
-                          v-for="ch in state.getAvailableChannelOptions(config.channelId)"
-                          :key="ch.id"
-                          :label="state.getChannelOptionLabel(ch)"
-                          :value="ch.id"
-                        />
-                      </el-select>
+                    <div :ref="setChannelListRef" class="channel-config-list">
                       <div
-                        class="channel-config-actions"
-                        :class="isDesktop ? '' : 'mobile-channel-config-actions'"
+                        v-for="(config, index) in editForm.channelConfigs"
+                        :key="config.tempKey"
+                        class="channel-config-row"
+                        :class="isDesktop ? '' : 'mobile-channel-config-row'"
+                        :data-index="index"
                       >
-                        <el-tooltip :content="i18ns.t('delete')" placement="top">
-                          <el-button
-                            plain
-                            circle
-                            size="small"
-                            type="danger"
-                            :icon="Delete"
-                            :disabled="editForm.channelConfigs.length === 1"
-                            @click="state.removeChannelConfig(index)"
+                        <div class="channel-config-drag-handle">
+                          <el-icon><Rank /></el-icon>
+                        </div>
+                        <div class="channel-config-checkbox">
+                          <el-checkbox :value="config.tempKey" />
+                        </div>
+                        <div class="channel-config-order">
+                          {{ index === 0 ? i18ns.t('relay.primaryChannel') : `#${index + 1}` }}
+                        </div>
+                        <el-select
+                          v-model="config.channelId"
+                          :placeholder="i18ns.t('relay.channel')"
+                          class="channel-config-select"
+                          filterable
+                        >
+                          <el-option
+                            v-for="ch in state.getAvailableChannelOptions(config.channelId)"
+                            :key="ch.id"
+                            :label="state.getChannelOptionLabel(ch)"
+                            :value="ch.id"
                           />
-                        </el-tooltip>
+                        </el-select>
+                        <div
+                          class="channel-config-actions"
+                          :class="isDesktop ? '' : 'mobile-channel-config-actions'"
+                        >
+                          <el-tooltip :content="i18ns.t('delete')" placement="top">
+                            <el-button
+                              plain
+                              circle
+                              size="small"
+                              type="danger"
+                              :icon="Delete"
+                              :disabled="editForm.channelConfigs.length === 1"
+                              @click="state.removeChannelConfig(index)"
+                            />
+                          </el-tooltip>
+                        </div>
                       </div>
                     </div>
                   </el-checkbox-group>

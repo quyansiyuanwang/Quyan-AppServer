@@ -16,6 +16,7 @@ const {
   confirmMock,
   clipboardWriteTextMock,
   deviceModeMock,
+  sortableInstancesMock,
 } = vi.hoisted(() => ({
   getRelayTokensMock: vi.fn(),
   createRelayTokenMock: vi.fn(),
@@ -30,6 +31,17 @@ const {
   deviceModeMock: {
     isDesktop: true,
     isMobile: false,
+  },
+  sortableInstancesMock: [] as Array<{ element: HTMLElement; options: any }>,
+}))
+
+vi.mock('sortablejs', () => ({
+  default: class SortableMock {
+    constructor(element: HTMLElement, options: any) {
+      sortableInstancesMock.push({ element, options })
+    }
+
+    destroy() {}
   },
 }))
 
@@ -380,6 +392,7 @@ const createRelayTokenFixture = (overrides: Record<string, any> = {}) => ({
 describe('RelayTokenManagementView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sortableInstancesMock.length = 0
     window.localStorage.clear()
     deviceModeMock.isDesktop = true
     deviceModeMock.isMobile = false
@@ -415,6 +428,47 @@ describe('RelayTokenManagementView', () => {
 
     expect(getRelayTokensMock).toHaveBeenCalledTimes(1)
     expect(listChannelsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('binds ordered channel sorting to the row list and updates priorities', async () => {
+    vi.useFakeTimers()
+    try {
+      const wrapper = mountView()
+      await flushPromises()
+      const vm = wrapper.vm as any
+
+      vm.openEditDialog(
+        createRelayTokenFixture({
+          channelConfigs: [
+            { channelId: 'channel-primary', priority: 0 },
+            { channelId: 'channel-secondary', priority: 1 },
+          ],
+        }),
+      )
+      await flushPromises()
+      vi.advanceTimersByTime(100)
+      await flushPromises()
+
+      expect(sortableInstancesMock).toHaveLength(1)
+      const sortable = sortableInstancesMock[0]!
+      expect(sortable.element.classList.contains('channel-config-list')).toBe(true)
+
+      const rows = wrapper.findAll('.channel-config-row')
+      const [firstRow, secondRow] = rows.map((row) => row.element)
+      sortable.element.append(secondRow!, firstRow!)
+      sortable.options.onEnd({
+        item: firstRow,
+        to: sortable.element,
+      })
+
+      expect(vm.editForm.channelConfigs.map((config: any) => config.channelId)).toEqual([
+        'channel-secondary',
+        'channel-primary',
+      ])
+      expect(vm.editForm.channelConfigs.map((config: any) => config.priority)).toEqual([0, 1])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('persists configurable desktop token columns and applies their display order', async () => {
