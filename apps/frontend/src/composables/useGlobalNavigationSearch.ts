@@ -1,4 +1,5 @@
 import { computed, ref, watch } from 'vue'
+import { Permission } from '@/constant/permission'
 import { i18ns, type I18nENAvailableKeys } from '@/locales'
 import { currentSiteProfile } from '@/router'
 import { getRouteCatalogEntry } from '@/router/route-catalog'
@@ -44,12 +45,19 @@ export const useGlobalNavigationSearch = () => {
     if (!sessionStore.isAuthenticated) {
       return currentSiteProfile.id === 'public' ? [currentSiteProfile] : []
     }
-    return getAccessibleSiteProfiles(currentSiteProfile, permissionStore.effectivePermissions)
+    const permissions =
+      sessionStore.permissionsStatus === 'ready'
+        ? permissionStore.effectivePermissions
+        : (Object.values(Permission) as string[])
+    return getAccessibleSiteProfiles(currentSiteProfile, permissions)
   })
 
   const allResults = computed<GlobalNavigationSearchResult[]>(() => {
     const results: GlobalNavigationSearchResult[] = []
-    const effectivePermissions = permissionStore.effectivePermissions
+    const effectivePermissions =
+      sessionStore.permissionsStatus === 'ready'
+        ? permissionStore.effectivePermissions
+        : (Object.values(Permission) as string[])
 
     for (const profile of accessibleProfiles.value) {
       const siteLabel = localized(profile.labelKey)

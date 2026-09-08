@@ -89,11 +89,11 @@ const validateProtectedNavigationInBackground = (
   void sessionCoordinator
     .ensureSession()
     .then(async (token) => {
-      // A later navigation owns the redirect decision. Do not interrupt it
-      // when an earlier route's session probe eventually resolves.
-      if (router.currentRoute.value.fullPath !== to.fullPath) return
-
       if (!token) {
+        // A later navigation owns the redirect decision. Do not interrupt it
+        // when an earlier route's session probe eventually resolves.
+        if (router.currentRoute.value.fullPath !== to.fullPath) return
+
         if (profile.id === 'identity') {
           await router.replace({ name: 'login', query: { redirect: to.fullPath } })
           return
@@ -108,6 +108,9 @@ const validateProtectedNavigationInBackground = (
         return
       }
 
+      // The initial navigation has not updated router.currentRoute yet when
+      // this promise resolves. Hydration must still run so the shell receives
+      // the user's permissions after mounting.
       await sessionCoordinator.hydrateUserAndPermissions()
     })
     .catch((error) => console.warn('[router] Background session validation failed:', error))

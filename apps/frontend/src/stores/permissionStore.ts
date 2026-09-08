@@ -42,7 +42,6 @@ export const usePermissionStore = defineStore('permissionStore', () => {
   const isLoaded = computed(() => {
     const currentUserId = useUserInfoStore().userInfo.id
     return (
-      allPermissions.value.length > 0 &&
       currentUserPermissions.value !== null &&
       !!currentUserId &&
       currentPermissionUserId.value === currentUserId
