@@ -217,7 +217,9 @@ export default defineConfig(({ mode }) => {
     if (moduleId.endsWith('/src/utils/markdown-highlighter-runtime.ts'))
       return 'markdown-highlighter'
 
-    const domainViewLoaderMatch = moduleId.match(/\/src\/router\/domain-views\/([a-z0-9_-]+)\.ts$/)
+    const domainViewLoaderMatch = moduleId.match(
+      /\/src\/router\/(?:\.gen\/)?domain-views\/([a-z0-9_-]+)(?:\.gen)?\.ts$/,
+    )
     if (domainViewLoaderMatch) return `domain-${domainViewLoaderMatch[1]}`
 
     // Site modules and application roots are selected from the hostname. They
