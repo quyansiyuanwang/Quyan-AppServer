@@ -4,6 +4,7 @@ import {
   isKnownSiteProfile,
   resolveCurrentSiteProfile,
   type ResolvedSiteProfile,
+  type SiteProfile,
 } from '@/config/site-registry'
 import { getCentralLoginFallbackUrl, redirectToCentralLogin } from '@/service/centralLoginService'
 import { replaceDocument } from '@/service/navigationService'
@@ -59,7 +60,9 @@ export const createAppRouter = (profile: ResolvedSiteProfile) => {
     if (to.name !== 'home') void router.replace({ name: 'home' }).catch(() => undefined)
   })
 
-  installNavigationGuards(router, profile)
+  if (isKnownSiteProfile(profile)) {
+    installNavigationGuards(router, profile)
+  }
   return router
 }
 
@@ -78,17 +81,41 @@ export const installProfileRoutes = async (
   await moduleHost.installSiteRoutes(router, profile)
 }
 
-function installNavigationGuards(
+const validateProtectedNavigationInBackground = (
   router: ReturnType<typeof createRouter>,
-  profile: ResolvedSiteProfile,
-) {
+  profile: SiteProfile,
+  to: RouteLocationNormalized,
+) => {
+  void sessionCoordinator
+    .ensureSession()
+    .then(async (token) => {
+      // A later navigation owns the redirect decision. Do not interrupt it
+      // when an earlier route's session probe eventually resolves.
+      if (router.currentRoute.value.fullPath !== to.fullPath) return
+
+      if (!token) {
+        if (profile.id === 'identity') {
+          await router.replace({ name: 'login', query: { redirect: to.fullPath } })
+          return
+        }
+
+        try {
+          await redirectToCentralLogin(to.fullPath)
+        } catch (error) {
+          console.error('Failed to start central login:', error)
+          replaceDocument(getCentralLoginFallbackUrl(profile))
+        }
+        return
+      }
+
+      await sessionCoordinator.hydrateUserAndPermissions()
+    })
+    .catch((error) => console.warn('[router] Background session validation failed:', error))
+}
+
+function installNavigationGuards(router: ReturnType<typeof createRouter>, profile: SiteProfile) {
   // 全局路由守卫：检查认证状态
   router.beforeEach(async (to, from, next) => {
-    if (!isKnownSiteProfile(profile)) {
-      next()
-      return
-    }
-
     const requestedUrl = new URL(to.fullPath, profile.canonicalOrigin)
     const migrationUrl = resolveRouteMigrationUrl(
       to.path,
@@ -111,62 +138,15 @@ function installNavigationGuards(
       to.meta.allowGuestWhenEmbedded === true && String(to.query.embed ?? '') === '1'
     const allowGuest = to.meta.allowGuest === true
 
-    const requiresCaptchaPreflight = Boolean(to.meta.requiresCaptchaPreflight)
-
-    if (requiresCaptchaPreflight && to.name !== 'captchaVerification') {
-      const [{ captchaTrustStateService }, { resolveCaptchaPreflightAction }] = await Promise.all([
-        import('@/service/captchaTrustStateService'),
-        import('@/service/captchaDialogService'),
-      ])
-
-      const captchaAction = resolveCaptchaPreflightAction(to)
-      if (captchaAction) {
-        try {
-          const status = await captchaTrustStateService.getTrustStatus()
-          if (status.trusted) {
-            next()
-            return
-          }
-        } catch {
-          // fall through without blocking auth entry pages
-        }
-      }
-    }
-
     if (allowGuestWhenEmbedded || allowGuest) {
       next()
       return
     }
 
-    const token = await sessionCoordinator.ensureSession()
-
-    if (!token) {
-      if (profile.id === 'identity') {
-        next({ name: 'login', query: { redirect: to.fullPath } })
-        return
-      }
-
-      try {
-        await redirectToCentralLogin(to.fullPath)
-      } catch (error) {
-        console.error('Failed to start central login:', error)
-
-        // A failed flow request must not leave the user on a protected page.
-        // Fall back to the same environment's auth origin; the auth app will
-        // establish the session and send the user to its default destination.
-        replaceDocument(getCentralLoginFallbackUrl(profile))
-      }
-      next(false)
-      return
-    }
-
-    // The coordinator coalesces this with startup and later navigations. Do not
-    // enter a protected shell until its identity and menu permissions are ready.
-    try {
-      await sessionCoordinator.hydrateUserAndPermissions()
-    } catch (error) {
-      console.warn('[router] Failed to hydrate authenticated session:', error)
-    }
+    // Let the route render immediately. The API remains the authority for
+    // authentication and resource permissions; this background validation
+    // redirects only after it has a definitive answer from the backend.
+    validateProtectedNavigationInBackground(router, profile, to)
     next()
   })
 
