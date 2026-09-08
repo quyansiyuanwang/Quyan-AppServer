@@ -99,12 +99,10 @@ pub(crate) async fn begin_browser_login(
     let redirect_uri = oauth_redirect_uri();
     let url = build_browser_authorization_url(auth_base, &redirect_uri, &state, &challenge)?;
 
-    // Print URL for debugging
-    eprintln!("Opening OAuth authorization URL:");
-    eprintln!("{}", url.as_str());
-    eprintln!("");
-
-    open::that(url.as_str())?;
+    // Some Windows launchers keep the parent process attached to the browser
+    // process. A detached launch keeps the TUI responsive while the callback
+    // listener waits for the authorization result.
+    open::that_detached(url.as_str())?;
     Ok(BrowserLoginSession {
         listener,
         state,
@@ -143,12 +141,23 @@ pub(crate) async fn complete_browser_login(session: BrowserLoginSession) -> Resu
         ])
         .send()
         .await?;
+    let status = response.status();
     let body: Value = response.json().await?;
-    Ok(Credentials {
-        access_token: body
-            .get("access_token")
+    if !status.is_success() {
+        let description = body
+            .get("error_description")
+            .or_else(|| body.get("message"))
             .and_then(Value::as_str)
-            .map(String::from),
+            .unwrap_or("OAuth token exchange failed");
+        bail!("OAuth token exchange failed: {description}");
+    }
+    let access_token = body
+        .get("access_token")
+        .and_then(Value::as_str)
+        .filter(|token| !token.trim().is_empty())
+        .context("OAuth token response did not contain access_token")?;
+    Ok(Credentials {
+        access_token: Some(access_token.to_string()),
         refresh_token: body
             .get("refresh_token")
             .and_then(Value::as_str)

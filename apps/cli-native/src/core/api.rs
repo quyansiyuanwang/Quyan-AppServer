@@ -34,25 +34,30 @@ pub struct ApiClient {
 
 impl ApiClient {
     pub fn new(credentials: Credentials, locale: &str) -> Result<Self> {
+        let api_base_url =
+            std::env::var("QUYAN_API_URL").unwrap_or_else(|_| "https://api.qysyw.cn".into());
+        let relay_base_url =
+            std::env::var("QUYAN_RELAY_URL").unwrap_or_else(|_| "https://ai.qysyw.cn".into());
+        Self::with_endpoints(credentials, locale, &api_base_url, &relay_base_url)
+    }
+
+    pub fn with_endpoints(
+        credentials: Credentials,
+        locale: &str,
+        api_base_url: &str,
+        relay_base_url: &str,
+    ) -> Result<Self> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(15))
             .user_agent(concat!("quyan/", env!("CARGO_PKG_VERSION")))
             .build()
             .context("failed to initialize HTTP client")?;
         Ok(Self {
-            api_base_url: std::env::var("QUYAN_API_URL")
-                .unwrap_or_else(|_| "https://api.qysyw.cn".into())
-                .trim_end_matches('/')
-                .into(),
-            relay_base_url: std::env::var("QUYAN_RELAY_URL")
-                .unwrap_or_else(|_| "https://ai.qysyw.cn".into())
-                .trim_end_matches('/')
-                .into(),
+            api_base_url: api_base_url.trim_end_matches('/').into(),
+            relay_base_url: relay_base_url.trim_end_matches('/').into(),
             locale: locale.into(),
             credentials,
-            typed: crate::generated::Client::new(
-                &std::env::var("QUYAN_API_URL").unwrap_or_else(|_| "https://api.qysyw.cn".into()),
-            ),
+            typed: crate::generated::Client::new(api_base_url.trim_end_matches('/')),
             client,
         })
     }
