@@ -5,6 +5,8 @@ coverage/
 *.local
 .DS_Store
 *.generated.*
+*.gen.*
+apps/frontend/src/router/.gen/
 *.tsbuildinfo
 .eslintcache
 

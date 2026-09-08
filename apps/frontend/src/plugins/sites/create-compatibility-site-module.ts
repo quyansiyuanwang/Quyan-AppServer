@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
 import type { SiteProfileId } from '@/config/site-registry'
+import { registerSiteViewSubscription, type ViewModule } from '@/router/domain-view-loader'
 import { defineFeatureModule, defineSiteModule, type SiteModule } from '@/plugins/modules/contracts'
 import { getFeatureManifestEntries } from '@/plugins/modules/feature-manifest'
 
@@ -27,7 +28,9 @@ const loadApplicationRoot = async (
 export const createCompatibilitySiteModule = (
   siteId: SiteProfileId,
   appRoot?: string,
+  views?: ViewModule,
 ): SiteModule => {
+  if (views) registerSiteViewSubscription(siteId, views)
   const entries = getFeatureManifestEntries(siteId)
 
   return defineSiteModule({

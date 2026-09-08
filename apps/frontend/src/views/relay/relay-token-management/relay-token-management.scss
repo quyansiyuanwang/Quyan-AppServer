@@ -922,6 +922,10 @@
 }
 
 .channel-config-checkbox-group {
+  width: 100%;
+}
+
+.channel-config-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
