@@ -1013,6 +1013,34 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows viewing monthly pass usage statistics',
     category: 'monthly_pass',
   },
+  [Permission.CARPOOL_TEMPLATE_READ]: {
+    label: '查看拼车套餐',
+    labelEn: 'View Carpool Packages',
+    tooltip: '允许查看拼车套餐配置',
+    tooltipEn: 'Allows viewing carpool package configuration',
+    category: 'carpool',
+  },
+  [Permission.CARPOOL_TEMPLATE_WRITE]: {
+    label: '管理拼车套餐',
+    labelEn: 'Manage Carpool Packages',
+    tooltip: '允许创建和发布拼车套餐',
+    tooltipEn: 'Allows creating and publishing carpool packages',
+    category: 'carpool',
+  },
+  [Permission.CARPOOL_ORDER_READ]: {
+    label: '查看拼车申请',
+    labelEn: 'View Carpool Orders',
+    tooltip: '允许查看拼车申请和成员',
+    tooltipEn: 'Allows viewing carpool orders and members',
+    category: 'carpool',
+  },
+  [Permission.CARPOOL_ORDER_FULFILL]: {
+    label: '交付拼车套餐',
+    labelEn: 'Fulfill Carpool Orders',
+    tooltip: '允许接受拼车申请、绑定渠道和退款',
+    tooltipEn: 'Allows accepting carpool orders, binding channels, and refunding',
+    category: 'carpool',
+  },
 
   [Permission.TICKET_SUBMIT]: {
     label: '提交工单',

@@ -20,6 +20,7 @@ import { buildForceOfflineAuthSessionKey, extractAuthSessionId } from "@/util/au
 import { DEFAULT_BACKEND_LOCALE, translateKnownMessage } from "@/locales";
 import { OAuthAuthorizationRepository } from "@/store/oauth/oauth-authorization.repository";
 import { Permission } from "@/constant/permission";
+import { getOAuthScopeAliases } from "@quyan/shared";
 
 const logger = getLogger("AuthGuard", LogCategory.SYSTEM);
 const userRepository = UserRepository.getInstance();
@@ -104,7 +105,10 @@ async function authenticateOAuthAccessToken(
   if (accessToken.expiresAt.getTime() <= Date.now()) throw new UnauthorizedError("OAuth access token has expired");
 
   const tokenScopes = readJsonStringArray(accessToken.scopes);
-  const missingScopes = requiredScopes.filter((scope) => !tokenScopes.includes(scope));
+  const tokenScopeSet = new Set(tokenScopes);
+  const missingScopes = requiredScopes.filter(
+    (scope) => !getOAuthScopeAliases(scope).some((alias) => tokenScopeSet.has(alias)),
+  );
   if (missingScopes.length > 0) throw new ForbiddenError(`Insufficient OAuth scope: ${missingScopes.join(", ")}`);
 
   const user = await userRepository.findById(accessToken.userId);

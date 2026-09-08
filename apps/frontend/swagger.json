@@ -20884,6 +20884,42 @@
 				"parameters": []
 			}
 		},
+		"/v1/oauth/scopes": {
+			"get": {
+				"operationId": "OAuthControllerScopes",
+				"responses": {
+					"200": {
+						"description": "OAuth scope catalog loaded",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OAuthScopeCatalogResponseDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"OAuth 2.0"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/oauth/authorize": {
 			"get": {
 				"operationId": "OAuthControllerAuthorize",
@@ -28552,6 +28588,801 @@
 				]
 			}
 		},
+		"/v1/carpools/packages/published": {
+			"get": {
+				"operationId": "CarpoolControllerListPublishedPackages",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/carpools/packages": {
+			"get": {
+				"operationId": "CarpoolControllerListPackages",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"records": {
+											"items": {
+												"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
+											},
+											"type": "array"
+										},
+										"total": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"records",
+										"total"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "CarpoolControllerCreatePackage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateCarpoolPackageTemplateRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/carpools/packages/{id}/publish": {
+			"post": {
+				"operationId": "CarpoolControllerPublishPackage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/packages/{id}/unpublish": {
+			"post": {
+				"operationId": "CarpoolControllerUnpublishPackage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/me": {
+			"get": {
+				"operationId": "CarpoolControllerListMine",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"records": {
+											"items": {
+												"$ref": "#/components/schemas/CarpoolOrderDto"
+											},
+											"type": "array"
+										},
+										"total": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"records",
+										"total"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/admin": {
+			"get": {
+				"operationId": "CarpoolControllerListAdmin",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"records": {
+											"items": {
+												"$ref": "#/components/schemas/CarpoolOrderDto"
+											},
+											"type": "array"
+										},
+										"total": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"records",
+										"total"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "state",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools": {
+			"post": {
+				"operationId": "CarpoolControllerCreateOrder",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateCarpoolOrderRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/carpools/{id}": {
+			"get": {
+				"operationId": "CarpoolControllerGetOrder",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/{id}/invites": {
+			"post": {
+				"operationId": "CarpoolControllerCreateInvite",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"expiresAt": {
+											"type": "string",
+											"format": "date-time"
+										},
+										"token": {}
+									},
+									"required": [
+										"expiresAt",
+										"token"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateCarpoolInviteRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/carpools/invites/accept": {
+			"post": {
+				"operationId": "CarpoolControllerAcceptInvite",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AcceptCarpoolInviteRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/carpools/{id}/ratios": {
+			"post": {
+				"operationId": "CarpoolControllerAllocateRatios",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AllocateCarpoolRatiosRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/carpools/{id}/confirm": {
+			"post": {
+				"operationId": "CarpoolControllerConfirm",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/{id}/leave": {
+			"post": {
+				"operationId": "CarpoolControllerLeave",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/{id}/cancel": {
+			"post": {
+				"operationId": "CarpoolControllerCancel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/{id}/submit": {
+			"post": {
+				"operationId": "CarpoolControllerSubmit",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/admin/{id}/accept": {
+			"post": {
+				"operationId": "CarpoolControllerAccept",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/admin/{id}/fulfill": {
+			"post": {
+				"operationId": "CarpoolControllerFulfill",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/FulfillCarpoolOrderRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/carpools/admin/{id}/fail": {
+			"post": {
+				"operationId": "CarpoolControllerFail",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "reason",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/balance/account": {
 			"get": {
 				"operationId": "BalanceControllerGetMyBalance",
@@ -34129,6 +34960,10 @@
 					"monthly_pass:assignment:read",
 					"monthly_pass:assignment:write",
 					"monthly_pass:usage:read",
+					"carpool:template:read",
+					"carpool:template:write",
+					"carpool:order:read",
+					"carpool:order:fulfill",
 					"ticket:submit",
 					"ticket:self:read",
 					"ticket:self:update",
@@ -35282,6 +36117,12 @@
 					"tosUrl": {
 						"type": "string",
 						"nullable": true
+					},
+					"scopes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
 					},
 					"accessTokenLifetime": {
 						"type": "number",
@@ -51256,6 +52097,78 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"OAuthScopeCatalogItemDto": {
+				"properties": {
+					"scope": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string"
+					},
+					"riskLevel": {
+						"type": "string",
+						"enum": [
+							"normal",
+							"high"
+						]
+					},
+					"labelKey": {
+						"type": "string"
+					},
+					"descriptionKey": {
+						"type": "string"
+					},
+					"isNew": {
+						"type": "boolean"
+					},
+					"grantable": {
+						"type": "boolean"
+					},
+					"kind": {
+						"type": "string",
+						"enum": [
+							"identity",
+							"permission",
+							"legacy"
+						]
+					},
+					"legacy": {
+						"type": "boolean"
+					},
+					"categoryKey": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"scope",
+					"category",
+					"riskLevel",
+					"labelKey",
+					"descriptionKey",
+					"isNew",
+					"grantable",
+					"kind",
+					"legacy",
+					"categoryKey"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"OAuthScopeCatalogResponseDto": {
+				"properties": {
+					"scopes": {
+						"items": {
+							"$ref": "#/components/schemas/OAuthScopeCatalogItemDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"scopes"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"OAuthAuthorizationPreviewClientDto": {
 				"properties": {
 					"clientId": {
@@ -51283,6 +52196,46 @@
 				"required": [
 					"clientId",
 					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"OAuthAuthorizationScopeDetailDto": {
+				"properties": {
+					"scope": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string"
+					},
+					"riskLevel": {
+						"type": "string",
+						"enum": [
+							"normal",
+							"high"
+						]
+					},
+					"labelKey": {
+						"type": "string"
+					},
+					"descriptionKey": {
+						"type": "string"
+					},
+					"isNew": {
+						"type": "boolean"
+					},
+					"grantable": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scope",
+					"category",
+					"riskLevel",
+					"labelKey",
+					"descriptionKey",
+					"isNew",
+					"grantable"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -51318,6 +52271,18 @@
 					},
 					"state": {
 						"type": "string"
+					},
+					"scopeDetails": {
+						"items": {
+							"$ref": "#/components/schemas/OAuthAuthorizationScopeDetailDto"
+						},
+						"type": "array"
+					},
+					"unavailableScopes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
@@ -51326,7 +52291,9 @@
 					"previouslyGrantedScopes",
 					"missingScopes",
 					"requireConsent",
-					"redirectUri"
+					"redirectUri",
+					"scopeDetails",
+					"unavailableScopes"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -55458,6 +56425,310 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"CarpoolPackageTemplateDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"salePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxMembers": {
+						"type": "number",
+						"format": "double"
+					},
+					"monthlyPassTemplateId": {
+						"type": "string"
+					},
+					"publishStatus": {
+						"type": "string"
+					},
+					"snapshotQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"snapshotValidityDays": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"salePrice",
+					"upstreamCost",
+					"maxMembers",
+					"monthlyPassTemplateId",
+					"publishStatus",
+					"snapshotQuota",
+					"snapshotValidityDays"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateCarpoolPackageTemplateRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"salePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxMembers": {
+						"type": "number",
+						"format": "double"
+					},
+					"monthlyPassTemplateId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"salePrice",
+					"upstreamCost",
+					"maxMembers",
+					"monthlyPassTemplateId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CarpoolOrderState": {
+				"type": "string",
+				"enum": [
+					"open",
+					"submitted",
+					"accepted",
+					"fulfilled",
+					"failed",
+					"cancelled",
+					"expired"
+				]
+			},
+			"CarpoolMemberDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"username": {
+						"type": "string"
+					},
+					"role": {
+						"type": "string"
+					},
+					"state": {
+						"type": "string"
+					},
+					"paymentRatio": {
+						"type": "number",
+						"format": "double"
+					},
+					"quotaRatio": {
+						"type": "number",
+						"format": "double"
+					},
+					"payableAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"finalQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"reservedAmount": {
+						"type": "number",
+						"format": "double"
+					},
+					"relayTokenId": {
+						"type": "string"
+					},
+					"userMonthlyPassId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"userId",
+					"username",
+					"role",
+					"state",
+					"paymentRatio",
+					"quotaRatio",
+					"payableAmount",
+					"finalQuota",
+					"reservedAmount"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CarpoolOrderDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"state": {
+						"$ref": "#/components/schemas/CarpoolOrderState"
+					},
+					"packageName": {
+						"type": "string"
+					},
+					"salePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"validityDays": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxMembers": {
+						"type": "number",
+						"format": "double"
+					},
+					"relayChannelId": {
+						"type": "string"
+					},
+					"members": {
+						"items": {
+							"$ref": "#/components/schemas/CarpoolMemberDto"
+						},
+						"type": "array"
+					},
+					"paymentRatioTotal": {
+						"type": "number",
+						"format": "double"
+					},
+					"quotaRatioTotal": {
+						"type": "number",
+						"format": "double"
+					},
+					"allConfirmed": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"id",
+					"state",
+					"packageName",
+					"salePrice",
+					"totalQuota",
+					"validityDays",
+					"maxMembers",
+					"members",
+					"paymentRatioTotal",
+					"quotaRatioTotal",
+					"allConfirmed"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateCarpoolOrderRequest": {
+				"properties": {
+					"packageTemplateId": {
+						"type": "string"
+					},
+					"inviteValidityHours": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"packageTemplateId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateCarpoolInviteRequest": {
+				"properties": {
+					"validityHours": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AcceptCarpoolInviteRequest": {
+				"properties": {
+					"token": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"token"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AllocateCarpoolRatiosRequest": {
+				"properties": {
+					"members": {
+						"items": {
+							"properties": {
+								"quotaRatio": {
+									"type": "number",
+									"format": "double"
+								},
+								"paymentRatio": {
+									"type": "number",
+									"format": "double"
+								},
+								"memberId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"quotaRatio",
+								"paymentRatio",
+								"memberId"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"members"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"FulfillCarpoolOrderRequest": {
+				"properties": {
+					"relayChannelId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"relayChannelId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"BalanceAccountResponse": {
 				"properties": {
 					"id": {
@@ -56027,6 +57298,46 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"AuthCenterAuthorizationScopeDetailDto": {
+				"properties": {
+					"scope": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string"
+					},
+					"riskLevel": {
+						"type": "string",
+						"enum": [
+							"normal",
+							"high"
+						]
+					},
+					"labelKey": {
+						"type": "string"
+					},
+					"descriptionKey": {
+						"type": "string"
+					},
+					"isNew": {
+						"type": "boolean"
+					},
+					"grantable": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scope",
+					"category",
+					"riskLevel",
+					"labelKey",
+					"descriptionKey",
+					"isNew",
+					"grantable"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"AuthCenterAuthorizationPreviewDto": {
 				"properties": {
 					"client": {
@@ -56058,6 +57369,18 @@
 					},
 					"state": {
 						"type": "string"
+					},
+					"scopeDetails": {
+						"items": {
+							"$ref": "#/components/schemas/AuthCenterAuthorizationScopeDetailDto"
+						},
+						"type": "array"
+					},
+					"unavailableScopes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
@@ -56066,7 +57389,9 @@
 					"previouslyGrantedScopes",
 					"missingScopes",
 					"requireConsent",
-					"redirectUri"
+					"redirectUri",
+					"scopeDetails",
+					"unavailableScopes"
 				],
 				"type": "object",
 				"additionalProperties": false

@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider          = "mysql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model User {
@@ -39,6 +40,11 @@ model User {
   ramRoleBindings              RamUserRoleBinding[]
   assumedRoleSessions          RamRoleSession[]                @relation("RamRoleSessionSubject")
   relayTokens                  RelayToken[]
+  carpoolOrdersOwned           CarpoolOrder[]                  @relation("CarpoolOrderOwner")
+  carpoolMembers               CarpoolMember[]
+  carpoolInvitesCreated        CarpoolInvite[]                 @relation("CarpoolInviteCreator")
+  carpoolInvitesUsed           CarpoolInvite[]                 @relation("CarpoolInviteUsedBy")
+  balanceReservations          BalanceReservation[]
   accessKeys                   AccessKey[]
   oauthClients                 OAuthClient[]
   authCenterClients            AuthCenterClient[]
@@ -321,7 +327,7 @@ model DeveloperProductInstance {
   entitlement    DeveloperProductEntitlement @relation(fields: [entitlementId], references: [id], onDelete: Cascade)
   backingProject DeveloperProject            @relation("DeveloperProductInstanceBackingProject", fields: [backingProjectId], references: [id], onDelete: Cascade)
   apiKeys        DeveloperProductApiKey[]
-  jsonEndpoint   JsonEndpoint?            @relation("JsonEndpointProductInstance")
+  jsonEndpoint   JsonEndpoint?               @relation("JsonEndpointProductInstance")
 
   @@unique([entitlementId, slug])
   @@index([entitlementId, enabled])
@@ -1072,6 +1078,7 @@ model RelayChannel {
   reviewedBy           User?                       @relation("RelayChannelReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
   providers            RelayChannelProvider[]
   changeRequests       RelayChannelChangeRequest[]
+  carpoolOrders        CarpoolOrder[]
 
   @@index([status])
   @@index([pooledParentId, pooledPriority])
@@ -1327,6 +1334,7 @@ model RelayToken {
   ipWhitelist                         String?   @db.Text
   modelMapping                        Json?
   isCustomKey                         Boolean   @default(false)
+  carpoolMemberId                     String?   @unique
 
   user                      User                      @relation(fields: [userId], references: [id])
   channel                   RelayChannel?             @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
@@ -1339,13 +1347,143 @@ model RelayToken {
   logicalRequests           RelayLogicalRequest[]
   conversations             Conversation[]
   agentTasks                AgentTask[]
+  carpoolMember             CarpoolMember?            @relation(fields: [carpoolMemberId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([token])
   @@index([channelId])
   @@index([automaticProxyPoolChannelId])
+  @@index([carpoolMemberId])
   @@index([status, expiresAt])
   @@map("relay_tokens")
+}
+
+model CarpoolPackageTemplate {
+  id                       String              @id @default(cuid())
+  status                   Int                 @default(1)
+  createTime               DateTime            @default(now())
+  updateTime               DateTime            @updatedAt
+  name                     String              @unique
+  description              String?             @db.Text
+  publishStatus            String              @default("draft") @db.VarChar(20)
+  publishedAt              DateTime?
+  salePrice                Decimal             @db.Decimal(10, 4)
+  upstreamCost             Decimal             @db.Decimal(10, 4)
+  maxMembers               Int
+  monthlyPassTemplateId    String
+  snapshotQuota            Decimal             @db.Decimal(10, 4)
+  snapshotValidityDays     Int
+  snapshotQuotaUnit        String              @default("amount") @db.VarChar(20)
+  snapshotQuotaWindowHours Int?
+  snapshotAllowedModels    String?             @db.Text
+  snapshotAllowedChannels  String?             @db.Text
+  orders                   CarpoolOrder[]
+  monthlyPassTemplate      MonthlyPassTemplate @relation(fields: [monthlyPassTemplateId], references: [id], onDelete: Restrict)
+
+  @@index([status, publishStatus])
+  @@map("carpool_package_templates")
+}
+
+model CarpoolOrder {
+  id                String                 @id @default(cuid())
+  status            Int                    @default(1)
+  createTime        DateTime               @default(now())
+  updateTime        DateTime               @updatedAt
+  ownerUserId       String
+  packageTemplateId String
+  state             String                 @default("open") @db.VarChar(20)
+  packageName       String
+  salePrice         Decimal                @db.Decimal(10, 4)
+  upstreamCost      Decimal                @db.Decimal(10, 4)
+  maxMembers        Int
+  totalQuota        Decimal                @db.Decimal(10, 4)
+  validityDays      Int
+  quotaUnit         String                 @default("amount") @db.VarChar(20)
+  quotaWindowHours  Int?
+  allowedModels     String?                @db.Text
+  allowedChannels   String?                @db.Text
+  inviteExpiresAt   DateTime?
+  relayChannelId    String?
+  submittedAt       DateTime?
+  acceptedAt        DateTime?
+  fulfilledAt       DateTime?
+  failedAt          DateTime?
+  failureReason     String?                @db.Text
+  owner             User                   @relation("CarpoolOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  packageTemplate   CarpoolPackageTemplate @relation(fields: [packageTemplateId], references: [id], onDelete: Restrict)
+  relayChannel      RelayChannel?          @relation(fields: [relayChannelId], references: [id], onDelete: SetNull)
+  members           CarpoolMember[]
+  invites           CarpoolInvite[]
+  reservations      BalanceReservation[]
+
+  @@index([ownerUserId, state])
+  @@index([state, createTime])
+  @@map("carpool_orders")
+}
+
+model CarpoolMember {
+  id            String              @id @default(cuid())
+  status        Int                 @default(1)
+  createTime    DateTime            @default(now())
+  updateTime    DateTime            @updatedAt
+  orderId       String
+  userId        String
+  role          String              @default("member") @db.VarChar(20)
+  state         String              @default("pending") @db.VarChar(20)
+  paymentRatio  Decimal             @default(0) @db.Decimal(8, 6)
+  quotaRatio    Decimal             @default(0) @db.Decimal(8, 6)
+  payableAmount Decimal             @default(0) @db.Decimal(10, 4)
+  finalQuota    Decimal             @default(0) @db.Decimal(10, 4)
+  confirmedAt   DateTime?
+  userMonthlyPassId String?         @unique
+  user          User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order         CarpoolOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reservation   BalanceReservation?
+  relayToken    RelayToken?
+  userMonthlyPass UserMonthlyPass?  @relation(fields: [userMonthlyPassId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, userId])
+  @@index([userId, state])
+  @@map("carpool_members")
+}
+
+model CarpoolInvite {
+  id              String       @id @default(cuid())
+  status          Int          @default(1)
+  createTime      DateTime     @default(now())
+  updateTime      DateTime     @updatedAt
+  orderId         String
+  createdByUserId String
+  tokenHash       String       @unique @db.VarChar(128)
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  usedByUserId    String?
+  usedAt          DateTime?
+  order           CarpoolOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdBy       User         @relation("CarpoolInviteCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  usedBy          User?        @relation("CarpoolInviteUsedBy", fields: [usedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, expiresAt])
+  @@map("carpool_invites")
+}
+
+model BalanceReservation {
+  id         String        @id @default(cuid())
+  status     Int           @default(1)
+  createTime DateTime      @default(now())
+  updateTime DateTime      @updatedAt
+  userId     String
+  orderId    String
+  memberId   String        @unique
+  amount     Decimal       @db.Decimal(10, 4)
+  state      String        @default("reserved") @db.VarChar(20)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order      CarpoolOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  member     CarpoolMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([userId, state])
+  @@index([orderId, state])
+  @@map("balance_reservations")
 }
 
 model RelayTokenQuotaWindow {
@@ -1945,8 +2083,9 @@ model MonthlyPassTemplate {
   allowedModels           String?   @db.Text
   allowedChannels         String?   @db.Text
 
-  userPasses   UserMonthlyPass[]
-  quotaWindows MonthlyPassTemplateQuotaWindow[]
+  userPasses              UserMonthlyPass[]
+  carpoolPackageTemplates CarpoolPackageTemplate[]
+  quotaWindows            MonthlyPassTemplateQuotaWindow[]
 
   @@index([status])
   @@index([publishStatus])
@@ -2121,6 +2260,7 @@ model UserMonthlyPass {
   template     MonthlyPassTemplate          @relation(fields: [templateId], references: [id], onDelete: Cascade)
   usages       MonthlyPassUsage[]
   quotaWindows UserMonthlyPassQuotaWindow[]
+  carpoolMember CarpoolMember?
 
   @@index([userId])
   @@index([templateId])
@@ -2288,28 +2428,28 @@ model OJUsageRecord {
 }
 
 model JsonEndpoint {
-  id                   String    @id @default(cuid())
-  status               Int       @default(1)
-  createTime           DateTime  @default(now())
-  updateTime           DateTime  @updatedAt
-  userId               String
-  developerProductInstanceId String? @unique
-  name                 String
-  slug                 String
-  isRootSlug           Boolean   @default(false)
-  rootSlug             String?   @unique
-  description          String?   @db.Text
-  jsonContent          Json
-  apiKey               String?   @unique
-  isPublic             Boolean   @default(true)
-  accessMode           String?   @db.VarChar(30)
-  publicKey            String?   @db.Text
-  publicKeyFingerprint String?   @db.VarChar(64)
-  signatureAlgorithm   String?   @db.VarChar(30)
-  accessCount          Int       @default(0)
-  lastAccessAt         DateTime?
+  id                         String    @id @default(cuid())
+  status                     Int       @default(1)
+  createTime                 DateTime  @default(now())
+  updateTime                 DateTime  @updatedAt
+  userId                     String
+  developerProductInstanceId String?   @unique
+  name                       String
+  slug                       String
+  isRootSlug                 Boolean   @default(false)
+  rootSlug                   String?   @unique
+  description                String?   @db.Text
+  jsonContent                Json
+  apiKey                     String?   @unique
+  isPublic                   Boolean   @default(true)
+  accessMode                 String?   @db.VarChar(30)
+  publicKey                  String?   @db.Text
+  publicKeyFingerprint       String?   @db.VarChar(64)
+  signatureAlgorithm         String?   @db.VarChar(30)
+  accessCount                Int       @default(0)
+  lastAccessAt               DateTime?
 
-  user User @relation(fields: [userId], references: [id])
+  user                     User                      @relation(fields: [userId], references: [id])
   developerProductInstance DeveloperProductInstance? @relation("JsonEndpointProductInstance", fields: [developerProductInstanceId], references: [id], onDelete: SetNull)
 
   @@unique([userId, slug])

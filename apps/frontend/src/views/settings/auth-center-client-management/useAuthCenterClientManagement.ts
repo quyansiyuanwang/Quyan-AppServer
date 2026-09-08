@@ -12,6 +12,7 @@ import type {
   CreateAuthCenterClientDto,
   UpdateAuthCenterClientDto,
 } from '@/client/types.gen'
+import type { OAuthScopeOption } from '@/components/oauth/OAuthScopeTreeSelector.vue'
 
 export type AuthCenterClientFormState = {
   name: string
@@ -89,13 +90,7 @@ export const useAuthCenterClientManagement = () => {
     },
   ])
 
-  const scopeOptions = computed(() => [
-    {
-      value: 'profile',
-      label: i18ns.t('authCenterClient.scopeOptionTitles.profile'),
-      description: i18ns.t('authCenterClient.scopeDescriptions.profile'),
-    },
-  ])
+  const scopeCatalog = ref<OAuthScopeOption[]>([])
 
   const grantTypeRows = computed(() =>
     grantTypeOptions.value.map((item) => ({
@@ -179,6 +174,11 @@ export const useAuthCenterClientManagement = () => {
     } finally {
       loading.value = false
     }
+  }
+
+  const loadScopeCatalog = async () => {
+    const result = await authCenterClientService.getOAuthScopes()
+    scopeCatalog.value = (result as { scopes: OAuthScopeOption[] }).scopes
   }
 
   const resetForm = () => {
@@ -390,7 +390,7 @@ export const useAuthCenterClientManagement = () => {
   }
 
   onMounted(() => {
-    void loadClients()
+    void Promise.all([loadClients(), loadScopeCatalog()])
   })
 
   return {
@@ -406,7 +406,7 @@ export const useAuthCenterClientManagement = () => {
     form,
     isPkceLocked,
     grantTypeOptions,
-    scopeOptions,
+    scopeCatalog,
     grantTypeRows,
     getReviewStatusLabel,
     getReviewStatusTagType,

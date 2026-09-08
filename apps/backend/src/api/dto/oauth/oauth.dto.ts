@@ -31,6 +31,28 @@ export interface OAuthAuthorizationPreviewDto {
   requireConsent: boolean;
   redirectUri: string;
   state?: string;
+  scopeDetails: OAuthAuthorizationScopeDetailDto[];
+  unavailableScopes: string[];
+}
+
+export interface OAuthAuthorizationScopeDetailDto {
+  scope: string;
+  category: string;
+  riskLevel: "normal" | "high";
+  labelKey: string;
+  descriptionKey: string;
+  isNew: boolean;
+  grantable: boolean;
+}
+
+export interface OAuthScopeCatalogItemDto extends OAuthAuthorizationScopeDetailDto {
+  kind: "identity" | "permission" | "legacy";
+  legacy: boolean;
+  categoryKey: string;
+}
+
+export interface OAuthScopeCatalogResponseDto {
+  scopes: OAuthScopeCatalogItemDto[];
 }
 
 export interface OAuthAuthorizationDecisionResponseDto {

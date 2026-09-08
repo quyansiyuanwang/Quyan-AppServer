@@ -24,6 +24,8 @@ import type {
 import { UserRepository } from "@/store/users/user.repository";
 import { validateAccountStatus } from "@/util/auth/account-status";
 import { BadRequestError, NotFoundError } from "@/util/errors";
+import { getOAuthScopeCatalog } from "@quyan/shared";
+import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
 
 const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 const REFRESH_TOKEN_PREFIX = "acrt_";
@@ -67,6 +69,11 @@ export class AuthCenterAuthorizationService {
     const consent = await this.repository.findConsent(client.id, userId);
     const previouslyGrantedScopes = consent ? this.readJsonStringArray(consent.scopes) : [];
     const missingScopes = requestedScopes.filter((scope) => !previouslyGrantedScopes.includes(scope));
+    const scopeMetadata = await oauthScopeService.buildAuthorizationDetails(
+      userId,
+      requestedScopes,
+      previouslyGrantedScopes,
+    );
 
     return {
       client: {
@@ -84,6 +91,7 @@ export class AuthCenterAuthorizationService {
       requireConsent: !consent || missingScopes.length > 0,
       redirectUri: query.redirect_uri,
       state: query.state?.trim() || undefined,
+      ...scopeMetadata,
     };
   }
 
@@ -105,6 +113,13 @@ export class AuthCenterAuthorizationService {
 
     const allowedScopes = this.readJsonStringArray(client.scopes);
     const requestedScopes = this.parseScopes(body.scope, allowedScopes);
+    const scopeMetadata = await oauthScopeService.buildAuthorizationDetails(userId, requestedScopes, []);
+    if (scopeMetadata.unavailableScopes.length > 0)
+      throw new AuthCenterProtocolError(
+        400,
+        "invalid_scope",
+        `Unavailable OAuth scope: ${scopeMetadata.unavailableScopes.join(", ")}`,
+      );
     const consent = await this.repository.upsertConsent(client.id, userId, requestedScopes);
 
     const authorizationCode = this.generateOpaqueToken(AUTHORIZATION_CODE_PREFIX, 32);
@@ -187,16 +202,7 @@ export class AuthCenterAuthorizationService {
       response_types_supported: ["code"],
       grant_types_supported: ["authorization_code", "refresh_token", "client_credentials"],
       token_endpoint_auth_methods_supported: ["client_secret_basic", "client_secret_post", "none"],
-      scopes_supported: [
-        "profile",
-        "relay:token:read",
-        "relay:token:create",
-        "relay:token:update",
-        "relay:token:delete",
-        "relay:channel:read",
-        "relay:usage:read",
-        "balance:read",
-      ],
+      scopes_supported: getOAuthScopeCatalog().map(({ scope }) => scope),
       code_challenge_methods_supported: ["S256", "plain"],
     };
   }

@@ -11,10 +11,12 @@ import type {
   UpdateSystemOAuthClientDto,
 } from '@/client/types.gen'
 import { createOAuthClientControllerApi } from '@/client/services/o-auth-client-controller.gen'
+import { createOAuthControllerApi } from '@/client/services/o-auth-controller.gen'
 
 const getOAuthClientControllerApi = cache(() =>
   createOAuthClientControllerApi(useRequestStore().getAxios()),
 )
+const getOAuthControllerApi = cache(() => createOAuthControllerApi(useRequestStore().getAxios()))
 
 export class OAuthClientService {
   private static instance: OAuthClientService
@@ -29,6 +31,11 @@ export class OAuthClientService {
   async getOAuthClients() {
     const result = await getOAuthClientControllerApi().listClients({})
     return checkApiResult(result, true)
+  }
+
+  async getOAuthScopes() {
+    const result = await getOAuthControllerApi().scopes({})
+    return checkApiResult<{ scopes: unknown[] }>(result, true)
   }
 
   async getOAuthClient(id: string) {

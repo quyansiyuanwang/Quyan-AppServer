@@ -1,15 +1,19 @@
 use anyhow::Result;
 use crossterm::{
+    cursor::{Hide, Show},
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{
+        disable_raw_mode, enable_raw_mode, Clear as TerminalClear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
+    },
 };
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Text},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
     Terminal,
 };
 use serde_json::Value;
@@ -224,16 +228,23 @@ fn actions(locale: &str) -> Vec<TuiAction> {
 pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
     enable_raw_mode()?;
     let mut out = stdout();
-    execute!(out, EnterAlternateScreen)?;
+    execute!(
+        out,
+        EnterAlternateScreen,
+        TerminalClear(ClearType::All),
+        Hide
+    )?;
     let backend = CrosstermBackend::new(out);
     let mut terminal = Terminal::new(backend)?;
+    terminal.clear()?;
     let actions = actions(status.locale);
     let mut screen = Screen::Home {
         selected: 0,
         show_help: false,
     };
-    let result = loop {
-        terminal.draw(|frame| render(frame, &status, &actions, &screen))?;
+    let result = async {
+        loop {
+            terminal.draw(|frame| render(frame, &status, &actions, &screen))?;
         if let Some(resolved) = resolve_browser_login(&mut screen).await {
             let selected = match &screen {
                 Screen::BrowserLogin { view } => view.selected,
@@ -265,9 +276,14 @@ pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
         if !event::poll(std::time::Duration::from_millis(200))? {
             continue;
         }
-        let Event::Key(key) = event::read()? else {
+        let event = event::read()?;
+        if matches!(event, Event::Resize(_, _)) {
+            // A diff render cannot erase cells from the previous terminal
+            // dimensions. Clear the frame whenever the terminal is resized.
+            terminal.clear()?;
             continue;
-        };
+        }
+        let Event::Key(key) = event else { continue };
         if key.kind != KeyEventKind::Press {
             continue;
         }
@@ -404,11 +420,24 @@ pub async fn run(status: StatusView<'_>, mut api: ApiClient) -> Result<()> {
                 _ => {}
             },
         }
-    };
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
-    result
+        }
+    }.await;
+
+    // Always restore the user's terminal, including when drawing or reading
+    // an event fails. Leaving the alternate screen dirty causes character
+    // remnants and can leave the cursor hidden in the parent shell.
+    let cleanup = (|| -> Result<()> {
+        disable_raw_mode()?;
+        execute!(
+            terminal.backend_mut(),
+            Show,
+            TerminalClear(ClearType::All),
+            LeaveAlternateScreen
+        )?;
+        terminal.show_cursor()?;
+        Ok(())
+    })();
+    result.and(cleanup)
 }
 
 /// If the browser-login exchange task finished, take the credentials out of it.
@@ -649,6 +678,10 @@ fn render(
     actions: &[TuiAction],
     screen: &Screen,
 ) {
+    // Reset the frame buffer before drawing. A shorter screen must overwrite
+    // every cell painted by its predecessor, otherwise terminals using
+    // Ratatui's diff renderer can show stale characters after a page change.
+    frame.render_widget(Clear, frame.area());
     match screen {
         Screen::Home {
             selected,

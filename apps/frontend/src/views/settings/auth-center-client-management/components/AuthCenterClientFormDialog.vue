@@ -159,23 +159,7 @@
           class="auth-center-client-form__block-item auth-center-client-form__block-item--plain"
         >
           <div class="auth-center-scope-selector">
-            <el-checkbox-group v-model="form.scopes" class="auth-center-scope-selector__grid">
-              <el-checkbox
-                v-for="option in scopeOptions"
-                :key="option.value"
-                :value="option.value"
-                border
-                class="auth-center-scope-selector__item"
-              >
-                <div class="auth-center-scope-selector__content">
-                  <div class="auth-center-scope-selector__label-row">
-                    <code>{{ option.value }}</code>
-                    <span class="auth-center-scope-selector__title">{{ option.label }}</span>
-                  </div>
-                  <div class="small-text text-secondary">{{ option.description }}</div>
-                </div>
-              </el-checkbox>
-            </el-checkbox-group>
+            <OAuthScopeTreeSelector v-model="form.scopes" :scopes="scopeCatalog" />
           </div>
         </el-form-item>
         <div class="small-text text-secondary auth-center-client-form__section-desc">
@@ -227,6 +211,7 @@
 
 <script setup lang="ts">
 import { i18ns } from '@/locales'
+import OAuthScopeTreeSelector from '@/components/oauth/OAuthScopeTreeSelector.vue'
 import { useAuthCenterClientManagementContext } from '../context'
 
 const {
@@ -237,7 +222,7 @@ const {
   form,
   isPkceLocked,
   grantTypeOptions,
-  scopeOptions,
+  scopeCatalog,
   addRedirectUriRow,
   removeRedirectUriRow,
   handleSubmit,

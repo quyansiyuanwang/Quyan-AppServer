@@ -48,6 +48,7 @@ export interface UpdateSystemOAuthClientDto {
   logoUrl?: string | null;
   policyUrl?: string | null;
   tosUrl?: string | null;
+  scopes?: string[];
   accessTokenLifetime?: number;
   refreshTokenLifetime?: number;
 }

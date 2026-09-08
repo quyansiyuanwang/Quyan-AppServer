@@ -7,6 +7,7 @@ describe("main runtime bootstrap", () => {
   });
 
   it("forces process exit with code 1 when graceful shutdown timeout elapses", async () => {
+    vi.useFakeTimers();
     const setupService = vi.fn();
     const close = vi.fn();
     const serverOn = vi.fn();
@@ -36,12 +37,6 @@ describe("main runtime bootstrap", () => {
       return process;
     }) as typeof process.on);
     const processExitSpy = vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
-
-    let forcedShutdownCallback: (() => void) | undefined;
-    vi.spyOn(globalThis, "setTimeout").mockImplementation(((callback: () => void) => {
-      forcedShutdownCallback = callback;
-      return 0;
-    }) as unknown as typeof setTimeout);
 
     const processWithSend = process as typeof process & { send?: (message: string) => void };
     const originalSend = processWithSend.send;
@@ -97,13 +92,13 @@ describe("main runtime bootstrap", () => {
       expect(info).toHaveBeenCalledWith("SIGINT received, starting graceful shutdown");
       expect(close).toHaveBeenCalledTimes(1);
 
-      expect(forcedShutdownCallback).toBeTypeOf("function");
-      forcedShutdownCallback?.();
+      vi.advanceTimersByTime(12 * 60 * 1000);
 
       expect(error).toHaveBeenCalledWith("Forced shutdown after timeout");
       expect(processExitSpy).toHaveBeenCalledWith(1);
     } finally {
       processWithSend.send = originalSend;
+      vi.useRealTimers();
     }
   });
 

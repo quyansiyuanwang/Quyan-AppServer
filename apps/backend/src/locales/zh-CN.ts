@@ -108,6 +108,10 @@ const zhCN: DeepStringify<typeof en> = {
     userConfigCleared: "权限配置已清空",
     groupPermissionsUpdated: "用户组权限设置成功",
   },
+  oauth: {
+    unknownScope: "未知的 OAuth scope: {{scopes}}",
+    ungrantableScope: "不能授予当前用户未拥有的 OAuth scope: {{scopes}}",
+  },
   auth: {
     replaySigningSessionIssued: "获取签名会话成功",
     verificationCodeSent: "验证码已发送",

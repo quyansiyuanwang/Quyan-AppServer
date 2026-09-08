@@ -686,6 +686,62 @@ export default {
     invalidRequest: 'Invalid OAuth authorization request',
     loadFailed: 'Failed to load authorization request',
     submitFailed: 'Failed to submit authorization decision',
+    highRisk: 'High-risk permission',
+    unavailable: 'Unavailable',
+    highRiskWarning:
+      'This app may modify account settings, security controls, or sensitive data. Continue only if you trust it.',
+    unavailableScopes:
+      'Some requested permissions are unavailable, so authorization cannot complete.',
+  },
+
+  oauthScopes: {
+    search: 'Search permissions',
+    highRisk: 'High risk',
+    highRiskSelection: '{count} high-risk permissions selected',
+    selectAll: 'Select all grantable',
+    clear: 'Clear selection',
+    expandAll: 'Expand categories',
+    collapseAll: 'Collapse categories',
+    noGrantableScopes: 'No grantable permissions available',
+    categoryDescription: 'Browse available OAuth scopes by permission category.',
+    categories: {
+      identity: 'Account identity',
+      notification: 'Notifications',
+      oauth: 'OAuth',
+      accesskey: 'AccessKey',
+      security: 'Account security',
+      relay: 'Relay',
+      general: 'Other',
+    },
+    scopes: {
+      profile: { label: 'Profile', description: 'Read and update the current user profile.' },
+      email: {
+        label: 'Email',
+        description: 'Start email-change verification and submit an email change.',
+      },
+      notification: {
+        label: 'Notifications',
+        description: 'Manage notification preferences and records.',
+      },
+      oauth_client: { label: 'OAuth apps', description: 'Manage the current user’s OAuth apps.' },
+      accesskey: { label: 'AccessKeys', description: 'Manage the current user’s AccessKeys.' },
+      passkey: { label: 'Passkeys', description: 'Manage the current user’s Passkeys.' },
+      two_factor: {
+        label: 'Two-factor authentication',
+        description: 'Manage the current user’s two-factor settings.',
+      },
+    },
+    unknown: {
+      label: 'Unknown permission',
+      description: 'This permission is not registered on the platform.',
+    },
+    legacy: {
+      relayUsageRead: {
+        label: 'Relay usage',
+        description: 'Read relay usage statistics (legacy scope).',
+      },
+    },
+    permissions: {},
   },
 
   forgotPasswordPage: {
@@ -857,6 +913,7 @@ export default {
     consumptionRecords: 'Consumption Records',
     myTickets: 'My Tickets',
     myMonthlyPasses: 'Monthly Pass Subscription',
+    myCarpools: 'My Carpools',
     pageTitle: 'My Monthly Passes',
     balanceManagement: 'Balance Management',
     passkeyManagement: 'Passkey',
@@ -875,6 +932,7 @@ export default {
     scriptManager: 'Script Manager',
     financial: 'Billing & Subscriptions',
     monthlyPassManagement: 'Monthly Pass',
+    carpoolManagement: 'Carpool Management',
     dataServices: 'Content & Data',
     analytics: 'Analytics',
     analyticsOverview: 'Overview',
@@ -5640,16 +5698,6 @@ export default {
     redirectUrisTip: 'e.g. http://127.0.0.1:40016/callback',
     scopes: 'Scopes',
     scopesPlaceholder: 'Select scopes',
-    scopesOptions: {
-      profile: 'Basic user information',
-      'relay:token:read': 'Read relay tokens',
-      'relay:token:create': 'Create relay tokens',
-      'relay:token:update': 'Update relay tokens',
-      'relay:token:delete': 'Delete relay tokens',
-      'relay:channel:read': 'Read relay channels',
-      'relay:usage:read': 'Read usage',
-      'balance:read': 'Read balance',
-    },
     pkceTip: 'Public clients such as CLI should enable PKCE',
     accessTokenLifetime: 'Access token lifetime',
     refreshTokenLifetime: 'Refresh token lifetime',

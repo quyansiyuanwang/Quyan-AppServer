@@ -24,6 +24,7 @@ import type {
   OAuthRevokeTokenResponseDto,
   OAuthTokenDto,
   OAuthTokenResponseDto,
+  OAuthScopeCatalogResponseDto,
 } from "@/api/dto/oauth/oauth.dto";
 import {
   oauthAuthorizeDecisionBodySchema,
@@ -34,6 +35,7 @@ import {
 import type { ErrorResponse } from "@/api/response";
 import { validateBody } from "@/middleware/validation";
 import { OAuthAuthorizationService, OAuthProtocolError } from "@/services/oauth/oauth-authorization.service";
+import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
 import type { TypedRequest } from "@/types/express";
 import { skipResponseWrapper } from "@/util/response-wrapper";
 
@@ -42,6 +44,18 @@ import { skipResponseWrapper } from "@/util/response-wrapper";
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "参数验证失败")
 export class OAuthController extends Controller {
   private readonly oauthService = OAuthAuthorizationService.getInstance();
+
+  @Get("scopes")
+  @Security("jwt")
+  @SuccessResponse(HttpStatusCode.Ok, "OAuth scope catalog loaded")
+  public async scopes(@Request() request: TypedRequest): Promise<OAuthScopeCatalogResponseDto> {
+    return {
+      scopes: (await oauthScopeService.listForUser(String(request.user?.userId || ""))).map((item) => ({
+        ...item,
+        isNew: false,
+      })),
+    };
+  }
 
   @Get("authorize")
   @Security("jwt")

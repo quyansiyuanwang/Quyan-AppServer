@@ -90,35 +90,7 @@
         <div class="oauth-client-form__section-title">{{ i18ns.t('oauthClient.scopes') }}</div>
         <el-form-item :label="i18ns.t('oauthClient.scopes')" class="oauth-client-form__block-item">
           <div class="oauth-scope-selector">
-            <el-checkbox-group v-model="form.scopes" class="oauth-scope-selector__grid">
-              <el-checkbox
-                v-for="scope in props.scopeOptions"
-                :key="scope.value"
-                :value="scope.value"
-                border
-                :class="[
-                  'oauth-scope-selector__item',
-                  { 'oauth-scope-selector__item--warning': scope.sensitive },
-                ]"
-              >
-                <div class="oauth-scope-selector__content">
-                  <div class="oauth-scope-selector__label-row">
-                    <code>{{ scope.value }}</code>
-                    <span class="oauth-scope-selector__title">{{ scope.label }}</span>
-                  </div>
-                  <div class="small-text text-secondary">{{ scope.description }}</div>
-                  <el-alert
-                    v-if="scope.sensitive"
-                    type="warning"
-                    :closable="false"
-                    show-icon
-                    class="oauth-scope-selector__warning"
-                  >
-                    {{ i18ns.t('oauthClient.scopeSensitiveHint') }}
-                  </el-alert>
-                </div>
-              </el-checkbox>
-            </el-checkbox-group>
+            <OAuthScopeTreeSelector v-model="form.scopes" :scopes="props.scopeCatalog" />
             <div class="small-text text-secondary oauth-scope-selector__hint">
               {{ i18ns.t('oauthClient.scopePickerHint') }}
             </div>
@@ -163,6 +135,9 @@
 
 <script setup lang="ts">
 import { i18ns } from '@/locales'
+import OAuthScopeTreeSelector, {
+  type OAuthScopeOption,
+} from '@/components/oauth/OAuthScopeTreeSelector.vue'
 
 interface OAuthClientFormState {
   name: string
@@ -176,13 +151,6 @@ interface OAuthClientFormState {
   tosUrl: string
 }
 
-interface ScopeOption {
-  value: string
-  label: string
-  description: string
-  sensitive?: boolean
-}
-
 const visible = defineModel<boolean>({ required: true })
 const form = defineModel<OAuthClientFormState>('form', { required: true })
 
@@ -190,7 +158,7 @@ const props = defineProps<{
   isEditing: boolean
   isDesktop: boolean
   submitting: boolean
-  scopeOptions: ScopeOption[]
+  scopeCatalog: OAuthScopeOption[]
 }>()
 
 const emit = defineEmits<{
