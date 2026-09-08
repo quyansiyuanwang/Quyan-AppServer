@@ -6,6 +6,7 @@ export default import.meta.glob<Component>(
     '../../views/system/**/*.vue',
     '../../views/analytics/**/*.vue',
     '../../views/relay/{BalanceManagementView,MonthlyPassManagementView,RedemptionCodeManagementView}.vue',
+    '../../views/settings/SystemOAuthClientManagementView.vue',
     '../../views/{debug,json-endpoint,article}/**/*.vue',
   ],
   { eager: true, import: 'default' },
