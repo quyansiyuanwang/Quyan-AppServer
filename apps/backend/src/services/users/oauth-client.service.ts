@@ -20,6 +20,7 @@ import type { OAuthClientStore, OAuthClientUpdateInput } from "@/store/users/oau
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { CustomCode } from "@quyan/shared";
+import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
 
 const DEFAULT_GRANT_TYPES = ["authorization_code", "refresh_token"];
 const DEFAULT_SCOPES = ["profile"];
@@ -44,6 +45,7 @@ export class OAuthClientService {
   }
 
   async createClient(userId: string, data: CreateOAuthClientDto, request?: Request): Promise<OAuthClientWithSecretDto> {
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
     const clientId = this.generateClientId();
     const rawClientSecret = data.clientType === "public" ? "" : this.generateClientSecret();
     const clientSecretHash = rawClientSecret ? await bcrypt.hash(rawClientSecret, 10) : undefined;
@@ -63,7 +65,7 @@ export class OAuthClientService {
       reviewedByUserId: null,
       grantTypes: DEFAULT_GRANT_TYPES,
       redirectUris: this.normalizeStringArray(data.redirectUris),
-      scopes: this.normalizeStringArray(data.scopes, DEFAULT_SCOPES),
+      scopes: this.normalizeStringArray(scopes, DEFAULT_SCOPES),
       homepageUrl: this.normalizeOptionalText(data.homepageUrl),
       logoUrl: this.normalizeOptionalText(data.logoUrl),
       policyUrl: this.normalizeOptionalText(data.policyUrl),
@@ -111,6 +113,7 @@ export class OAuthClientService {
     data: CreateSystemOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientWithSecretDto> {
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
     const clientId = data.clientId.trim();
     const existing = await this.repository.findByClientId(clientId);
     if (existing) throw new BadRequestError("OAuth client ID already exists");
@@ -133,7 +136,7 @@ export class OAuthClientService {
       reviewedByUserId: userId,
       grantTypes: DEFAULT_GRANT_TYPES,
       redirectUris: this.normalizeStringArray(data.redirectUris),
-      scopes: this.normalizeStringArray(data.scopes, DEFAULT_SCOPES),
+      scopes: this.normalizeStringArray(scopes, DEFAULT_SCOPES),
       homepageUrl: this.normalizeOptionalText(data.homepageUrl),
       logoUrl: this.normalizeOptionalText(data.logoUrl),
       policyUrl: this.normalizeOptionalText(data.policyUrl),
@@ -179,6 +182,8 @@ export class OAuthClientService {
     if (!existing || !existing.isSystemClient) throw new NotFoundError("System OAuth client not found");
 
     const updateData: OAuthClientUpdateInput = {};
+    if (data.scopes !== undefined)
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
     if (data.name !== undefined) updateData.name = data.name.trim();
     if (data.description !== undefined) updateData.description = this.normalizeNullableText(data.description);
     if (data.homepageUrl !== undefined) updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
@@ -241,7 +246,7 @@ export class OAuthClientService {
     if (Object.prototype.hasOwnProperty.call(data, "redirectUris") && data.redirectUris)
       updateData.redirectUris = this.normalizeStringArray(data.redirectUris);
     if (Object.prototype.hasOwnProperty.call(data, "scopes") && data.scopes)
-      updateData.scopes = this.normalizeStringArray(data.scopes, DEFAULT_SCOPES);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
     if (Object.prototype.hasOwnProperty.call(data, "homepageUrl"))
       updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
     if (Object.prototype.hasOwnProperty.call(data, "logoUrl"))

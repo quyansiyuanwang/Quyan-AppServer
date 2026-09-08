@@ -13,6 +13,7 @@ import type {
 import { OAuthAuthorizationRepository } from "@/store/oauth/oauth-authorization.repository";
 import type { OAuthAuthorizationStore } from "@/store/oauth/oauth-authorization.store";
 import { BadRequestError, NotFoundError } from "@/util/errors";
+import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
 
 const AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 const ACCESS_TOKEN_PREFIX = "oat_";
@@ -51,6 +52,11 @@ export class OAuthAuthorizationService {
     const consent = await this.repository.findConsent(client.id, userId);
     const previouslyGrantedScopes = consent ? this.readJsonStringArray(consent.scopes) : [];
     const missingScopes = requestedScopes.filter((scope) => !previouslyGrantedScopes.includes(scope));
+    const scopeMetadata = await oauthScopeService.buildAuthorizationDetails(
+      userId,
+      requestedScopes,
+      previouslyGrantedScopes,
+    );
 
     return {
       client: {
@@ -68,6 +74,7 @@ export class OAuthAuthorizationService {
       requireConsent: !consent || missingScopes.length > 0,
       redirectUri: query.redirect_uri,
       state: query.state?.trim() || undefined,
+      ...scopeMetadata,
     };
   }
 
@@ -89,6 +96,13 @@ export class OAuthAuthorizationService {
 
     const allowedScopes = this.readJsonStringArray(client.scopes);
     const requestedScopes = this.parseScopes(body.scope, allowedScopes);
+    const scopeMetadata = await oauthScopeService.buildAuthorizationDetails(userId, requestedScopes, []);
+    if (scopeMetadata.unavailableScopes.length > 0)
+      throw new OAuthProtocolError(
+        400,
+        "invalid_scope",
+        `Unavailable OAuth scope: ${scopeMetadata.unavailableScopes.join(", ")}`,
+      );
     const consent = await this.repository.upsertConsent(client.id, userId, requestedScopes);
 
     const authorizationCode = this.generateOpaqueToken(AUTHORIZATION_CODE_PREFIX, 32);

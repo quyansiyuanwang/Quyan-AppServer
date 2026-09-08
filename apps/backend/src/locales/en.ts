@@ -105,6 +105,10 @@ const en = {
     userConfigCleared: "Permission configuration cleared",
     groupPermissionsUpdated: "Group permissions set successfully",
   },
+  oauth: {
+    unknownScope: "Unknown OAuth scope: {{scopes}}",
+    ungrantableScope: "You cannot grant OAuth scopes you do not have: {{scopes}}",
+  },
   auth: {
     replaySigningSessionIssued: "Replay signing session issued successfully",
     verificationCodeSent: "Verification code sent",

@@ -18,6 +18,7 @@ import { AuthCenterClientRepository } from "@/store/users/auth-center-client.rep
 import type { AuthCenterClientStore, AuthCenterClientUpdateInput } from "@/store/users/auth-center-client.store";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, NotFoundError } from "@/util/errors";
+import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
 
 const DEFAULT_SCOPES = ["profile"];
 const REVIEW_STATUS = {
@@ -48,6 +49,7 @@ export class AuthCenterClientService {
     data: CreateAuthCenterClientDto,
     request?: Request,
   ): Promise<AuthCenterClientWithSecretDto> {
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
     const clientType = data.clientType ?? "confidential";
     const grantTypes = this.normalizeGrantTypes(data.grantTypes, clientType);
     const redirectUris = this.normalizeStringArray(data.redirectUris);
@@ -81,7 +83,7 @@ export class AuthCenterClientService {
       reviewedByUserId: null,
       grantTypes,
       redirectUris,
-      scopes: this.normalizeStringArray(data.scopes, DEFAULT_SCOPES),
+      scopes: this.normalizeStringArray(scopes, DEFAULT_SCOPES),
       homepageUrl: this.normalizeOptionalText(data.homepageUrl),
       logoUrl: this.normalizeOptionalText(data.logoUrl),
       policyUrl: this.normalizeOptionalText(data.policyUrl),
@@ -155,14 +157,16 @@ export class AuthCenterClientService {
     });
 
     const updateData: AuthCenterClientUpdateInput = {};
+    if (data.scopes !== undefined)
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
 
     if (Object.prototype.hasOwnProperty.call(data, "name") && data.name !== undefined)
       updateData.name = data.name.trim();
     if (Object.prototype.hasOwnProperty.call(data, "description"))
       updateData.description = this.normalizeNullableText(data.description);
     if (Object.prototype.hasOwnProperty.call(data, "redirectUris")) updateData.redirectUris = nextRedirectUris;
-    if (Object.prototype.hasOwnProperty.call(data, "scopes"))
-      updateData.scopes = this.normalizeStringArray(data.scopes, DEFAULT_SCOPES);
+    if (Object.prototype.hasOwnProperty.call(data, "scopes") && data.scopes)
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
     if (Object.prototype.hasOwnProperty.call(data, "homepageUrl"))
       updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
     if (Object.prototype.hasOwnProperty.call(data, "logoUrl"))

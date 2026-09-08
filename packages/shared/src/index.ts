@@ -1,4 +1,14 @@
 export { Permission, ALL_PERMISSIONS, getPermissionCategory } from './permission'
+export {
+  OAUTH_SCOPE_CATALOG,
+  getOAuthScopeCatalog,
+  getOAuthScopeDefinition,
+  isKnownOAuthScope,
+  isOAuthScopeGrantable,
+  getOAuthScopeAliases,
+  OAUTH_LEGACY_SCOPE_ALIASES,
+} from './oauth-scope'
+export type { OAuthScopeDefinition, OAuthScopeKind, OAuthScopeRiskLevel } from './oauth-scope'
 export { CustomCode } from './custom-code'
 export { MANAGED_STATUS, HEARTBEAT_STATUS } from './status'
 export type { ManagedStatus, HeartbeatStatus } from './status'

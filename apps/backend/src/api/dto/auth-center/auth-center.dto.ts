@@ -31,6 +31,18 @@ export interface AuthCenterAuthorizationPreviewDto {
   requireConsent: boolean;
   redirectUri: string;
   state?: string;
+  scopeDetails: AuthCenterAuthorizationScopeDetailDto[];
+  unavailableScopes: string[];
+}
+
+export interface AuthCenterAuthorizationScopeDetailDto {
+  scope: string;
+  category: string;
+  riskLevel: "normal" | "high";
+  labelKey: string;
+  descriptionKey: string;
+  isNew: boolean;
+  grantable: boolean;
 }
 
 export interface AuthCenterAuthorizationDecisionResponseDto {

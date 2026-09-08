@@ -20884,6 +20884,42 @@
 				"parameters": []
 			}
 		},
+		"/v1/oauth/scopes": {
+			"get": {
+				"operationId": "OAuthControllerScopes",
+				"responses": {
+					"200": {
+						"description": "OAuth scope catalog loaded",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/OAuthScopeCatalogResponseDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"OAuth 2.0"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/oauth/authorize": {
 			"get": {
 				"operationId": "OAuthControllerAuthorize",
@@ -35282,6 +35318,12 @@
 					"tosUrl": {
 						"type": "string",
 						"nullable": true
+					},
+					"scopes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
 					},
 					"accessTokenLifetime": {
 						"type": "number",
@@ -51256,6 +51298,78 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"OAuthScopeCatalogItemDto": {
+				"properties": {
+					"scope": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string"
+					},
+					"riskLevel": {
+						"type": "string",
+						"enum": [
+							"normal",
+							"high"
+						]
+					},
+					"labelKey": {
+						"type": "string"
+					},
+					"descriptionKey": {
+						"type": "string"
+					},
+					"isNew": {
+						"type": "boolean"
+					},
+					"grantable": {
+						"type": "boolean"
+					},
+					"kind": {
+						"type": "string",
+						"enum": [
+							"identity",
+							"permission",
+							"legacy"
+						]
+					},
+					"legacy": {
+						"type": "boolean"
+					},
+					"categoryKey": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"scope",
+					"category",
+					"riskLevel",
+					"labelKey",
+					"descriptionKey",
+					"isNew",
+					"grantable",
+					"kind",
+					"legacy",
+					"categoryKey"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"OAuthScopeCatalogResponseDto": {
+				"properties": {
+					"scopes": {
+						"items": {
+							"$ref": "#/components/schemas/OAuthScopeCatalogItemDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"scopes"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"OAuthAuthorizationPreviewClientDto": {
 				"properties": {
 					"clientId": {
@@ -51283,6 +51397,46 @@
 				"required": [
 					"clientId",
 					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"OAuthAuthorizationScopeDetailDto": {
+				"properties": {
+					"scope": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string"
+					},
+					"riskLevel": {
+						"type": "string",
+						"enum": [
+							"normal",
+							"high"
+						]
+					},
+					"labelKey": {
+						"type": "string"
+					},
+					"descriptionKey": {
+						"type": "string"
+					},
+					"isNew": {
+						"type": "boolean"
+					},
+					"grantable": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scope",
+					"category",
+					"riskLevel",
+					"labelKey",
+					"descriptionKey",
+					"isNew",
+					"grantable"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -51318,6 +51472,18 @@
 					},
 					"state": {
 						"type": "string"
+					},
+					"scopeDetails": {
+						"items": {
+							"$ref": "#/components/schemas/OAuthAuthorizationScopeDetailDto"
+						},
+						"type": "array"
+					},
+					"unavailableScopes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
@@ -51326,7 +51492,9 @@
 					"previouslyGrantedScopes",
 					"missingScopes",
 					"requireConsent",
-					"redirectUri"
+					"redirectUri",
+					"scopeDetails",
+					"unavailableScopes"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -56027,6 +56195,46 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"AuthCenterAuthorizationScopeDetailDto": {
+				"properties": {
+					"scope": {
+						"type": "string"
+					},
+					"category": {
+						"type": "string"
+					},
+					"riskLevel": {
+						"type": "string",
+						"enum": [
+							"normal",
+							"high"
+						]
+					},
+					"labelKey": {
+						"type": "string"
+					},
+					"descriptionKey": {
+						"type": "string"
+					},
+					"isNew": {
+						"type": "boolean"
+					},
+					"grantable": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"scope",
+					"category",
+					"riskLevel",
+					"labelKey",
+					"descriptionKey",
+					"isNew",
+					"grantable"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"AuthCenterAuthorizationPreviewDto": {
 				"properties": {
 					"client": {
@@ -56058,6 +56266,18 @@
 					},
 					"state": {
 						"type": "string"
+					},
+					"scopeDetails": {
+						"items": {
+							"$ref": "#/components/schemas/AuthCenterAuthorizationScopeDetailDto"
+						},
+						"type": "array"
+					},
+					"unavailableScopes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
 					}
 				},
 				"required": [
@@ -56066,7 +56286,9 @@
 					"previouslyGrantedScopes",
 					"missingScopes",
 					"requireConsent",
-					"redirectUri"
+					"redirectUri",
+					"scopeDetails",
+					"unavailableScopes"
 				],
 				"type": "object",
 				"additionalProperties": false

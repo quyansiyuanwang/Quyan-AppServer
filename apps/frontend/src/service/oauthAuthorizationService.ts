@@ -30,6 +30,18 @@ export interface OAuthAuthorizationPreview {
   requireConsent: boolean
   redirectUri: string
   state?: string
+  scopeDetails: OAuthAuthorizationScopeDetail[]
+  unavailableScopes: string[]
+}
+
+export interface OAuthAuthorizationScopeDetail {
+  scope: string
+  category: string
+  riskLevel: 'normal' | 'high'
+  labelKey: string
+  descriptionKey: string
+  isNew: boolean
+  grantable: boolean
 }
 
 export interface OAuthAuthorizationDecisionResponse {

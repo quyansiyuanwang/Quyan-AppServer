@@ -109,21 +109,7 @@
         </el-form-item>
 
         <el-form-item :label="t('systemOAuth.scopes')" prop="scopes">
-          <el-select
-            v-model="form.scopes"
-            multiple
-            filterable
-            :placeholder="t('systemOAuth.scopesPlaceholder')"
-            style="width: 100%"
-            :disabled="isEditing"
-          >
-            <el-option
-              v-for="scope in scopeOptions"
-              :key="scope"
-              :value="scope"
-              :label="scopeLabel(scope)"
-            />
-          </el-select>
+          <OAuthScopeTreeSelector v-model="form.scopes" :scopes="scopeCatalog" />
         </el-form-item>
 
         <el-form-item label="PKCE" prop="isPkceRequired">
@@ -204,22 +190,14 @@ import { Plus, Check, Close } from '@element-plus/icons-vue'
 import { OAuthClientService } from '@/service/oauthClientService'
 import type { OAuthClientDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
+import OAuthScopeTreeSelector, {
+  type OAuthScopeOption,
+} from '@/components/oauth/OAuthScopeTreeSelector.vue'
 
 type LocaleKey = Parameters<typeof i18ns.t>[0]
 const t = (key: LocaleKey, params?: Record<string, unknown>) => i18ns.t(key, params)
-const scopeOptions = [
-  'profile',
-  'relay:token:read',
-  'relay:token:create',
-  'relay:token:update',
-  'relay:token:delete',
-  'relay:channel:read',
-  'relay:usage:read',
-  'balance:read',
-]
-const scopeLabel = (scope: string) =>
-  `${scope} - ${t(`systemOAuth.scopesOptions.${scope}` as LocaleKey)}`
 const statusLabel = (status: string) => t(`systemOAuth.status.${status}` as LocaleKey)
+const scopeCatalog = ref<OAuthScopeOption[]>([])
 
 const oauthClientService = OAuthClientService.getInstance()
 
@@ -354,8 +332,13 @@ function parseJsonArray(value: string | string[]): string[] {
 }
 
 onMounted(() => {
-  loadSystemClients()
+  void Promise.all([loadSystemClients(), loadScopeCatalog()])
 })
+
+async function loadScopeCatalog() {
+  const response = await oauthClientService.getOAuthScopes()
+  scopeCatalog.value = (response as { scopes: OAuthScopeOption[] }).scopes
+}
 </script>
 
 <style scoped lang="scss">
