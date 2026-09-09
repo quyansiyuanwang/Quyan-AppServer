@@ -180,7 +180,10 @@ async fn wait_for_oauth_callback(listener: TcpListener, expected_state: &str) ->
     let mut request = [0u8; 4096];
     let size = stream.read(&mut request).await?;
     let first = String::from_utf8_lossy(&request[..size]);
-    tracing::debug!("OAuth callback request: {}", first.lines().next().unwrap_or(""));
+    tracing::debug!(
+        "OAuth callback request: {}",
+        first.lines().next().unwrap_or("")
+    );
     let target = first
         .split_whitespace()
         .nth(1)
@@ -213,7 +216,10 @@ fn build_browser_authorization_url(
     state: &str,
     code_challenge: &str,
 ) -> Result<Url> {
-    let mut url = Url::parse(&format!("{}/oauth/authorize", auth_base.trim_end_matches('/')))?;
+    let mut url = Url::parse(&format!(
+        "{}/oauth/authorize",
+        auth_base.trim_end_matches('/')
+    ))?;
     url.query_pairs_mut()
         .append_pair("response_type", "code")
         .append_pair("client_id", CLI_CLIENT_ID)

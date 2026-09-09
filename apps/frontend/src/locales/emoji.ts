@@ -625,6 +625,7 @@ const emoji: DeepStringify<typeof en> = {
     alreadyAuthorized: '🫵✅👌👤，👤。',
     requestedScopes: '🙏📨',
     newScopes: '🆕🛂',
+    new: '🆕',
     clientId: '🪪 💬',
     redirectUri: '↪️ 💬',
     homepage: '🏠',
@@ -639,6 +640,10 @@ const emoji: DeepStringify<typeof en> = {
     unavailable: '🚫',
     highRiskWarning: '⚠️🛂🔐📊 ➡️ 🙏 ✅ 👌',
     unavailableScopes: '❌🛂 ➡️ 🚫🔐',
+    scopeName: '🛂📝',
+    scopeId: '🛂🆔',
+    description: '📄',
+    category: '📁',
   },
   oauthScopes: {
     search: '🔍🛂',
