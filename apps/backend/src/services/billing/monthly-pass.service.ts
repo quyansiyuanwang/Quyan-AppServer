@@ -66,7 +66,7 @@ import type { Request } from "express";
 import type { UserListFilters } from "@/store/users/user.store";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
-import { normalizeRelayDisplaySnapshotName } from "@/util/relay-display-channel.util";
+import { normalizeRelayDisplaySnapshotName } from "@/util/relay";
 import {
   getMonthlyPassDiscountPercentValidationError,
   getMonthlyPassPositiveIntegerValidationError,

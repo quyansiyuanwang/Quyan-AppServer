@@ -14,7 +14,7 @@ import { env } from "@/config/env";
 import { validateAccountStatus } from "@/util/auth/account-status";
 import { UserRepository } from "@/store/users/user.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
-import { extractRelayToken } from "@/util/relay-auth";
+import { extractRelayToken } from "@/util/relay";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { buildForceOfflineAuthSessionKey, extractAuthSessionId } from "@/util/auth-session";
 import { DEFAULT_BACKEND_LOCALE, translateKnownMessage } from "@/locales";

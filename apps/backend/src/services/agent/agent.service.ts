@@ -17,7 +17,7 @@ import { RootlessDockerWorkspaceProvider } from "./workspace-runtime.service";
 import { AgentRuntimeGateway } from "./agent-runtime.gateway";
 import { AgentRepository } from "@/store/agent/agent.repository";
 import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
-import { parseRelayTokenAllowedModelIds } from "@/util/relay-model-availability.util";
+import { parseRelayTokenAllowedModelIds } from "@/util/relay";
 import { isModelIdAllowed, resolveModelId } from "@/util/model-resolution.util";
 import { resolveMappedModel } from "@/util/model-mapping.util";
 

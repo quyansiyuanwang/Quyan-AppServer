@@ -96,7 +96,14 @@ export class SessionCoordinator {
           userId,
           userUpdatedAt,
         )
-        if (!restoredPermissions) {
+        // Keep the last known projection while the same user's authorization
+        // version is being rehydrated. Clearing it here makes every computed
+        // menu/route briefly fall back to its unauthenticated/loading state,
+        // which is visible as a flash during ordinary token rotation. A user
+        // switch is cleared above, so this is safe for identity changes.
+        const hasSameUserPermissionProjection =
+          permissionStore.currentUserPermissions?.userId === userId
+        if (!restoredPermissions && !hasSameUserPermissionProjection) {
           permissionStore.clearCurrentUserPermissions()
         }
 
@@ -189,12 +196,19 @@ export class SessionCoordinator {
       const session = useSessionStore()
       const userInfoStore = useUserInfoStore()
       const permissionStore = usePermissionStore()
+      const currentUserId = user?.id || userInfoStore.userInfo.id || null
+      const currentUserVersion = getUserUpdatedAtFromToken(getAccessToken())
+      const hasCurrentAuthorizationProjection =
+        currentUserId !== null &&
+        this.projectedUserId === currentUserId &&
+        this.projectedUserVersion === currentUserVersion
 
       if (
         session.permissionsStatus === 'ready' &&
         permissionStore.isLoaded &&
         userInfoStore.isUserInfoFetched &&
-        (!user?.id || user.id === userInfoStore.userInfo.id)
+        (!user?.id || user.id === userInfoStore.userInfo.id) &&
+        hasCurrentAuthorizationProjection
       ) {
         return
       }

@@ -31,7 +31,7 @@ import type {
   ConsumptionStatsStore,
   ConsumptionUsageRow,
 } from "@/store/system/consumption-stats.store";
-import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay-display-channel.util";
+import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay";
 import type { APILogStore } from "@/store/system/apilog.store";
 import type { UserStore } from "@/store/users/user.store";
 import type { GroupStore } from "@/store/users/group.store";

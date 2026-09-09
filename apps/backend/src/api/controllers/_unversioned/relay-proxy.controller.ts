@@ -3,7 +3,7 @@ import { HttpStatusCode } from "axios";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import { UnauthorizedError } from "@/util/errors";
-import { extractRelayToken } from "@/util/relay-auth";
+import { extractRelayToken } from "@/util/relay";
 import { resolveSupportRelayClientIp } from "@/util/support-relay-authorization";
 import type { Request as ExpressRequest } from "express";
 import { skipResponseWrapper } from "@/util/response-wrapper";

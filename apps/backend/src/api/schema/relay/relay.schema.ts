@@ -6,11 +6,7 @@ import {
   MONTHLY_PASS_MAX_INTEGER_QUOTA,
   MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
 } from "@/constant/monthly-pass";
-import {
-  isValidRetryStatusRule,
-  MAX_RETRY_STATUS_RULES,
-  normalizeRetryStatusRules,
-} from "@/util/relay-failover-status-rule.util";
+import { isValidRetryStatusRule, MAX_RETRY_STATUS_RULES, normalizeRetryStatusRules } from "@/util/relay";
 import { isValidIpWhitelistEntry, splitIpWhitelistEntries } from "@/util/ip-whitelist.util";
 
 const validDateString = (value: string): boolean => {

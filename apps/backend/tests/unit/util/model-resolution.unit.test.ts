@@ -5,7 +5,7 @@ import {
   parseRelayChannelAllowedModelNames,
   parseRelayTokenAllowedModelIds,
   getAccessibleRelayModelConfigsForToken,
-} from "@/util/relay-model-availability.util";
+} from "@/util/relay";
 
 describe("Model ID + Channel -> Model Config Logic", () => {
   describe("isModelNameAllowed", () => {

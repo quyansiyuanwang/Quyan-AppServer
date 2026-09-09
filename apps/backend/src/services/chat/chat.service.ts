@@ -27,12 +27,12 @@ import {
   type RelayConfiguredRequestFormat,
   type RelayRequestFormat,
   supportsRelayRequestFormat,
-} from "@/util/relay-model-availability.util";
+} from "@/util/relay";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 import { RelayProxyService, type RelayAttemptPlan } from "@/services/relay/relay-proxy.service";
 import { randomUUID } from "crypto";
-import { shouldRetryRelayUpstreamFailure } from "@/util/relay-failover-status-rule.util";
+import { shouldRetryRelayUpstreamFailure } from "@/util/relay";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
 import { ContentSafetyBlockedError } from "@/util/errors";
 import { RelayChannelHealthService } from "@/services/relay/relay-channel-health.service";

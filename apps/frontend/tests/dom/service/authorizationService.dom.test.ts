@@ -21,6 +21,21 @@ const authApi = {
   logout: vi.fn(),
 }
 
+const createAccessToken = (userId: string, updatedAt: string) =>
+  [
+    'header',
+    btoa(
+      JSON.stringify({
+        data: JSON.stringify({
+          data: { userId, updatedAt },
+          expiration: Math.floor(Date.now() / 1000) + 60,
+        }),
+        type: 'access',
+      }),
+    ),
+    'signature',
+  ].join('.')
+
 vi.mock('@/client/services/auth-controller.gen', () => ({
   createAuthControllerApi: () => authApi,
 }))
@@ -183,7 +198,9 @@ describe('session coordinator', () => {
   it('loads the independent user profile and permission catalog concurrently during hydration', async () => {
     let resolveUser: ((value: { id: string; username: string }) => void) | undefined
     let resolveAllPermissions:
-      | ((value: { data: { permissions: { id: string; name: string; category: string }[] } }) => void)
+      | ((value: {
+          data: { permissions: { id: string; name: string; category: string }[] }
+        }) => void)
       | undefined
     userService.getMe.mockImplementation(
       () =>
@@ -225,5 +242,98 @@ describe('session coordinator', () => {
       data: { permissions: [{ id: 'permission-1', name: 'user:read', category: 'user' }] },
     })
     await expect(hydration).resolves.toBeUndefined()
+  })
+
+  it('keeps the old permission projection visible until an authorization refresh completes', async () => {
+    const sessionCoordinator = new SessionCoordinator() as any
+    const userInfoStore = (await import('@/stores/userInfoStore')).useUserInfoStore()
+    const permissionStore = (await import('@/stores/permissionStore')).usePermissionStore()
+    const sessionStore = (await import('@/stores/sessionStore')).useSessionStore()
+
+    userInfoStore.setUserInfo({ id: 'user-1', username: 'user-1' })
+    userInfoStore.isUserInfoFetched = true
+    permissionService.getUserPermissions.mockResolvedValue({
+      data: {
+        userId: 'user-1',
+        groupPermissions: [],
+        additionalPermissions: [],
+        removedPermissions: [],
+        effectivePermissions: ['user:read'],
+      },
+    })
+    await permissionStore.loadCurrentUserPermissions()
+    sessionStore.setUser(userInfoStore.userInfo)
+    sessionStore.setPermissionsStatus('ready')
+    sessionCoordinator.projectedUserId = 'user-1'
+    sessionCoordinator.projectedUserVersion = '2026-08-14T00:00:00.000Z'
+
+    const token = createAccessToken('user-1', '2026-09-10T00:00:00.000Z')
+    sessionCoordinator.applyAccessToken(token)
+
+    expect(permissionStore.currentUserPermissions?.effectivePermissions).toEqual(['user:read'])
+
+    userService.getMe.mockResolvedValue({ id: 'user-1', username: 'user-1' })
+    let resolvePermissions:
+      | ((value: {
+          data: {
+            userId: string
+            groupPermissions: string[]
+            additionalPermissions: string[]
+            removedPermissions: string[]
+            effectivePermissions: string[]
+          }
+        }) => void)
+      | undefined
+    permissionService.getUserPermissions.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePermissions = resolve
+        }),
+    )
+
+    const hydration = sessionCoordinator.hydrateUserAndPermissions()
+    await vi.waitFor(() => {
+      expect(permissionService.getUserPermissions).toHaveBeenCalledTimes(2)
+    })
+    expect(permissionStore.currentUserPermissions?.effectivePermissions).toEqual(['user:read'])
+
+    resolvePermissions?.({
+      data: {
+        userId: 'user-1',
+        groupPermissions: [],
+        additionalPermissions: [],
+        removedPermissions: [],
+        effectivePermissions: ['relay:read'],
+      },
+    })
+    await hydration
+
+    expect(permissionStore.currentUserPermissions?.effectivePermissions).toEqual(['relay:read'])
+    expect(permissionService.getUserPermissions).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears the previous permission projection when the authenticated user changes', async () => {
+    const sessionCoordinator = new SessionCoordinator() as any
+    const userInfoStore = (await import('@/stores/userInfoStore')).useUserInfoStore()
+    const permissionStore = (await import('@/stores/permissionStore')).usePermissionStore()
+
+    userInfoStore.setUserInfo({ id: 'user-1', username: 'user-1' })
+    permissionService.getUserPermissions.mockResolvedValue({
+      data: {
+        userId: 'user-1',
+        groupPermissions: [],
+        additionalPermissions: [],
+        removedPermissions: [],
+        effectivePermissions: ['user:read'],
+      },
+    })
+    await permissionStore.loadCurrentUserPermissions()
+    sessionCoordinator.projectedUserId = 'user-1'
+    sessionCoordinator.projectedUserVersion = '2026-08-14T00:00:00.000Z'
+
+    sessionCoordinator.applyAccessToken(createAccessToken('user-2', '2026-09-10T00:00:00.000Z'))
+
+    expect(permissionStore.currentUserPermissions).toBeNull()
+    expect(permissionStore.isLoaded).toBe(false)
   })
 })

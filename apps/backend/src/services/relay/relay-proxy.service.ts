@@ -3,8 +3,7 @@ import { randomUUID } from "crypto";
 import https from "https";
 import http from "http";
 import { ProxyAgent } from "proxy-agent";
-import { Readable, Transform } from "stream";
-import { pipeline } from "stream/promises";
+import { Readable } from "stream";
 import { RelayTokenRepository, RelayTokenWithChannel } from "@/store/relay/relay-token.repository";
 import type { RelayTokenWithRelations } from "@/store/relay/relay-token.store";
 
@@ -73,7 +72,6 @@ import { computeMultiplierForTime, type TimePeriodRule } from "./time-period-mul
 import { resolveContextLengthMultiplier } from "./context-length-multiplier.service";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
-import { trackErrorForIp } from "@/middleware/error-tracker";
 import {
   extractTokenUsageMetrics,
   hasTokenValue,
@@ -88,7 +86,7 @@ import {
   parseRelayTokenAllowedModelIds,
   supportsRelayRequestFormat,
   type RelayRequestFormat,
-} from "@/util/relay-model-availability.util";
+} from "@/util/relay";
 import {
   DEFAULT_CACHE_CREATION_MULTIPLIER,
   DEFAULT_CACHE_READ_MULTIPLIER,
@@ -97,7 +95,7 @@ import {
 import { MONTHLY_PASS_QUOTA_WINDOW_MS } from "@/constant/monthly-pass";
 import { RELAY_PROXY_DESCRIPTION_MAX_LENGTH, RELAY_PROXY_PROMPT_PREVIEW_MAX_LENGTH } from "@/constant/relay-proxy";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import { normalizeRetryStatusRules, shouldRetryRelayUpstreamFailure } from "@/util/relay-failover-status-rule.util";
+import { normalizeRetryStatusRules, shouldRetryRelayUpstreamFailure } from "@/util/relay";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { env } from "@/config/env";
 import logger from "@/util/logger";
@@ -112,7 +110,6 @@ import {
   convertRelayError,
   convertRelayRequest,
   convertRelayResponse,
-  RelaySseFormatTransform,
   resolveRelayRequestFormatTransform,
 } from "./relay-request-format-transform.service";
 import type { RelayConvertibleRequestFormat } from "@quyan/shared";
@@ -120,32 +117,44 @@ import {
   normalizeAnthropicRequestBeforeSend,
   normalizeRelayTokenNormalizerConfig,
   rectifyAnthropicRequestForError,
-  type RelayTokenNormalizerConfig,
 } from "@/util/anthropic-token-normalizer.util";
-import { applyRelayTokenV1PathMode } from "@/util/relay-token-path.util";
+import { applyRelayTokenV1PathMode } from "@/util/relay";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
+import type { RelayStreamForwarderHost } from "./relay-stream-forwarder.service";
+import type { RelayImageForwarderHost } from "./relay-image-forwarder.service";
+import { RelayConcurrencyService } from "./relay-concurrency.service";
+import { RelayAttemptPlannerService } from "./relay-attempt-planner.service";
+import type {
+  ImageForwardResult,
+  RelayAttemptPlan,
+  RelayCapacityPolicy,
+  RelayConcurrencyLease,
+  RelayFailoverRuntimeConfig,
+  RelayTokenAvailabilityInput,
+  SelectedRateConfig,
+  StreamForwardResult,
+} from "./types/relay-proxy.types";
+import { RelayChannelAttemptService } from "./relay-channel-attempt.service";
+import { RelayUsageBillingService } from "./relay-usage-billing.service";
+import type { RelayImageForwardParams, RelayStreamForwardParams } from "./types/relay-proxy.types";
 import {
-  hasVisibleStreamOutput,
-  RelayStreamPreflightBuffer,
-  STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
-} from "@/util/relay-stream-output.util";
-import { consumeRelayStreamUsageLine, RelayStreamUsageTracker } from "@/util/relay-stream-usage.util";
+  buildRelayForwardBody,
+  buildRelayUpstreamPath,
+  extractRelayRequestedModel,
+  isRelayAnthropicPath,
+  isRelayGeminiPath,
+  isRelayOpenAIPath,
+  isRelayOpenAIRequestFormat,
+  resolveRelayRequestFormat,
+} from "./utils/relay-request-format.util";
+import {
+  getUpstreamHeaderValue,
+  isRelayJsonContentType,
+  parseRelayBufferedBody,
+  sanitizeRelayResponseHeaders,
+  withRelayRequestIdHeader,
+} from "./utils/relay-upstream-response.util";
 
-const PREFIX = "/relay/proxy";
-
-const OPENAI_PATHS = [
-  "/chat/completions",
-  "/responses",
-  "/images/generations",
-  "/images/edits",
-  "/images/variations",
-  "/v1/chat/completions",
-  "/v1/responses",
-  "/v1/images/generations",
-  "/v1/images/edits",
-  "/v1/images/variations",
-].map((p) => PREFIX + p);
-const ANTHROPIC_PATHS = ["/messages", "/v1/messages"].map((p) => PREFIX + p);
 const GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID = "global";
 const GLOBAL_CONCURRENCY_STATUS_USER_ID = "*";
 const CONCURRENCY_QUEUE_POLL_INTERVAL_MS = 100;
@@ -153,72 +162,18 @@ const RELAY_TOKEN_QUOTA_COMPARE_EPSILON = 1e-8;
 
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 
-export interface RelayFailoverRuntimeConfig {
-  enabled: boolean;
-  maxRetries: number;
-  retryStatusCodes: string[];
-  failoverThreshold: number;
-  failbackCooldownMinutes: number;
-  maxAcceptedChannelMultiplier?: number | null;
-}
-
-interface StreamForwardResult {
-  handled: boolean;
-  success: boolean;
-  retryable: boolean;
-  statusCode?: number;
-  triggerError?: string;
-  timeToFirstByte?: number;
-  clientDisconnected?: boolean;
-}
-
-interface ImageForwardResult extends StreamForwardResult {
-  headers?: any;
-  data?: any;
-}
-
-export interface RelayAttemptPlan {
-  channels: RelayResolvedChannelCandidate[];
-  failoverConfig: RelayFailoverRuntimeConfig;
-  /** Price-first automatic pools always start at the cheapest currently eligible member. */
-  allowStickyFailover: boolean;
-}
-
-export interface RelayTokenAvailabilityInput {
-  allowedModels?: string | null;
-  modelMapping?: Prisma.JsonValue | Record<string, string> | null;
-  channel?: RelayChannel | null;
-  routingMode?: string | null;
-  automaticProxyPoolChannel?: RelayChannel | null;
-  blockedAutomaticProxyPoolChannelIds?: Prisma.JsonValue | string[] | null;
-  channelConfigs?: Array<{
-    channel?: RelayChannel | null;
-    priority?: number | null;
-  }> | null;
-  failoverConfig?: {
-    enabled?: boolean | null;
-    maxRetries?: number | null;
-    retryStatusCodes?: Prisma.JsonValue | string[] | null;
-    failoverThreshold?: number | null;
-    failbackCooldownMinutes?: number | null;
-    maxAcceptedChannelMultiplier?: number | Prisma.Decimal | null;
-  } | null;
-}
+export type {
+  ImageForwardResult,
+  RelayAttemptPlan,
+  RelayCapacityPolicy,
+  RelayConcurrencyLease,
+  RelayFailoverRuntimeConfig,
+  RelayTokenAvailabilityInput,
+  SelectedRateConfig,
+  StreamForwardResult,
+} from "./types/relay-proxy.types";
 
 type RelayChannelWithPool = NonNullable<RelayTokenWithRelations["channel"]>;
-
-const HOP_BY_HOP_RESPONSE_HEADERS = new Set([
-  "connection",
-  "keep-alive",
-  "proxy-authenticate",
-  "proxy-authorization",
-  "te",
-  "trailer",
-  "transfer-encoding",
-  "upgrade",
-]);
-
-const JSON_CONTENT_TYPE_RE = /(^|;)\s*application\/(?:[\w.+-]+\+)?json\s*(?:;|$)/i;
 
 type RelayChannelSkipReason =
   | "channel-no-models"
@@ -231,16 +186,6 @@ interface RelayAttemptIssue {
   attemptNumber: number;
   reason: string;
   statusCode?: number;
-}
-
-interface SelectedRateConfig {
-  pricingType: "token-based" | "per-request";
-  fixedPrice?: number;
-  input: number;
-  output: number;
-  multiplier: number;
-  cacheCreationMultiplier: number;
-  cacheReadMultiplier: number;
 }
 
 type RelayConcurrencyScope = "default" | "image";
@@ -256,26 +201,6 @@ interface RelayCapacityPolicyContextMap {
   };
 }
 
-interface RelayCapacityPolicy {
-  userId: string;
-  scope: RelayConcurrencyScope;
-  maxConcurrency: number;
-  queueTimeout: number;
-  enableQueue: boolean;
-  slotTtlSeconds: number;
-}
-
-interface RelayConcurrencyLease {
-  key: string;
-  baseKey: string;
-  slotKey: string;
-  scope: RelayConcurrencyScope;
-  source: "redis";
-  ownerToken: string;
-  ttlMs: number;
-  ttlSeconds: number;
-}
-
 class RelayChannelSkipError extends BadRequestError {
   constructor(
     message: string,
@@ -288,6 +213,10 @@ class RelayChannelSkipError extends BadRequestError {
 export class RelayProxyService {
   private static instance: RelayProxyService;
   private readonly logicalRequestIds = new WeakMap<object, string>();
+  private readonly relayConcurrencyService: RelayConcurrencyService;
+  private readonly relayAttemptPlanner: RelayAttemptPlannerService;
+  private readonly relayChannelAttemptService = new RelayChannelAttemptService();
+  private readonly relayUsageBillingService = new RelayUsageBillingService();
 
   constructor(
     private readonly relayTokenRepo: RelayTokenStore = RelayTokenRepository.getInstance(),
@@ -307,12 +236,59 @@ export class RelayProxyService {
     > = RelayChannelService.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly contentSafetyService: ContentSafetyService = ContentSafetyService.getInstance(),
-  ) {}
+    relayConcurrencyService: RelayConcurrencyService = new RelayConcurrencyService(redis),
+  ) {
+    this.relayConcurrencyService = relayConcurrencyService;
+    this.relayAttemptPlanner = new RelayAttemptPlannerService({
+      getTopLevelAttemptChannels: (token) => this.getTopLevelAttemptChannels(token),
+      resolveActiveLeafCandidates: (channels, orderMembers) =>
+        this.relayPoolResolver.resolveActiveLeafCandidates(channels, orderMembers),
+      orderPooledMemberChannels: (pool, members, context) => this.orderPooledMemberChannels(pool, members, context),
+      getFailoverRuntimeConfig: (token) => this.getFailoverRuntimeConfig(token),
+      getPoolFailoverRuntimeConfig: (channel, poolSize) => this.getPoolFailoverRuntimeConfig(channel, poolSize),
+      isPriceFirstAutomaticPool: (channel) =>
+        Boolean(
+          channel?.channelType === "automatic-proxy-pool" &&
+            this.getChannelRoutingConfig(channel)?.rankingMode !== "stability-first",
+        ),
+    });
+  }
 
   static getInstance(): RelayProxyService {
     if (!RelayProxyService.instance) RelayProxyService.instance = new RelayProxyService();
 
     return RelayProxyService.instance;
+  }
+
+  private createStreamForwarderHost(): Omit<RelayStreamForwarderHost, "forwardStreamRequest"> {
+    return {
+      contentSafetyService: this.contentSafetyService,
+      relayProxyRepository: this.relayProxyRepository,
+      finalizeStreamUsage: this.finalizeStreamUsage.bind(this),
+      calculateCost: this.calculateCost.bind(this),
+      resolveContextMultiplier: this.resolveContextMultiplier.bind(this),
+      getLogicalRequestId: this.getLogicalRequestId.bind(this),
+      isPerRequestPricingConfig: this.isPerRequestPricingConfig.bind(this),
+      removeAutoInjectedOpenAIStreamUsageOption: this.removeAutoInjectedOpenAIStreamUsageOption.bind(this),
+      sendStreamTransportError: this.sendStreamTransportError.bind(this),
+      shouldFailoverOnError: this.shouldFailoverOnError.bind(this),
+      withRequestIdHeader: this.withRequestIdHeader.bind(this),
+    };
+  }
+
+  private createImageForwarderHost(): RelayImageForwarderHost {
+    return {
+      buildForwardBodyBuffer: this.buildForwardBodyBuffer.bind(this),
+      chargeForwardedImageUsage: this.chargeForwardedImageUsage.bind(this),
+      extractUpstreamErrorMessage: this.extractUpstreamErrorMessage.bind(this),
+      getLogicalRequestId: this.getLogicalRequestId.bind(this),
+      isPerRequestPricingConfig: this.isPerRequestPricingConfig.bind(this),
+      parseBufferedUpstreamBody: this.parseBufferedUpstreamBody.bind(this),
+      readStreamBodyLimited: this.readStreamBodyLimited.bind(this),
+      relayProxyRepository: this.relayProxyRepository,
+      sanitizeResponseHeaders: this.sanitizeResponseHeaders.bind(this),
+      withRequestIdHeader: this.withRequestIdHeader.bind(this),
+    };
   }
 
   private async resolveBillingDisplayChannel(
@@ -573,103 +549,31 @@ export class RelayProxyService {
 
   private extractRequestedModelFromMultipartBody(req: any): string | null {
     if (!Buffer.isBuffer(req.body)) return null;
-
-    const bodyText = req.body.toString("utf8");
-    const match = bodyText.match(/name="model"\r\n\r\n([^\r\n]+)/i);
-    return match?.[1]?.trim() || null;
+    return extractRelayRequestedModel(req, "openai-chat-completions");
   }
 
   private extractRequestedModel(req: any, requestFormat: RelayRequestFormat): string | null {
-    if (typeof req.body?.model === "string") return req.body.model;
-
-    if (requestFormat === "openai-chat-completions" && this.isMultipartRequest(req))
-      return this.extractRequestedModelFromMultipartBody(req);
-
-    if (requestFormat === "gemini") {
-      // Extract model from Gemini URL path: /v1beta/models/gemini-pro:generateContent or /v1beta/models/gemini-pro/generateContent
-      const fullPath = req.originalUrl || req.url || req.path;
-      const colonMatch = fullPath.match(/\/models\/([^/:]+):/);
-      const slashMatch = fullPath.match(/\/models\/([^/]+)\//);
-      const requestedModel = colonMatch ? colonMatch[1] : slashMatch ? slashMatch[1] : null;
-
-      logger.debug("Gemini model extraction", {
-        path: req.path,
-        originalUrl: req.originalUrl,
-        url: req.url,
-        fullPath,
-        colonMatch: colonMatch?.[1],
-        slashMatch: slashMatch?.[1],
-        extractedModel: requestedModel,
-      });
-
-      return requestedModel;
-    }
-
-    return null;
+    return extractRelayRequestedModel(req, requestFormat);
   }
 
   private isOpenAIFormat(req: any): boolean {
-    const path = req.path;
-    // 检查固定路径
-    if (OPENAI_PATHS.some((p) => path.startsWith(p))) return true;
-
-    // 检查任意版本号的路径 (如 /relay/proxy/v4/chat/completions)
-    if (path.startsWith(PREFIX)) {
-      const pathAfterPrefix = path.substring(PREFIX.length);
-      // 匹配 /v*/chat/completions、/v*/responses、/v*/images/generations、/v*/images/edits 或 /v*/images/variations
-      // 同时支持常见的拼写错误：image/generation (单数)
-      return /^\/v\d+(?:beta)?\/(chat\/completions|responses|images?\/(generations?|edits?|variations?))/.test(
-        pathAfterPrefix,
-      );
-    }
-
-    return false;
+    return isRelayOpenAIPath(String(req.path || ""));
   }
 
   private isOpenAIRequestFormat(requestFormat: RelayRequestFormat): boolean {
-    return requestFormat === "openai" || requestFormat.startsWith("openai-");
+    return isRelayOpenAIRequestFormat(requestFormat);
   }
 
   private isGeminiFormat(req: any): boolean {
-    return (
-      req.path.includes("/models/") &&
-      (req.path.includes("generateContent") || req.path.includes("streamGenerateContent"))
-    );
+    return isRelayGeminiPath(String(req.path || ""));
   }
 
   private isAnthropicFormat(req: any): boolean {
-    const path = req.path;
-    // 检查固定路径
-    if (ANTHROPIC_PATHS.some((p) => path.startsWith(p))) return true;
-
-    // 检查任意版本号的路径 (如 /relay/proxy/v2/messages)
-    if (path.startsWith(PREFIX)) {
-      const pathAfterPrefix = path.substring(PREFIX.length);
-      // 匹配 /v*/messages
-      return /^\/v\d+(?:beta)?\/messages/.test(pathAfterPrefix);
-    }
-
-    return false;
+    return isRelayAnthropicPath(String(req.path || ""));
   }
 
   private getRequestFormat(req: any): RelayRequestFormat {
-    if (this.isGeminiFormat(req)) return "gemini";
-
-    const requestPath = String(req.path || "");
-    if (/\/(?:v\d+(?:beta)?\/)?responses(?:$|[/?])/.test(requestPath)) return "openai-responses";
-    if (this.isOpenAIFormat(req)) return "openai-chat-completions";
-
-    if (this.isAnthropicFormat(req)) return "anthropic";
-
-    // 特殊处理：空路径或只有前缀的情况
-    if (req.path === PREFIX || req.path === `${PREFIX}/`)
-      throw new BadRequestError(
-        `Missing API endpoint path. Please specify a valid endpoint like /relay/proxy/v1/chat/completions or /relay/proxy/v1/images/generations.`,
-      );
-
-    throw new BadRequestError(
-      `Unsupported request path for format detection: ${req.path}. Only OpenAI (/chat/completions, /responses, /images/generations, /images/edits, /images/variations), Anthropic (/messages), and Gemini (/models/*:generateContent or :streamGenerateContent) are allowed.`,
-    );
+    return resolveRelayRequestFormat(req);
   }
 
   private resolveRequestedModelConfig(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto | null {
@@ -1011,22 +915,15 @@ export class RelayProxyService {
   }
 
   private rewriteGeminiModelPath(path: string, upstreamModelId: string): string {
-    return path.replace(/(\/models\/)([^/:]+)(?=[:/])/, `$1${encodeURIComponent(upstreamModelId)}`);
+    return buildRelayUpstreamPath(path, "gemini", upstreamModelId);
   }
 
   private buildUpstreamPath(requestPath: string, requestFormat: RelayRequestFormat, upstreamModelId: string): string {
-    const normalizedPath = requestPath.replace(/^\/relay\/proxy/, "");
-    if (requestFormat !== "gemini") return normalizedPath;
-    return this.rewriteGeminiModelPath(normalizedPath, upstreamModelId);
+    return buildRelayUpstreamPath(requestPath, requestFormat, upstreamModelId);
   }
 
   private buildForwardBody(requestBody: any, requestFormat: RelayRequestFormat, upstreamModelId: string): any {
-    if (Buffer.isBuffer(requestBody)) return requestBody;
-    if (!requestBody || typeof requestBody !== "object") return requestBody;
-
-    const clonedBody = Array.isArray(requestBody) ? [...requestBody] : { ...requestBody };
-    if (requestFormat !== "gemini" || "model" in clonedBody) clonedBody.model = upstreamModelId;
-    return clonedBody;
+    return buildRelayForwardBody(requestBody, requestFormat, upstreamModelId);
   }
 
   private isOpenAIImageEditsPath(requestPath: string): boolean {
@@ -1389,7 +1286,18 @@ export class RelayProxyService {
     };
   }
 
-  private async acquireConcurrencySlot(params: {
+  private acquireConcurrencySlot(params: {
+    userId: string;
+    scope: RelayConcurrencyScope;
+    maxConcurrency: number;
+    queueTimeout: number;
+    enableQueue: boolean;
+    slotTtlSeconds: number;
+  }): Promise<RelayConcurrencyLease> {
+    return this.relayConcurrencyService.acquire(params);
+  }
+
+  private async acquireConcurrencySlotLegacy(params: {
     userId: string;
     scope: RelayConcurrencyScope;
     maxConcurrency: number;
@@ -1498,10 +1406,18 @@ export class RelayProxyService {
   }
 
   private async releaseConcurrencySlot(lease: RelayConcurrencyLease): Promise<void> {
+    await this.relayConcurrencyService.release(lease);
+  }
+
+  private async releaseConcurrencySlotLegacy(lease: RelayConcurrencyLease): Promise<void> {
     await this.redis.deleteIfValueMatches(lease.slotKey, lease.ownerToken);
   }
 
   private startConcurrencyLeaseHeartbeat(lease: RelayConcurrencyLease): () => void {
+    return this.relayConcurrencyService.startHeartbeat(lease);
+  }
+
+  private startConcurrencyLeaseHeartbeatLegacy(lease: RelayConcurrencyLease): () => void {
     if (lease.ttlSeconds <= 1) return () => {};
 
     const intervalMs = Math.max(1000, Math.floor((lease.ttlSeconds * 1000) / 3));
@@ -1560,6 +1476,14 @@ export class RelayProxyService {
   }
 
   public async getConcurrencyStatus(userId?: string) {
+    const relayConfig = await this.relayConfigService.getRelayConfig();
+    return this.relayConcurrencyService.getStatus({
+      userId,
+      limits: this.getRelayConcurrencyStatusLimits(relayConfig),
+    });
+  }
+
+  private async getConcurrencyStatusLegacy(userId?: string) {
     const relayConfig = await this.relayConfigService.getRelayConfig();
     const redisItems: Array<{
       key: string;
@@ -1925,6 +1849,10 @@ export class RelayProxyService {
   }
 
   private async buildAttemptPlan(relayToken: RelayTokenAvailabilityInput): Promise<RelayAttemptPlan> {
+    return this.relayAttemptPlanner.build({ relayToken });
+  }
+
+  private async buildAttemptPlanLegacy(relayToken: RelayTokenAvailabilityInput): Promise<RelayAttemptPlan> {
     const topLevelChannels = this.getTopLevelAttemptChannels(relayToken);
     const resolvedChannels = await this.relayPoolResolver.resolveActiveLeafCandidates(
       topLevelChannels,
@@ -2298,19 +2226,7 @@ export class RelayProxyService {
   }
 
   private getHeaderValue(headers: Record<string, unknown> | undefined, headerName: string): string | undefined {
-    if (!headers) return undefined;
-
-    const directValue = headers[headerName];
-    if (Array.isArray(directValue)) return directValue[0];
-    if (typeof directValue === "string" && directValue) return directValue;
-
-    for (const [key, value] of Object.entries(headers)) {
-      if (key.toLowerCase() !== headerName.toLowerCase()) continue;
-      if (Array.isArray(value)) return value[0];
-      if (typeof value === "string" && value) return value;
-    }
-
-    return undefined;
+    return getUpstreamHeaderValue(headers, headerName);
   }
 
   private getLogicalRequestId(req: any): string {
@@ -2326,35 +2242,15 @@ export class RelayProxyService {
   }
 
   private withRequestIdHeader(req: any, headers: Record<string, unknown> = {}): Record<string, unknown> {
-    const mergedHeaders = { ...headers };
-    const siteRequestId = this.getHeaderValue(req?.headers, "x-request-id");
-    const upstreamRequestId = this.getHeaderValue(mergedHeaders, "x-request-id");
-
-    for (const key of Object.keys(mergedHeaders)) if (key.toLowerCase() === "x-request-id") delete mergedHeaders[key];
-
-    if (siteRequestId) mergedHeaders["x-request-id"] = siteRequestId;
-    if (upstreamRequestId && upstreamRequestId !== siteRequestId)
-      mergedHeaders["x-upstream-request-id"] = upstreamRequestId;
-
-    return mergedHeaders;
+    return withRelayRequestIdHeader(req, headers);
   }
 
   private sanitizeResponseHeaders(headers: Record<string, unknown>, options: { keepContentLength?: boolean } = {}) {
-    const sanitized: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(headers || {})) {
-      const normalizedKey = key.toLowerCase();
-      if (HOP_BY_HOP_RESPONSE_HEADERS.has(normalizedKey)) continue;
-      if (!options.keepContentLength && normalizedKey === "content-length") continue;
-      sanitized[key] = value;
-    }
-
-    return sanitized;
+    return sanitizeRelayResponseHeaders(headers, options);
   }
 
   private isJsonContentType(contentType: unknown): boolean {
-    const raw = Array.isArray(contentType) ? contentType.join(";") : String(contentType || "");
-    return JSON_CONTENT_TYPE_RE.test(raw);
+    return isRelayJsonContentType(Array.isArray(contentType) ? contentType.join(";") : contentType);
   }
 
   private isAsyncIterable(value: unknown): value is AsyncIterable<Buffer | string> {
@@ -2418,21 +2314,7 @@ export class RelayProxyService {
   }
 
   private parseBufferedUpstreamBody(body: Buffer, headers: Record<string, unknown>): any {
-    if (body.length === 0) return null;
-
-    const bodyText = body.toString("utf8");
-    if (this.isJsonContentType(headers["content-type"]))
-      try {
-        return JSON.parse(bodyText);
-      } catch {
-        return bodyText;
-      }
-
-    try {
-      return JSON.parse(bodyText);
-    } catch {
-      return bodyText;
-    }
+    return parseRelayBufferedBody(body, headers);
   }
 
   private async chargeForwardedImageUsage(params: {
@@ -2565,224 +2447,48 @@ export class RelayProxyService {
   }
 
   private async forwardImageRequest(
-    relayToken: RelayToken,
-    req: any,
-    res: any,
-    upstreamUrl: string,
-    headers: any,
-    selectedRateConfig: SelectedRateConfig,
-    selectedModelName: string,
-    selectedModelId: string,
-    globalMultiplier: number,
-    timeMultiplier: number,
-    contextLengthMultipliers: ContextLengthMultiplierRule[] | undefined,
-    convertedBody: any,
-    relayGlobalMultiplier: number,
-    channelMultiplier: number,
-    executionChannelId: string,
-    displayChannelId: string | null,
-    displayChannelName: string | null,
-    channelId: string,
-    monthlyPassCoverageAt: Date,
-    timeoutMs: number,
-    maxBodyBytes: number,
-    allowRetryBeforeResponse: boolean,
-    retryStatusCodes: string[],
-    inputTokensIncludeCacheRead: boolean,
-    originalRequestedModel?: string,
-    requestAgents: UpstreamAgents = directUpstreamAgents,
+    paramsOrRelayToken: RelayImageForwardParams | RelayToken,
+    ...legacyArgs: any[]
   ): Promise<ImageForwardResult> {
-    const bodyData = this.buildForwardBodyBuffer(convertedBody);
-    const cleanHeaders = { ...headers };
-    delete cleanHeaders.host;
-    delete cleanHeaders.Host;
-    delete cleanHeaders["content-length"];
-    delete cleanHeaders["Content-Length"];
-    delete cleanHeaders.connection;
-    delete cleanHeaders.Connection;
-    delete cleanHeaders["transfer-encoding"];
-    cleanHeaders["Content-Length"] = bodyData.length;
-
-    const startTime = Date.now();
-    let firstByteTime: number | null = null;
-    let responseBytes = 0;
-    let clientDisconnected = false;
-
-    const response = await axios({
-      method: req.method,
-      url: upstreamUrl,
-      headers: cleanHeaders,
-      data: bodyData,
-      params: req.query,
-      timeout: timeoutMs,
-      maxBodyLength: bodyData.length,
-      maxContentLength: Infinity,
-      responseType: "stream",
-      validateStatus: () => true,
-      proxy: false,
-      httpAgent: requestAgents.httpAgent,
-      httpsAgent: requestAgents.httpsAgent,
-    });
-
-    const statusCode = response.status || 200;
-    const upstreamHeaders = response.headers || {};
-    const isErrorResponse = statusCode >= 400;
-    const responseStream = response.data as Readable;
-
-    if (isErrorResponse) {
-      const { buffer, truncated } = await this.readStreamBodyLimited(responseStream, 100 * 1024, () => {
-        if (firstByteTime === null) firstByteTime = Date.now();
-      });
-      const upstreamData = this.parseBufferedUpstreamBody(buffer, upstreamHeaders);
-      const upstreamMessage = this.extractUpstreamErrorMessage(upstreamData, statusCode);
-
-      try {
-        await trackErrorForIp(req, statusCode);
-      } catch {
-        // tracking failure must not block the response
-      }
-
-      if (allowRetryBeforeResponse && shouldRetryRelayUpstreamFailure(statusCode, upstreamData, retryStatusCodes))
-        return {
-          handled: false,
-          success: false,
-          retryable: true,
-          statusCode,
-          triggerError: truncated ? `${upstreamMessage} (error body truncated)` : upstreamMessage,
-        };
-
-      const isPerRequestPricing = this.isPerRequestPricingConfig(selectedRateConfig);
-      const modelMult =
-        selectedRateConfig && typeof selectedRateConfig === "object" && selectedRateConfig.multiplier != null
-          ? Number(selectedRateConfig.multiplier)
-          : 1;
-      const cacheCreationMult =
-        selectedRateConfig?.cacheCreationMultiplier != null
-          ? Number(selectedRateConfig.cacheCreationMultiplier)
-          : DEFAULT_CACHE_CREATION_MULTIPLIER;
-      const cacheReadMult =
-        selectedRateConfig?.cacheReadMultiplier != null
-          ? Number(selectedRateConfig.cacheReadMultiplier)
-          : DEFAULT_CACHE_READ_MULTIPLIER;
-
-      await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
-        userId: relayToken.userId,
-        relayTokenId: relayToken.id,
-        requestId: this.getLogicalRequestId(req),
-        requestTokens: 0,
-        responseTokens: 0,
-        totalTokens: 0,
-        cacheCreationTokens: 0,
-        cacheReadTokens: 0,
-        path: req.path.replace(/^\/relay\/proxy/, ""),
-        method: req.method,
-        statusCode,
-        ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
-        totalOutputTime: Date.now() - startTime,
-        timeToFirstByte: firstByteTime === null ? null : firstByteTime - startTime,
-        isStreaming: false,
-        modelName: selectedModelName,
-        inputRate: isPerRequestPricing ? 0 : Number(selectedRateConfig?.input || 0),
-        outputRate: isPerRequestPricing ? 0 : Number(selectedRateConfig?.output || 0),
-        multiplier: modelMult,
-        cacheCreationMultiplier: cacheCreationMult,
-        cacheReadMultiplier: cacheReadMult,
-        executionChannelId,
-        displayChannelId,
-        displayChannelName,
-        channelMultiplier,
-        globalMultiplier: relayGlobalMultiplier,
-        timeMultiplier,
-        pricingType: selectedRateConfig?.pricingType as "token-based" | "per-request" | undefined,
-        fixedPrice: selectedRateConfig?.fixedPrice,
-        originalModel: originalRequestedModel,
-      });
-
-      const data = {
-        error: {
-          message: `Upstream API error for model "${selectedModelName}": ${upstreamMessage}. The model may be unavailable or not supported by the upstream provider.`,
-          type: "upstream_error",
-          code: statusCode,
-          upstream_status: statusCode,
-        },
-      };
-
-      return {
-        handled: true,
-        success: false,
-        retryable: false,
-        statusCode,
-        headers: this.withRequestIdHeader(req, upstreamHeaders),
-        data,
-        timeToFirstByte: firstByteTime === null ? undefined : firstByteTime - startTime,
-      };
-    }
-
-    const responseLimit = Math.max(1, maxBodyBytes);
-    const byteCounter = new Transform({
-      transform(chunk, _encoding, callback) {
-        const bufferChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        responseBytes += bufferChunk.length;
-        if (firstByteTime === null) firstByteTime = Date.now();
-
-        if (responseBytes > responseLimit) {
-          callback(new PayloadTooLargeError("Upstream image response body too large"));
-          return;
-        }
-
-        callback(null, chunk);
+    const params: RelayImageForwardParams =
+      "req" in (paramsOrRelayToken as object)
+        ? (paramsOrRelayToken as RelayImageForwardParams)
+        : {
+            relayToken: paramsOrRelayToken as RelayToken,
+            req: legacyArgs[0],
+            res: legacyArgs[1],
+            upstreamUrl: legacyArgs[2],
+            headers: legacyArgs[3],
+            selectedRateConfig: legacyArgs[4],
+            selectedModelName: legacyArgs[5],
+            selectedModelId: legacyArgs[6],
+            globalMultiplier: legacyArgs[7],
+            timeMultiplier: legacyArgs[8],
+            contextLengthMultipliers: legacyArgs[9],
+            convertedBody: legacyArgs[10],
+            relayGlobalMultiplier: legacyArgs[11],
+            channelMultiplier: legacyArgs[12],
+            executionChannelId: legacyArgs[13],
+            displayChannelId: legacyArgs[14],
+            displayChannelName: legacyArgs[15],
+            channelId: legacyArgs[16],
+            monthlyPassCoverageAt: legacyArgs[17],
+            timeoutMs: legacyArgs[18],
+            maxBodyBytes: legacyArgs[19],
+            allowRetryBeforeResponse: legacyArgs[20],
+            retryStatusCodes: legacyArgs[21],
+            inputTokensIncludeCacheRead: legacyArgs[22],
+            originalRequestedModel: legacyArgs[23],
+            requestFormat: this.getRequestFormat(legacyArgs[0]),
+            requestAgents: legacyArgs[24] || directUpstreamAgents,
+          };
+    return this.relayChannelAttemptService.execute(
+      {
+        kind: "image",
+        image: params,
       },
-    });
-
-    const clientCloseHandler = () => {
-      clientDisconnected = true;
-      if (typeof (responseStream as any).destroy === "function") (responseStream as any).destroy();
-    };
-
-    req.once("close", clientCloseHandler);
-    res.writeHead(statusCode, this.withRequestIdHeader(req, this.sanitizeResponseHeaders(upstreamHeaders)));
-
-    try {
-      await pipeline(responseStream, byteCounter, res);
-    } finally {
-      req.off("close", clientCloseHandler);
-    }
-
-    if (!clientDisconnected)
-      await this.chargeForwardedImageUsage({
-        relayToken,
-        req,
-        convertedBody,
-        responseBytes,
-        statusCode,
-        startTime,
-        firstByteTime,
-        selectedModelName,
-        selectedModelId,
-        selectedRateConfig,
-        globalMultiplier,
-        relayGlobalMultiplier,
-        channelMultiplier,
-        executionChannelId,
-        displayChannelId,
-        displayChannelName,
-        channelId,
-        monthlyPassCoverageAt,
-        inputTokensIncludeCacheRead,
-        contextLengthMultipliers,
-        timeMultiplier,
-        originalModel: originalRequestedModel,
-      });
-
-    return {
-      handled: true,
-      success: true,
-      retryable: false,
-      statusCode,
-      headers: {},
-      data: {},
-      timeToFirstByte: firstByteTime === null ? undefined : firstByteTime - startTime,
-    };
+      { stream: this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
+    );
   }
 
   async forwardRequest(
@@ -3323,36 +3029,36 @@ export class RelayProxyService {
             if (isStreamRequested && res) {
               upstreamRequestStarted = true;
               const streamResult = await this.relayChannelProbeLockService.withRead(channel.id, () =>
-                this.forwardStreamRequest(
+                this.forwardStreamRequest({
                   relayToken,
                   req,
                   res,
-                  fullUpstreamUrl,
+                  upstreamUrl: fullUpstreamUrl,
                   headers,
-                  selectedRateConfig,
+                  selectedRateConfig: selectedRateConfig!,
                   selectedModelName,
                   selectedModelId,
                   globalMultiplier,
                   timeMultiplier,
-                  billingDisplayChannel.contextLengthMultipliers as unknown as
+                  contextLengthMultipliers: billingDisplayChannel.contextLengthMultipliers as unknown as
                     | ContextLengthMultiplierRule[]
                     | undefined,
                   convertedBody,
                   requestFormat,
                   relayGlobalMultiplier,
                   channelMultiplier,
-                  channel.id,
-                  usageDisplayChannelId,
-                  usageDisplayChannelName,
-                  channel.id,
+                  executionChannelId: channel.id,
+                  displayChannelId: usageDisplayChannelId,
+                  displayChannelName: usageDisplayChannelName,
+                  channelId: channel.id,
                   monthlyPassCoverageAt,
-                  relayConfig.upstreamStreamTimeout,
-                  hasNextChannel && failoverConfig.enabled,
-                  failoverConfig.retryStatusCodes,
-                  billingDisplayChannel.inputTokensIncludeCacheRead !== false,
-                  relayOriginalRequestedModel,
+                  upstreamStreamTimeout: relayConfig.upstreamStreamTimeout,
+                  allowRetryBeforeResponse: hasNextChannel && failoverConfig.enabled,
+                  retryStatusCodes: failoverConfig.retryStatusCodes,
+                  inputTokensIncludeCacheRead: billingDisplayChannel.inputTokensIncludeCacheRead !== false,
+                  originalRequestedModel: relayOriginalRequestedModel,
                   autoInjectedStreamUsageOption,
-                  requestFormatTransform
+                  responseTransform: requestFormatTransform
                     ? {
                         sourceFormat: requestFormatTransform.targetFormat,
                         targetFormat: clientRequestFormat as RelayConvertibleRequestFormat,
@@ -3361,9 +3067,11 @@ export class RelayProxyService {
                   tokenNormalizerConfig,
                   tokenNormalizerRetried,
                   requestAgents,
-                  Boolean(contentSafetyConfig.responseEnabled && contentSafetyConfig.responseAiEnabled),
+                  responseAiEnabled: Boolean(
+                    contentSafetyConfig.responseEnabled && contentSafetyConfig.responseAiEnabled,
+                  ),
                   auditStats,
-                ),
+                }),
               );
 
               if (!streamResult.handled && hasNextChannel) {
@@ -3440,36 +3148,37 @@ export class RelayProxyService {
             if (isImageRequest && res) {
               upstreamRequestStarted = true;
               const imageResult = await this.relayChannelProbeLockService.withRead(channel.id, () =>
-                this.forwardImageRequest(
+                this.forwardImageRequest({
                   relayToken,
                   req,
                   res,
-                  fullUpstreamUrl,
+                  upstreamUrl: fullUpstreamUrl,
                   headers,
-                  selectedRateConfig!,
+                  selectedRateConfig: selectedRateConfig!,
                   selectedModelName,
                   selectedModelId,
                   globalMultiplier,
                   timeMultiplier,
-                  billingDisplayChannel.contextLengthMultipliers as unknown as
+                  contextLengthMultipliers: billingDisplayChannel.contextLengthMultipliers as unknown as
                     | ContextLengthMultiplierRule[]
                     | undefined,
                   convertedBody,
                   relayGlobalMultiplier,
                   channelMultiplier,
-                  channel.id,
-                  usageDisplayChannelId,
-                  usageDisplayChannelName,
-                  channel.id,
+                  executionChannelId: channel.id,
+                  displayChannelId: usageDisplayChannelId,
+                  displayChannelName: usageDisplayChannelName,
+                  channelId: channel.id,
                   monthlyPassCoverageAt,
-                  resourceGuard.nonStreamUpstreamTimeoutMs,
-                  resourceGuard.imageResponseBodyLimitMb * 1024 * 1024,
-                  hasNextChannel && failoverConfig.enabled,
-                  failoverConfig.retryStatusCodes,
-                  billingDisplayChannel.inputTokensIncludeCacheRead !== false,
-                  relayOriginalRequestedModel,
+                  timeoutMs: resourceGuard.nonStreamUpstreamTimeoutMs,
+                  maxBodyBytes: resourceGuard.imageResponseBodyLimitMb * 1024 * 1024,
+                  allowRetryBeforeResponse: hasNextChannel && failoverConfig.enabled,
+                  retryStatusCodes: failoverConfig.retryStatusCodes,
+                  inputTokensIncludeCacheRead: billingDisplayChannel.inputTokensIncludeCacheRead !== false,
+                  originalRequestedModel: relayOriginalRequestedModel,
+                  requestFormat,
                   requestAgents,
-                ),
+                }),
               );
 
               if (!imageResult.handled && hasNextChannel) {
@@ -4174,76 +3883,17 @@ export class RelayProxyService {
     cacheCreationTokens: number;
     cacheReadTokens: number;
   } {
-    // Check if this is per-request pricing
-    if (this.isPerRequestPricingConfig(rateConfig)) {
-      if (!rateConfig.fixedPrice) throw new Error("fixedPrice is required for per-request pricing model");
-
-      const fixedPrice = Number(rateConfig.fixedPrice);
-      const cost = Math.max(0, Math.ceil(fixedPrice * globalMultiplier * 10000) / 10000);
-      return {
-        cost,
-        inputCost: cost,
-        outputCost: 0,
-        inputRate: 0,
-        outputRate: 0,
-        multiplier: globalMultiplier,
-        cacheCreationTokens,
-        cacheReadTokens,
-      };
-    }
-
-    // Token-based pricing (original logic)
-    if (rateConfig && typeof rateConfig === "object" && ("input" in rateConfig || "output" in rateConfig)) {
-      if (rateConfig.input == null || rateConfig.output == null)
-        throw new Error("input and output rates are required for token-based pricing model");
-
-      const inputRate = Number(rateConfig.input);
-      const outputRate = Number(rateConfig.output);
-
-      // requestTokens is already processed to represent billing-ready fresh input
-      // (cache read and creation tokens have been subtracted when inputTokensIncludeCacheRead is true)
-      const inputCost =
-        requestTokens * inputRate +
-        cacheCreationTokens * inputRate * cacheCreationMultiplier +
-        cacheReadTokens * inputRate * cacheReadMultiplier;
-      const outputCost = responseTokens * outputRate;
-      const rawCost = (inputCost + outputCost) * globalMultiplier;
-      if (!isFinite(rawCost))
-        return {
-          cost: 0,
-          inputCost: 0,
-          outputCost: 0,
-          inputRate,
-          outputRate,
-          multiplier: globalMultiplier,
-          cacheCreationTokens,
-          cacheReadTokens,
-        };
-      const cost = Math.max(0, Math.ceil(rawCost * 10000) / 10000);
-      return {
-        cost,
-        inputCost,
-        outputCost,
-        inputRate,
-        outputRate,
-        multiplier: globalMultiplier,
-        cacheCreationTokens,
-        cacheReadTokens,
-      };
-    }
-
-    const rate = Number(rateConfig) || 0.000001;
-    const cost = Math.ceil((totalTokens || 0) * rate * globalMultiplier * 10000) / 10000;
-    return {
-      cost,
-      inputCost: cost,
-      outputCost: 0,
-      inputRate: rate,
-      outputRate: 0,
-      multiplier: globalMultiplier,
+    return this.relayUsageBillingService.calculateCost({
+      requestTokens,
+      responseTokens,
+      totalTokens,
+      rateConfig,
+      globalMultiplier,
       cacheCreationTokens,
       cacheReadTokens,
-    };
+      cacheCreationMultiplier,
+      cacheReadMultiplier,
+    });
   }
 
   calculateTokens(reqBody: any, resBody: any, inputTokensIncludeCacheRead: boolean = true) {
@@ -4339,992 +3989,53 @@ export class RelayProxyService {
   }
 
   private async forwardStreamRequest(
-    relayToken: RelayToken,
-    req: any,
-    res: any,
-    upstreamUrl: string,
-    headers: any,
-    selectedModelRate: any,
-    selectedModelName: string,
-    selectedModelId: string,
-    globalMultiplier: number,
-    timeMultiplier: number,
-    contextLengthMultipliers: ContextLengthMultiplierRule[] | undefined,
-    convertedBody: any,
-    requestFormat: RelayRequestFormat,
-    relayGlobalMultiplier: number = globalMultiplier,
-    channelMultiplier: number = 1,
-    executionChannelId: string,
-    displayChannelId: string | null,
-    displayChannelName: string | null,
-    channelId: string,
-    monthlyPassCoverageAt: Date,
-    upstreamStreamTimeout: number,
-    allowRetryBeforeResponse: boolean = false,
-    retryStatusCodes: string[] = [],
-    inputTokensIncludeCacheRead: boolean = true,
-    originalRequestedModel?: string,
-    autoInjectedStreamUsageOption: boolean = false,
-    responseTransform?: { sourceFormat: RelayConvertibleRequestFormat; targetFormat: RelayConvertibleRequestFormat },
-    tokenNormalizerConfig: RelayTokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(undefined),
-    tokenNormalizerRetried = false,
-    requestAgents: UpstreamAgents = directUpstreamAgents,
-    responseAiEnabled = false,
-    auditStats?: { inputTokens: number; outputTokens: number; cost: number; durationMs: number },
+    paramsOrRelayToken: RelayStreamForwardParams | RelayToken,
+    ...legacyArgs: any[]
   ): Promise<StreamForwardResult> {
-    const url = new URL(upstreamUrl);
-    const isHttps = url.protocol === "https:";
-    const httpModule = isHttps ? https : http;
-
-    // 序列化一次，复用同一个 Buffer（避免两次 JSON.stringify）
-    const bodyData = this.buildForwardBodyBuffer(convertedBody);
-
-    const streamUsage = new RelayStreamUsageTracker(Math.ceil(bodyData.length / 4), inputTokensIncludeCacheRead);
-
-    const cleanHeaders = { ...headers };
-    delete cleanHeaders["host"];
-    delete cleanHeaders["content-length"];
-    delete cleanHeaders["connection"];
-    delete cleanHeaders["transfer-encoding"];
-    cleanHeaders["Content-Length"] = bodyData.length;
-
-    const startTime = Date.now();
-    const stats = auditStats || { inputTokens: 0, outputTokens: 0, cost: 0, durationMs: 0 };
-    let firstByteTime: number | null = null;
-    let streamCompleted = false; // 标记流是否正常完成
-    let clientDisconnected = false; // 标记客户端是否已断开
-
-    return new Promise((resolve, reject) => {
-      let timedOut = false;
-      let proxyReq: http.ClientRequest;
-
-      proxyReq = httpModule.request(
-        {
-          hostname: url.hostname,
-          port: url.port,
-          path: url.pathname + url.search,
-          method: req.method,
-          headers: cleanHeaders,
-          timeout: upstreamStreamTimeout,
-          agent: isHttps ? requestAgents.httpsAgent : requestAgents.httpAgent,
-        },
-        (proxyRes) => {
-          const streamStatusCode = proxyRes.statusCode || 200;
-          const isStreamErrorResponse = streamStatusCode >= 400;
-
-          const responseHeaders = { ...proxyRes.headers };
-          delete responseHeaders["content-length"];
-          delete responseHeaders["transfer-encoding"];
-
-          // For error responses we buffer the whole body so we can build a
-          // normalized error message; we do NOT pipe chunks straight through.
-          if (isStreamErrorResponse) {
-            const rawChunks: Buffer[] = [];
-            const MAX_ERROR_BODY_SIZE = 100 * 1024; // Limit error body to 100KB to prevent memory issues
-            let totalSize = 0;
-            let truncated = false;
-
-            proxyRes.on("data", (chunk: Buffer) => {
-              if (firstByteTime === null) firstByteTime = Date.now();
-
-              // Prevent unbounded memory growth from large error responses
-              if (totalSize + chunk.length > MAX_ERROR_BODY_SIZE) {
-                truncated = true;
-                return;
-              }
-
-              rawChunks.push(chunk);
-              totalSize += chunk.length;
-            });
-
-            proxyRes.on("end", async () => {
-              streamCompleted = true;
-
-              if (autoInjectedStreamUsageOption && !res.headersSent && [400, 422].includes(streamStatusCode)) {
-                const retryBody = this.removeAutoInjectedOpenAIStreamUsageOption(convertedBody);
-                resolve(
-                  await this.forwardStreamRequest(
-                    relayToken,
-                    req,
-                    res,
-                    upstreamUrl,
-                    headers,
-                    selectedModelRate,
-                    selectedModelName,
-                    selectedModelId,
-                    globalMultiplier,
-                    timeMultiplier,
-                    contextLengthMultipliers,
-                    retryBody,
-                    requestFormat,
-                    relayGlobalMultiplier,
-                    channelMultiplier,
-                    executionChannelId,
-                    displayChannelId,
-                    displayChannelName,
-                    channelId,
-                    monthlyPassCoverageAt,
-                    upstreamStreamTimeout,
-                    allowRetryBeforeResponse,
-                    retryStatusCodes,
-                    inputTokensIncludeCacheRead,
-                    originalRequestedModel,
-                    false,
-                    responseTransform,
-                    tokenNormalizerConfig,
-                    tokenNormalizerRetried,
-                    requestAgents,
-                    responseAiEnabled,
-                    stats,
-                  ),
-                );
-                return;
-              }
-
-              // Error tracking
-              try {
-                await trackErrorForIp(req, streamStatusCode);
-              } catch {
-                // tracking failure must not block the response
-              }
-
-              // Parse upstream body for error message extraction
-              let upstreamData: any = null;
-              try {
-                const bodyText = Buffer.concat(rawChunks).toString();
-                upstreamData = JSON.parse(bodyText);
-              } catch {
-                // not JSON – leave null
-              }
-
-              const upstreamMessage =
-                upstreamData?.error?.message ||
-                upstreamData?.message ||
-                (typeof upstreamData === "string" ? upstreamData : null) ||
-                (truncated ? `HTTP ${streamStatusCode} (error body truncated)` : null);
-
-              if (!res.headersSent && !tokenNormalizerRetried && requestFormat === "anthropic") {
-                const rectified = rectifyAnthropicRequestForError(
-                  convertedBody,
-                  upstreamMessage || upstreamData,
-                  tokenNormalizerConfig,
-                );
-                if (rectified.changed) {
-                  resolve(
-                    await this.forwardStreamRequest(
-                      relayToken,
-                      req,
-                      res,
-                      upstreamUrl,
-                      headers,
-                      selectedModelRate,
-                      selectedModelName,
-                      selectedModelId,
-                      globalMultiplier,
-                      timeMultiplier,
-                      contextLengthMultipliers,
-                      rectified.body,
-                      requestFormat,
-                      relayGlobalMultiplier,
-                      channelMultiplier,
-                      executionChannelId,
-                      displayChannelId,
-                      displayChannelName,
-                      channelId,
-                      monthlyPassCoverageAt,
-                      upstreamStreamTimeout,
-                      allowRetryBeforeResponse,
-                      retryStatusCodes,
-                      inputTokensIncludeCacheRead,
-                      originalRequestedModel,
-                      false,
-                      responseTransform,
-                      tokenNormalizerConfig,
-                      true,
-                      requestAgents,
-                      responseAiEnabled,
-                      stats,
-                    ),
-                  );
-                  return;
-                }
-              }
-
-              if (
-                !tokenNormalizerRetried &&
-                allowRetryBeforeResponse &&
-                shouldRetryRelayUpstreamFailure(streamStatusCode, upstreamData, retryStatusCodes)
-              ) {
-                resolve({
-                  handled: false,
-                  success: false,
-                  retryable: true,
-                  statusCode: streamStatusCode,
-                  triggerError: upstreamMessage ?? `HTTP ${streamStatusCode}`,
-                });
-                return;
-              }
-
-              // Detect model name from the outer closure.
-              // selectedModelName === selectedModelConfig.model.trim() || normalizedRequestedModel,
-              // i.e. the same value used in the non-streaming path's buildNormalizedError().
-              const normalizedError = {
-                error: {
-                  message: `Upstream API error for model "${selectedModelName}": ${upstreamMessage ?? `HTTP ${streamStatusCode}`}. The model may be unavailable or not supported by the upstream provider.`,
-                  type: "upstream_error",
-                  code: streamStatusCode,
-                  upstream_status: streamStatusCode,
-                },
-              };
-
-              const normalizedBody = JSON.stringify(
-                responseTransform
-                  ? convertRelayError(normalizedError, responseTransform.targetFormat)
-                  : normalizedError,
-              );
-              res.writeHead(
-                streamStatusCode,
-                this.withRequestIdHeader(req, {
-                  ...responseHeaders,
-                  "content-type": "application/json",
-                  "content-length": Buffer.byteLength(normalizedBody),
-                }),
-              );
-              res.end(normalizedBody);
-
-              // Billing
-              const modelName = selectedModelName;
-              const rateConfig = selectedModelRate;
-              if (!rateConfig) {
-                resolve({ handled: true, success: false, retryable: false, statusCode: streamStatusCode });
-                return;
-              }
-
-              const logLevel = streamStatusCode >= 500 ? "warn" : "info";
-              const modelMult =
-                rateConfig && typeof rateConfig === "object" && rateConfig.multiplier != null
-                  ? Number(rateConfig.multiplier)
-                  : 1;
-              const cacheCreationMult =
-                rateConfig?.cacheCreationMultiplier != null
-                  ? Number(rateConfig.cacheCreationMultiplier)
-                  : DEFAULT_CACHE_CREATION_MULTIPLIER;
-              const cacheReadMult =
-                rateConfig?.cacheReadMultiplier != null
-                  ? Number(rateConfig.cacheReadMultiplier)
-                  : DEFAULT_CACHE_READ_MULTIPLIER;
-              logger[logLevel]("Upstream returned error response (streaming, not charged)", {
-                model: modelName,
-                pricingType: this.isPerRequestPricingConfig(rateConfig) ? "per-request" : "token-based",
-                statusCode: streamStatusCode,
-              });
-
-              await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
-                userId: relayToken.userId,
-                relayTokenId: relayToken.id,
-                requestId: this.getLogicalRequestId(req),
-                requestTokens: 0,
-                responseTokens: 0,
-                totalTokens: 0,
-                cacheCreationTokens: 0,
-                cacheReadTokens: 0,
-                path: req.path.replace(/^\/relay\/proxy/, ""),
-                method: req.method,
-                statusCode: streamStatusCode,
-                ipAddress: req.ip || req.connection?.remoteAddress || "unknown",
-                totalOutputTime: Date.now() - startTime,
-                timeToFirstByte: firstByteTime ? firstByteTime - startTime : null,
-                isStreaming: true,
-                modelName,
-                inputRate: this.isPerRequestPricingConfig(rateConfig) ? 0 : Number(rateConfig?.input || 0),
-                outputRate: this.isPerRequestPricingConfig(rateConfig) ? 0 : Number(rateConfig?.output || 0),
-                multiplier: modelMult,
-                cacheCreationMultiplier: cacheCreationMult,
-                cacheReadMultiplier: cacheReadMult,
-                executionChannelId,
-                displayChannelId,
-                displayChannelName,
-                channelMultiplier,
-                globalMultiplier: relayGlobalMultiplier,
-                timeMultiplier,
-                pricingType: rateConfig?.pricingType as "token-based" | "per-request" | undefined,
-                fixedPrice: rateConfig?.fixedPrice,
-              });
-
-              resolve({
-                handled: true,
-                success: false,
-                retryable: false,
-                statusCode: streamStatusCode,
-                triggerError: upstreamMessage ?? `HTTP ${streamStatusCode}`,
-              });
-            });
-
-            proxyRes.on("error", (err) => {
-              if (allowRetryBeforeResponse && !res.headersSent && this.shouldFailoverOnError(err)) {
-                resolve({
-                  handled: false,
-                  success: false,
-                  retryable: true,
-                  triggerError: err instanceof Error ? err.message : "Upstream request failed",
-                });
-                return;
-              }
-
-              if (!res.finished) res.end();
-              reject(err);
-            });
-
-            return; // <── exit the proxyRes callback; the rest handles success responses
-          }
-
-          // With response AI audit enabled, buffer the complete textual stream before
-          // sending headers or body. This prevents unaudited content from escaping.
-          if (responseAiEnabled) {
-            const rawChunks: Buffer[] = [];
-            let rawSize = 0;
-            let blockedBySafety = false;
-            const maxAuditBytes = 512 * 1024;
-            proxyRes.on("data", (chunk: Buffer) => {
-              if (firstByteTime === null) firstByteTime = Date.now();
-              rawSize += chunk.length;
-              if (rawSize <= maxAuditBytes) rawChunks.push(chunk);
-              else proxyRes.destroy(new PayloadTooLargeError("Response exceeds content safety buffer limit"));
-              const text = chunk.toString("utf8");
-              for (const line of text.split(/\r?\n/)) consumeRelayStreamUsageLine(line, requestFormat, streamUsage);
-            });
-            proxyRes.on("end", async () => {
-              streamCompleted = true;
-              try {
-                if (rawSize > maxAuditBytes) {
-                  blockedBySafety = true;
-                  throw new ContentSafetyBlockedError();
-                }
-                const safety = await this.contentSafetyService.evaluate(
-                  "response",
-                  Buffer.concat(rawChunks).toString("utf8"),
-                  { userId: relayToken.userId, tokenConfig: relayToken.contentSafetyConfig as any },
-                );
-                stats.inputTokens += safety.auditInputTokens;
-                stats.outputTokens += safety.auditOutputTokens;
-                stats.cost += safety.auditCost;
-                stats.durationMs += safety.auditDurationMs;
-                if (safety.matched) {
-                  await this.contentSafetyService.recordIncident({
-                    userId: relayToken.userId,
-                    relayTokenId: relayToken.id,
-                    requestId: this.getLogicalRequestId(req),
-                    direction: "response",
-                    evaluation: safety,
-                    model: selectedModelName,
-                    channelId: executionChannelId,
-                    statusCode: streamStatusCode,
-                    request: req,
-                  });
-                  if (safety.action === "unreachable") {
-                    blockedBySafety = true;
-                    throw new ContentSafetyBlockedError();
-                  }
-                }
-                if (!hasVisibleStreamOutput(Buffer.concat(rawChunks), requestFormat)) {
-                  resolve({
-                    handled: false,
-                    success: false,
-                    retryable: true,
-                    statusCode: streamStatusCode,
-                    triggerError: "upstream stream ended without output",
-                  });
-                  return;
-                }
-                const output =
-                  safety.matched && safety.action === "blackhole"
-                    ? Buffer.from(safety.text, "utf8")
-                    : Buffer.concat(rawChunks);
-                const outputHeaders = this.withRequestIdHeader(req, responseHeaders);
-                res.writeHead(streamStatusCode, outputHeaders);
-                const sse = responseTransform
-                  ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
-                  : null;
-                sse?.on("data", (data) => res.write(data));
-                sse?.on("error", () => {
-                  if (!res.writableEnded) res.end();
-                });
-                if (sse) {
-                  sse.once("end", () => {
-                    if (!res.writableEnded) res.end();
-                  });
-                  sse.end(output);
-                } else {
-                  res.end(output);
-                }
-                const normalized = streamUsage.normalized();
-                const rateConfig = selectedModelRate;
-                if (!rateConfig)
-                  throw new BadRequestError(`Model '${selectedModelName}' not found in pricing configuration`);
-                const modelMult = rateConfig.multiplier != null ? Number(rateConfig.multiplier) : 1;
-                const cacheCreationMult =
-                  rateConfig.cacheCreationMultiplier != null
-                    ? Number(rateConfig.cacheCreationMultiplier)
-                    : DEFAULT_CACHE_CREATION_MULTIPLIER;
-                const cacheReadMult =
-                  rateConfig.cacheReadMultiplier != null
-                    ? Number(rateConfig.cacheReadMultiplier)
-                    : DEFAULT_CACHE_READ_MULTIPLIER;
-                const contextMatch = this.resolveContextMultiplier(
-                  contextLengthMultipliers,
-                  normalized.requestTokens,
-                  streamUsage.cacheCreationTokens,
-                  streamUsage.cacheReadTokens,
-                );
-                const costResult = this.calculateCost(
-                  normalized.requestTokens,
-                  normalized.responseTokens,
-                  normalized.totalTokens,
-                  rateConfig,
-                  globalMultiplier * contextMatch.multiplier,
-                  streamUsage.cacheCreationTokens,
-                  streamUsage.cacheReadTokens,
-                  cacheCreationMult,
-                  cacheReadMult,
-                );
-                await this.finalizeStreamUsage(relayToken, {
-                  requestId: this.getLogicalRequestId(req),
-                  requestTokens: normalized.requestTokens,
-                  responseTokens: normalized.responseTokens,
-                  totalTokens: normalized.totalTokens,
-                  cacheCreationTokens: streamUsage.cacheCreationTokens,
-                  cacheReadTokens: streamUsage.cacheReadTokens,
-                  cost: costResult.cost + stats.cost,
-                  inputRate: costResult.inputRate,
-                  outputRate: costResult.outputRate,
-                  multiplier: modelMult,
-                  cacheCreationMult,
-                  cacheReadMult,
-                  executionChannelId,
-                  displayChannelId,
-                  displayChannelName,
-                  channelId,
-                  channelMultiplier,
-                  relayGlobalMultiplier,
-                  contextTokens: contextMatch.contextTokens,
-                  contextMultiplier: contextMatch.multiplier,
-                  contextRuleName: contextMatch.ruleName,
-                  monthlyPassCoverageAt,
-                  path: req.path.replace(/^\/relay\/proxy/, ""),
-                  method: req.method,
-                  statusCode: streamStatusCode,
-                  ipAddress: req.ip || "unknown",
-                  modelName: selectedModelName,
-                  modelId: selectedModelId,
-                  totalOutputTime: Math.max(0, Date.now() - startTime - stats.durationMs),
-                  timeToFirstByte:
-                    firstByteTime === null ? null : Math.max(0, firstByteTime - startTime - stats.durationMs),
-                  pricingType: rateConfig.pricingType,
-                  fixedPrice: rateConfig.fixedPrice,
-                  originalModel: originalRequestedModel,
-                  auditInputTokens: stats.inputTokens,
-                  auditOutputTokens: stats.outputTokens,
-                  auditTotalTokens: stats.inputTokens + stats.outputTokens,
-                  auditCost: stats.cost,
-                  auditDurationMs: stats.durationMs,
-                });
-                resolve({
-                  handled: true,
-                  success: true,
-                  retryable: false,
-                  statusCode: streamStatusCode,
-                  timeToFirstByte:
-                    firstByteTime === null ? undefined : Math.max(0, firstByteTime - startTime - stats.durationMs),
-                });
-              } catch (error) {
-                if (!blockedBySafety) {
-                  reject(error);
-                  return;
-                }
-                if (stats.cost > 0 && selectedModelRate) {
-                  try {
-                    const failedTokens = streamUsage.normalized();
-                    const failedRate = selectedModelRate;
-                    const failedModelMult = failedRate.multiplier != null ? Number(failedRate.multiplier) : 1;
-                    await this.finalizeStreamUsage(relayToken, {
-                      requestId: this.getLogicalRequestId(req),
-                      requestTokens: failedTokens.requestTokens,
-                      responseTokens: failedTokens.responseTokens,
-                      totalTokens: failedTokens.totalTokens,
-                      cacheCreationTokens: streamUsage.cacheCreationTokens,
-                      cacheReadTokens: streamUsage.cacheReadTokens,
-                      cost: stats.cost,
-                      inputRate: Number(failedRate.input || 0),
-                      outputRate: Number(failedRate.output || 0),
-                      multiplier: failedModelMult,
-                      cacheCreationMult: failedRate.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER,
-                      cacheReadMult: failedRate.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER,
-                      executionChannelId,
-                      displayChannelId,
-                      displayChannelName,
-                      channelId,
-                      channelMultiplier,
-                      relayGlobalMultiplier,
-                      monthlyPassCoverageAt,
-                      path: req.path.replace(/^\/relay\/proxy/, ""),
-                      method: req.method,
-                      statusCode: 403,
-                      ipAddress: req.ip || "unknown",
-                      modelName: selectedModelName,
-                      modelId: selectedModelId,
-                      totalOutputTime: Math.max(0, Date.now() - startTime - stats.durationMs),
-                      timeToFirstByte:
-                        firstByteTime === null ? null : Math.max(0, firstByteTime - startTime - stats.durationMs),
-                      pricingType: failedRate.pricingType,
-                      fixedPrice: failedRate.fixedPrice,
-                      originalModel: originalRequestedModel,
-                      auditInputTokens: stats.inputTokens,
-                      auditOutputTokens: stats.outputTokens,
-                      auditTotalTokens: stats.inputTokens + stats.outputTokens,
-                      auditCost: stats.cost,
-                      auditDurationMs: stats.durationMs,
-                    });
-                  } catch {
-                    /* safety blocking must remain deterministic even if billing is unavailable */
-                  }
-                }
-                if (!res.headersSent && !res.writableEnded) {
-                  res.writeHead(403, { "content-type": "application/json" });
-                  res.end(
-                    JSON.stringify({
-                      error: { message: "Request blocked by content safety policy", type: "content_safety_blocked" },
-                    }),
-                  );
-                }
-                resolve({
-                  handled: true,
-                  success: false,
-                  retryable: false,
-                  statusCode: 403,
-                  triggerError: "Content safety policy blocked response",
-                });
-              }
-            });
-            proxyRes.on("error", (error) => {
-              if (!res.writableEnded) res.end();
-              reject(error);
-            });
-            return;
-          }
-
-          // ── Success path (2xx/3xx): pipe chunks directly to the client ──
-          const preflight = new RelayStreamPreflightBuffer();
-          let preflightRawBytes = 0;
-          let settled = false;
-          const sseTransform = responseTransform
-            ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
-            : null;
-          const flushPreflight = () => {
-            if (settled) return;
-            preflight.start(
-              () => res.writeHead(streamStatusCode, this.withRequestIdHeader(req, responseHeaders)),
-              (pending) => res.write(pending),
-            );
+    const params: RelayStreamForwardParams =
+      "req" in (paramsOrRelayToken as object)
+        ? (paramsOrRelayToken as RelayStreamForwardParams)
+        : {
+            relayToken: paramsOrRelayToken as RelayToken,
+            req: legacyArgs[0],
+            res: legacyArgs[1],
+            upstreamUrl: legacyArgs[2],
+            headers: legacyArgs[3],
+            selectedRateConfig: legacyArgs[4],
+            selectedModelName: legacyArgs[5],
+            selectedModelId: legacyArgs[6],
+            globalMultiplier: legacyArgs[7],
+            timeMultiplier: legacyArgs[8],
+            contextLengthMultipliers: legacyArgs[9],
+            convertedBody: legacyArgs[10],
+            requestFormat: legacyArgs[11],
+            relayGlobalMultiplier: legacyArgs[12],
+            channelMultiplier: legacyArgs[13],
+            executionChannelId: legacyArgs[14],
+            displayChannelId: legacyArgs[15],
+            displayChannelName: legacyArgs[16],
+            channelId: legacyArgs[17],
+            monthlyPassCoverageAt: legacyArgs[18],
+            upstreamStreamTimeout: legacyArgs[19],
+            allowRetryBeforeResponse: legacyArgs[20] ?? false,
+            retryStatusCodes: legacyArgs[21] ?? [],
+            inputTokensIncludeCacheRead: legacyArgs[22] ?? true,
+            originalRequestedModel: legacyArgs[23],
+            autoInjectedStreamUsageOption: legacyArgs[24] ?? false,
+            responseTransform: legacyArgs[25],
+            tokenNormalizerConfig: legacyArgs[26] ?? normalizeRelayTokenNormalizerConfig(undefined),
+            tokenNormalizerRetried: legacyArgs[27] ?? false,
+            requestAgents: legacyArgs[28] || directUpstreamAgents,
+            responseAiEnabled: legacyArgs[29] ?? false,
+            auditStats: legacyArgs[30],
           };
-          const queueOutput = (data: Buffer) => {
-            if (!data.length || settled) return;
-            if (!preflight.write(data, (chunk) => res.write(chunk))) {
-              settled = true;
-              proxyRes.destroy();
-              resolve({
-                handled: false,
-                success: false,
-                retryable: true,
-                statusCode: streamStatusCode,
-                triggerError: "upstream stream exceeded preflight buffer without output",
-              });
-            }
-          };
-          sseTransform?.on("data", (data) => queueOutput(Buffer.from(data)));
-          sseTransform?.on("error", (error) => proxyRes.destroy(error));
-
-          let buffer = "";
-          let safetyCarry = "";
-          let usageCarry = "";
-          const MAX_BUFFER_SIZE = 256 * 1024; // Reduced to 256KB to prevent memory issues on low-memory servers
-          let streamChunkPromise: Promise<void> = Promise.resolve();
-
-          const applyUsageLine = (line: string) => {
-            consumeRelayStreamUsageLine(line, requestFormat, streamUsage, () => {
-              preflight.markVisible();
-              flushPreflight();
-            });
-          };
-
-          proxyRes.on("data", (chunk) => {
-            streamChunkPromise = streamChunkPromise.then(async () => {
-              if (typeof proxyRes.pause === "function") proxyRes.pause();
-              preflightRawBytes += chunk.length;
-              let outputChunk = chunk as Buffer;
-              try {
-                const combinedSafetyText = safetyCarry + outputChunk.toString("utf8");
-                const combinedUsageText = usageCarry + outputChunk.toString("utf8");
-                const usageLines = combinedUsageText.split("\n");
-                usageCarry = usageLines.pop() || "";
-                usageLines.forEach(applyUsageLine);
-                const inspectText =
-                  combinedSafetyText.length > 256 ? combinedSafetyText.slice(0, -256) : combinedSafetyText;
-                safetyCarry = combinedSafetyText.length > 256 ? combinedSafetyText.slice(-256) : combinedSafetyText;
-                const safety = await this.contentSafetyService.evaluateLocal("response", inspectText, {
-                  userId: relayToken.userId,
-                  tokenConfig: relayToken.contentSafetyConfig as any,
-                });
-                if (safety.matched) {
-                  await this.contentSafetyService.recordIncident({
-                    userId: relayToken.userId,
-                    relayTokenId: relayToken.id,
-                    requestId: this.getLogicalRequestId(req),
-                    direction: "response",
-                    evaluation: safety,
-                    model: selectedModelName,
-                    channelId: executionChannelId,
-                    statusCode: streamStatusCode,
-                    request: req,
-                  });
-                  if (safety.action === "unreachable") {
-                    proxyRes.destroy();
-                    if (!res.writableEnded) res.end();
-                    return;
-                  }
-                  if (safety.action === "blackhole") outputChunk = Buffer.from(safety.text + safetyCarry, "utf8");
-                  else outputChunk = Buffer.from(safety.text, "utf8");
-                  safetyCarry = "";
-                } else {
-                  outputChunk = combinedSafetyText.length > 256 ? Buffer.from(inspectText, "utf8") : Buffer.alloc(0);
-                }
-                if (firstByteTime === null) firstByteTime = Date.now();
-                if (outputChunk.length) {
-                  if (sseTransform) sseTransform.write(outputChunk);
-                  else queueOutput(outputChunk);
-                }
-                if (
-                  !preflight.hasVisibleOutput &&
-                  preflightRawBytes > STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES &&
-                  !settled
-                ) {
-                  settled = true;
-                  proxyRes.destroy();
-                  resolve({
-                    handled: false,
-                    success: false,
-                    retryable: true,
-                    statusCode: streamStatusCode,
-                    triggerError: "upstream stream exceeded preflight buffer without output",
-                  });
-                  return;
-                }
-              } catch {
-                proxyRes.destroy();
-                if (!res.writableEnded) res.end();
-                return;
-              } finally {
-                if (!proxyRes.destroyed && typeof proxyRes.resume === "function") proxyRes.resume();
-              }
-
-              // Log first chunk for debugging Gemini responses
-              if (requestFormat === "gemini" && !buffer)
-                logger.debug("Gemini first chunk", {
-                  chunk: outputChunk.toString().substring(0, 500),
-                  statusCode: proxyRes.statusCode,
-                  headers: proxyRes.headers,
-                });
-
-              buffer += outputChunk.toString();
-
-              // Prevent buffer from growing too large
-              if (buffer.length > MAX_BUFFER_SIZE) {
-                logger.warn("Stream buffer exceeded limit, truncating", {
-                  bufferSize: buffer.length,
-                  limit: MAX_BUFFER_SIZE,
-                });
-                // Keep only the last portion of the buffer
-                buffer = buffer.slice(-MAX_BUFFER_SIZE / 2);
-              }
-
-              const lines = buffer.split("\n");
-              buffer = lines.pop() || "";
-
-              lines.forEach(applyUsageLine);
-            });
-          });
-
-          proxyRes.on("end", async () => {
-            streamCompleted = true;
-
-            try {
-              await streamChunkPromise;
-            } catch (error) {
-              proxyRes.destroy(error instanceof Error ? error : undefined);
-              if (!res.writableEnded) res.end();
-              reject(error);
-              return;
-            }
-            if (settled) return;
-            if (usageCarry) applyUsageLine(usageCarry);
-            if (buffer) {
-              const trailingLines = buffer.split("\n");
-              trailingLines.forEach(applyUsageLine);
-              buffer = "";
-            }
-
-            if (safetyCarry && !res.writableEnded && !clientDisconnected) {
-              try {
-                const tailSafety = await this.contentSafetyService.evaluateLocal("response", safetyCarry, {
-                  userId: relayToken.userId,
-                  tokenConfig: relayToken.contentSafetyConfig as any,
-                });
-                if (tailSafety.matched) {
-                  await this.contentSafetyService.recordIncident({
-                    userId: relayToken.userId,
-                    relayTokenId: relayToken.id,
-                    requestId: this.getLogicalRequestId(req),
-                    direction: "response",
-                    evaluation: tailSafety,
-                    model: selectedModelName,
-                    channelId: executionChannelId,
-                    statusCode: streamStatusCode,
-                    request: req,
-                  });
-                  if (tailSafety.action === "unreachable") {
-                    proxyRes.destroy();
-                    res.end();
-                    return;
-                  }
-                  safetyCarry = tailSafety.action === "blackhole" ? tailSafety.text : safetyCarry;
-                }
-                if (sseTransform) sseTransform.write(Buffer.from(safetyCarry, "utf8"));
-                else queueOutput(Buffer.from(safetyCarry, "utf8"));
-              } catch {
-                proxyRes.destroy();
-                if (!res.writableEnded) res.end();
-                return;
-              }
-            }
-
-            if (clientDisconnected) {
-              settled = true;
-              resolve({
-                handled: true,
-                success: true,
-                retryable: false,
-                statusCode: streamStatusCode,
-                clientDisconnected: true,
-              });
-              return;
-            }
-            if (!preflight.hasVisibleOutput && !settled) {
-              settled = true;
-              resolve({
-                handled: false,
-                success: false,
-                retryable: true,
-                statusCode: streamStatusCode,
-                triggerError: "upstream stream ended without output",
-              });
-              return;
-            }
-
-            if (!preflight.isStarted && preflight.hasVisibleOutput) flushPreflight();
-
-            // Only end response if client is still connected
-            if (!res.writableEnded && !clientDisconnected) {
-              sseTransform?.end();
-              res.end();
-            }
-
-            const normalizedStreamTokens = streamUsage.normalized();
-
-            const modelName = selectedModelName;
-            const rateConfig = selectedModelRate;
-            if (!rateConfig) throw new BadRequestError(`Model '${modelName}' not found in pricing configuration`);
-
-            const modelMult =
-              rateConfig && typeof rateConfig === "object" && rateConfig.multiplier != null
-                ? Number(rateConfig.multiplier)
-                : 1;
-            const cacheCreationMult =
-              rateConfig?.cacheCreationMultiplier != null
-                ? Number(rateConfig.cacheCreationMultiplier)
-                : DEFAULT_CACHE_CREATION_MULTIPLIER;
-            const cacheReadMult =
-              rateConfig?.cacheReadMultiplier != null
-                ? Number(rateConfig.cacheReadMultiplier)
-                : DEFAULT_CACHE_READ_MULTIPLIER;
-
-            const contextMatch = this.resolveContextMultiplier(
-              contextLengthMultipliers,
-              normalizedStreamTokens.requestTokens,
-              streamUsage.cacheCreationTokens,
-              streamUsage.cacheReadTokens,
-            );
-
-            const costResult = this.calculateCost(
-              normalizedStreamTokens.requestTokens,
-              normalizedStreamTokens.responseTokens,
-              normalizedStreamTokens.totalTokens,
-              rateConfig,
-              globalMultiplier * contextMatch.multiplier,
-              streamUsage.cacheCreationTokens,
-              streamUsage.cacheReadTokens,
-              cacheCreationMult,
-              cacheReadMult,
-            );
-
-            const totalOutputTime = Math.max(0, Date.now() - startTime - stats.durationMs);
-            const timeToFirstByte =
-              firstByteTime === null ? null : Math.max(0, firstByteTime - startTime - stats.durationMs);
-
-            try {
-              await this.finalizeStreamUsage(relayToken, {
-                requestId: this.getLogicalRequestId(req),
-                requestTokens: normalizedStreamTokens.requestTokens,
-                responseTokens: normalizedStreamTokens.responseTokens,
-                totalTokens: normalizedStreamTokens.totalTokens,
-                cacheCreationTokens: streamUsage.cacheCreationTokens,
-                cacheReadTokens: streamUsage.cacheReadTokens,
-                cost: costResult.cost,
-                inputRate: costResult.inputRate,
-                outputRate: costResult.outputRate,
-                multiplier: modelMult,
-                cacheCreationMult,
-                cacheReadMult,
-                executionChannelId,
-                displayChannelId,
-                displayChannelName,
-                channelId,
-                channelMultiplier,
-                relayGlobalMultiplier,
-                contextTokens: contextMatch.contextTokens,
-                contextMultiplier: contextMatch.multiplier,
-                contextRuleName: contextMatch.ruleName,
-                monthlyPassCoverageAt,
-                path: req.path.replace(/^\/relay\/proxy/, ""),
-                method: req.method,
-                statusCode: proxyRes.statusCode || 200,
-                ipAddress: req.ip || "unknown",
-                modelName,
-                modelId: selectedModelId,
-                totalOutputTime,
-                timeToFirstByte,
-                pricingType: rateConfig?.pricingType as "token-based" | "per-request" | undefined,
-                fixedPrice: rateConfig?.fixedPrice,
-                originalModel: originalRequestedModel,
-                auditInputTokens: stats.inputTokens,
-                auditOutputTokens: stats.outputTokens,
-                auditTotalTokens: stats.inputTokens + stats.outputTokens,
-                auditCost: stats.cost,
-                auditDurationMs: stats.durationMs,
-              });
-            } catch (error) {
-              logger.error("Failed to finalize relay stream usage", {
-                relayTokenId: relayToken.id,
-                userId: relayToken.userId,
-                modelName,
-                error: error instanceof Error ? error.message : String(error),
-              });
-              reject(error);
-              return;
-            }
-
-            settled = true;
-            resolve({
-              handled: true,
-              success: true,
-              retryable: false,
-              statusCode: proxyRes.statusCode || 200,
-              timeToFirstByte:
-                firstByteTime === null ? undefined : Math.max(0, firstByteTime - startTime - stats.durationMs),
-            });
-          });
-
-          proxyRes.on("error", (err) => {
-            streamCompleted = true;
-            if (settled) return;
-            if (clientDisconnected) {
-              settled = true;
-              resolve({ handled: true, success: true, retryable: false, clientDisconnected: true });
-              return;
-            }
-            if (!res.writableEnded && !clientDisconnected) res.end();
-
-            reject(err);
-          });
-        },
-      );
-
-      proxyReq.on("timeout", () => {
-        if (clientDisconnected) {
-          resolve({ handled: true, success: true, retryable: false, clientDisconnected: true });
-          return;
-        }
-        timedOut = true;
-        const timeoutError = new GatewayTimeoutError("Upstream request timeout");
-        proxyReq.destroy(timeoutError);
-        if (allowRetryBeforeResponse && !res.headersSent) {
-          resolve({
-            handled: false,
-            success: false,
-            retryable: true,
-            statusCode: 504,
-            triggerError: timeoutError.message,
-          });
-          return;
-        }
-        reject(timeoutError);
-      });
-
-      proxyReq.on("error", (err) => {
-        if (timedOut) return;
-
-        // If client already disconnected, don't send error response
-        if (clientDisconnected) {
-          logger.debug("[Relay] Upstream error after client disconnect, ignoring", { error: err.message });
-          resolve({ handled: true, success: true, retryable: false, clientDisconnected: true });
-          return;
-        }
-
-        if (allowRetryBeforeResponse && !res.headersSent && this.shouldFailoverOnError(err)) {
-          resolve({
-            handled: false,
-            success: false,
-            retryable: true,
-            triggerError: err instanceof Error ? err.message : "Upstream request failed",
-          });
-          return;
-        }
-
-        if (!res.headersSent) this.sendStreamTransportError(res, err);
-
-        reject(err);
-      });
-
-      proxyReq.write(bodyData);
-      proxyReq.end();
-
-      // Monitor client disconnect and abort upstream request
-      const clientCloseHandler = () => {
-        if (!streamCompleted && !timedOut) {
-          clientDisconnected = true;
-          logger.warn("[Relay] Client disconnected, aborting upstream request");
-          proxyReq.destroy();
-        }
-      };
-
-      req.once("close", clientCloseHandler);
-
-      // Clean up listener when stream completes
-      const cleanup = () => {
-        req.off("close", clientCloseHandler);
-      };
-
-      proxyReq.once("error", cleanup);
-      proxyReq.once("close", cleanup);
-    });
+    return this.relayChannelAttemptService.execute(
+      {
+        kind: "stream",
+        stream: params,
+      },
+      { stream: this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
+    );
   }
 
   private async finalizeStreamUsage(relayToken: RelayToken, data: any) {

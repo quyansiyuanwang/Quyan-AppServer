@@ -4,7 +4,7 @@ import {
   normalizeTokenBreakdown,
   resolveFreshInputTokens,
   type TokenBreakdown,
-} from "./token-usage.util";
+} from "../token-usage.util";
 import { hasVisibleStreamEvent } from "./relay-stream-output.util";
 import type { RelayRequestFormat } from "./relay-model-availability.util";
 

@@ -1,0 +1,2 @@
+export const GLOBAL_IMAGE_CONCURRENCY_RESOURCE_ID = "global";
+export const GLOBAL_CONCURRENCY_STATUS_USER_ID = "*";

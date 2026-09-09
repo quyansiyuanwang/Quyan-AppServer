@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyRelayTokenV1PathMode } from "@/util/relay-token-path.util";
+import { applyRelayTokenV1PathMode } from "@/util/relay";
 
 describe("relay token v1 path mode", () => {
   it("leaves paths unchanged when disabled", () => {

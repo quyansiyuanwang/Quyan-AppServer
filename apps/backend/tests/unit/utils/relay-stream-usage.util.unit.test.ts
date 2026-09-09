@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consumeRelayStreamUsageLine, RelayStreamUsageTracker } from "@/util/relay-stream-usage.util";
+import { consumeRelayStreamUsageLine, RelayStreamUsageTracker } from "@/util/relay";
 
 describe("relay-stream-usage util", () => {
   it("tracks OpenAI usage and resolves fresh input tokens", () => {

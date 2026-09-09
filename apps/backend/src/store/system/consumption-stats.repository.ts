@@ -1,6 +1,6 @@
 import { prisma } from "@/config/database";
 import { RECORD_STATUS } from "@/constant/status";
-import { normalizeRelayDisplaySnapshotName, UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay-display-channel.util";
+import { normalizeRelayDisplaySnapshotName, UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay";
 import type { ConsumptionStatsStore, ConsumptionUsageRow } from "./consumption-stats.store";
 import { extractLegacyMonthlyPassCoveredAmount } from "@/util/monthly-pass-coverage.util";
 

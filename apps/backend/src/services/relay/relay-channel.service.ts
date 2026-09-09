@@ -87,7 +87,7 @@ import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelHealthService, type RelayChannelHealthSnapshot } from "./relay-channel-health.service";
 import { RelayConfigService } from "./relay-config.service";
-import { resolveEffectiveRelayPoolMembers } from "./relay-pool-members.util";
+import { resolveEffectiveRelayPoolMembers } from "./utils/relay-pool-members.util";
 import { RelayChannelChangeRequestRepository } from "@/store/relay/relay-channel-change-request.repository";
 import { env } from "@/config/env";
 import { ConfigService } from "@/services/system/config.service";

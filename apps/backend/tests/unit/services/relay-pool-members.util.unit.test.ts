@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveEffectiveRelayPoolMembers } from "../../../src/services/relay/relay-pool-members.util";
+import { resolveEffectiveRelayPoolMembers } from "../../../src/services/relay/utils/relay-pool-members.util";
 
 describe("resolveEffectiveRelayPoolMembers", () => {
   it("merges legacy and strict members by ID and lets strict settings win", () => {
