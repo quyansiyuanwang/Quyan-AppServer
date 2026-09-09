@@ -23,14 +23,23 @@ impl Default for Config {
             locale: "zh-CN".into(),
             api_base_url: "https://api.qysyw.cn".into(),
             relay_base_url: "https://ai.qysyw.cn".into(),
-            auth_base_url: "https://www.qysyw.cn".into(),
+            auth_base_url: "https://auth.qysyw.cn".into(),
             metadata: serde_json::Map::new(),
         }
     }
 }
 
 fn default_auth_base_url() -> String {
-    "https://www.qysyw.cn".into()
+    "https://auth.qysyw.cn".into()
+}
+
+fn migrate_auth_base_url(value: &mut Config) {
+    // Versions released while the CLI was being moved to the identity site
+    // persisted the public site as the OAuth origin. Migrate only that exact
+    // built-in default and leave user-configured authentication origins alone.
+    if value.auth_base_url.trim_end_matches('/') == "https://www.qysyw.cn" {
+        value.auth_base_url = default_auth_base_url();
+    }
 }
 
 pub fn directory() -> PathBuf {
@@ -48,8 +57,42 @@ pub fn load() -> Result<Config> {
     if !file.exists() {
         return Ok(Config::default());
     }
-    let value = serde_json::from_slice(&fs::read(&file).context("failed to read config")?)?;
+    let mut value: Config =
+        serde_json::from_slice(&fs::read(&file).context("failed to read config")?)?;
+
+    migrate_auth_base_url(&mut value);
+
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{migrate_auth_base_url, Config};
+
+    #[test]
+    fn defaults_oauth_to_the_identity_site() {
+        assert_eq!(Config::default().auth_base_url, "https://auth.qysyw.cn");
+    }
+
+    #[test]
+    fn migrates_the_old_public_oauth_default() {
+        let mut config = Config {
+            auth_base_url: "https://www.qysyw.cn/".into(),
+            ..Config::default()
+        };
+        migrate_auth_base_url(&mut config);
+        assert_eq!(config.auth_base_url, "https://auth.qysyw.cn");
+    }
+
+    #[test]
+    fn preserves_explicit_oauth_origins() {
+        let mut config = Config {
+            auth_base_url: "https://auth.example.test".into(),
+            ..Config::default()
+        };
+        migrate_auth_base_url(&mut config);
+        assert_eq!(config.auth_base_url, "https://auth.example.test");
+    }
 }
 
 pub fn save(config: &Config) -> Result<()> {
