@@ -163,7 +163,47 @@ interface StreamForwardResult {
   statusCode?: number;
   triggerError?: string;
   timeToFirstByte?: number;
+  clientDisconnected?: boolean;
 }
+
+const STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES = 256 * 1024;
+
+const hasVisibleText = (value: unknown): boolean => {
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.some((item) => hasVisibleText(item));
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return [record.text, record.content, record.delta, record.output_text].some((item) => hasVisibleText(item));
+};
+
+const hasVisibleStreamEvent = (value: unknown, requestFormat: RelayRequestFormat): boolean => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, any>;
+
+  if (requestFormat === "anthropic") {
+    if (["content_block_delta", "content_block_start"].includes(String(record.type)))
+      return hasVisibleText(record.delta) || hasVisibleText(record.content_block);
+    return false;
+  }
+
+  if (requestFormat === "gemini") {
+    return Array.isArray(record.candidates)
+      ? record.candidates.some((candidate: any) => hasVisibleText(candidate?.content?.parts))
+      : false;
+  }
+
+  if (Array.isArray(record.choices))
+    return record.choices.some(
+      (choice: any) => hasVisibleText(choice?.delta?.content) || hasVisibleText(choice?.message?.content),
+    );
+
+  if (String(record.type || "").startsWith("response.output_text."))
+    return [record.delta, record.text, record.content, record.output_text].some((item) => hasVisibleText(item));
+  if (String(record.type || "").startsWith("response.content_part."))
+    return hasVisibleText(record.part) || hasVisibleText(record.content);
+  if (String(record.type || "") === "response.completed") return false;
+  return false;
+};
 
 interface ImageForwardResult extends StreamForwardResult {
   headers?: any;
@@ -2262,6 +2302,8 @@ export class RelayProxyService {
     // 余额不足错误不应该 failover，因为切换渠道也会遇到同样的问题
     if (error instanceof RelayChannelSkipError && error.reason === "insufficient-balance") return false;
     if (error instanceof ContentSafetyBlockedError) return false;
+    const cancellation = error as { code?: string; name?: string } | undefined;
+    if (cancellation?.code === "ERR_CANCELED" || cancellation?.name === "AbortError") return false;
 
     // 其他所有错误都应该尝试 failover
     return true;
@@ -3358,19 +3400,25 @@ export class RelayProxyService {
               );
 
               if (!streamResult.handled && hasNextChannel) {
+                const isEmptyStreamFailure = streamResult.triggerError?.startsWith("upstream stream");
+                if (isEmptyStreamFailure)
+                  await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                    channel,
+                    request: req,
+                    statusCode: streamResult.statusCode,
+                  });
                 if (!isLastAttemptForThisChannel) {
                   // Threshold not yet exhausted — retry the same channel
-                  // Note: Intermediate streaming failures are not recorded in channel stats
-                  // to avoid inflating failure counts. Only the final failure is recorded.
                   lastError = new Error(streamResult.triggerError || `HTTP ${streamResult.statusCode || 502}`);
                   continue;
                 }
                 // Threshold exhausted — record failure and switch to next channel
-                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
-                  channel,
-                  request: req,
-                  statusCode: streamResult.statusCode ?? (streamResult.success ? 200 : undefined),
-                });
+                if (!isEmptyStreamFailure)
+                  await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                    channel,
+                    request: req,
+                    statusCode: streamResult.statusCode ?? (streamResult.success ? 200 : undefined),
+                  });
                 this.appendAttemptIssue(
                   attemptIssues,
                   displayChannel,
@@ -3400,6 +3448,13 @@ export class RelayProxyService {
                 channelSwitched = true;
                 break;
               }
+
+              if (!streamResult.handled) {
+                throw new Error(streamResult.triggerError || `HTTP ${streamResult.statusCode || 502}`);
+              }
+
+              if (streamResult.clientDisconnected)
+                return { status: streamResult.statusCode || 200, headers: {}, data: {} };
 
               await this.recordChannelAttempt(relayToken.id, channel.id, streamResult.success, {
                 channel,
@@ -4702,7 +4757,7 @@ export class RelayProxyService {
               if (rawSize <= maxAuditBytes) rawChunks.push(chunk);
               else proxyRes.destroy(new PayloadTooLargeError("Response exceeds content safety buffer limit"));
               const text = chunk.toString("utf8");
-              for (const line of text.split("\\n")) {
+              for (const line of text.split(/\r?\n/)) {
                 const trimmed = line.trim();
                 if (trimmed.startsWith("data:")) {
                   const data = trimmed.slice(5).trim();
@@ -4758,6 +4813,34 @@ export class RelayProxyService {
                     blockedBySafety = true;
                     throw new ContentSafetyBlockedError();
                   }
+                }
+                const rawOutput = Buffer.concat(rawChunks);
+                const hasVisibleOutput = rawOutput
+                  .toString("utf8")
+                  .split(/\r?\n/)
+                  .some((line) => {
+                    const trimmed = line.trim();
+                    const data = trimmed.startsWith("data:")
+                      ? trimmed.slice("data:".length).trim()
+                      : requestFormat === "gemini"
+                        ? trimmed
+                        : "";
+                    if (!data || data === "[DONE]") return false;
+                    try {
+                      return hasVisibleStreamEvent(JSON.parse(data), requestFormat);
+                    } catch {
+                      return false;
+                    }
+                  });
+                if (!hasVisibleOutput) {
+                  resolve({
+                    handled: false,
+                    success: false,
+                    retryable: true,
+                    statusCode: streamStatusCode,
+                    triggerError: "upstream stream ended without output",
+                  });
+                  return;
                 }
                 const output =
                   safety.matched && safety.action === "blackhole"
@@ -4946,12 +5029,43 @@ export class RelayProxyService {
           }
 
           // ── Success path (2xx/3xx): pipe chunks directly to the client ──
-          res.writeHead(streamStatusCode, this.withRequestIdHeader(req, responseHeaders));
-
+          let responseStarted = false;
+          let hasVisibleOutput = false;
+          let preflightBytes = 0;
+          let preflightRawBytes = 0;
+          const preflightChunks: Buffer[] = [];
+          let settled = false;
           const sseTransform = responseTransform
             ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
             : null;
-          sseTransform?.on("data", (data) => res.write(data));
+          const flushPreflight = () => {
+            if (responseStarted || !hasVisibleOutput || settled) return;
+            responseStarted = true;
+            res.writeHead(streamStatusCode, this.withRequestIdHeader(req, responseHeaders));
+            for (const pending of preflightChunks) res.write(pending);
+            preflightChunks.length = 0;
+          };
+          const queueOutput = (data: Buffer) => {
+            if (!data.length || settled) return;
+            if (responseStarted) {
+              res.write(data);
+              return;
+            }
+            preflightChunks.push(data);
+            preflightBytes += data.length;
+            if (preflightBytes > STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES) {
+              settled = true;
+              proxyRes.destroy();
+              resolve({
+                handled: false,
+                success: false,
+                retryable: true,
+                statusCode: streamStatusCode,
+                triggerError: "upstream stream exceeded preflight buffer without output",
+              });
+            }
+          };
+          sseTransform?.on("data", (data) => queueOutput(Buffer.from(data)));
           sseTransform?.on("error", (error) => proxyRes.destroy(error));
 
           let buffer = "";
@@ -4970,6 +5084,10 @@ export class RelayProxyService {
 
               try {
                 const json = JSON.parse(data);
+                if (hasVisibleStreamEvent(json, requestFormat)) {
+                  hasVisibleOutput = true;
+                  flushPreflight();
+                }
                 applyUsage(json.message?.usage);
                 applyUsage(json.usage);
                 applyUsage(json.response?.usage);
@@ -4983,6 +5101,10 @@ export class RelayProxyService {
             if (requestFormat === "gemini" && (trimmedLine.startsWith("{") || trimmedLine.startsWith("[")))
               try {
                 const json = JSON.parse(trimmedLine);
+                if (hasVisibleStreamEvent(json, requestFormat)) {
+                  hasVisibleOutput = true;
+                  flushPreflight();
+                }
                 applyUsage(json.usageMetadata);
               } catch {
                 // Ignore JSON parse errors
@@ -4992,6 +5114,7 @@ export class RelayProxyService {
           proxyRes.on("data", (chunk) => {
             streamChunkPromise = streamChunkPromise.then(async () => {
               if (typeof proxyRes.pause === "function") proxyRes.pause();
+              preflightRawBytes += chunk.length;
               let outputChunk = chunk as Buffer;
               try {
                 const combinedSafetyText = safetyCarry + outputChunk.toString("utf8");
@@ -5032,7 +5155,19 @@ export class RelayProxyService {
                 if (firstByteTime === null) firstByteTime = Date.now();
                 if (outputChunk.length) {
                   if (sseTransform) sseTransform.write(outputChunk);
-                  else res.write(outputChunk);
+                  else queueOutput(outputChunk);
+                }
+                if (!hasVisibleOutput && preflightRawBytes > STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES && !settled) {
+                  settled = true;
+                  proxyRes.destroy();
+                  resolve({
+                    handled: false,
+                    success: false,
+                    retryable: true,
+                    statusCode: streamStatusCode,
+                    triggerError: "upstream stream exceeded preflight buffer without output",
+                  });
+                  return;
                 }
               } catch {
                 proxyRes.destroy();
@@ -5080,7 +5215,13 @@ export class RelayProxyService {
               reject(error);
               return;
             }
+            if (settled) return;
             if (usageCarry) applyUsageLine(usageCarry);
+            if (buffer) {
+              const trailingLines = buffer.split("\n");
+              trailingLines.forEach(applyUsageLine);
+              buffer = "";
+            }
 
             if (safetyCarry && !res.writableEnded && !clientDisconnected) {
               try {
@@ -5108,13 +5249,38 @@ export class RelayProxyService {
                   safetyCarry = tailSafety.action === "blackhole" ? tailSafety.text : safetyCarry;
                 }
                 if (sseTransform) sseTransform.write(Buffer.from(safetyCarry, "utf8"));
-                else res.write(Buffer.from(safetyCarry, "utf8"));
+                else queueOutput(Buffer.from(safetyCarry, "utf8"));
               } catch {
                 proxyRes.destroy();
                 if (!res.writableEnded) res.end();
                 return;
               }
             }
+
+            if (clientDisconnected) {
+              settled = true;
+              resolve({
+                handled: true,
+                success: true,
+                retryable: false,
+                statusCode: streamStatusCode,
+                clientDisconnected: true,
+              });
+              return;
+            }
+            if (!hasVisibleOutput && !settled) {
+              settled = true;
+              resolve({
+                handled: false,
+                success: false,
+                retryable: true,
+                statusCode: streamStatusCode,
+                triggerError: "upstream stream ended without output",
+              });
+              return;
+            }
+
+            if (!responseStarted && hasVisibleOutput) flushPreflight();
 
             // Only end response if client is still connected
             if (!res.writableEnded && !clientDisconnected) {
@@ -5224,6 +5390,7 @@ export class RelayProxyService {
               return;
             }
 
+            settled = true;
             resolve({
               handled: true,
               success: true,
@@ -5236,6 +5403,12 @@ export class RelayProxyService {
 
           proxyRes.on("error", (err) => {
             streamCompleted = true;
+            if (settled) return;
+            if (clientDisconnected) {
+              settled = true;
+              resolve({ handled: true, success: true, retryable: false, clientDisconnected: true });
+              return;
+            }
             if (!res.writableEnded && !clientDisconnected) res.end();
 
             reject(err);
@@ -5244,6 +5417,10 @@ export class RelayProxyService {
       );
 
       proxyReq.on("timeout", () => {
+        if (clientDisconnected) {
+          resolve({ handled: true, success: true, retryable: false, clientDisconnected: true });
+          return;
+        }
         timedOut = true;
         const timeoutError = new GatewayTimeoutError("Upstream request timeout");
         proxyReq.destroy(timeoutError);
@@ -5266,6 +5443,7 @@ export class RelayProxyService {
         // If client already disconnected, don't send error response
         if (clientDisconnected) {
           logger.debug("[Relay] Upstream error after client disconnect, ignoring", { error: err.message });
+          resolve({ handled: true, success: true, retryable: false, clientDisconnected: true });
           return;
         }
 
