@@ -3934,6 +3934,7 @@ export default {
     failoverThresholdHelp: 'Number of failures on the same channel before switching to the next',
     minCacheHitRate: 'Minimum Cache Hit Rate',
     cacheHitRateMinSamples: 'Minimum Cache Rate Samples',
+    cacheHitRateWindowHours: 'Cache Rate Window (Hours)',
     failbackCooldownMinutes: 'Failback Cooldown (Minutes)',
     failbackCooldownMinutesHelp:
       'After switching to a new channel, later requests keep preferring the current channel for this many minutes instead of immediately switching back to earlier channels. 0 disables it.',

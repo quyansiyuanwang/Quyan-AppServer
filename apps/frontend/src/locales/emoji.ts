@@ -3868,6 +3868,7 @@ const emoji: DeepStringify<typeof en> = {
     failoverThresholdHelp: '1️⃣ 📡 ❌ 🧮 ➜ 🔀',
     minCacheHitRate: '💾 🎯 📉',
     cacheHitRateMinSamples: '💾 🎯 🔢',
+    cacheHitRateWindowHours: '💾 🎯 ⏱️',
     failbackCooldownMinutes: '↩️ ⏱️ (⚠️)',
     failbackCooldownMinutesHelp: '🔀 ⚠️ 📡 ⚠️，⚠️ 📡 ⚠️；⚠️ 📡。0️⃣ = ⚠️。',
     failbackCooldownCompact: '⏱️ {minutes}⚠️',

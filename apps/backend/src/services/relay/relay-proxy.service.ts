@@ -128,6 +128,7 @@ import type { RelayStreamForwarderHost } from "./relay-stream-forwarder.service"
 import type { RelayImageForwarderHost } from "./relay-image-forwarder.service";
 import { RelayConcurrencyService } from "./relay-concurrency.service";
 import { RelayAttemptPlannerService } from "./relay-attempt-planner.service";
+import { getRelayCacheHitRateSince } from "./utils/relay-cache-hit-rate.util";
 import type {
   ImageForwardResult,
   RelayAttemptPlan,
@@ -255,8 +256,8 @@ export class RelayProxyService {
           channel?.channelType === "automatic-proxy-pool" &&
             this.getChannelRoutingConfig(channel)?.rankingMode !== "stability-first",
         ),
-      filterChannelsByCacheHitRate: (token, channels, threshold, minSamples) =>
-        this.filterChannelsByCacheHitRate(token, channels, threshold, minSamples),
+      filterChannelsByCacheHitRate: (token, channels, threshold, minSamples, windowHours) =>
+        this.filterChannelsByCacheHitRate(token, channels, threshold, minSamples, windowHours),
     });
   }
 
@@ -1644,6 +1645,10 @@ export class RelayProxyService {
           ? null
           : Math.min(1, Math.max(0, Number(relayToken.failoverConfig.minCacheHitRate))),
       cacheHitRateMinSamples: Math.max(1, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateMinSamples ?? 3))),
+      cacheHitRateWindowHours: Math.max(
+        1,
+        Math.min(8760, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateWindowHours ?? 168))),
+      ),
     };
   }
 
@@ -1652,12 +1657,13 @@ export class RelayProxyService {
     channels: RelayResolvedChannelCandidate[],
     minCacheHitRate: number | null | undefined,
     minSamples: number,
+    windowHours: number,
   ): Promise<RelayResolvedChannelCandidate[]> {
     const threshold = minCacheHitRate == null ? null : Number(minCacheHitRate);
     if (threshold == null || !Number.isFinite(threshold) || threshold <= 0 || channels.length <= 1 || !relayToken.id)
       return channels;
     const channelIds = [...new Set(channels.map((candidate) => candidate.resolvedChannel.id))];
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const since = getRelayCacheHitRateSince(windowHours);
     let rates;
     try {
       rates = await this.relayUsageRepo.aggregateChannelCacheHitRates(relayToken.id, channelIds, since);
@@ -1904,6 +1910,7 @@ export class RelayProxyService {
       failbackCooldownMinutes: Math.max(0, Number(routingConfig?.failbackCooldownMinutes ?? 0)),
       minCacheHitRate: null,
       cacheHitRateMinSamples: 3,
+      cacheHitRateWindowHours: 168,
     };
   }
 

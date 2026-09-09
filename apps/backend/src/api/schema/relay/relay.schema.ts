@@ -100,6 +100,7 @@ const relayTokenFailoverConfigSchema = z.object({
       "minCacheHitRate must have at most 4 decimal places",
     ),
   cacheHitRateMinSamples: z.coerce.number().int().min(1).max(1000).default(3),
+  cacheHitRateWindowHours: z.coerce.number().int().min(1).max(8760).default(168),
 });
 
 const relayTokenIpWhitelistSchema = z

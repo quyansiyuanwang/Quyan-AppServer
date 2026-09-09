@@ -88,6 +88,7 @@ export interface RelayFailoverConfigInput {
   maxAcceptedChannelMultiplier?: number | null;
   minCacheHitRate?: number | null;
   cacheHitRateMinSamples?: number;
+  cacheHitRateWindowHours?: number;
 }
 
 export interface RelayTokenChannelConfigInput {

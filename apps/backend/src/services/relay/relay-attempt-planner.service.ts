@@ -33,6 +33,7 @@ export interface RelayAttemptPlannerHost {
     channels: RelayResolvedChannelCandidate[],
     minCacheHitRate: number | null | undefined,
     minSamples: number,
+    windowHours: number,
   ): Promise<RelayResolvedChannelCandidate[]>;
 }
 
@@ -70,6 +71,7 @@ export class RelayAttemptPlannerService {
       channels,
       tokenFailoverConfig.minCacheHitRate,
       tokenFailoverConfig.cacheHitRateMinSamples,
+      tokenFailoverConfig.cacheHitRateWindowHours,
     );
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : undefined;
     if (singleTopLevelChannel?.channelType === "automatic-proxy-pool") {
@@ -85,6 +87,7 @@ export class RelayAttemptPlannerService {
             : {
                 minCacheHitRate: tokenFailoverConfig.minCacheHitRate,
                 cacheHitRateMinSamples: tokenFailoverConfig.cacheHitRateMinSamples,
+                cacheHitRateWindowHours: tokenFailoverConfig.cacheHitRateWindowHours,
               }),
         },
         allowStickyFailover: !this.host.isPriceFirstAutomaticPool(singleTopLevelChannel),

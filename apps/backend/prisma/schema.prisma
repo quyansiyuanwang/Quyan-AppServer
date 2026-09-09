@@ -1513,6 +1513,7 @@ model RelayTokenFailoverConfig {
   maxAcceptedChannelMultiplier Decimal? @db.Decimal(10, 6)
   minCacheHitRate              Decimal? @db.Decimal(5, 4)
   cacheHitRateMinSamples       Int      @default(3)
+  cacheHitRateWindowHours      Int      @default(168)
   createTime                   DateTime @default(now())
   updateTime                   DateTime @updatedAt
 

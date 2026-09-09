@@ -42,6 +42,7 @@ export interface RelayFailoverRuntimeConfig {
   maxAcceptedChannelMultiplier?: number | null;
   minCacheHitRate?: number | null;
   cacheHitRateMinSamples: number;
+  cacheHitRateWindowHours: number;
 }
 
 export interface RelayAttemptPlan {
@@ -68,6 +69,7 @@ export interface RelayTokenAvailabilityInput {
     maxAcceptedChannelMultiplier?: number | Prisma.Decimal | null;
     minCacheHitRate?: number | Prisma.Decimal | null;
     cacheHitRateMinSamples?: number | null;
+    cacheHitRateWindowHours?: number | null;
   } | null;
 }
 
