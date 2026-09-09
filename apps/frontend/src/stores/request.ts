@@ -15,6 +15,7 @@ import { useImpersonationStore } from '@/stores/impersonationStore'
 import { ReplaySigningService } from '@/service/replaySigningService'
 import { getBackendLocale } from '@/locales'
 import { toServiceError } from '@/utils/error-utils'
+import { navigateToTwoFactorVerification } from '@/service/twoFactorNavigationService'
 
 type AnyEndpointDescriptor = ApiEndpointDescriptor<ApiMethod, any, any, any, any, any>
 type EndpointWithMethod<METHOD extends ApiMethod> = ApiEndpointDescriptor<
@@ -45,43 +46,6 @@ const NO_REFRESH_RETRY_CUSTOM_CODES = new Set<number>([
 ])
 
 const REPLAY_SIGNING_RECOVERABLE_MESSAGE_HINT = '签名会话'
-let twoFactorNavigationPromise: Promise<void> | null = null
-
-const getTwoFactorRedirect = (): string | undefined => {
-  if (typeof window === 'undefined') return undefined
-  const path = `${window.location.pathname}${window.location.search}`
-  return path.startsWith('/') && !path.startsWith('/auth/verify') ? path : undefined
-}
-
-const navigateToTwoFactorVerification = (responseData: any): void => {
-  const challengeToken = responseData?.data?.challengeToken
-  if (typeof challengeToken !== 'string' || !challengeToken.trim()) return
-
-  const redirect = getTwoFactorRedirect()
-  TypedSessionStorage.setItem(
-    StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE,
-    JSON.stringify({ challengeToken, redirect, createdAt: Date.now() }),
-  )
-
-  if (twoFactorNavigationPromise) return
-  twoFactorNavigationPromise = import('@/router')
-    .then(({ default: router }) =>
-      router.push({
-        name: 'authVerification',
-        query: {
-          purpose: 'stepup',
-          method: responseData?.data?.method === 'email' ? 'email' : 'code',
-        },
-      }),
-    )
-    .then(() => undefined)
-    .catch((error) => {
-      console.warn('[2FA] Failed to navigate to verification page:', error)
-    })
-    .finally(() => {
-      twoFactorNavigationPromise = null
-    })
-}
 
 const createTwoFactorRequiredError = (responseData: any) =>
   toServiceError(responseData, '当前操作需要二次验证')
@@ -565,7 +529,7 @@ class MyAxios {
     this.instance.interceptors.response.use(
       (response) => {
         // 特殊处理：2FA 要求不应该被当作错误，而是正常的业务流程
-        if (response.data?.code === CustomCode.TWO_FACTOR_REQUIRED) {
+        if (Number(response.data?.code) === CustomCode.TWO_FACTOR_REQUIRED) {
           const originalRequest = response.config as RetryAxiosRequest
 
           console.log('[2FA Response] Received TWO_FACTOR_REQUIRED response:', {
@@ -597,7 +561,7 @@ class MyAxios {
         }
 
         // 如果code不为0，抛出错误
-        if (response.data?.code !== undefined && response.data.code !== CustomCode.OK) {
+        if (response.data?.code !== undefined && Number(response.data.code) !== CustomCode.OK) {
           return Promise.reject(new Error(response.data.message || 'Request failed'))
         }
 
@@ -624,17 +588,17 @@ class MyAxios {
         }
 
         // 特殊处理：2FA 要求（可能以 401 状态码返回）
-        if (responseData?.code === CustomCode.TWO_FACTOR_REQUIRED) {
+        if (Number(responseData?.code) === CustomCode.TWO_FACTOR_REQUIRED) {
           console.log('[2FA Error] Received TWO_FACTOR_REQUIRED in error handler:', {
             status: error.response?.status,
-            url: originalRequest.url,
-            method: originalRequest.method,
-            isRetry: originalRequest._twoFactorRetry,
-            retryCount: originalRequest._twoFactorRetryCount || 0,
+            url: originalRequest?.url,
+            method: originalRequest?.method,
+            isRetry: originalRequest?._twoFactorRetry,
+            retryCount: originalRequest?._twoFactorRetryCount || 0,
           })
 
           // 如果是重试请求且已经重试过一次，说明这是一个 alwaysRequire 的接口
-          if (originalRequest._twoFactorRetry && (originalRequest._twoFactorRetryCount || 0) >= 1) {
+          if (originalRequest?._twoFactorRetry && (originalRequest._twoFactorRetryCount || 0) >= 1) {
             console.warn(
               '[2FA Error] Retry request still requires 2FA after verification - this is an alwaysRequire endpoint',
             )
@@ -643,7 +607,7 @@ class MyAxios {
           }
 
           // 如果不是重试请求，保存到队列
-          if (!originalRequest._twoFactorRetry) {
+          if (originalRequest && !originalRequest._twoFactorRetry) {
             MyAxios.savePendingTwoFactorRequest(originalRequest)
           }
 
@@ -653,16 +617,18 @@ class MyAxios {
 
         // 处理 401 未授权错误，尝试刷新 token
         const isUnauthorized = error.response?.status === HttpStatusCode.Unauthorized
+        const hasAccessToken = Boolean(getAccessToken())
         const isExcluded = EXCLUDED_URLS.includes(error.config?.url || '')
         const isRetryAttempted = originalRequest._retry === true
         const isSkipRetry = error.config?.headers?.[OPTION_KEYS.SKIP_RETRY] === 'true'
-        const responseCustomCode = (error.response?.data as any)?.code
+        const responseCustomCode = Number((error.response?.data as any)?.code)
         const isTwoFactorBusinessFailure =
           typeof responseCustomCode === 'number' &&
           NO_REFRESH_RETRY_CUSTOM_CODES.has(responseCustomCode)
 
         if (
           isUnauthorized &&
+          hasAccessToken &&
           !isExcluded &&
           !isRetryAttempted &&
           !isSkipRetry &&
