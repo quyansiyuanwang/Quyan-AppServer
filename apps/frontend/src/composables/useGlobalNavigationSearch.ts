@@ -38,6 +38,15 @@ export const useGlobalNavigationSearch = () => {
   const query = ref('')
   const selectedIndex = ref(0)
 
+  // During background permission hydration keep using the last known
+  // projection. Falling back to the complete catalog while loading briefly
+  // exposes routes that are about to be hidden, causing visible menu/search
+  // flicker. The projection is cleared only when the user identity changes or
+  // the session is explicitly logged out.
+  const permissionsResolved = computed(
+    () => permissionStore.isLoaded === true || permissionStore.currentUserPermissions != null,
+  )
+
   const accessibleProfiles = computed(() => {
     // Touch the locale ref so translated titles update immediately after language changes.
     void i18ns.refer.value
@@ -45,19 +54,17 @@ export const useGlobalNavigationSearch = () => {
     if (!sessionStore.isAuthenticated) {
       return currentSiteProfile.id === 'public' ? [currentSiteProfile] : []
     }
-    const permissions =
-      sessionStore.permissionsStatus === 'ready'
-        ? permissionStore.effectivePermissions
-        : (Object.values(Permission) as string[])
+    const permissions = permissionsResolved.value
+      ? permissionStore.effectivePermissions
+      : (Object.values(Permission) as string[])
     return getAccessibleSiteProfiles(currentSiteProfile, permissions)
   })
 
   const allResults = computed<GlobalNavigationSearchResult[]>(() => {
     const results: GlobalNavigationSearchResult[] = []
-    const effectivePermissions =
-      sessionStore.permissionsStatus === 'ready'
-        ? permissionStore.effectivePermissions
-        : (Object.values(Permission) as string[])
+    const effectivePermissions = permissionsResolved.value
+      ? permissionStore.effectivePermissions
+      : (Object.values(Permission) as string[])
 
     for (const profile of accessibleProfiles.value) {
       const siteLabel = localized(profile.labelKey)

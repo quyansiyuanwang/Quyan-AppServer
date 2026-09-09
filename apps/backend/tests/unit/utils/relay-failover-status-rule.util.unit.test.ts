@@ -4,7 +4,7 @@ import {
   matchesRetryStatusRule,
   normalizeRetryStatusRules,
   shouldRetryRelayUpstreamFailure,
-} from "@/util/relay-failover-status-rule.util";
+} from "@/util/relay";
 
 describe("relay-failover-status-rule util", () => {
   describe("isValidRetryStatusRule", () => {

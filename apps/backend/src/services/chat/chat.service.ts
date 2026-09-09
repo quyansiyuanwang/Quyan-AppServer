@@ -27,14 +27,15 @@ import {
   type RelayConfiguredRequestFormat,
   type RelayRequestFormat,
   supportsRelayRequestFormat,
-} from "@/util/relay-model-availability.util";
+} from "@/util/relay";
 import { UsageChargeService } from "@/services/billing/usage-charge.service";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
 import { RelayProxyService, type RelayAttemptPlan } from "@/services/relay/relay-proxy.service";
 import { randomUUID } from "crypto";
-import { shouldRetryRelayUpstreamFailure } from "@/util/relay-failover-status-rule.util";
+import { shouldRetryRelayUpstreamFailure } from "@/util/relay";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
 import { ContentSafetyBlockedError } from "@/util/errors";
+import { RelayChannelHealthService } from "@/services/relay/relay-channel-health.service";
 
 interface ChatRequestMeta {
   path?: string;
@@ -67,6 +68,7 @@ export class ChatService {
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayProxyService: RelayProxyService = RelayProxyService.getInstance(),
     private readonly contentSafetyService: ContentSafetyService = ContentSafetyService.getInstance(),
+    private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -181,6 +183,37 @@ export class ChatService {
     if (signal?.aborted) return true;
     const candidate = error as { code?: string; name?: string } | undefined;
     return candidate?.code === "ERR_CANCELED" || candidate?.name === "AbortError";
+  }
+
+  private async recordChannelAttempt(
+    relayTokenId: string,
+    candidate: ChatRouteCandidate,
+    success: boolean,
+    requestId: string,
+    latencyMs?: number,
+  ): Promise<void> {
+    try {
+      await this.relayTokenRepository.updateChannelConfigUsage({
+        relayTokenId,
+        channelId: candidate.channel.id,
+        success,
+      });
+    } catch {
+      // Channel statistics must not change the request outcome.
+    }
+    const trackingMode =
+      (candidate.channel.routingConfig as { healthTrackingMode?: string } | null | undefined)?.healthTrackingMode ??
+      "automatic";
+    if (trackingMode !== "automatic") return;
+    void this.relayChannelHealthService
+      .recordAttempt({
+        channelId: candidate.channel.id,
+        requestId,
+        success,
+        latencyMs,
+        statusCode: 200,
+      })
+      .catch(() => undefined);
   }
 
   private toStreamMessage(message: PrismaMessage): ChatStreamMessage {
@@ -379,7 +412,7 @@ export class ChatService {
               streamRequestFormat,
             );
         for await (const chunk of stream) {
-          if (!chunk.done && chunk.content) {
+          if (!chunk.done && typeof chunk.content === "string" && chunk.content.trim()) {
             if (!firstChunkAt) firstChunkAt = Date.now();
             const responseSafety = await this.contentSafetyService.evaluateLocal("response", chunk.content, {
               userId,
@@ -414,7 +447,9 @@ export class ChatService {
         }
         if (!firstChunkAt) {
           lastError = new BadRequestError("Upstream completed without a visible response");
-          effectiveCandidate = null;
+          await this.recordChannelAttempt(token.id, candidate, false, usageRequestId);
+          effectiveCandidate = attemptIndex === attemptCandidates.length - 1 ? candidate : null;
+          failed = attemptIndex === attemptCandidates.length - 1;
           if (attemptIndex < attemptCandidates.length - 1) continue;
         }
         if (auditResponse && bufferedAuditedResponse) {
@@ -444,6 +479,8 @@ export class ChatService {
         }
         totalOutputTime = Math.max(0, totalOutputTime - auditDurationMs);
         timeToFirstByte = Math.max(0, timeToFirstByte - auditDurationMs);
+        if (firstChunkAt)
+          await this.recordChannelAttempt(token.id, candidate, true, usageRequestId, firstChunkAt - streamStartAt);
         break;
       } catch (error) {
         if (this.isAborted(error, requestMeta?.signal)) {
@@ -452,9 +489,11 @@ export class ChatService {
         }
         lastError = error;
         if (firstChunkAt) {
+          await this.recordChannelAttempt(token.id, candidate, false, usageRequestId, firstChunkAt - streamStartAt);
           failed = true;
           break;
         }
+        await this.recordChannelAttempt(token.id, candidate, false, usageRequestId);
         effectiveCandidate = null;
         const response = (error as { response?: { status?: unknown; data?: unknown } })?.response;
         const statusCode = response?.status;

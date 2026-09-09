@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
-import { extractRelayToken } from "@/util/relay-auth";
+import { extractRelayToken } from "@/util/relay";
 
 export async function streamingMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.path.startsWith("/relay/proxy/")) return next();

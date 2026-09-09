@@ -2,7 +2,7 @@ import axios from "axios";
 import https from "https";
 import http from "http";
 import { extractTokenUsageMetrics, normalizeTokenBreakdown } from "@/util/token-usage.util";
-import type { RelayRequestFormat } from "@/util/relay-model-availability.util";
+import type { RelayRequestFormat } from "@/util/relay";
 import { getLogger, LogCategory } from "@/util/logger";
 
 const logger = getLogger("AIProvider", LogCategory.BUSINESS);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ALL_PERMISSIONS, Permission } from "@/constant/permission";
 
 const usernameRegex = /^[a-zA-Z0-9_-]+$/;
 
@@ -20,7 +21,9 @@ export const updateGroupBodySchema = z.object({
 });
 
 export const setGroupPermissionsBodySchema = z.object({
-  permissions: z.array(z.string().trim().min(1)).max(200),
+  // Keep the request contract in sync with the single shared permission source.
+  // New permissions therefore do not require another hard-coded array limit.
+  permissions: z.array(z.nativeEnum(Permission)).min(1).max(ALL_PERMISSIONS.length),
 });
 
 export const groupListQuerySchema = z.object({
