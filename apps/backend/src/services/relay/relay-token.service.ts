@@ -1463,6 +1463,9 @@ export class RelayTokenService {
               token.failoverConfig.maxAcceptedChannelMultiplier == null
                 ? null
                 : Number(token.failoverConfig.maxAcceptedChannelMultiplier),
+            minCacheHitRate:
+              token.failoverConfig.minCacheHitRate == null ? null : Number(token.failoverConfig.minCacheHitRate),
+            cacheHitRateMinSamples: Math.max(1, Number(token.failoverConfig.cacheHitRateMinSamples ?? 3)),
           }
         : undefined,
     };
@@ -1496,6 +1499,9 @@ export class RelayTokenService {
               token.failoverConfig.maxAcceptedChannelMultiplier == null
                 ? null
                 : Number(token.failoverConfig.maxAcceptedChannelMultiplier),
+            minCacheHitRate:
+              token.failoverConfig.minCacheHitRate == null ? null : Number(token.failoverConfig.minCacheHitRate),
+            cacheHitRateMinSamples: Math.max(1, Number(token.failoverConfig.cacheHitRateMinSamples ?? 3)),
           }
         : undefined,
       quotaLimit: token.quotaLimit != null ? Number(token.quotaLimit) : undefined,

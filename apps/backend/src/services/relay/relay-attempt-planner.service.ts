@@ -28,6 +28,12 @@ export interface RelayAttemptPlannerHost {
   getFailoverRuntimeConfig(token: RelayTokenAvailabilityInput): RelayFailoverRuntimeConfig;
   getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): RelayFailoverRuntimeConfig;
   isPriceFirstAutomaticPool(channel: RelayChannel | undefined): boolean;
+  filterChannelsByCacheHitRate(
+    relayToken: RelayTokenAvailabilityInput,
+    channels: RelayResolvedChannelCandidate[],
+    minCacheHitRate: number | null | undefined,
+    minSamples: number,
+  ): Promise<RelayResolvedChannelCandidate[]>;
 }
 
 export interface BuildAttemptPlanParams {
@@ -59,27 +65,39 @@ export class RelayAttemptPlannerService {
         )
       : resolvedChannels;
     const tokenFailoverConfig = this.host.getFailoverRuntimeConfig(relayToken);
+    const cacheFilteredChannels = await this.host.filterChannelsByCacheHitRate(
+      relayToken,
+      channels,
+      tokenFailoverConfig.minCacheHitRate,
+      tokenFailoverConfig.cacheHitRateMinSamples,
+    );
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : undefined;
     if (singleTopLevelChannel?.channelType === "automatic-proxy-pool") {
       return {
-        channels,
+        channels: cacheFilteredChannels,
         failoverConfig: {
           ...this.host.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
           ...(tokenFailoverConfig.maxAcceptedChannelMultiplier == null
             ? {}
             : { maxAcceptedChannelMultiplier: tokenFailoverConfig.maxAcceptedChannelMultiplier }),
+          ...(tokenFailoverConfig.minCacheHitRate == null
+            ? {}
+            : {
+                minCacheHitRate: tokenFailoverConfig.minCacheHitRate,
+                cacheHitRateMinSamples: tokenFailoverConfig.cacheHitRateMinSamples,
+              }),
         },
         allowStickyFailover: !this.host.isPriceFirstAutomaticPool(singleTopLevelChannel),
       };
     }
     if (tokenFailoverConfig.enabled || !singleTopLevelChannel || singleTopLevelChannel.channelType !== "pooled")
       return {
-        channels,
+        channels: cacheFilteredChannels,
         failoverConfig: tokenFailoverConfig,
         allowStickyFailover: !this.host.isPriceFirstAutomaticPool(singleTopLevelChannel),
       };
     return {
-      channels,
+      channels: cacheFilteredChannels,
       failoverConfig: this.host.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
       allowStickyFailover: !this.host.isPriceFirstAutomaticPool(singleTopLevelChannel),
     };

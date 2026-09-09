@@ -49,6 +49,15 @@ export interface RelayTokenUsageAggregate {
   lastUsedAt?: Date;
 }
 
+export interface RelayChannelCacheHitRate {
+  channelId: string;
+  sampleCount: number;
+  requestTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  hitRate: number;
+}
+
 export type RelayUsageWithAmounts = RelayUsage & {
   chargedAmount: number;
   coveredAmount: number;
@@ -69,6 +78,11 @@ export interface RelayUsageStore {
     startDate?: Date,
     endDate?: Date,
   ): Promise<RelayTokenUsageAggregate[]>;
+  aggregateChannelCacheHitRates(
+    relayTokenId: string,
+    channelIds: string[],
+    since?: Date,
+  ): Promise<RelayChannelCacheHitRate[]>;
   findUsageDetailPageByRelayTokenId(
     relayTokenId: string,
     startDate?: Date,

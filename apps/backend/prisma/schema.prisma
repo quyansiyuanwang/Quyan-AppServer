@@ -1511,6 +1511,8 @@ model RelayTokenFailoverConfig {
   failoverThreshold            Int      @default(0)
   failbackCooldownMinutes      Int      @default(0)
   maxAcceptedChannelMultiplier Decimal? @db.Decimal(10, 6)
+  minCacheHitRate              Decimal? @db.Decimal(5, 4)
+  cacheHitRateMinSamples       Int      @default(3)
   createTime                   DateTime @default(now())
   updateTime                   DateTime @updatedAt
 

@@ -220,6 +220,10 @@ export interface RelayTokenFailoverConfigDto {
   failbackCooldownMinutes: number;
   /** 自动代理池允许选择的最高执行渠道基础倍率；不传或为 null 表示不限 */
   maxAcceptedChannelMultiplier?: number | null;
+  /** 渠道历史缓存命中率低于此值时跳过该渠道；0~1，未设置表示关闭 */
+  minCacheHitRate?: number | null;
+  /** 计算缓存命中率所需的最少历史请求数 */
+  cacheHitRateMinSamples?: number;
 }
 
 export interface RelayTokenChannelConfigDto {

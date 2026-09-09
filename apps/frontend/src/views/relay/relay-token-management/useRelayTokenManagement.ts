@@ -46,6 +46,8 @@ export type EditableFailoverConfig = {
   failoverThreshold: number
   failbackCooldownMinutes: number
   maxAcceptedChannelMultiplier: number | null
+  minCacheHitRate: number | null
+  cacheHitRateMinSamples: number
 }
 
 export type ChannelOption = {
@@ -266,6 +268,8 @@ const createDefaultFailoverConfig = (): EditableFailoverConfig => ({
   failoverThreshold: 0,
   failbackCooldownMinutes: 0,
   maxAcceptedChannelMultiplier: null,
+  minCacheHitRate: null,
+  cacheHitRateMinSamples: 3,
 })
 
 let channelConfigKeySeed = 0
@@ -1278,6 +1282,8 @@ export const useRelayTokenManagement = () => {
             enabled: Boolean(token.failoverConfig.enabled),
             maxRetries: token.failoverConfig.maxRetries ?? 0,
             retryStatusCodes: token.failoverConfig.retryStatusCodes || [],
+            minCacheHitRate: token.failoverConfig.minCacheHitRate ?? null,
+            cacheHitRateMinSamples: token.failoverConfig.cacheHitRateMinSamples ?? 3,
             failoverThreshold: token.failoverConfig.failoverThreshold ?? 0,
             failbackCooldownMinutes: token.failoverConfig.failbackCooldownMinutes ?? 0,
             maxAcceptedChannelMultiplier: token.failoverConfig.maxAcceptedChannelMultiplier ?? null,
@@ -1709,6 +1715,8 @@ export const useRelayTokenManagement = () => {
           : [...DEFAULT_RETRY_STATUS_CODES],
         failoverThreshold: row.failoverConfig?.failoverThreshold ?? 0,
         failbackCooldownMinutes: row.failoverConfig?.failbackCooldownMinutes ?? 0,
+        minCacheHitRate: row.failoverConfig?.minCacheHitRate ?? null,
+        cacheHitRateMinSamples: row.failoverConfig?.cacheHitRateMinSamples ?? 3,
         maxAcceptedChannelMultiplier: row.failoverConfig?.maxAcceptedChannelMultiplier ?? null,
       },
       modelMapping: (row.modelMapping as Record<string, string>) || {},
@@ -2129,6 +2137,8 @@ export const useRelayTokenManagement = () => {
         enabled: editForm.value.failoverConfig.enabled,
         maxRetries: editForm.value.failoverConfig.maxRetries,
         retryStatusCodes: normalizeRetryStatusCodes(editForm.value.failoverConfig.retryStatusCodes),
+        minCacheHitRate: editForm.value.failoverConfig.minCacheHitRate,
+        cacheHitRateMinSamples: editForm.value.failoverConfig.cacheHitRateMinSamples,
         failoverThreshold: editForm.value.failoverConfig.failoverThreshold,
         failbackCooldownMinutes: editForm.value.failoverConfig.failbackCooldownMinutes,
         maxAcceptedChannelMultiplier:

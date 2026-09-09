@@ -3866,6 +3866,8 @@ const emoji: DeepStringify<typeof en> = {
     maxAcceptedChannelMultiplierHelp: '🤖 📡；⬆️ ❌ ➜ 🛑；📡 = ♾️',
     failoverThreshold: '🔁 ⚡',
     failoverThresholdHelp: '1️⃣ 📡 ❌ 🧮 ➜ 🔀',
+    minCacheHitRate: '💾 🎯 📉',
+    cacheHitRateMinSamples: '💾 🎯 🔢',
     failbackCooldownMinutes: '↩️ ⏱️ (⚠️)',
     failbackCooldownMinutesHelp: '🔀 ⚠️ 📡 ⚠️，⚠️ 📡 ⚠️；⚠️ 📡。0️⃣ = ⚠️。',
     failbackCooldownCompact: '⏱️ {minutes}⚠️',
