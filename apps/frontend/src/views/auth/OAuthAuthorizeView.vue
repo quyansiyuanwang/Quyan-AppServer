@@ -429,6 +429,8 @@ const highRiskScopes = computed(
   display: flex;
   flex-direction: column;
   gap: 20px;
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
 }
 
 .oauth-authorize-header {
@@ -603,6 +605,11 @@ const highRiskScopes = computed(
   justify-content: flex-end;
   gap: 12px;
   margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  padding-top: 16px;
+  background: color-mix(in srgb, var(--el-fill-color-blank) 88%, var(--el-color-primary) 12%);
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .oauth-authorize-risk-list {
