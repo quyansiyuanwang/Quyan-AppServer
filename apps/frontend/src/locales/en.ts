@@ -676,6 +676,7 @@ export default {
       'You have already granted these permissions. You can continue or deny the request.',
     requestedScopes: 'Requested permissions',
     newScopes: 'New permissions',
+    new: 'New',
     clientId: 'Client ID',
     redirectUri: 'Redirect URI',
     homepage: 'Homepage',
@@ -692,6 +693,10 @@ export default {
       'This app may modify account settings, security controls, or sensitive data. Continue only if you trust it.',
     unavailableScopes:
       'Some requested permissions are unavailable, so authorization cannot complete.',
+    scopeName: 'Permission Name',
+    scopeId: 'Permission ID',
+    description: 'Description',
+    category: 'Category',
   },
 
   oauthScopes: {
