@@ -1901,7 +1901,9 @@ describe("RelayProxyService failover", () => {
         }
         proxyRes.emit(
           "data",
-          Buffer.from('data: {"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}\n\n'),
+          Buffer.from(
+            'data: {"choices":[{"delta":{"content":"hello"}}]}\n\ndata: {"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}\n\n',
+          ),
         );
         proxyRes.emit("data", Buffer.from("data: [DONE]\n\n"));
         proxyRes.emit("end");

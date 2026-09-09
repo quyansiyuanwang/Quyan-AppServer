@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
-import { normalizeRelayDisplaySnapshotName } from "../src/util/relay-display-channel.util";
+import { normalizeRelayDisplaySnapshotName } from "../src/util/relay";
 
 dotenv.config({ path: ".env" });
 

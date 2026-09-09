@@ -39,7 +39,7 @@ import {
 } from "@/api/dto/relay/relay.dto";
 import { NotFoundError, BadRequestError, ForbiddenError } from "@/util/errors";
 import { resolveModelId } from "@/util/model-resolution.util";
-import { normalizeRetryStatusRules } from "@/util/relay-failover-status-rule.util";
+import { normalizeRetryStatusRules } from "@/util/relay";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";

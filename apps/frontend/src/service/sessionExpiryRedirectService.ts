@@ -54,10 +54,11 @@ export const installSessionExpiryRedirect = (): WatchStopHandle => {
 
   return watch(
     () => sessionStore.status,
-    (status, previousStatus) => {
-      if (status === 'expired' && previousStatus === 'authenticated') {
+    (status) => {
+      if (status === 'expired') {
         void redirectExpiredSession()
       }
     },
+    { immediate: true },
   )
 }

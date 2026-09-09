@@ -51,7 +51,7 @@ import { validateBody, validateParams, validateQuery } from "@/middleware/valida
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { isMonthlyPassCoverageDescription } from "@/util/monthly-pass-coverage.util";
-import { normalizeRelayDisplaySnapshotName } from "@/util/relay-display-channel.util";
+import { normalizeRelayDisplaySnapshotName } from "@/util/relay";
 import { BalanceTransferService } from "@/services/billing/balance-transfer.service";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
 

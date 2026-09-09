@@ -5,7 +5,7 @@ import { ConfigService, type CaptchaConfig, type CaptchaProvider } from "@/servi
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import { hasValidCaptchaTrustCookie, setCaptchaTrustCookie } from "@/util/captcha-trust-cookie";
-import { extractRelayToken } from "@/util/relay-auth";
+import { extractRelayToken } from "@/util/relay";
 
 const logger = getLogger("CaptchaService", LogCategory.BUSINESS);
 

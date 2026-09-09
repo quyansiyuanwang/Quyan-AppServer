@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { SystemService } from "@/services/system/system.service";
 import type { ConsumptionUsageRow } from "@/store/system/consumption-stats.store";
-import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay-display-channel.util";
+import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay";
 
 const toResolvedStartOfDay = (value: string): Date => {
   const date = new Date(value);

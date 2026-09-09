@@ -9,10 +9,10 @@ import {
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { BadRequestError } from "@/util/errors";
 import logger from "@/util/logger";
-import { parseRelayRequestFormats } from "@/util/relay-model-availability.util";
+import { parseRelayRequestFormats } from "@/util/relay";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
 import type { RelayChannelStore } from "@/store/relay/relay-channel.store";
-import { resolveEffectiveRelayPoolMembers } from "./relay-pool-members.util";
+import { resolveEffectiveRelayPoolMembers } from "./utils/relay-pool-members.util";
 
 export interface RelayPoolMemberGraph {
   memberChannelId: string;

@@ -4,6 +4,7 @@ import { AxiosHeaders, HttpStatusCode } from 'axios'
 import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
 import { clearAccessToken, clearLegacyAuthStorage, MyAxios, setAccessToken } from '@/stores/request'
+import { checkApiResult } from '@/utils/service-utils'
 
 const refreshMock = vi.fn()
 const routerPush = vi.fn()
@@ -71,6 +72,7 @@ describe('MyAxios session transport', () => {
     const axiosInstance: any = client.getAxios()
     const errorHandler = axiosInstance.interceptors.response.handlers[0]?.rejected
     axiosInstance.request = vi.fn().mockResolvedValue({ code: 0, retried: true })
+    setAccessToken('stale-access-token')
     refreshMock.mockResolvedValue('fresh-access-token')
 
     const result = await errorHandler({
@@ -85,6 +87,20 @@ describe('MyAxios session transport', () => {
         headers: expect.anything(),
       }),
     )
+  })
+
+  it('does not refresh again after the access token has already been cleared', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const errorHandler = axiosInstance.interceptors.response.handlers[0]?.rejected
+
+    await expect(
+      errorHandler({
+        response: { status: HttpStatusCode.Unauthorized, data: {} },
+        config: { url: '/v1/protected', headers: new AxiosHeaders() },
+      }),
+    ).resolves.toEqual({})
+    expect(refreshMock).not.toHaveBeenCalled()
   })
 
   it('redirects two-factor-required responses before business success handlers run', async () => {
@@ -117,6 +133,24 @@ describe('MyAxios session transport', () => {
         expect.objectContaining({
           name: 'authVerification',
           query: { purpose: 'stepup', method: 'code' },
+        }),
+      ),
+    )
+  })
+
+  it('opens the verification page when a service checks a non-Axios 2FA result', async () => {
+    const result = {
+      code: '1018',
+      message: '当前操作需要二次验证',
+      data: { challengeToken: 'service-challenge', purpose: 'stepup', method: 'email' },
+    }
+
+    expect(checkApiResult(result)).toBe(result)
+    await vi.waitFor(() =>
+      expect(routerPush).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'authVerification',
+          query: { purpose: 'stepup', method: 'email' },
         }),
       ),
     )

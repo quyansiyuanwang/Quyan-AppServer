@@ -10,7 +10,7 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock("@/config/database", () => ({ prisma: prismaMock }));
 
 import { ConsumptionStatsRepository } from "@/store/system/consumption-stats.repository";
-import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay-display-channel.util";
+import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay";
 
 const now = new Date("2026-07-20T08:00:00.000Z");
 

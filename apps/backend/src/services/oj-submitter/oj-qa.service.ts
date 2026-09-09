@@ -10,7 +10,7 @@ import type { OJModelPricingStore } from "@/store/oj-submitter/oj-model-pricing.
 import type { OJUsageStore } from "@/store/oj-submitter/oj-usage.store";
 import { TOKEN_PRICE_DIVISOR } from "@/constant/pricing";
 import { RelayPoolResolverService } from "@/services/relay/relay-pool-resolver.service";
-import { parseRelayChannelAllowedModelNames, supportsRelayRequestFormat } from "@/util/relay-model-availability.util";
+import { parseRelayChannelAllowedModelNames, supportsRelayRequestFormat } from "@/util/relay";
 import type { RelayChannel } from "@prisma/client";
 
 export class OJQAService {
