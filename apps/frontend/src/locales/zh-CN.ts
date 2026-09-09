@@ -641,6 +641,7 @@ const zhCN: DeepStringify<typeof en> = {
     alreadyAuthorized: '您之前已授予这些权限。您可以继续或拒绝本次请求。',
     requestedScopes: '申请的权限',
     newScopes: '新增权限',
+    new: '新',
     clientId: '客户端 ID',
     redirectUri: '回调地址',
     homepage: '主页',
@@ -655,6 +656,10 @@ const zhCN: DeepStringify<typeof en> = {
     unavailable: '不可用',
     highRiskWarning: '此应用请求的权限可能修改账户、安全设置或敏感数据，请确认应用来源可信。',
     unavailableScopes: '部分权限当前不可用，无法完成授权。',
+    scopeName: '权限名称',
+    scopeId: '权限标识',
+    description: '说明',
+    category: '分类',
   },
 
   oauthScopes: {

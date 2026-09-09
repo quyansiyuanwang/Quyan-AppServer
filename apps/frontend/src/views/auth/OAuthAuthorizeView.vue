@@ -102,85 +102,111 @@
             </section>
 
             <section class="oauth-panel oauth-panel--scopes">
-              <div class="oauth-authorize-summary-grid">
-                <div class="oauth-authorize-summary-item">
-                  <span>{{ i18ns.t('oauthAuthorize.requestedScopes') }}</span>
-                  <strong>{{ preview.requestedScopes.length }}</strong>
-                </div>
-                <div class="oauth-authorize-summary-item">
-                  <span>{{ i18ns.t('oauthAuthorize.newScopes') }}</span>
-                  <strong>{{ preview.missingScopes.length }}</strong>
-                </div>
-              </div>
-
-              <div class="oauth-authorize-section oauth-authorize-section--compact">
-                <h3>{{ i18ns.t('oauthAuthorize.requestedScopes') }}</h3>
-                <div class="oauth-authorize-scope-groups">
-                  <div
-                    v-for="group in scopeGroups"
-                    :key="group.category"
-                    class="oauth-authorize-scope-group"
-                  >
-                    <h4>{{ localizeCategory(group.details[0]) }}</h4>
-                    <div class="oauth-authorize-scope-list">
-                      <div
-                        v-for="detail in group.details"
-                        :key="detail.scope"
-                        class="oauth-authorize-scope-item"
-                        :class="{ 'is-unavailable': !detail.grantable }"
-                      >
-                        <div class="oauth-authorize-scope-item__header">
-                          <strong>{{ localizeScope(detail) }}</strong>
-                          <el-tag v-if="detail.riskLevel === 'high'" type="warning" size="small">
-                            {{ i18ns.t('oauthAuthorize.highRisk') }}
-                          </el-tag>
-                          <el-tag v-if="!detail.grantable" type="danger" size="small">
-                            {{ i18ns.t('oauthAuthorize.unavailable') }}
-                          </el-tag>
-                        </div>
-                        <code>{{ detail.scope }}</code>
-                        <p>{{ localizeScope(detail, true) }}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                v-if="preview.missingScopes.length"
-                class="oauth-authorize-section oauth-authorize-section--compact"
-              >
-                <h3>{{ i18ns.t('oauthAuthorize.newScopes') }}</h3>
-                <div class="oauth-authorize-tags">
+              <div class="oauth-authorize-section-header">
+                <h3>
+                  {{ i18ns.t('oauthAuthorize.requestedScopes') }}
+                  <el-tag size="small" style="margin-left: 8px">{{
+                    preview.requestedScopes.length
+                  }}</el-tag>
                   <el-tag
-                    v-for="scope in preview.missingScopes"
-                    :key="scope"
+                    v-if="preview.missingScopes.length"
                     type="warning"
-                    effect="light"
-                    class="oauth-authorize-tag"
+                    size="small"
+                    style="margin-left: 4px"
                   >
-                    {{
-                      localizeScope(preview.scopeDetails.find((detail) => detail.scope === scope)!)
-                    }}
+                    {{ preview.missingScopes.length }} {{ i18ns.t('oauthAuthorize.new') }}
                   </el-tag>
-                </div>
+                </h3>
               </div>
 
-              <el-alert v-if="highRiskScopes.length" type="warning" :closable="false" show-icon>
-                <div>{{ i18ns.t('oauthAuthorize.highRiskWarning') }}</div>
-                <ul class="oauth-authorize-risk-list">
-                  <li v-for="detail in highRiskScopes" :key="detail.scope">
-                    {{ localizeScope(detail) }} (<code>{{ detail.scope }}</code
-                    >)
-                  </li>
-                </ul>
+              <el-alert
+                v-if="highRiskScopes.length"
+                type="warning"
+                :closable="false"
+                show-icon
+                style="margin-bottom: 12px"
+              >
+                {{ i18ns.t('oauthAuthorize.highRiskWarning') }}
               </el-alert>
+
+              <el-table
+                :data="preview.scopeDetails"
+                stripe
+                size="small"
+                :max-height="isDesktop ? 380 : 280"
+                style="width: 100%"
+                class="oauth-scope-table"
+              >
+                <el-table-column
+                  :label="i18ns.t('oauthAuthorize.scopeName')"
+                  min-width="160"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">
+                    <div class="scope-name-cell">
+                      <strong>{{ localizeScope(row) }}</strong>
+                      <el-tag
+                        v-if="row.riskLevel === 'high'"
+                        type="warning"
+                        size="small"
+                        style="margin-left: 4px"
+                      >
+                        {{ i18ns.t('oauthAuthorize.highRisk') }}
+                      </el-tag>
+                      <el-tag
+                        v-if="!row.grantable"
+                        type="danger"
+                        size="small"
+                        style="margin-left: 4px"
+                      >
+                        {{ i18ns.t('oauthAuthorize.unavailable') }}
+                      </el-tag>
+                      <el-tag
+                        v-if="preview.missingScopes.includes(row.scope)"
+                        type="warning"
+                        effect="plain"
+                        size="small"
+                        style="margin-left: 4px"
+                      >
+                        {{ i18ns.t('oauthAuthorize.new') }}
+                      </el-tag>
+                    </div>
+                  </template>
+                </el-table-column>
+
+                <el-table-column
+                  :label="i18ns.t('oauthAuthorize.scopeId')"
+                  width="180"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">
+                    <code class="scope-code">{{ row.scope }}</code>
+                  </template>
+                </el-table-column>
+
+                <el-table-column
+                  :label="i18ns.t('oauthAuthorize.description')"
+                  min-width="200"
+                  show-overflow-tooltip
+                >
+                  <template #default="{ row }">
+                    <span class="scope-description">{{ localizeScope(row, true) }}</span>
+                  </template>
+                </el-table-column>
+
+                <el-table-column :label="i18ns.t('oauthAuthorize.category')" width="120">
+                  <template #default="{ row }">
+                    {{ localizeCategory(row) }}
+                  </template>
+                </el-table-column>
+              </el-table>
 
               <el-alert
                 v-if="preview.unavailableScopes.length"
                 type="error"
                 :closable="false"
                 show-icon
+                style="margin-top: 12px"
               >
                 {{ i18ns.t('oauthAuthorize.unavailableScopes') }}
               </el-alert>
@@ -353,17 +379,6 @@ const localizeCategory = (detail?: OAuthAuthorizationPreview['scopeDetails'][num
   return i18ns.t(`oauthScopes.categories.${detail.category}` as never)
 }
 
-const scopeGroups = computed(() => {
-  if (!preview.value) return []
-  const groups = new Map<string, OAuthAuthorizationPreview['scopeDetails']>()
-  for (const detail of preview.value.scopeDetails) {
-    const details = groups.get(detail.category) ?? []
-    details.push(detail)
-    groups.set(detail.category, details)
-  }
-  return [...groups.entries()].map(([category, details]) => ({ category, details }))
-})
-
 const highRiskScopes = computed(
   () => preview.value?.scopeDetails.filter((detail) => detail.riskLevel === 'high') ?? [],
 )
@@ -428,9 +443,40 @@ const highRiskScopes = computed(
 .oauth-panel--scopes {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-height: calc(100vh - 240px);
-  overflow-y: auto;
+  gap: 12px;
+}
+
+.oauth-authorize-section-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.oauth-scope-table {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.scope-name-cell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scope-code {
+  font-size: 12px;
+  color: var(--el-color-primary);
+  background: rgb(from var(--el-color-primary) r g b / 8%);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.scope-description {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
 }
 
 .oauth-authorize-header {
@@ -508,113 +554,58 @@ const highRiskScopes = computed(
   margin-top: 22px;
 }
 
-.oauth-authorize-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.oauth-authorize-summary-item {
-  padding: 18px;
-  border-radius: 20px;
-  background: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color-lighter);
-}
-
-.oauth-authorize-summary-item span {
-  display: block;
-  color: var(--el-text-color-secondary);
-  font-size: 0.92rem;
-}
-
-.oauth-authorize-summary-item strong {
-  display: block;
-  margin-top: 10px;
-  font-size: 1.85rem;
-  line-height: 1;
-}
-
-.oauth-authorize-section {
+.oauth-authorize-actions {
   display: flex;
-  flex-direction: column;
+  justify-content: flex-end;
   gap: 12px;
-}
-
-.oauth-authorize-section--compact h3 {
-  margin: 0;
-  font-size: 1rem;
-}
-
-.oauth-authorize-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.oauth-authorize-tag {
-  margin: 0;
-  padding-inline: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
 
 .oauth-authorize-meta-card {
-  margin-top: 22px;
+  margin-top: 16px;
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .oauth-authorize-meta-item {
-  padding: 16px 18px;
-  border-radius: 18px;
+  padding: 12px 14px;
+  border-radius: 12px;
   background: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);
 }
 
 .oauth-authorize-meta-item span {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: var(--el-text-color-secondary);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
 }
 
 .oauth-authorize-meta-item strong {
   display: block;
   font-weight: 600;
-  line-height: 1.55;
+  font-size: 0.92rem;
+  line-height: 1.5;
   word-break: break-all;
 }
 
 .oauth-authorize-links {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 22px;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .oauth-authorize-links a {
   display: inline-flex;
   align-items: center;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: 999px;
   text-decoration: none;
+  font-size: 0.9rem;
   color: var(--el-color-primary);
   background: rgb(from var(--el-color-primary) r g b / 10%);
-}
-
-.oauth-authorize-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: auto;
-  position: sticky;
-  bottom: 0;
-  padding-top: 16px;
-  background: color-mix(in srgb, var(--el-fill-color-blank) 88%, var(--el-color-primary) 12%);
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.oauth-authorize-risk-list {
-  margin: 8px 0 0;
-  padding-left: 20px;
 }
 
 .oauth-authorize-page--mobile {
