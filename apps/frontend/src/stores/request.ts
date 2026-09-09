@@ -598,7 +598,10 @@ class MyAxios {
           })
 
           // 如果是重试请求且已经重试过一次，说明这是一个 alwaysRequire 的接口
-          if (originalRequest?._twoFactorRetry && (originalRequest._twoFactorRetryCount || 0) >= 1) {
+          if (
+            originalRequest?._twoFactorRetry &&
+            (originalRequest._twoFactorRetryCount || 0) >= 1
+          ) {
             console.warn(
               '[2FA Error] Retry request still requires 2FA after verification - this is an alwaysRequire endpoint',
             )

@@ -124,6 +124,12 @@ import {
 } from "@/util/anthropic-token-normalizer.util";
 import { applyRelayTokenV1PathMode } from "@/util/relay-token-path.util";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
+import {
+  hasVisibleStreamEvent,
+  hasVisibleStreamOutput,
+  RelayStreamPreflightBuffer,
+  STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+} from "@/util/relay-stream-output.util";
 
 const PREFIX = "/relay/proxy";
 
@@ -165,45 +171,6 @@ interface StreamForwardResult {
   timeToFirstByte?: number;
   clientDisconnected?: boolean;
 }
-
-const STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES = 256 * 1024;
-
-const hasVisibleText = (value: unknown): boolean => {
-  if (typeof value === "string") return value.trim().length > 0;
-  if (Array.isArray(value)) return value.some((item) => hasVisibleText(item));
-  if (!value || typeof value !== "object") return false;
-  const record = value as Record<string, unknown>;
-  return [record.text, record.content, record.delta, record.output_text].some((item) => hasVisibleText(item));
-};
-
-const hasVisibleStreamEvent = (value: unknown, requestFormat: RelayRequestFormat): boolean => {
-  if (!value || typeof value !== "object") return false;
-  const record = value as Record<string, any>;
-
-  if (requestFormat === "anthropic") {
-    if (["content_block_delta", "content_block_start"].includes(String(record.type)))
-      return hasVisibleText(record.delta) || hasVisibleText(record.content_block);
-    return false;
-  }
-
-  if (requestFormat === "gemini") {
-    return Array.isArray(record.candidates)
-      ? record.candidates.some((candidate: any) => hasVisibleText(candidate?.content?.parts))
-      : false;
-  }
-
-  if (Array.isArray(record.choices))
-    return record.choices.some(
-      (choice: any) => hasVisibleText(choice?.delta?.content) || hasVisibleText(choice?.message?.content),
-    );
-
-  if (String(record.type || "").startsWith("response.output_text."))
-    return [record.delta, record.text, record.content, record.output_text].some((item) => hasVisibleText(item));
-  if (String(record.type || "").startsWith("response.content_part."))
-    return hasVisibleText(record.part) || hasVisibleText(record.content);
-  if (String(record.type || "") === "response.completed") return false;
-  return false;
-};
 
 interface ImageForwardResult extends StreamForwardResult {
   headers?: any;
@@ -4814,25 +4781,7 @@ export class RelayProxyService {
                     throw new ContentSafetyBlockedError();
                   }
                 }
-                const rawOutput = Buffer.concat(rawChunks);
-                const hasVisibleOutput = rawOutput
-                  .toString("utf8")
-                  .split(/\r?\n/)
-                  .some((line) => {
-                    const trimmed = line.trim();
-                    const data = trimmed.startsWith("data:")
-                      ? trimmed.slice("data:".length).trim()
-                      : requestFormat === "gemini"
-                        ? trimmed
-                        : "";
-                    if (!data || data === "[DONE]") return false;
-                    try {
-                      return hasVisibleStreamEvent(JSON.parse(data), requestFormat);
-                    } catch {
-                      return false;
-                    }
-                  });
-                if (!hasVisibleOutput) {
+                if (!hasVisibleStreamOutput(Buffer.concat(rawChunks), requestFormat)) {
                   resolve({
                     handled: false,
                     success: false,
@@ -5029,31 +4978,22 @@ export class RelayProxyService {
           }
 
           // ── Success path (2xx/3xx): pipe chunks directly to the client ──
-          let responseStarted = false;
-          let hasVisibleOutput = false;
-          let preflightBytes = 0;
+          const preflight = new RelayStreamPreflightBuffer();
           let preflightRawBytes = 0;
-          const preflightChunks: Buffer[] = [];
           let settled = false;
           const sseTransform = responseTransform
             ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
             : null;
           const flushPreflight = () => {
-            if (responseStarted || !hasVisibleOutput || settled) return;
-            responseStarted = true;
-            res.writeHead(streamStatusCode, this.withRequestIdHeader(req, responseHeaders));
-            for (const pending of preflightChunks) res.write(pending);
-            preflightChunks.length = 0;
+            if (settled) return;
+            preflight.start(
+              () => res.writeHead(streamStatusCode, this.withRequestIdHeader(req, responseHeaders)),
+              (pending) => res.write(pending),
+            );
           };
           const queueOutput = (data: Buffer) => {
             if (!data.length || settled) return;
-            if (responseStarted) {
-              res.write(data);
-              return;
-            }
-            preflightChunks.push(data);
-            preflightBytes += data.length;
-            if (preflightBytes > STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES) {
+            if (!preflight.write(data, (chunk) => res.write(chunk))) {
               settled = true;
               proxyRes.destroy();
               resolve({
@@ -5085,7 +5025,7 @@ export class RelayProxyService {
               try {
                 const json = JSON.parse(data);
                 if (hasVisibleStreamEvent(json, requestFormat)) {
-                  hasVisibleOutput = true;
+                  preflight.markVisible();
                   flushPreflight();
                 }
                 applyUsage(json.message?.usage);
@@ -5102,7 +5042,7 @@ export class RelayProxyService {
               try {
                 const json = JSON.parse(trimmedLine);
                 if (hasVisibleStreamEvent(json, requestFormat)) {
-                  hasVisibleOutput = true;
+                  preflight.markVisible();
                   flushPreflight();
                 }
                 applyUsage(json.usageMetadata);
@@ -5157,7 +5097,11 @@ export class RelayProxyService {
                   if (sseTransform) sseTransform.write(outputChunk);
                   else queueOutput(outputChunk);
                 }
-                if (!hasVisibleOutput && preflightRawBytes > STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES && !settled) {
+                if (
+                  !preflight.hasVisibleOutput &&
+                  preflightRawBytes > STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES &&
+                  !settled
+                ) {
                   settled = true;
                   proxyRes.destroy();
                   resolve({
@@ -5268,7 +5212,7 @@ export class RelayProxyService {
               });
               return;
             }
-            if (!hasVisibleOutput && !settled) {
+            if (!preflight.hasVisibleOutput && !settled) {
               settled = true;
               resolve({
                 handled: false,
@@ -5280,7 +5224,7 @@ export class RelayProxyService {
               return;
             }
 
-            if (!responseStarted && hasVisibleOutput) flushPreflight();
+            if (!preflight.isStarted && preflight.hasVisibleOutput) flushPreflight();
 
             // Only end response if client is still connected
             if (!res.writableEnded && !clientDisconnected) {
