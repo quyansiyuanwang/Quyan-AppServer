@@ -93,16 +93,19 @@ pub(crate) async fn begin_browser_login(
         .with_context(|| {
             format!("failed to bind OAuth callback on {OAUTH_CALLBACK_HOST}:{OAUTH_CALLBACK_PORT}")
         })?;
+    tracing::debug!("OAuth callback listener bound on {OAUTH_CALLBACK_HOST}:{OAUTH_CALLBACK_PORT}");
     let state = Uuid::new_v4().to_string();
     let verifier = format!("{}{}", Uuid::new_v4(), Uuid::new_v4());
     let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
     let redirect_uri = oauth_redirect_uri();
     let url = build_browser_authorization_url(auth_base, &redirect_uri, &state, &challenge)?;
+    tracing::debug!("Opening browser for OAuth: {}", url);
 
     // Some Windows launchers keep the parent process attached to the browser
     // process. A detached launch keeps the TUI responsive while the callback
     // listener waits for the authorization result.
     open::that_detached(url.as_str())?;
+    tracing::debug!("Browser opened, listener ready for callback");
     Ok(BrowserLoginSession {
         listener,
         state,
@@ -171,10 +174,16 @@ pub(crate) fn oauth_redirect_uri() -> String {
 }
 
 async fn wait_for_oauth_callback(listener: TcpListener, expected_state: &str) -> Result<String> {
-    let (mut stream, _) = listener.accept().await?;
+    tracing::debug!("Waiting for OAuth callback connection...");
+    let (mut stream, addr) = listener.accept().await?;
+    tracing::debug!("OAuth callback connection received from {}", addr);
     let mut request = [0u8; 4096];
     let size = stream.read(&mut request).await?;
     let first = String::from_utf8_lossy(&request[..size]);
+    tracing::debug!(
+        "OAuth callback request: {}",
+        first.lines().next().unwrap_or("")
+    );
     let target = first
         .split_whitespace()
         .nth(1)
@@ -183,6 +192,7 @@ async fn wait_for_oauth_callback(listener: TcpListener, expected_state: &str) ->
         &format!("http://{OAUTH_CALLBACK_HOST}{target}"),
         expected_state,
     )?;
+    tracing::debug!("OAuth code extracted successfully");
     stream
         .write_all(b"HTTP/1.1 200 OK\r\n\r\nQuyan login complete.")
         .await?;
@@ -206,7 +216,10 @@ fn build_browser_authorization_url(
     state: &str,
     code_challenge: &str,
 ) -> Result<Url> {
-    let mut url = Url::parse(&format!("{}/", auth_base.trim_end_matches('/')))?;
+    let mut url = Url::parse(&format!(
+        "{}/oauth/authorize",
+        auth_base.trim_end_matches('/')
+    ))?;
     url.query_pairs_mut()
         .append_pair("response_type", "code")
         .append_pair("client_id", CLI_CLIENT_ID)
