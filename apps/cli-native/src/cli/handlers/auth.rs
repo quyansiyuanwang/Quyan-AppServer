@@ -206,10 +206,7 @@ fn build_browser_authorization_url(
     state: &str,
     code_challenge: &str,
 ) -> Result<Url> {
-    let mut url = Url::parse(&format!(
-        "{}/oauth/authorize",
-        auth_base.trim_end_matches('/')
-    ))?;
+    let mut url = Url::parse(&format!("{}/", auth_base.trim_end_matches('/')))?;
     url.query_pairs_mut()
         .append_pair("response_type", "code")
         .append_pair("client_id", CLI_CLIENT_ID)

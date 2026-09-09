@@ -18,6 +18,12 @@ type IdleWindow = Window & {
 const isAuthEntryRoute = (to: RouteLocationNormalized): boolean =>
   to.matched.some((record) => record.meta.isAuthEntry === true)
 
+const isRootOAuthEntry = (to: RouteLocationNormalized): boolean =>
+  to.path === '/' &&
+  to.query.response_type === 'code' &&
+  typeof to.query.client_id === 'string' &&
+  typeof to.query.redirect_uri === 'string'
+
 const scheduleAnalyticsTrack = (task: () => void) => {
   const scheduleTask = () => {
     const idleWindow = window as IdleWindow
@@ -119,6 +125,15 @@ const validateProtectedNavigationInBackground = (
 function installNavigationGuards(router: ReturnType<typeof createRouter>, profile: SiteProfile) {
   // 全局路由守卫：检查认证状态
   router.beforeEach(async (to, from, next) => {
+    // Static hosts do not always rewrite deep links to index.html. The CLI
+    // therefore starts OAuth at the identity site's root (which is always a
+    // real file), and the SPA promotes the preserved query to its canonical
+    // authorization route after boot.
+    if (profile.id === 'identity' && isRootOAuthEntry(to)) {
+      next({ name: 'oauthAuthorize', query: to.query, replace: true })
+      return
+    }
+
     const requestedUrl = new URL(to.fullPath, profile.canonicalOrigin)
     const migrationUrl = resolveRouteMigrationUrl(
       to.path,

@@ -218,6 +218,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { getAccessToken } from '@/stores/request'
+import { CustomCode } from '@/constant/custom-code'
 import {
   OAuthAuthorizationFrontendService,
   type OAuthAuthorizeQuery,
@@ -273,6 +275,20 @@ const loadPreview = async () => {
     const result = await oauthAuthorizationService.getPreview(authorizeQuery.value)
     preview.value = result.data
   } catch (error) {
+    // A release deployment may reject a cross-origin request before the
+    // shared interceptor can recover it. Return to the central login page
+    // instead of leaving the OAuth flow on a permanent error state.
+    const authFailure =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: unknown }).code === CustomCode.AUTH_FAILED
+        : false
+    if (!getAccessToken() || authFailure) {
+      await router.replace({
+        name: 'login',
+        query: { redirect: route.fullPath },
+      })
+      return
+    }
     ElMessage.error(i18ns.t('oauthAuthorize.loadFailed'))
     throw error
   } finally {
