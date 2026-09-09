@@ -869,6 +869,12 @@ export const routes = [
             },
           },
           {
+            path: 'billing/carpools',
+            name: 'carpoolManagement',
+            component: lazyFeatureView('relay', 'CarpoolManagementView.vue'),
+            meta: { permission: Permission.CARPOOL_ORDER_READ },
+          },
+          {
             path: 'products/remote-terminal',
             redirect: { name: 'remoteTerminalProductTemplates' },
           },
@@ -983,6 +989,16 @@ export const routes = [
                 path: 'monthly-passes',
                 name: 'myMonthlyPasses',
                 component: lazyFeatureView('relay', 'MyMonthlyPassesView.vue'),
+              },
+              {
+                path: 'carpools',
+                name: 'myCarpools',
+                component: lazyFeatureView('relay', 'CarpoolView.vue'),
+              },
+              {
+                path: 'carpools/:id',
+                name: 'carpoolDetail',
+                component: lazyFeatureView('relay', 'CarpoolDetailView.vue'),
               },
               {
                 path: 'monthly-pass-purchase',

@@ -1,14 +1,14 @@
 import { createApp, type App } from 'vue'
 import { createPinia } from 'pinia'
 import router, { currentSiteProfile, installProfileRoutes } from '@/router'
-import { isKnownSiteProfile } from '@/config/site-registry'
+import { getPublicSiteProfile, isKnownSiteProfile } from '@/config/site-registry'
 import { loadProfileApp } from '@/app-roots/load-profile-app'
 import { i18ns, initializeI18n } from '@/locales'
 import { configureAll } from '@/config'
 import { installErrorReporter, reportClientError } from '@/service/errorReportService'
 import { clearLegacyAuthStorage } from '@/stores/request'
-import { sessionCoordinator } from '@/service/sessionCoordinator'
 import { installSessionExpiryRedirect } from '@/service/sessionExpiryRedirectService'
+import { replaceDocument } from '@/service/navigationService'
 
 export type AppRuntimePhase = 'created' | 'routes-ready' | 'session-ready' | 'mounted' | 'running'
 
@@ -41,6 +41,23 @@ export class AppRuntime {
   private async startInternal(): Promise<void> {
     startupMark('start')
     clearLegacyAuthStorage()
+
+    // The bare platform domain is an alias of the public site. Resolve it
+    // before installing the rejected-host fallback, otherwise `/` renders a
+    // 404 even though the canonical `www` host has the public routes.
+    if (!isKnownSiteProfile(currentSiteProfile) && typeof window !== 'undefined') {
+      const publicProfile = getPublicSiteProfile(window.location.hostname)
+      const target = new URL(window.location.href)
+      const canonical = new URL(publicProfile.canonicalOrigin)
+      if (target.hostname !== canonical.hostname) {
+        canonical.pathname = target.pathname
+        canonical.search = target.search
+        canonical.hash = target.hash
+        replaceDocument(canonical.toString())
+        return
+      }
+    }
+
     await initializeI18n()
     startupMark('i18n-ready')
     startupMeasure('i18n', 'start', 'i18n-ready')
@@ -70,29 +87,13 @@ export class AppRuntime {
     configureAll()
     this.app = app
 
-    // Auth-entry and public routes deliberately do not probe the session cookie.
-    if (isKnownSiteProfile(currentSiteProfile) && !isAuthEntryPath()) {
-      const initialRoute = router.resolve(window.location.pathname)
-      if (initialRoute.matched.some((route) => route.meta.allowGuest !== true)) {
-        startupMark('session-restore-start')
-        const token = await sessionCoordinator.ensureSession()
-        startupMark('session-restore-ready')
-        startupMeasure('session-restore', 'session-restore-start', 'session-restore-ready')
-        if (token) {
-          startupMark('session-hydration-start')
-          await sessionCoordinator.hydrateUserAndPermissions()
-          startupMark('session-hydration-ready')
-          startupMeasure('session-hydration', 'session-hydration-start', 'session-hydration-ready')
-        }
-      }
-    }
+    // Initial session restoration deliberately happens in the route guard as
+    // background work. Do not let a slow cookie refresh, profile request, or
+    // permission catalog delay mounting the application shell.
     this.phase = 'session-ready'
 
-    // A cross-site navigation starts this site's initial route asynchronously.
-    // Mounting before it settles can render an empty RouterView until a manual
-    // refresh, most visibly after a canonical navigation in Safari. Wait for
-    // the installed profile routes and the initial guard chain before showing
-    // the shell.
+    // Route installation is local work. The guard chain must not await remote
+    // authorization so the initial shell can render immediately.
     await router.isReady()
     startupMark('router-ready')
     startupMeasure('router-ready', 'app-root-ready', 'router-ready')

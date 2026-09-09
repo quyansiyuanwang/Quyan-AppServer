@@ -5,43 +5,6 @@
       isDesktop ? 'desktop-page page-shell' : 'oauth-client-mobile mobile-page',
     ]"
   >
-    <el-card :class="['oauth-scope-reference', isDesktop ? 'page-card' : 'mobile-card']">
-      <template #header>
-        <div class="card-header">
-          <span>{{ i18ns.t('oauthClient.scopeReferenceTitle') }}</span>
-        </div>
-      </template>
-
-      <p class="text-secondary oauth-scope-reference__intro">
-        {{ i18ns.t('oauthClient.scopeReferenceDescription') }}
-      </p>
-
-      <div class="oauth-scope-reference__table-wrapper">
-        <el-table :data="scopeReferenceRows" size="small">
-          <el-table-column prop="scope" :label="i18ns.t('oauthClient.scopeColumn')" min-width="140">
-            <template #default="{ row }">
-              <code>{{ row.scope }}</code>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="description"
-            :label="i18ns.t('oauthClient.scopeDescriptionColumn')"
-            min-width="220"
-          />
-          <el-table-column
-            prop="access"
-            :label="i18ns.t('oauthClient.scopeAccessColumn')"
-            min-width="260"
-          />
-          <el-table-column
-            prop="notes"
-            :label="i18ns.t('oauthClient.scopeNotesColumn')"
-            min-width="220"
-          />
-        </el-table>
-      </div>
-    </el-card>
-
     <div v-if="isDesktop" class="oauth-client-management">
       <el-card class="page-card">
         <template #header>
@@ -231,7 +194,7 @@
       :is-editing="isEditing"
       :is-desktop="isDesktop"
       :submitting="submitting"
-      :scope-options="scopeOptions"
+      :scope-catalog="scopeCatalog"
       @add-redirect-uri="addRedirectUriRow"
       @remove-redirect-uri="removeRedirectUriRow"
       @submit="handleSubmit"
@@ -248,7 +211,7 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
 import { useI18n } from 'vue-i18n'
@@ -256,6 +219,7 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import { OAuthClientService } from '@/service/oauthClientService'
 import OAuthClientFormDialog from './components/oauth-client-management/OAuthClientFormDialog.vue'
 import OAuthClientSecretDialog from './components/oauth-client-management/OAuthClientSecretDialog.vue'
+import type { OAuthScopeOption } from '@/components/oauth/OAuthScopeTreeSelector.vue'
 import type {
   CreateOAuthClientDto,
   OAuthClientDto,
@@ -290,6 +254,7 @@ const createEmptyForm = () => ({
 })
 
 const form = ref(createEmptyForm())
+const scopeCatalog = ref<OAuthScopeOption[]>([])
 
 const getReviewStatusLabel = (status: OAuthClientReviewStatus) =>
   i18ns.t(`oauthClient.reviewStatuses.${status}`)
@@ -315,94 +280,6 @@ const getClientTypeLabel = (clientType: OAuthClientDto['clientType']) =>
     ? i18ns.t('oauthClient.type.public')
     : i18ns.t('oauthClient.type.confidential')
 
-const scopeOptions = computed(() => [
-  {
-    value: 'profile',
-    label: i18ns.t('oauthClient.scopeOptionTitles.profile'),
-    description: i18ns.t('oauthClient.scopeDescriptions.profile'),
-  },
-  {
-    value: 'email',
-    label: i18ns.t('oauthClient.scopeOptionTitles.email'),
-    description: i18ns.t('oauthClient.scopeDescriptions.email'),
-    sensitive: true,
-  },
-  {
-    value: 'notification',
-    label: i18ns.t('oauthClient.scopeOptionTitles.notification'),
-    description: i18ns.t('oauthClient.scopeDescriptions.notification'),
-  },
-  {
-    value: 'oauth_client',
-    label: i18ns.t('oauthClient.scopeOptionTitles.oauthClient'),
-    description: i18ns.t('oauthClient.scopeDescriptions.oauthClient'),
-    sensitive: true,
-  },
-  {
-    value: 'accesskey',
-    label: i18ns.t('oauthClient.scopeOptionTitles.accesskey'),
-    description: i18ns.t('oauthClient.scopeDescriptions.accesskey'),
-    sensitive: true,
-  },
-  {
-    value: 'passkey',
-    label: i18ns.t('oauthClient.scopeOptionTitles.passkey'),
-    description: i18ns.t('oauthClient.scopeDescriptions.passkey'),
-    sensitive: true,
-  },
-  {
-    value: 'two_factor',
-    label: i18ns.t('oauthClient.scopeOptionTitles.twoFactor'),
-    description: i18ns.t('oauthClient.scopeDescriptions.twoFactor'),
-    sensitive: true,
-  },
-])
-
-const scopeReferenceRows = computed(() => [
-  {
-    scope: 'profile',
-    description: i18ns.t('oauthClient.scopeDescriptions.profile'),
-    access: i18ns.t('oauthClient.scopeAccess.profile'),
-    notes: i18ns.t('oauthClient.scopeNotes.profile'),
-  },
-  {
-    scope: 'email',
-    description: i18ns.t('oauthClient.scopeDescriptions.email'),
-    access: i18ns.t('oauthClient.scopeAccess.email'),
-    notes: i18ns.t('oauthClient.scopeNotes.email'),
-  },
-  {
-    scope: 'notification',
-    description: i18ns.t('oauthClient.scopeDescriptions.notification'),
-    access: i18ns.t('oauthClient.scopeAccess.notification'),
-    notes: i18ns.t('oauthClient.scopeNotes.notification'),
-  },
-  {
-    scope: 'oauth_client',
-    description: i18ns.t('oauthClient.scopeDescriptions.oauthClient'),
-    access: i18ns.t('oauthClient.scopeAccess.oauthClient'),
-    notes: i18ns.t('oauthClient.scopeNotes.oauthClient'),
-  },
-  {
-    scope: 'accesskey',
-    description: i18ns.t('oauthClient.scopeDescriptions.accesskey'),
-    access: i18ns.t('oauthClient.scopeAccess.accesskey'),
-    notes: i18ns.t('oauthClient.scopeNotes.accesskey'),
-  },
-  {
-    scope: 'passkey',
-    description: i18ns.t('oauthClient.scopeDescriptions.passkey'),
-    access: i18ns.t('oauthClient.scopeAccess.passkey'),
-    notes: i18ns.t('oauthClient.scopeNotes.passkey'),
-  },
-  {
-    scope: 'two_factor',
-    description: i18ns.t('oauthClient.scopeDescriptions.twoFactor'),
-    access: i18ns.t('oauthClient.scopeAccess.twoFactor'),
-    notes: i18ns.t('oauthClient.scopeNotes.twoFactor'),
-  },
-])
-
 const normalizeStringArray = (value: string[]) => value.map((item) => item.trim()).filter(Boolean)
 
 const normalizeOptionalString = (value: string) => {
@@ -421,6 +298,11 @@ const loadClients = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadScopeCatalog = async () => {
+  const result = await oauthClientService.getOAuthScopes()
+  scopeCatalog.value = (result as { scopes: OAuthScopeOption[] }).scopes
 }
 
 const resetForm = () => {
@@ -587,7 +469,7 @@ const copyCreatedSecret = async () => {
 }
 
 onMounted(() => {
-  void loadClients()
+  void Promise.all([loadClients(), loadScopeCatalog()])
 })
 </script>
 

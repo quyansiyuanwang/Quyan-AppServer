@@ -9,6 +9,7 @@ import type {
   UpdateAuthCenterClientDto,
 } from '@/client/types.gen'
 import { createAuthCenterClientControllerApi } from '@/client/services/auth-center-client-controller.gen'
+import { OAuthClientService } from './oauthClientService'
 
 const getAuthCenterClientControllerApi = cache(() =>
   createAuthCenterClientControllerApi(useRequestStore().getAxios()),
@@ -29,6 +30,10 @@ export class AuthCenterClientService {
       this.instance = new AuthCenterClientService()
     }
     return this.instance
+  }
+
+  async getOAuthScopes() {
+    return OAuthClientService.getInstance().getOAuthScopes()
   }
 
   async getAuthCenterClients() {

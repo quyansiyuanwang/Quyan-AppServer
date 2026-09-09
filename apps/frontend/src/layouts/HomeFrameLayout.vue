@@ -319,21 +319,30 @@ const utilitySidebarReopenTop = ref<number | null>(null)
 const utilitySidebarReopenDragging = ref(false)
 const permissionStore = usePermissionStore()
 const userInfoStore = useUserInfoStore()
+const permissionsResolved = computed(
+  () => permissionStore.isLoaded === true || permissionStore.currentUserPermissions != null,
+)
 
 const accountName = computed(
   () => userInfoStore.userInfo.name?.trim() || userInfoStore.userInfo.username || '—',
 )
 const avatarLabel = computed(() => accountName.value.slice(0, 1).toUpperCase())
 const accountBalance = computed(() => Number(userInfoStore.userInfo.balance ?? 0).toFixed(4))
-const canUseRelayTokens = computed(() => permissionStore.hasPermission(Permission.RELAY_TOKEN_READ))
-const canUseScripts = computed(() => permissionStore.hasPermission(Permission.SCRIPT_READ))
-const canUseRam = computed(() =>
-  permissionStore.hasAnyPermission(
-    Permission.RAM_USER_READ,
-    Permission.RAM_ROLE_READ,
-    Permission.RAM_BINDING_READ,
-    Permission.RAM_SESSION_READ,
-  ),
+const canUseRelayTokens = computed(
+  () => !permissionsResolved.value || permissionStore.hasPermission(Permission.RELAY_TOKEN_READ),
+)
+const canUseScripts = computed(
+  () => !permissionsResolved.value || permissionStore.hasPermission(Permission.SCRIPT_READ),
+)
+const canUseRam = computed(
+  () =>
+    !permissionsResolved.value ||
+    permissionStore.hasAnyPermission(
+      Permission.RAM_USER_READ,
+      Permission.RAM_ROLE_READ,
+      Permission.RAM_BINDING_READ,
+      Permission.RAM_SESSION_READ,
+    ),
 )
 const hasCommonTools = computed(
   () => canUseRelayTokens.value || canUseScripts.value || canUseRam.value,

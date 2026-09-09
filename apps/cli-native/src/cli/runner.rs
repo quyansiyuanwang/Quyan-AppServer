@@ -134,7 +134,12 @@ pub async fn run() -> Result<()> {
                 if !args.json {
                     branding::print();
                 }
-                let api = ApiClient::new(creds.clone(), &cfg.locale)?;
+                let api = ApiClient::with_endpoints(
+                    creds.clone(),
+                    &cfg.locale,
+                    &cfg.api_base_url,
+                    &cfg.relay_base_url,
+                )?;
                 return dispatch_api_command(command, api, args.json).await;
             }
         }
@@ -189,7 +194,12 @@ pub async fn run() -> Result<()> {
     events.push("INFO", format!("Log file: {}", log.path().display()));
     let config_path = config::path().display().to_string();
     let log_path = log.path().display().to_string();
-    let api = ApiClient::new(creds.clone(), &cfg.locale)?;
+    let api = ApiClient::with_endpoints(
+        creds.clone(),
+        &cfg.locale,
+        &cfg.api_base_url,
+        &cfg.relay_base_url,
+    )?;
     tui::run(
         tui::StatusView {
             api_base_url: &cfg.api_base_url,

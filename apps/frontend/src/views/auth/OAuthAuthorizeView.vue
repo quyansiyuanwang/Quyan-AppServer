@@ -115,16 +115,34 @@
 
               <div class="oauth-authorize-section oauth-authorize-section--compact">
                 <h3>{{ i18ns.t('oauthAuthorize.requestedScopes') }}</h3>
-                <div class="oauth-authorize-tags">
-                  <el-tag
-                    v-for="scope in preview.requestedScopes"
-                    :key="scope"
-                    type="primary"
-                    effect="light"
-                    class="oauth-authorize-tag"
+                <div class="oauth-authorize-scope-groups">
+                  <div
+                    v-for="group in scopeGroups"
+                    :key="group.category"
+                    class="oauth-authorize-scope-group"
                   >
-                    {{ scope }}
-                  </el-tag>
+                    <h4>{{ localizeCategory(group.details[0]) }}</h4>
+                    <div class="oauth-authorize-scope-list">
+                      <div
+                        v-for="detail in group.details"
+                        :key="detail.scope"
+                        class="oauth-authorize-scope-item"
+                        :class="{ 'is-unavailable': !detail.grantable }"
+                      >
+                        <div class="oauth-authorize-scope-item__header">
+                          <strong>{{ localizeScope(detail) }}</strong>
+                          <el-tag v-if="detail.riskLevel === 'high'" type="warning" size="small">
+                            {{ i18ns.t('oauthAuthorize.highRisk') }}
+                          </el-tag>
+                          <el-tag v-if="!detail.grantable" type="danger" size="small">
+                            {{ i18ns.t('oauthAuthorize.unavailable') }}
+                          </el-tag>
+                        </div>
+                        <code>{{ detail.scope }}</code>
+                        <p>{{ localizeScope(detail, true) }}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -141,10 +159,31 @@
                     effect="light"
                     class="oauth-authorize-tag"
                   >
-                    {{ scope }}
+                    {{
+                      localizeScope(preview.scopeDetails.find((detail) => detail.scope === scope)!)
+                    }}
                   </el-tag>
                 </div>
               </div>
+
+              <el-alert v-if="highRiskScopes.length" type="warning" :closable="false" show-icon>
+                <div>{{ i18ns.t('oauthAuthorize.highRiskWarning') }}</div>
+                <ul class="oauth-authorize-risk-list">
+                  <li v-for="detail in highRiskScopes" :key="detail.scope">
+                    {{ localizeScope(detail) }} (<code>{{ detail.scope }}</code
+                    >)
+                  </li>
+                </ul>
+              </el-alert>
+
+              <el-alert
+                v-if="preview.unavailableScopes.length"
+                type="error"
+                :closable="false"
+                show-icon
+              >
+                {{ i18ns.t('oauthAuthorize.unavailableScopes') }}
+              </el-alert>
 
               <div class="oauth-authorize-actions">
                 <el-button :disabled="submitting" size="large" @click="handleDecision(false)">
@@ -154,6 +193,7 @@
                   type="primary"
                   size="large"
                   :loading="submitting"
+                  :disabled="preview.unavailableScopes.length > 0"
                   @click="handleDecision(true)"
                 >
                   {{ i18ns.t('oauthAuthorize.approve') }}
@@ -178,11 +218,16 @@ import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { getAccessToken } from '@/stores/request'
+import { CustomCode } from '@/constant/custom-code'
 import {
   OAuthAuthorizationFrontendService,
   type OAuthAuthorizeQuery,
   type OAuthAuthorizationPreview,
 } from '@/service/oauthAuthorizationService'
+import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
+import { ALL_PERMISSIONS } from '@/constant/permission'
+import { getPermissionCategoryTranslationKey } from '@/views/management/permission-tree'
 
 const route = useRoute()
 const router = useRouter()
@@ -230,6 +275,20 @@ const loadPreview = async () => {
     const result = await oauthAuthorizationService.getPreview(authorizeQuery.value)
     preview.value = result.data
   } catch (error) {
+    // A release deployment may reject a cross-origin request before the
+    // shared interceptor can recover it. Return to the central login page
+    // instead of leaving the OAuth flow on a permanent error state.
+    const authFailure =
+      typeof error === 'object' && error !== null && 'code' in error
+        ? (error as { code?: unknown }).code === CustomCode.AUTH_FAILED
+        : false
+    if (!getAccessToken() || authFailure) {
+      await router.replace({
+        name: 'login',
+        query: { redirect: route.fullPath },
+      })
+      return
+    }
     ElMessage.error(i18ns.t('oauthAuthorize.loadFailed'))
     throw error
   } finally {
@@ -272,6 +331,42 @@ onMounted(async () => {
 const getClientInitial = (name: string) => {
   return name.trim().charAt(0).toUpperCase() || 'A'
 }
+
+const localizeScope = (
+  detail: OAuthAuthorizationPreview['scopeDetails'][number],
+  description = false,
+) => {
+  if (ALL_PERMISSIONS.includes(detail.scope as (typeof ALL_PERMISSIONS)[number])) {
+    if (i18ns.locale === 'emoji') return `🛂 ${detail.scope}`
+    return description
+      ? getPermissionTooltip(detail.scope, i18ns.locale)
+      : getPermissionLabel(detail.scope, i18ns.locale)
+  }
+  return i18ns.t((description ? detail.descriptionKey : detail.labelKey) as never)
+}
+
+const localizeCategory = (detail?: OAuthAuthorizationPreview['scopeDetails'][number]) => {
+  if (!detail) return i18ns.t('oauthScopes.categories.general')
+  if (ALL_PERMISSIONS.includes(detail.scope as (typeof ALL_PERMISSIONS)[number])) {
+    return i18ns.t(getPermissionCategoryTranslationKey(detail.category, 'label'))
+  }
+  return i18ns.t(`oauthScopes.categories.${detail.category}` as never)
+}
+
+const scopeGroups = computed(() => {
+  if (!preview.value) return []
+  const groups = new Map<string, OAuthAuthorizationPreview['scopeDetails']>()
+  for (const detail of preview.value.scopeDetails) {
+    const details = groups.get(detail.category) ?? []
+    details.push(detail)
+    groups.set(detail.category, details)
+  }
+  return [...groups.entries()].map(([category, details]) => ({ category, details }))
+})
+
+const highRiskScopes = computed(
+  () => preview.value?.scopeDetails.filter((detail) => detail.riskLevel === 'high') ?? [],
+)
 </script>
 
 <style scoped>
@@ -508,6 +603,11 @@ const getClientInitial = (name: string) => {
   justify-content: flex-end;
   gap: 12px;
   margin-top: auto;
+}
+
+.oauth-authorize-risk-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
 }
 
 .oauth-authorize-page--mobile {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OperationCategory, OperationType } from "../../../src/constant/operation-type";
 import { BadRequestError } from "../../../src/util/errors";
 import { OAuthClientService } from "../../../src/services/users/oauth-client.service";
+import { oauthScopeService } from "../../../src/services/oauth/oauth-scope.service";
 
 const now = new Date("2026-06-02T12:00:00.000Z");
 
@@ -61,6 +62,7 @@ describe("OAuthClientService review workflow", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(oauthScopeService, "normalizeAndAssertGrantable").mockResolvedValue(["profile"]);
   });
 
   it("resets rejected client back to draft after owner edits", async () => {

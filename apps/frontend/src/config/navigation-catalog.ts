@@ -142,6 +142,7 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
     'any',
   ),
   item('myMonthlyPasses', 'nav.myMonthlyPasses', CreditCard, [Permission.RELAY_TOKEN_READ]),
+  item('myCarpools', 'nav.myCarpools', CreditCard),
   item('scriptManager', 'nav.scriptManager', Cpu, [Permission.SCRIPT_READ]),
   item(
     'terminalOverview',
@@ -279,6 +280,7 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
       ],
       'any',
     ),
+    item('carpoolManagement', 'nav.carpoolManagement', CreditCard, [Permission.CARPOOL_ORDER_READ]),
     item('redemptionCodes', 'nav.redemptionCodes', Postcard, [Permission.REDEMPTION_CODE_READ]),
   ]),
   group('content', 'nav.dataServices', FolderOpened, [
