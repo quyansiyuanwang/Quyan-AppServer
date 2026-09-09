@@ -125,11 +125,11 @@ import {
 import { applyRelayTokenV1PathMode } from "@/util/relay-token-path.util";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
 import {
-  hasVisibleStreamEvent,
   hasVisibleStreamOutput,
   RelayStreamPreflightBuffer,
   STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
 } from "@/util/relay-stream-output.util";
+import { consumeRelayStreamUsageLine, RelayStreamUsageTracker } from "@/util/relay-stream-usage.util";
 
 const PREFIX = "/relay/proxy";
 
@@ -4379,40 +4379,7 @@ export class RelayProxyService {
     // 序列化一次，复用同一个 Buffer（避免两次 JSON.stringify）
     const bodyData = this.buildForwardBodyBuffer(convertedBody);
 
-    let requestTokens = Math.ceil(bodyData.length / 4);
-    const estimatedRequestTokens = requestTokens;
-    let responseTokens = 0;
-    let totalTokens = 0;
-    let cacheCreationTokens = 0;
-    let cacheReadTokens = 0;
-    let hasExplicitStreamInputTokens = false;
-
-    const applyUsage = (usagePayload: unknown) => {
-      if (!usagePayload || typeof usagePayload !== "object") return;
-
-      const usageData = usagePayload as Record<string, unknown>;
-      const usage = extractTokenUsageMetrics(usageData);
-      const hasInputTokens =
-        hasTokenValue(usageData.prompt_tokens) ||
-        hasTokenValue(usageData.input_tokens) ||
-        hasTokenValue(usageData.promptTokenCount);
-      const hasOutputTokens = hasTokenValue(usageData.completion_tokens) || hasTokenValue(usageData.output_tokens);
-      const hasGeminiOutputTokens = hasTokenValue(usageData.candidatesTokenCount);
-
-      if (usage.totalTokens > 0) totalTokens = usage.totalTokens;
-      if (hasOutputTokens || hasGeminiOutputTokens) responseTokens = usage.outputTokens;
-      if (usage.cacheCreationTokens > 0) cacheCreationTokens = usage.cacheCreationTokens;
-      if (usage.cacheReadTokens > 0) cacheReadTokens = usage.cacheReadTokens;
-      if (hasInputTokens) {
-        hasExplicitStreamInputTokens = true;
-        requestTokens = resolveFreshInputTokens(
-          usage.inputTokens,
-          usage.cacheReadTokens,
-          usage.cacheCreationTokens,
-          inputTokensIncludeCacheRead,
-        );
-      }
-    };
+    const streamUsage = new RelayStreamUsageTracker(Math.ceil(bodyData.length / 4), inputTokensIncludeCacheRead);
 
     const cleanHeaders = { ...headers };
     delete cleanHeaders["host"];
@@ -4724,29 +4691,7 @@ export class RelayProxyService {
               if (rawSize <= maxAuditBytes) rawChunks.push(chunk);
               else proxyRes.destroy(new PayloadTooLargeError("Response exceeds content safety buffer limit"));
               const text = chunk.toString("utf8");
-              for (const line of text.split(/\r?\n/)) {
-                const trimmed = line.trim();
-                if (trimmed.startsWith("data:")) {
-                  const data = trimmed.slice(5).trim();
-                  if (data && data !== "[DONE]")
-                    try {
-                      const json = JSON.parse(data);
-                      applyUsage(json.message?.usage);
-                      applyUsage(json.usage);
-                      applyUsage(json.response?.usage);
-                      applyUsage(json.usageMetadata);
-                    } catch {
-                      /* partial SSE */
-                    }
-                } else if (requestFormat === "gemini" && (trimmed.startsWith("{") || trimmed.startsWith("["))) {
-                  try {
-                    const json = JSON.parse(trimmed);
-                    applyUsage(json.usageMetadata);
-                  } catch {
-                    /* partial JSON */
-                  }
-                }
-              }
+              for (const line of text.split(/\r?\n/)) consumeRelayStreamUsageLine(line, requestFormat, streamUsage);
             });
             proxyRes.on("end", async () => {
               streamCompleted = true;
@@ -4812,12 +4757,7 @@ export class RelayProxyService {
                 } else {
                   res.end(output);
                 }
-                const normalized = normalizeTokenBreakdown(
-                  requestTokens,
-                  responseTokens,
-                  totalTokens,
-                  hasExplicitStreamInputTokens ? 0 : estimatedRequestTokens,
-                );
+                const normalized = streamUsage.normalized();
                 const rateConfig = selectedModelRate;
                 if (!rateConfig)
                   throw new BadRequestError(`Model '${selectedModelName}' not found in pricing configuration`);
@@ -4833,8 +4773,8 @@ export class RelayProxyService {
                 const contextMatch = this.resolveContextMultiplier(
                   contextLengthMultipliers,
                   normalized.requestTokens,
-                  cacheCreationTokens,
-                  cacheReadTokens,
+                  streamUsage.cacheCreationTokens,
+                  streamUsage.cacheReadTokens,
                 );
                 const costResult = this.calculateCost(
                   normalized.requestTokens,
@@ -4842,8 +4782,8 @@ export class RelayProxyService {
                   normalized.totalTokens,
                   rateConfig,
                   globalMultiplier * contextMatch.multiplier,
-                  cacheCreationTokens,
-                  cacheReadTokens,
+                  streamUsage.cacheCreationTokens,
+                  streamUsage.cacheReadTokens,
                   cacheCreationMult,
                   cacheReadMult,
                 );
@@ -4852,8 +4792,8 @@ export class RelayProxyService {
                   requestTokens: normalized.requestTokens,
                   responseTokens: normalized.responseTokens,
                   totalTokens: normalized.totalTokens,
-                  cacheCreationTokens,
-                  cacheReadTokens,
+                  cacheCreationTokens: streamUsage.cacheCreationTokens,
+                  cacheReadTokens: streamUsage.cacheReadTokens,
                   cost: costResult.cost + stats.cost,
                   inputRate: costResult.inputRate,
                   outputRate: costResult.outputRate,
@@ -4903,12 +4843,7 @@ export class RelayProxyService {
                 }
                 if (stats.cost > 0 && selectedModelRate) {
                   try {
-                    const failedTokens = normalizeTokenBreakdown(
-                      requestTokens,
-                      responseTokens,
-                      totalTokens,
-                      hasExplicitStreamInputTokens ? 0 : estimatedRequestTokens,
-                    );
+                    const failedTokens = streamUsage.normalized();
                     const failedRate = selectedModelRate;
                     const failedModelMult = failedRate.multiplier != null ? Number(failedRate.multiplier) : 1;
                     await this.finalizeStreamUsage(relayToken, {
@@ -4916,8 +4851,8 @@ export class RelayProxyService {
                       requestTokens: failedTokens.requestTokens,
                       responseTokens: failedTokens.responseTokens,
                       totalTokens: failedTokens.totalTokens,
-                      cacheCreationTokens,
-                      cacheReadTokens,
+                      cacheCreationTokens: streamUsage.cacheCreationTokens,
+                      cacheReadTokens: streamUsage.cacheReadTokens,
                       cost: stats.cost,
                       inputRate: Number(failedRate.input || 0),
                       outputRate: Number(failedRate.output || 0),
@@ -5015,40 +4950,10 @@ export class RelayProxyService {
           let streamChunkPromise: Promise<void> = Promise.resolve();
 
           const applyUsageLine = (line: string) => {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) return;
-
-            if (trimmedLine.startsWith("data:")) {
-              const data = trimmedLine.slice("data:".length).trimStart();
-              if (data === "[DONE]") return;
-
-              try {
-                const json = JSON.parse(data);
-                if (hasVisibleStreamEvent(json, requestFormat)) {
-                  preflight.markVisible();
-                  flushPreflight();
-                }
-                applyUsage(json.message?.usage);
-                applyUsage(json.usage);
-                applyUsage(json.response?.usage);
-                applyUsage(json.usageMetadata);
-              } catch {
-                // Ignore JSON parse errors
-              }
-              return;
-            }
-
-            if (requestFormat === "gemini" && (trimmedLine.startsWith("{") || trimmedLine.startsWith("[")))
-              try {
-                const json = JSON.parse(trimmedLine);
-                if (hasVisibleStreamEvent(json, requestFormat)) {
-                  preflight.markVisible();
-                  flushPreflight();
-                }
-                applyUsage(json.usageMetadata);
-              } catch {
-                // Ignore JSON parse errors
-              }
+            consumeRelayStreamUsageLine(line, requestFormat, streamUsage, () => {
+              preflight.markVisible();
+              flushPreflight();
+            });
           };
 
           proxyRes.on("data", (chunk) => {
@@ -5232,15 +5137,7 @@ export class RelayProxyService {
               res.end();
             }
 
-            const normalizedStreamTokens = normalizeTokenBreakdown(
-              requestTokens,
-              responseTokens,
-              totalTokens,
-              hasExplicitStreamInputTokens ? 0 : estimatedRequestTokens,
-            );
-            requestTokens = normalizedStreamTokens.requestTokens;
-            responseTokens = normalizedStreamTokens.responseTokens;
-            totalTokens = normalizedStreamTokens.totalTokens;
+            const normalizedStreamTokens = streamUsage.normalized();
 
             const modelName = selectedModelName;
             const rateConfig = selectedModelRate;
@@ -5261,19 +5158,19 @@ export class RelayProxyService {
 
             const contextMatch = this.resolveContextMultiplier(
               contextLengthMultipliers,
-              requestTokens,
-              cacheCreationTokens,
-              cacheReadTokens,
+              normalizedStreamTokens.requestTokens,
+              streamUsage.cacheCreationTokens,
+              streamUsage.cacheReadTokens,
             );
 
             const costResult = this.calculateCost(
-              requestTokens,
-              responseTokens,
-              totalTokens,
+              normalizedStreamTokens.requestTokens,
+              normalizedStreamTokens.responseTokens,
+              normalizedStreamTokens.totalTokens,
               rateConfig,
               globalMultiplier * contextMatch.multiplier,
-              cacheCreationTokens,
-              cacheReadTokens,
+              streamUsage.cacheCreationTokens,
+              streamUsage.cacheReadTokens,
               cacheCreationMult,
               cacheReadMult,
             );
@@ -5285,11 +5182,11 @@ export class RelayProxyService {
             try {
               await this.finalizeStreamUsage(relayToken, {
                 requestId: this.getLogicalRequestId(req),
-                requestTokens,
-                responseTokens,
-                totalTokens,
-                cacheCreationTokens,
-                cacheReadTokens,
+                requestTokens: normalizedStreamTokens.requestTokens,
+                responseTokens: normalizedStreamTokens.responseTokens,
+                totalTokens: normalizedStreamTokens.totalTokens,
+                cacheCreationTokens: streamUsage.cacheCreationTokens,
+                cacheReadTokens: streamUsage.cacheReadTokens,
                 cost: costResult.cost,
                 inputRate: costResult.inputRate,
                 outputRate: costResult.outputRate,
