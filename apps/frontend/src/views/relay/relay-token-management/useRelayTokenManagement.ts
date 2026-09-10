@@ -270,7 +270,7 @@ const createDefaultFailoverConfig = (): EditableFailoverConfig => ({
   failbackCooldownMinutes: 0,
   maxAcceptedChannelMultiplier: null,
   minCacheHitRate: null,
-  cacheHitRateMinSamples: 3,
+  cacheHitRateMinSamples: 10,
   cacheHitRateWindowHours: 168,
 })
 

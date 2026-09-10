@@ -103,7 +103,7 @@ const relayTokenFailoverConfigSchema = z.object({
       (value) => value == null || hasDecimalPrecision(value, 4),
       "minCacheHitRate must have at most 4 decimal places",
     ),
-  cacheHitRateMinSamples: z.coerce.number().int().min(1).max(1000).default(3),
+  cacheHitRateMinSamples: z.coerce.number().int().min(1).max(1000).default(10),
   cacheHitRateWindowHours: z.coerce.number().int().min(1).max(8760).default(168),
 });
 

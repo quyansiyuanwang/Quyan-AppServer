@@ -75,13 +75,13 @@ const relayTokenUsageSummarySelect = {
 const buildNestedFailoverConfigCreateData = (failoverConfig: RelayFailoverConfigInput) => {
   return {
     enabled: failoverConfig.enabled ?? false,
-    maxRetries: failoverConfig.maxRetries ?? 0,
+    maxRetries: failoverConfig.maxRetries ?? 2,
     retryStatusCodes: failoverConfig.retryStatusCodes ?? [],
     failoverThreshold: failoverConfig.failoverThreshold ?? 0,
     failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes ?? 0,
     maxAcceptedChannelMultiplier: failoverConfig.maxAcceptedChannelMultiplier ?? null,
     minCacheHitRate: failoverConfig.minCacheHitRate ?? null,
-    cacheHitRateMinSamples: failoverConfig.cacheHitRateMinSamples ?? 3,
+    cacheHitRateMinSamples: failoverConfig.cacheHitRateMinSamples ?? 10,
     cacheHitRateWindowHours: failoverConfig.cacheHitRateWindowHours ?? 168,
   } satisfies Prisma.RelayTokenFailoverConfigCreateWithoutRelayTokenInput;
 };
@@ -90,13 +90,13 @@ const buildFailoverConfigCreateData = (relayTokenId: string, failoverConfig: Rel
   return {
     relayTokenId,
     enabled: failoverConfig.enabled ?? false,
-    maxRetries: failoverConfig.maxRetries ?? 0,
+    maxRetries: failoverConfig.maxRetries ?? 2,
     retryStatusCodes: failoverConfig.retryStatusCodes ?? [],
     failoverThreshold: failoverConfig.failoverThreshold ?? 0,
     failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes ?? 0,
     maxAcceptedChannelMultiplier: failoverConfig.maxAcceptedChannelMultiplier ?? null,
     minCacheHitRate: failoverConfig.minCacheHitRate ?? null,
-    cacheHitRateMinSamples: failoverConfig.cacheHitRateMinSamples ?? 3,
+    cacheHitRateMinSamples: failoverConfig.cacheHitRateMinSamples ?? 10,
     cacheHitRateWindowHours: failoverConfig.cacheHitRateWindowHours ?? 168,
   } satisfies Prisma.RelayTokenFailoverConfigUncheckedCreateInput;
 };

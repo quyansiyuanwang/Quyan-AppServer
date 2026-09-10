@@ -1453,7 +1453,7 @@ export class RelayTokenService {
       failoverConfig: token.failoverConfig
         ? {
             enabled: Boolean(token.failoverConfig.enabled),
-            maxRetries: Number(token.failoverConfig.maxRetries || 0),
+            maxRetries: Number(token.failoverConfig.maxRetries || 2),
             retryStatusCodes: normalizeRetryStatusRules(
               Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
             ),
@@ -1465,7 +1465,7 @@ export class RelayTokenService {
                 : Number(token.failoverConfig.maxAcceptedChannelMultiplier),
             minCacheHitRate:
               token.failoverConfig.minCacheHitRate == null ? null : Number(token.failoverConfig.minCacheHitRate),
-            cacheHitRateMinSamples: Math.max(1, Number(token.failoverConfig.cacheHitRateMinSamples ?? 3)),
+            cacheHitRateMinSamples: Math.max(1, Number(token.failoverConfig.cacheHitRateMinSamples ?? 10)),
             cacheHitRateWindowHours: Math.max(1, Number(token.failoverConfig.cacheHitRateWindowHours ?? 168)),
           }
         : undefined,
@@ -1490,7 +1490,7 @@ export class RelayTokenService {
       failoverConfig: token.failoverConfig
         ? {
             enabled: Boolean(token.failoverConfig.enabled),
-            maxRetries: Number(token.failoverConfig.maxRetries || 0),
+            maxRetries: Number(token.failoverConfig.maxRetries || 2),
             retryStatusCodes: normalizeRetryStatusRules(
               Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
             ),
@@ -1502,7 +1502,7 @@ export class RelayTokenService {
                 : Number(token.failoverConfig.maxAcceptedChannelMultiplier),
             minCacheHitRate:
               token.failoverConfig.minCacheHitRate == null ? null : Number(token.failoverConfig.minCacheHitRate),
-            cacheHitRateMinSamples: Math.max(1, Number(token.failoverConfig.cacheHitRateMinSamples ?? 3)),
+            cacheHitRateMinSamples: Math.max(1, Number(token.failoverConfig.cacheHitRateMinSamples ?? 10)),
             cacheHitRateWindowHours: Math.max(1, Number(token.failoverConfig.cacheHitRateWindowHours ?? 168)),
           }
         : undefined,
