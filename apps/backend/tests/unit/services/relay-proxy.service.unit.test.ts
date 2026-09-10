@@ -816,7 +816,7 @@ describe("RelayProxyService failover", () => {
       failoverThreshold: 1,
       failbackCooldownMinutes: 0,
       minCacheHitRate: null,
-      cacheHitRateMinSamples: 3,
+      cacheHitRateMinSamples: 10,
       cacheHitRateWindowHours: 168,
     });
   });
