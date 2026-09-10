@@ -267,10 +267,12 @@ export class RelayProxyService {
     return RelayProxyService.instance;
   }
 
-  private createStreamForwarderHost(): Omit<RelayStreamForwarderHost, "forwardStreamRequest"> {
+  private async createStreamForwarderHost(): Promise<Omit<RelayStreamForwarderHost, "forwardStreamRequest">> {
+    const relayConfig = await this.relayConfigService.getRelayConfig();
     return {
       contentSafetyService: this.contentSafetyService,
       relayProxyRepository: this.relayProxyRepository,
+      systemPreflightBufferLimitBytes: relayConfig.preflightBufferLimitBytes,
       finalizeStreamUsage: this.finalizeStreamUsage.bind(this),
       calculateCost: this.calculateCost.bind(this),
       resolveContextMultiplier: this.resolveContextMultiplier.bind(this),
@@ -2555,7 +2557,7 @@ export class RelayProxyService {
         kind: "image",
         image: params,
       },
-      { stream: this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
+      { stream: await this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
     );
   }
 
@@ -4171,7 +4173,7 @@ export class RelayProxyService {
         kind: "stream",
         stream: params,
       },
-      { stream: this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
+      { stream: await this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
     );
   }
 

@@ -4007,6 +4007,12 @@ export default {
     preflightBufferLimitHelp:
       'Maximum buffered bytes before a stream starts outputting. If upstream metadata exceeds this limit before visible content appears, the request will be marked as failed and trigger channel failover. Default 2MB, range 256KB - 10MB.',
     preflightBufferLimitDefault: 'Default: 2 MB (2097152 bytes)',
+    preflightBufferLimitRange: 'Range: 0.25 MB - 10 MB',
+    systemPreflightBufferLimit: 'System Preflight Buffer (MB)',
+    systemPreflightBufferLimitHelp:
+      'In streaming responses, if the buffer fills without visible output, the request is marked as failed. Individual tokens can override this value.',
+    preflightBufferLimitTokenOverride:
+      'Leave empty to use system default (configured in Relay Settings). When set, this overrides the system setting.',
     allowedModels: 'Allowed Models',
     selectModels: 'Select allowed models',
     allowedModelsPlaceholder: 'e.g., gpt-4,gpt-3.5-turbo,claude-3-opus',

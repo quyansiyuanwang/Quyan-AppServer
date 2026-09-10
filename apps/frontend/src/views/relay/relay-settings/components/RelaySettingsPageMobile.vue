@@ -291,6 +291,23 @@
                       i18ns.t('ServerConfigView.upstreamStreamTimeoutHelp')
                     }}</span>
                   </el-form-item>
+                  <el-form-item
+                    :label="i18ns.t('relay.systemPreflightBufferLimit')"
+                    class="setting-block"
+                  >
+                    <el-input-number
+                      v-model="preflightBufferLimitMB"
+                      :min="0.25"
+                      :max="10"
+                      :step="0.25"
+                      :precision="2"
+                    />
+                    <span class="ml-3 text-[#909399] text-xs">
+                      {{ i18ns.t('relay.systemPreflightBufferLimitHelp') }}
+                      <br />
+                      {{ i18ns.t('relay.preflightBufferLimitRange') }}
+                    </span>
+                  </el-form-item>
                 </el-form>
               </div>
             </transition>
@@ -1120,6 +1137,7 @@ const {
   maxConcurrency,
   queueTimeoutSec,
   upstreamStreamTimeoutSec,
+  preflightBufferLimitMB,
   apiCatalogPoolVisibility,
   relayCustomKeyEnabled,
   relayCustomKeyMaxTokensPerUser,

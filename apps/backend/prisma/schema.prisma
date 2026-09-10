@@ -2341,22 +2341,23 @@ model ModelPricing {
 }
 
 model RelayConfig {
-  id                       String   @id @default(cuid())
-  status                   Int      @default(1)
-  createTime               DateTime @default(now())
-  updateTime               DateTime @updatedAt
-  globalMultiplier         Decimal  @default(1.0) @db.Decimal(10, 6)
-  maxConcurrency           Int      @default(5)
-  queueTimeout             Int      @default(30000)
-  upstreamStreamTimeout    Int      @default(120000)
-  enableQueue              Boolean  @default(true)
-  apiCatalogPoolVisibility String   @default("anonymous-range") @db.VarChar(20)
-  channelTopologyMode      String   @default("legacy") @db.VarChar(30)
-  uptimeStatusUrl          String?  @db.Text
-  monitorNameMapping       Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
-  showOnlyConfigured       Boolean? // 是否仅展示已配置的监控项
-  uptimeTransformRules     Json? // 保留用于向后兼容
-  uptimeStaticData         Json?
+  id                         String   @id @default(cuid())
+  status                     Int      @default(1)
+  createTime                 DateTime @default(now())
+  updateTime                 DateTime @updatedAt
+  globalMultiplier           Decimal  @default(1.0) @db.Decimal(10, 6)
+  maxConcurrency             Int      @default(5)
+  queueTimeout               Int      @default(30000)
+  upstreamStreamTimeout      Int      @default(120000)
+  preflightBufferLimitBytes  Int?     @db.Int
+  enableQueue                Boolean  @default(true)
+  apiCatalogPoolVisibility   String   @default("anonymous-range") @db.VarChar(20)
+  channelTopologyMode        String   @default("legacy") @db.VarChar(30)
+  uptimeStatusUrl            String?  @db.Text
+  monitorNameMapping         Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
+  showOnlyConfigured         Boolean? // 是否仅展示已配置的监控项
+  uptimeTransformRules       Json? // 保留用于向后兼容
+  uptimeStaticData           Json?
 
   @@map("relay_configs")
 }

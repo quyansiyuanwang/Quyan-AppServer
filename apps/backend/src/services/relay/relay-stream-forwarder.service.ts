@@ -34,6 +34,7 @@ import logger from "@/util/logger";
 export interface RelayStreamForwarderHost {
   contentSafetyService: any;
   relayProxyRepository: RelayProxyStore;
+  systemPreflightBufferLimitBytes?: number;
   finalizeStreamUsage: (relayToken: any, data: any) => Promise<void>;
   calculateCost: (...args: any[]) => any;
   resolveContextMultiplier: (
@@ -697,16 +698,22 @@ export class RelayStreamForwarderService {
           }
 
           // ── Success path (2xx/3xx): pipe chunks directly to the client ──
-          // Read preflight buffer limit from token config, with validation
+          // Read preflight buffer limit from token config, with system default fallback
           const streamConfig = relayToken.streamConfig as RelayTokenStreamConfig | null | undefined;
           const configuredLimit = streamConfig?.preflightBufferLimitBytes;
+          const systemLimit = host.systemPreflightBufferLimitBytes;
           const preflightBufferLimit =
             configuredLimit != null
               ? Math.max(
                   MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
                   Math.min(MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES, configuredLimit),
                 )
-              : DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES;
+              : systemLimit != null
+                ? Math.max(
+                    MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+                    Math.min(MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES, systemLimit),
+                  )
+                : DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES;
 
           const preflight = new RelayStreamPreflightBuffer(preflightBufferLimit);
           let preflightRawBytes = 0;
