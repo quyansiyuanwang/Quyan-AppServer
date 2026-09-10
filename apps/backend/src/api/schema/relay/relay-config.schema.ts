@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+  MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+} from "@quyan/shared";
 
 const pricingTypeSchema = z.enum(["token-based", "per-request"]);
 const RELAY_MULTIPLIER_SCALE = 6;
@@ -38,6 +42,18 @@ export const updateRelayConfigBodySchema = z.object({
   maxConcurrency: z.coerce.number().int().min(1).optional(),
   queueTimeout: z.coerce.number().int().min(0).optional(),
   upstreamStreamTimeout: z.coerce.number().int().min(0).optional(),
+  preflightBufferLimitBytes: z.coerce
+    .number()
+    .int()
+    .min(
+      MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+      `preflightBufferLimitBytes must be at least ${MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES / 1024}KB`,
+    )
+    .max(
+      MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+      `preflightBufferLimitBytes must not exceed ${MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES / 1024 / 1024}MB`,
+    )
+    .optional(),
   enableQueue: z.coerce.boolean().optional(),
   apiCatalogPoolVisibility: z.enum(["hidden", "anonymous-range"]).optional(),
   channelTopologyMode: z.enum(["legacy", "strict-two-tier"]).optional(),

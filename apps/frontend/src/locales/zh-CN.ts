@@ -3827,6 +3827,12 @@ const zhCN: DeepStringify<typeof en> = {
     preflightBufferLimitHelp:
       '流式响应开始前的最大缓冲字节数。上游在输出可见内容前发送的元数据超过此限制时，请求将被标记为失败并触发渠道切换。默认 2MB，范围 256KB - 10MB。',
     preflightBufferLimitDefault: '默认: 2 MB (2097152 字节)',
+    preflightBufferLimitRange: '范围: 0.25 MB - 10 MB',
+    systemPreflightBufferLimit: '系统级预检缓冲区 (MB)',
+    systemPreflightBufferLimitHelp:
+      '在流式响应中，如果缓冲区填满前仍无可见输出，将标记为失败。令牌可以单独配置以覆盖此值。',
+    preflightBufferLimitTokenOverride:
+      '留空则使用系统默认值（在中转设置页面配置）。配置后将覆盖系统设置。',
     allowedModels: '允许的模型',
     selectModels: '选择允许的模型',
     allowedModelsPlaceholder: '例如：gpt-4,gpt-3.5-turbo,claude-3-opus',

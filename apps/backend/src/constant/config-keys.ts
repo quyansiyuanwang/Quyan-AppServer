@@ -148,6 +148,7 @@ export const CONFIG_KEYS = {
     UPSTREAM_PROXY_URL: "relay.upstreamProxy.url",
     AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES: "relay.autoProxyPool.cacheHitRateMinSamples",
     AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS: "relay.autoProxyPool.cacheHitRateWindowHours",
+    STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES: "relay.stream.preflightBufferLimitBytes",
   },
   CONTENT_SAFETY: {
     REQUEST_ENABLED: "security.contentSafety.request.enabled",
