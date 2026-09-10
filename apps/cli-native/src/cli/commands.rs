@@ -82,10 +82,31 @@ pub enum RelayCommand {
 #[derive(Debug, Subcommand)]
 pub enum RelayTokenCommand {
     List,
-    Create,
+    Create(CreateRelayTokenArgs),
     Update { id: String },
     Delete { id: String },
+    DeleteBatch { ids: String },
     Usage { id: String },
+    Stats { id: Option<String> },
+    Export {
+        #[arg(long)]
+        output: Option<String>,
+    },
+    Health { id: String },
+}
+
+#[derive(Debug, Args)]
+pub struct CreateRelayTokenArgs {
+    #[arg(long)]
+    pub name: Option<String>,
+    #[arg(long)]
+    pub channels: Option<String>,
+    #[arg(long)]
+    pub failover: bool,
+    #[arg(long)]
+    pub max_retries: Option<u32>,
+    #[arg(long)]
+    pub preflight_buffer_mb: Option<f32>,
 }
 
 #[derive(Debug, Subcommand)]

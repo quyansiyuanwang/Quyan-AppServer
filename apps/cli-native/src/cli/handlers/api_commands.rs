@@ -22,12 +22,40 @@ pub async fn handle_relay_command(
     let value = match command {
         super::super::RelayCommand::Token { command } => match command {
             super::super::RelayTokenCommand::List => relay::tokens(api).await?,
-            super::super::RelayTokenCommand::Create => relay::create_token(api).await?,
+            super::super::RelayTokenCommand::Create(args) => {
+                relay::create_token(
+                    api,
+                    args.name,
+                    args.channels,
+                    args.failover,
+                    args.max_retries,
+                    args.preflight_buffer_mb,
+                )
+                .await?
+            }
             super::super::RelayTokenCommand::Update { id } => {
                 relay::update_token(api, &id, read_json_stdin()?).await?
             }
             super::super::RelayTokenCommand::Delete { id } => relay::delete_token(api, &id).await?,
+            super::super::RelayTokenCommand::DeleteBatch { ids } => {
+                relay::delete_batch_tokens(api, &ids).await?
+            }
             super::super::RelayTokenCommand::Usage { id } => relay::token_usage(api, &id).await?,
+            super::super::RelayTokenCommand::Stats { id } => {
+                relay::token_stats(api, id.as_deref()).await?
+            }
+            super::super::RelayTokenCommand::Export { output } => {
+                let data = relay::export_tokens(api).await?;
+                if let Some(path) = output {
+                    std::fs::write(&path, serde_json::to_string_pretty(&data)?)?;
+                    return super::common::print_value(
+                        serde_json::json!({"exported": true, "path": path}),
+                        json_output,
+                    );
+                }
+                data
+            }
+            super::super::RelayTokenCommand::Health { id } => relay::health_check(api, &id).await?,
         },
         super::super::RelayCommand::Channels {
             command: super::super::ChannelsCommand::List,
