@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { RELAY_CONVERTIBLE_REQUEST_FORMATS, MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES, MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES } from "@quyan/shared";
+import {
+  RELAY_CONVERTIBLE_REQUEST_FORMATS,
+  MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+  MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+} from "@quyan/shared";
 import {
   MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_MAX_AMOUNT_QUOTA,
@@ -171,8 +175,14 @@ const relayTokenStreamConfigSchema = z.object({
   preflightBufferLimitBytes: z.coerce
     .number()
     .int()
-    .min(MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES, `preflightBufferLimitBytes must be at least ${MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES / 1024}KB`)
-    .max(MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES, `preflightBufferLimitBytes must not exceed ${MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES / 1024 / 1024}MB`)
+    .min(
+      MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+      `preflightBufferLimitBytes must be at least ${MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES / 1024}KB`,
+    )
+    .max(
+      MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+      `preflightBufferLimitBytes must not exceed ${MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES / 1024 / 1024}MB`,
+    )
     .optional(),
 });
 

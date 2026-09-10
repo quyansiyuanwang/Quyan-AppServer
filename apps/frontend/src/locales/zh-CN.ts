@@ -3824,7 +3824,8 @@ const zhCN: DeepStringify<typeof en> = {
     ipWhitelistPlaceholder: '输入单个 IP 或 CIDR，按回车添加',
     ipWhitelistHelp: '仅允许白名单中的 IP 或网段使用该令牌。留空表示不限制，输入后按回车添加。',
     preflightBufferLimit: '预检缓冲区限制',
-    preflightBufferLimitHelp: '流式响应开始前的最大缓冲字节数。上游在输出可见内容前发送的元数据超过此限制时，请求将被标记为失败并触发渠道切换。默认 2MB，范围 256KB - 10MB。',
+    preflightBufferLimitHelp:
+      '流式响应开始前的最大缓冲字节数。上游在输出可见内容前发送的元数据超过此限制时，请求将被标记为失败并触发渠道切换。默认 2MB，范围 256KB - 10MB。',
     preflightBufferLimitDefault: '默认: 2 MB (2097152 字节)',
     allowedModels: '允许的模型',
     selectModels: '选择允许的模型',
