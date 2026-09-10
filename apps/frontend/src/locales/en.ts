@@ -4003,6 +4003,10 @@ export default {
     ipWhitelistPlaceholder: 'Enter an IP or CIDR, then press Enter to add',
     ipWhitelistHelp:
       'Only listed IPs or CIDR ranges can use this token. Leave empty for no restriction, and press Enter after each entry.',
+    preflightBufferLimit: 'Preflight Buffer Limit',
+    preflightBufferLimitHelp:
+      'Maximum buffered bytes before a stream starts outputting. If upstream metadata exceeds this limit before visible content appears, the request will be marked as failed and trigger channel failover. Default 2MB, range 256KB - 10MB.',
+    preflightBufferLimitDefault: 'Default: 2 MB (2097152 bytes)',
     allowedModels: 'Allowed Models',
     selectModels: 'Select allowed models',
     allowedModelsPlaceholder: 'e.g., gpt-4,gpt-3.5-turbo,claude-3-opus',

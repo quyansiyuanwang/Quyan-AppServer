@@ -1,4 +1,4 @@
-import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform } from "@quyan/shared";
+import type { ContentSafetyPolicyOverride, RelayRequestFormatTransform, RelayTokenStreamConfig } from "@quyan/shared";
 import type { RelayTokenNormalizerConfig } from "@/util/anthropic-token-normalizer.util";
 
 export type RelayTokenQuotaUnit = "amount" | "request" | "token";
@@ -137,6 +137,8 @@ export interface CreateRelayTokenDto {
   /** Anthropic request normalizer settings scoped to this relay token. */
   normalizerConfig?: RelayTokenNormalizerConfig;
   contentSafetyConfig?: ContentSafetyPolicyOverride | null;
+  /** Stream behavior configuration (preflight buffer limits, etc.) */
+  streamConfig?: RelayTokenStreamConfig;
   /**
    * IP 白名单，支持换行、逗号或分号分隔
    */
@@ -173,6 +175,8 @@ export interface UpdateRelayTokenDto {
   /** Anthropic request normalizer settings scoped to this relay token. */
   normalizerConfig?: RelayTokenNormalizerConfig | null;
   contentSafetyConfig?: ContentSafetyPolicyOverride | null;
+  /** Stream behavior configuration (preflight buffer limits, etc.) */
+  streamConfig?: RelayTokenStreamConfig | null;
   /** IP 白名单 */
   ipWhitelist?: string | null;
   /** 模型映射：请求模型 → 扣费模型，传 null 清除 */
@@ -282,6 +286,7 @@ export interface RelayTokenDto {
   requestFormatTransforms?: RelayRequestFormatTransform[];
   normalizerConfig?: RelayTokenNormalizerConfig;
   contentSafetyConfig?: ContentSafetyPolicyOverride | null;
+  streamConfig?: RelayTokenStreamConfig;
   ipWhitelist?: string;
   modelMapping?: Record<string, string>;
   channelConfigs: RelayTokenChannelConfigDto[];
