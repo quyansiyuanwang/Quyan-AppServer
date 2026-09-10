@@ -146,6 +146,12 @@ const createService = () => {
     deleteIfValueMatches: vi.fn().mockResolvedValue(true),
     extendIfValueMatches: vi.fn().mockResolvedValue(true),
   };
+  const configService = {
+    getAutoProxyPoolConfig: vi.fn().mockResolvedValue({
+      cacheHitRateMinSamples: 10,
+      cacheHitRateWindowHours: 168,
+    }),
+  };
 
   const service = new RelayProxyService(
     relayTokenRepo as any,
@@ -159,7 +165,7 @@ const createService = () => {
     relayPoolResolver as any,
     undefined,
     undefined,
-    undefined,
+    configService as any,
     undefined,
     contentSafetyService as any,
   );
