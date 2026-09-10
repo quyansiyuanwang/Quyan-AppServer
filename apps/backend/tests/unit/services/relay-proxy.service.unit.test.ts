@@ -815,6 +815,9 @@ describe("RelayProxyService failover", () => {
       retryStatusCodes: ["4xx", "5xx"],
       failoverThreshold: 1,
       failbackCooldownMinutes: 0,
+      minCacheHitRate: null,
+      cacheHitRateMinSamples: 3,
+      cacheHitRateWindowHours: 168,
     });
   });
 
@@ -899,6 +902,7 @@ describe("RelayProxyService failover", () => {
       headers: { "content-type": "application/json" },
       data: {
         id: "pooled-billing-response",
+        choices: [{ message: { content: "ok" } }],
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       },
     });
@@ -924,6 +928,27 @@ describe("RelayProxyService failover", () => {
     );
   });
 
+  it("records a 2xx usage-only response as a failed channel attempt", async () => {
+    const relayToken = createRelayToken();
+    relayToken.failoverConfig = { enabled: false, maxRetries: 0, retryStatusCodes: [] };
+    const { service, relayTokenRepo } = createService();
+
+    axiosMock.mockResolvedValueOnce({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      data: { id: "usage-only", usage: { prompt_tokens: 1, completion_tokens: 0, total_tokens: 1 } },
+    });
+
+    await expect(service.forwardRequest(relayToken, createRequest())).rejects.toThrow(
+      "upstream response ended without visible output",
+    );
+    expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenCalledWith({
+      relayTokenId: relayToken.id,
+      channelId: relayToken.channel.id,
+      success: false,
+    });
+  });
+
   it("shows the automatic pool's executing standalone channel without changing charging", async () => {
     const relayToken = createRelayTokenWithPooledChannel();
     relayToken.channel.channelType = "automatic-proxy-pool";
@@ -942,7 +967,11 @@ describe("RelayProxyService failover", () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { "content-type": "application/json" },
-      data: { id: "automatic-pool-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+      data: {
+        id: "automatic-pool-response",
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      },
     });
 
     await service.forwardRequest(relayToken, req);
@@ -1242,7 +1271,11 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "resp-1", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+        data: {
+          id: "resp-1",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1292,7 +1325,11 @@ describe("RelayProxyService failover", () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { "content-type": "application/json" },
-      data: { id: "resp-local-skip-1", usage: { prompt_tokens: 6, completion_tokens: 3, total_tokens: 9 } },
+      data: {
+        id: "resp-local-skip-1",
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 6, completion_tokens: 3, total_tokens: 9 },
+      },
     });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1329,7 +1366,11 @@ describe("RelayProxyService failover", () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { "content-type": "application/json" },
-      data: { id: "resp-local-skip-2", usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 } },
+      data: {
+        id: "resp-local-skip-2",
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      },
     });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1475,7 +1516,10 @@ describe("RelayProxyService failover", () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { "content-type": "application/json" },
-      data: { usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } },
+      data: {
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      },
     });
 
     await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
@@ -1491,7 +1535,10 @@ describe("RelayProxyService failover", () => {
     axiosMock.mockResolvedValueOnce({
       status: 200,
       headers: { "content-type": "application/json" },
-      data: { usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+      data: {
+        choices: [{ message: { content: "ok" } }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      },
     });
 
     await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
@@ -1609,7 +1656,11 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "resp-2", usage: { prompt_tokens: 12, completion_tokens: 6, total_tokens: 18 } },
+        data: {
+          id: "resp-2",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 12, completion_tokens: 6, total_tokens: 18 },
+        },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1659,7 +1710,11 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "resp-3", usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 } },
+        data: {
+          id: "resp-3",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+        },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1689,7 +1744,11 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "resp-capacity-failover", usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 } },
+        data: {
+          id: "resp-capacity-failover",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 },
+        },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -1721,7 +1780,11 @@ describe("RelayProxyService failover", () => {
       .mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "resp-4", usage: { prompt_tokens: 9, completion_tokens: 5, total_tokens: 14 } },
+        data: {
+          id: "resp-4",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 9, completion_tokens: 5, total_tokens: 14 },
+        },
       });
 
     const result = await service.forwardRequest(relayToken, req);
@@ -2479,6 +2542,7 @@ describe("RelayProxyService failover", () => {
       headers: { "content-type": "application/json" },
       data: {
         id: "time-multiplier-test",
+        choices: [{ message: { content: "ok" } }],
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       },
     });
@@ -2665,7 +2729,11 @@ describe("RelayProxyService failover", () => {
       axiosMock.mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "id-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+        data: {
+          id: "id-response",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        },
       });
 
       await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
@@ -2688,7 +2756,11 @@ describe("RelayProxyService failover", () => {
       axiosMock.mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "mapped-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+        data: {
+          id: "mapped-response",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        },
       });
 
       const result = await service.forwardRequest(relayToken, req);
@@ -2721,7 +2793,11 @@ describe("RelayProxyService failover", () => {
       axiosMock.mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "mapped-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+        data: {
+          id: "mapped-response",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        },
       });
 
       await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
@@ -2740,7 +2816,11 @@ describe("RelayProxyService failover", () => {
       axiosMock.mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "mapped-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+        data: {
+          id: "mapped-response",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        },
       });
 
       await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
@@ -2771,7 +2851,11 @@ describe("RelayProxyService failover", () => {
       axiosMock.mockResolvedValueOnce({
         status: 200,
         headers: { "content-type": "application/json" },
-        data: { id: "mapped-response", usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+        data: {
+          id: "mapped-response",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        },
       });
 
       const result = await service.forwardRequest(relayToken, req);

@@ -95,7 +95,11 @@ import {
 import { MONTHLY_PASS_QUOTA_WINDOW_MS } from "@/constant/monthly-pass";
 import { RELAY_PROXY_DESCRIPTION_MAX_LENGTH, RELAY_PROXY_PROMPT_PREVIEW_MAX_LENGTH } from "@/constant/relay-proxy";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import { normalizeRetryStatusRules, shouldRetryRelayUpstreamFailure } from "@/util/relay";
+import {
+  hasVisibleRelayResponseOutput,
+  normalizeRetryStatusRules,
+  shouldRetryRelayUpstreamFailure,
+} from "@/util/relay";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { env } from "@/config/env";
 import logger from "@/util/logger";
@@ -124,6 +128,7 @@ import type { RelayStreamForwarderHost } from "./relay-stream-forwarder.service"
 import type { RelayImageForwarderHost } from "./relay-image-forwarder.service";
 import { RelayConcurrencyService } from "./relay-concurrency.service";
 import { RelayAttemptPlannerService } from "./relay-attempt-planner.service";
+import { getRelayCacheHitRateSince } from "./utils/relay-cache-hit-rate.util";
 import type {
   ImageForwardResult,
   RelayAttemptPlan,
@@ -251,6 +256,8 @@ export class RelayProxyService {
           channel?.channelType === "automatic-proxy-pool" &&
             this.getChannelRoutingConfig(channel)?.rankingMode !== "stability-first",
         ),
+      filterChannelsByCacheHitRate: (token, channels, threshold, minSamples, windowHours) =>
+        this.filterChannelsByCacheHitRate(token, channels, threshold, minSamples, windowHours),
     });
   }
 
@@ -1633,7 +1640,63 @@ export class RelayProxyService {
       ...(maxAcceptedChannelMultiplier == null
         ? {}
         : { maxAcceptedChannelMultiplier: Number(maxAcceptedChannelMultiplier) }),
+      minCacheHitRate:
+        relayToken.failoverConfig?.minCacheHitRate == null
+          ? null
+          : Math.min(1, Math.max(0, Number(relayToken.failoverConfig.minCacheHitRate))),
+      cacheHitRateMinSamples: Math.max(1, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateMinSamples ?? 3))),
+      cacheHitRateWindowHours: Math.max(
+        1,
+        Math.min(8760, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateWindowHours ?? 168))),
+      ),
     };
+  }
+
+  private async filterChannelsByCacheHitRate(
+    relayToken: RelayTokenAvailabilityInput,
+    channels: RelayResolvedChannelCandidate[],
+    minCacheHitRate: number | null | undefined,
+    minSamples: number,
+    windowHours: number,
+  ): Promise<RelayResolvedChannelCandidate[]> {
+    const threshold = minCacheHitRate == null ? null : Number(minCacheHitRate);
+    if (threshold == null || !Number.isFinite(threshold) || threshold <= 0 || channels.length <= 1 || !relayToken.id)
+      return channels;
+    const channelIds = [...new Set(channels.map((candidate) => candidate.resolvedChannel.id))];
+    const since = getRelayCacheHitRateSince(windowHours);
+    let rates;
+    try {
+      rates = await this.relayUsageRepo.aggregateChannelCacheHitRates(relayToken.id, channelIds, since);
+    } catch (error) {
+      logger.warn("Failed to read relay token cache hit rates; keeping all channels", {
+        relayTokenId: relayToken.id,
+        error,
+      });
+      return channels;
+    }
+    const rateMap = new Map(rates.map((rate) => [rate.channelId, rate]));
+    const eligible = channels.filter((candidate) => {
+      const rate = rateMap.get(candidate.resolvedChannel.id);
+      return !rate || rate.sampleCount < Math.max(1, minSamples) || rate.hitRate >= threshold;
+    });
+    if (eligible.length === 0) {
+      logger.warn("All relay channels are below the token cache hit-rate threshold; preserving fallback order", {
+        relayTokenId: relayToken.id,
+        threshold,
+        minSamples,
+      });
+      return channels;
+    }
+    if (eligible.length !== channels.length)
+      logger.info("Filtered relay channels by token cache hit rate", {
+        relayTokenId: relayToken.id,
+        threshold,
+        minSamples,
+        skippedChannelIds: channels
+          .filter((candidate) => !eligible.includes(candidate))
+          .map((candidate) => candidate.resolvedChannel.id),
+      });
+    return eligible;
   }
 
   /** Reject an automatic-pool execution channel before any upstream request is made. */
@@ -1845,6 +1908,9 @@ export class RelayProxyService {
       retryStatusCodes,
       failoverThreshold: 1,
       failbackCooldownMinutes: Math.max(0, Number(routingConfig?.failbackCooldownMinutes ?? 0)),
+      minCacheHitRate: null,
+      cacheHitRateMinSamples: 3,
+      cacheHitRateWindowHours: 168,
     };
   }
 
@@ -3490,14 +3556,83 @@ export class RelayProxyService {
               };
             }
 
-            upstreamResponseSucceeded = true;
-
             const { requestTokens, responseTokens, totalTokens, cacheCreationTokens, cacheReadTokens } =
               this.calculateTokens(
                 convertedBody,
                 response.data,
                 billingDisplayChannel.inputTokensIncludeCacheRead !== false,
               );
+
+            // A 2xx response containing only usage/metadata (or tool-control frames) is not a
+            // successful model response. Treat it as an upstream failure while the response is
+            // still buffered so the next channel can be attempted transparently.
+            const hasVisibleOutput = hasVisibleRelayResponseOutput(response.data, requestFormat);
+            if (!hasVisibleOutput) {
+              await this.recordFailedAttempt({
+                relayToken,
+                selectedModelName,
+                selectedRateConfig,
+                req,
+                path,
+                statusCode: response.status,
+                startTime,
+                firstByteTime,
+                isStreaming: false,
+                executionChannelId: channel.id,
+                displayChannelId: usageDisplayChannelId,
+                displayChannelName: usageDisplayChannelName,
+                channelMultiplier,
+                relayGlobalMultiplier,
+                timeMultiplier,
+                originalModel: relayOriginalRequestedModel,
+              });
+              if (hasNextChannel && failoverConfig.enabled) {
+                if (!isLastAttemptForThisChannel) {
+                  lastError = new Error("upstream response ended without visible output");
+                  continue;
+                }
+                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
+                  channel,
+                  request: req,
+                  statusCode: response.status,
+                });
+                this.appendAttemptIssue(
+                  attemptIssues,
+                  displayChannel,
+                  attemptIndex + 1,
+                  "upstream response ended without visible output",
+                  response.status,
+                );
+                await this.recordChannelSwitch({
+                  relayTokenId: relayToken.id,
+                  fromChannelId: channel.id,
+                  fromDisplayChannelId: displayChannel.id,
+                  fromDisplayChannelName: displayChannel.name || null,
+                  toChannelId: nextChannel!.id,
+                  toDisplayChannelId: nextDisplayChannel?.id || null,
+                  toDisplayChannelName: nextDisplayChannel?.name || null,
+                  triggerStatusCode: response.status,
+                  triggerError: "upstream response ended without visible output",
+                  attemptNumber: attemptIndex + 1,
+                  requestPath: req.path,
+                  method: req.method,
+                  modelName: selectedModelName,
+                  requestFormat,
+                  requestedModel: normalizedRequestedModel,
+                  failbackCooldownMinutes: stickyFailbackCooldownMinutes,
+                  allowStickyFailover: attemptPlan.allowStickyFailover,
+                });
+                channelSwitched = true;
+                break;
+              }
+              throw new Error("upstream response ended without visible output");
+            }
+
+            // Mark the attempt successful only after confirming that the upstream
+            // response contains visible model content. A 2xx usage/metadata-only
+            // response must remain eligible for channel failure accounting and
+            // failover in the surrounding error handler.
+            upstreamResponseSucceeded = true;
 
             logger.info("Cache metrics", {
               cacheCreationTokens,

@@ -86,6 +86,9 @@ export interface RelayFailoverConfigInput {
   failoverThreshold?: number;
   failbackCooldownMinutes?: number;
   maxAcceptedChannelMultiplier?: number | null;
+  minCacheHitRate?: number | null;
+  cacheHitRateMinSamples?: number;
+  cacheHitRateWindowHours?: number;
 }
 
 export interface RelayTokenChannelConfigInput {
