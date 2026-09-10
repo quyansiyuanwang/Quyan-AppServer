@@ -3758,6 +3758,9 @@ const zhCN: DeepStringify<typeof en> = {
       '仅自动代理池生效。初次选择或故障切换到基础倍率超过此上限的渠道时，请求会立即失败；留空表示不限。',
     failoverThreshold: '单渠道重试次数',
     failoverThresholdHelp: '同一渠道失败多少次后才切换到下一个渠道',
+    minCacheHitRate: '最低缓存命中率',
+    cacheHitRateMinSamples: '缓存命中率最少样本数',
+    cacheHitRateWindowHours: '缓存命中率统计窗口（小时）',
     failbackCooldownMinutes: '回切冷却时间（分钟）',
     failbackCooldownMinutesHelp:
       '切换到新渠道后，在这段时间内后续请求会继续优先使用当前渠道，不会立即切回更前面的渠道；0 表示关闭。',

@@ -456,6 +456,53 @@
                         class="failover-input"
                       />
                     </div>
+
+                    <div class="failover-metric-card">
+                      <div class="failover-metric-card__header">
+                        <span class="failover-metric-card__title">{{
+                          i18ns.t('relay.minCacheHitRate')
+                        }}</span>
+                      </div>
+                      <el-input-number
+                        v-model="editForm.failoverConfig.minCacheHitRate"
+                        :min="0"
+                        :max="1"
+                        :step="0.05"
+                        :precision="2"
+                        controls-position="right"
+                        class="failover-input"
+                      />
+                    </div>
+
+                    <div class="failover-metric-card">
+                      <div class="failover-metric-card__header">
+                        <span class="failover-metric-card__title">{{
+                          i18ns.t('relay.cacheHitRateMinSamples')
+                        }}</span>
+                      </div>
+                      <el-input-number
+                        v-model="editForm.failoverConfig.cacheHitRateMinSamples"
+                        :min="1"
+                        :max="1000"
+                        class="failover-input"
+                      />
+                    </div>
+
+                    <div class="failover-metric-card">
+                      <div class="failover-metric-card__header">
+                        <span class="failover-metric-card__title">{{
+                          i18ns.t('relay.cacheHitRateWindowHours')
+                        }}</span>
+                      </div>
+                      <el-input-number
+                        v-model="editForm.failoverConfig.cacheHitRateWindowHours"
+                        :min="1"
+                        :max="8760"
+                        :step="24"
+                        controls-position="right"
+                        class="failover-input"
+                      />
+                    </div>
                   </div>
 
                   <div class="failover-rule-block">

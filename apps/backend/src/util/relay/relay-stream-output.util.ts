@@ -56,6 +56,25 @@ export const hasVisibleStreamOutput = (raw: Buffer | string, requestFormat: Rela
       }
     });
 
+/** Detect user-visible model content in a buffered (non-streaming) response. */
+export const hasVisibleRelayResponseOutput = (value: unknown, requestFormat: RelayRequestFormat): boolean => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, any>;
+  if (requestFormat === "anthropic") return hasVisibleText(record.content);
+  if (requestFormat === "gemini")
+    return (
+      Array.isArray(record.candidates) &&
+      record.candidates.some((candidate: any) => hasVisibleText(candidate?.content?.parts))
+    );
+  if (Array.isArray(record.choices))
+    return record.choices.some(
+      (choice: any) => hasVisibleText(choice?.message?.content) || hasVisibleText(choice?.text),
+    );
+  if (Array.isArray(record.output))
+    return record.output.some((item: any) => hasVisibleText(item?.content) || hasVisibleText(item?.text));
+  return hasVisibleText(record.output_text) || hasVisibleText(record.content);
+};
+
 export class RelayStreamPreflightBuffer {
   private readonly chunks: Buffer[] = [];
   private bytes = 0;

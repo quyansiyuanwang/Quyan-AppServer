@@ -52,7 +52,10 @@ export class RelayConcurrencyService {
         ttlMs,
         ticket,
       );
-      if (slotKey === null) throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
+      if (slotKey === null) {
+        await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
+        throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
+      }
       if (slotKey !== "wait" && slotKey !== "stale") {
         const waitTime = Date.now() - startWaitTime;
         if (waitTime > 1000)
@@ -74,7 +77,10 @@ export class RelayConcurrencyService {
           ttlSeconds: slotTtlSeconds,
         };
       }
-      if (slotKey === "stale") throw new TooManyRequestsError("Request queue timeout waiting for upstream slot");
+      if (slotKey === "stale") {
+        await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
+        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot");
+      }
       if (!waitLogged) {
         logger.info("Request queued - waiting for concurrency slot", {
           userId,

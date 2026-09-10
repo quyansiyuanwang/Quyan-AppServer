@@ -3932,6 +3932,9 @@ export default {
       'Applies only to automatic pools. The request fails immediately if the selected or failover channel exceeds this base multiplier; leave empty for no limit.',
     failoverThreshold: 'Retries Per Channel',
     failoverThresholdHelp: 'Number of failures on the same channel before switching to the next',
+    minCacheHitRate: 'Minimum Cache Hit Rate',
+    cacheHitRateMinSamples: 'Minimum Cache Rate Samples',
+    cacheHitRateWindowHours: 'Cache Rate Window (Hours)',
     failbackCooldownMinutes: 'Failback Cooldown (Minutes)',
     failbackCooldownMinutesHelp:
       'After switching to a new channel, later requests keep preferring the current channel for this many minutes instead of immediately switching back to earlier channels. 0 disables it.',

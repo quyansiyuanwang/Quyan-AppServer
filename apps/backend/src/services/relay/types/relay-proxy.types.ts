@@ -40,6 +40,9 @@ export interface RelayFailoverRuntimeConfig {
   failoverThreshold: number;
   failbackCooldownMinutes: number;
   maxAcceptedChannelMultiplier?: number | null;
+  minCacheHitRate?: number | null;
+  cacheHitRateMinSamples: number;
+  cacheHitRateWindowHours: number;
 }
 
 export interface RelayAttemptPlan {
@@ -49,6 +52,7 @@ export interface RelayAttemptPlan {
 }
 
 export interface RelayTokenAvailabilityInput {
+  id?: string;
   allowedModels?: string | null;
   modelMapping?: Prisma.JsonValue | Record<string, string> | null;
   channel?: RelayChannel | null;
@@ -63,6 +67,9 @@ export interface RelayTokenAvailabilityInput {
     failoverThreshold?: number | null;
     failbackCooldownMinutes?: number | null;
     maxAcceptedChannelMultiplier?: number | Prisma.Decimal | null;
+    minCacheHitRate?: number | Prisma.Decimal | null;
+    cacheHitRateMinSamples?: number | null;
+    cacheHitRateWindowHours?: number | null;
   } | null;
 }
 

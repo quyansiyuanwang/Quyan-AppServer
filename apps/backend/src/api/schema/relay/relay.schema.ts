@@ -92,6 +92,15 @@ const relayTokenFailoverConfigSchema = z.object({
       (value) => value == null || hasDecimalPrecision(value, 6),
       "maxAcceptedChannelMultiplier must have at most 6 decimal places",
     ),
+  minCacheHitRate: z
+    .union([z.null(), z.coerce.number().min(0).max(1)])
+    .optional()
+    .refine(
+      (value) => value == null || hasDecimalPrecision(value, 4),
+      "minCacheHitRate must have at most 4 decimal places",
+    ),
+  cacheHitRateMinSamples: z.coerce.number().int().min(1).max(1000).default(3),
+  cacheHitRateWindowHours: z.coerce.number().int().min(1).max(8760).default(168),
 });
 
 const relayTokenIpWhitelistSchema = z

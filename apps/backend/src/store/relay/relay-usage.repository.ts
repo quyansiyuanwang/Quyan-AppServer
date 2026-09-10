@@ -7,6 +7,7 @@ import type {
   RelayUsageStore,
   RelayUsageWithAmounts,
   RelayUsageWithTokenName,
+  RelayChannelCacheHitRate,
 } from "./relay-usage.store";
 import { RECORD_STATUS } from "@/constant/status";
 import { extractLegacyMonthlyPassCoveredAmount } from "@/util/monthly-pass-coverage.util";
@@ -190,6 +191,44 @@ export class RelayUsageRepository implements RelayUsageStore {
       coveredAmount: billingTotalsByRelayTokenId.get(row.relayTokenId)?.coveredAmount || 0,
       lastUsedAt: row._max.createTime ?? undefined,
     }));
+  }
+
+  async aggregateChannelCacheHitRates(
+    relayTokenId: string,
+    channelIds: string[],
+    since?: Date,
+  ): Promise<RelayChannelCacheHitRate[]> {
+    const ids = [...new Set(channelIds.map((id) => id.trim()).filter(Boolean))];
+    if (!relayTokenId || ids.length === 0) return [];
+    const rows = await prisma.relayUsage.groupBy({
+      by: ["executionChannelId"],
+      where: {
+        relayTokenId,
+        executionChannelId: { in: ids },
+        status: RECORD_STATUS.ACTIVE,
+        ...(since ? { createTime: { gte: since } } : {}),
+      },
+      _count: { _all: true },
+      _sum: { requestTokens: true, cacheCreationTokens: true, cacheReadTokens: true },
+    });
+    return rows.flatMap((row) => {
+      const channelId = row.executionChannelId;
+      if (!channelId) return [];
+      const requestTokens = Math.max(0, Number(row._sum.requestTokens || 0));
+      const cacheCreationTokens = Math.max(0, Number(row._sum.cacheCreationTokens || 0));
+      const cacheReadTokens = Math.max(0, Number(row._sum.cacheReadTokens || 0));
+      const denominator = requestTokens + cacheCreationTokens + cacheReadTokens;
+      return [
+        {
+          channelId,
+          sampleCount: Number(row._count._all || 0),
+          requestTokens,
+          cacheCreationTokens,
+          cacheReadTokens,
+          hitRate: denominator > 0 ? Math.min(1, cacheReadTokens / denominator) : 0,
+        },
+      ];
+    });
   }
 
   async findUsageDetailPageByRelayTokenId(
