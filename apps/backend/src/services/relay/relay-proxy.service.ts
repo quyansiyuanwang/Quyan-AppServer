@@ -3556,8 +3556,6 @@ export class RelayProxyService {
               };
             }
 
-            upstreamResponseSucceeded = true;
-
             const { requestTokens, responseTokens, totalTokens, cacheCreationTokens, cacheReadTokens } =
               this.calculateTokens(
                 convertedBody,
@@ -3629,6 +3627,12 @@ export class RelayProxyService {
               }
               throw new Error("upstream response ended without visible output");
             }
+
+            // Mark the attempt successful only after confirming that the upstream
+            // response contains visible model content. A 2xx usage/metadata-only
+            // response must remain eligible for channel failure accounting and
+            // failover in the surrounding error handler.
+            upstreamResponseSucceeded = true;
 
             logger.info("Cache metrics", {
               cacheCreationTokens,
