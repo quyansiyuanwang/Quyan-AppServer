@@ -146,6 +146,8 @@ export const CONFIG_KEYS = {
     CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT: "relay.customKey.createLimitMaxCount",
     UPSTREAM_PROXY_ENABLED: "relay.upstreamProxy.enabled",
     UPSTREAM_PROXY_URL: "relay.upstreamProxy.url",
+    AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES: "relay.autoProxyPool.cacheHitRateMinSamples",
+    AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS: "relay.autoProxyPool.cacheHitRateWindowHours",
   },
   CONTENT_SAFETY: {
     REQUEST_ENABLED: "security.contentSafety.request.enabled",

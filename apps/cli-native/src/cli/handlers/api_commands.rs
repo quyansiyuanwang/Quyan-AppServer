@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use std::io::Read;
 
 use crate::core::api::ApiClient;
+use crate::features::wizard;
 use crate::services::{account, json_endpoint_product as product, relay};
 
 pub async fn handle_account(api: &ApiClient, json_output: bool) -> Result<()> {
@@ -22,12 +23,58 @@ pub async fn handle_relay_command(
     let value = match command {
         super::super::RelayCommand::Token { command } => match command {
             super::super::RelayTokenCommand::List => relay::tokens(api).await?,
-            super::super::RelayTokenCommand::Create => relay::create_token(api).await?,
+            super::super::RelayTokenCommand::Create(args) => {
+                relay::create_token(
+                    api,
+                    args.name,
+                    args.channels,
+                    args.failover,
+                    args.max_retries,
+                    args.preflight_buffer_mb,
+                )
+                .await?
+            }
             super::super::RelayTokenCommand::Update { id } => {
                 relay::update_token(api, &id, read_json_stdin()?).await?
             }
             super::super::RelayTokenCommand::Delete { id } => relay::delete_token(api, &id).await?,
+            super::super::RelayTokenCommand::DeleteBatch { ids } => {
+                relay::delete_batch_tokens(api, &ids).await?
+            }
             super::super::RelayTokenCommand::Usage { id } => relay::token_usage(api, &id).await?,
+            super::super::RelayTokenCommand::Stats { id } => {
+                relay::token_stats(api, id.as_deref()).await?
+            }
+            super::super::RelayTokenCommand::Visualize => {
+                let output = relay::visualize_stats(api, json_output).await?;
+                if json_output {
+                    let value: serde_json::Value = serde_json::from_str(&output)?;
+                    return super::common::print_value(value, true);
+                } else {
+                    println!("{}", output);
+                    return Ok(());
+                }
+            }
+            super::super::RelayTokenCommand::Export { output } => {
+                let data = relay::export_tokens(api).await?;
+                if let Some(path) = output {
+                    std::fs::write(&path, serde_json::to_string_pretty(&data)?)?;
+                    return super::common::print_value(
+                        serde_json::json!({"exported": true, "path": path}),
+                        json_output,
+                    );
+                }
+                data
+            }
+            super::super::RelayTokenCommand::Health { id } => relay::health_check(api, &id).await?,
+            super::super::RelayTokenCommand::Wizard => {
+                if json_output {
+                    return Err(anyhow::anyhow!(
+                        "Wizard mode is not available with --json flag"
+                    ));
+                }
+                wizard::token_creation_wizard(api).await?
+            }
         },
         super::super::RelayCommand::Channels {
             command: super::super::ChannelsCommand::List,

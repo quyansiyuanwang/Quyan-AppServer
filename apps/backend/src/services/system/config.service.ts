@@ -30,6 +30,8 @@ const DEFAULT_RELAY_CUSTOM_KEY_MAX_TOKENS_PER_USER = 3;
 const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES = 10;
 const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT = 5;
 const DEFAULT_SOCIAL_AUTH_QR_LOGIN_ENABLED = true;
+const DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES = 10;
+const DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS = 168;
 
 export interface RegistrationConfig {
   enabled: boolean;
@@ -118,6 +120,11 @@ export interface RemoteTerminalUnbindConfig {
   maxCount: number;
   windowHours: number;
   rebindCooldownMinutes: number;
+}
+
+export interface AutoProxyPoolConfig {
+  cacheHitRateMinSamples: number;
+  cacheHitRateWindowHours: number;
 }
 
 export type CaptchaProvider = "none" | "recaptcha" | "turnstile";
@@ -347,6 +354,40 @@ export class ConfigService {
         60 * 24 * 365,
       ),
     };
+  }
+
+  async getAutoProxyPoolConfig(): Promise<AutoProxyPoolConfig> {
+    const keys = [
+      CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES,
+      CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS,
+    ];
+    const configs = await this.getMultiple(keys);
+
+    return {
+      cacheHitRateMinSamples: sanitizeInt(
+        configs[CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES],
+        DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES,
+        1,
+        1000,
+      ),
+      cacheHitRateWindowHours: sanitizeInt(
+        configs[CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS],
+        DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS,
+        1,
+        24 * 365,
+      ),
+    };
+  }
+
+  async setAutoProxyPoolConfig(config: AutoProxyPoolConfig, actorUserId?: string, request?: Request): Promise<void> {
+    await this.setMultiple(
+      {
+        [CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES]: String(config.cacheHitRateMinSamples),
+        [CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS]: String(config.cacheHitRateWindowHours),
+      },
+      actorUserId,
+      request,
+    );
   }
 
   async getCaptchaConfig(): Promise<CaptchaConfig> {
