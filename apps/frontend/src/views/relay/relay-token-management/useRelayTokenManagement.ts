@@ -270,7 +270,7 @@ const createDefaultFailoverConfig = (): EditableFailoverConfig => ({
   failbackCooldownMinutes: 0,
   maxAcceptedChannelMultiplier: null,
   minCacheHitRate: null,
-  cacheHitRateMinSamples: 3,
+  cacheHitRateMinSamples: 10,
   cacheHitRateWindowHours: 168,
 })
 
@@ -630,6 +630,11 @@ export const useRelayTokenManagement = () => {
       responseAction: SharedContentSafetyAction | null
       responseMaxAction: SharedContentSafetyAction | null
       responseAiEnabled: boolean | null
+    },
+    streamConfig: {
+      preflightBufferLimitBytes: undefined,
+    } as {
+      preflightBufferLimitBytes?: number
     },
   })
 
@@ -1758,6 +1763,9 @@ export const useRelayTokenManagement = () => {
         responseAiEnabled: row.contentSafetyConfig?.responseAiEnabled ?? null,
         responseAiAction: row.contentSafetyConfig?.responseAiAction ?? null,
       },
+      streamConfig: {
+        preflightBufferLimitBytes: row.streamConfig?.preflightBufferLimitBytes,
+      },
     }
 
     showEditDialog.value = true
@@ -2181,6 +2189,9 @@ export const useRelayTokenManagement = () => {
           requestFormatTransforms,
           normalizerConfig,
           contentSafetyConfig,
+          streamConfig: editForm.value.streamConfig.preflightBufferLimitBytes
+            ? { preflightBufferLimitBytes: editForm.value.streamConfig.preflightBufferLimitBytes }
+            : undefined,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.createRelayToken(data)
@@ -2211,6 +2222,9 @@ export const useRelayTokenManagement = () => {
           requestFormatTransforms,
           normalizerConfig,
           contentSafetyConfig,
+          streamConfig: editForm.value.streamConfig.preflightBufferLimitBytes
+            ? { preflightBufferLimitBytes: editForm.value.streamConfig.preflightBufferLimitBytes }
+            : null,
           targetUserId: currentTargetUserIdForRequest.value,
         }
         await relayTokenService.updateToken(currentEditId.value, data)

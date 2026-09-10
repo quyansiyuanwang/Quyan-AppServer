@@ -4037,6 +4037,9 @@ const emoji: DeepStringify<typeof en> = {
     customKey: '🔑 ✏️',
     customKeyPlaceholder: '🔑 💬',
     customKeyHint: '🔑 ❓',
+    preflightBufferLimit: '📦 🔢',
+    preflightBufferLimitHelp: '📦 🚦 ⚠️',
+    preflightBufferLimitDefault: '📦 🔢 🔧',
   },
   redemption: {
     code: '⏺️ 💻',

@@ -101,3 +101,9 @@ export type {
   RelayRequestFormatTransform,
   RelayUpstreamFormat,
 } from './relay-model-availability'
+export {
+  DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+  MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+  MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+} from './relay-stream-config'
+export type { RelayTokenStreamConfig } from './relay-stream-config'

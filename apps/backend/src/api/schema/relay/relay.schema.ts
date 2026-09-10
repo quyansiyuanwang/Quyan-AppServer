@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { RELAY_CONVERTIBLE_REQUEST_FORMATS } from "@quyan/shared";
+import {
+  RELAY_CONVERTIBLE_REQUEST_FORMATS,
+  MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+  MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+} from "@quyan/shared";
 import {
   MONTHLY_PASS_DECIMAL_SCALE,
   MONTHLY_PASS_MAX_AMOUNT_QUOTA,
@@ -99,7 +103,7 @@ const relayTokenFailoverConfigSchema = z.object({
       (value) => value == null || hasDecimalPrecision(value, 4),
       "minCacheHitRate must have at most 4 decimal places",
     ),
-  cacheHitRateMinSamples: z.coerce.number().int().min(1).max(1000).default(3),
+  cacheHitRateMinSamples: z.coerce.number().int().min(1).max(1000).default(10),
   cacheHitRateWindowHours: z.coerce.number().int().min(1).max(8760).default(168),
 });
 
@@ -167,6 +171,21 @@ const contentSafetyPolicyOverrideSchema = z.object({
   responseAiAction: z.enum(["unreachable", "blackhole", "allow"]).nullable().optional(),
 });
 
+const relayTokenStreamConfigSchema = z.object({
+  preflightBufferLimitBytes: z.coerce
+    .number()
+    .int()
+    .min(
+      MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+      `preflightBufferLimitBytes must be at least ${MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES / 1024}KB`,
+    )
+    .max(
+      MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+      `preflightBufferLimitBytes must not exceed ${MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES / 1024 / 1024}MB`,
+    )
+    .optional(),
+});
+
 export const createRelayTokenBodySchema = z
   .object({
     targetUserId: z.string().trim().min(1).max(50).optional(),
@@ -185,6 +204,7 @@ export const createRelayTokenBodySchema = z
     requestFormatTransforms: relayRequestFormatTransformsSchema.optional(),
     normalizerConfig: relayTokenNormalizerConfigSchema.optional(),
     contentSafetyConfig: contentSafetyPolicyOverrideSchema.nullable().optional(),
+    streamConfig: relayTokenStreamConfigSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).optional(),
   })
@@ -281,6 +301,7 @@ export const updateRelayTokenBodySchema = z
     requestFormatTransforms: relayRequestFormatTransformsSchema.nullable().optional(),
     normalizerConfig: relayTokenNormalizerConfigSchema.nullable().optional(),
     contentSafetyConfig: contentSafetyPolicyOverrideSchema.nullable().optional(),
+    streamConfig: relayTokenStreamConfigSchema.nullable().optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).nullable().optional(),
   })

@@ -1206,6 +1206,38 @@
                 />
               </el-form-item>
               <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
+                <template #label>
+                  <span class="form-label-with-help">
+                    <span>{{ i18ns.t('relay.preflightBufferLimit') }}</span>
+                    <el-tooltip placement="top">
+                      <template #content>
+                        <div class="help-tooltip-content">
+                          {{ i18ns.t('relay.preflightBufferLimitHelp') }}
+                        </div>
+                      </template>
+                      <el-icon class="help-tooltip-trigger"><QuestionFilled /></el-icon>
+                    </el-tooltip>
+                  </span>
+                </template>
+                <div class="flex flex-col gap-1 w-full">
+                  <el-input-number
+                    v-model="editForm.streamConfig.preflightBufferLimitBytes"
+                    :min="256 * 1024"
+                    :max="10 * 1024 * 1024"
+                    :step="256 * 1024"
+                    :placeholder="String(2 * 1024 * 1024)"
+                    style="width: 100%"
+                  />
+                  <span class="text-[#909399] text-xs">
+                    {{
+                      editForm.streamConfig.preflightBufferLimitBytes
+                        ? `${(editForm.streamConfig.preflightBufferLimitBytes / 1024 / 1024).toFixed(2)} MB`
+                        : i18ns.t('relay.preflightBufferLimitDefault')
+                    }}
+                  </span>
+                </div>
+              </el-form-item>
+              <el-form-item :class="isDesktop ? 'form-item-span-2' : undefined">
                 <template #label>{{ i18ns.t('relay.v1PathMode') }}</template>
                 <el-radio-group v-model="editForm.normalizerConfig.v1PathMode">
                   <el-radio value="off">{{ i18ns.t('relay.v1PathModeOff') }}</el-radio>

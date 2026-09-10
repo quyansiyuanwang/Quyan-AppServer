@@ -1,6 +1,8 @@
 import type { RelayRequestFormat } from "./relay-model-availability.util";
+import { DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES } from "@quyan/shared";
 
-export const STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES = 256 * 1024;
+/** @deprecated Use token-specific streamConfig.preflightBufferLimitBytes instead */
+export const STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES = DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES;
 
 const hasVisibleText = (value: unknown): boolean => {
   if (typeof value === "string") return value.trim().length > 0;
@@ -80,6 +82,11 @@ export class RelayStreamPreflightBuffer {
   private bytes = 0;
   private started = false;
   private visible = false;
+  private readonly limitBytes: number;
+
+  constructor(limitBytes: number = DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES) {
+    this.limitBytes = limitBytes;
+  }
 
   get hasVisibleOutput() {
     return this.visible;
@@ -97,7 +104,7 @@ export class RelayStreamPreflightBuffer {
     if (!chunk.length || this.started) return true;
     this.chunks.push(chunk);
     this.bytes += chunk.length;
-    return this.bytes <= STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES;
+    return this.bytes <= this.limitBytes;
   }
 
   start(writeHead: () => void, write: (chunk: Buffer) => void) {

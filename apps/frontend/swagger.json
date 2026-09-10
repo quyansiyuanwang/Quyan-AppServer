@@ -45135,6 +45135,18 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayTokenStreamConfig": {
+				"description": "Relay token stream configuration for controlling streaming behavior",
+				"properties": {
+					"preflightBufferLimitBytes": {
+						"type": "number",
+						"format": "double",
+						"description": "Preflight buffer limit in bytes before marking stream as failed if no visible output appears.\nDefault: 2MB (2 * 1024 * 1024)\nMin: 256KB, Max: 10MB"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenChannelConfigDto": {
 				"properties": {
 					"channelId": {
@@ -45353,6 +45365,9 @@
 						],
 						"nullable": true
 					},
+					"streamConfig": {
+						"$ref": "#/components/schemas/RelayTokenStreamConfig"
+					},
 					"ipWhitelist": {
 						"type": "string"
 					},
@@ -45521,6 +45536,10 @@
 						],
 						"nullable": true
 					},
+					"streamConfig": {
+						"$ref": "#/components/schemas/RelayTokenStreamConfig",
+						"description": "Stream behavior configuration (preflight buffer limits, etc.)"
+					},
 					"ipWhitelist": {
 						"type": "string",
 						"nullable": true,
@@ -45621,6 +45640,10 @@
 							}
 						],
 						"nullable": true
+					},
+					"streamConfig": {
+						"$ref": "#/components/schemas/RelayTokenStreamConfig",
+						"description": "Stream behavior configuration (preflight buffer limits, etc.)"
 					},
 					"ipWhitelist": {
 						"type": "string",
@@ -45812,6 +45835,10 @@
 						],
 						"nullable": true
 					},
+					"streamConfig": {
+						"$ref": "#/components/schemas/RelayTokenStreamConfig",
+						"description": "Stream behavior configuration (preflight buffer limits, etc.)"
+					},
 					"ipWhitelist": {
 						"type": "string",
 						"nullable": true,
@@ -46001,6 +46028,15 @@
 							}
 						],
 						"nullable": true
+					},
+					"streamConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/RelayTokenStreamConfig"
+							}
+						],
+						"nullable": true,
+						"description": "Stream behavior configuration (preflight buffer limits, etc.)"
 					},
 					"ipWhitelist": {
 						"type": "string",
