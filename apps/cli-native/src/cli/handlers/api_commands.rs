@@ -69,7 +69,9 @@ pub async fn handle_relay_command(
             super::super::RelayTokenCommand::Health { id } => relay::health_check(api, &id).await?,
             super::super::RelayTokenCommand::Wizard => {
                 if json_output {
-                    return Err(anyhow::anyhow!("Wizard mode is not available with --json flag"));
+                    return Err(anyhow::anyhow!(
+                        "Wizard mode is not available with --json flag"
+                    ));
                 }
                 wizard::token_creation_wizard(api).await?
             }

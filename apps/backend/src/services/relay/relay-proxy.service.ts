@@ -1879,7 +1879,10 @@ export class RelayProxyService {
     return orderedMembers.slice(0, maxAttempts);
   }
 
-  private async getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): Promise<RelayFailoverRuntimeConfig> {
+  private async getPoolFailoverRuntimeConfig(
+    channel: RelayChannel,
+    poolSize: number,
+  ): Promise<RelayFailoverRuntimeConfig> {
     const autoProxyPoolConfig = await this.configService.getAutoProxyPoolConfig();
     const routingConfig = this.getChannelRoutingConfig(channel);
     const configuredRetryStatusCodes = Array.isArray(routingConfig?.retryStatusCodes)

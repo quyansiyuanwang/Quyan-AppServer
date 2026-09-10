@@ -566,7 +566,6 @@ export class ConfigController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "Validation error")
   @Response<ErrorResponse>(HttpStatusCode.InternalServerError, "Internal server error")
-  @Middlewares(setResponseMessageKey("system.configUpdated"))
   public async setAutoProxyPoolConfig(
     @Request() request: TypedRequest,
     @Body() body: SetAutoProxyPoolConfigDto,

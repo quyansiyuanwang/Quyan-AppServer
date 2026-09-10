@@ -83,17 +83,29 @@ pub enum RelayCommand {
 pub enum RelayTokenCommand {
     List,
     Create(CreateRelayTokenArgs),
-    Update { id: String },
-    Delete { id: String },
-    DeleteBatch { ids: String },
-    Usage { id: String },
-    Stats { id: Option<String> },
+    Update {
+        id: String,
+    },
+    Delete {
+        id: String,
+    },
+    DeleteBatch {
+        ids: String,
+    },
+    Usage {
+        id: String,
+    },
+    Stats {
+        id: Option<String>,
+    },
     Visualize,
     Export {
         #[arg(long)]
         output: Option<String>,
     },
-    Health { id: String },
+    Health {
+        id: String,
+    },
     Wizard,
 }
 

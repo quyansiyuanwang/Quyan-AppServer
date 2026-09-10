@@ -34,9 +34,18 @@ pub async fn token_creation_wizard(api: &ApiClient) -> Result<Value> {
     } else {
         println!("\nAvailable channels:");
         for (idx, channel) in channels.iter().enumerate() {
-            let id = channel.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
-            let name = channel.get("name").and_then(|v| v.as_str()).unwrap_or("unknown");
-            let status = channel.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let id = channel
+                .get("id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let name = channel
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let status = channel
+                .get("status")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
             println!("  {}. {} ({}) - {}", idx + 1, name, id, status);
         }
     }
@@ -114,8 +123,14 @@ pub async fn token_creation_wizard(api: &ApiClient) -> Result<Value> {
     // Summary
     println!("\n📋 Configuration Summary:");
     println!("  Name: {}", name.as_deref().unwrap_or("Quyan CLI token"));
-    println!("  Channels: {}", selected_channels.as_deref().unwrap_or("All"));
-    println!("  Failover: {}", if failover { "Enabled" } else { "Disabled" });
+    println!(
+        "  Channels: {}",
+        selected_channels.as_deref().unwrap_or("All")
+    );
+    println!(
+        "  Failover: {}",
+        if failover { "Enabled" } else { "Disabled" }
+    );
     if let Some(retries) = max_retries {
         println!("  Max Retries: {}", retries);
     }

@@ -21,7 +21,12 @@ pub fn render_bar_chart(data: &[(String, u64)], max_width: usize, title: &str) -
         };
 
         let bar = "█".repeat(bar_length);
-        output.push_str(&format!("{:20} | {} {}\n", label, bar, format_number(*value)));
+        output.push_str(&format!(
+            "{:20} | {} {}\n",
+            label,
+            bar,
+            format_number(*value)
+        ));
     }
 
     output
@@ -46,7 +51,8 @@ pub fn render_sparkline(values: &[u64], width: usize) -> String {
         let idx = (i as f64 * step) as usize;
         if idx < values.len() {
             let value = values[idx];
-            let normalized = ((value.saturating_sub(min_value) as f64 / range as f64) * (chars.len() - 1) as f64) as usize;
+            let normalized = ((value.saturating_sub(min_value) as f64 / range as f64)
+                * (chars.len() - 1) as f64) as usize;
             result.push(chars[normalized.min(chars.len() - 1)]);
         }
     }

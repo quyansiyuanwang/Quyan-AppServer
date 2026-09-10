@@ -17,13 +17,23 @@ pub async fn tokens(api: &ApiClient) -> Result<Value> {
     .await
 }
 
-pub async fn create_token(api: &ApiClient, name: Option<String>, channels: Option<String>, failover: bool, max_retries: Option<u32>, preflight_buffer_mb: Option<f32>) -> Result<Value> {
+pub async fn create_token(
+    api: &ApiClient,
+    name: Option<String>,
+    channels: Option<String>,
+    failover: bool,
+    max_retries: Option<u32>,
+    preflight_buffer_mb: Option<f32>,
+) -> Result<Value> {
     let mut body = json!({
         "name": name.unwrap_or_else(|| "Quyan CLI token".to_string())
     });
 
     if let Some(channels_str) = channels {
-        let channel_ids: Vec<String> = channels_str.split(',').map(|s| s.trim().to_string()).collect();
+        let channel_ids: Vec<String> = channels_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
         body["routingChannelIds"] = json!(channel_ids);
     }
 
@@ -73,7 +83,11 @@ pub async fn delete_token(api: &ApiClient, id: &str) -> Result<Value> {
 }
 
 pub async fn delete_batch_tokens(api: &ApiClient, ids: &str) -> Result<Value> {
-    let id_list: Vec<&str> = ids.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    let id_list: Vec<&str> = ids
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
     let mut results = Vec::new();
     let mut errors = Vec::new();
 
@@ -106,14 +120,15 @@ pub async fn token_usage(api: &ApiClient, id: &str) -> Result<Value> {
 pub async fn token_stats(api: &ApiClient, id: Option<&str>) -> Result<Value> {
     if let Some(token_id) = id {
         // Single token detailed stats
-        let usage: Value = api.request(
-            Method::GET,
-            &format!("/v1/relay/tokens/{token_id}/usage"),
-            None,
-            AuthKind::OAuth,
-            false,
-        )
-        .await?;
+        let usage: Value = api
+            .request(
+                Method::GET,
+                &format!("/v1/relay/tokens/{token_id}/usage"),
+                None,
+                AuthKind::OAuth,
+                false,
+            )
+            .await?;
 
         Ok(json!({
             "tokenId": token_id,
@@ -123,7 +138,11 @@ pub async fn token_stats(api: &ApiClient, id: Option<&str>) -> Result<Value> {
     } else {
         // All tokens summary stats
         let tokens_response = tokens(api).await?;
-        let items = tokens_response.get("items").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        let items = tokens_response
+            .get("items")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
 
         let mut total_requests = 0u64;
         let mut total_tokens = 0u64;
@@ -170,18 +189,22 @@ pub async fn health_check(api: &ApiClient, id: &str) -> Result<Value> {
     let start = std::time::Instant::now();
 
     // Get token details
-    let token_result: Result<Value> = api.request(
-        Method::GET,
-        &format!("/v1/relay/tokens/{id}"),
-        None,
-        AuthKind::OAuth,
-        false,
-    )
-    .await;
+    let token_result: Result<Value> = api
+        .request(
+            Method::GET,
+            &format!("/v1/relay/tokens/{id}"),
+            None,
+            AuthKind::OAuth,
+            false,
+        )
+        .await;
 
     let token_healthy = token_result.is_ok();
     let token_status = if let Ok(ref token) = token_result {
-        token.get("status").and_then(|s: &Value| s.as_str()).unwrap_or("unknown")
+        token
+            .get("status")
+            .and_then(|s: &Value| s.as_str())
+            .unwrap_or("unknown")
     } else {
         "error"
     };

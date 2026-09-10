@@ -379,11 +379,7 @@ export class ConfigService {
     };
   }
 
-  async setAutoProxyPoolConfig(
-    config: AutoProxyPoolConfig,
-    actorUserId?: string,
-    request?: Request,
-  ): Promise<void> {
+  async setAutoProxyPoolConfig(config: AutoProxyPoolConfig, actorUserId?: string, request?: Request): Promise<void> {
     await this.setMultiple(
       {
         [CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES]: String(config.cacheHitRateMinSamples),
