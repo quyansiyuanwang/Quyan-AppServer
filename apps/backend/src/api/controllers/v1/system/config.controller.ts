@@ -40,6 +40,8 @@ import type {
   SocialAuthConfigDto,
   RelayProxyConfigDto,
   SetRelayProxyConfigDto,
+  AutoProxyPoolConfigDto,
+  SetAutoProxyPoolConfigDto,
 } from "@/api/dto/system/config.dto";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
@@ -542,5 +544,36 @@ export class ConfigController extends Controller {
     );
     setResponseMessageKey(request, "system.configUpdated");
     return { message: "配置更新成功" };
+  }
+
+  /**
+   * 获取自动代理池配置
+   */
+  @Get("auto-proxy-pool")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  public async getAutoProxyPoolConfig(@Request() _request: TypedRequest): Promise<AutoProxyPoolConfigDto> {
+    return this.configService.getAutoProxyPoolConfig();
+  }
+
+  /**
+   * 更新自动代理池配置
+   */
+  @Put("auto-proxy-pool")
+  @Security("jwt")
+  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "Validation error")
+  @Response<ErrorResponse>(HttpStatusCode.InternalServerError, "Internal server error")
+  @Middlewares(setResponseMessageKey("system.configUpdated"))
+  public async setAutoProxyPoolConfig(
+    @Request() request: TypedRequest,
+    @Body() body: SetAutoProxyPoolConfigDto,
+  ): Promise<{ message: string }> {
+    const currentUserId = request.user?.userId;
+    await this.configService.setAutoProxyPoolConfig(body, currentUserId, request);
+    setResponseMessageKey(request, "system.configUpdated");
+    return { message: "自动代理池配置更新成功" };
   }
 }

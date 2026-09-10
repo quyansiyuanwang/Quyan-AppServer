@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use std::io::Read;
 
 use crate::core::api::ApiClient;
+use crate::features::wizard;
 use crate::services::{account, json_endpoint_product as product, relay};
 
 pub async fn handle_account(api: &ApiClient, json_output: bool) -> Result<()> {
@@ -44,6 +45,16 @@ pub async fn handle_relay_command(
             super::super::RelayTokenCommand::Stats { id } => {
                 relay::token_stats(api, id.as_deref()).await?
             }
+            super::super::RelayTokenCommand::Visualize => {
+                let output = relay::visualize_stats(api, json_output).await?;
+                if json_output {
+                    let value: serde_json::Value = serde_json::from_str(&output)?;
+                    return super::common::print_value(value, true);
+                } else {
+                    println!("{}", output);
+                    return Ok(());
+                }
+            }
             super::super::RelayTokenCommand::Export { output } => {
                 let data = relay::export_tokens(api).await?;
                 if let Some(path) = output {
@@ -56,6 +67,12 @@ pub async fn handle_relay_command(
                 data
             }
             super::super::RelayTokenCommand::Health { id } => relay::health_check(api, &id).await?,
+            super::super::RelayTokenCommand::Wizard => {
+                if json_output {
+                    return Err(anyhow::anyhow!("Wizard mode is not available with --json flag"));
+                }
+                wizard::token_creation_wizard(api).await?
+            }
         },
         super::super::RelayCommand::Channels {
             command: super::super::ChannelsCommand::List,

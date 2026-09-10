@@ -4,6 +4,7 @@ use reqwest::Method;
 use serde_json::{json, Value};
 
 use crate::core::api::{ApiClient, AuthKind};
+use crate::utils::charts;
 
 pub async fn tokens(api: &ApiClient) -> Result<Value> {
     api.request(
@@ -220,4 +221,80 @@ pub async fn channels(api: &ApiClient) -> Result<Value> {
         false,
     )
     .await
+}
+
+pub async fn visualize_stats(api: &ApiClient, plain_output: bool) -> Result<String> {
+    let tokens_response = tokens(api).await?;
+    let items = tokens_response
+        .get("items")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    if plain_output {
+        // Return JSON for --json mode
+        return Ok(serde_json::to_string_pretty(&tokens_response)?);
+    }
+
+    let mut output = String::new();
+    output.push_str("📊 Relay Token Usage Statistics\n");
+    output.push_str("================================\n\n");
+
+    // Collect data for visualization
+    let mut token_data: Vec<(String, u64)> = Vec::new();
+    let mut total_requests = 0u64;
+    let mut total_tokens = 0u64;
+    let mut active_count = 0u64;
+
+    for token in &items {
+        let name = token
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown");
+        let requests = token
+            .get("requestCount")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let tokens_used = token
+            .get("totalTokens")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let status = token
+            .get("status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        if status == "enabled" {
+            active_count += 1;
+        }
+
+        total_requests += requests;
+        total_tokens += tokens_used;
+
+        // Truncate long names for display
+        let display_name = if name.len() > 18 {
+            format!("{}...", &name[..15])
+        } else {
+            name.to_string()
+        };
+
+        token_data.push((display_name, requests));
+    }
+
+    // Summary stats
+    output.push_str(&format!("Total Tokens: {}\n", items.len()));
+    output.push_str(&format!("Active Tokens: {}\n", active_count));
+    output.push_str(&format!("Total Requests: {}\n", total_requests));
+    output.push_str(&format!("Total Tokens Used: {}\n\n", total_tokens));
+
+    // Request count bar chart
+    if !token_data.is_empty() {
+        output.push_str(&charts::render_bar_chart(
+            &token_data,
+            40,
+            "Requests by Token",
+        ));
+    }
+
+    Ok(output)
 }

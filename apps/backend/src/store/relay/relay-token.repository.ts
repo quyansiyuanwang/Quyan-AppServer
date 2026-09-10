@@ -81,8 +81,6 @@ const buildNestedFailoverConfigCreateData = (failoverConfig: RelayFailoverConfig
     failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes ?? 0,
     maxAcceptedChannelMultiplier: failoverConfig.maxAcceptedChannelMultiplier ?? null,
     minCacheHitRate: failoverConfig.minCacheHitRate ?? null,
-    cacheHitRateMinSamples: failoverConfig.cacheHitRateMinSamples ?? 10,
-    cacheHitRateWindowHours: failoverConfig.cacheHitRateWindowHours ?? 168,
   } satisfies Prisma.RelayTokenFailoverConfigCreateWithoutRelayTokenInput;
 };
 
@@ -96,8 +94,6 @@ const buildFailoverConfigCreateData = (relayTokenId: string, failoverConfig: Rel
     failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes ?? 0,
     maxAcceptedChannelMultiplier: failoverConfig.maxAcceptedChannelMultiplier ?? null,
     minCacheHitRate: failoverConfig.minCacheHitRate ?? null,
-    cacheHitRateMinSamples: failoverConfig.cacheHitRateMinSamples ?? 10,
-    cacheHitRateWindowHours: failoverConfig.cacheHitRateWindowHours ?? 168,
   } satisfies Prisma.RelayTokenFailoverConfigUncheckedCreateInput;
 };
 
@@ -110,8 +106,6 @@ const buildFailoverConfigUpdateData = (failoverConfig: RelayFailoverConfigInput)
     failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
     maxAcceptedChannelMultiplier: failoverConfig.maxAcceptedChannelMultiplier,
     minCacheHitRate: failoverConfig.minCacheHitRate,
-    cacheHitRateMinSamples: failoverConfig.cacheHitRateMinSamples,
-    cacheHitRateWindowHours: failoverConfig.cacheHitRateWindowHours,
   } satisfies Prisma.RelayTokenFailoverConfigUncheckedUpdateInput;
 };
 
