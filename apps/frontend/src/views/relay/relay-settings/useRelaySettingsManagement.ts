@@ -374,7 +374,8 @@ export const useRelaySettingsManagement = () => {
       upstreamStreamTimeoutSec.value = Math.round(
         (relayConfig.upstreamStreamTimeout ?? 120000) / 1000,
       )
-      preflightBufferLimitMB.value = (relayConfig.preflightBufferLimitBytes ?? 2 * 1024 * 1024) / 1024 / 1024
+      preflightBufferLimitMB.value =
+        (relayConfig.preflightBufferLimitBytes ?? 2 * 1024 * 1024) / 1024 / 1024
       apiCatalogPoolVisibility.value = relayConfig.apiCatalogPoolVisibility ?? 'anonymous-range'
       channelTopologyMode.value = relayConfig.channelTopologyMode ?? 'legacy'
       relayUpstreamUrl.value = relaySystemConfig.upstreamUrl || ''
