@@ -1633,7 +1633,7 @@ export class RelayProxyService {
     const maxAcceptedChannelMultiplier = relayToken.failoverConfig?.maxAcceptedChannelMultiplier;
     return {
       enabled: Boolean(relayToken.failoverConfig?.enabled),
-      maxRetries: Math.max(0, Number(relayToken.failoverConfig?.maxRetries ?? 0)),
+      maxRetries: Math.max(0, Number(relayToken.failoverConfig?.maxRetries ?? 2)),
       retryStatusCodes,
       failoverThreshold: Math.max(0, Number(relayToken.failoverConfig?.failoverThreshold ?? 0)) + 1,
       failbackCooldownMinutes: Math.max(0, Number(relayToken.failoverConfig?.failbackCooldownMinutes ?? 0)),
@@ -1644,7 +1644,7 @@ export class RelayProxyService {
         relayToken.failoverConfig?.minCacheHitRate == null
           ? null
           : Math.min(1, Math.max(0, Number(relayToken.failoverConfig.minCacheHitRate))),
-      cacheHitRateMinSamples: Math.max(1, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateMinSamples ?? 3))),
+      cacheHitRateMinSamples: Math.max(1, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateMinSamples ?? 10))),
       cacheHitRateWindowHours: Math.max(
         1,
         Math.min(8760, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateWindowHours ?? 168))),
@@ -1909,7 +1909,7 @@ export class RelayProxyService {
       failoverThreshold: 1,
       failbackCooldownMinutes: Math.max(0, Number(routingConfig?.failbackCooldownMinutes ?? 0)),
       minCacheHitRate: null,
-      cacheHitRateMinSamples: 3,
+      cacheHitRateMinSamples: 10,
       cacheHitRateWindowHours: 168,
     };
   }
