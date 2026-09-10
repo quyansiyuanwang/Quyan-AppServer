@@ -235,11 +235,11 @@ export class RelayProxyService {
     private readonly relayPoolResolver: RelayPoolResolverService = RelayPoolResolverService.getInstance(),
     private readonly relayChannelHealthService: RelayChannelHealthService = RelayChannelHealthService.getInstance(),
     private readonly relayChannelProbeLockService: RelayChannelProbeLockService = RelayChannelProbeLockService.getInstance(),
+    private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly relayChannelService: Pick<
       RelayChannelService,
       "resolveUniqueAccessibleDirectPooledParent" | "resolveAutomaticPoolUsageDisplayChannel"
     > = RelayChannelService.getInstance(),
-    private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly contentSafetyService: ContentSafetyService = ContentSafetyService.getInstance(),
     relayConcurrencyService: RelayConcurrencyService = new RelayConcurrencyService(redis),
   ) {
@@ -267,10 +267,12 @@ export class RelayProxyService {
     return RelayProxyService.instance;
   }
 
-  private createStreamForwarderHost(): Omit<RelayStreamForwarderHost, "forwardStreamRequest"> {
+  private async createStreamForwarderHost(): Promise<Omit<RelayStreamForwarderHost, "forwardStreamRequest">> {
+    const relayConfig = await this.relayConfigService.getRelayConfig();
     return {
       contentSafetyService: this.contentSafetyService,
       relayProxyRepository: this.relayProxyRepository,
+      systemPreflightBufferLimitBytes: relayConfig.preflightBufferLimitBytes,
       finalizeStreamUsage: this.finalizeStreamUsage.bind(this),
       calculateCost: this.calculateCost.bind(this),
       resolveContextMultiplier: this.resolveContextMultiplier.bind(this),
@@ -1626,7 +1628,8 @@ export class RelayProxyService {
     return routingConfig ?? null;
   }
 
-  private getFailoverRuntimeConfig(relayToken: RelayTokenAvailabilityInput): RelayFailoverRuntimeConfig {
+  private async getFailoverRuntimeConfig(relayToken: RelayTokenAvailabilityInput): Promise<RelayFailoverRuntimeConfig> {
+    const autoProxyPoolConfig = await this.configService.getAutoProxyPoolConfig();
     const retryStatusCodes = normalizeRetryStatusRules(
       Array.isArray(relayToken.failoverConfig?.retryStatusCodes) ? relayToken.failoverConfig.retryStatusCodes : [],
     );
@@ -1644,11 +1647,8 @@ export class RelayProxyService {
         relayToken.failoverConfig?.minCacheHitRate == null
           ? null
           : Math.min(1, Math.max(0, Number(relayToken.failoverConfig.minCacheHitRate))),
-      cacheHitRateMinSamples: Math.max(1, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateMinSamples ?? 10))),
-      cacheHitRateWindowHours: Math.max(
-        1,
-        Math.min(8760, Math.floor(Number(relayToken.failoverConfig?.cacheHitRateWindowHours ?? 168))),
-      ),
+      cacheHitRateMinSamples: autoProxyPoolConfig.cacheHitRateMinSamples,
+      cacheHitRateWindowHours: autoProxyPoolConfig.cacheHitRateWindowHours,
     };
   }
 
@@ -1881,7 +1881,11 @@ export class RelayProxyService {
     return orderedMembers.slice(0, maxAttempts);
   }
 
-  private getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): RelayFailoverRuntimeConfig {
+  private async getPoolFailoverRuntimeConfig(
+    channel: RelayChannel,
+    poolSize: number,
+  ): Promise<RelayFailoverRuntimeConfig> {
+    const autoProxyPoolConfig = await this.configService.getAutoProxyPoolConfig();
     const routingConfig = this.getChannelRoutingConfig(channel);
     const configuredRetryStatusCodes = Array.isArray(routingConfig?.retryStatusCodes)
       ? routingConfig.retryStatusCodes
@@ -1909,8 +1913,8 @@ export class RelayProxyService {
       failoverThreshold: 1,
       failbackCooldownMinutes: Math.max(0, Number(routingConfig?.failbackCooldownMinutes ?? 0)),
       minCacheHitRate: null,
-      cacheHitRateMinSamples: 10,
-      cacheHitRateWindowHours: 168,
+      cacheHitRateMinSamples: autoProxyPoolConfig.cacheHitRateMinSamples,
+      cacheHitRateWindowHours: autoProxyPoolConfig.cacheHitRateWindowHours,
     };
   }
 
@@ -1940,7 +1944,7 @@ export class RelayProxyService {
         )
       : resolvedChannels;
 
-    const tokenFailoverConfig = this.getFailoverRuntimeConfig(relayToken);
+    const tokenFailoverConfig = await this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;
 
     const isPriceFirstAutomaticPool =
@@ -1951,7 +1955,7 @@ export class RelayProxyService {
       return {
         channels,
         failoverConfig: {
-          ...this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+          ...(await this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length)),
           ...(tokenFailoverConfig.maxAcceptedChannelMultiplier == null
             ? {}
             : { maxAcceptedChannelMultiplier: tokenFailoverConfig.maxAcceptedChannelMultiplier }),
@@ -1964,7 +1968,7 @@ export class RelayProxyService {
 
     return {
       channels,
-      failoverConfig: this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+      failoverConfig: await this.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
       allowStickyFailover: !isPriceFirstAutomaticPool,
     };
   }
@@ -2553,7 +2557,7 @@ export class RelayProxyService {
         kind: "image",
         image: params,
       },
-      { stream: this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
+      { stream: await this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
     );
   }
 
@@ -4169,7 +4173,7 @@ export class RelayProxyService {
         kind: "stream",
         stream: params,
       },
-      { stream: this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
+      { stream: await this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
     );
   }
 

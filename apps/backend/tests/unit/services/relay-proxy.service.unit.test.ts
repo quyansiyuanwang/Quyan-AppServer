@@ -288,6 +288,12 @@ const createService = (
     resolveUniqueAccessibleDirectPooledParent: vi.fn().mockResolvedValue(null),
     resolveAutomaticPoolUsageDisplayChannel: vi.fn().mockImplementation(async (channel: any) => channel),
   };
+  const configService = {
+    getAutoProxyPoolConfig: vi.fn().mockResolvedValue({
+      cacheHitRateMinSamples: 10,
+      cacheHitRateWindowHours: 168,
+    }),
+  };
   const contentSafetyService = {
     getPublicConfig: vi.fn().mockResolvedValue({
       requestEnabled: true,
@@ -344,8 +350,8 @@ const createService = (
     relayPoolResolver as any,
     undefined,
     undefined,
+    configService as any,
     relayChannelService as any,
-    undefined,
     contentSafetyService as any,
   );
 
@@ -360,6 +366,7 @@ const createService = (
     businessLogService,
     relayPoolResolver,
     relayChannelService,
+    configService,
     contentSafetyService,
     redis,
   };

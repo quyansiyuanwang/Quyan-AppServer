@@ -340,6 +340,7 @@ export const useRelaySettingsManagement = () => {
   const maxConcurrency = ref(5)
   const queueTimeoutSec = ref(30)
   const upstreamStreamTimeoutSec = ref(120)
+  const preflightBufferLimitMB = ref(2)
   const apiCatalogPoolVisibility = ref<'hidden' | 'anonymous-range'>('anonymous-range')
   const channelTopologyMode = ref<RelayChannelTopologyMode>('legacy')
   const relayCustomKeyEnabled = ref(true)
@@ -373,6 +374,8 @@ export const useRelaySettingsManagement = () => {
       upstreamStreamTimeoutSec.value = Math.round(
         (relayConfig.upstreamStreamTimeout ?? 120000) / 1000,
       )
+      preflightBufferLimitMB.value =
+        (relayConfig.preflightBufferLimitBytes ?? 2 * 1024 * 1024) / 1024 / 1024
       apiCatalogPoolVisibility.value = relayConfig.apiCatalogPoolVisibility ?? 'anonymous-range'
       channelTopologyMode.value = relayConfig.channelTopologyMode ?? 'legacy'
       relayUpstreamUrl.value = relaySystemConfig.upstreamUrl || ''
@@ -486,6 +489,7 @@ export const useRelaySettingsManagement = () => {
         maxConcurrency: maxConcurrency.value,
         queueTimeout: queueTimeoutSec.value * 1000,
         upstreamStreamTimeout: upstreamStreamTimeoutSec.value * 1000,
+        preflightBufferLimitBytes: Math.round(preflightBufferLimitMB.value * 1024 * 1024),
         apiCatalogPoolVisibility: apiCatalogPoolVisibility.value,
         modelRates: validRates.map((r) => ({
           model: r.model.trim(),
@@ -2598,6 +2602,7 @@ export const useRelaySettingsManagement = () => {
     maxConcurrency,
     queueTimeoutSec,
     upstreamStreamTimeoutSec,
+    preflightBufferLimitMB,
     apiCatalogPoolVisibility,
     channelTopologyMode,
     relayCustomKeyEnabled,

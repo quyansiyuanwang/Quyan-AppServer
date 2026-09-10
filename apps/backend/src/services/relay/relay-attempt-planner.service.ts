@@ -25,8 +25,8 @@ export interface RelayAttemptPlannerHost {
     members: RelayPoolMemberGraph[],
     context?: RelayPoolMemberOrderContext,
   ): Promise<RelayPoolMemberGraph[]>;
-  getFailoverRuntimeConfig(token: RelayTokenAvailabilityInput): RelayFailoverRuntimeConfig;
-  getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): RelayFailoverRuntimeConfig;
+  getFailoverRuntimeConfig(token: RelayTokenAvailabilityInput): Promise<RelayFailoverRuntimeConfig>;
+  getPoolFailoverRuntimeConfig(channel: RelayChannel, poolSize: number): Promise<RelayFailoverRuntimeConfig>;
   isPriceFirstAutomaticPool(channel: RelayChannel | undefined): boolean;
   filterChannelsByCacheHitRate(
     relayToken: RelayTokenAvailabilityInput,
@@ -65,7 +65,7 @@ export class RelayAttemptPlannerService {
           (candidate) => !blockedChannelIds.has((candidate.billingChannel ?? candidate.resolvedChannel).id),
         )
       : resolvedChannels;
-    const tokenFailoverConfig = this.host.getFailoverRuntimeConfig(relayToken);
+    const tokenFailoverConfig = await this.host.getFailoverRuntimeConfig(relayToken);
     const cacheFilteredChannels = await this.host.filterChannelsByCacheHitRate(
       relayToken,
       channels,
@@ -78,7 +78,7 @@ export class RelayAttemptPlannerService {
       return {
         channels: cacheFilteredChannels,
         failoverConfig: {
-          ...this.host.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+          ...(await this.host.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length)),
           ...(tokenFailoverConfig.maxAcceptedChannelMultiplier == null
             ? {}
             : { maxAcceptedChannelMultiplier: tokenFailoverConfig.maxAcceptedChannelMultiplier }),
@@ -101,7 +101,7 @@ export class RelayAttemptPlannerService {
       };
     return {
       channels: cacheFilteredChannels,
-      failoverConfig: this.host.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
+      failoverConfig: await this.host.getPoolFailoverRuntimeConfig(singleTopLevelChannel, channels.length),
       allowStickyFailover: !this.host.isPriceFirstAutomaticPool(singleTopLevelChannel),
     };
   }

@@ -14273,6 +14273,106 @@
 				}
 			}
 		},
+		"/v1/config/auto-proxy-pool": {
+			"get": {
+				"operationId": "ConfigControllerGetAutoProxyPoolConfig",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AutoProxyPoolConfigDto"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "获取自动代理池配置",
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"put": {
+				"operationId": "ConfigControllerSetAutoProxyPoolConfig",
+				"responses": {
+					"200": {
+						"description": "Success",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validation error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Internal server error",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "更新自动代理池配置",
+				"tags": [
+					"Server Configuration"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetAutoProxyPoolConfigDto"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/business-logs/options": {
 			"get": {
 				"operationId": "BusinessLogControllerGetBusinessLogFilterOptions",
@@ -42340,6 +42440,27 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"AutoProxyPoolConfigDto": {
+				"properties": {
+					"cacheHitRateMinSamples": {
+						"type": "number",
+						"format": "double"
+					},
+					"cacheHitRateWindowHours": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"cacheHitRateMinSamples",
+					"cacheHitRateWindowHours"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetAutoProxyPoolConfigDto": {
+				"$ref": "#/components/schemas/AutoProxyPoolConfigDto"
+			},
 			"OperationType": {
 				"description": "Business operation types for audit logging",
 				"enum": [
@@ -45242,16 +45363,6 @@
 						"format": "double",
 						"nullable": true,
 						"description": "渠道历史缓存命中率低于此值时跳过该渠道；0~1，未设置表示关闭"
-					},
-					"cacheHitRateMinSamples": {
-						"type": "number",
-						"format": "double",
-						"description": "计算缓存命中率所需的最少历史请求数"
-					},
-					"cacheHitRateWindowHours": {
-						"type": "number",
-						"format": "double",
-						"description": "缓存命中率统计窗口，单位小时，默认 168 小时（7 天）"
 					}
 				},
 				"required": [
@@ -46863,6 +46974,11 @@
 						"format": "double",
 						"description": "上游流式请求超时（毫秒）"
 					},
+					"preflightBufferLimitBytes": {
+						"type": "number",
+						"format": "double",
+						"description": "预检缓冲区限制（字节）"
+					},
 					"enableQueue": {
 						"type": "boolean"
 					},
@@ -46939,6 +47055,11 @@
 						"type": "number",
 						"format": "double",
 						"description": "上游流式请求超时（毫秒）"
+					},
+					"preflightBufferLimitBytes": {
+						"type": "number",
+						"format": "double",
+						"description": "预检缓冲区限制（字节）"
 					},
 					"enableQueue": {
 						"type": "boolean"

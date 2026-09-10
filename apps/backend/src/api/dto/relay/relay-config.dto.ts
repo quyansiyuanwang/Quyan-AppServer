@@ -25,6 +25,8 @@ export interface RelayConfigDto {
   queueTimeout: number;
   /** 上游流式请求超时（毫秒） */
   upstreamStreamTimeout: number;
+  /** 预检缓冲区限制（字节） */
+  preflightBufferLimitBytes?: number;
   enableQueue: boolean;
   /** Whether API documentation publishes pooled routes anonymously or hides them. */
   apiCatalogPoolVisibility: "hidden" | "anonymous-range";
@@ -47,6 +49,8 @@ export interface UpdateRelayConfigRequest {
   queueTimeout?: number;
   /** 上游流式请求超时（毫秒） */
   upstreamStreamTimeout?: number;
+  /** 预检缓冲区限制（字节） */
+  preflightBufferLimitBytes?: number;
   enableQueue?: boolean;
   apiCatalogPoolVisibility?: "hidden" | "anonymous-range";
   channelTopologyMode?: "legacy" | "strict-two-tier";

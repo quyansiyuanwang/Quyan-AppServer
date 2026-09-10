@@ -188,6 +188,13 @@ export interface RelayProxyConfigDto {
 
 export type SetRelayProxyConfigDto = RelayProxyConfigDto;
 
+export interface AutoProxyPoolConfigDto {
+  cacheHitRateMinSamples: number;
+  cacheHitRateWindowHours: number;
+}
+
+export type SetAutoProxyPoolConfigDto = AutoProxyPoolConfigDto;
+
 export interface SetSmtpConfigDto {
   /**
    * SMTP 服务器地址

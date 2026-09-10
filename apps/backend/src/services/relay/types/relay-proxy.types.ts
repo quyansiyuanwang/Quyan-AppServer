@@ -68,8 +68,6 @@ export interface RelayTokenAvailabilityInput {
     failbackCooldownMinutes?: number | null;
     maxAcceptedChannelMultiplier?: number | Prisma.Decimal | null;
     minCacheHitRate?: number | Prisma.Decimal | null;
-    cacheHitRateMinSamples?: number | null;
-    cacheHitRateWindowHours?: number | null;
   } | null;
 }
 

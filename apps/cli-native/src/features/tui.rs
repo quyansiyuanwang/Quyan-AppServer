@@ -610,7 +610,7 @@ async fn confirm_relay_action(api: &ApiClient, state: &mut RelayState) {
         return;
     };
     let result = match action {
-        RelayConfirmation::Create => relay::create_token(api)
+        RelayConfirmation::Create => relay::create_token(api, None, None, false, None, None)
             .await
             .map(|_| "Relay Token created".to_string()),
         RelayConfirmation::Delete { id, name } => relay::delete_token(api, &id)

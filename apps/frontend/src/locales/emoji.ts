@@ -4040,6 +4040,10 @@ const emoji: DeepStringify<typeof en> = {
     preflightBufferLimit: '📦 🔢',
     preflightBufferLimitHelp: '📦 🚦 ⚠️',
     preflightBufferLimitDefault: '📦 🔢 🔧',
+    preflightBufferLimitRange: '📦 🔢 📏',
+    systemPreflightBufferLimit: '🔧 📦 🔢',
+    systemPreflightBufferLimitHelp: '🔧 📦 🚦',
+    preflightBufferLimitTokenOverride: '🔑 📦 🔧',
   },
   redemption: {
     code: '⏺️ 💻',
