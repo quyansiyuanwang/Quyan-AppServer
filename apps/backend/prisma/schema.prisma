@@ -1331,6 +1331,7 @@ model RelayToken {
   requestFormatTransforms             Json?
   normalizerConfig                    Json?
   contentSafetyConfig                 Json?
+  streamConfig                        Json?
   ipWhitelist                         String?   @db.Text
   modelMapping                        Json?
   isCustomKey                         Boolean   @default(false)

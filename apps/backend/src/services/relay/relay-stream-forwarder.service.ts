@@ -15,7 +15,12 @@ import {
   type RelayTokenNormalizerConfig,
 } from "@/util/anthropic-token-normalizer.util";
 import type { ContextLengthMultiplierRule, ContextLengthMultiplierMatch } from "./context-length-multiplier.service";
-import type { RelayConvertibleRequestFormat } from "@quyan/shared";
+import type { RelayConvertibleRequestFormat, RelayTokenStreamConfig } from "@quyan/shared";
+import {
+  DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+  MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+  MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+} from "@quyan/shared";
 import type {
   RelayRequestLike,
   RelayResponseLike,
@@ -692,7 +697,18 @@ export class RelayStreamForwarderService {
           }
 
           // ── Success path (2xx/3xx): pipe chunks directly to the client ──
-          const preflight = new RelayStreamPreflightBuffer();
+          // Read preflight buffer limit from token config, with validation
+          const streamConfig = relayToken.streamConfig as RelayTokenStreamConfig | null | undefined;
+          const configuredLimit = streamConfig?.preflightBufferLimitBytes;
+          const preflightBufferLimit =
+            configuredLimit != null
+              ? Math.max(
+                  MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
+                  Math.min(MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES, configuredLimit),
+                )
+              : DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES;
+
+          const preflight = new RelayStreamPreflightBuffer(preflightBufferLimit);
           let preflightRawBytes = 0;
           let settled = false;
           const sseTransform = responseTransform
@@ -781,11 +797,7 @@ export class RelayStreamForwarderService {
                   if (sseTransform) sseTransform.write(outputChunk);
                   else queueOutput(outputChunk);
                 }
-                if (
-                  !preflight.hasVisibleOutput &&
-                  preflightRawBytes > STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES &&
-                  !settled
-                ) {
+                if (!preflight.hasVisibleOutput && preflightRawBytes > preflightBufferLimit && !settled) {
                   settled = true;
                   destroyRelayUpstreamResponse(proxyRes);
                   resolve({
