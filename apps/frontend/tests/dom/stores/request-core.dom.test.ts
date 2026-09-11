@@ -23,6 +23,7 @@ describe('MyAxios session transport', () => {
     sessionStorage.clear()
     clearAccessToken()
     refreshMock.mockReset()
+    routerPush.mockReset()
     ;(MyAxios as any).refreshTokenPromise = null
   })
 
@@ -138,6 +139,51 @@ describe('MyAxios session transport', () => {
     )
   })
 
+  it('redirects nested Axios error responses and preserves the challenge details', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const errorHandler = axiosInstance.interceptors.response.handlers[0]?.rejected
+    const errorResponse = {
+      response: {
+        data: {
+          data: {
+            code: '1018',
+            data: { challengeToken: 'error-challenge', purpose: 'login', method: 'passkey' },
+          },
+        },
+      },
+      config: { url: '/v1/login', method: 'post', headers: new AxiosHeaders() },
+    }
+
+    await expect(errorHandler(errorResponse)).rejects.toThrow('当前操作需要二次验证')
+    expect(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)).toContain(
+      'error-challenge',
+    )
+    await vi.waitFor(() =>
+      expect(routerPush).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'authVerification',
+          query: { purpose: 'login', method: 'passkey' },
+        }),
+      ),
+    )
+  })
+
+  it('does not navigate or persist a challenge when the token is missing', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const fulfilledHandler = axiosInstance.interceptors.response.handlers[0]?.fulfilled
+
+    await expect(
+      fulfilledHandler({
+        data: { code: 1018, data: { purpose: 'disable2fa', method: 'email' } },
+        config: { url: '/v1/disable-2fa', method: 'post', headers: new AxiosHeaders() },
+      }),
+    ).rejects.toMatchObject({ code: 1018 })
+
+    expect(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)).toBeNull()
+    expect(routerPush).not.toHaveBeenCalled()
+  })
   it('opens the verification page when a service checks a non-Axios 2FA result', async () => {
     const result = {
       code: '1018',

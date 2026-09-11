@@ -15,7 +15,10 @@ import { useImpersonationStore } from '@/stores/impersonationStore'
 import { ReplaySigningService } from '@/service/replaySigningService'
 import { getBackendLocale } from '@/locales'
 import { toServiceError } from '@/utils/error-utils'
-import { navigateToTwoFactorVerification } from '@/service/twoFactorNavigationService'
+import {
+  isTwoFactorRequiredResponse,
+  navigateToTwoFactorVerification,
+} from '@/service/twoFactorNavigationService'
 
 type AnyEndpointDescriptor = ApiEndpointDescriptor<ApiMethod, any, any, any, any, any>
 type EndpointWithMethod<METHOD extends ApiMethod> = ApiEndpointDescriptor<
@@ -529,7 +532,7 @@ class MyAxios {
     this.instance.interceptors.response.use(
       (response) => {
         // 特殊处理：2FA 要求不应该被当作错误，而是正常的业务流程
-        if (Number(response.data?.code) === CustomCode.TWO_FACTOR_REQUIRED) {
+        if (isTwoFactorRequiredResponse(response.data)) {
           const originalRequest = response.config as RetryAxiosRequest
 
           console.log('[2FA Response] Received TWO_FACTOR_REQUIRED response:', {
@@ -588,7 +591,7 @@ class MyAxios {
         }
 
         // 特殊处理：2FA 要求（可能以 401 状态码返回）
-        if (Number(responseData?.code) === CustomCode.TWO_FACTOR_REQUIRED) {
+        if (isTwoFactorRequiredResponse(responseData)) {
           console.log('[2FA Error] Received TWO_FACTOR_REQUIRED in error handler:', {
             status: error.response?.status,
             url: originalRequest?.url,

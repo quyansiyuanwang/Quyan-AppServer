@@ -1,6 +1,9 @@
 import { CustomCode } from '@/constant/custom-code'
 import { toServiceError } from '@/utils/error-utils'
-import { navigateToTwoFactorVerification } from '@/service/twoFactorNavigationService'
+import {
+  isTwoFactorRequiredResponse,
+  navigateToTwoFactorVerification,
+} from '@/service/twoFactorNavigationService'
 
 /**
  * 检查 API 响应结果，处理 2FA 和错误情况
@@ -14,7 +17,7 @@ export function checkApiResult<T = any>(result: any, requireData: boolean = fals
   if (!requireData && (result === undefined || result === null || result === '')) return result as T
 
   // 特殊处理：如果是 2FA 要求，不抛出错误（2FA 流程会自动处理）
-  if (result && Number(result.code) === CustomCode.TWO_FACTOR_REQUIRED) {
+  if (isTwoFactorRequiredResponse(result)) {
     navigateToTwoFactorVerification(result)
     return result as T
   }

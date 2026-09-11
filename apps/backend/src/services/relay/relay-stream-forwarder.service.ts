@@ -6,7 +6,6 @@ import { trackErrorForIp } from "@/middleware/error-tracker";
 import { BadRequestError, ContentSafetyBlockedError, GatewayTimeoutError, PayloadTooLargeError } from "@/util/errors";
 import { DEFAULT_CACHE_CREATION_MULTIPLIER, DEFAULT_CACHE_READ_MULTIPLIER } from "@/constant/pricing";
 import { consumeRelayStreamUsageLine, RelayStreamUsageTracker } from "@/util/relay";
-import { hasVisibleStreamOutput, RelayStreamPreflightBuffer, STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES } from "@/util/relay";
 import { convertRelayError, RelaySseFormatTransform } from "./relay-request-format-transform.service";
 import { shouldRetryRelayUpstreamFailure } from "@/util/relay";
 import {
@@ -511,16 +510,6 @@ export class RelayStreamForwarderService {
                     throw new ContentSafetyBlockedError();
                   }
                 }
-                if (!hasVisibleStreamOutput(Buffer.concat(rawChunks), requestFormat)) {
-                  resolve({
-                    handled: false,
-                    success: false,
-                    retryable: true,
-                    statusCode: streamStatusCode,
-                    triggerError: "upstream stream ended without output",
-                  });
-                  return;
-                }
                 const output =
                   safety.matched && safety.action === "blackhole"
                     ? Buffer.from(safety.text, "utf8")
@@ -698,49 +687,24 @@ export class RelayStreamForwarderService {
           }
 
           // ── Success path (2xx/3xx): pipe chunks directly to the client ──
-          // Read preflight buffer limit from token config, with system default fallback
-          const streamConfig = relayToken.streamConfig as RelayTokenStreamConfig | null | undefined;
-          const configuredLimit = streamConfig?.preflightBufferLimitBytes;
-          const systemLimit = host.systemPreflightBufferLimitBytes;
-          const preflightBufferLimit =
-            configuredLimit != null
-              ? Math.max(
-                  MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
-                  Math.min(MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES, configuredLimit),
-                )
-              : systemLimit != null
-                ? Math.max(
-                    MIN_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
-                    Math.min(MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES, systemLimit),
-                  )
-                : DEFAULT_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES;
-
-          const preflight = new RelayStreamPreflightBuffer(preflightBufferLimit);
-          let preflightRawBytes = 0;
+          // Output-shape detection is intentionally not part of stream lifecycle.
+          // A healthy upstream response must be forwarded even when its first frames
+          // contain metadata/tool control data or cannot be parsed locally.
+          let responseStarted = false;
           let settled = false;
+          const startResponse = () => {
+            if (responseStarted || res.headersSent) return;
+            responseStarted = true;
+            res.writeHead(streamStatusCode, host.withRequestIdHeader(req, responseHeaders));
+          };
           const sseTransform = responseTransform
             ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
             : null;
-          const flushPreflight = () => {
-            if (settled) return;
-            preflight.start(
-              () => res.writeHead(streamStatusCode, host.withRequestIdHeader(req, responseHeaders)),
-              (pending) => res.write(pending),
-            );
-          };
           const queueOutput = (data: Buffer) => {
             if (!data.length || settled) return;
-            if (!preflight.write(data, (chunk) => res.write(chunk))) {
-              settled = true;
-              destroyRelayUpstreamResponse(proxyRes);
-              resolve({
-                handled: false,
-                success: false,
-                retryable: true,
-                statusCode: streamStatusCode,
-                triggerError: "upstream stream exceeded preflight buffer without output",
-              });
-            }
+            // Output-shape detection must never be allowed to terminate a healthy stream.
+            startResponse();
+            res.write(data);
           };
           sseTransform?.on("data", (data) => queueOutput(Buffer.from(data)));
           sseTransform?.on("error", (error) => destroyRelayUpstreamResponse(proxyRes, error));
@@ -752,16 +716,12 @@ export class RelayStreamForwarderService {
           let streamChunkPromise: Promise<void> = Promise.resolve();
 
           const applyUsageLine = (line: string) => {
-            consumeRelayStreamUsageLine(line, requestFormat, streamUsage, () => {
-              preflight.markVisible();
-              flushPreflight();
-            });
+            consumeRelayStreamUsageLine(line, requestFormat, streamUsage, () => {});
           };
 
           proxyRes.on("data", (chunk) => {
             streamChunkPromise = streamChunkPromise.then(async () => {
               if (typeof proxyRes.pause === "function") proxyRes.pause();
-              preflightRawBytes += chunk.length;
               let outputChunk = chunk as Buffer;
               try {
                 const combinedSafetyText = safetyCarry + outputChunk.toString("utf8");
@@ -803,18 +763,6 @@ export class RelayStreamForwarderService {
                 if (outputChunk.length) {
                   if (sseTransform) sseTransform.write(outputChunk);
                   else queueOutput(outputChunk);
-                }
-                if (!preflight.hasVisibleOutput && preflightRawBytes > preflightBufferLimit && !settled) {
-                  settled = true;
-                  destroyRelayUpstreamResponse(proxyRes);
-                  resolve({
-                    handled: false,
-                    success: false,
-                    retryable: true,
-                    statusCode: streamStatusCode,
-                    triggerError: "upstream stream exceeded preflight buffer without output",
-                  });
-                  return;
                 }
               } catch {
                 destroyRelayUpstreamResponse(proxyRes);
@@ -915,19 +863,7 @@ export class RelayStreamForwarderService {
               });
               return;
             }
-            if (!preflight.hasVisibleOutput && !settled) {
-              settled = true;
-              resolve({
-                handled: false,
-                success: false,
-                retryable: true,
-                statusCode: streamStatusCode,
-                triggerError: "upstream stream ended without output",
-              });
-              return;
-            }
-
-            if (!preflight.isStarted && preflight.hasVisibleOutput) flushPreflight();
+            startResponse();
 
             // Only end response if client is still connected
             if (!res.writableEnded && !clientDisconnected) {

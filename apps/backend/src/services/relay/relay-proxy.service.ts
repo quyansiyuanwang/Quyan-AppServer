@@ -95,11 +95,7 @@ import {
 import { MONTHLY_PASS_QUOTA_WINDOW_MS } from "@/constant/monthly-pass";
 import { RELAY_PROXY_DESCRIPTION_MAX_LENGTH, RELAY_PROXY_PROMPT_PREVIEW_MAX_LENGTH } from "@/constant/relay-proxy";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import {
-  hasVisibleRelayResponseOutput,
-  normalizeRetryStatusRules,
-  shouldRetryRelayUpstreamFailure,
-} from "@/util/relay";
+import { normalizeRetryStatusRules, shouldRetryRelayUpstreamFailure } from "@/util/relay";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { env } from "@/config/env";
 import logger from "@/util/logger";
@@ -3567,75 +3563,9 @@ export class RelayProxyService {
                 billingDisplayChannel.inputTokensIncludeCacheRead !== false,
               );
 
-            // A 2xx response containing only usage/metadata (or tool-control frames) is not a
-            // successful model response. Treat it as an upstream failure while the response is
-            // still buffered so the next channel can be attempted transparently.
-            const hasVisibleOutput = hasVisibleRelayResponseOutput(response.data, requestFormat);
-            if (!hasVisibleOutput) {
-              await this.recordFailedAttempt({
-                relayToken,
-                selectedModelName,
-                selectedRateConfig,
-                req,
-                path,
-                statusCode: response.status,
-                startTime,
-                firstByteTime,
-                isStreaming: false,
-                executionChannelId: channel.id,
-                displayChannelId: usageDisplayChannelId,
-                displayChannelName: usageDisplayChannelName,
-                channelMultiplier,
-                relayGlobalMultiplier,
-                timeMultiplier,
-                originalModel: relayOriginalRequestedModel,
-              });
-              if (hasNextChannel && failoverConfig.enabled) {
-                if (!isLastAttemptForThisChannel) {
-                  lastError = new Error("upstream response ended without visible output");
-                  continue;
-                }
-                await this.recordChannelAttempt(relayToken.id, channel.id, false, {
-                  channel,
-                  request: req,
-                  statusCode: response.status,
-                });
-                this.appendAttemptIssue(
-                  attemptIssues,
-                  displayChannel,
-                  attemptIndex + 1,
-                  "upstream response ended without visible output",
-                  response.status,
-                );
-                await this.recordChannelSwitch({
-                  relayTokenId: relayToken.id,
-                  fromChannelId: channel.id,
-                  fromDisplayChannelId: displayChannel.id,
-                  fromDisplayChannelName: displayChannel.name || null,
-                  toChannelId: nextChannel!.id,
-                  toDisplayChannelId: nextDisplayChannel?.id || null,
-                  toDisplayChannelName: nextDisplayChannel?.name || null,
-                  triggerStatusCode: response.status,
-                  triggerError: "upstream response ended without visible output",
-                  attemptNumber: attemptIndex + 1,
-                  requestPath: req.path,
-                  method: req.method,
-                  modelName: selectedModelName,
-                  requestFormat,
-                  requestedModel: normalizedRequestedModel,
-                  failbackCooldownMinutes: stickyFailbackCooldownMinutes,
-                  allowStickyFailover: attemptPlan.allowStickyFailover,
-                });
-                channelSwitched = true;
-                break;
-              }
-              throw new Error("upstream response ended without visible output");
-            }
-
-            // Mark the attempt successful only after confirming that the upstream
-            // response contains visible model content. A 2xx usage/metadata-only
-            // response must remain eligible for channel failure accounting and
-            // failover in the surrounding error handler.
+            // Any successful HTTP response is a completed upstream attempt. Do not
+            // infer channel failure from response-shape/content heuristics: providers
+            // legitimately return metadata, tool-control frames, or an empty payload.
             upstreamResponseSucceeded = true;
 
             logger.info("Cache metrics", {
