@@ -43,6 +43,10 @@ describe("AIProviderService", () => {
     expect(service.getProvider("o1-mini")).toBe("openai");
     expect(service.getProvider("claude-3-5-sonnet")).toBe("anthropic");
     expect(service.getProvider("gemini-2.0-flash")).toBe("gemini");
+    expect(service.getProvider("GPT-4O-MINI")).toBe("openai");
+    expect(service.getProvider("O1-MINI")).toBe("openai");
+    expect(service.getProvider("CLAUDE-3-5-SONNET")).toBe("anthropic");
+    expect(service.getProvider("GEMINI-2.0-FLASH")).toBe("gemini");
     expect(service.getProvider("unknown-model")).toBe("openai");
   });
 
