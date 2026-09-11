@@ -935,7 +935,7 @@ describe("RelayProxyService failover", () => {
     );
   });
 
-  it("records a 2xx usage-only response as a failed channel attempt", async () => {
+  it("accepts a 2xx usage-only response without triggering failover", async () => {
     const relayToken = createRelayToken();
     relayToken.failoverConfig = { enabled: false, maxRetries: 0, retryStatusCodes: [] };
     const { service, relayTokenRepo } = createService();
@@ -946,13 +946,14 @@ describe("RelayProxyService failover", () => {
       data: { id: "usage-only", usage: { prompt_tokens: 1, completion_tokens: 0, total_tokens: 1 } },
     });
 
-    await expect(service.forwardRequest(relayToken, createRequest())).rejects.toThrow(
-      "upstream response ended without visible output",
-    );
+    await expect(service.forwardRequest(relayToken, createRequest())).resolves.toMatchObject({
+      status: 200,
+      data: { id: "usage-only" },
+    });
     expect(relayTokenRepo.updateChannelConfigUsage).toHaveBeenCalledWith({
       relayTokenId: relayToken.id,
       channelId: relayToken.channel.id,
-      success: false,
+      success: true,
     });
   });
 
