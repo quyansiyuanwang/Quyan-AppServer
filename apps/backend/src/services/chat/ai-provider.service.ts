@@ -120,9 +120,12 @@ export class AIProviderService {
   }
 
   getProvider(model: string): RelayRequestFormat {
-    if (model.startsWith("gpt-") || model.startsWith("o1-")) return "openai";
-    if (model.startsWith("claude-")) return "anthropic";
-    if (model.startsWith("gemini-")) return "gemini";
+    // Model IDs are case-preserving. Only normalize a temporary value for
+    // provider classification so uppercase IDs are never rewritten upstream.
+    const comparableModel = model.trim().toLowerCase();
+    if (comparableModel.startsWith("gpt-") || comparableModel.startsWith("o1-")) return "openai";
+    if (comparableModel.startsWith("claude-")) return "anthropic";
+    if (comparableModel.startsWith("gemini-")) return "gemini";
     return "openai";
   }
 

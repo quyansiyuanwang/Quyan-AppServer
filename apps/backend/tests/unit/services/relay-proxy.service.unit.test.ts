@@ -2714,17 +2714,17 @@ describe("RelayProxyService failover", () => {
   });
 
   describe("RelayProxyService model mapping forwarding", () => {
-    it("accepts a model ID and sends the model ID to the upstream body", async () => {
+    it("accepts an uppercase model ID and preserves its casing in the upstream body", async () => {
       const relayToken = createRelayToken();
       relayToken.channel.allowedModels = JSON.stringify(["Claude Sonnet"]);
       const req = createRequest({
-        body: { model: "claude-sonnet-4-20250514", messages: [{ role: "user", content: "hello" }] },
+        body: { model: "Claude-Sonnet-4-20250514", messages: [{ role: "user", content: "hello" }] },
       });
       const { service, modelPricingService } = createService();
       modelPricingService.getModelPricing.mockResolvedValue([
         {
           model: "Claude Sonnet",
-          provider: "claude-sonnet-4-20250514",
+          provider: "Claude-Sonnet-4-20250514",
           pricingType: "token-based",
           inputPrice: 1000,
           outputPrice: 2000,
@@ -2748,7 +2748,7 @@ describe("RelayProxyService failover", () => {
 
       const upstreamRequest = axiosMock.mock.calls[0]?.[0] as unknown as { data: Buffer };
       expect(JSON.parse(upstreamRequest.data.toString("utf8"))).toEqual(
-        expect.objectContaining({ model: "claude-sonnet-4-20250514" }),
+        expect.objectContaining({ model: "Claude-Sonnet-4-20250514" }),
       );
     });
 
