@@ -24,6 +24,7 @@ export const carpoolService = {
   packages: (page = 1, pageSize = 20) => api.listPackages({ params: { page, pageSize } }),
   createPackage: (body: CreateCarpoolPackageTemplateRequest) => api.createPackage({ body }),
   publishPackage: (id: string) => api.publishPackage({ path: { id } }),
+  unpublishPackage: (id: string) => api.unpublishPackage({ path: { id } }),
   admin: (page = 1, pageSize = 20) => api.listAdmin({ params: { page, pageSize } }),
   accept: (id: string) => api.accept({ path: { id } }),
   fulfill: (id: string, body: FulfillCarpoolOrderRequest) => api.fulfill({ path: { id }, body }),

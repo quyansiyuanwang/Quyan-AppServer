@@ -281,6 +281,9 @@ export const navigationMenuDefinition: readonly NavigationNode[] = [
       'any',
     ),
     item('carpoolManagement', 'nav.carpoolManagement', CreditCard, [Permission.CARPOOL_ORDER_READ]),
+    item('carpoolPackageManagement', 'nav.carpoolPackageManagement', CreditCard, [
+      Permission.CARPOOL_TEMPLATE_WRITE,
+    ]),
     item('redemptionCodes', 'nav.redemptionCodes', Postcard, [Permission.REDEMPTION_CODE_READ]),
   ]),
   group('content', 'nav.dataServices', FolderOpened, [
