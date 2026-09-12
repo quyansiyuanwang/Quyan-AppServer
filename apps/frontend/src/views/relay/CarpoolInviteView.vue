@@ -2,7 +2,9 @@
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
+import { i18ns } from '@/locales'
 import { carpoolService } from '@/service/carpoolService'
+import type { CarpoolOrderDto } from '@/client/types.gen'
 const route = useRoute()
 const router = useRouter()
 const token = computed(() => String((route.params as { token: string }).token || ''))
@@ -11,8 +13,9 @@ const accept = async () => {
   submitting.value = true
   try {
     const result = await carpoolService.acceptInvite(token.value)
-    ElMessage.success('已加入拼车')
-    await router.push({ name: 'carpoolDetail', params: { id: result.data.id } })
+    const orderId = (result.data as CarpoolOrderDto).id
+    ElMessage.success(i18ns.t('carpool.invite.joined'))
+    await router.push({ name: 'carpoolDetail', params: { id: orderId } })
   } finally {
     submitting.value = false
   }
@@ -21,18 +24,20 @@ const accept = async () => {
 <template>
   <section class="page">
     <div class="heading">
-      <h1>拼车邀请</h1>
-      <p>接受邀请加入拼车后，车主会为你分配付款与额度比例。</p>
+      <h1>{{ i18ns.t('carpool.invite.title') }}</h1>
+      <p>{{ i18ns.t('carpool.invite.subtitle') }}</p>
     </div>
     <el-alert
       v-if="!token"
       type="error"
       :closable="false"
-      title="邀请链接无效：缺少邀请令牌，请向拼车发起人重新索取链接。"
+      :title="i18ns.t('carpool.invite.invalidLink')"
     />
     <el-card v-else style="max-width: 480px">
-      <p>你收到了一份拼车邀请，接受后将加入对应拼车单并等待车主分配比例。</p>
-      <el-button type="primary" :loading="submitting" @click="accept">接受邀请</el-button>
+      <p>{{ i18ns.t('carpool.invite.intro') }}</p>
+      <el-button type="primary" :loading="submitting" @click="accept">
+        {{ i18ns.t('carpool.invite.accept') }}
+      </el-button>
     </el-card>
   </section>
 </template>

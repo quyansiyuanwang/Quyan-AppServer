@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRoute } from 'vue-router'
+import { i18ns } from '@/locales'
 import { carpoolService } from '@/service/carpoolService'
 const route = useRoute()
 const order = ref<any>()
@@ -23,24 +24,23 @@ const save = async () => {
       quotaRatio: Number(m.quotaRatio),
     })),
   })
-  ElMessage.success('比例已更新，成员需重新确认')
+  ElMessage.success(i18ns.t('carpool.detail.ratiosUpdated'))
   await load()
 }
 const confirm = async () => {
   await carpoolService.confirm(id.value)
-  ElMessage.success('已按个人应付金额冻结余额')
+  ElMessage.success(i18ns.t('carpool.detail.balanceFrozen'))
   await load()
 }
 const invite = async () => {
   const r = await carpoolService.invite(id.value)
-  await navigator.clipboard.writeText(
-    `${location.origin}/subscriptions/carpools/invite/${r.data.token}`,
-  )
-  ElMessage.success('邀请链接已复制')
+  const token = (r.data as { token: string }).token
+  await navigator.clipboard.writeText(`${location.origin}/subscriptions/carpools/invite/${token}`)
+  ElMessage.success(i18ns.t('carpool.detail.inviteCopied'))
 }
 const submit = async () => {
   await carpoolService.submit(id.value)
-  ElMessage.success('已发车，等待管理员购买上游套餐')
+  ElMessage.success(i18ns.t('carpool.detail.departed'))
   await load()
 }
 onMounted(load)
@@ -50,50 +50,66 @@ onMounted(load)
     <div class="heading">
       <h1>{{ order.packageName }}</h1>
       <p>
-        状态：{{ order.state }} · 付款比例 {{ order.paymentRatioTotal }}% · 额度比例
-        {{ order.quotaRatioTotal }}%
+        {{
+          i18ns.t('carpool.detail.stateLine', {
+            state: order.state,
+            payment: order.paymentRatioTotal,
+            quota: order.quotaRatioTotal,
+          })
+        }}
       </p>
     </div>
-    <el-alert
-      type="info"
-      :closable="false"
-      title="确认时只冻结你的个人应付金额；比例修改后需要重新确认。"
-    /><el-table :data="order.members"
-      ><el-table-column prop="username" label="成员" /><el-table-column label="付款比例"
-        ><template #default="{ row }"
-          ><el-input-number
+    <el-alert type="info" :closable="false" :title="i18ns.t('carpool.detail.confirmHint')" />
+    <el-table :data="order.members">
+      <el-table-column prop="username" :label="i18ns.t('carpool.common.colMembers')" />
+      <el-table-column :label="i18ns.t('carpool.detail.colPaymentRatio')">
+        <template #default="{ row }">
+          <el-input-number
             v-model="row.paymentRatio"
             :min="0"
             :max="100"
-            :disabled="order.state !== 'open'" /></template></el-table-column
-      ><el-table-column label="额度比例"
-        ><template #default="{ row }"
-          ><el-input-number
+            :disabled="order.state !== 'open'"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column :label="i18ns.t('carpool.detail.colQuotaRatio')">
+        <template #default="{ row }">
+          <el-input-number
             v-model="row.quotaRatio"
             :min="0"
             :max="100"
-            :disabled="order.state !== 'open'" /></template></el-table-column
-      ><el-table-column prop="payableAmount" label="个人应付" /><el-table-column
-        prop="reservedAmount"
-        label="已冻结" /><el-table-column prop="state" label="确认状态"
-    /></el-table>
+            :disabled="order.state !== 'open'"
+          />
+        </template>
+      </el-table-column>
+      <el-table-column prop="payableAmount" :label="i18ns.t('carpool.detail.colPayable')" />
+      <el-table-column prop="reservedAmount" :label="i18ns.t('carpool.detail.colReserved')" />
+      <el-table-column prop="state" :label="i18ns.t('carpool.detail.colConfirmState')" />
+    </el-table>
     <div class="actions" v-if="order.state === 'open'">
-      <el-button @click="invite">复制邀请链接</el-button
-      ><el-button @click="save">保存比例</el-button
-      ><el-button type="success" @click="confirm">确认我的比例</el-button
-      ><el-button
+      <el-button @click="invite">{{ i18ns.t('carpool.detail.copyInvite') }}</el-button>
+      <el-button @click="save">{{ i18ns.t('carpool.detail.saveRatios') }}</el-button>
+      <el-button type="success" @click="confirm">
+        {{ i18ns.t('carpool.detail.confirmMine') }}
+      </el-button>
+      <el-button
         type="primary"
         :disabled="
           !order.allConfirmed || order.paymentRatioTotal !== 100 || order.quotaRatioTotal !== 100
         "
         @click="submit"
-        >发车</el-button
       >
+        {{ i18ns.t('carpool.detail.depart') }}
+      </el-button>
     </div>
-    <el-descriptions v-if="order.state === 'fulfilled'" title="资源已交付" :column="1"
-      ><el-descriptions-item label="共享渠道">{{
-        order.relayChannelId
-      }}</el-descriptions-item></el-descriptions
+    <el-descriptions
+      v-if="order.state === 'fulfilled'"
+      :title="i18ns.t('carpool.detail.delivered')"
+      :column="1"
     >
+      <el-descriptions-item :label="i18ns.t('carpool.detail.sharedChannel')">
+        {{ order.relayChannelId }}
+      </el-descriptions-item>
+    </el-descriptions>
   </section>
 </template>
