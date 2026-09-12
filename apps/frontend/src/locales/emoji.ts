@@ -860,6 +860,7 @@ const emoji: DeepStringify<typeof en> = {
     balanceManagement: '💳 ♿',
     monthlyPassManagement: '🗓️ 💳',
     carpoolManagement: '🚗 ⚙️',
+    carpoolPackageManagement: '🚗 📦',
     passkeyManagement: '♿',
     products: '📦 🏷️',
     myRemoteTerminalProducts: '🖥️ 🙋 📦',

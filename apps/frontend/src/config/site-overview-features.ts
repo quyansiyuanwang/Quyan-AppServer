@@ -167,6 +167,7 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
   feature('balanceManagement', 'nav.balanceManagement', CreditCard, core),
   feature('monthlyPassManagement', 'nav.monthlyPassManagement', CreditCard, core),
   feature('carpoolManagement', 'nav.carpoolManagement', CreditCard, core),
+  feature('carpoolPackageManagement', 'nav.carpoolPackageManagement', CreditCard, core),
   feature('redemptionCodes', 'nav.redemptionCodes', Postcard, core),
   feature('jsonEndpointManagement', 'nav.jsonEndpoints', Document, core),
   feature('articleManagement', 'nav.articleManagement', Notebook, core),

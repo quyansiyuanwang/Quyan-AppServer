@@ -201,11 +201,23 @@ export const routeCatalog = attachLegacyPaths([
     legacyPaths: ['/account/product-subscriptions/carpools/:id'],
   },
   {
+    name: 'carpoolInvite',
+    group: 'account',
+    path: '/subscriptions/carpools/invite/:token',
+    overviewCategory: 'account',
+  },
+  {
     name: 'carpoolManagement',
     group: 'management-core',
     path: '/billing/carpools',
     overviewCategory: 'console-operations',
     legacyPaths: ['/management/carpools'],
+  },
+  {
+    name: 'carpoolPackageManagement',
+    group: 'management-core',
+    path: '/billing/carpool-packages',
+    overviewCategory: 'console-operations',
   },
   {
     name: 'settingsProfile',

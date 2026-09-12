@@ -938,6 +938,7 @@ export default {
     financial: 'Billing & Subscriptions',
     monthlyPassManagement: 'Monthly Pass',
     carpoolManagement: 'Carpool Management',
+    carpoolPackageManagement: 'Carpool Packages',
     dataServices: 'Content & Data',
     analytics: 'Analytics',
     analyticsOverview: 'Overview',

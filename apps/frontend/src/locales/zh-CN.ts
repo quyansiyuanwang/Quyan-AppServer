@@ -881,6 +881,7 @@ const zhCN: DeepStringify<typeof en> = {
     financial: '计费与订阅',
     monthlyPassManagement: '月卡管理',
     carpoolManagement: '拼车管理',
+    carpoolPackageManagement: '拼车套餐管理',
     dataServices: '内容与数据',
     analytics: '数据分析',
     analyticsOverview: '数据总览',

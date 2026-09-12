@@ -34,7 +34,7 @@ const confirm = async () => {
 const invite = async () => {
   const r = await carpoolService.invite(id.value)
   await navigator.clipboard.writeText(
-    `${location.origin}/account/product-subscriptions/carpools/invite/${r.data.token}`,
+    `${location.origin}/subscriptions/carpools/invite/${r.data.token}`,
   )
   ElMessage.success('邀请链接已复制')
 }
