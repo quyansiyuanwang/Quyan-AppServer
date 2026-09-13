@@ -582,27 +582,25 @@ export class RelayProxyService {
   }
 
   private resolveRequestedModelConfig(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto | null {
-    const normalizedRequestedModel = requestedModel.trim();
-    if (!normalizedRequestedModel) return null;
-
-    // Only match by provider (model ID)
-    const providerMatch = modelPricing.find((config) => {
-      const provider = (config.provider || "").trim();
-      return provider && provider === normalizedRequestedModel;
-    });
-
-    return providerMatch || null;
+    return this.resolveRequestedModelConfigs(modelPricing, requestedModel)[0] || null;
   }
 
   private resolveRequestedModelConfigs(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto[] {
     const normalizedRequestedModel = requestedModel.trim();
     if (!normalizedRequestedModel) return [];
 
-    // Find all models matching the provider (model ID)
-    return modelPricing.filter((config) => {
+    // Model IDs are case-sensitive and may differ from the display name. Prefer
+    // an exact ID match so multiple pricing rows can still share one upstream
+    // model, then fall back to the exact display name for older clients that
+    // send the configured model name (for example `minimax-m3`).
+    const idMatches = modelPricing.filter((config) => {
       const modelId = resolveModelId(config).trim();
       return modelId && modelId === normalizedRequestedModel;
     });
+
+    if (idMatches.length > 0) return idMatches;
+
+    return modelPricing.filter((config) => config.model.trim() === normalizedRequestedModel);
   }
 
   private resolveChannelModelConfig(

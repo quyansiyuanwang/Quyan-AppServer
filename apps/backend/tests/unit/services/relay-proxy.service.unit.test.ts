@@ -2752,6 +2752,44 @@ describe("RelayProxyService failover", () => {
       );
     });
 
+    it("resolves a display model name to a mixed-case upstream model ID", async () => {
+      const relayToken = createRelayToken();
+      relayToken.channel.allowedModels = JSON.stringify(["minimax-m3"]);
+      const req = createRequest({
+        body: { model: "minimax-m3", messages: [{ role: "user", content: "hello" }] },
+      });
+      const { service, modelPricingService } = createService();
+      modelPricingService.getModelPricing.mockResolvedValue([
+        {
+          model: "minimax-m3",
+          provider: "MiniMax-M3",
+          pricingType: "token-based",
+          inputPrice: 1000,
+          outputPrice: 2000,
+          cacheCreationMultiplier: 1.25,
+          cacheReadMultiplier: 0.1,
+          supportedFormats: "openai",
+        },
+      ]);
+
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: {
+          id: "minimax-response",
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        },
+      });
+
+      await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(expect.objectContaining({ status: 200 }));
+
+      const upstreamRequest = axiosMock.mock.calls[0]?.[0] as unknown as { data: Buffer };
+      expect(JSON.parse(upstreamRequest.data.toString("utf8"))).toEqual(
+        expect.objectContaining({ model: "MiniMax-M3" }),
+      );
+    });
+
     it("forwards a channel-mapped alias under the mapped upstream model", async () => {
       const relayToken = createRelayToken();
       relayToken.channel.allowedModels = JSON.stringify(["gpt-4o-mini"]);
