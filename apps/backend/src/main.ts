@@ -9,6 +9,7 @@ import { RedisService } from "./services/infrastructure/redis.service";
 import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.service";
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
 import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
+import { CarpoolExpirationSchedulerService } from "./services/billing/carpool-expiration-scheduler.service";
 import { getLogger, LogCategory } from "./util/logger";
 import { AgentRuntimeGateway } from "./services/agent/agent-runtime.gateway";
 
@@ -77,6 +78,7 @@ const gracefulShutdown = async (signal: string) => {
     RelayChannelProbeService.getInstance().stop();
     RelayChannelProviderSettlementSchedulerService.getInstance().stop();
     DataLifecycleSchedulerService.getInstance().stop();
+    CarpoolExpirationSchedulerService.getInstance().stop();
     await remoteTerminalGatewayBootstrap.close();
     agentRuntimeGateway.close();
     await closeHttpServer();

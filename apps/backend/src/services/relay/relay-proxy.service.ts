@@ -582,23 +582,16 @@ export class RelayProxyService {
   }
 
   private resolveRequestedModelConfig(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto | null {
-    const normalizedRequestedModel = requestedModel.trim();
-    if (!normalizedRequestedModel) return null;
-
-    // Only match by provider (model ID)
-    const providerMatch = modelPricing.find((config) => {
-      const provider = (config.provider || "").trim();
-      return provider && provider === normalizedRequestedModel;
-    });
-
-    return providerMatch || null;
+    return this.resolveRequestedModelConfigs(modelPricing, requestedModel)[0] || null;
   }
 
   private resolveRequestedModelConfigs(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto[] {
     const normalizedRequestedModel = requestedModel.trim();
     if (!normalizedRequestedModel) return [];
 
-    // Find all models matching the provider (model ID)
+    // Requests must use the configured provider value, which is the upstream
+    // model ID. Keep this comparison exact and case-sensitive: upstream model
+    // IDs such as `MiniMax-M3` are not interchangeable with display names.
     return modelPricing.filter((config) => {
       const modelId = resolveModelId(config).trim();
       return modelId && modelId === normalizedRequestedModel;
@@ -871,6 +864,22 @@ export class RelayProxyService {
       supportsRelayRequestFormat(model.supportedFormats, requestFormat),
     );
     const modelIds = new Set<string>();
+    const tokenAvailableModelTargets = new Set<string>();
+    const getModelMappingEntries = (mapping: unknown): Array<[string, string]> => {
+      if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) return [];
+
+      return Object.entries(mapping).reduce<Array<[string, string]>>((entries, [source, target]) => {
+        if (typeof target !== "string") return entries;
+        const sourceModel = source.trim();
+        const targetModel = target.trim();
+        if (sourceModel && targetModel) entries.push([sourceModel, targetModel]);
+        return entries;
+      }, []);
+    };
+    const addMappedModelKeys = (mapping: unknown, availableTargets: ReadonlySet<string>) => {
+      for (const [sourceModel, targetModel] of getModelMappingEntries(mapping))
+        if (availableTargets.has(targetModel)) modelIds.add(sourceModel);
+    };
 
     for (const channel of eligibleChannels) {
       const channelAllowedModelNames = parseRelayChannelAllowedModelNames(channel);
@@ -885,14 +894,34 @@ export class RelayProxyService {
                 isModelNameAllowed(channelAllowedModelNames, model.model || "") ||
                 isModelNameAllowed(channelAllowedModelNames, resolveModelId(model)),
             );
+      const channelAvailableModelTargets = new Set<string>();
 
       for (const model of channelScopedModels) {
-        const modelId = resolveModelId(model);
+        const modelId = resolveModelId(model).trim();
         if (!modelId) continue;
         if (tokenAllowedModelIds.length > 0 && !isModelIdAllowed(tokenAllowedModelIds, model)) continue;
+
         modelIds.add(modelId);
+        channelAvailableModelTargets.add(modelId);
+        tokenAvailableModelTargets.add(modelId);
+
+        // Model mappings created from the management UI may use a pricing
+        // display name as the target, while requests use the provider/model ID.
+        const modelName = model.model?.trim();
+        if (modelName) {
+          channelAvailableModelTargets.add(modelName);
+          tokenAvailableModelTargets.add(modelName);
+        }
       }
+
+      // A channel alias is available only when its mapping target is available
+      // on that same resolved channel and in the token's allow-list.
+      addMappedModelKeys(channel.modelMapping, channelAvailableModelTargets);
     }
+
+    // Token aliases apply to every eligible channel, so they can be exposed if
+    // their target is available through at least one of those channels.
+    addMappedModelKeys(relayToken.modelMapping, tokenAvailableModelTargets);
 
     return [...modelIds].sort((left, right) => left.localeCompare(right));
   }

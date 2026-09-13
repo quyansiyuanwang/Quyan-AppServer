@@ -1,27 +1,48 @@
-import { Body, Controller, Get, Middlewares, Path, Post, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
+import {
+  Body,
+  Controller,
+  Get,
+  Middlewares,
+  Path,
+  Post,
+  Put,
+  Query,
+  Request,
+  Route,
+  Security,
+  Tags,
+} from "@tsoa/runtime";
 import type {
   AcceptCarpoolInviteRequest,
   AllocateCarpoolRatiosRequest,
+  CarpoolDeliveryChannelListResponse,
   CarpoolOrderDto,
+  CarpoolOrderListResponse,
   CarpoolPackageTemplateDto,
+  CarpoolPackageTemplateListResponse,
   CreateCarpoolInviteRequest,
   CreateCarpoolOrderRequest,
   CreateCarpoolPackageTemplateRequest,
+  FailCarpoolOrderRequest,
   FulfillCarpoolOrderRequest,
+  UpdateCarpoolPackageTemplateRequest,
 } from "@/api/dto/billing/carpool.dto";
 import { CarpoolService } from "@/services/billing/carpool.service";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
-import { validateBody, validateParams } from "@/middleware/validation";
+import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import {
   acceptCarpoolInviteBodySchema,
   allocateCarpoolRatiosBodySchema,
   carpoolIdParamsSchema,
+  carpoolPageQuerySchema,
   createCarpoolInviteBodySchema,
   createCarpoolOrderBodySchema,
   createCarpoolPackageTemplateBodySchema,
+  failCarpoolOrderBodySchema,
   fulfillCarpoolOrderBodySchema,
+  updateCarpoolPackageTemplateBodySchema,
 } from "@/api/schema/billing/carpool.schema";
 import type { TypedRequest } from "@/types/express";
 
@@ -29,14 +50,32 @@ import type { TypedRequest } from "@/types/express";
 @Tags("Carpool")
 export class CarpoolController extends Controller {
   private readonly service = CarpoolService.getInstance();
+
+  /** Legacy unpaginated published list retained for compatibility. */
   @Get("packages/published") @Security("jwt") public listPublishedPackages(): Promise<CarpoolPackageTemplateDto[]> {
     return this.service.listPublishedTemplates();
   }
-  @Get("packages") @Security("jwt") @RequirePermission(Permission.CARPOOL_TEMPLATE_READ) public listPackages(
+  @Get("packages/catalog")
+  @Security("jwt")
+  @Middlewares(validateQuery(carpoolPageQuerySchema))
+  public listPackageCatalog(
     @Query() page?: number,
     @Query() pageSize?: number,
-  ) {
-    return this.service.listTemplates(page, pageSize);
+    @Query() keyword?: string,
+  ): Promise<CarpoolPackageTemplateListResponse> {
+    return this.service.listCatalog(page, pageSize, keyword);
+  }
+  @Get("packages")
+  @Security("jwt")
+  @RequirePermission(Permission.CARPOOL_TEMPLATE_READ)
+  @Middlewares(validateQuery(carpoolPageQuerySchema))
+  public listPackages(
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() keyword?: string,
+    @Query() publishStatus?: string,
+  ): Promise<CarpoolPackageTemplateListResponse> {
+    return this.service.listTemplates(page, pageSize, keyword, publishStatus);
   }
   @Post("packages")
   @Security("jwt")
@@ -44,6 +83,32 @@ export class CarpoolController extends Controller {
   @Middlewares(replayProtectionMiddleware, validateBody(createCarpoolPackageTemplateBodySchema))
   public createPackage(@Body() body: CreateCarpoolPackageTemplateRequest) {
     return this.service.createTemplate(body);
+  }
+  @Put("packages/{id}")
+  @Security("jwt")
+  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(carpoolIdParamsSchema),
+    validateBody(updateCarpoolPackageTemplateBodySchema),
+  )
+  public updatePackage(@Path() id: string, @Body() body: UpdateCarpoolPackageTemplateRequest) {
+    return this.service.updateTemplate(id, body);
+  }
+  @Post("packages/{id}/duplicate")
+  @Security("jwt")
+  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
+  public duplicatePackage(@Path() id: string) {
+    return this.service.duplicateTemplate(id);
+  }
+  @Post("packages/{id}/archive")
+  @Security("jwt")
+  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
+  public async archivePackage(@Path() id: string): Promise<{ archived: true }> {
+    await this.service.archiveTemplate(id);
+    return { archived: true };
   }
   @Post("packages/{id}/publish")
   @Security("jwt")
@@ -59,20 +124,53 @@ export class CarpoolController extends Controller {
   public unpublishPackage(@Path() id: string) {
     return this.service.publishTemplate(id, false);
   }
-  @Get("me") @Security("jwt") public listMine(
+
+  @Get("me")
+  @Security("jwt")
+  @Middlewares(validateQuery(carpoolPageQuerySchema))
+  public listMine(
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
-  ) {
-    return this.service.listMine(request.user!.userId, page, pageSize);
+    @Query() state?: string,
+    @Query() keyword?: string,
+  ): Promise<CarpoolOrderListResponse> {
+    return this.service.listMine(request.user!.userId, page, pageSize, state, keyword);
   }
-  @Get("admin") @Security("jwt") @RequirePermission(Permission.CARPOOL_ORDER_READ) public listAdmin(
+  @Get("admin")
+  @Security("jwt")
+  @RequirePermission(Permission.CARPOOL_ORDER_READ)
+  @Middlewares(validateQuery(carpoolPageQuerySchema))
+  public listAdmin(
     @Query() state?: string,
     @Query() page?: number,
     @Query() pageSize?: number,
-  ) {
-    return this.service.listAdmin(state, page, pageSize);
+    @Query() keyword?: string,
+  ): Promise<CarpoolOrderListResponse> {
+    return this.service.listAdmin(state, page, pageSize, keyword);
   }
+  /** Operations-only detail endpoint. The member-facing order endpoint must not be used by operators. */
+  @Get("admin/{id}")
+  @Security("jwt")
+  @RequirePermission(Permission.CARPOOL_ORDER_READ)
+  @Middlewares(validateParams(carpoolIdParamsSchema))
+  public getAdminOrder(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
+    return this.service.getOrder(id, request.user!.userId, true);
+  }
+
+  @Get("admin/delivery-channels")
+  @Security("jwt")
+  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(validateQuery(carpoolPageQuerySchema))
+  public listDeliveryChannels(
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() keyword?: string,
+    @Query() orderId?: string,
+  ): Promise<CarpoolDeliveryChannelListResponse> {
+    return this.service.listDeliveryChannels(page, pageSize, keyword, orderId);
+  }
+
   @Post()
   @Security("jwt")
   @Middlewares(replayProtectionMiddleware, validateBody(createCarpoolOrderBodySchema))
@@ -82,10 +180,10 @@ export class CarpoolController extends Controller {
   ): Promise<CarpoolOrderDto> {
     return this.service.createOrder(body, request.user!.userId);
   }
-  @Get("{id}") @Security("jwt") @Middlewares(validateParams(carpoolIdParamsSchema)) public getOrder(
-    @Path() id: string,
-    @Request() request: TypedRequest,
-  ): Promise<CarpoolOrderDto> {
+  @Get("{id}")
+  @Security("jwt")
+  @Middlewares(validateParams(carpoolIdParamsSchema))
+  public getOrder(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
     return this.service.getOrder(id, request.user!.userId);
   }
   @Post("{id}/invites")
@@ -145,12 +243,13 @@ export class CarpoolController extends Controller {
   public submit(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
     return this.service.submit(id, request.user!.userId);
   }
+
   @Post("admin/{id}/accept")
   @Security("jwt")
   @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public accept(@Path() id: string): Promise<CarpoolOrderDto> {
-    return this.service.accept(id);
+  public accept(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
+    return this.service.accept(id, request.user!.userId);
   }
   @Post("admin/{id}/fulfill")
   @Security("jwt")
@@ -160,14 +259,26 @@ export class CarpoolController extends Controller {
     validateParams(carpoolIdParamsSchema),
     validateBody(fulfillCarpoolOrderBodySchema),
   )
-  public fulfill(@Path() id: string, @Body() body: FulfillCarpoolOrderRequest): Promise<CarpoolOrderDto> {
-    return this.service.fulfill(id, body.relayChannelId);
+  public fulfill(
+    @Path() id: string,
+    @Body() body: FulfillCarpoolOrderRequest,
+    @Request() request: TypedRequest,
+  ): Promise<CarpoolOrderDto> {
+    return this.service.fulfill(id, body.relayChannelId, request.user!.userId);
   }
   @Post("admin/{id}/fail")
   @Security("jwt")
   @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
-  @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public fail(@Path() id: string, @Query() reason?: string): Promise<CarpoolOrderDto> {
-    return this.service.fail(id, reason);
+  @Middlewares(
+    replayProtectionMiddleware,
+    validateParams(carpoolIdParamsSchema),
+    validateBody(failCarpoolOrderBodySchema),
+  )
+  public fail(
+    @Path() id: string,
+    @Body() body: FailCarpoolOrderRequest,
+    @Request() request: TypedRequest,
+  ): Promise<CarpoolOrderDto> {
+    return this.service.fail(id, body.reason, request.user!.userId);
   }
 }

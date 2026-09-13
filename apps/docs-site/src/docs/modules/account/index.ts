@@ -17,6 +17,7 @@ const orderedModulePaths = [
   './balance-history.doc.ts',
   './consumption-records.doc.ts',
   './my-monthly-passes.doc.ts',
+  './carpools.doc.ts',
   './my-tickets.doc.ts',
   './my-remote-terminal-products.doc.ts',
 ] as const

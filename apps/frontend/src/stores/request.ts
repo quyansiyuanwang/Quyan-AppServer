@@ -530,7 +530,7 @@ class MyAxios {
     )
     // 响应拦截
     this.instance.interceptors.response.use(
-      (response) => {
+      async (response) => {
         // 特殊处理：2FA 要求不应该被当作错误，而是正常的业务流程
         if (isTwoFactorRequiredResponse(response.data)) {
           const originalRequest = response.config as RetryAxiosRequest
@@ -559,7 +559,7 @@ class MyAxios {
             MyAxios.savePendingTwoFactorRequest(originalRequest)
           }
 
-          navigateToTwoFactorVerification(response.data)
+          await navigateToTwoFactorVerification(response.data)
           return Promise.reject(createTwoFactorRequiredError(response.data))
         }
 
@@ -617,7 +617,7 @@ class MyAxios {
             MyAxios.savePendingTwoFactorRequest(originalRequest)
           }
 
-          navigateToTwoFactorVerification(responseData)
+          await navigateToTwoFactorVerification(responseData)
           return Promise.reject(createTwoFactorRequiredError(responseData))
         }
 

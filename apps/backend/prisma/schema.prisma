@@ -1374,6 +1374,7 @@ model CarpoolPackageTemplate {
   monthlyPassTemplateId    String
   snapshotQuota            Decimal             @db.Decimal(10, 4)
   snapshotValidityDays     Int
+  formationDeadlineHours   Int                 @default(72)
   snapshotQuotaUnit        String              @default("amount") @db.VarChar(20)
   snapshotQuotaWindowHours Int?
   snapshotAllowedModels    String?             @db.Text
@@ -1392,6 +1393,7 @@ model CarpoolOrder {
   updateTime        DateTime               @updatedAt
   ownerUserId       String
   packageTemplateId String
+  monthlyPassTemplateId String?
   state             String                 @default("open") @db.VarChar(20)
   packageName       String
   salePrice         Decimal                @db.Decimal(10, 4)
@@ -1403,12 +1405,16 @@ model CarpoolOrder {
   quotaWindowHours  Int?
   allowedModels     String?                @db.Text
   allowedChannels   String?                @db.Text
+  allocationMode    String                 @default("equal") @db.VarChar(20)
+  formationDeadlineAt DateTime?
   inviteExpiresAt   DateTime?
   relayChannelId    String?
   submittedAt       DateTime?
   acceptedAt        DateTime?
   fulfilledAt       DateTime?
   failedAt          DateTime?
+  cancelledAt       DateTime?
+  expiredAt         DateTime?
   failureReason     String?                @db.Text
   owner             User                   @relation("CarpoolOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   packageTemplate   CarpoolPackageTemplate @relation(fields: [packageTemplateId], references: [id], onDelete: Restrict)
@@ -1416,9 +1422,11 @@ model CarpoolOrder {
   members           CarpoolMember[]
   invites           CarpoolInvite[]
   reservations      BalanceReservation[]
+  events            CarpoolOrderEvent[]
 
   @@index([ownerUserId, state])
   @@index([state, createTime])
+  @@index([state, formationDeadlineAt])
   @@map("carpool_orders")
 }
 
@@ -1436,6 +1444,7 @@ model CarpoolMember {
   payableAmount Decimal             @default(0) @db.Decimal(10, 4)
   finalQuota    Decimal             @default(0) @db.Decimal(10, 4)
   confirmedAt   DateTime?
+  leftAt        DateTime?
   userMonthlyPassId String?         @unique
   user          User                @relation(fields: [userId], references: [id], onDelete: Restrict)
   order         CarpoolOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -1446,6 +1455,19 @@ model CarpoolMember {
   @@unique([orderId, userId])
   @@index([userId, state])
   @@map("carpool_members")
+}
+
+model CarpoolOrderEvent {
+  id          String       @id @default(cuid())
+  createTime  DateTime     @default(now())
+  orderId     String
+  actorUserId String?
+  type        String       @db.VarChar(40)
+  metadata    Json?
+  order       CarpoolOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createTime])
+  @@map("carpool_order_events")
 }
 
 model CarpoolInvite {

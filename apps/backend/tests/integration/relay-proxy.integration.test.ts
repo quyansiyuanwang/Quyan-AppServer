@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
@@ -837,6 +838,59 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         data: { allowedModels: null },
       });
       await prisma.modelPricing.deleteMany({ where: { model: strictModel } });
+    }
+  });
+
+  it("OpenAI models 列表会返回可用映射目标对应的原始映射键", async () => {
+    const mappedModel = `test-relay-openai-mapped-${suffix}`;
+    const mappedModelId = `MiniMax-M3-${suffix}`;
+
+    await prisma.modelPricing.create({
+      data: {
+        model: mappedModel,
+        provider: mappedModelId,
+        pricingType: "token-based",
+        inputPrice: 10,
+        outputPrice: 10,
+        supportedFormats: "openai-chat-completions,openai-responses",
+        status: 1,
+      },
+    });
+
+    try {
+      await prisma.relayChannel.update({
+        where: { id: openaiRelayChannelId },
+        data: {
+          allowedModels: JSON.stringify([mappedModelId]),
+          modelMapping: {
+            "deepseek-flash": mappedModelId,
+            "deepseek-*-flash": mappedModelId,
+          },
+        },
+      });
+      await prisma.relayToken.update({
+        where: { id: openaiRelayTokenId },
+        data: { allowedModels: mappedModelId, modelMapping: Prisma.DbNull },
+      });
+
+      const relayResponse = await request(app)
+        .get("/relay/proxy/v1/models")
+        .set("Authorization", `Bearer ${openaiRelayTokenValue}`);
+
+      expect(relayResponse.status).toBe(200);
+
+      const modelIds = (relayResponse.body?.data || []).map((item: { id: string }) => item.id).sort();
+      expect(modelIds).toEqual(["deepseek-flash", "deepseek-*-flash", mappedModelId].sort());
+    } finally {
+      await prisma.relayChannel.update({
+        where: { id: openaiRelayChannelId },
+        data: { allowedModels: null, modelMapping: Prisma.DbNull },
+      });
+      await prisma.relayToken.update({
+        where: { id: openaiRelayTokenId },
+        data: { allowedModels: null, modelMapping: Prisma.DbNull },
+      });
+      await prisma.modelPricing.deleteMany({ where: { model: mappedModel } });
     }
   });
 
