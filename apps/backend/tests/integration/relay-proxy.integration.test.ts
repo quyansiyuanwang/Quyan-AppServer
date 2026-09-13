@@ -840,6 +840,59 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     }
   });
 
+  it("OpenAI models 列表会返回可用映射目标对应的原始映射键", async () => {
+    const mappedModel = `test-relay-openai-mapped-${suffix}`;
+    const mappedModelId = `MiniMax-M3-${suffix}`;
+
+    await prisma.modelPricing.create({
+      data: {
+        model: mappedModel,
+        provider: mappedModelId,
+        pricingType: "token-based",
+        inputPrice: 10,
+        outputPrice: 10,
+        supportedFormats: "openai-chat-completions,openai-responses",
+        status: 1,
+      },
+    });
+
+    try {
+      await prisma.relayChannel.update({
+        where: { id: openaiRelayChannelId },
+        data: {
+          allowedModels: JSON.stringify([mappedModelId]),
+          modelMapping: {
+            "deepseek-flash": mappedModelId,
+            "deepseek-*-flash": mappedModelId,
+          },
+        },
+      });
+      await prisma.relayToken.update({
+        where: { id: openaiRelayTokenId },
+        data: { allowedModels: mappedModelId, modelMapping: null },
+      });
+
+      const relayResponse = await request(app)
+        .get("/relay/proxy/v1/models")
+        .set("Authorization", `Bearer ${openaiRelayTokenValue}`);
+
+      expect(relayResponse.status).toBe(200);
+
+      const modelIds = (relayResponse.body?.data || []).map((item: { id: string }) => item.id).sort();
+      expect(modelIds).toEqual(["deepseek-flash", "deepseek-*-flash", mappedModelId].sort());
+    } finally {
+      await prisma.relayChannel.update({
+        where: { id: openaiRelayChannelId },
+        data: { allowedModels: null, modelMapping: null },
+      });
+      await prisma.relayToken.update({
+        where: { id: openaiRelayTokenId },
+        data: { allowedModels: null, modelMapping: null },
+      });
+      await prisma.modelPricing.deleteMany({ where: { model: mappedModel } });
+    }
+  });
+
   it("OpenAI models 列表只返回渠道白名单与 token 白名单的交集", async () => {
     const channelOnlyModel = `test-relay-openai-channel-only-${suffix}`;
     const sharedModel = `test-relay-openai-shared-${suffix}`;

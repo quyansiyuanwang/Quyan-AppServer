@@ -1159,17 +1159,21 @@ describe("RelayProxyService failover", () => {
     );
   });
 
-  it("lists only saved channel restrictions and literal mappings for a relay token", async () => {
+  it("lists configured model mapping keys together with their available target model IDs", async () => {
     const relayToken = createRelayToken();
     relayToken.channel.allowedModels = JSON.stringify(["gpt-4o-mini"]);
-    relayToken.channel.modelMapping = { "customer-model": "gpt-4o-mini" };
-    relayToken.channelConfigs[1].channel.allowedModels = null;
-    relayToken.channelConfigs[1].channel.modelMapping = { "fallback-model": "gpt-4o-mini" };
+    relayToken.channel.modelMapping = {
+      "customer-model": "gpt-4o-mini",
+      "customer-*-model": "gpt-4o-mini",
+      "display-name-alias": "GPT-4o Mini",
+      "unavailable-alias": "unrelated-model",
+    };
+    relayToken.modelMapping = { "token-model": "gpt-4o-mini" };
     relayToken.allowedModels = "gpt-4o-mini";
     const { service, modelPricingService } = createService();
     modelPricingService.getModelPricing.mockResolvedValue([
       {
-        model: "gpt-4o-mini",
+        model: "GPT-4o Mini",
         provider: "gpt-4o-mini",
         pricingType: "token-based",
         inputPrice: 1000,
@@ -1186,7 +1190,11 @@ describe("RelayProxyService failover", () => {
       },
     ]);
 
-    await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual(["gpt-4o-mini"]);
+    await expect(service.getAvailableModelsForToken(relayToken, "openai")).resolves.toEqual(
+      ["customer-model", "customer-*-model", "display-name-alias", "gpt-4o-mini", "token-model"].sort((left, right) =>
+        left.localeCompare(right),
+      ),
+    );
   });
 
   it("uses round-robin ordering for pooled members", async () => {

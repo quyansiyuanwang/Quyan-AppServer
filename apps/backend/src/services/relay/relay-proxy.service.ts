@@ -864,6 +864,22 @@ export class RelayProxyService {
       supportsRelayRequestFormat(model.supportedFormats, requestFormat),
     );
     const modelIds = new Set<string>();
+    const tokenAvailableModelTargets = new Set<string>();
+    const getModelMappingEntries = (mapping: unknown): Array<[string, string]> => {
+      if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) return [];
+
+      return Object.entries(mapping).reduce<Array<[string, string]>>((entries, [source, target]) => {
+        if (typeof target !== "string") return entries;
+        const sourceModel = source.trim();
+        const targetModel = target.trim();
+        if (sourceModel && targetModel) entries.push([sourceModel, targetModel]);
+        return entries;
+      }, []);
+    };
+    const addMappedModelKeys = (mapping: unknown, availableTargets: ReadonlySet<string>) => {
+      for (const [sourceModel, targetModel] of getModelMappingEntries(mapping))
+        if (availableTargets.has(targetModel)) modelIds.add(sourceModel);
+    };
 
     for (const channel of eligibleChannels) {
       const channelAllowedModelNames = parseRelayChannelAllowedModelNames(channel);
@@ -878,14 +894,34 @@ export class RelayProxyService {
                 isModelNameAllowed(channelAllowedModelNames, model.model || "") ||
                 isModelNameAllowed(channelAllowedModelNames, resolveModelId(model)),
             );
+      const channelAvailableModelTargets = new Set<string>();
 
       for (const model of channelScopedModels) {
-        const modelId = resolveModelId(model);
+        const modelId = resolveModelId(model).trim();
         if (!modelId) continue;
         if (tokenAllowedModelIds.length > 0 && !isModelIdAllowed(tokenAllowedModelIds, model)) continue;
+
         modelIds.add(modelId);
+        channelAvailableModelTargets.add(modelId);
+        tokenAvailableModelTargets.add(modelId);
+
+        // Model mappings created from the management UI may use a pricing
+        // display name as the target, while requests use the provider/model ID.
+        const modelName = model.model?.trim();
+        if (modelName) {
+          channelAvailableModelTargets.add(modelName);
+          tokenAvailableModelTargets.add(modelName);
+        }
       }
+
+      // A channel alias is available only when its mapping target is available
+      // on that same resolved channel and in the token's allow-list.
+      addMappedModelKeys(channel.modelMapping, channelAvailableModelTargets);
     }
+
+    // Token aliases apply to every eligible channel, so they can be exposed if
+    // their target is available through at least one of those channels.
+    addMappedModelKeys(relayToken.modelMapping, tokenAvailableModelTargets);
 
     return [...modelIds].sort((left, right) => left.localeCompare(right));
   }
