@@ -5026,7 +5026,8 @@ export default {
       inviteValidity: 'Invitation validity',
       inviteCopied: 'Invitation link copied',
       inviteCopyFallbackTitle: 'Copy invitation link manually',
-      inviteCopyFallbackMessage: 'Your browser could not copy the link automatically. Copy this invitation link manually; it is shown only this time:\n{link}',
+      inviteCopyFallbackMessage:
+        'Your browser could not copy the link automatically. Copy this invitation link manually; it is shown only this time:\n{link}',
       inviteCopyManual: 'The invitation link was not copied automatically; copy it from the dialog',
       saveRatios: 'Save allocation',
       ratiosUpdated: 'Allocation updated; reservations released and members must confirm again',

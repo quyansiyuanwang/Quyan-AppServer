@@ -4802,7 +4802,8 @@ const zhCN: DeepStringify<typeof en> = {
       inviteValidity: '邀请有效期',
       inviteCopied: '邀请链接已复制',
       inviteCopyFallbackTitle: '请手动复制邀请链接',
-      inviteCopyFallbackMessage: '当前浏览器无法自动复制。请手动复制以下仅本次显示的邀请链接：\n{link}',
+      inviteCopyFallbackMessage:
+        '当前浏览器无法自动复制。请手动复制以下仅本次显示的邀请链接：\n{link}',
       inviteCopyManual: '邀请链接未自动复制，请从弹窗中手动复制',
       saveRatios: '保存分摊',
       ratiosUpdated: '分摊已更新，已释放冻结并需要成员重新确认',

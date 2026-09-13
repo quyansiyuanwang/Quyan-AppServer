@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
+import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
@@ -869,7 +870,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       });
       await prisma.relayToken.update({
         where: { id: openaiRelayTokenId },
-        data: { allowedModels: mappedModelId, modelMapping: null },
+        data: { allowedModels: mappedModelId, modelMapping: Prisma.DbNull },
       });
 
       const relayResponse = await request(app)
@@ -883,11 +884,11 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     } finally {
       await prisma.relayChannel.update({
         where: { id: openaiRelayChannelId },
-        data: { allowedModels: null, modelMapping: null },
+        data: { allowedModels: null, modelMapping: Prisma.DbNull },
       });
       await prisma.relayToken.update({
         where: { id: openaiRelayTokenId },
-        data: { allowedModels: null, modelMapping: null },
+        data: { allowedModels: null, modelMapping: Prisma.DbNull },
       });
       await prisma.modelPricing.deleteMany({ where: { model: mappedModel } });
     }
