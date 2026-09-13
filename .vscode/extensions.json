@@ -1,0 +1,11 @@
+{
+    "recommendations": [
+        "streetsidesoftware.code-spell-checker",
+        "cweijan.dbclient-jdbc",
+        "cweijan.vscode-mysql-client2",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "prisma.prisma",
+        "vue.volar"
+    ]
+}
