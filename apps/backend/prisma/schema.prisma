@@ -1431,8 +1431,8 @@ model CarpoolMember {
   userId        String
   role          String              @default("member") @db.VarChar(20)
   state         String              @default("pending") @db.VarChar(20)
-  paymentRatio  Decimal             @default(0) @db.Decimal(8, 6)
-  quotaRatio    Decimal             @default(0) @db.Decimal(8, 6)
+  paymentRatio  Decimal             @default(0) @db.Decimal(9, 6)
+  quotaRatio    Decimal             @default(0) @db.Decimal(9, 6)
   payableAmount Decimal             @default(0) @db.Decimal(10, 4)
   finalQuota    Decimal             @default(0) @db.Decimal(10, 4)
   confirmedAt   DateTime?
