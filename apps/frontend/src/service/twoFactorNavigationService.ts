@@ -53,15 +53,21 @@ const getRedirect = (): string | undefined => {
   return path.startsWith('/') && !path.startsWith('/auth/verify') ? path : undefined
 }
 
-let navigationPromise: Promise<void> | null = null
+let navigationPromise: Promise<boolean> | null = null
 
-export const navigateToTwoFactorVerification = (response: unknown): void => {
+/**
+ * Persist the challenge and finish routing to the verification view before the
+ * intercepted request is handed back to its caller.  Returning the navigation
+ * promise is important: callers must not surface the 2FA response as an
+ * ordinary request error while the application is still on the protected page.
+ */
+export const navigateToTwoFactorVerification = (response: unknown): Promise<boolean> => {
   const data = getTwoFactorResponseData(response)
   const challengeToken = getTwoFactorChallengeToken(response)
   if (!isTwoFactorRequiredResponse(response) || !data || !challengeToken) {
     if (isTwoFactorRequiredResponse(response) && !challengeToken)
       console.warn('[2FA] Required response did not include a challenge token')
-    return
+    return Promise.resolve(false)
   }
 
   const redirect = typeof data.redirect === 'string' ? data.redirect : getRedirect()
@@ -77,14 +83,20 @@ export const navigateToTwoFactorVerification = (response: unknown): void => {
     ? String(data.method)
     : 'code'
 
-  if (navigationPromise) return
-  navigationPromise = import('@/router')
-    .then(({ default: router }) =>
-      router.push({ name: 'authVerification', query: { purpose, method } }),
-    )
-    .catch((error) => console.warn('[2FA] Failed to navigate to verification page:', error))
-    .then(() => undefined)
-    .finally(() => {
-      navigationPromise = null
+  if (navigationPromise) return navigationPromise
+
+  const navigation = import('@/router')
+    .then(async ({ default: router }) => {
+      await router.push({ name: 'authVerification', query: { purpose, method } })
+      return true
     })
+    .catch((error) => {
+      console.warn('[2FA] Failed to navigate to verification page:', error)
+      return false
+    })
+
+  navigationPromise = navigation.finally(() => {
+    navigationPromise = null
+  })
+  return navigationPromise
 }

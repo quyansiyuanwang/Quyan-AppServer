@@ -28706,6 +28706,7 @@
 						}
 					}
 				},
+				"description": "Legacy unpaginated published list retained for compatibility.",
 				"tags": [
 					"Carpool"
 				],
@@ -28717,32 +28718,16 @@
 				"parameters": []
 			}
 		},
-		"/v1/carpools/packages": {
+		"/v1/carpools/packages/catalog": {
 			"get": {
-				"operationId": "CarpoolControllerListPackages",
+				"operationId": "CarpoolControllerListPackageCatalog",
 				"responses": {
 					"200": {
 						"description": "Ok",
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"records": {
-											"items": {
-												"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
-											},
-											"type": "array"
-										},
-										"total": {
-											"type": "number",
-											"format": "double"
-										}
-									},
-									"required": [
-										"records",
-										"total"
-									],
-									"type": "object"
+									"$ref": "#/components/schemas/CarpoolPackageTemplateListResponse"
 								}
 							}
 						}
@@ -28773,6 +28758,75 @@
 						"schema": {
 							"format": "double",
 							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/packages": {
+			"get": {
+				"operationId": "CarpoolControllerListPackages",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolPackageTemplateListResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "publishStatus",
+						"required": false,
+						"schema": {
+							"type": "string"
 						}
 					}
 				]
@@ -28810,6 +28864,134 @@
 						}
 					}
 				}
+			}
+		},
+		"/v1/carpools/packages/{id}": {
+			"put": {
+				"operationId": "CarpoolControllerUpdatePackage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/UpdateCarpoolPackageTemplateRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/carpools/packages/{id}/duplicate": {
+			"post": {
+				"operationId": "CarpoolControllerDuplicatePackage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/packages/{id}/archive": {
+			"post": {
+				"operationId": "CarpoolControllerArchivePackage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"archived": {
+											"type": "boolean",
+											"enum": [
+												true
+											],
+											"nullable": false
+										}
+									},
+									"required": [
+										"archived"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true
 			}
 		},
 		"/v1/carpools/packages/{id}/publish": {
@@ -28891,23 +29073,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"records": {
-											"items": {
-												"$ref": "#/components/schemas/CarpoolOrderDto"
-											},
-											"type": "array"
-										},
-										"total": {
-											"type": "number",
-											"format": "double"
-										}
-									},
-									"required": [
-										"records",
-										"total"
-									],
-									"type": "object"
+									"$ref": "#/components/schemas/CarpoolOrderListResponse"
 								}
 							}
 						}
@@ -28939,6 +29105,22 @@
 							"format": "double",
 							"type": "number"
 						}
+					},
+					{
+						"in": "query",
+						"name": "state",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
 					}
 				]
 			}
@@ -28952,23 +29134,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"records": {
-											"items": {
-												"$ref": "#/components/schemas/CarpoolOrderDto"
-											},
-											"type": "array"
-										},
-										"total": {
-											"type": "number",
-											"format": "double"
-										}
-									},
-									"required": [
-										"records",
-										"total"
-									],
-									"type": "object"
+									"$ref": "#/components/schemas/CarpoolOrderListResponse"
 								}
 							}
 						}
@@ -29007,6 +29173,111 @@
 						"schema": {
 							"format": "double",
 							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/admin/{id}": {
+			"get": {
+				"operationId": "CarpoolControllerGetAdminOrder",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"description": "Operations-only detail endpoint. The member-facing order endpoint must not be used by operators.",
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/admin/delivery-channels": {
+			"get": {
+				"operationId": "CarpoolControllerListDeliveryChannels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolDeliveryChannelListResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "orderId",
+						"required": false,
+						"schema": {
+							"type": "string"
 						}
 					}
 				]
@@ -29471,16 +29742,18 @@
 						"schema": {
 							"type": "string"
 						}
-					},
-					{
-						"in": "query",
-						"name": "reason",
-						"required": false,
-						"schema": {
-							"type": "string"
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/FailCarpoolOrderRequest"
+							}
 						}
 					}
-				]
+				}
 			}
 		},
 		"/v1/balance/account": {
@@ -56615,9 +56888,14 @@
 					},
 					"upstreamCost": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"description": "Operational-only field; omitted from public package catalog responses."
 					},
 					"maxMembers": {
+						"type": "number",
+						"format": "double"
+					},
+					"formationDeadlineHours": {
 						"type": "number",
 						"format": "double"
 					},
@@ -56631,21 +56909,64 @@
 						"type": "number",
 						"format": "double"
 					},
+					"snapshotQuotaUnit": {
+						"type": "string"
+					},
+					"snapshotQuotaWindowHours": {
+						"type": "number",
+						"format": "double"
+					},
 					"snapshotValidityDays": {
 						"type": "number",
 						"format": "double"
+					},
+					"estimatedSeatPrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"estimatedSeatCost": {
+						"type": "number",
+						"format": "double",
+						"description": "Operational-only field; omitted from public package catalog responses."
+					},
+					"estimatedGrossMargin": {
+						"type": "number",
+						"format": "double",
+						"description": "Operational-only field; omitted from public package catalog responses."
 					}
 				},
 				"required": [
 					"id",
 					"name",
 					"salePrice",
-					"upstreamCost",
 					"maxMembers",
+					"formationDeadlineHours",
 					"monthlyPassTemplateId",
 					"publishStatus",
 					"snapshotQuota",
-					"snapshotValidityDays"
+					"snapshotQuotaUnit",
+					"snapshotValidityDays",
+					"estimatedSeatPrice"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CarpoolPackageTemplateListResponse": {
+				"properties": {
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/CarpoolPackageTemplateDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"total",
+					"records"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -56667,6 +56988,48 @@
 						"format": "double"
 					},
 					"maxMembers": {
+						"type": "number",
+						"format": "double"
+					},
+					"formationDeadlineHours": {
+						"type": "number",
+						"format": "double"
+					},
+					"monthlyPassTemplateId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name",
+					"salePrice",
+					"upstreamCost",
+					"maxMembers",
+					"monthlyPassTemplateId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"UpdateCarpoolPackageTemplateRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"salePrice": {
+						"type": "number",
+						"format": "double"
+					},
+					"upstreamCost": {
+						"type": "number",
+						"format": "double"
+					},
+					"maxMembers": {
+						"type": "number",
+						"format": "double"
+					},
+					"formationDeadlineHours": {
 						"type": "number",
 						"format": "double"
 					},
@@ -56694,6 +57057,13 @@
 					"failed",
 					"cancelled",
 					"expired"
+				]
+			},
+			"CarpoolAllocationMode": {
+				"type": "string",
+				"enum": [
+					"equal",
+					"custom"
 				]
 			},
 			"CarpoolMemberDto": {
@@ -56733,6 +57103,14 @@
 						"type": "number",
 						"format": "double"
 					},
+					"confirmedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"leftAt": {
+						"type": "string",
+						"format": "date-time"
+					},
 					"relayTokenId": {
 						"type": "string"
 					},
@@ -56755,6 +57133,68 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"CarpoolOrderEventDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					},
+					"actorUserId": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"metadata": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"id",
+					"type",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CarpoolOrderActionsDto": {
+				"properties": {
+					"canInvite": {
+						"type": "boolean"
+					},
+					"canAllocate": {
+						"type": "boolean"
+					},
+					"canConfirm": {
+						"type": "boolean"
+					},
+					"canLeave": {
+						"type": "boolean"
+					},
+					"canCancel": {
+						"type": "boolean"
+					},
+					"canSubmit": {
+						"type": "boolean"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"canInvite",
+					"canAllocate",
+					"canConfirm",
+					"canLeave",
+					"canCancel",
+					"canSubmit"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"CarpoolOrderDto": {
 				"properties": {
 					"id": {
@@ -56763,14 +57203,31 @@
 					"state": {
 						"$ref": "#/components/schemas/CarpoolOrderState"
 					},
+					"allocationMode": {
+						"$ref": "#/components/schemas/CarpoolAllocationMode"
+					},
 					"packageName": {
+						"type": "string"
+					},
+					"monthlyPassTemplateId": {
 						"type": "string"
 					},
 					"salePrice": {
 						"type": "number",
 						"format": "double"
 					},
+					"upstreamCost": {
+						"type": "number",
+						"format": "double"
+					},
 					"totalQuota": {
+						"type": "number",
+						"format": "double"
+					},
+					"quotaUnit": {
+						"type": "string"
+					},
+					"quotaWindowHours": {
 						"type": "number",
 						"format": "double"
 					},
@@ -56782,12 +57239,52 @@
 						"type": "number",
 						"format": "double"
 					},
+					"formationDeadlineAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"submittedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"acceptedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"fulfilledAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"failedAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"cancelledAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"expiredAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"failureReason": {
+						"type": "string"
+					},
 					"relayChannelId": {
+						"type": "string"
+					},
+					"relayChannelName": {
 						"type": "string"
 					},
 					"members": {
 						"items": {
 							"$ref": "#/components/schemas/CarpoolMemberDto"
+						},
+						"type": "array"
+					},
+					"events": {
+						"items": {
+							"$ref": "#/components/schemas/CarpoolOrderEventDto"
 						},
 						"type": "array"
 					},
@@ -56799,22 +57296,97 @@
 						"type": "number",
 						"format": "double"
 					},
+					"activeMemberCount": {
+						"type": "number",
+						"format": "double"
+					},
 					"allConfirmed": {
 						"type": "boolean"
+					},
+					"viewerActions": {
+						"$ref": "#/components/schemas/CarpoolOrderActionsDto"
 					}
 				},
 				"required": [
 					"id",
 					"state",
+					"allocationMode",
 					"packageName",
 					"salePrice",
 					"totalQuota",
+					"quotaUnit",
 					"validityDays",
 					"maxMembers",
 					"members",
+					"events",
 					"paymentRatioTotal",
 					"quotaRatioTotal",
+					"activeMemberCount",
 					"allConfirmed"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CarpoolOrderListResponse": {
+				"properties": {
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/CarpoolOrderDto"
+						},
+						"type": "array"
+					},
+					"stateCounts": {
+						"$ref": "#/components/schemas/Record_string.number_",
+						"description": "Administrative lists include totals for each workflow state."
+					}
+				},
+				"required": [
+					"total",
+					"records"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CarpoolDeliveryChannelDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"channelType": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"channelType"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CarpoolDeliveryChannelListResponse": {
+				"properties": {
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"records": {
+						"items": {
+							"$ref": "#/components/schemas/CarpoolDeliveryChannelDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"total",
+					"records"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -56823,10 +57395,6 @@
 				"properties": {
 					"packageTemplateId": {
 						"type": "string"
-					},
-					"inviteValidityHours": {
-						"type": "number",
-						"format": "double"
 					}
 				},
 				"required": [
@@ -56859,6 +57427,9 @@
 			},
 			"AllocateCarpoolRatiosRequest": {
 				"properties": {
+					"allocationMode": {
+						"$ref": "#/components/schemas/CarpoolAllocationMode"
+					},
 					"members": {
 						"items": {
 							"properties": {
@@ -56881,12 +57452,10 @@
 							],
 							"type": "object"
 						},
-						"type": "array"
+						"type": "array",
+						"description": "Required only for custom allocation. Equal allocation is calculated server-side."
 					}
 				},
-				"required": [
-					"members"
-				],
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -56898,6 +57467,18 @@
 				},
 				"required": [
 					"relayChannelId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"FailCarpoolOrderRequest": {
+				"properties": {
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"reason"
 				],
 				"type": "object",
 				"additionalProperties": false

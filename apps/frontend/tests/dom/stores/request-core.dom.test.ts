@@ -119,12 +119,18 @@ describe('MyAxios session transport', () => {
       },
     }
 
-    await expect(
-      fulfilledHandler({
-        data: responseData,
-        config: { url: '/v1/redemption-codes', method: 'post', headers: new AxiosHeaders() },
-      }),
-    ).rejects.toMatchObject({ code: 1018, data: responseData.data })
+    let completeNavigation: (() => void) | undefined
+    routerPush.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          completeNavigation = resolve
+        }),
+    )
+
+    const handledResponse = fulfilledHandler({
+      data: responseData,
+      config: { url: '/v1/redemption-codes', method: 'post', headers: new AxiosHeaders() },
+    })
 
     expect(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)).toContain(
       'challenge-token',
@@ -137,6 +143,18 @@ describe('MyAxios session transport', () => {
         }),
       ),
     )
+
+    // The response must not reach the page-level error handler until the
+    // verification route has actually been entered.
+    let requestSettled = false
+    void handledResponse.catch(() => {
+      requestSettled = true
+    })
+    await Promise.resolve()
+    expect(requestSettled).toBe(false)
+
+    completeNavigation?.()
+    await expect(handledResponse).rejects.toMatchObject({ code: 1018, data: responseData.data })
   })
 
   it('redirects nested Axios error responses and preserves the challenge details', async () => {
@@ -155,7 +173,15 @@ describe('MyAxios session transport', () => {
       config: { url: '/v1/login', method: 'post', headers: new AxiosHeaders() },
     }
 
-    await expect(errorHandler(errorResponse)).rejects.toThrow('当前操作需要二次验证')
+    let completeNavigation: (() => void) | undefined
+    routerPush.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          completeNavigation = resolve
+        }),
+    )
+
+    const handledError = errorHandler(errorResponse)
     expect(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)).toContain(
       'error-challenge',
     )
@@ -167,6 +193,16 @@ describe('MyAxios session transport', () => {
         }),
       ),
     )
+
+    let requestSettled = false
+    void handledError.catch(() => {
+      requestSettled = true
+    })
+    await Promise.resolve()
+    expect(requestSettled).toBe(false)
+
+    completeNavigation?.()
+    await expect(handledError).rejects.toThrow('当前操作需要二次验证')
   })
 
   it('does not navigate or persist a challenge when the token is missing', async () => {

@@ -15,6 +15,7 @@ const orderedModulePaths = [
   './ram-management.doc.ts',
   './balance-management.doc.ts',
   './monthly-pass-management.doc.ts',
+  './carpool-management.doc.ts',
   './redemption-code-management.doc.ts',
   './json-endpoint-management.doc.ts',
   './article-management.doc.ts',

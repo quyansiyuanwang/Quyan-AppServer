@@ -16,6 +16,7 @@ import { DeveloperMonitorSchedulerService } from "./services/developer/developer
 import { RelayChannelProbeService } from "./services/relay/relay-channel-probe.service";
 import { RelayChannelProviderSettlementSchedulerService } from "./services/relay/relay-channel-provider-settlement-scheduler.service";
 import { DataLifecycleSchedulerService } from "./services/system/data-lifecycle-scheduler.service";
+import { CarpoolExpirationSchedulerService } from "./services/billing/carpool-expiration-scheduler.service";
 import { RegisterRoutes } from "@/build/routes";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "./constant/custom-code";
@@ -240,4 +241,5 @@ export function setupService() {
   RelayChannelProbeService.getInstance().start();
   RelayChannelProviderSettlementSchedulerService.getInstance().start();
   DataLifecycleSchedulerService.getInstance().start();
+  CarpoolExpirationSchedulerService.getInstance().start();
 }
