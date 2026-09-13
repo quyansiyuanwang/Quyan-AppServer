@@ -589,18 +589,13 @@ export class RelayProxyService {
     const normalizedRequestedModel = requestedModel.trim();
     if (!normalizedRequestedModel) return [];
 
-    // Model IDs are case-sensitive and may differ from the display name. Prefer
-    // an exact ID match so multiple pricing rows can still share one upstream
-    // model, then fall back to the exact display name for older clients that
-    // send the configured model name (for example `minimax-m3`).
-    const idMatches = modelPricing.filter((config) => {
+    // Requests must use the configured provider value, which is the upstream
+    // model ID. Keep this comparison exact and case-sensitive: upstream model
+    // IDs such as `MiniMax-M3` are not interchangeable with display names.
+    return modelPricing.filter((config) => {
       const modelId = resolveModelId(config).trim();
       return modelId && modelId === normalizedRequestedModel;
     });
-
-    if (idMatches.length > 0) return idMatches;
-
-    return modelPricing.filter((config) => config.model.trim() === normalizedRequestedModel);
   }
 
   private resolveChannelModelConfig(

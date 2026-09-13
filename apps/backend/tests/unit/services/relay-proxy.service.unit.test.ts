@@ -2752,11 +2752,11 @@ describe("RelayProxyService failover", () => {
       );
     });
 
-    it("resolves a display model name to a mixed-case upstream model ID", async () => {
+    it("preserves a mixed-case upstream model ID", async () => {
       const relayToken = createRelayToken();
       relayToken.channel.allowedModels = JSON.stringify(["minimax-m3"]);
       const req = createRequest({
-        body: { model: "minimax-m3", messages: [{ role: "user", content: "hello" }] },
+        body: { model: "MiniMax-M3", messages: [{ role: "user", content: "hello" }] },
       });
       const { service, modelPricingService } = createService();
       modelPricingService.getModelPricing.mockResolvedValue([
