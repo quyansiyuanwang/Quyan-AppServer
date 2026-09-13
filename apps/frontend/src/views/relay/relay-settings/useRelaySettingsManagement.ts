@@ -12,6 +12,7 @@ import { relayConfigService } from '@/service/relayConfigService'
 import { usePermissionStore } from '@/stores/permissionStore'
 import { userService } from '@/service/userService'
 import { copyTextWithFallback } from '@/utils/clipboard'
+import { isTwoFactorRequiredResponse } from '@/service/twoFactorNavigationService'
 import {
   normalizeRelayFormats,
   serializeRelayFormats,
@@ -86,6 +87,18 @@ type RelayConfigUpdatePayload = Omit<
 
 const MODEL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/
 const MAX_LOGGED_ALLOWED_MODEL_PARSE_ERRORS = 200
+
+const showRequestError = (error: unknown, fallback: string) => {
+  // A 2FA response has already routed to the verification view in the request
+  // interceptor. Do not overwrite that flow with an ordinary operation error.
+  if (isTwoFactorRequiredResponse(error)) return
+
+  const message =
+    error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+      ? error.message
+      : undefined
+  ElMessage.error(message || fallback)
+}
 
 const resolveModelId = (source: ModelIdentitySource): string => {
   const explicitModelId = source.modelId?.trim()
@@ -417,7 +430,7 @@ export const useRelaySettingsManagement = () => {
       })
     } catch (error: any) {
       console.error('loadConfig error:', error)
-      ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
+      showRequestError(error, i18ns.t('ServerConfigView.loadFailed'))
     } finally {
       loading.value = false
     }
@@ -521,7 +534,7 @@ export const useRelaySettingsManagement = () => {
       await loadAvailableModels()
     } catch (error: any) {
       console.error('save error:', error)
-      ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+      showRequestError(error, i18ns.t('ServerConfigView.saveFailed'))
     } finally {
       saving.value = false
     }
@@ -1056,7 +1069,7 @@ export const useRelaySettingsManagement = () => {
     } catch (error: any) {
       upstreamModelProbeResults[format] = []
       selectedUpstreamProbeModels[format] = []
-      ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+      showRequestError(error, i18ns.t('relay.loadFailed'))
     } finally {
       upstreamModelProbeLoading[format] = false
     }
@@ -1416,7 +1429,7 @@ export const useRelaySettingsManagement = () => {
         }))
     } catch (error: any) {
       pooledParentOptions.value = []
-      ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+      showRequestError(error, i18ns.t('relay.loadFailed'))
     }
   }
 
@@ -1811,7 +1824,7 @@ export const useRelaySettingsManagement = () => {
       downloadJsonFile(`relay-channels-${new Date().toISOString().slice(0, 10)}.json`, content)
       ElMessage.success(i18ns.t('relay.channelExportSuccess'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestError(error, i18ns.t('operationFailed'))
     } finally {
       channelExporting.value = false
     }
@@ -1830,7 +1843,7 @@ export const useRelaySettingsManagement = () => {
 
       ElMessage.error(i18ns.t('copyFailed'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestError(error, i18ns.t('operationFailed'))
     } finally {
       channelExporting.value = false
     }
@@ -1849,7 +1862,7 @@ export const useRelaySettingsManagement = () => {
 
       ElMessage.error(i18ns.t('copyFailed'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestError(error, i18ns.t('operationFailed'))
     } finally {
       channelExporting.value = false
     }
@@ -1893,7 +1906,7 @@ export const useRelaySettingsManagement = () => {
       channelImportText.value = ''
       await loadChannels()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestError(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -1903,7 +1916,7 @@ export const useRelaySettingsManagement = () => {
       ElMessage.success(i18ns.t('relay.channelDuplicateSuccess'))
       await loadChannels()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestError(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -1934,7 +1947,7 @@ export const useRelaySettingsManagement = () => {
       await loadChannels()
     } catch (error: any) {
       if (error !== 'cancel' && error !== 'close')
-        ElMessage.error(error.message || i18ns.t('operationFailed'))
+        showRequestError(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -1954,7 +1967,7 @@ export const useRelaySettingsManagement = () => {
       ElMessage.success(i18ns.t('relay.channelBatchDuplicateSuccess', { count }))
       await loadChannels()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestError(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -1988,7 +2001,7 @@ export const useRelaySettingsManagement = () => {
       await loadChannels()
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || i18ns.t('operationFailed'))
+        showRequestError(error, i18ns.t('operationFailed'))
       }
     }
   }
@@ -2034,7 +2047,7 @@ export const useRelaySettingsManagement = () => {
       await loadChannels()
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || i18ns.t('operationFailed'))
+        showRequestError(error, i18ns.t('operationFailed'))
       }
     }
   }
@@ -2061,7 +2074,7 @@ export const useRelaySettingsManagement = () => {
       channelPagination.value.total = response.total
       poolMemberTooltipDetails.value = {}
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestError(error, i18ns.t('relay.loadFailed'))
     } finally {
       channelLoading.value = false
     }
@@ -2144,7 +2157,7 @@ export const useRelaySettingsManagement = () => {
       const detail = await relayChannelService.getChannel(channelId)
       openChannelEditor(detail)
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestError(error, i18ns.t('relay.loadFailed'))
     } finally {
       channelLoading.value = false
     }
@@ -2229,7 +2242,7 @@ export const useRelaySettingsManagement = () => {
         void loadChannelHealth(row.id)
       }
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestError(error, i18ns.t('relay.loadFailed'))
     } finally {
       channelLoading.value = false
     }
@@ -2247,7 +2260,7 @@ export const useRelaySettingsManagement = () => {
       channelHealth.value = await relayChannelService.getChannelHealth(channelId)
     } catch (error: any) {
       channelHealth.value = null
-      ElMessage.error(error.message || i18ns.t('relay.healthLoadFailed'))
+      showRequestError(error, i18ns.t('relay.healthLoadFailed'))
     } finally {
       channelHealthLoading.value = false
     }
@@ -2504,7 +2517,7 @@ export const useRelaySettingsManagement = () => {
       await loadChannels()
       await loadAvailableModels()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.createFailed'))
+      showRequestError(error, i18ns.t('relay.createFailed'))
     } finally {
       channelSaving.value = false
     }
@@ -2529,7 +2542,7 @@ export const useRelaySettingsManagement = () => {
       await loadChannels()
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || i18ns.t('operationFailed'))
+        showRequestError(error, i18ns.t('operationFailed'))
       }
     } finally {
       if (togglingChannelId.value === row.id) {
@@ -2548,7 +2561,7 @@ export const useRelaySettingsManagement = () => {
       loadChannels()
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || i18ns.t('relay.deleteFailed'))
+        showRequestError(error, i18ns.t('relay.deleteFailed'))
       }
     }
   }
