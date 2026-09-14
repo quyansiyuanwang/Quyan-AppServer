@@ -198,24 +198,24 @@
 <script setup lang="ts">
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { usePageDevice } from '@/composables/usePageDevice'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Calendar, View, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { articleService } from '@/service/articleService'
-import { useSessionStore } from '@/stores/sessionStore'
+import { sessionCoordinator } from '@/service/sessionCoordinator'
 import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 import ArticleTOC from '@/components/common/ArticleTOC.vue'
 import type { ArticleDto, ArticleListItemDto } from '@/client/types.gen'
+import { loadArticleViewerData } from './articleViewerLoader'
 
 const loading = ref(false)
 const articles = ref<ArticleListItemDto[]>([])
 const selectedArticle = ref<ArticleDto | null>(null)
 const searchQuery = ref('')
 const activeTocId = ref('')
-
-const sessionStore = useSessionStore()
-const isAuthenticated = computed(() => sessionStore.isAuthenticated)
+const authenticatedMode = ref(false)
+const loadVersion = ref(0)
 
 const filteredArticles = computed(() => {
   if (!searchQuery.value) return articles.value
@@ -238,23 +238,10 @@ function formatShortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString()
 }
 
-async function loadArticles() {
-  loading.value = true
-  try {
-    articles.value = isAuthenticated.value
-      ? await articleService.listPublishedArticles()
-      : await articleService.listPublicArticles()
-  } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to load articles')
-  } finally {
-    loading.value = false
-  }
-}
-
 async function selectArticle(item: ArticleListItemDto) {
   if (selectedArticle.value?.id === item.id) return
   try {
-    selectedArticle.value = isAuthenticated.value
+    selectedArticle.value = authenticatedMode.value
       ? await articleService.getArticle(item.id)
       : await articleService.getPublicArticle(item.id)
   } catch (e: any) {
@@ -263,18 +250,29 @@ async function selectArticle(item: ArticleListItemDto) {
 }
 
 onMounted(async () => {
-  await loadArticles()
-  // Try to open the designated default article first, fallback to first in list
-  const defaultArticle = await (
-    isAuthenticated.value
-      ? articleService.getDefaultArticle()
-      : articleService.getPublicDefaultArticle()
-  ).catch(() => null)
-  if (defaultArticle) {
-    selectedArticle.value = defaultArticle
-  } else if (articles.value.length > 0) {
-    await selectArticle(articles.value[0]!)
+  const version = ++loadVersion.value
+  loading.value = true
+  try {
+    const data = await loadArticleViewerData(
+      async () => Boolean(await sessionCoordinator.ensureSession()),
+      articleService,
+    )
+    if (version !== loadVersion.value) return
+
+    authenticatedMode.value = data.authenticated
+    articles.value = data.articles
+    selectedArticle.value = data.selectedArticle
+  } catch (e: any) {
+    if (version === loadVersion.value) {
+      ElMessage.error(e.message || 'Failed to load articles')
+    }
+  } finally {
+    if (version === loadVersion.value) loading.value = false
   }
+})
+
+onBeforeUnmount(() => {
+  loadVersion.value += 1
 })
 
 const { isDesktop } = usePageDevice()

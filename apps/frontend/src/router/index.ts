@@ -10,6 +10,7 @@ import { getCentralLoginFallbackUrl, redirectToCentralLogin } from '@/service/ce
 import { replaceDocument } from '@/service/navigationService'
 import { sessionCoordinator } from '@/service/sessionCoordinator'
 import { moduleHost } from '@/plugins/modules'
+import { installDocumentTitle } from './document-title'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -67,6 +68,7 @@ export const createAppRouter = (profile: ResolvedSiteProfile) => {
   })
 
   if (isKnownSiteProfile(profile)) {
+    installDocumentTitle(router, profile)
     installNavigationGuards(router, profile)
   }
   return router

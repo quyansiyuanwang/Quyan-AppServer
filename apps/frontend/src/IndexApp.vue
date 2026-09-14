@@ -1,6 +1,6 @@
 <template>
   <RouterView v-slot="{ Component, route }">
-    <Transition :name="getShellTransitionName(route)" mode="out-in" appear>
+    <Transition :name="getShellTransitionName(route)" mode="out-in">
       <component :is="Component" :key="getViewTransitionKey(route, sessionStore.identityKey)" />
     </Transition>
   </RouterView>

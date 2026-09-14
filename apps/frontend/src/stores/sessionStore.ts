@@ -21,9 +21,11 @@ export const useSessionStore = defineStore('session', () => {
   const error = ref<unknown>(null)
 
   const isAuthenticated = computed(() => status.value === 'authenticated')
-  const identityKey = computed(
-    () => `${user.value?.id || 'anonymous'}:${identityProjectionVersion.value}`,
-  )
+  // This is a remount token, not an identity label. The first projection after
+  // a cold start keeps the same token so restoring a cookie session does not
+  // remount the current route. Later user changes bump it.
+  const identityKey = computed(() => String(identityProjectionVersion.value))
+  let initialIdentityResolved = false
 
   /**
    * A cold Cookie restore has no trusted UI state yet. A token rotation during
@@ -51,6 +53,7 @@ export const useSessionStore = defineStore('session', () => {
     permissionsStatus.value = 'idle'
     status.value = nextStatus
     error.value = null
+    initialIdentityResolved = true
   }
 
   const setFailed = (cause: unknown) => {
@@ -59,11 +62,18 @@ export const useSessionStore = defineStore('session', () => {
     permissionsStatus.value = 'failed'
     status.value = 'failed'
     error.value = cause
+    initialIdentityResolved = true
   }
 
   const setUser = (nextUser: Partial<UserDto> | null) => {
     const nextUserId = nextUser?.id || null
-    if ((user.value?.id || null) !== nextUserId) identityProjectionVersion.value += 1
+    const previousUserId = user.value?.id || null
+    if (previousUserId !== nextUserId) {
+      const isInitialIdentityProjection =
+        !initialIdentityResolved && previousUserId === null && nextUserId !== null
+      if (!isInitialIdentityProjection) identityProjectionVersion.value += 1
+      initialIdentityResolved = true
+    }
     user.value = nextUser ? (nextUser as UserDto) : null
   }
 
