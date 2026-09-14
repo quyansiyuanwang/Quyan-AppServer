@@ -42,19 +42,32 @@ describe('profile route factory', () => {
     expect(routeNames).not.toContain('login')
   })
 
-  it('makes the identity profile the only profile with authentication routes', () => {
+  it('keeps authentication entries identity-only while exposing same-origin verification routes', () => {
     const identityRouteNames = collectRouteNames(
       createRoutesForProfile(getKnownProfile('auth.qysyw.cn')),
     )
     const chatRouteNames = collectRouteNames(
       createRoutesForProfile(getKnownProfile('chat.qysyw.cn')),
     )
+    const publicRouteNames = collectRouteNames(
+      createRoutesForProfile(getKnownProfile('www.qysyw.cn')),
+    )
 
     expect(identityRouteNames).toEqual(
       expect.arrayContaining(['login', 'register', 'externalAuthCallback']),
     )
+    expect(identityRouteNames).toEqual(
+      expect.arrayContaining(['authVerification', 'captchaVerification']),
+    )
     expect(chatRouteNames).toContain('chat')
+    expect(chatRouteNames).toEqual(
+      expect.arrayContaining(['authVerification', 'captchaVerification']),
+    )
+    expect(publicRouteNames).toEqual(
+      expect.arrayContaining(['authVerification', 'captchaVerification']),
+    )
     expect(chatRouteNames).not.toContain('login')
+    expect(publicRouteNames).not.toContain('login')
     expect(chatRouteNames).not.toContain('settingsProfile')
   })
 
