@@ -1690,7 +1690,7 @@ const siteContextMenuStyle = computed(() => ({
 }))
 
 const siteOpenActionLabel = computed(() =>
-  i18ns.t(siteNavigationStore.openInNewTab ? 'nav.openInNewTab' : 'nav.openInCurrentPage'),
+  i18ns.t(siteNavigationStore.openInNewTab ? 'nav.openInCurrentPage' : 'nav.openInNewTab'),
 )
 
 const isPinned = (routeName: RouteName) => pinnedRouteNames.value.includes(routeName)
@@ -1819,7 +1819,8 @@ const openSiteFromContextMenu = () => {
   const siteId = siteContextMenu.value.siteId
   if (!siteId) return
 
-  openSiteProfile(siteId, siteNavigationStore.openInNewTab)
+  // 右键菜单是左键默认行为的反向操作：左键遵循「打开新标签页」偏好，菜单则取反。
+  openSiteProfile(siteId, !siteNavigationStore.openInNewTab)
   closeSiteContextMenu()
 }
 
