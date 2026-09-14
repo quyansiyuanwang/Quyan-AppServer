@@ -31,7 +31,6 @@ import {
   type RemoteTerminalShortcutModifier,
 } from '@/utils/remoteTerminalShortcuts'
 import { useIsDesktopStore } from '@/stores/isDesktopStore'
-import { omitStr } from '@/utils/common'
 
 type RemoteTerminalSocketMessage =
   | { type: 'browser-connected'; sessionId: string }
@@ -2117,7 +2116,6 @@ export const useRemoteTerminalManagement = () => {
     loading,
     loadRemoteDirectoryTree,
     modifierLocks,
-    omitStr,
     openQuickCommandDialog,
     openShortcutDialog,
     openWorkingDirectoryDialog,

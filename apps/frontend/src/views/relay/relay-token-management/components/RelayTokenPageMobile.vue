@@ -181,7 +181,7 @@
                     class="token-link token-link-mobile"
                     @click="state.copyToken(row.token)"
                   >
-                    {{ state.maskToken(row.token, 10, 8) }}
+                    {{ maskSecret(row.token) }}
                   </el-link>
                 </div>
               </div>
@@ -424,6 +424,7 @@ import { Permission } from '@/constant/permission'
 import { MANAGED_STATUS } from '@/constant/status'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
+import { maskSecret } from '@quyan/shared'
 import { useRelayTokenManagementContext } from '../context'
 
 const state = useRelayTokenManagementContext()

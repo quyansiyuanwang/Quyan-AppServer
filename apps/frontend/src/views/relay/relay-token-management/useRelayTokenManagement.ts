@@ -3,7 +3,7 @@ import type {
   ContentSafetyAction as SharedContentSafetyAction,
   RelayConfiguredRequestFormat as SharedRelayFormat,
 } from '@quyan/shared'
-import type { RelayConvertibleRequestFormat } from '@quyan/shared'
+import { maskSecret, type RelayConvertibleRequestFormat } from '@quyan/shared'
 import StorageKey from '@/constant/storagekey'
 import { MANAGED_STATUS } from '@/constant/status'
 import { i18ns } from '@/locales'
@@ -2346,16 +2346,14 @@ export const useRelayTokenManagement = () => {
     return launchFormats
   }
 
-  const maskToken = (token: string, start = 10, end = 8) => {
-    const normalized = String(token || '')
-    if (normalized.length <= start + end) return normalized
-    return `${normalized.slice(0, start)}...${normalized.slice(-end)}`
-  }
-
   const buildCcswitchImportUri = (row: RelayTokenDto, format: RelayFormat) => {
     const baseEndpoint = getAIEndpointUrl()
     const name =
-      row.name?.trim() || `${i18ns.t('relay.unnamedToken')} ${maskToken(row.token, 6, 4)}`
+      row.name?.trim() ||
+      `${i18ns.t('relay.unnamedToken')} ${maskSecret(row.token, {
+        prefixLength: 6,
+        suffixLength: 4,
+      })}`
 
     let endpoint: string
     if (format === 'anthropic') {
@@ -2928,7 +2926,6 @@ export const useRelayTokenManagement = () => {
     handleDelete,
     handleMoreCommand,
     copyToken,
-    maskToken,
     getTokenSupportedFormats,
     getCcswitchLaunchFormats,
     getCcswitchLaunchLabel,

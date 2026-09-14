@@ -19,7 +19,7 @@ import { OAuthClientRepository } from "@/store/users/oauth-client.repository";
 import type { OAuthClientStore, OAuthClientUpdateInput } from "@/store/users/oauth-client.store";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
-import { CustomCode } from "@quyan/shared";
+import { CustomCode, maskSecret } from "@quyan/shared";
 import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
 
 const DEFAULT_GRANT_TYPES = ["authorization_code", "refresh_token"];
@@ -56,7 +56,7 @@ export class OAuthClientService {
       description: this.normalizeOptionalText(data.description),
       clientId,
       clientSecretHash,
-      clientSecretPreview: rawClientSecret ? this.buildSecretPreview(rawClientSecret) : undefined,
+      clientSecretPreview: rawClientSecret ? maskSecret(rawClientSecret) : undefined,
       clientType: data.clientType ?? "confidential",
       reviewStatus: REVIEW_STATUS.DRAFT,
       reviewComment: undefined,
@@ -127,7 +127,7 @@ export class OAuthClientService {
       description: this.normalizeOptionalText(data.description),
       clientId,
       clientSecretHash,
-      clientSecretPreview: rawClientSecret ? this.buildSecretPreview(rawClientSecret) : undefined,
+      clientSecretPreview: rawClientSecret ? maskSecret(rawClientSecret) : undefined,
       clientType,
       reviewStatus: REVIEW_STATUS.APPROVED,
       reviewComment: "System OAuth client",
@@ -347,7 +347,7 @@ export class OAuthClientService {
     const rawClientSecret = this.generateClientSecret();
     const updated = await this.repository.update(id, {
       clientSecretHash: await bcrypt.hash(rawClientSecret, 10),
-      clientSecretPreview: this.buildSecretPreview(rawClientSecret),
+      clientSecretPreview: maskSecret(rawClientSecret),
     });
 
     await this.businessLogService.logOperation({
@@ -476,10 +476,6 @@ export class OAuthClientService {
 
   private generateClientSecret(): string {
     return `oauths_${randomBytes(32).toString("hex")}`;
-  }
-
-  private buildSecretPreview(secret: string): string {
-    return `${secret.slice(0, 9)}****${secret.slice(-4)}`;
   }
 
   private normalizeOptionalText(value?: string): string | undefined {

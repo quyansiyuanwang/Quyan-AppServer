@@ -4,6 +4,7 @@ import { Plus, Refresh, Switch } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { BalanceGiftCodeDto, BalanceTransferConfigDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
+import { maskSecret } from '@quyan/shared'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { balanceTransferService } from '@/service/balanceTransferService'
 
@@ -206,7 +207,7 @@ onMounted(load)
       <el-table :data="giftCodes" size="small" empty-text="-">
         <el-table-column prop="code" :label="i18ns.t('redemption.code')" min-width="210">
           <template #default="{ row }">
-            <el-link type="primary" @click="copyCode(row.code)">{{ row.code }}</el-link>
+            <el-link type="primary" @click="copyCode(row.code)">{{ maskSecret(row.code) }}</el-link>
           </template>
         </el-table-column>
         <el-table-column prop="amount" :label="i18ns.t('balance.receivedAmount')" width="120" />
