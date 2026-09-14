@@ -221,7 +221,7 @@
             <template v-else-if="columnKey === 'token'">
               <div class="token-cell">
                 <el-link type="primary" class="token-link" @click="state.copyToken(row.token)">
-                  {{ row.token.substring(0, 12) }}...{{ row.token.slice(-4) }}
+                  {{ maskSecret(row.token) }}
                 </el-link>
               </div>
             </template>
@@ -458,7 +458,7 @@
           <template #default="{ row }">
             <div class="token-cell">
               <el-link type="primary" class="token-link" @click="state.copyToken(row.token)">
-                {{ row.token.substring(0, 12) }}...{{ row.token.slice(-4) }}
+                {{ maskSecret(row.token) }}
               </el-link>
             </div>
           </template>
@@ -832,6 +832,7 @@ import { Permission } from '@/constant/permission'
 import { MANAGED_STATUS } from '@/constant/status'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns, type I18nENAvailableKeys } from '@/locales'
+import { maskSecret } from '@quyan/shared'
 import { useRelayTokenManagementContext } from '../context'
 import type { RelayTokenColumnKey } from '../useRelayTokenManagement'
 

@@ -36,6 +36,7 @@ import { ConfigService } from "@/services/system/config.service";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import type { Prisma } from "@prisma/client";
+import { maskSecret } from "@quyan/shared";
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -83,11 +84,6 @@ const parseRequiredDate = (fieldName: string, value: string): Date => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) throw new BadRequestError(`${fieldName} must be a valid date string`);
   return parsed;
-};
-
-const maskToken = (token: string): string => {
-  if (token.length <= 10) return token;
-  return `${token.slice(0, 6)}...${token.slice(-4)}`;
 };
 
 const normalizeText = (value?: string | null): string | null | undefined => {
@@ -519,7 +515,7 @@ export class RemoteTerminalProductService {
       id: record.id,
       entitlementId: record.entitlementId,
       token: record.token,
-      maskedToken: maskToken(record.token),
+      maskedToken: maskSecret(record.token),
       label: record.label ?? undefined,
       expiresAt: record.expiresAt ?? undefined,
       lastUsedAt: record.lastUsedAt ?? undefined,

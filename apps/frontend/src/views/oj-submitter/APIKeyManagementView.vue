@@ -15,7 +15,7 @@
           <el-table-column prop="name" :label="i18ns.t('ojSubmitter.apiKeyName')" min-width="160" />
           <el-table-column prop="key" :label="i18ns.t('ojSubmitter.apiKey')" min-width="220">
             <template #default="{ row }">
-              <span class="key-preview">{{ truncateKey(row.key) }}</span>
+              <span class="key-preview">{{ maskSecret(row.key) }}</span>
             </template>
           </el-table-column>
           <el-table-column :label="i18ns.t('ojSubmitter.channelName')" min-width="150">
@@ -86,7 +86,7 @@
                 </el-button>
               </div>
 
-              <div class="mobile-item__key">{{ row.key }}</div>
+              <div class="mobile-item__key">{{ maskSecret(row.key) }}</div>
 
               <div v-if="row.channelName" class="mobile-item__meta">
                 {{ i18ns.t('ojSubmitter.channelName') }}: {{ row.channelName }}
@@ -226,6 +226,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { OjapiKeyDto, RelayChannelOptionDto } from '@/client/types.gen'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
+import { maskSecret } from '@quyan/shared'
 import { OJAPIKeyService } from '@/service/ojAPIKeyService'
 import { relayChannelService } from '@/service/relayChannelService'
 
@@ -276,8 +277,6 @@ const formatDate = (value?: string) => (value ? new Date(value).toLocaleString()
 
 const formatExpiry = (value?: string) =>
   value ? new Date(value).toLocaleString() : i18ns.t('ojSubmitter.neverExpires')
-
-const truncateKey = (key: string) => (key.length > 24 ? `${key.slice(0, 24)}...` : key)
 
 const loadAPIKeys = async () => {
   loading.value = true

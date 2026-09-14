@@ -52,6 +52,9 @@ pub fn classify(value: &str) -> &'static str {
     }
 }
 
+/// Masks a credential for display, mirroring the shared contract in
+/// `packages/shared/src/mask.ts`: values that are too short render as a fixed
+/// placeholder, otherwise the head and tail are kept with an ellipsis between.
 pub fn mask(value: &str) -> String {
     if value.len() <= 8 {
         return "********".into();

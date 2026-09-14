@@ -91,7 +91,7 @@ const ElLinkStub = defineComponent({
 })
 
 const GIFT_CODE = 'ugc_AbCdEfGhIjKlMnOpQrStUvWxYz012345'
-const MASKED_GIFT_CODE = 'ugc_AbCdEfGh...2345'
+const MASKED_GIFT_CODE = 'ugc_AbC...z012345'
 
 const createGiftCodeRecord = (overrides: Record<string, unknown> = {}) =>
   ({
@@ -174,7 +174,7 @@ describe('BalanceTransferPanel gift code table', () => {
     expect(messageSuccessMock).toHaveBeenCalled()
   })
 
-  it('keeps short codes untouched', async () => {
+  it('falls back to the placeholder for codes that are too short to mask', async () => {
     listGiftCodesMock.mockResolvedValue({
       records: [createGiftCodeRecord({ code: 'ugc_shortcode' })],
       total: 1,
@@ -184,7 +184,7 @@ describe('BalanceTransferPanel gift code table', () => {
 
     const wrapper = await mountPanel()
 
-    expect(wrapper.text()).toContain('ugc_shortcode')
-    expect(wrapper.text()).not.toContain('ugc_shortcode...')
+    expect(wrapper.text()).toContain('********')
+    expect(wrapper.text()).not.toContain('ugc_shortcode')
   })
 })

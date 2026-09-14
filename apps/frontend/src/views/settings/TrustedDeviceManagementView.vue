@@ -145,6 +145,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { i18ns } from '@/locales'
+import { truncateMiddle } from '@quyan/shared'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { usePagination } from '@/composables/usePagination'
 import { trustedDeviceService } from '@/service/twoFactor/trustedDeviceService'
@@ -224,7 +225,7 @@ const formatTrustedDeviceExpires = (expiresInSeconds: number | null): string => 
 }
 
 const getTrustedDeviceLabel = (device: TwoFactorTrustedDevice): string => {
-  return device.ipAddress || device.userAgent || device.deviceId.slice(0, 12)
+  return device.ipAddress || device.userAgent || truncateMiddle(device.deviceId, 12)
 }
 
 const loadTrustedDevices = async (silent = false) => {
