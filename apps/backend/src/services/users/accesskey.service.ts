@@ -11,6 +11,7 @@ import { EmailService } from "@/services/auth/email.service";
 import { CustomCode } from "@/constant/custom-code";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { MANAGED_STATUS } from "@/constant/status";
+import { maskSecret } from "@quyan/shared";
 import type { Request } from "express";
 
 export class AccessKeyService {
@@ -124,16 +125,12 @@ export class AccessKeyService {
     return true;
   }
 
-  private maskKey(key: string): string {
-    return key.substring(0, 7) + "****" + key.substring(key.length - 4);
-  }
-
   private toDto(accessKey: any, maskKey: boolean = true): AccessKeyDto {
     return {
       id: accessKey.id,
       userId: accessKey.userId,
       name: accessKey.name,
-      key: maskKey ? this.maskKey(accessKey.key) : accessKey.key,
+      key: maskKey ? maskSecret(accessKey.key) : accessKey.key,
       expiresAt: accessKey.expiresAt,
       lastUsedAt: accessKey.lastUsedAt,
       requestCount: accessKey.requestCount,

@@ -19,6 +19,7 @@ import type { AuthCenterClientStore, AuthCenterClientUpdateInput } from "@/store
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
+import { maskSecret } from "@quyan/shared";
 
 const DEFAULT_SCOPES = ["profile"];
 const REVIEW_STATUS = {
@@ -74,7 +75,7 @@ export class AuthCenterClientService {
       description: this.normalizeOptionalText(data.description),
       clientId,
       clientSecretHash,
-      clientSecretPreview: rawClientSecret ? this.buildSecretPreview(rawClientSecret) : undefined,
+      clientSecretPreview: rawClientSecret ? maskSecret(rawClientSecret) : undefined,
       clientType,
       reviewStatus: REVIEW_STATUS.DRAFT,
       reviewComment: undefined,
@@ -267,7 +268,7 @@ export class AuthCenterClientService {
     const rawClientSecret = this.generateClientSecret();
     const updated = await this.repository.update(id, {
       clientSecretHash: await bcrypt.hash(rawClientSecret, 10),
-      clientSecretPreview: this.buildSecretPreview(rawClientSecret),
+      clientSecretPreview: maskSecret(rawClientSecret),
     });
 
     await this.businessLogService.logOperation({
@@ -440,10 +441,6 @@ export class AuthCenterClientService {
 
   private generateClientSecret(): string {
     return `atcs_${randomBytes(32).toString("hex")}`;
-  }
-
-  private buildSecretPreview(secret: string): string {
-    return `${secret.slice(0, 9)}****${secret.slice(-4)}`;
   }
 
   private normalizeOptionalText(value?: string): string | undefined {

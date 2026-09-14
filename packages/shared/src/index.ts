@@ -107,3 +107,5 @@ export {
   MAX_STREAM_PREFLIGHT_BUFFER_LIMIT_BYTES,
 } from './relay-stream-config'
 export type { RelayTokenStreamConfig } from './relay-stream-config'
+export { maskSecret, maskEmail, truncateMiddle } from './mask'
+export type { MaskOptions } from './mask'

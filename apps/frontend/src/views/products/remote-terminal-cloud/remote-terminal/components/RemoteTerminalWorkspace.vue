@@ -164,7 +164,9 @@
                     @click="sendQuickCommand(command)"
                   >
                     <span class="shortcut-button-label">{{ command.label }}</span>
-                    <span class="shortcut-button-preview">{{ omitStr(command.command, 20) }}</span>
+                    <span class="shortcut-button-preview">
+                      {{ truncateMiddle(command.command, 20) }}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -179,6 +181,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { i18ns } from '@/locales'
+import { truncateMiddle } from '@quyan/shared'
 import { useRemoteTerminalManagementContext } from '../context'
 
 const state = useRemoteTerminalManagementContext()
@@ -198,7 +201,6 @@ const {
   getTabTitle,
   isFullscreen,
   modifierLocks,
-  omitStr,
   openQuickCommandDialog,
   openShortcutDialog,
   quickCommands,

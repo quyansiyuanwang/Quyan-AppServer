@@ -20,6 +20,7 @@ import { NotificationService } from "@/services/notification/notification.servic
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationEvent } from "@/constant/notification-event";
 import { RateLimiterService } from "@/services/infrastructure/rate-limiter.service";
+import { maskEmail } from "@quyan/shared";
 
 interface TwoFactorSetupSession {
   userId: string;
@@ -648,7 +649,7 @@ export class TwoFactorService {
 
     return {
       message: "验证码已发送",
-      maskedEmail: this.maskEmail(user.email),
+      maskedEmail: maskEmail(user.email),
     };
   }
 
@@ -1165,15 +1166,6 @@ export class TwoFactorService {
   private async isTrustedDeviceRevoked(userId: string, deviceId: string): Promise<boolean> {
     const marker = await this.redisService.get(this.trustedDeviceRevokedKey(userId, deviceId));
     return Boolean(marker);
-  }
-
-  private maskEmail(email: string): string {
-    const [name, domain] = email.split("@");
-    if (!name || !domain) return email;
-    if (name.length <= 2) return `${name[0] || "*"}*@${domain}`;
-
-    const maskedName = `${name.slice(0, 2)}${"*".repeat(Math.max(2, name.length - 2))}`;
-    return `${maskedName}@${domain}`;
   }
 
   private reminderCooldownKey(userId: string): string {

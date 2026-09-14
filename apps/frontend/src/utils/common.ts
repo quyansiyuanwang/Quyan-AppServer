@@ -90,11 +90,3 @@ export const untilLoaded = <T>(
     if (timeoutMs > 0) timeout = setTimeout(() => cleanup(true), timeoutMs)
   })
 }
-
-export const omitStr = (str: string, maxLength: number): string => {
-  if (str.length <= maxLength) {
-    return str
-  }
-  const half = Math.floor((maxLength - 3) / 2)
-  return `${str.slice(0, half)}...${str.slice(str.length - half)}`
-}

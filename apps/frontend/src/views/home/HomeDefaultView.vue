@@ -300,6 +300,7 @@
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
+import { truncateMiddle } from '@quyan/shared'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { onMounted, computed } from 'vue'
 import { navigateToCanonicalRoute } from '@/router/canonical-navigation'
@@ -326,7 +327,7 @@ const userInfoStore = useUserInfoStore()
 
 const userInfo = computed(() => userInfoStore.userInfo)
 const username = computed(() => userInfo.value.username)
-const shortId = computed(() => (userInfo.value.id ? userInfo.value.id.slice(0, 8) + '...' : '—'))
+const shortId = computed(() => (userInfo.value.id ? truncateMiddle(userInfo.value.id, 12) : '—'))
 const balance = computed(() => userInfo.value.balance ?? 0)
 const groupName = computed(() => userInfo.value.groupName || '')
 
