@@ -53,7 +53,7 @@ export const routes = [
         meta: {
           isAuthEntry: true,
         },
-        component: lazyFeatureView('auth', 'AuthVerificationView.vue'),
+        component: lazyOptionalView(() => import('@/views/auth/AuthVerificationView.vue')),
       },
       {
         path: '/oauth/authorize',
@@ -99,7 +99,7 @@ export const routes = [
         meta: {
           isAuthEntry: true,
         },
-        component: lazyFeatureView('auth', 'CaptchaVerificationView.vue'),
+        component: lazyOptionalView(() => import('@/views/auth/CaptchaVerificationView.vue')),
       },
       {
         path: '/status/:slug',
@@ -1313,6 +1313,7 @@ export const routes = [
     component: () => import('@/views/common/404View.vue'),
     meta: {
       allowGuest: true,
+      titleKey: 'notFound.title',
     },
   },
 ] as const satisfies RouteRecordRaw[]
