@@ -86,7 +86,7 @@ vi.mock('@/stores/siteNavigationStore', () => ({
 }))
 
 vi.mock('sortablejs', () => ({ default: class Sortable {} }))
-vi.mock('element-plus', () => ({ ElMessageBox: { confirm: vi.fn() } }))
+vi.mock('@/utils/elementPlusRuntime', () => ({ ElMessageBox: { confirm: vi.fn() } }))
 
 import AsideMenu from '@/layouts/AsideMenu.vue'
 

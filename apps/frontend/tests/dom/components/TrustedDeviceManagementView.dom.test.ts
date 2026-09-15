@@ -122,7 +122,7 @@ vi.mock('@/composables/usePagination', async () => {
   }
 })
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     error: messageErrorMock,
     success: messageSuccessMock,

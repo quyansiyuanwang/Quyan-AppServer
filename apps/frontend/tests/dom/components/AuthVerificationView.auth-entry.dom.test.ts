@@ -98,7 +98,7 @@ vi.mock('@/utils/validation', () => ({
   validateTwoFactorCode: vi.fn(() => true),
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     warning: vi.fn(),
   },

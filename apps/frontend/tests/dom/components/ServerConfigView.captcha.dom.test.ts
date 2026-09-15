@@ -57,7 +57,7 @@ vi.mock('@/locales', () => ({
   },
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     warning: warningMock,
     success: successMock,

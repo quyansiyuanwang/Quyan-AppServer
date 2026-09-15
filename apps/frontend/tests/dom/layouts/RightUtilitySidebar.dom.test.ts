@@ -41,7 +41,7 @@ vi.mock('@/router', () => ({
 vi.mock('vue-router', () => ({ useRoute: () => ({ name: 'settingsPreferences' }) }))
 vi.mock('@/router/routes', () => ({ resolveCanonicalRouteUrl: vi.fn() }))
 vi.mock('@/service/navigationService', () => ({ assignDocument: vi.fn() }))
-vi.mock('element-plus', () => ({ ElMessage: { info: vi.fn() } }))
+vi.mock('@/utils/elementPlusRuntime', () => ({ ElMessage: { info: vi.fn() } }))
 
 import RightUtilitySidebar from '@/layouts/RightUtilitySidebar.vue'
 

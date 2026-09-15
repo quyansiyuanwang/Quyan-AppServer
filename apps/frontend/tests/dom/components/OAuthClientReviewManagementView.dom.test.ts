@@ -30,7 +30,7 @@ vi.mock('@/service/oauthClientService', () => ({
   },
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     success: messageSuccessMock,
     error: messageErrorMock,

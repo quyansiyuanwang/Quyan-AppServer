@@ -15,7 +15,7 @@ vi.mock('@/utils/asyncMarkdown', () => ({
 }))
 
 vi.mock('@/utils/clipboard', () => ({ copyTextWithFallback }))
-vi.mock('element-plus', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('@/utils/elementPlusRuntime', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() } }))
 
 import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 

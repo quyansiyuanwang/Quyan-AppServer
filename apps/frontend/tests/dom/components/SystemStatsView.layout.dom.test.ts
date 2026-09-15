@@ -9,7 +9,7 @@ vi.mock('@/service/systemService', () => ({
   default: { getSystemStats: vi.fn(() => new Promise(() => undefined)) },
 }))
 vi.mock('@/locales', () => ({ i18ns: { t: (key: string) => key } }))
-vi.mock('element-plus', () => ({ ElMessage: { error: vi.fn() } }))
+vi.mock('@/utils/elementPlusRuntime', () => ({ ElMessage: { error: vi.fn() } }))
 
 import SystemStatsView from '@/views/system/SystemStatsView.vue'
 
