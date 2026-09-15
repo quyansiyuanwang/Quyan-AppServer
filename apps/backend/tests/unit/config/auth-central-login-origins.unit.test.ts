@@ -31,6 +31,8 @@ describe("central-login default origins", () => {
       JWT_REFRESH_SECRET: "test-refresh-secret",
       AUTH_CENTER_JWT_PRIVATE_KEY: "test-private-key",
       AUTH_CENTER_JWT_PUBLIC_KEY: "test-public-key",
+      PASSWORD_ENCRYPTION_PRIVATE_KEY: "test-password-encryption-private-key",
+      PASSWORD_ENCRYPTION_PUBLIC_KEY: "test-password-encryption-public-key",
     } as EnvSnapshot;
     const runtime = buildRuntimeConfig(source);
     const auth = buildAuthConfig(source, runtime);
@@ -55,6 +57,8 @@ describe("central-login default origins", () => {
       JWT_REFRESH_SECRET: "test-refresh-secret",
       AUTH_CENTER_JWT_PRIVATE_KEY: "test-private-key",
       AUTH_CENTER_JWT_PUBLIC_KEY: "test-public-key",
+      PASSWORD_ENCRYPTION_PRIVATE_KEY: "test-password-encryption-private-key",
+      PASSWORD_ENCRYPTION_PUBLIC_KEY: "test-password-encryption-public-key",
     } as EnvSnapshot;
     const runtime = buildRuntimeConfig(source);
     const auth = buildAuthConfig(source, runtime);
