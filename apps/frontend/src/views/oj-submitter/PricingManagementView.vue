@@ -292,7 +292,7 @@
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, onMounted } from 'vue'
 import { i18ns } from '@/locales'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance } from 'element-plus'
 import { OJPricingService } from '@/service/ojPricingService'
 import type { OjModelPricingDto } from '@/client/types.gen'

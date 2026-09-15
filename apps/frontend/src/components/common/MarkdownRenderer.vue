@@ -8,7 +8,7 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { renderArticleMarkdown } from '@/utils/asyncMarkdown'
 import { copyTextWithFallback } from '@/utils/clipboard'

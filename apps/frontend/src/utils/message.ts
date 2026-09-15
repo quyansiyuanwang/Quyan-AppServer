@@ -1,4 +1,4 @@
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 
 type MsgType = 'success' | 'error' | 'warning' | 'info'
 

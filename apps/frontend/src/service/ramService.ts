@@ -14,8 +14,8 @@ import type {
 import { CustomCode } from '@/constant/custom-code'
 import { useRequestStore } from '@/stores/request'
 import { cacheObject } from '@/utils/common'
-import { md5 } from '@/utils/encryption'
 import { toServiceError } from '@/utils/error-utils'
+import { passwordEncryptionService } from '@/service/passwordEncryptionService'
 
 const ramApi = cacheObject(() => createRamControllerApi(useRequestStore().getAxios()))
 
@@ -38,20 +38,20 @@ export class RamService {
   }
 
   async createUser(data: CreateRamUserDto) {
-    const body: Record<string, unknown> = { ...data }
-    if (data.password) {
-      body.password = md5(data.password)
-    } else {
-      // AccessKey 模式：生成随机内部密码
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*'
-      const randomPwd = Array.from({ length: 16 }, () =>
-        chars.charAt(Math.floor(Math.random() * chars.length)),
-      ).join('')
-      body.password = md5(randomPwd)
+    const body = { ...data, password: undefined }
+    const create = async (passwordCredential?: CreateRamUserDto['passwordCredential']) => {
+      const result = await ramApi.createUser({
+        body: { ...body, ...(passwordCredential ? { passwordCredential } : {}) },
+      })
+      if (result?.code === CustomCode.OK && result.data) return result.data
+      throw toServiceError(result)
     }
-    const result = await ramApi.createUser({ body: body as CreateRamUserDto })
-    if (result?.code === CustomCode.OK && result.data) return result.data
-    throw toServiceError(result)
+
+    return data.password
+      ? passwordEncryptionService.runWithRetry(data.password, (passwordCredential) =>
+          create(passwordCredential),
+        )
+      : create()
   }
 
   async updateUser(userId: string, data: UpdateRamUserDto) {

@@ -10,7 +10,7 @@ import {
 } from '@/composables/useApiDocumentationPricing'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import router from '@/router'
 import { swaggerDocsService } from '@/service/swaggerDocsService'

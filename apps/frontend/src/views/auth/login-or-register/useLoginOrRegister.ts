@@ -5,7 +5,8 @@ import { i18ns } from '@/locales'
 import router from '@/router'
 import { preloadRouteLocation } from '@/router/preload'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
-import { md5 } from '@/utils/encryption'
+import { isTwoFactorRedirectError } from '@/service/twoFactorNavigationService'
+
 import { Notification } from '@/utils/notification'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import {
@@ -799,7 +800,7 @@ export function useLoginOrRegister() {
     const { authorizationService } = await loadAuthorizationService()
     const loginRes = await authorizationService.login(
       currentForm.value.username,
-      md5(currentForm.value.password),
+      currentForm.value.password,
       loginForm.agreedToLegalPolicies,
       () => {
         captchaVerifying.value = true
@@ -808,28 +809,6 @@ export function useLoginOrRegister() {
         captchaVerifying.value = false
       },
     )
-
-    if (
-      loginRes.code === CustomCode.OK &&
-      authorizationService.isTwoFactorChallengePayload(loginRes.data)
-    ) {
-      const redirect = getChallengeRedirect()
-      authorizationService.setPendingTwoFactorChallenge(
-        loginRes.data.challengeToken,
-        redirect,
-        'login',
-      )
-      void router.push({
-        name: 'authVerification',
-        query: {
-          method: 'code',
-          authEntry: 'login',
-          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
-          ...(redirect ? { redirect } : {}),
-        },
-      })
-      return
-    }
 
     if (authorizationService.isPolicyConsentPayload(loginRes.data)) {
       policyConsentChallengeToken.value = loginRes.data.challengeToken
@@ -882,7 +861,7 @@ export function useLoginOrRegister() {
     const result = await authorizationService.register(
       {
         username: registerForm.username,
-        password: md5(registerForm.password),
+        password: registerForm.password,
         nickname: registerForm.nickname || undefined,
         email: registerForm.email,
         verificationCode: registerForm.verificationCode,
@@ -974,6 +953,8 @@ export function useLoginOrRegister() {
       if (isLogin.value) await handleLogin()
       else await handleRegister()
     } catch (error) {
+      if (isTwoFactorRedirectError(error)) return
+
       const message =
         error && typeof error === 'object' && 'message' in error
           ? String((error as Error).message)

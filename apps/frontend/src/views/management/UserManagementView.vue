@@ -377,7 +377,7 @@ import { impersonationService } from '@/service/impersonationService'
 const { isDesktop } = usePageDevice()
 import { computed, onMounted, reactive, ref } from 'vue'
 import { i18ns } from '@/locales'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { UserDto } from '@/client/types.gen'
 import { userService } from '@/service/userService'

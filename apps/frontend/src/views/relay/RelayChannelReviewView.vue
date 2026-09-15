@@ -194,7 +194,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Check, Close, Refresh, Setting, View } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'

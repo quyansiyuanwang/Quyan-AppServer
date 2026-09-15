@@ -2,6 +2,26 @@ import { CustomCode } from '@/constant/custom-code'
 import StorageKey from '@/constant/storagekey'
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 
+export class TwoFactorRedirectError extends Error {
+  readonly code = CustomCode.TWO_FACTOR_REQUIRED
+  readonly data?: TwoFactorResponseData
+
+  constructor(message: string, data?: TwoFactorResponseData) {
+    super(message)
+    this.name = 'TwoFactorRedirectError'
+    this.data = data
+  }
+}
+
+export const isTwoFactorRedirectError = (error: unknown): error is TwoFactorRedirectError =>
+  error instanceof TwoFactorRedirectError ||
+  Boolean(
+    error &&
+      typeof error === 'object' &&
+      'name' in error &&
+      error.name === 'TwoFactorRedirectError',
+  )
+
 export interface TwoFactorResponseData {
   challengeToken?: unknown
   method?: unknown
@@ -70,6 +90,8 @@ export const navigateToTwoFactorVerification = (response: unknown): Promise<bool
     return Promise.resolve(false)
   }
 
+  if (navigationPromise) return navigationPromise
+
   const redirect = typeof data.redirect === 'string' ? data.redirect : getRedirect()
   TypedSessionStorage.setItem(
     StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE,
@@ -82,8 +104,6 @@ export const navigateToTwoFactorVerification = (response: unknown): Promise<bool
   const method = ['code', 'email', 'passkey'].includes(String(data.method))
     ? String(data.method)
     : 'code'
-
-  if (navigationPromise) return navigationPromise
 
   const navigation = import('@/router')
     .then(async ({ default: router }) => {

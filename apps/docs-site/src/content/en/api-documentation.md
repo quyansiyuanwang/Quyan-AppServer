@@ -364,19 +364,20 @@ try {
 
 `code` is the business-level status returned inside the response body (see "Unified response format" above) — it is separate from the HTTP status code. A `200 OK` HTTP response can still carry a non-zero `code` describing a business failure.
 
-| `code` | Meaning                            | Typical response                                      |
-| ------ | ---------------------------------- | ----------------------------------------------------- |
-| `0`    | Success                            | Use `data` as-is                                      |
-| `1001` | Authentication failed              | Prompt re-login                                       |
-| `1002` | Request validation failed          | Fix the request body/params, do not retry             |
-| `1003` | Resource not found                 | Do not retry; surface a not-found state               |
-| `1004` | Permission denied                  | Do not retry; the token lacks the required permission |
-| `1006` | Token expired due to a data update | Refresh the token, then retry once                    |
-| `1013` | Token expired                      | Refresh the token, then retry once                    |
-| `1014` | Token invalid or forged            | Do not retry; force re-login                          |
-| `1017` | Replay protection failed           | Fetch a fresh signing session and retry once          |
-| `1018` | Two-factor verification required   | Complete the 2FA challenge, then retry                |
-| `1429` | Rate limited (too many requests)   | Back off using the suggested retry delay              |
+| `code` | Meaning                            | Typical response                                       |
+| ------ | ---------------------------------- | ------------------------------------------------------ |
+| `0`    | Success                            | Use `data` as-is                                       |
+| `1001` | Authentication failed              | Prompt re-login                                        |
+| `1002` | Request validation failed          | Fix the request body/params, do not retry              |
+| `1003` | Resource not found                 | Do not retry; surface a not-found state                |
+| `1004` | Permission denied                  | Do not retry; the token lacks the required permission  |
+| `1006` | Token expired due to a data update | Refresh the token, then retry once                     |
+| `1013` | Token expired                      | Refresh the token, then retry once                     |
+| `1014` | Token invalid or forged            | Do not retry; force re-login                           |
+| `1017` | Replay protection failed           | Fetch a fresh signing session and retry once           |
+| `1018` | Two-factor verification required   | Complete the 2FA challenge, then retry                 |
+| `1048` | Password encryption key is stale   | Fetch the public key again, re-encrypt, and retry once |
+| `1429` | Rate limited (too many requests)   | Back off using the suggested retry delay               |
 
 The full list lives in `CustomCode` (`packages/shared/src/custom-code.ts`) and grows over time — treat unrecognized codes as generic business failures rather than assuming a specific meaning.
 

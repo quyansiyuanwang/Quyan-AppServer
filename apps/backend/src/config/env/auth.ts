@@ -4,6 +4,7 @@ import { buildFirstPartyOrigins } from "./domain";
 import type { EnvSnapshot } from "./source";
 
 let generatedKeyPair: { privateKey: string; publicKey: string } | null = null;
+let generatedPasswordEncryptionKeyPair: { privateKey: string; publicKey: string } | null = null;
 
 function normalizePem(value: string | undefined): string | undefined {
   const normalized = String(value || "").trim();
@@ -23,6 +24,48 @@ function getGeneratedKeyPair(isProduction: boolean, isTest: boolean): { privateK
       );
   }
   return generatedKeyPair;
+}
+
+function getGeneratedPasswordEncryptionKeyPair(
+  isProduction: boolean,
+  isTest: boolean,
+): { privateKey: string; publicKey: string } {
+  if (!generatedPasswordEncryptionKeyPair) {
+    generatedPasswordEncryptionKeyPair = generateKeyPairSync("rsa", {
+      modulusLength: 3072,
+      publicKeyEncoding: { type: "spki", format: "pem" },
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    });
+    if (!isTest && !isProduction)
+      console.warn(
+        "[AuthCenter] PASSWORD_ENCRYPTION_PRIVATE_KEY/PASSWORD_ENCRYPTION_PUBLIC_KEY not set, using ephemeral dev key pair",
+      );
+  }
+  return generatedPasswordEncryptionKeyPair;
+}
+
+function buildPasswordEncryptionConfig(source: EnvSnapshot, runtime: { isProduction: boolean; isTest: boolean }) {
+  const configuredPublicKey = normalizePem(source.PASSWORD_ENCRYPTION_PUBLIC_KEY);
+  const configuredPrivateKey = normalizePem(source.PASSWORD_ENCRYPTION_PRIVATE_KEY);
+  if (runtime.isProduction && !configuredPublicKey)
+    throw new Error("PASSWORD_ENCRYPTION_PUBLIC_KEY is not defined in production environment");
+  if (runtime.isProduction && !configuredPrivateKey)
+    throw new Error("PASSWORD_ENCRYPTION_PRIVATE_KEY is not defined in production environment");
+
+  const generated =
+    configuredPublicKey && configuredPrivateKey
+      ? undefined
+      : getGeneratedPasswordEncryptionKeyPair(runtime.isProduction, runtime.isTest);
+  const publicKey = configuredPublicKey || generated!.publicKey;
+
+  return {
+    algorithm: "RSA-OAEP-256" as const,
+    privateKey: configuredPrivateKey || generated!.privateKey,
+    publicKey,
+    keyId:
+      String(source.PASSWORD_ENCRYPTION_KEY_ID || "").trim() ||
+      createHash("sha256").update(publicKey).digest("hex").slice(0, 32),
+  };
 }
 
 function buildAuthCenterConfig(
@@ -226,5 +269,6 @@ export function buildAuthConfig(
     turnstile: { siteKey: source.TURNSTILE_SITE_KEY || "", secretKey: source.TURNSTILE_SECRET_KEY || "" },
     social: buildSocialConfig(source, runtime),
     authCenter: buildAuthCenterConfig(source, runtime),
+    passwordEncryption: buildPasswordEncryptionConfig(source, runtime),
   };
 }

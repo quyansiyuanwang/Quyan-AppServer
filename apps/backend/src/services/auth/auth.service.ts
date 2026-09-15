@@ -1,12 +1,13 @@
 import { randomUUID } from "crypto";
 import { JWTAccessIns, JWTRefreshIns } from "@/util/auth";
-import { hashPassword, isLegacyPasswordHash, verifyPassword } from "@/util/crypto";
+import { hashPassword, verifyPasswordCompatibility } from "@/util/crypto";
 import { extractClientIp } from "@/util/ip-extractor";
 import {
   BadRequestError,
   InternalServerError,
   NotFoundError,
   PolicyConsentRequiredError,
+  TwoFactorRequiredError,
   TooManyRequestsError,
   UnauthorizedError,
 } from "@/util/errors";
@@ -541,12 +542,12 @@ export class AuthService {
       const user = await this.userRepository.findByUsername(username);
       if (!user) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
 
-      const match = verifyPassword(password, user.password);
-      if (!match) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
+      const verification = verifyPasswordCompatibility(password, user.password);
+      if (!verification.valid) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
 
-      // Upgrade legacy MD5 hashes after a successful login without forcing a password reset.
-      if (isLegacyPasswordHash(user.password))
-        await this.userRepository.updateById(user.id, { password: hashPassword(password) });
+      // Upgrade both legacy MD5 formats after a successful login without forcing a reset.
+      if (verification.needsRehash)
+        await this.userRepository.updateById(user.id, { password: hashPassword(password) }).catch(() => undefined);
 
       // Check whether the account can log in based on AccountStatus.
       validateAccountStatus(user.status, user.id, "login");
@@ -578,11 +579,12 @@ export class AuthService {
 
         if (!trustedWithinWindow) {
           const challenge = await this.twoFactorService.createLoginChallenge(user.id);
-          return {
-            requiresTwoFactor: true as const,
+          throw new TwoFactorRequiredError(undefined, {
             challengeToken: challenge.challengeToken,
             expiresIn: challenge.expiresIn,
-          };
+            purpose: "login",
+            method: "code",
+          });
         }
       }
 
@@ -593,7 +595,7 @@ export class AuthService {
         successDescription: `用户 '${user.username}' 登录成功`,
       });
     } catch (error) {
-      if (error instanceof PolicyConsentRequiredError) throw error;
+      if (error instanceof PolicyConsentRequiredError || error instanceof TwoFactorRequiredError) throw error;
 
       // 记录失败登录
       const failedUser = await this.userRepository.findByUsername(username).catch(() => null);
@@ -799,7 +801,7 @@ export class AuthService {
     };
   }
 
-  async register(data: RegisterDto, request?: Request): Promise<{ message: string }> {
+  async register(data: RegisterDto & { password: string }, request?: Request): Promise<{ message: string }> {
     const ipAddress = request ? this.getClientIP(request) : "unknown";
     const userAgent = request?.headers["user-agent"];
     const requestId = request?.headers["x-request-id"] as string | undefined;
@@ -891,7 +893,10 @@ export class AuthService {
     await this.emailService.sendPasswordResetCode(email);
   }
 
-  async resetPassword(data: ResetPasswordDto, request?: Request): Promise<{ message: string }> {
+  async resetPassword(
+    data: ResetPasswordDto & { newPassword: string },
+    request?: Request,
+  ): Promise<{ message: string }> {
     const user = await this.userRepository.findActiveByUsernameAndEmail(data.username, data.email);
     if (!user) throw new BadRequestError("用户名与邮箱不匹配");
 

@@ -194,7 +194,7 @@
 <script setup lang="ts">
 import { computed, provide } from 'vue'
 import { CopyDocument } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import BalanceScriptDialogV1 from '@/components/relay/BalanceScriptDialogV1.vue'
 import BalanceScriptDialogV2 from '@/components/relay/BalanceScriptDialogV2.vue'
 import { i18ns } from '@/locales'

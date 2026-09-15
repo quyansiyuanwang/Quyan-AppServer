@@ -14,7 +14,7 @@ import ServerConfigCollapseContent from './server-config/components/ServerConfig
 import { usePageDevice } from '@/composables/usePageDevice'
 import { computed, onMounted, provide, ref, watch, type Ref } from 'vue'
 import { i18ns } from '@/locales'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { configService } from '@/service/configService'
 import { groupService } from '@/service/groupService'
 import { NotificationService } from '@/service/notificationService'

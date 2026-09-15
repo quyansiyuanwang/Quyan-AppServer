@@ -132,7 +132,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { agentService } from '@/service/agentService'
 import type { AgentMachine, AgentWorkspace } from '@/types/agent'

@@ -63,7 +63,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { configService } from '@/service/configService'
 
 const CONFIG_KEYS = {

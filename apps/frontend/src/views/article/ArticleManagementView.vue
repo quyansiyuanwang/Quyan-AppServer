@@ -459,7 +459,7 @@
 <script setup lang="ts">
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, reactive, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules, InputInstance } from 'element-plus'
 import { Plus, Refresh, Star, StarFilled } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'

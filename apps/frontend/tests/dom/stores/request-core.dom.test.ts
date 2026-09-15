@@ -22,12 +22,14 @@ describe('MyAxios session transport', () => {
     localStorage.clear()
     sessionStorage.clear()
     clearAccessToken()
+    MyAxios.clearPendingTwoFactorRequests()
     refreshMock.mockReset()
     routerPush.mockReset()
     ;(MyAxios as any).refreshTokenPromise = null
   })
 
   afterEach(() => {
+    MyAxios.clearPendingTwoFactorRequests()
     clearAccessToken()
     localStorage.clear()
     sessionStorage.clear()
@@ -144,17 +146,19 @@ describe('MyAxios session transport', () => {
       ),
     )
 
-    // The response must not reach the page-level error handler until the
-    // verification route has actually been entered.
+    // The original promise stays pending and is settled by the retry result,
+    // so callers never render the 2FA challenge as an ordinary error.
     let requestSettled = false
-    void handledResponse.catch(() => {
+    void handledResponse.finally(() => {
       requestSettled = true
     })
+    completeNavigation?.()
     await Promise.resolve()
     expect(requestSettled).toBe(false)
 
-    completeNavigation?.()
-    await expect(handledResponse).rejects.toMatchObject({ code: 1018, data: responseData.data })
+    axiosInstance.request = vi.fn().mockResolvedValue({ code: 0, retried: true })
+    await client.retryPendingTwoFactorRequests()
+    await expect(handledResponse).resolves.toEqual({ code: 0, retried: true })
   })
 
   it('redirects nested Axios error responses and preserves the challenge details', async () => {
@@ -170,7 +174,7 @@ describe('MyAxios session transport', () => {
           },
         },
       },
-      config: { url: '/v1/login', method: 'post', headers: new AxiosHeaders() },
+      config: { url: '/v1/auth/login', method: 'post', headers: new AxiosHeaders() },
     }
 
     let completeNavigation: (() => void) | undefined
@@ -194,15 +198,13 @@ describe('MyAxios session transport', () => {
       ),
     )
 
-    let requestSettled = false
-    void handledError.catch(() => {
-      requestSettled = true
-    })
-    await Promise.resolve()
-    expect(requestSettled).toBe(false)
-
+    // Login challenges are control flow, not a queued retry: the verification
+    // endpoint establishes the session and the login page consumes this error.
     completeNavigation?.()
-    await expect(handledError).rejects.toThrow('当前操作需要二次验证')
+    await expect(handledError).rejects.toMatchObject({
+      name: 'TwoFactorRedirectError',
+      code: 1018,
+    })
   })
 
   it('does not navigate or persist a challenge when the token is missing', async () => {

@@ -1,5 +1,5 @@
 import { Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { computed, onMounted, ref } from 'vue'
 import type {
   ServerLogContentDto,

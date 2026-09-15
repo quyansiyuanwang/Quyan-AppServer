@@ -44,6 +44,11 @@ const zhCN: DeepStringify<typeof en> = {
     legalPolicyVersionConflict: "法律协议版本冲突",
     resourceAlreadyExists: "资源已存在，请勿重复创建或提交",
     captchaTrustRequired: "请先完成人机验证",
+    passwordEncryptionKeyInvalid: "密码加密公钥已失效，请刷新后重试",
+    passwordEncryptionInvalid: "密码凭据无效",
+    passwordLengthInvalid: "密码长度必须为 6 到 50 个字符",
+    passwordCredentialConflict: "不能同时提交密码和加密密码凭据",
+    passwordRequired: "请输入密码",
     databaseOperationFailed: "数据库操作失败",
   },
   agent: {

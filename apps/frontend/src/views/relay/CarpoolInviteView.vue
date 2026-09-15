@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { useRoute, useRouter } from 'vue-router'
 import type { CarpoolOrderDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'

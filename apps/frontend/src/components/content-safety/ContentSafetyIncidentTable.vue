@@ -138,7 +138,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { contentSafetyService } from '@/service/contentSafetyService'

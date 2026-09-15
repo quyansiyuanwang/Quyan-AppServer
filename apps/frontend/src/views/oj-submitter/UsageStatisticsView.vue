@@ -261,7 +261,7 @@
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, onMounted } from 'vue'
 import { i18ns } from '@/locales'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { OJUsageService } from '@/service/ojUsageService'
 import type { OjUsageRecordDto } from '@/client/types.gen'
 

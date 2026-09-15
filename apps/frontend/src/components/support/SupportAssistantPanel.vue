@@ -73,7 +73,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Loading } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import router, { currentSiteProfile } from '@/router'

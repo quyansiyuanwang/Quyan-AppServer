@@ -247,7 +247,7 @@
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { i18ns } from '@/locales'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { balanceTransactionService } from '@/service/balanceTransactionService'
 import TransactionHistory from '@/components/balance/TransactionHistory.vue'
 import { userService } from '@/service/userService'

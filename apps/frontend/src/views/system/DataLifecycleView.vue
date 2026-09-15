@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { ArchiveArtifactDto, DataLifecycleRunDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { dataLifecycleService } from '@/service/dataLifecycleService'

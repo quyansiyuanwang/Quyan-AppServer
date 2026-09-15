@@ -1,5 +1,6 @@
 import type { UserDto } from "@/api/dto/users/user.dto";
 import type { CaptchaProviderDto } from "@/api/dto/system/config.dto";
+import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-encryption.dto";
 
 /**
  * 登录请求
@@ -11,9 +12,12 @@ export interface LoginDto {
   username: string;
 
   /**
-   * 密码
+   * 密码（旧客户端字段，已废弃）
    */
-  password: string;
+  password?: string;
+
+  /** 使用服务端公钥加密后的密码凭据。 */
+  passwordCredential?: EncryptedPasswordCredentialDto;
 
   /**
    * 是否已同意服务协议与隐私政策
@@ -363,9 +367,12 @@ export interface RegisterDto {
   username: string;
 
   /**
-   * 密码（已 MD5 哈希）
+   * 密码（旧客户端字段，已废弃）
    */
-  password: string;
+  password?: string;
+
+  /** 使用服务端公钥加密后的密码凭据。 */
+  passwordCredential?: EncryptedPasswordCredentialDto;
 
   /**
    * 昵称
@@ -459,9 +466,12 @@ export interface ResetPasswordDto {
   verificationCode: string;
 
   /**
-   * 新密码（已 MD5 哈希）
+   * 新密码（旧客户端字段，已废弃）
    */
-  newPassword: string;
+  newPassword?: string;
+
+  /** 使用服务端公钥加密后的新密码凭据。 */
+  newPasswordCredential?: EncryptedPasswordCredentialDto;
 
   /**
    * 验证码 token（可选，用于人机验证）
@@ -485,7 +495,7 @@ export interface LogoutDto {
 }
 
 // API 响应类型
-export type LoginResponse = AuthData | TwoFactorRequiredData | PolicyConsentRequiredData;
+export type LoginResponse = AuthData | PolicyConsentRequiredData;
 export type ExternalAuthCallbackResponse =
   | AuthData
   | TwoFactorRequiredData

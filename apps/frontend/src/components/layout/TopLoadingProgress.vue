@@ -1,7 +1,14 @@
 <template>
   <transition name="top-progress-fade">
-    <div v-if="visible" class="top-progress-wrapper">
-      <el-progress :percentage="progress" :show-text="false" :stroke-width="3" />
+    <div
+      v-if="visible"
+      class="top-progress-wrapper"
+      role="progressbar"
+      :aria-valuenow="progress"
+      aria-valuemin="0"
+      aria-valuemax="100"
+    >
+      <div class="top-progress-bar" :style="{ transform: `scaleX(${progress / 100})` }" />
     </div>
   </transition>
 </template>
@@ -30,12 +37,13 @@ const visible = computed(() => topLoadingProgressStore.isVisible)
   background: transparent;
 }
 
-:deep(.el-progress-bar__outer) {
-  background-color: transparent;
-}
-
-:deep(.el-progress) {
-  margin: 0;
+.top-progress-bar {
+  width: 100%;
+  height: 3px;
+  transform-origin: left center;
+  background: var(--el-color-primary);
+  transition: transform 120ms linear;
+  will-change: transform;
 }
 
 :global(.top-progress-fade-enter-active),

@@ -97,7 +97,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import type { DeveloperQuotaOverrideDto, UpsertDeveloperQuotaOverrideDto } from '@/client/types.gen'
 import { developerQuotaAdminService } from '@/service/developerQuotaAdminService'

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AuthService } from "../../../src/services/auth/auth.service";
-import { verifyPassword } from "../../../src/util/crypto";
+import { verifyPassword, verifyPasswordCompatibility } from "../../../src/util/crypto";
+import md5 from "md5";
 
 describe("AuthService legacy password migration", () => {
   it("upgrades a verified legacy MD5 password before continuing the login flow", async () => {
@@ -37,10 +38,15 @@ describe("AuthService legacy password migration", () => {
       {},
     );
 
-    await expect(service.login("legacy-user", "password")).resolves.toEqual({
-      requiresTwoFactor: true,
-      challengeToken: "challenge-1",
-      expiresIn: 300,
+    await expect(service.login("legacy-user", "password")).rejects.toMatchObject({
+      statusCode: 401,
+      code: 1018,
+      data: {
+        challengeToken: "challenge-1",
+        expiresIn: 300,
+        purpose: "login",
+        method: "code",
+      },
     });
 
     expect(userRepository.updateById).toHaveBeenCalledWith(
@@ -50,5 +56,13 @@ describe("AuthService legacy password migration", () => {
     const [{ password: upgradedHash }] = userRepository.updateById.mock.calls[0].slice(1);
     expect(upgradedHash).not.toBe(legacyUser.password);
     expect(verifyPassword("password", upgradedHash)).toBe(true);
+  });
+
+  it("accepts the legacy client MD5 value for a legacy stored hash", () => {
+    const rawPassword = "legacy-password";
+    expect(verifyPasswordCompatibility(md5(rawPassword), md5(rawPassword))).toEqual({
+      valid: true,
+      needsRehash: true,
+    });
   });
 });

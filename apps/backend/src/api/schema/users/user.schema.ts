@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AccountStatus } from "@/util/auth/account-status";
+import { encryptedPasswordCredentialSchema } from "@/api/schema/auth/password-encryption.schema";
 
 const usernameRegex = /^[a-zA-Z0-9_]+$/;
 const USER_LIST_PAGE_SIZE_MAX = 100;
@@ -18,13 +19,19 @@ export const changeEmailBodySchema = z.object({
   verificationCode: z.string().min(6).max(6),
 });
 
-export const createUserBodySchema = z.object({
-  username: z.string().trim().min(3).max(20).regex(usernameRegex),
-  password: z.string().min(6).max(50),
-  email: z.string().email().max(200).optional(),
-  name: z.string().max(50).optional(),
-  groupId: z.string().trim().min(1).optional(),
-});
+export const createUserBodySchema = z
+  .object({
+    username: z.string().trim().min(3).max(20).regex(usernameRegex),
+    password: z.string().min(6).max(50).optional(),
+    passwordCredential: encryptedPasswordCredentialSchema.optional(),
+    email: z.string().email().max(200).optional(),
+    name: z.string().max(50).optional(),
+    groupId: z.string().trim().min(1).optional(),
+  })
+  .refine((data) => Boolean(data.password) !== Boolean(data.passwordCredential), {
+    message: "password or passwordCredential is required",
+    path: ["password"],
+  });
 
 export const updateUserBodySchema = z.object({
   email: z.string().email().max(200).optional(),
@@ -33,9 +40,15 @@ export const updateUserBodySchema = z.object({
   groupId: z.string().trim().min(1).optional(),
 });
 
-export const changePasswordBodySchema = z.object({
-  newPassword: z.string().min(6).max(50),
-});
+export const changePasswordBodySchema = z
+  .object({
+    newPassword: z.string().min(6).max(50).optional(),
+    newPasswordCredential: encryptedPasswordCredentialSchema.optional(),
+  })
+  .refine((data) => Boolean(data.newPassword) !== Boolean(data.newPasswordCredential), {
+    message: "newPassword or newPasswordCredential is required",
+    path: ["newPassword"],
+  });
 
 export const userIdParamsSchema = z.object({
   userId: z.string().trim().min(1),

@@ -90,7 +90,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Refresh } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { usePagination } from '@/composables/usePagination'

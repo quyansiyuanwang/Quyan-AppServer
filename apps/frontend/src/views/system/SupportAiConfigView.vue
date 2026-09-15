@@ -78,7 +78,7 @@
 </template>
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { supportService } from '@/service/supportService'
 import type { SupportAiConfigDto } from '@/client/types.gen'
