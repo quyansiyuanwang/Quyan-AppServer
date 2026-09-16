@@ -143,6 +143,16 @@ export class SessionCoordinator {
     return this.refresh()
   }
 
+  /**
+   * Wait for a protected-navigation restore that is already in flight.
+   * Request transport calls this before sending without a memory token so a
+   * page mounted immediately after the navigation guard cannot race the
+   * cookie refresh and issue an unauthenticated request.
+   */
+  waitForPendingRestore(): Promise<string | null> {
+    return this.restorePromise ?? Promise.resolve(getAccessToken())
+  }
+
   async refresh(options: { skipImpersonationHandoff?: boolean } = {}): Promise<string | null> {
     if (this.restorePromise) return this.restorePromise
 

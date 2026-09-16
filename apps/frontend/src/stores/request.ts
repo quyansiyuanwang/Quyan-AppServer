@@ -479,6 +479,16 @@ class MyAxios {
 
   // Delegates refresh ownership to the session coordinator while preserving a
   // transport-local shared promise for concurrent interceptor retries.
+  private static async waitForPendingSessionRestore(): Promise<void> {
+    try {
+      const { sessionCoordinator } = await import('@/service/sessionCoordinator')
+      await sessionCoordinator.waitForPendingRestore()
+    } catch {
+      // Transport must remain usable even if optional session coordination
+      // cannot be loaded. The request will still be sent with the current token.
+    }
+  }
+
   private static getRefreshPromise(): Promise<string> {
     if (!MyAxios.refreshTokenPromise) {
       MyAxios.refreshTokenPromise = import('@/service/sessionCoordinator')
@@ -571,8 +581,19 @@ class MyAxios {
         }
 
         // 跳过不需要 token 的请求
-        if (isSkipRetry || isExcluded || !accessToken) {
+        if (isSkipRetry || isExcluded) {
           if (accessToken) config.headers.setAuthorization(`Bearer ${accessToken}`)
+          return config
+        }
+
+        // 页面可以在受保护导航的后台会话恢复完成前挂载。等待该恢复
+        // Promise，避免首个页面请求在内存 token 尚为空时裸发并收到 401。
+        if (!accessToken) {
+          await MyAxios.waitForPendingSessionRestore()
+          const restoredAccessToken = getAccessToken()
+          if (restoredAccessToken) {
+            config.headers.setAuthorization(`Bearer ${restoredAccessToken}`)
+          }
           return config
         }
 

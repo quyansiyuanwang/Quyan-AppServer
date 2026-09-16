@@ -190,6 +190,7 @@ const flushPendingReports = async (keepalive = false): Promise<void> => {
 }
 
 const shouldSkipGlobalErrorNotice = (reason: unknown): boolean => {
+  if (isBenignResizeObserverError(reason)) return true
   if (
     isTwoFactorRedirectError(reason) ||
     isTwoFactorRequiredResponse(reason) ||
@@ -203,6 +204,26 @@ const shouldSkipGlobalErrorNotice = (reason: unknown): boolean => {
   const name = String(candidate.name || '')
   const code = Number(candidate.code)
   return name === 'SessionExpiredError' || name === 'AbortError' || code === 1018
+}
+
+const BENIGN_RESIZE_OBSERVER_MESSAGES = new Set([
+  'ResizeObserver loop completed with undelivered notifications.',
+  'ResizeObserver loop limit exceeded',
+])
+
+const isBenignResizeObserverError = (reason: unknown): boolean => {
+  const rawMessage =
+    reason instanceof Error
+      ? reason.message
+      : reason && typeof reason === 'object' && 'message' in reason
+        ? String((reason as { message?: unknown }).message || '')
+        : String(reason || '')
+  const normalized = rawMessage
+    .replace(/^Error:\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  return BENIGN_RESIZE_OBSERVER_MESSAGES.has(normalized)
 }
 
 const getGlobalErrorMessage = (reason: unknown): string => {
@@ -225,6 +246,8 @@ const fingerprint = (payload: ClientErrorPayload) =>
   `${payload.errorType}:${payload.message.slice(0, 240)}:${payload.route || ''}`
 
 export const reportClientError = async (payload: ClientErrorPayload): Promise<void> => {
+  if (isBenignResizeObserverError(payload.message)) return
+
   const safePayload = normalizePayload(payload)
   const key = fingerprint(safePayload)
   const now = Date.now()
@@ -250,6 +273,10 @@ export const installErrorReporter = () => {
 
   window.addEventListener('error', (event) => {
     const error = event.error instanceof Error ? event.error : null
+    if (isBenignResizeObserverError(error || event.message)) {
+      event.preventDefault()
+      return
+    }
     showGlobalErrorNotice(error || event.message)
     void reportClientError({
       errorType: error?.name || 'WindowError',
