@@ -88,4 +88,21 @@ describe('error report service lifecycle queue', () => {
     })
     expect(sessionStorage.getItem(StorageKey.Util.ERROR_REPORT_QUEUE)).toBeNull()
   })
+
+  it('ignores benign ResizeObserver loop notifications', async () => {
+    const { installErrorReporter, reportClientError } = await import('@/service/errorReportService')
+    const { configureRequestErrorNotifier } = await import('@/utils/requestErrorNotice')
+    configureRequestErrorNotifier((title, message) => notifyMock(title, message))
+    installErrorReporter()
+
+    const message = 'ResizeObserver loop completed with undelivered notifications.'
+    const event = new Event('error')
+    Object.defineProperty(event, 'message', { value: message })
+    Object.defineProperty(event, 'error', { value: new Error(message) })
+    window.dispatchEvent(event)
+    await reportClientError({ errorType: 'Error', message })
+
+    expect(notifyMock).not.toHaveBeenCalled()
+    expect(sessionStorage.getItem(StorageKey.Util.ERROR_REPORT_QUEUE)).toBeNull()
+  })
 })
