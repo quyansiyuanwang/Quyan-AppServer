@@ -8,6 +8,7 @@ import { checkApiResult } from '@/utils/service-utils'
 import { configureRequestErrorNotifier } from '@/utils/requestErrorNotice'
 
 const refreshMock = vi.fn()
+const waitForPendingRestoreMock = vi.fn()
 const routerPush = vi.fn()
 const notifyMock = vi.fn()
 
@@ -15,7 +16,10 @@ vi.mock('@/router', () => ({ default: { push: routerPush } }))
 
 vi.mock('@/service/sessionCoordinator', () => ({
   SessionExpiredError: class SessionExpiredError extends Error {},
-  sessionCoordinator: { refresh: refreshMock },
+  sessionCoordinator: {
+    refresh: refreshMock,
+    waitForPendingRestore: waitForPendingRestoreMock,
+  },
 }))
 
 describe('MyAxios session transport', () => {
@@ -27,6 +31,8 @@ describe('MyAxios session transport', () => {
     clearAccessToken()
     MyAxios.clearPendingTwoFactorRequests()
     refreshMock.mockReset()
+    waitForPendingRestoreMock.mockReset()
+    waitForPendingRestoreMock.mockResolvedValue(null)
     routerPush.mockReset()
     notifyMock.mockReset()
     configureRequestErrorNotifier((title, message) => notifyMock(title, message))
@@ -73,6 +79,30 @@ describe('MyAxios session transport', () => {
     resolveRefresh?.('cookie-access-token')
     await expect(first).resolves.toBe('cookie-access-token')
     expect((MyAxios as any).refreshTokenPromise).toBeNull()
+  })
+
+  it('waits for an in-flight protected-navigation restore before sending without a memory token', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const requestHandler = axiosInstance.interceptors.request.handlers[0]?.fulfilled
+    const config = { url: '/v1/protected', method: 'get', headers: new AxiosHeaders() }
+    let resolveRestore: ((token: string | null) => void) | undefined
+    waitForPendingRestoreMock.mockReturnValue(
+      new Promise<string | null>((resolve) => {
+        resolveRestore = resolve
+      }),
+    )
+
+    const request = requestHandler(config)
+    await vi.dynamicImportSettled()
+    expect(waitForPendingRestoreMock).toHaveBeenCalledOnce()
+    expect(config.headers.get('Authorization')).toBeUndefined()
+
+    setAccessToken('cookie-access-token')
+    resolveRestore?.('cookie-access-token')
+    await request
+
+    expect(config.headers.get('Authorization')).toBe('Bearer cookie-access-token')
   })
 
   it('retries one unauthorized API request after the coordinator refreshes the cookie session', async () => {
