@@ -2,7 +2,7 @@
   width: 100%;
 }
 
-.remote-terminal-product-card :deep(.el-card__body) {
+.remote-terminal-product-card .el-card__body {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -58,7 +58,7 @@
   border: 1px solid var(--el-border-color-light);
 }
 
-.plan-card :deep(.el-card__body) {
+.plan-card .el-card__body {
   padding: 12px;
 }
 

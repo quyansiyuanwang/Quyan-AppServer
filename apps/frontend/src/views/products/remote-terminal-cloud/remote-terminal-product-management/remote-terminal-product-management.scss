@@ -2,7 +2,7 @@
   width: 100%;
 }
 
-.management-card :deep(.el-card__body) {
+.management-card .el-card__body {
   display: flex;
   flex-direction: column;
   gap: 16px;
