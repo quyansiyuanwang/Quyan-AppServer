@@ -180,7 +180,8 @@ export const useTopLoadingProgressStore = defineStore('topLoadingProgress', () =
         const completedGeneration = generation
         clearCompletionTimer()
         completionTimer = setTimeout(() => {
-          if (generation === completedGeneration && state.tasks.size === 0) reset()
+          // addTask clears this timer and advances generation when new work starts.
+          if (generation === completedGeneration) reset()
         }, 300)
         return
       }
