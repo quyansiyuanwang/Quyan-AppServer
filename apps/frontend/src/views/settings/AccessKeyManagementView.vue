@@ -174,7 +174,7 @@ import { CustomCode } from '@/constant/custom-code'
 const { isDesktop } = usePageDevice()
 
 import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { AccessKeyService } from '@/service/accesskeyService'
 import { useI18n } from 'vue-i18n'
 import type { AccessKeyDto } from '@/client/types.gen'

@@ -1,11 +1,11 @@
 import { useRequestStore } from '@/stores/request'
 
-import { md5 } from '@/utils/encryption'
 import { CustomCode } from '@/constant/custom-code'
 import type { CreateUserDto, UpdateUserDto } from '@/client/types.gen'
 import { toServiceError } from '@/utils/error-utils'
 import { cacheObject } from '@/utils/common'
 import { createUserControllerApi } from '@/client/services/user-controller.gen'
+import { passwordEncryptionService } from '@/service/passwordEncryptionService'
 
 const userApi = cacheObject(() => createUserControllerApi(useRequestStore().getAxios()))
 
@@ -83,33 +83,29 @@ export class UserService {
   }
 
   async changePassword(opts: { userId: string; newPassword: string }) {
-    const result = await userApi.changePassword({
-      path: { userId: opts.userId },
-      body: {
-        newPassword: md5(opts.newPassword),
+    return passwordEncryptionService.runWithRetry(
+      opts.newPassword,
+      async (newPasswordCredential) => {
+        const result = await userApi.changePassword({
+          path: { userId: opts.userId },
+          body: { newPasswordCredential },
+        })
+
+        if (result && result.code === CustomCode.OK) return true
+        throw toServiceError(result)
       },
-    })
-
-    if (result && result.code === CustomCode.OK) {
-      return true
-    }
-
-    throw toServiceError(result)
+    )
   }
 
-  async createUser(data: CreateUserDto) {
-    const result = await userApi.createUser({
-      body: {
-        ...data,
-        password: md5(data.password),
-      },
+  async createUser(data: CreateUserDto & { password: string }) {
+    return passwordEncryptionService.runWithRetry(data.password, async (passwordCredential) => {
+      const result = await userApi.createUser({
+        body: { ...data, password: undefined, passwordCredential },
+      })
+
+      if (result && result.code === CustomCode.OK && result.data) return result.data
+      throw toServiceError(result)
     })
-
-    if (result && result.code === CustomCode.OK && result.data) {
-      return result.data
-    }
-
-    throw toServiceError(result)
   }
 
   async updateUser(userId: string, data: UpdateUserDto) {

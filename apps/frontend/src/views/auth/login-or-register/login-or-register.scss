@@ -76,12 +76,12 @@
   margin-top: 4px;
 }
 
-.login-card :deep(.el-input),
-.login-card :deep(.el-input__wrapper) {
+.login-card .el-input,
+.login-card .el-input__wrapper {
   width: 100%;
 }
 
-.login-card :deep(.el-card__body) {
+.login-card .el-card__body {
   overflow: visible;
 }
 
@@ -130,15 +130,18 @@
   align-items: flex-start;
 }
 
-.policy-consent-checkbox :deep(.el-checkbox__label) {
+.policy-consent-checkbox .el-checkbox__label {
   display: inline;
+  flex: 1 1 auto;
+  min-width: 0;
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
   line-height: 1.6;
 }
 
-.policy-consent-checkbox :deep(.el-checkbox__input) {
+.policy-consent-checkbox .el-checkbox__input {
+  flex: 0 0 auto;
   margin-top: 2px;
 }
 
@@ -220,57 +223,57 @@
   padding: 8px 6px 16px;
 }
 
-.mobile-adapter :deep(.hide-on-mobile) {
+.mobile-adapter .hide-on-mobile {
   display: none !important;
 }
 
-.mobile-adapter :deep(.el-form-item) {
+.mobile-adapter .el-form-item {
   margin-right: 0 !important;
   margin-bottom: 10px;
 }
 
-.mobile-adapter :deep(.el-form-item__label) {
+.mobile-adapter .el-form-item__label {
   float: none;
   display: block;
   text-align: left;
   padding: 0 0 6px;
 }
 
-.mobile-adapter :deep(.el-form-item__content) {
+.mobile-adapter .el-form-item__content {
   margin-left: 0 !important;
 }
 
-.mobile-adapter :deep(.el-input),
-.mobile-adapter :deep(.el-button) {
+.mobile-adapter .el-input,
+.mobile-adapter .el-button {
   width: 100%;
 }
 
-.mobile-adapter :deep(.el-dialog) {
+.mobile-adapter .el-dialog {
   width: 96% !important;
   max-width: 96% !important;
   margin-top: 3vh !important;
 }
 
-.mobile-adapter :deep(.el-dialog__body) {
+.mobile-adapter .el-dialog__body {
   max-height: 72vh;
   overflow: auto;
   padding: 12px 14px;
 }
 
-.mobile-adapter :deep(.el-drawer) {
+.mobile-adapter .el-drawer {
   max-height: 92vh;
 }
 
-.mobile-adapter :deep(.el-pagination) {
+.mobile-adapter .el-pagination {
   justify-content: center;
 }
 
-.mobile-adapter :deep(.login-actions) {
+.mobile-adapter .login-actions {
   flex-direction: column;
   gap: 8px;
 }
 
-.mobile-adapter :deep(.login-actions .el-button) {
+.mobile-adapter .login-actions .el-button {
   margin-left: 0 !important;
 }
 
@@ -289,7 +292,7 @@
     margin-bottom: 20px;
   }
 
-  .login-card :deep(.el-form-item__label) {
+  .login-card .el-form-item__label {
     font-size: 14px;
   }
 
@@ -326,11 +329,11 @@
     margin-bottom: 8px;
   }
 
-  .login-card :deep(.el-form-item) {
+  .login-card .el-form-item {
     margin-bottom: 16px;
   }
 
-  .login-card :deep(.el-form-item__label) {
+  .login-card .el-form-item__label {
     font-size: 13px;
     padding-bottom: 6px;
   }

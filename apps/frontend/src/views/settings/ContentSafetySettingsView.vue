@@ -265,7 +265,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Refresh } from '@element-plus/icons-vue'
 import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import ContentSafetyPolicyFields from '@/components/content-safety/ContentSafetyPolicyFields.vue'

@@ -65,6 +65,17 @@ describe("2FA integration flow", () => {
     return response.body.data;
   };
 
+  const loginExpectingTwoFactor = async (credentials?: { username: string; password: string }) => {
+    const loginBody = { ...(credentials || { username, password }), agreedToLegalPolicies: true };
+    const response = await withReplayProtection(request(app).post("/v1/auth/login"), loginBody, "/v1/auth/login")
+      .send(loginBody)
+      .expect(401);
+
+    expect(response.body.code).toBe(1018);
+    expect(response.body.data.challengeToken).toBeTruthy();
+    return response.body.data;
+  };
+
   const extractRefreshCookie = (response: { headers: Record<string, unknown> }) => {
     const setCookie = response.headers["set-cookie"];
     const cookies = Array.isArray(setCookie) ? setCookie : [];
@@ -157,9 +168,7 @@ describe("2FA integration flow", () => {
     expect(Array.isArray(recoveryCodes)).toBe(true);
     expect(recoveryCodes.length).toBeGreaterThan(0);
 
-    const challengedLoginData = await login();
-    expect(challengedLoginData.requiresTwoFactor).toBe(true);
-    expect(challengedLoginData.challengeToken).toBeTruthy();
+    const challengedLoginData = await loginExpectingTwoFactor();
 
     const verifyPath = "/v1/auth/verify-2fa";
     const verifyBody = {
@@ -277,8 +286,7 @@ describe("2FA integration flow", () => {
       .send(confirmBody)
       .expect(200);
 
-    const challengeLoginData = await login(trustedCredentials);
-    expect(challengeLoginData.requiresTwoFactor).toBe(true);
+    const challengeLoginData = await loginExpectingTwoFactor(trustedCredentials);
 
     const verifyPath = "/v1/auth/verify-2fa";
     const verifyBody = {
@@ -327,9 +335,9 @@ describe("2FA integration flow", () => {
       "/v1/auth/login",
     )
       .send(trustedLoginBody)
-      .expect(200);
+      .expect(401);
 
-    expect(afterDeleteLoginResponse.body.data.requiresTwoFactor).toBe(true);
+    expect(afterDeleteLoginResponse.body.code).toBe(1018);
     expect(afterDeleteLoginResponse.body.data.challengeToken).toBeTruthy();
 
     const disablePath = "/v1/users/me/2fa/disable";

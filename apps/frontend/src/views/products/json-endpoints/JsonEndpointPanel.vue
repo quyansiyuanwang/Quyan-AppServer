@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import type { DeveloperJsonEndpointDto, DeveloperProductInstanceDto } from '@/client/types.gen'
 import JsonEditor from '@/components/editor/JsonEditor.vue'
 import { developerProductService } from '@/service/developerProductService'

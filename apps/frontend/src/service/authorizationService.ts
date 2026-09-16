@@ -13,6 +13,7 @@ import { sessionCoordinator } from '@/service/sessionCoordinator'
 import { replaceDocument } from '@/service/navigationService'
 import { cache } from '@/utils/common'
 import { createAuthControllerApi } from '@/client/services/auth-controller.gen'
+import { passwordEncryptionService } from '@/service/passwordEncryptionService'
 
 const getAuthControllerApi = cache(() => createAuthControllerApi(useRequestStore().getAxios()))
 
@@ -158,25 +159,27 @@ export class AuthorizationService {
       )
     }
 
-    const result = await this.withCaptchaFallback(
-      'login',
-      async (_captchaToken) =>
-        await getAuthControllerApi().login({
-          body: {
-            username,
-            password,
-            agreedToLegalPolicies: true,
-          },
-        }),
-      onCaptchaStart,
-      onCaptchaEnd,
-    )
+    return passwordEncryptionService.runWithRetry(password, async (passwordCredential) => {
+      const result = await this.withCaptchaFallback(
+        'login',
+        async (_captchaToken) =>
+          await getAuthControllerApi().login({
+            body: {
+              username,
+              passwordCredential,
+              agreedToLegalPolicies: true,
+            },
+          }),
+        onCaptchaStart,
+        onCaptchaEnd,
+      )
 
-    if (result.code === CustomCode.OK && this.isAuthPayload(result.data)) {
-      this.completeLogin(result.data)
-    }
+      if (result.code === CustomCode.OK && this.isAuthPayload(result.data)) {
+        this.completeLogin(result.data)
+      }
 
-    return result
+      return result
+    })
   }
 
   isTwoFactorChallengePayload(data: unknown): data is TwoFactorChallengeData {
@@ -417,21 +420,29 @@ export class AuthorizationService {
     onCaptchaStart?: () => void,
     onCaptchaEnd?: () => void,
   ) {
-    const result = await this.withCaptchaFallback(
-      'reset_password',
-      async (_captchaToken) =>
-        await getAuthControllerApi().resetPassword({
-          body: {
-            ...data,
-          },
-        }),
-      onCaptchaStart,
-      onCaptchaEnd,
+    return passwordEncryptionService.runWithRetry(
+      data.newPassword,
+      async (newPasswordCredential) => {
+        const result = await this.withCaptchaFallback(
+          'reset_password',
+          async (_captchaToken) =>
+            await getAuthControllerApi().resetPassword({
+              body: {
+                username: data.username,
+                email: data.email,
+                verificationCode: data.verificationCode,
+                newPasswordCredential,
+              },
+            }),
+          onCaptchaStart,
+          onCaptchaEnd,
+        )
+
+        if (result.code === CustomCode.OK) return true
+
+        throw toServiceError(result)
+      },
     )
-
-    if (result.code === CustomCode.OK) return true
-
-    throw toServiceError(result)
   }
 
   async register(data: RegisterRequest, onCaptchaStart?: () => void, onCaptchaEnd?: () => void) {
@@ -445,19 +456,24 @@ export class AuthorizationService {
       )
     }
 
-    const result = await this.withCaptchaFallback(
-      'register',
-      async (_captchaToken) =>
-        await getAuthControllerApi().register({
-          body: {
-            ...data,
-            agreedToLegalPolicies: true,
-          },
-        }),
-      onCaptchaStart,
-      onCaptchaEnd,
-    )
-    return result
+    return passwordEncryptionService.runWithRetry(data.password, async (passwordCredential) => {
+      return this.withCaptchaFallback(
+        'register',
+        async (_captchaToken) =>
+          await getAuthControllerApi().register({
+            body: {
+              username: data.username,
+              nickname: data.nickname,
+              email: data.email,
+              verificationCode: data.verificationCode,
+              passwordCredential,
+              agreedToLegalPolicies: true,
+            },
+          }),
+        onCaptchaStart,
+        onCaptchaEnd,
+      )
+    })
   }
 
   async acceptPolicyConsent(challengeToken: string): Promise<AuthData> {

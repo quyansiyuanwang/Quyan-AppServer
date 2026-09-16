@@ -31,7 +31,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import type { Conversation, Message, ChatToken } from '@/types/chat'
 import MessageItem from './MessageItem.vue'
 import MessageInput from './MessageInput.vue'

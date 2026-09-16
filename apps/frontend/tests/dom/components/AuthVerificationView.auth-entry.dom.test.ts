@@ -86,6 +86,7 @@ vi.mock('@/service/captchaDialogService', () => ({
 vi.mock('@/stores/request', () => ({
   useRequestStore: () => ({
     retryPendingTwoFactorRequests: vi.fn(async () => []),
+    cancelPendingTwoFactorRequests: vi.fn(),
   }),
 }))
 
@@ -97,7 +98,7 @@ vi.mock('@/utils/validation', () => ({
   validateTwoFactorCode: vi.fn(() => true),
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     warning: vi.fn(),
   },
@@ -120,45 +121,45 @@ describe('AuthVerificationView auth entry context', () => {
   })
 
   it('returns to register route when verification originated from register', async () => {
-   const wrapper = mount(AuthVerificationView, {
-   global: {
-   stubs: {
-   TwoFactorChallengeCard: {
-   template: '<div />',
-   },
-   SegmentedCodeInput: {
-   template: '<div />',
-   },
-   MarkdownRenderer: {
-   template: '<div />',
-   },
-   'el-button': {
-   template: '<button><slot /></button>',
-   },
-   'el-dialog': {
-   template: '<div><slot /><slot name="footer" /></div>',
-   },
-   'el-skeleton': {
-   template: '<div><slot /></div>',
-   },
-   'el-empty': {
-   template: '<div />',
-   },
-   'el-tabs': {
-   template: '<div><slot /></div>',
-   },
-   'el-tab-pane': {
-   template: '<div><slot /></div>',
-   },
-   'el-checkbox': {
-   template: '<label><slot /></label>',
-   },
-   },
-   },
-   })
+    const wrapper = mount(AuthVerificationView, {
+      global: {
+        stubs: {
+          TwoFactorChallengeCard: {
+            template: '<div />',
+          },
+          SegmentedCodeInput: {
+            template: '<div />',
+          },
+          MarkdownRenderer: {
+            template: '<div />',
+          },
+          'el-button': {
+            template: '<button><slot /></button>',
+          },
+          'el-dialog': {
+            template: '<div><slot /><slot name="footer" /></div>',
+          },
+          'el-skeleton': {
+            template: '<div><slot /></div>',
+          },
+          'el-empty': {
+            template: '<div />',
+          },
+          'el-tabs': {
+            template: '<div><slot /></div>',
+          },
+          'el-tab-pane': {
+            template: '<div><slot /></div>',
+          },
+          'el-checkbox': {
+            template: '<label><slot /></label>',
+          },
+        },
+      },
+    })
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-   await wrapper.get('.verify-actions button').trigger('click')
+    await wrapper.get('.verify-actions button').trigger('click')
 
     expect(pushMock).toHaveBeenCalledWith({
       name: 'register',

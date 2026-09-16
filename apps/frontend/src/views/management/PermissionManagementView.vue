@@ -159,7 +159,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Refresh } from '@element-plus/icons-vue'
 import type { UserDto, UserFullPermissionsDto } from '@/client/types.gen'
 import PermissionList from '@/components/permission/PermissionList.vue'

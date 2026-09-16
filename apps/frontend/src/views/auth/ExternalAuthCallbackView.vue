@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { socialAuthService } from '@/service/socialAuthService'
 import { authorizationService } from '@/service/authorizationService'

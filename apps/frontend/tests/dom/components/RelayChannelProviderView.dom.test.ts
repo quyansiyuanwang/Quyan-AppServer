@@ -18,7 +18,7 @@ const {
   confirmMock: vi.fn(),
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: { success: vi.fn(), error: vi.fn() },
   ElMessageBox: { confirm: confirmMock },
 }))

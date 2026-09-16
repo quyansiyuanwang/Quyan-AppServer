@@ -523,7 +523,7 @@
 <script setup lang="ts">
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import {
   Clock,
   User,

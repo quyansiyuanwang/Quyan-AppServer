@@ -1,9 +1,10 @@
-import { createHash, generateKeyPairSync } from "crypto";
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, type KeyObject } from "crypto";
 import { normalizeCookieSameSite, sanitizeInt } from "./common";
 import { buildFirstPartyOrigins } from "./domain";
 import type { EnvSnapshot } from "./source";
 
 let generatedKeyPair: { privateKey: string; publicKey: string } | null = null;
+let generatedPasswordEncryptionKeyPair: { privateKey: string; publicKey: string } | null = null;
 
 function normalizePem(value: string | undefined): string | undefined {
   const normalized = String(value || "").trim();
@@ -23,6 +24,131 @@ function getGeneratedKeyPair(isProduction: boolean, isTest: boolean): { privateK
       );
   }
   return generatedKeyPair;
+}
+
+function getGeneratedPasswordEncryptionKeyPair(
+  isProduction: boolean,
+  isTest: boolean,
+): { privateKey: string; publicKey: string } {
+  if (!generatedPasswordEncryptionKeyPair) {
+    generatedPasswordEncryptionKeyPair = generateKeyPairSync("rsa", {
+      modulusLength: 3072,
+      publicKeyEncoding: { type: "spki", format: "pem" },
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    });
+    if (!isTest && !isProduction)
+      console.warn(
+        "[AuthCenter] PASSWORD_ENCRYPTION_PRIVATE_KEY/PASSWORD_ENCRYPTION_PUBLIC_KEY not set, using ephemeral dev key pair",
+      );
+  }
+  return generatedPasswordEncryptionKeyPair;
+}
+
+function exportPublicKey(key: KeyObject): string {
+  return key.export({ type: "spki", format: "pem" }).toString();
+}
+
+function hasSamePublicKey(left: KeyObject, rightPem: string | undefined): boolean {
+  if (!rightPem) return false;
+  try {
+    return left
+      .export({ type: "spki", format: "der" })
+      .equals(createPublicKey(rightPem).export({ type: "spki", format: "der" }));
+  } catch {
+    return false;
+  }
+}
+
+function assertPasswordEncryptionKeysAreIndependent(
+  publicKey: KeyObject,
+  source: EnvSnapshot,
+  configuredPublicKey: string,
+  configuredPrivateKey: string,
+): void {
+  const authCenterPublicKey = normalizePem(source.AUTH_CENTER_JWT_PUBLIC_KEY);
+  const authCenterPrivateKey = normalizePem(source.AUTH_CENTER_JWT_PRIVATE_KEY);
+  if (
+    configuredPublicKey === authCenterPublicKey ||
+    configuredPrivateKey === authCenterPrivateKey ||
+    hasSamePublicKey(publicKey, authCenterPublicKey) ||
+    hasSamePublicKey(publicKey, authCenterPrivateKey)
+  ) {
+    throw new Error(
+      "PASSWORD_ENCRYPTION_PRIVATE_KEY/PASSWORD_ENCRYPTION_PUBLIC_KEY must not reuse AUTH_CENTER_JWT keys",
+    );
+  }
+}
+
+function normalizeConfiguredPasswordEncryptionKeys(
+  source: EnvSnapshot,
+  publicKeyPem: string,
+  privateKeyPem: string,
+): { publicKey: string; privateKey: string } {
+  if (!publicKeyPem.includes("-----BEGIN PUBLIC KEY-----") || !publicKeyPem.includes("-----END PUBLIC KEY-----"))
+    throw new Error("PASSWORD_ENCRYPTION_PUBLIC_KEY must be an SPKI public key in PEM format");
+  if (!privateKeyPem.includes("-----BEGIN PRIVATE KEY-----") || !privateKeyPem.includes("-----END PRIVATE KEY-----"))
+    throw new Error("PASSWORD_ENCRYPTION_PRIVATE_KEY must be a PKCS8 private key in PEM format");
+
+  let publicKey: KeyObject;
+  let privateKey: KeyObject;
+  try {
+    publicKey = createPublicKey(publicKeyPem);
+    privateKey = createPrivateKey(privateKeyPem);
+  } catch {
+    throw new Error("PASSWORD_ENCRYPTION_PRIVATE_KEY/PASSWORD_ENCRYPTION_PUBLIC_KEY must be valid PEM RSA keys");
+  }
+
+  if (
+    publicKey.asymmetricKeyType !== "rsa" ||
+    privateKey.asymmetricKeyType !== "rsa" ||
+    (publicKey.asymmetricKeyDetails?.modulusLength ?? 0) < 3072 ||
+    (privateKey.asymmetricKeyDetails?.modulusLength ?? 0) < 3072
+  ) {
+    throw new Error(
+      "PASSWORD_ENCRYPTION_PRIVATE_KEY/PASSWORD_ENCRYPTION_PUBLIC_KEY must be RSA keys with at least 3072 bits",
+    );
+  }
+
+  const derivedPublicKey = createPublicKey(privateKey);
+  if (
+    !publicKey.export({ type: "spki", format: "der" }).equals(derivedPublicKey.export({ type: "spki", format: "der" }))
+  )
+    throw new Error("PASSWORD_ENCRYPTION_PUBLIC_KEY does not match PASSWORD_ENCRYPTION_PRIVATE_KEY");
+
+  assertPasswordEncryptionKeysAreIndependent(publicKey, source, publicKeyPem, privateKeyPem);
+  return {
+    publicKey: exportPublicKey(publicKey),
+    privateKey: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+  };
+}
+
+function buildPasswordEncryptionConfig(source: EnvSnapshot, runtime: { isProduction: boolean; isTest: boolean }) {
+  const configuredPublicKey = normalizePem(source.PASSWORD_ENCRYPTION_PUBLIC_KEY);
+  const configuredPrivateKey = normalizePem(source.PASSWORD_ENCRYPTION_PRIVATE_KEY);
+  if (!!configuredPublicKey !== !!configuredPrivateKey)
+    throw new Error("PASSWORD_ENCRYPTION_PRIVATE_KEY and PASSWORD_ENCRYPTION_PUBLIC_KEY must be configured together");
+  if (runtime.isProduction && !configuredPublicKey)
+    throw new Error("PASSWORD_ENCRYPTION_PUBLIC_KEY is not defined in production environment");
+  if (runtime.isProduction && !configuredPrivateKey)
+    throw new Error("PASSWORD_ENCRYPTION_PRIVATE_KEY is not defined in production environment");
+
+  const configured =
+    configuredPublicKey && configuredPrivateKey
+      ? normalizeConfiguredPasswordEncryptionKeys(source, configuredPublicKey, configuredPrivateKey)
+      : undefined;
+  const generated = configured
+    ? undefined
+    : getGeneratedPasswordEncryptionKeyPair(runtime.isProduction, runtime.isTest);
+  const publicKey = configured?.publicKey ?? generated!.publicKey;
+
+  return {
+    algorithm: "RSA-OAEP-256" as const,
+    privateKey: configured?.privateKey ?? generated!.privateKey,
+    publicKey,
+    keyId:
+      String(source.PASSWORD_ENCRYPTION_KEY_ID || "").trim() ||
+      createHash("sha256").update(publicKey).digest("hex").slice(0, 32),
+  };
 }
 
 function buildAuthCenterConfig(
@@ -226,5 +352,6 @@ export function buildAuthConfig(
     turnstile: { siteKey: source.TURNSTILE_SITE_KEY || "", secretKey: source.TURNSTILE_SECRET_KEY || "" },
     social: buildSocialConfig(source, runtime),
     authCenter: buildAuthCenterConfig(source, runtime),
+    passwordEncryption: buildPasswordEncryptionConfig(source, runtime),
   };
 }

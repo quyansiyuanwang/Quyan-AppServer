@@ -1,5 +1,6 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
+import type { FormInstance, FormRules } from 'element-plus/es'
 import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { remoteTerminalProductService } from '@/service/remoteTerminalProductService'

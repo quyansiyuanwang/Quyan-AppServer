@@ -1,5 +1,5 @@
 import type { StrictObj } from '@/types/common'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { watch, type Ref } from 'vue'

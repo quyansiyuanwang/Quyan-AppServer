@@ -1,7 +1,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { i18ns } from '@/locales'
 import type { ModelPricingDto, RelayCatalogOptionDto } from '@/client/types.gen'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { modelPricingService } from '@/service/modelPricingService'
 import { relayChannelService } from '@/service/relayChannelService'
 import { LruCache } from '@/utils/lru-cache'

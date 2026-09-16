@@ -85,7 +85,7 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { useRouter } from 'vue-router'
 import type { DeveloperProductInstanceDto, DeveloperShortLinkDto } from '@/client/types.gen'
 import { Permission } from '@/constant/permission'

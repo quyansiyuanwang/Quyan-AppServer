@@ -1,5 +1,5 @@
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { useI18n } from 'vue-i18n'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'

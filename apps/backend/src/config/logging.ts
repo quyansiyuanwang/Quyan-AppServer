@@ -25,6 +25,11 @@ export type LoggingConfig = {
  */
 export const SENSITIVE_FIELDS = [
   "password",
+  "newPassword",
+  "passwordCredential",
+  "newPasswordCredential",
+  "encryptedPassword",
+  "ciphertext",
   "token",
   "access_token",
   "refresh_token",

@@ -440,7 +440,7 @@
 </template>
 
 <script setup lang="ts">
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { i18ns } from '@/locales'
 import { ticketService } from '@/service/ticketService'

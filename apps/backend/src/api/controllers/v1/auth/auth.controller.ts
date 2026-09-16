@@ -62,6 +62,8 @@ import type {
   ConsumeCentralLoginFlowDto,
   ConsumeCentralLoginFlowResponse,
 } from "@/api/dto/auth/auth.dto";
+import type { PasswordEncryptionKeyResponse } from "@/api/dto/auth/password-encryption.dto";
+import { passwordEncryptionService } from "@/services/auth/password-encryption.service";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { Request as ExpressRequest } from "express";
 import type { TypedRequest } from "@/types/express";
@@ -132,6 +134,14 @@ export class AuthController extends Controller {
   public async getReplaySigningSession(@Request() request: ExpressRequest): Promise<ReplaySigningSessionResponse> {
     setResponseMessageKey(request as never, "auth.replaySigningSessionIssued");
     return this.authService.issueReplaySigningSession(request);
+  }
+
+  /** Return the active public key clients use to encrypt password submissions. */
+  @Get("password-encryption-key")
+  @SuccessResponse(HttpStatusCode.Ok, "获取密码加密公钥成功")
+  public async getPasswordEncryptionKey(): Promise<PasswordEncryptionKeyResponse> {
+    this.setHeader("Cache-Control", "public, max-age=300");
+    return passwordEncryptionService.getPublicKey();
   }
 
   @Get("captcha/trust-status")
@@ -230,7 +240,10 @@ export class AuthController extends Controller {
     captchaMiddleware({ action: "login", trustOnly: true }),
   )
   public async login(@Body() requestBody: LoginDto, @Request() request: ExpressRequest): Promise<LoginResponse> {
-    const login_res = await this.authService.login(requestBody.username, requestBody.password, request);
+    const password = passwordEncryptionService.resolvePassword(requestBody.password, requestBody.passwordCredential, {
+      required: true,
+    })!;
+    const login_res = await this.authService.login(requestBody.username, password, request);
     logger.info("用户登录成功: %s", requestBody.username);
     return login_res;
   }
@@ -548,7 +561,12 @@ export class AuthController extends Controller {
     @Body() requestBody: ResetPasswordDto,
     @Request() request: ExpressRequest,
   ): Promise<ResetPasswordResponse> {
-    const result = await this.authService.resetPassword(requestBody, request);
+    const newPassword = passwordEncryptionService.resolvePassword(
+      requestBody.newPassword,
+      requestBody.newPasswordCredential,
+      { required: true },
+    )!;
+    const result = await this.authService.resetPassword({ ...requestBody, newPassword }, request);
     setResponseMessageKey(request as never, "auth.passwordResetSuccess");
     logger.info("用户重置密码成功", {
       username: requestBody.username,
@@ -575,7 +593,10 @@ export class AuthController extends Controller {
     @Body() requestBody: RegisterDto,
     @Request() request: ExpressRequest,
   ): Promise<RegisterResponse> {
-    const result = await this.authService.register(requestBody, request);
+    const password = passwordEncryptionService.resolvePassword(requestBody.password, requestBody.passwordCredential, {
+      required: true,
+    })!;
+    const result = await this.authService.register({ ...requestBody, password }, request);
     logger.info("用户注册成功: %s", requestBody.username);
     return result;
   }

@@ -1,6 +1,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
+import type { FormInstance, FormRules } from 'element-plus/es'
 import { Refresh } from '@element-plus/icons-vue'
 import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
 import { Permission } from '@/constant/permission'

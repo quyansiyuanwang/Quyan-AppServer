@@ -34,7 +34,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import ProductApiTestCard from '@/views/products/components/ProductApiTestCard.vue'
 import { developerProductService } from '@/service/developerProductService'
 import { i18ns } from '@/locales'

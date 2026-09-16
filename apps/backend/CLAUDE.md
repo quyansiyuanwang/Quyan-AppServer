@@ -414,7 +414,8 @@ All services use singleton pattern - access via `ServiceName.getInstance()`.
 - **All routes via TSOA**: There are NO manual route files (`src/api/routes/` has been removed). All API endpoints must be defined as TSOA controller methods.
 - **OpenAPI generation is automatic**: Routes and specs regenerate on every build via `prebuild` hook
 - **Repository singleton pattern**: Always use `Repository.getInstance()`, never `new Repository()`
-- **Password hashing**: Currently uses MD5 (see `util/crypto.ts`) - consider upgrading to bcrypt for production
+- **Password transport**: Clients encrypt raw passwords with the server RSA-OAEP/SHA-256 public key; legacy client hashes are accepted during migration
+- **Password hashing**: Stored passwords use bcrypt; successful logins opportunistically upgrade legacy MD5 and bcrypt(MD5(password)) records
 - **Token expiry times**: Very short in development (5s access, 28800s refresh) - adjust in production via environment variables
 - **Build output**: esbuild compiles to `dist/index.cjs` (CommonJS format)
 - **External dependencies**: Prisma client, Sharp, and native modules are marked as external in esbuild config

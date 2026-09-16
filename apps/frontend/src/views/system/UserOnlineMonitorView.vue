@@ -438,7 +438,7 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import systemService from '@/service/systemService'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { authorizationService } from '@/service/authorizationService'

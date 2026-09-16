@@ -174,7 +174,7 @@ import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import StorageKey, { getAprilFoolsPassiveConfigStorageKey } from '@/constant/storagekey'
 import '@/assets/april-fools.css'
 
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { aprilFoolsEventBus } from '@/stores/globalInstance'

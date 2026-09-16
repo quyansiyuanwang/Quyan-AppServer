@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
+import type { FormInstance, FormRules } from 'element-plus/es'
 import type {
   CarpoolPackageTemplateDto,
   CreateCarpoolPackageTemplateRequest,

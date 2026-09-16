@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { useRouter } from 'vue-router'
 import type { CarpoolOrderDto, CarpoolPackageTemplateDto } from '@/client/types.gen'
 import CarpoolStateTag from '@/components/carpool/CarpoolStateTag.vue'

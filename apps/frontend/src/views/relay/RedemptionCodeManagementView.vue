@@ -200,7 +200,7 @@
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { redemptionCodeService } from '@/service/redemptionCodeService'
 
 const { isDesktop } = usePageDevice()

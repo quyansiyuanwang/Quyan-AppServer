@@ -529,7 +529,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
 import type { BatchUpdateRelayChannelPatch, RelayChannelRoutingStrategy } from '@/client/types.gen'
 import { i18ns } from '@/locales'

@@ -175,7 +175,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElCard, ElMessage } from 'element-plus'
+import { ElCard, ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { MANAGED_STATUS } from '@/constant/status'

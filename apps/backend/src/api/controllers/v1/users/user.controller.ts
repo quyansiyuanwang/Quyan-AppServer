@@ -55,6 +55,7 @@ import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { permissionService } from "@/services/users/permission.service";
+import { passwordEncryptionService } from "@/services/auth/password-encryption.service";
 import { hashPassword } from "@/util/crypto";
 import type { ErrorResponse } from "@/api/response";
 import {
@@ -588,7 +589,10 @@ export class UserController extends Controller {
   @RequirePermission(Permission.USER_CREATE)
   @Middlewares(replayProtectionMiddleware, validateBody(createUserBodySchema))
   public async createUser(@Body() body: CreateUserDto, @Request() request: TypedRequest): Promise<CreateUserResponse> {
-    const hashedPassword = hashPassword(body.password);
+    const password = passwordEncryptionService.resolvePassword(body.password, body.passwordCredential, {
+      required: true,
+    })!;
+    const hashedPassword = hashPassword(password);
     const user = await this.userService.createUser(
       { ...body, password: hashedPassword },
       request.user!.userId,
@@ -702,7 +706,10 @@ export class UserController extends Controller {
     if ((await this.userService.getUserById(tarUserId)) === null)
       throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
-    await this.userService.changeUserPassword(tarUserId, hashPassword(body.newPassword), currentUserId, request);
+    const newPassword = passwordEncryptionService.resolvePassword(body.newPassword, body.newPasswordCredential, {
+      required: true,
+    })!;
+    await this.userService.changeUserPassword(tarUserId, hashPassword(newPassword), currentUserId, request);
 
     setResponseMessageKey(request, "user.passwordChanged");
     return {

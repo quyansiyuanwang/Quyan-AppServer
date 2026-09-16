@@ -188,7 +188,7 @@ import {
   type RelayConfiguredRequestFormat,
   type RelayUpstreamFormat,
 } from '@quyan/shared'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Delete, Edit, Plus, Wallet } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'

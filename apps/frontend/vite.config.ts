@@ -151,7 +151,9 @@ export default defineConfig(({ mode }) => {
     dep.includes('charts-') ||
     dep.includes('markdown-') ||
     dep.includes('xlsx-') ||
-    dep.includes('passkey-')
+    dep.includes('passkey-') ||
+    dep.includes('xterm-') ||
+    dep.includes('sortablejs-')
 
   const resolveNodeModuleChunk = (moduleId: string): string | undefined => {
     // Keep truly shared app/runtime dependencies in a stable base chunk.
@@ -189,26 +191,17 @@ export default defineConfig(({ mode }) => {
     if (moduleId.includes('/highlight.js/')) return 'markdown-highlighter'
 
     // Keep large single-purpose data libs in their own async chunks.
-    if (moduleId.includes('/xlsx/')) {
-      return 'xlsx'
-    }
+    if (moduleId.includes('/xlsx/')) return 'xlsx'
+    if (moduleId.includes('/xterm/')) return 'xterm'
+    if (moduleId.includes('/sortablejs/')) return 'sortablejs'
 
-    // crypto-js pulls Node/browser external shims in some builds. Forcing it
-    // into the shared vendor chunk can make the entry chunk appear as a
-    // reverse dependency (`index -> vendor -> index`), which is an unsafe ESM
-    // initialization cycle. Let the graph-aware splitter keep it with the
-    // feature that actually uses it.
-    if (moduleId.includes('/crypto-js/')) {
-      return undefined
-    }
+    // Only the shared HTTP client remains in the stable vendor layer. Vue,
+    // Element Plus and the rest of the UI dependency graph must retain their
+    // real lazy-route ownership; forcing every node_modules package here made
+    // optional editors, tables and terminals part of the initial page.
+    if (moduleId.includes('/axios/')) return 'vendor'
 
-    // Keep non-core dependencies in a separate stable vendor layer. The
-    // framework chunk must only contain the Vue runtime and its direct peers:
-    // packages such as VueUse and Element Plus import Vue, but Vue itself must
-    // never import those packages back. This one-way edge prevents the
-    // framework/vendor ESM initialization cycles that previously produced
-    // production-only "Cannot access ... before initialization" failures.
-    return 'vendor'
+    return undefined
   }
 
   const resolveApplicationChunk = (moduleId: string): string | undefined => {
@@ -431,24 +424,6 @@ export default defineConfig(({ mode }) => {
         )
       }
 
-      const emittedClientJavaScriptAssets = Object.values(bundle).filter(
-        (entry) =>
-          typeof entry === 'object' &&
-          entry !== null &&
-          'fileName' in entry &&
-          typeof entry.fileName === 'string' &&
-          /^assets\/.*\.js$/.test(entry.fileName),
-      )
-      // Route loaders retain small facades so each dynamic import can preserve
-      // its component export. The budget leaves room for those facades while
-      // still requiring a substantial reduction from the former 503 assets.
-      const maxClientAssets = 180
-      if (emittedClientJavaScriptAssets.length > maxClientAssets) {
-        throw new Error(
-          `Bundle emitted ${emittedClientJavaScriptAssets.length} JS assets before CSS output; expected no more than ${maxClientAssets}`,
-        )
-      }
-
       const domainChunks = chunks
         .filter((chunk) => /^assets\/domain-[^-]+-/.test(chunk.fileName))
         .map((chunk) => chunk.fileName)
@@ -519,11 +494,6 @@ export default defineConfig(({ mode }) => {
       )
       const jsAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.js')).length
       const cssAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.css')).length
-      if (clientAssets.length > 180) {
-        throw new Error(
-          `Bundle emitted ${clientAssets.length} JS/CSS assets; expected no more than 180`,
-        )
-      }
       const indexHtml = readFileSync(resolve(outputDir, 'index.html'), 'utf8')
       const initialAssetNames = [
         ...new Set(
@@ -536,7 +506,19 @@ export default defineConfig(({ mode }) => {
       const initialRawBytes = initialSource.length
       const initialGzipBytes = gzipSync(initialSource).length
       const initialBrotliBytes = brotliCompressSync(initialSource).length
-      const maxInitialBrotliBytes = 700 * 1024
+      const maxInitialAssets = 6
+      const maxInitialRawBytes = 1536 * 1024
+      const maxInitialBrotliBytes = 400 * 1024
+      if (initialAssetNames.length > maxInitialAssets) {
+        throw new Error(
+          `Entry document references ${initialAssetNames.length} assets; expected no more than ${maxInitialAssets}`,
+        )
+      }
+      if (initialRawBytes > maxInitialRawBytes) {
+        throw new Error(
+          `Entry assets total ${initialRawBytes} B; expected no more than ${maxInitialRawBytes} B`,
+        )
+      }
       if (initialBrotliBytes > maxInitialBrotliBytes) {
         throw new Error(
           `Entry assets compress to ${initialBrotliBytes} B with Brotli; expected no more than ${maxInitialBrotliBytes} B`,
@@ -690,11 +672,10 @@ export default defineConfig(({ mode }) => {
       // fast native path.
       minify: isProd ? 'esbuild' : false,
       target: 'es2022',
-      // One cacheable stylesheet avoids a second request waterfall where each
-      // route/component contributes a sub-kilobyte CSS asset. The JS feature
-      // boundaries remain lazy, so optional application logic is not moved
-      // into the entry module graph.
-      cssCodeSplit: false,
+      // Keep route/component CSS lazy with its JavaScript boundary. A single
+      // combined stylesheet made every page download all Element Plus and
+      // feature styles before rendering the first screen.
+      cssCodeSplit: true,
       modulePreload: {
         resolveDependencies: (_url, deps) => deps.filter((dep) => !shouldSkipModulePreload(dep)),
       },

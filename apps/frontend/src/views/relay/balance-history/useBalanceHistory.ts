@@ -1,6 +1,6 @@
 import { usePageDevice } from '@/composables/usePageDevice'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { balanceTransactionService } from '@/service/balanceTransactionService'
 import { redemptionCodeService } from '@/service/redemptionCodeService'

@@ -41,6 +41,11 @@ const en = {
     legalPolicyVersionConflict: "Legal policy version conflict",
     resourceAlreadyExists: "Resource already exists; please avoid creating or submitting duplicates",
     captchaTrustRequired: "Please complete CAPTCHA verification first",
+    passwordEncryptionKeyInvalid: "The password encryption key has expired; refresh and try again",
+    passwordEncryptionInvalid: "Invalid password credential",
+    passwordLengthInvalid: "Password must be between 6 and 50 characters",
+    passwordCredentialConflict: "Do not submit both a password and an encrypted password credential",
+    passwordRequired: "Password is required",
     databaseOperationFailed: "Database operation failed",
   },
   agent: {

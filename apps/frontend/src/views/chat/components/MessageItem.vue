@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, watch, computed } from 'vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessageBox, ElMessage } from '@/utils/elementPlusRuntime'
 import type { Message } from '@/types/chat'
 import { CopyDocument, Refresh, Delete, EditPen } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
