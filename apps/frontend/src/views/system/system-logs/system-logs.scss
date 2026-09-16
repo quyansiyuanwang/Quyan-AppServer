@@ -77,21 +77,21 @@
   height: 320px;
 }
 
-.filters-container :deep(.multi-filter-select) {
+.filters-container .multi-filter-select {
   width: 100%;
 }
 
-.filters-container :deep(.multi-filter-select .el-select__wrapper) {
+.filters-container .multi-filter-select .el-select__wrapper {
   width: 100%;
   min-height: 34px;
 }
 
-.filters-container :deep(.multi-filter-select .el-select__selection),
-.filters-container :deep(.multi-filter-select .el-select__selection .el-select__selected-item) {
+.filters-container .multi-filter-select .el-select__selection,
+.filters-container .multi-filter-select .el-select__selection .el-select__selected-item {
   max-width: 100%;
 }
 
-.filters-container :deep(.multi-filter-select .el-tag__content) {
+.filters-container .multi-filter-select .el-tag__content {
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -181,7 +181,7 @@
   margin-top: 6px;
 }
 
-.log-details :deep(.el-collapse-item__header) {
+.log-details .el-collapse-item__header {
   min-height: 34px;
   font-size: 13px;
   font-weight: 600;
@@ -303,11 +303,11 @@ html.dark .server-content-panel {
     padding: 10px;
   }
 
-  :deep(.hide-on-mobile),
-  .system-logs-mobile-adapter :deep(.el-table__header-wrapper),
-  .system-logs-mobile-adapter :deep(.el-scrollbar__bar.is-horizontal),
-  .system-logs-mobile-adapter :deep(.el-table__body colgroup),
-  .system-logs-mobile-adapter :deep(.el-table__header colgroup) {
+  .hide-on-mobile,
+  .system-logs-mobile-adapter .el-table__header-wrapper,
+  .system-logs-mobile-adapter .el-scrollbar__bar.is-horizontal,
+  .system-logs-mobile-adapter .el-table__body colgroup,
+  .system-logs-mobile-adapter .el-table__header colgroup {
     display: none !important;
   }
 }
@@ -318,54 +318,54 @@ html.dark .server-content-panel {
     overflow-x: hidden;
   }
 
-  .system-logs-mobile-adapter :deep(.el-form--inline) {
+  .system-logs-mobile-adapter .el-form--inline {
     display: flex;
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
   }
 
-  .system-logs-mobile-adapter :deep(.el-form-item) {
+  .system-logs-mobile-adapter .el-form-item {
     margin-right: 0;
     margin-bottom: 10px;
   }
 
-  .system-logs-mobile-adapter :deep(.el-form-item__label) {
+  .system-logs-mobile-adapter .el-form-item__label {
     float: none;
     display: block;
     text-align: left;
     padding: 0 0 6px;
   }
 
-  .system-logs-mobile-adapter :deep(.el-form-item__content) {
+  .system-logs-mobile-adapter .el-form-item__content {
     margin-left: 0 !important;
   }
 
-  .system-logs-mobile-adapter :deep(.el-input),
-  .system-logs-mobile-adapter :deep(.el-select),
-  .system-logs-mobile-adapter :deep(.el-date-editor),
-  .system-logs-mobile-adapter :deep(.el-input-number),
-  .system-logs-mobile-adapter :deep(.el-textarea),
-  .system-logs-mobile-adapter :deep(.el-button) {
+  .system-logs-mobile-adapter .el-input,
+  .system-logs-mobile-adapter .el-select,
+  .system-logs-mobile-adapter .el-date-editor,
+  .system-logs-mobile-adapter .el-input-number,
+  .system-logs-mobile-adapter .el-textarea,
+  .system-logs-mobile-adapter .el-button {
     width: 100%;
   }
 
-  .system-logs-mobile-adapter :deep(.el-pagination) {
+  .system-logs-mobile-adapter .el-pagination {
     justify-content: center;
     flex-wrap: wrap;
     gap: 8px;
   }
 }
 
-:global(.mobile-datetime-range-popper .el-picker-panel__body-wrapper) {
+.mobile-datetime-range-popper .el-picker-panel__body-wrapper {
   display: flex;
   flex-direction: column;
 }
 
-:global(.mobile-datetime-range-popper .el-date-range-picker__content) {
+.mobile-datetime-range-popper .el-date-range-picker__content {
   width: 100%;
 }
 
-:global(.mobile-datetime-range-popper .el-date-range-picker__content.is-left) {
+.mobile-datetime-range-popper .el-date-range-picker__content.is-left {
   border-right: 0;
 }

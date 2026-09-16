@@ -161,32 +161,32 @@
   margin-left: 0 !important;
 }
 
-.group-management-mobile :deep(.el-dialog) {
+.group-management-mobile .el-dialog {
   width: 96% !important;
   max-width: 96% !important;
   margin-top: 3vh !important;
 }
 
-.group-management-mobile :deep(.el-dialog__header) {
+.group-management-mobile .el-dialog__header {
   padding: 14px 14px 8px;
 }
 
-.group-management-mobile :deep(.el-dialog__body) {
+.group-management-mobile .el-dialog__body {
   max-height: 72vh;
   overflow: auto;
   padding: 12px 14px;
 }
 
-.group-management-mobile :deep(.el-dialog__footer) {
+.group-management-mobile .el-dialog__footer {
   padding: 8px 14px 14px;
 }
 
-.group-management-mobile :deep(.el-dialog__footer .el-button) {
+.group-management-mobile .el-dialog__footer .el-button {
   min-height: 36px;
 }
 
 @media (max-width: 768px) {
-  :deep(.hide-on-mobile) {
+  .hide-on-mobile {
     display: none;
   }
 

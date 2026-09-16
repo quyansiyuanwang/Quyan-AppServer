@@ -1,5 +1,12 @@
 import { createErrorReportControllerApi } from '@/client/services/error-report-controller.gen'
 import { useRequestStore } from '@/stores/request'
+import { isRequestCanceled } from '@/utils/error-utils'
+import { i18ns } from '@/locales'
+import {
+  isTwoFactorRedirectError,
+  isTwoFactorRequiredResponse,
+} from '@/service/twoFactorNavigationService'
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import StorageKey from '@/constant/storagekey'
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import { cacheObject } from '@/utils/common'
@@ -182,6 +189,38 @@ const flushPendingReports = async (keepalive = false): Promise<void> => {
   return flushPromise
 }
 
+const shouldSkipGlobalErrorNotice = (reason: unknown): boolean => {
+  if (
+    isTwoFactorRedirectError(reason) ||
+    isTwoFactorRequiredResponse(reason) ||
+    isRequestCanceled(reason)
+  ) {
+    return true
+  }
+  if (!reason || typeof reason !== 'object') return false
+
+  const candidate = reason as { name?: unknown; code?: unknown }
+  const name = String(candidate.name || '')
+  const code = Number(candidate.code)
+  return name === 'SessionExpiredError' || name === 'AbortError' || code === 1018
+}
+
+const getGlobalErrorMessage = (reason: unknown): string => {
+  const rawMessage =
+    reason instanceof Error
+      ? reason.message
+      : reason && typeof reason === 'object' && 'message' in reason
+        ? String((reason as { message?: unknown }).message || '')
+        : String(reason || '')
+
+  return rawMessage.replace(/\s+/g, ' ').trim().slice(0, 300) || i18ns.t('unknownError')
+}
+
+export const showGlobalErrorNotice = (reason: unknown): void => {
+  if (shouldSkipGlobalErrorNotice(reason)) return
+  showRequestErrorNotice(getGlobalErrorMessage(reason))
+}
+
 const fingerprint = (payload: ClientErrorPayload) =>
   `${payload.errorType}:${payload.message.slice(0, 240)}:${payload.route || ''}`
 
@@ -211,6 +250,7 @@ export const installErrorReporter = () => {
 
   window.addEventListener('error', (event) => {
     const error = event.error instanceof Error ? event.error : null
+    showGlobalErrorNotice(error || event.message)
     void reportClientError({
       errorType: error?.name || 'WindowError',
       message: error?.message || event.message || 'Unknown browser error',
@@ -222,6 +262,7 @@ export const installErrorReporter = () => {
   })
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason instanceof Error ? event.reason : null
+    showGlobalErrorNotice(event.reason || reason)
     void reportClientError({
       errorType: reason?.name || 'UnhandledRejection',
       message: reason?.message || String(event.reason || 'Unhandled promise rejection'),

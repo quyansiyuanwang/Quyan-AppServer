@@ -60,11 +60,11 @@
     margin-bottom: 0;
   }
 
-  .auth-center-client-form__block-item--plain :deep(.el-form-item__content) {
+  .auth-center-client-form__block-item--plain .el-form-item__content {
     margin-left: 0 !important;
   }
 
-  .auth-center-client-form__section :deep(.el-form-item) {
+  .auth-center-client-form__section .el-form-item {
     margin-bottom: 0;
   }
 
@@ -90,11 +90,11 @@
     white-space: normal;
   }
 
-  .grant-type-card :deep(.el-checkbox__input) {
+  .grant-type-card .el-checkbox__input {
     margin-top: 2px;
   }
 
-  .grant-type-card :deep(.el-checkbox__label) {
+  .grant-type-card .el-checkbox__label {
     display: block;
     width: 100%;
     padding-left: 10px;
@@ -142,11 +142,11 @@
     white-space: normal;
   }
 
-  .auth-center-scope-selector__item :deep(.el-checkbox__input) {
+  .auth-center-scope-selector__item .el-checkbox__input {
     margin-top: 2px;
   }
 
-  .auth-center-scope-selector__item :deep(.el-checkbox__label) {
+  .auth-center-scope-selector__item .el-checkbox__label {
     display: block;
     width: 100%;
     padding-left: 10px;
@@ -300,13 +300,13 @@
     gap: 4px;
   }
 
-  :deep(.auth-center-client-table__redirect-column .cell) {
+  .auth-center-client-table__redirect-column .cell {
     display: flex;
     align-items: flex-start;
     min-height: 100%;
   }
 
-  :deep(.auth-center-client-table__redirect-column .compact-list) {
+  .auth-center-client-table__redirect-column .compact-list {
     margin-top: 0;
   }
 

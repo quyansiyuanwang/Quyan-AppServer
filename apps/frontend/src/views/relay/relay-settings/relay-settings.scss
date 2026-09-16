@@ -112,32 +112,32 @@
   max-width: 360px;
 }
 
-.relay-settings-desktop :deep(.block-form-item) {
+.relay-settings-desktop .block-form-item {
   align-items: stretch;
   flex-direction: column;
 }
 
-.relay-settings-desktop :deep(.block-form-item .el-form-item__label) {
+.relay-settings-desktop .block-form-item .el-form-item__label {
   width: 100% !important;
   justify-content: flex-start;
   text-align: left;
   padding: 0 0 8px;
 }
 
-.relay-settings-desktop :deep(.block-form-item .el-form-item__content) {
+.relay-settings-desktop .block-form-item .el-form-item__content {
   margin-left: 0 !important;
   width: 100%;
   min-width: 0;
 }
 
-.relay-settings :deep(.el-table),
-.relay-settings :deep(.el-table__header),
-.relay-settings :deep(.el-table__body) {
+.relay-settings .el-table,
+.relay-settings .el-table__header,
+.relay-settings .el-table__body {
   width: 100% !important;
 }
 
-.relay-settings :deep(.el-table__header),
-.relay-settings :deep(.el-table__body) {
+.relay-settings .el-table__header,
+.relay-settings .el-table__body {
   table-layout: fixed;
 }
 

@@ -145,17 +145,17 @@
   color: var(--el-text-color-secondary);
 }
 
-.ram-management :deep(.el-table) {
+.ram-management .el-table {
   width: 100%;
 }
 
-.ram-management :deep(.el-table__inner-wrapper),
-.ram-management :deep(.el-table__body-wrapper) {
+.ram-management .el-table__inner-wrapper,
+.ram-management .el-table__body-wrapper {
   width: 100%;
 }
 
-.ram-management :deep(.el-table__header),
-.ram-management :deep(.el-table__body) {
+.ram-management .el-table__header,
+.ram-management .el-table__body {
   width: 100% !important;
   table-layout: fixed;
 }

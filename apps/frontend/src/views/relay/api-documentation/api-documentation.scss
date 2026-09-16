@@ -240,7 +240,7 @@
   min-width: 0;
 }
 
-.pricing-toolbar :deep(.el-select) {
+.pricing-toolbar .el-select {
   min-width: 0;
 }
 
@@ -256,26 +256,26 @@
   max-width: min(440px, calc(100vw - 32px));
 }
 
-.pricing-more-settings-popover :deep(.el-popover) {
+.pricing-more-settings-popover .el-popover {
   max-width: inherit;
 }
 
-.pricing-more-settings-popover :deep(.el-segmented) {
+.pricing-more-settings-popover .el-segmented {
   width: 100%;
   max-width: 100%;
 }
 
-.pricing-more-settings-popover :deep(.el-segmented__group) {
+.pricing-more-settings-popover .el-segmented__group {
   width: 100%;
   flex-wrap: wrap;
 }
 
-.pricing-more-settings-popover :deep(.el-segmented__item) {
+.pricing-more-settings-popover .el-segmented__item {
   min-width: 0;
   flex: 1 1 120px;
 }
 
-.pricing-more-settings-popover :deep(.el-segmented__item-label) {
+.pricing-more-settings-popover .el-segmented__item-label {
   white-space: normal;
   word-break: break-word;
   line-height: 1.35;
@@ -374,38 +374,38 @@
   padding: 0 2px;
 }
 
-.pricing-table :deep(.el-table__header th) {
+.pricing-table .el-table__header th {
   background: var(--el-fill-color-light);
   font-weight: 600;
 }
 
-.pricing-table :deep(.el-table__row td) {
+.pricing-table .el-table__row td {
   vertical-align: top;
 }
 
-.pricing-table :deep(.el-table__body-wrapper) {
+.pricing-table .el-table__body-wrapper {
   overflow-x: auto;
 }
 
-.pricing-table :deep(.el-table__body),
-.pricing-table :deep(.el-table__header) {
+.pricing-table .el-table__body,
+.pricing-table .el-table__header {
   min-width: 100%;
 }
 
-.pricing-table :deep(.el-table__cell) {
+.pricing-table .el-table__cell {
   padding-top: 12px;
   padding-bottom: 12px;
 }
 
-.pricing-table :deep(.cell) {
+.pricing-table .cell {
   line-height: 1.45;
 }
 
-.pricing-table :deep(.el-link) {
+.pricing-table .el-link {
   font-weight: 600;
 }
 
-.pricing-table :deep(.el-tag + .el-tag) {
+.pricing-table .el-tag + .el-tag {
   margin-left: 6px;
 }
 
@@ -455,24 +455,24 @@
   word-break: break-all;
 }
 
-:deep(.el-descriptions__label) {
+.el-descriptions__label {
   width: 200px;
   vertical-align: middle;
 }
 
-:deep(.el-descriptions__content) {
+.el-descriptions__content {
   min-width: 0;
   max-width: 0;
   width: 100%;
   overflow: hidden;
 }
 
-:deep(.el-descriptions__body) {
+.el-descriptions__body {
   table-layout: fixed;
   width: 100%;
 }
 
-:deep(.el-step__description) {
+.el-step__description {
   padding-right: 20px;
   overflow: hidden;
   word-break: break-word;
@@ -483,98 +483,98 @@
   overflow-x: hidden;
 }
 
-.mobile-adapter :deep(.hide-on-mobile),
-.mobile-adapter :deep(.el-table__header-wrapper),
-.mobile-adapter :deep(.el-table__fixed-right-patch) {
+.mobile-adapter .hide-on-mobile,
+.mobile-adapter .el-table__header-wrapper,
+.mobile-adapter .el-table__fixed-right-patch {
   display: none !important;
 }
 
-.mobile-adapter :deep(.el-card__header) {
+.mobile-adapter .el-card__header {
   padding: 12px 14px;
 }
 
-.mobile-adapter :deep(.el-card__body) {
+.mobile-adapter .el-card__body {
   padding: 12px;
 }
 
-.mobile-adapter :deep(.card-header),
-.mobile-adapter :deep(.endpoint-content) {
+.mobile-adapter .card-header,
+.mobile-adapter .endpoint-content {
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.mobile-adapter :deep(.endpoint-content) {
+.mobile-adapter .endpoint-content {
   flex-direction: column;
   align-items: stretch;
 }
 
-.mobile-adapter :deep(.endpoint-code),
-.mobile-adapter :deep(.code-example pre) {
+.mobile-adapter .endpoint-code,
+.mobile-adapter .code-example pre {
   white-space: pre-wrap;
   word-break: break-all;
   font-size: 12px;
 }
 
-.mobile-adapter :deep(.el-tabs__nav-wrap) {
+.mobile-adapter .el-tabs__nav-wrap {
   overflow-x: auto;
 }
 
-.mobile-adapter :deep(.pricing-toolbar),
-.mobile-adapter :deep(.el-form--inline) {
+.mobile-adapter .pricing-toolbar,
+.mobile-adapter .el-form--inline {
   display: grid !important;
   grid-template-columns: 1fr;
   gap: 8px !important;
 }
 
-.mobile-adapter :deep(.pricing-toolbar) {
+.mobile-adapter .pricing-toolbar {
   padding: 10px;
   border-radius: 10px;
 }
 
-.mobile-adapter :deep(.pricing-mobile-toolbar-header) {
+.mobile-adapter .pricing-mobile-toolbar-header {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
 }
 
-.mobile-adapter :deep(.pricing-mobile-toolbar-actions) {
+.mobile-adapter .pricing-mobile-toolbar-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.mobile-adapter :deep(.pricing-mobile-panel) {
+.mobile-adapter .pricing-mobile-panel {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
 }
 
-.mobile-adapter :deep(.toolbar-count) {
+.mobile-adapter .toolbar-count {
   margin-left: 0;
 }
 
-.mobile-adapter :deep(.pricing-filter) {
+.mobile-adapter .pricing-filter {
   width: 100% !important;
 }
 
-.mobile-adapter :deep(.pricing-multiplier-input) {
+.mobile-adapter .pricing-multiplier-input {
   width: 100% !important;
 }
 
-.mobile-adapter :deep(.price-range-group),
-.mobile-adapter :deep(.price-range-input),
-.mobile-adapter :deep(.price-range-group .el-input-number) {
+.mobile-adapter .price-range-group,
+.mobile-adapter .price-range-input,
+.mobile-adapter .price-range-group .el-input-number {
   width: 100% !important;
 }
 
-.mobile-adapter :deep(.price-range-group) {
+.mobile-adapter .price-range-group {
   display: grid !important;
   grid-template-columns: 1fr;
   gap: 6px !important;
 }
 
-.mobile-adapter :deep(.price-range-separator) {
+.mobile-adapter .price-range-separator {
   display: none;
 }
 
@@ -598,21 +598,21 @@
   }
 }
 
-.mobile-adapter :deep(.pricing-table .model-cell) {
+.mobile-adapter .pricing-table .model-cell {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
 }
 
-.mobile-adapter :deep(.pricing-table .channels-cell) {
+.mobile-adapter .pricing-table .channels-cell {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 2px;
 }
 
-.mobile-adapter :deep(.comparison-card-list) {
+.mobile-adapter .comparison-card-list {
   display: grid;
   grid-template-columns: 1fr;
   gap: 10px;
