@@ -5,9 +5,14 @@ import { getPublicSiteProfile, isKnownSiteProfile } from '@/config/site-registry
 import { loadProfileApp } from '@/app-roots/load-profile-app'
 import { i18ns, initializeI18n } from '@/locales'
 import { configureAll } from '@/config'
-import { installErrorReporter, reportClientError } from '@/service/errorReportService'
+import {
+  installErrorReporter,
+  reportClientError,
+  showGlobalErrorNotice,
+} from '@/service/errorReportService'
 import { clearLegacyAuthStorage } from '@/stores/request'
 import { installSessionExpiryRedirect } from '@/service/sessionExpiryRedirectService'
+import { installRequestErrorNotifier } from '@/service/requestErrorNoticeInstaller'
 import { replaceDocument } from '@/service/navigationService'
 
 export type AppRuntimePhase = 'created' | 'routes-ready' | 'session-ready' | 'mounted' | 'running'
@@ -42,6 +47,8 @@ export class AppRuntime {
     startupMark('start')
     clearLegacyAuthStorage()
 
+    installRequestErrorNotifier()
+
     // The bare platform domain is an alias of the public site. Resolve it
     // before installing the rejected-host fallback, otherwise `/` renders a
     // 404 even though the canonical `www` host has the public routes.
@@ -73,6 +80,7 @@ export class AppRuntime {
     app.use(router)
     app.use(i18ns.plugin)
     app.config.errorHandler = (error, _instance, info) => {
+      showGlobalErrorNotice(error)
       void reportClientError({
         errorType: error instanceof Error ? error.name : 'VueError',
         message: error instanceof Error ? error.message : String(error),

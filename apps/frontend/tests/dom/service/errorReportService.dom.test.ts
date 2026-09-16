@@ -5,6 +5,11 @@ import StorageKey from '@/constant/storagekey'
 const reportClientErrorMock = vi.fn()
 const reportClientErrorBatchMock = vi.fn()
 const postKeepaliveMock = vi.fn()
+const notifyMock = vi.fn()
+
+vi.mock('@/utils/common', () => ({
+  cacheObject: <T>(factory: () => T) => factory(),
+}))
 
 vi.mock('@/client/services/error-report-controller.gen', () => ({
   createErrorReportControllerApi: () => ({
@@ -24,6 +29,7 @@ describe('error report service lifecycle queue', () => {
     vi.resetModules()
     vi.clearAllMocks()
     sessionStorage.clear()
+    window.history.replaceState({}, '', '/')
   })
 
   it('keeps a failed report locally and removes it after a later successful flush', async () => {
@@ -48,19 +54,35 @@ describe('error report service lifecycle queue', () => {
     expect(sessionStorage.getItem(StorageKey.Util.ERROR_REPORT_QUEUE)).toBeNull()
   })
 
-  it('tries a keepalive upload when the page is being discarded', async () => {
+  it('shows one global notice for an unhandled rejection and keeps uploading it', async () => {
     postKeepaliveMock.mockResolvedValue(true)
     const { installErrorReporter, reportClientError } = await import('@/service/errorReportService')
+    const { configureRequestErrorNotifier } = await import('@/utils/requestErrorNotice')
+    configureRequestErrorNotifier((title, message) => notifyMock(title, message))
 
     await reportClientError({ errorType: 'Error', message: 'Pending report' })
     installErrorReporter()
+
+    const rejection = new Event('unhandledrejection')
+    Object.defineProperty(rejection, 'reason', { value: new Error('Unexpected failure') })
+    window.dispatchEvent(rejection)
+    window.dispatchEvent(rejection)
+
+    await vi.waitFor(() => {
+      expect(notifyMock).toHaveBeenCalledTimes(1)
+      expect(notifyMock).toHaveBeenCalledWith(expect.any(String), 'Unexpected failure')
+    })
+
     window.dispatchEvent(new Event('pagehide'))
 
     await vi.waitFor(() => {
       expect(postKeepaliveMock).toHaveBeenCalledWith(
         '/v1/error-reports/client/batch',
         expect.objectContaining({
-          reports: [expect.objectContaining({ message: 'Pending report' })],
+          reports: expect.arrayContaining([
+            expect.objectContaining({ message: 'Pending report' }),
+            expect.objectContaining({ message: 'Unexpected failure' }),
+          ]),
         }),
       )
     })

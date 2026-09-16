@@ -18,8 +18,9 @@ import { ReplayProtection } from '@/utils/replay-protection'
 import { getOrCreateClientFingerprint } from '@/utils/client-fingerprint'
 import { useImpersonationStore } from '@/stores/impersonationStore'
 import { ReplaySigningService } from '@/service/replaySigningService'
-import { getBackendLocale } from '@/locales'
-import { toServiceError } from '@/utils/error-utils'
+import { getBackendLocale, i18ns } from '@/locales'
+import { isRequestCanceled, toServiceError } from '@/utils/error-utils'
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import {
   isTwoFactorRequiredResponse,
   navigateToTwoFactorVerification,
@@ -304,6 +305,35 @@ class MyAxios {
     } catch {
       return data
     }
+  }
+
+  private static notifyRequestFailure(
+    responseData: any,
+    fallbackMessage: string,
+    request?: RetryAxiosRequest,
+    status?: number,
+  ): void {
+    const url = String(request?.url || '')
+    const code = Number(responseData?.code)
+
+    // These flows own their own UI or are automatically retried by the caller.
+    if (
+      status === HttpStatusCode.Unauthorized ||
+      url.includes('/v1/auth/') ||
+      url.includes('/v1/error-reports/') ||
+      code === CustomCode.TWO_FACTOR_REQUIRED ||
+      code === CustomCode.CAPTCHA_TRUST_REQUIRED ||
+      code === CustomCode.PASSWORD_ENCRYPTION_KEY_INVALID
+    ) {
+      return
+    }
+
+    const message =
+      typeof responseData?.message === 'string' && responseData.message.trim()
+        ? responseData.message.trim()
+        : fallbackMessage || i18ns.t('loadFailed')
+
+    showRequestErrorNotice(message)
   }
 
   // 保存待 2FA 验证的请求，并保持原 Promise 等待验证完成后的重试结果。
@@ -607,12 +637,21 @@ class MyAxios {
 
         // 如果code不为0，抛出错误
         if (response.data?.code !== undefined && Number(response.data.code) !== CustomCode.OK) {
-          return Promise.reject(new Error(response.data.message || 'Request failed'))
+          const message = response.data.message || 'Request failed'
+          MyAxios.notifyRequestFailure(
+            response.data,
+            message,
+            response.config as RetryAxiosRequest,
+            response.status,
+          )
+          return Promise.reject(toServiceError(response.data, message))
         }
 
         return response.data
       },
       async (error: AxiosError) => {
+        if (isRequestCanceled(error)) return Promise.reject(error)
+
         const originalRequest = error.config as RetryAxiosRequest
         const responseData = error.response?.data as any
 
@@ -701,6 +740,13 @@ class MyAxios {
           typeof responseData?.message === 'string' && responseData.message.trim()
             ? responseData.message
             : error.message || 'Request failed'
+
+        MyAxios.notifyRequestFailure(
+          responseData,
+          responseMessage,
+          originalRequest,
+          error.response?.status,
+        )
 
         if (responseData && typeof responseData === 'object') {
           return responseData

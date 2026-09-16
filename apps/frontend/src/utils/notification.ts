@@ -42,7 +42,7 @@ export class Notification {
   private static active = new Map<string, ElType>()
   private static bumpTime = new Map<string, number>()
   private static DEBOUNCE_MS = 50
-  private static BUMP_COOLDOWN_MS = 100
+  private static BUMP_COOLDOWN_MS = 1000
 
   private options: NO
   private defaultOptions: NO = {
@@ -67,7 +67,10 @@ export class Notification {
   getOptions = () => this.options
 
   show = () => {
-    const key = `${this.options.type}:${this.options.title}:${this.options.message}`
+    // The transport interceptor and a page catch handler can report the same
+    // failure in the same tick. Deduplicate by visible message so users see one
+    // actionable notification instead of two identical toasts.
+    const key = this.options.message.trim() || `${this.options.type}:${this.options.title}`
 
     const activeInst = Notification.active.get(key)
     if (activeInst) {

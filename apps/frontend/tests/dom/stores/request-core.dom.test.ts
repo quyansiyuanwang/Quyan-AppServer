@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AxiosHeaders, HttpStatusCode } from 'axios'
+import { AxiosHeaders, CanceledError, HttpStatusCode } from 'axios'
 import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
 import { clearAccessToken, clearLegacyAuthStorage, MyAxios, setAccessToken } from '@/stores/request'
 import { checkApiResult } from '@/utils/service-utils'
+import { configureRequestErrorNotifier } from '@/utils/requestErrorNotice'
 
 const refreshMock = vi.fn()
 const routerPush = vi.fn()
+const notifyMock = vi.fn()
 
 vi.mock('@/router', () => ({ default: { push: routerPush } }))
 
@@ -26,6 +28,8 @@ describe('MyAxios session transport', () => {
     MyAxios.clearPendingTwoFactorRequests()
     refreshMock.mockReset()
     routerPush.mockReset()
+    notifyMock.mockReset()
+    configureRequestErrorNotifier((title, message) => notifyMock(title, message))
     ;(MyAxios as any).refreshTokenPromise = null
   })
 
@@ -105,6 +109,49 @@ describe('MyAxios session transport', () => {
       }),
     ).resolves.toEqual({})
     expect(refreshMock).not.toHaveBeenCalled()
+    expect(notifyMock).not.toHaveBeenCalled()
+  })
+
+  it('does not show an error notice for canceled requests', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const errorHandler = axiosInstance.interceptors.response.handlers[0]?.rejected
+    const canceled = new CanceledError('canceled')
+
+    await expect(errorHandler(canceled)).rejects.toThrow('canceled')
+    expect(notifyMock).not.toHaveBeenCalled()
+  })
+
+  it('shows one error notice and rejects non-zero response codes', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const fulfilledHandler = axiosInstance.interceptors.response.handlers[0]?.fulfilled
+
+    await expect(
+      fulfilledHandler({
+        status: 200,
+        data: { code: 1003, message: 'resource missing' },
+        config: { url: '/v1/items', headers: new AxiosHeaders() },
+      }),
+    ).rejects.toMatchObject({ code: 1003, message: 'resource missing' })
+
+    expect(notifyMock).toHaveBeenCalledWith(expect.any(String), 'resource missing')
+  })
+
+  it('notifies transport failures before preserving the response payload', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const errorHandler = axiosInstance.interceptors.response.handlers[0]?.rejected
+    const responseData = { code: 1005, message: 'upstream failed' }
+
+    await expect(
+      errorHandler({
+        response: { status: HttpStatusCode.InternalServerError, data: responseData },
+        config: { url: '/v1/items', method: 'get', headers: new AxiosHeaders() },
+      }),
+    ).resolves.toEqual(responseData)
+
+    expect(notifyMock).toHaveBeenCalledWith(expect.any(String), 'upstream failed')
   })
 
   it('redirects two-factor-required responses before business success handlers run', async () => {
