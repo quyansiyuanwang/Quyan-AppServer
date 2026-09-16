@@ -1,5 +1,5 @@
 <template>
-  <main :class="['product-console', isDesktop ? 'desktop-page' : 'mobile-page']">
+  <main :class="['product-console', isDesktop ? 'desktop-page' : 'mobile-page mobile-table-cards']">
     <header class="page-header">
       <div>
         <p class="eyebrow">{{ product }}</p>
@@ -74,8 +74,9 @@
 
     <el-drawer
       v-model="drawerOpen"
-      direction="rtl"
-      size="min(66vw, 100%)"
+      :direction="isDesktop ? 'rtl' : 'btt'"
+      :size="isDesktop ? 'min(66vw, 100%)' : '92%'"
+      :modal-class="isDesktop ? undefined : 'product-console-drawer-overlay'"
       :title="selectedInstance?.name || t('productConsole.instanceManagement')"
       destroy-on-close
       @closed="clearSelection"
@@ -308,6 +309,7 @@ import { getErrorMessage } from '@/utils/error-utils'
 import { copyTextWithFallback } from '@/utils/clipboard'
 import { productActionLabel } from '@/views/products/developer-product-ui'
 import { usePageDevice } from '@/composables/usePageDevice'
+import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 const props = defineProps<{
   product: DeveloperProductCode
   title: string
@@ -316,6 +318,7 @@ const props = defineProps<{
 }>()
 const { t } = i18ns
 const { isDesktop } = usePageDevice()
+useMobileTableCardLabels('.mobile-table-cards', { observeDocument: true })
 const permissionStore = usePermissionStore()
 const loading = ref(false),
   keysLoading = ref(false),

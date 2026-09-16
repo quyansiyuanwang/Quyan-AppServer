@@ -80,6 +80,18 @@ describe("main runtime bootstrap", () => {
         },
       ),
     }));
+    vi.doMock("../../src/services/relay/relay-channel-provider-settlement-scheduler.service", () => ({
+      RelayChannelProviderSettlementSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/system/data-lifecycle-scheduler.service", () => ({
+      DataLifecycleSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/billing/carpool-expiration-scheduler.service", () => ({
+      CarpoolExpirationSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/agent/agent-runtime.gateway", () => ({
+      AgentRuntimeGateway: { getInstance: vi.fn(() => ({ close: vi.fn() })) },
+    }));
 
     try {
       await import("../../src/main");
@@ -175,6 +187,18 @@ describe("main runtime bootstrap", () => {
           public close = vi.fn();
         },
       ),
+    }));
+    vi.doMock("../../src/services/relay/relay-channel-provider-settlement-scheduler.service", () => ({
+      RelayChannelProviderSettlementSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/system/data-lifecycle-scheduler.service", () => ({
+      DataLifecycleSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/billing/carpool-expiration-scheduler.service", () => ({
+      CarpoolExpirationSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
+    }));
+    vi.doMock("../../src/services/agent/agent-runtime.gateway", () => ({
+      AgentRuntimeGateway: { getInstance: vi.fn(() => ({ close: vi.fn() })) },
     }));
 
     try {

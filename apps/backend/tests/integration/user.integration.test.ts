@@ -323,9 +323,10 @@ describe("用户管理 API 集成测试", () => {
         newPassword: "password_changed_again",
       };
 
-      await patchWithReplay(`/v1/users/${targetUser.id}/password`, requestBody)
+      const changePasswordResponse = await patchWithReplay(`/v1/users/${targetUser.id}/password`, requestBody)
         .set("Authorization", `Bearer ${adminToken}`)
         .send(requestBody);
+      expect(changePasswordResponse.status).toBe(200);
 
       // 旧令牌应该失效
       const verifyResponse = await request(app).get("/v1/users/me").set("Authorization", `Bearer ${oldToken}`);

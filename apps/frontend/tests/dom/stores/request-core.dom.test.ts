@@ -21,6 +21,7 @@ describe('MyAxios session transport', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     sessionStorage.clear()
+    window.history.replaceState({}, '', '/')
     clearAccessToken()
     MyAxios.clearPendingTwoFactorRequests()
     refreshMock.mockReset()
@@ -204,6 +205,44 @@ describe('MyAxios session transport', () => {
     await expect(handledError).rejects.toMatchObject({
       name: 'TwoFactorRedirectError',
       code: 1018,
+    })
+  })
+
+  it('preserves the central-login flow id when navigating to login verification', async () => {
+    window.history.replaceState({}, '', '/login?flowId=flow-123')
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const errorHandler = axiosInstance.interceptors.response.handlers[0]?.rejected
+    const errorResponse = {
+      response: {
+        data: {
+          code: 1018,
+          message: '当前操作需要二次验证',
+          data: { challengeToken: 'flow-challenge', purpose: 'login', method: 'code' },
+        },
+      },
+      config: { url: '/v1/auth/login', method: 'post', headers: new AxiosHeaders() },
+    }
+
+    routerPush.mockResolvedValueOnce(undefined)
+    await expect(errorHandler(errorResponse)).rejects.toMatchObject({
+      name: 'TwoFactorRedirectError',
+      code: 1018,
+    })
+
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'authVerification',
+      query: {
+        purpose: 'login',
+        method: 'code',
+        flowId: 'flow-123',
+      },
+    })
+    expect(
+      JSON.parse(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE) || '{}'),
+    ).toMatchObject({
+      challengeToken: 'flow-challenge',
+      authEntry: 'login',
     })
   })
 

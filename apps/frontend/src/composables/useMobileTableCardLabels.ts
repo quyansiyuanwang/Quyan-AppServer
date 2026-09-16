@@ -1,14 +1,22 @@
 import { nextTick, onBeforeUnmount, onMounted } from 'vue'
 
-export function useMobileTableCardLabels(rootSelector: string) {
+interface MobileTableCardOptions {
+  /** Observe the document so dynamically teleported drawers are included. */
+  observeDocument?: boolean
+}
+
+export function useMobileTableCardLabels(
+  rootSelector: string,
+  options: MobileTableCardOptions = {},
+) {
   let observer: MutationObserver | null = null
   let rafId = 0
 
   const applyLabels = () => {
-    const root = document.querySelector(rootSelector)
-    if (!root) return
+    const roots = Array.from(document.querySelectorAll(rootSelector))
+    if (!roots.length) return
 
-    const tables = root.querySelectorAll('.el-table')
+    const tables = roots.flatMap((root) => Array.from(root.querySelectorAll('.el-table')))
     tables.forEach((table) => {
       const headers = Array.from(table.querySelectorAll('.el-table__header-wrapper th')).map(
         (th) => {
@@ -40,11 +48,13 @@ export function useMobileTableCardLabels(rootSelector: string) {
 
   onMounted(() => {
     nextTick(() => scheduleApply())
-    const root = document.querySelector(rootSelector)
-    if (!root) return
+    const observeTarget = options.observeDocument
+      ? document.body
+      : document.querySelector(rootSelector)
+    if (!observeTarget) return
 
     observer = new MutationObserver(() => scheduleApply())
-    observer.observe(root, {
+    observer.observe(observeTarget, {
       childList: true,
       subtree: true,
       characterData: true,

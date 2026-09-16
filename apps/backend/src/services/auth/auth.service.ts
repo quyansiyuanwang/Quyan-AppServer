@@ -545,16 +545,23 @@ export class AuthService {
       const verification = verifyPasswordCompatibility(password, user.password);
       if (!verification.valid) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
 
-      // Upgrade both legacy MD5 formats after a successful login without forcing a reset.
-      if (verification.needsRehash)
-        await this.userRepository.updateById(user.id, { password: hashPassword(password) }).catch(() => undefined);
-
       // Check whether the account can log in based on AccountStatus.
       validateAccountStatus(user.status, user.id, "login");
 
-      const twoFactorEnabled = await this.twoFactorService.isTwoFactorEnabled(user.id);
+      // Upgrade both legacy MD5 formats after credentials and account status
+      // have been validated. Keep the persisted user snapshot so access and
+      // refresh tokens are issued against the same updateTime.
+      let authenticatedUser = user;
+      if (verification.needsRehash) {
+        const upgradedUser = await this.userRepository
+          .updateById(user.id, { password: hashPassword(password) })
+          .catch(() => undefined);
+        if (upgradedUser) authenticatedUser = upgradedUser;
+      }
+
+      const twoFactorEnabled = await this.twoFactorService.isTwoFactorEnabled(authenticatedUser.id);
       if (twoFactorEnabled) {
-        const trustedWithinWindow = await this.twoFactorService.isTrustedWithinWindow(user.id, {
+        const trustedWithinWindow = await this.twoFactorService.isTrustedWithinWindow(authenticatedUser.id, {
           ipAddress,
           userAgent: normalizedUserAgent,
           fingerprint,
@@ -564,8 +571,8 @@ export class AuthService {
         await this.businessLogService.logOperation({
           operationType: OperationType.TWO_FACTOR_TRUSTED_DEVICE_VERIFY,
           operationCategory: OperationCategory.AUTH,
-          actorUserId: user.id,
-          targetUserId: user.id,
+          actorUserId: authenticatedUser.id,
+          targetUserId: authenticatedUser.id,
           description: trustedWithinWindow ? "密码登录可信设备校验命中" : "密码登录可信设备校验未命中",
           success: true,
           metadata: {
@@ -578,7 +585,7 @@ export class AuthService {
         });
 
         if (!trustedWithinWindow) {
-          const challenge = await this.twoFactorService.createLoginChallenge(user.id);
+          const challenge = await this.twoFactorService.createLoginChallenge(authenticatedUser.id);
           throw new TwoFactorRequiredError(undefined, {
             challengeToken: challenge.challengeToken,
             expiresIn: challenge.expiresIn,
@@ -588,11 +595,11 @@ export class AuthService {
         }
       }
 
-      return this.completeAuthenticatedLogin(user, request, {
+      return this.completeAuthenticatedLogin(authenticatedUser, request, {
         twoFactorEnabled,
         grantTrustedDevice: false,
         source: "password_login",
-        successDescription: `用户 '${user.username}' 登录成功`,
+        successDescription: `用户 '${authenticatedUser.username}' 登录成功`,
       });
     } catch (error) {
       if (error instanceof PolicyConsentRequiredError || error instanceof TwoFactorRequiredError) throw error;

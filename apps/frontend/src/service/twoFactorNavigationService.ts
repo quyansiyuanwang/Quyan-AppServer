@@ -73,6 +73,20 @@ const getRedirect = (): string | undefined => {
   return path.startsWith('/') && !path.startsWith('/auth/verify') ? path : undefined
 }
 
+const getCurrentQueryValue = (name: string): string | undefined => {
+  if (typeof window === 'undefined') return undefined
+  const value = new URLSearchParams(window.location.search).get(name)?.trim()
+  return value || undefined
+}
+
+const getCurrentAuthEntry = (): 'login' | 'register' => {
+  if (typeof window === 'undefined') return 'login'
+  return window.location.pathname.endsWith('/register') ||
+    getCurrentQueryValue('mode') === 'register'
+    ? 'register'
+    : 'login'
+}
+
 let navigationPromise: Promise<boolean> | null = null
 
 /**
@@ -93,9 +107,10 @@ export const navigateToTwoFactorVerification = (response: unknown): Promise<bool
   if (navigationPromise) return navigationPromise
 
   const redirect = typeof data.redirect === 'string' ? data.redirect : getRedirect()
+  const authEntry = getCurrentAuthEntry()
   TypedSessionStorage.setItem(
     StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE,
-    JSON.stringify({ challengeToken, redirect, createdAt: Date.now() }),
+    JSON.stringify({ challengeToken, redirect, authEntry, createdAt: Date.now() }),
   )
 
   const purpose = ['login', 'disable2fa', 'stepup'].includes(String(data.purpose))
@@ -107,7 +122,16 @@ export const navigateToTwoFactorVerification = (response: unknown): Promise<bool
 
   const navigation = import('@/router')
     .then(async ({ default: router }) => {
-      await router.push({ name: 'authVerification', query: { purpose, method } })
+      const flowId = purpose === 'login' ? getCurrentQueryValue('flowId') : undefined
+      await router.push({
+        name: 'authVerification',
+        query: {
+          purpose,
+          method,
+          ...(flowId ? { flowId } : {}),
+          ...(authEntry === 'register' ? { authEntry } : {}),
+        },
+      })
       return true
     })
     .catch((error) => {
