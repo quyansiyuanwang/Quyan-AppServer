@@ -255,103 +255,103 @@
     overflow: hidden;
   }
 
-  :deep(.stats-cards) {
+  .stats-cards {
     max-width: 100%;
   }
 
-  :deep(.stats-card) {
+  .stats-card {
     height: 100%;
     border-radius: 10px;
   }
 
-  :deep(.stats-card .el-card__body) {
+  .stats-card .el-card__body {
     min-height: 86px;
     display: flex;
     align-items: center;
     padding: 14px 16px;
   }
 
-  :deep(.stats-card .el-statistic) {
+  .stats-card .el-statistic {
     width: 100%;
   }
 
-  :deep(.stats-card .el-statistic__head) {
+  .stats-card .el-statistic__head {
     min-height: 34px;
     line-height: 1.35;
     margin-bottom: 6px;
     font-size: 12px;
   }
 
-  :deep(.stats-card .el-statistic__content) {
+  .stats-card .el-statistic__content {
     font-weight: 700;
   }
 
-  :deep(.top-banned-table),
-  :deep(.top-banned-table .el-table__inner-wrapper),
-  :deep(.top-banned-table .el-table__body-wrapper),
-  :deep(.top-banned-table .el-scrollbar__view),
-  :deep(.top-banned-table .el-table__header),
-  :deep(.top-banned-table .el-table__body),
-  :deep(.ip-blacklist-table),
-  :deep(.ip-blacklist-table .el-table__inner-wrapper),
-  :deep(.ip-blacklist-table .el-table__body-wrapper),
-  :deep(.ip-blacklist-table .el-scrollbar__view),
-  :deep(.ip-blacklist-table .el-table__header),
-  :deep(.ip-blacklist-table .el-table__body),
-  :deep(.ip-whitelist-table),
-  :deep(.ip-whitelist-table .el-table__inner-wrapper),
-  :deep(.ip-whitelist-table .el-table__body-wrapper),
-  :deep(.ip-whitelist-table .el-scrollbar__view),
-  :deep(.ip-whitelist-table .el-table__header),
-  :deep(.ip-whitelist-table .el-table__body) {
+  .top-banned-table,
+  .top-banned-table .el-table__inner-wrapper,
+  .top-banned-table .el-table__body-wrapper,
+  .top-banned-table .el-scrollbar__view,
+  .top-banned-table .el-table__header,
+  .top-banned-table .el-table__body,
+  .ip-blacklist-table,
+  .ip-blacklist-table .el-table__inner-wrapper,
+  .ip-blacklist-table .el-table__body-wrapper,
+  .ip-blacklist-table .el-scrollbar__view,
+  .ip-blacklist-table .el-table__header,
+  .ip-blacklist-table .el-table__body,
+  .ip-whitelist-table,
+  .ip-whitelist-table .el-table__inner-wrapper,
+  .ip-whitelist-table .el-table__body-wrapper,
+  .ip-whitelist-table .el-scrollbar__view,
+  .ip-whitelist-table .el-table__header,
+  .ip-whitelist-table .el-table__body {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box;
   }
 
-  :deep(.el-card.section) {
+  .el-card.section {
     border-radius: 10px;
     border: 1px solid var(--el-border-color-lighter);
   }
 
-  :deep(.el-card.section .el-card__header) {
+  .el-card.section .el-card__header {
     font-weight: 600;
     padding: 12px 16px;
   }
 
-  :deep(.el-card.section .el-card__body) {
+  .el-card.section .el-card__body {
     padding: 14px 16px;
   }
 
-  :deep(.tab-header .el-button),
-  :deep(.section .el-button) {
+  .tab-header .el-button,
+  .section .el-button {
     min-height: 36px;
     border-radius: 8px;
   }
 
-  :deep(.tab-header .el-button + .el-button),
-  :deep(.section .el-button + .el-button) {
+  .tab-header .el-button + .el-button,
+  .section .el-button + .el-button {
     margin-left: 8px !important;
   }
 
-  :deep(.el-tabs--border-card) {
+  .el-tabs--border-card {
     border: 1px solid var(--el-border-color-lighter);
     border-radius: 12px;
     overflow: hidden;
   }
 
-  :deep(.el-tabs--border-card > .el-tabs__content) {
+  .el-tabs--border-card > .el-tabs__content {
     padding: 16px;
   }
 
-  :deep(.action-group) {
+  .action-group {
     display: flex;
     justify-content: flex-end;
     align-items: center;
     gap: 10px;
   }
 
-  :deep(.action-group .el-button) {
+  .action-group .el-button {
     margin-left: 0 !important;
   }
 
@@ -364,127 +364,127 @@
       width: 100%;
     }
 
-    :deep(.el-tabs--border-card > .el-tabs__content) {
+    .el-tabs--border-card > .el-tabs__content {
       padding: 10px 8px;
     }
 
-    :deep(.el-card.section) {
+    .el-card.section {
       margin-bottom: 10px;
       border-radius: 10px;
     }
 
-    :deep(.hide-on-mobile),
-    :deep(.el-table__header-wrapper),
-    :deep(.el-scrollbar__bar.is-horizontal),
-    :deep(.el-table__body colgroup),
-    :deep(.el-table__header colgroup) {
+    .hide-on-mobile,
+    .el-table__header-wrapper,
+    .el-scrollbar__bar.is-horizontal,
+    .el-table__body colgroup,
+    .el-table__header colgroup {
       display: none !important;
     }
 
-    :deep(.el-tabs__nav-wrap) {
+    .el-tabs__nav-wrap {
       overflow-x: auto;
     }
 
-    :deep(.el-form--inline),
-    :deep(.tab-header),
-    :deep(.search-bar) {
+    .el-form--inline,
+    .tab-header,
+    .search-bar {
       display: flex;
       flex-direction: column;
       align-items: stretch;
       gap: 8px;
     }
 
-    :deep(.el-row) {
+    .el-row {
       row-gap: 8px;
     }
 
-    :deep(.stats-cards.el-row) {
+    .stats-cards.el-row {
       margin-left: 0 !important;
       margin-right: 0 !important;
     }
 
-    :deep(.stats-cards > .el-col) {
+    .stats-cards > .el-col {
       padding-left: 0 !important;
       padding-right: 0 !important;
       margin-bottom: 8px;
     }
 
-    :deep(.stats-card) {
+    .stats-card {
       width: 100%;
       border-radius: 10px;
     }
 
-    :deep(.stats-card .el-card__body) {
+    .stats-card .el-card__body {
       min-height: 74px;
       display: flex;
       align-items: center;
       padding: 12px 14px;
     }
 
-    :deep(.stats-card .el-statistic) {
+    .stats-card .el-statistic {
       width: 100%;
     }
 
-    :deep(.stats-card .el-statistic__head) {
+    .stats-card .el-statistic__head {
       line-height: 1.35;
       margin-bottom: 4px;
       font-size: 12px;
     }
 
-    :deep(.el-col) {
+    .el-col {
       width: 100% !important;
       max-width: 100% !important;
       flex: 0 0 100% !important;
     }
 
-    :deep(.el-input),
-    :deep(.el-select),
-    :deep(.el-date-editor),
-    :deep(.el-input-number),
-    :deep(.el-textarea),
-    :deep(.el-button) {
+    .el-input,
+    .el-select,
+    .el-date-editor,
+    .el-input-number,
+    .el-textarea,
+    .el-button {
       width: 100%;
       max-width: 100% !important;
     }
 
-    :deep(.tab-header > div) {
+    .tab-header > div {
       width: 100%;
     }
 
-    :deep(.tab-header .el-button),
-    :deep(.section .el-button) {
+    .tab-header .el-button,
+    .section .el-button {
       min-height: 38px;
       border-radius: 8px;
     }
 
-    :deep(.tab-header .el-button + .el-button),
-    :deep(.section .el-button + .el-button) {
+    .tab-header .el-button + .el-button,
+    .section .el-button + .el-button {
       margin-left: 0 !important;
     }
 
-    :deep(.el-table__inner-wrapper),
-    :deep(.el-table__body-wrapper),
-    :deep(.el-table__body-wrapper .el-scrollbar),
-    :deep(.el-table__body-wrapper .el-scrollbar__wrap),
-    :deep(.el-table__body-wrapper .el-scrollbar__view) {
+    .el-table__inner-wrapper,
+    .el-table__body-wrapper,
+    .el-table__body-wrapper .el-scrollbar,
+    .el-table__body-wrapper .el-scrollbar__wrap,
+    .el-table__body-wrapper .el-scrollbar__view {
       overflow-x: hidden !important;
     }
 
-    :deep(.el-table__body-wrapper) {
+    .el-table__body-wrapper {
       overflow-y: visible !important;
       padding: 4px 0 10px;
     }
 
-    :deep(.top-banned-table .el-table__body-wrapper) {
+    .top-banned-table .el-table__body-wrapper {
       padding: 0;
     }
 
-    :deep(.top-banned-table .cell) {
+    .top-banned-table .cell {
       white-space: normal;
       word-break: break-word;
     }
 
-    :deep(.top-banned-table td.top-banned-ip-col .cell) {
+    .top-banned-table td.top-banned-ip-col .cell {
       width: 100%;
       max-width: none !important;
       white-space: nowrap !important;
@@ -493,13 +493,13 @@
       text-overflow: clip !important;
     }
 
-    :deep(.el-table__body tbody) {
+    .el-table__body tbody {
       display: flex;
       flex-direction: column;
       gap: 10px;
     }
 
-    :deep(.el-table__body tr) {
+    .el-table__body tr {
       display: block;
       width: 100% !important;
       margin: 0;
@@ -509,13 +509,13 @@
       background: var(--el-fill-color-blank);
     }
 
-    :deep(.el-table__body td) {
+    .el-table__body td {
       display: block;
       border: none !important;
       padding: 5px 0;
     }
 
-    :deep(.el-table__body td::before) {
+    .el-table__body td::before {
       content: attr(data-label);
       display: block;
       margin-bottom: 2px;
@@ -524,30 +524,30 @@
       font-weight: 600;
     }
 
-    :deep(.action-group) {
+    .action-group {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
     }
 
-    :deep(.action-group .el-button) {
+    .action-group .el-button {
       min-height: 34px;
       padding: 0 12px;
     }
 
-    :deep(.el-dialog) {
+    .el-dialog {
       width: 96% !important;
       max-width: 96% !important;
       margin-top: 3vh !important;
     }
 
-    :deep(.el-dialog__body) {
+    .el-dialog__body {
       max-height: 72vh;
       overflow: auto;
       padding: 12px 14px;
     }
 
-    :deep(.el-pagination) {
+    .el-pagination {
       justify-content: center;
       flex-wrap: wrap;
       gap: 8px;
@@ -555,7 +555,7 @@
   }
 
   @media (max-width: 768px) {
-    :deep(.hide-on-mobile) {
+    .hide-on-mobile {
       display: none;
     }
   }

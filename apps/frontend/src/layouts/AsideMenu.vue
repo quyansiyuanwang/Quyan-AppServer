@@ -2244,11 +2244,11 @@ watch(
   }
 }
 
-.overview-drawer :deep(.el-drawer__body) {
+.overview-drawer .el-drawer__body {
   padding: 0;
 }
 
-.overview-drawer :deep(.el-drawer) {
+.overview-drawer .el-drawer {
   max-width: calc(100vw - 24px);
 }
 
@@ -2300,7 +2300,7 @@ watch(
   gap: 12px;
 }
 
-.overview-search :deep(.el-input__wrapper) {
+.overview-search .el-input__wrapper {
   border-radius: 12px;
 }
 
@@ -2930,7 +2930,7 @@ watch(
   height: 100%;
 }
 
-.mobile-menu-drawer :deep(.el-drawer__body) {
+.mobile-menu-drawer .el-drawer__body {
   padding: 0;
 }
 
@@ -3003,11 +3003,11 @@ watch(
 }
 
 .mobile-quick-actions .el-button,
-.mobile-quick-actions :deep(.el-dropdown) {
+.mobile-quick-actions .el-dropdown {
   flex: 1;
 }
 
-.mobile-quick-actions :deep(.el-dropdown .el-button) {
+.mobile-quick-actions .el-dropdown .el-button {
   width: 100%;
 }
 

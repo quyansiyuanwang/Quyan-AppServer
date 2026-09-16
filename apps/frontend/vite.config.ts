@@ -375,7 +375,9 @@ export default defineConfig(({ mode }) => {
         ),
       )
       if (unsafeFrameworkModule) {
-        throw new Error(`Non-core Vue dependency was assigned to framework: ${unsafeFrameworkModule}`)
+        throw new Error(
+          `Non-core Vue dependency was assigned to framework: ${unsafeFrameworkModule}`,
+        )
       }
 
       const initialChunkNames = new Set<string>()
@@ -494,6 +496,32 @@ export default defineConfig(({ mode }) => {
       )
       const jsAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.js')).length
       const cssAssetCount = clientAssets.filter((entry) => entry.name.endsWith('.css')).length
+      const emittedCss = clientAssets
+        .filter((entry) => entry.name.endsWith('.css'))
+        .map((entry) => readFileSync(resolve(assetsDir, entry.name), 'utf8'))
+        .join('\n')
+      const requiredRuntimeStyles = [
+        ['ElCard', '.el-card'],
+        ['ElMessage', '.el-message'],
+        ['ElMessageBox', '.el-message-box'],
+        ['ElNotification', '.el-notification'],
+      ] as const
+      const missingRuntimeStyles = requiredRuntimeStyles.filter(([, selector]) => {
+        const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        return !new RegExp(`(?:^|[},])${escapedSelector}(?=[,{.:\\[ >])`).test(emittedCss)
+      })
+      if (missingRuntimeStyles.length > 0) {
+        throw new Error(
+          `Element Plus runtime styles are missing from the build: ${missingRuntimeStyles
+            .map(([name]) => name)
+            .join(', ')}`,
+        )
+      }
+      if (/(?<!\\):(?:deep|global)\(/.test(emittedCss)) {
+        throw new Error(
+          'Unprocessed :deep()/:global() selectors were emitted; use plain global selectors for non-scoped styles',
+        )
+      }
       const indexHtml = readFileSync(resolve(outputDir, 'index.html'), 'utf8')
       const initialAssetNames = [
         ...new Set(
