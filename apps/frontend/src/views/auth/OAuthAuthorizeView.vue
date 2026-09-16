@@ -239,7 +239,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'

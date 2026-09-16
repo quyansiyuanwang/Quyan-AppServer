@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ALL_PERMISSIONS } from "@/constant/permission";
 import { AccountStatus } from "@/util/auth/account-status";
+import { encryptedPasswordCredentialSchema } from "@/api/schema/auth/password-encryption.schema";
 
 const usernameRegex = /^[a-zA-Z0-9_]+$/;
 const roleNameRegex = /^[a-zA-Z0-9+=,.@_-]+$/;
@@ -22,18 +23,24 @@ export const ramPolicyIdParamsSchema = z.object({
   policyId: z.string().trim().min(1),
 });
 
-export const createRamUserBodySchema = z.object({
-  username: z.string().trim().min(3).max(50).regex(usernameRegex),
-  password: z.string().min(6).max(50).optional(),
-  ramUsername: z.string().trim().min(3).max(64).regex(usernameRegex).optional(),
-  displayName: z.string().trim().max(80).optional(),
-  email: z.string().email().max(200).optional(),
-  name: z.string().max(50).optional(),
-  groupId: z.string().trim().min(1).optional(),
-  enableConsole: z.boolean().optional(),
-  enableAccessKey: z.boolean().optional(),
-  passwordResetRequired: z.boolean().optional(),
-});
+export const createRamUserBodySchema = z
+  .object({
+    username: z.string().trim().min(3).max(50).regex(usernameRegex),
+    password: z.string().min(6).max(50).optional(),
+    passwordCredential: encryptedPasswordCredentialSchema.optional(),
+    ramUsername: z.string().trim().min(3).max(64).regex(usernameRegex).optional(),
+    displayName: z.string().trim().max(80).optional(),
+    email: z.string().email().max(200).optional(),
+    name: z.string().max(50).optional(),
+    groupId: z.string().trim().min(1).optional(),
+    enableConsole: z.boolean().optional(),
+    enableAccessKey: z.boolean().optional(),
+    passwordResetRequired: z.boolean().optional(),
+  })
+  .refine((data) => !(data.password && data.passwordCredential), {
+    message: "password and passwordCredential cannot be submitted together",
+    path: ["password"],
+  });
 
 export const updateRamUserBodySchema = z.object({
   displayName: z.string().trim().max(80).optional(),

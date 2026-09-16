@@ -1,6 +1,11 @@
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
-import axios, { type Axios, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import axios, {
+  CanceledError,
+  type Axios,
+  type AxiosError,
+  type InternalAxiosRequestConfig,
+} from 'axios'
 import { defineStore } from 'pinia'
 import { HttpStatusCode } from 'axios'
 import StorageKey from '@/constant/storagekey'
@@ -18,6 +23,7 @@ import { toServiceError } from '@/utils/error-utils'
 import {
   isTwoFactorRequiredResponse,
   navigateToTwoFactorVerification,
+  TwoFactorRedirectError,
 } from '@/service/twoFactorNavigationService'
 
 type AnyEndpointDescriptor = ApiEndpointDescriptor<ApiMethod, any, any, any, any, any>
@@ -29,6 +35,12 @@ type EndpointWithMethod<METHOD extends ApiMethod> = ApiEndpointDescriptor<
   any,
   any
 >
+
+interface PendingTwoFactorRequest {
+  request: RetryAxiosRequest
+  resolve: (value: unknown) => void
+  reject: (reason?: unknown) => void
+}
 
 type RetryAxiosRequest = InternalAxiosRequestConfig & {
   _retry?: boolean
@@ -208,7 +220,7 @@ class MyAxios {
   private baseURL: string
   private instance: Axios
   private static refreshTokenPromise: Promise<string> | null = null
-  private static pendingTwoFactorRequests: RetryAxiosRequest[] = []
+  private static pendingTwoFactorRequests: PendingTwoFactorRequest[] = []
   static _defaultOptions: FullRequestOptions = {
     retry: true,
     requestWrapper: (p) => p,
@@ -294,29 +306,54 @@ class MyAxios {
     }
   }
 
-  // 保存待 2FA 验证的请求（加入队列）
-  static savePendingTwoFactorRequest(request: RetryAxiosRequest) {
-    MyAxios.pendingTwoFactorRequests.push(request)
-    console.log('[2FA Queue] Request saved to queue:', {
-      url: request.url,
-      method: request.method,
-      queueLength: MyAxios.pendingTwoFactorRequests.length,
+  // 保存待 2FA 验证的请求，并保持原 Promise 等待验证完成后的重试结果。
+  static queuePendingTwoFactorRequest(request: RetryAxiosRequest): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      MyAxios.pendingTwoFactorRequests.push({ request, resolve, reject })
+      console.log('[2FA Queue] Request saved to queue:', {
+        url: request.url,
+        method: request.method,
+        queueLength: MyAxios.pendingTwoFactorRequests.length,
+      })
     })
   }
 
-  // 获取所有待 2FA 验证的请求并清空队列
-  static getPendingTwoFactorRequests(): RetryAxiosRequest[] {
+  static getPendingTwoFactorRequests(): PendingTwoFactorRequest[] {
     const requests = [...MyAxios.pendingTwoFactorRequests]
     MyAxios.pendingTwoFactorRequests = []
-    console.log('[2FA Queue] Retrieved and cleared queue:', {
-      count: requests.length,
-    })
     return requests
   }
 
-  // 清除所有待 2FA 验证的请求
-  static clearPendingTwoFactorRequests() {
-    MyAxios.pendingTwoFactorRequests = []
+  static clearPendingTwoFactorRequests(
+    reason: unknown = new CanceledError('Two-factor verification canceled'),
+  ) {
+    const requests = MyAxios.getPendingTwoFactorRequests()
+    requests.forEach(({ reject }) => reject(reason))
+  }
+
+  private static rejectPendingTwoFactorRequest(request: RetryAxiosRequest, reason: unknown): void {
+    const index = MyAxios.pendingTwoFactorRequests.findIndex((entry) => entry.request === request)
+    if (index < 0) return
+    const [entry] = MyAxios.pendingTwoFactorRequests.splice(index, 1)
+    entry?.reject(reason)
+  }
+
+  private static isLoginTwoFactorRequest(request: RetryAxiosRequest): boolean {
+    return String(request.url || '').includes('/v1/auth/login')
+  }
+
+  private static async handleTwoFactorRequired(responseData: unknown, request: RetryAxiosRequest) {
+    const error = createTwoFactorRequiredError(responseData)
+    if (MyAxios.isLoginTwoFactorRequest(request)) {
+      const navigated = await navigateToTwoFactorVerification(responseData)
+      if (!navigated) throw error
+      throw new TwoFactorRedirectError(error.message, error.data as any)
+    }
+
+    const pending = MyAxios.queuePendingTwoFactorRequest(request)
+    const navigated = await navigateToTwoFactorVerification(responseData)
+    if (!navigated) MyAxios.rejectPendingTwoFactorRequest(request, error)
+    return pending
   }
 
   // 重试所有待 2FA 验证的请求
@@ -343,7 +380,7 @@ class MyAxios {
     }
 
     // 并发重试所有请求
-    const retryPromises = pendingRequests.map(async (request, index) => {
+    const retryPromises = pendingRequests.map(async ({ request, resolve, reject }, index) => {
       // 标记为 2FA 重试，避免再次保存
       request._twoFactorRetry = true
       // 增加重试计数
@@ -360,7 +397,7 @@ class MyAxios {
         const body = request.data ? MyAxios.normalizeReplayRequestBody(request.data) : undefined
         const path = request.url || ''
         const signingMaterial = await ReplaySigningService.getInstance().ensureSigningMaterial()
-        const replayHeaders = ReplayProtection.generateHeaders(body, path, signingMaterial)
+        const replayHeaders = await ReplayProtection.generateHeaders(body, path, signingMaterial)
 
         if (request.headers) {
           MyAxios.deleteHeaderValue(request.headers, 'X-Nonce')
@@ -389,10 +426,15 @@ class MyAxios {
         hasOneTimeToken: !!oneTimeToken,
       })
 
-      return this.instance.request(request).catch((error) => {
+      try {
+        const response = await this.instance.request(request)
+        resolve(response)
+        return response
+      } catch (error) {
         console.error(`[2FA Retry] Failed to retry request ${index + 1}:`, error)
+        reject(error)
         return null
-      })
+      }
     })
 
     const results = await Promise.all(retryPromises)
@@ -435,7 +477,11 @@ class MyAxios {
     const signingMaterial = await replaySigningService.refreshSigningMaterial()
     const finalUrl = String(originalRequest.url || '').trim()
     const requestBody = MyAxios.normalizeReplayRequestBody(originalRequest.data)
-    const replayHeaders = ReplayProtection.generateHeaders(requestBody, finalUrl, signingMaterial)
+    const replayHeaders = await ReplayProtection.generateHeaders(
+      requestBody,
+      finalUrl,
+      signingMaterial,
+    )
     const clientFingerprint = getOrCreateClientFingerprint()
 
     MyAxios.deleteHeaderValue(originalRequest.headers, 'X-Nonce')
@@ -554,13 +600,9 @@ class MyAxios {
             return Promise.reject(new Error('此操作需要每次验证，请重新执行操作'))
           }
 
-          // 如果不是重试请求，保存到队列
-          if (!originalRequest._twoFactorRetry) {
-            MyAxios.savePendingTwoFactorRequest(originalRequest)
-          }
-
-          await navigateToTwoFactorVerification(response.data)
-          return Promise.reject(createTwoFactorRequiredError(response.data))
+          if (originalRequest._twoFactorRetry)
+            return Promise.reject(createTwoFactorRequiredError(response.data))
+          return MyAxios.handleTwoFactorRequired(response.data, originalRequest)
         }
 
         // 如果code不为0，抛出错误
@@ -612,13 +654,10 @@ class MyAxios {
             return Promise.reject(new Error('此操作需要每次验证，请重新执行操作'))
           }
 
-          // 如果不是重试请求，保存到队列
-          if (originalRequest && !originalRequest._twoFactorRetry) {
-            MyAxios.savePendingTwoFactorRequest(originalRequest)
-          }
-
-          await navigateToTwoFactorVerification(responseData)
-          return Promise.reject(createTwoFactorRequiredError(responseData))
+          if (!originalRequest) return Promise.reject(createTwoFactorRequiredError(responseData))
+          if (originalRequest._twoFactorRetry)
+            return Promise.reject(createTwoFactorRequiredError(responseData))
+          return MyAxios.handleTwoFactorRequired(responseData, originalRequest)
         }
 
         // 处理 401 未授权错误，尝试刷新 token
@@ -690,7 +729,7 @@ class MyAxios {
 
     const replayProtectionHeader =
       needsReplayProtection && finalUrl && signingMaterial
-        ? ReplayProtection.generateHeaders(body, finalUrl, signingMaterial)
+        ? await ReplayProtection.generateHeaders(body, finalUrl, signingMaterial)
         : {}
 
     const clientFingerprint = getOrCreateClientFingerprint()
@@ -902,7 +941,9 @@ class MyAxios {
       'Content-Type': 'application/json',
       ...getLocaleHeaders(),
       ...(clientFingerprint ? { 'X-Client-Fingerprint': clientFingerprint } : {}),
-      ...(signingMaterial ? ReplayProtection.generateHeaders(body, path, signingMaterial) : {}),
+      ...(signingMaterial
+        ? await ReplayProtection.generateHeaders(body, path, signingMaterial)
+        : {}),
     }
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`
 
@@ -999,6 +1040,9 @@ export const useRequestStore = defineStore('Request', () => {
   const retryPendingTwoFactorRequests = async () => {
     return instance.retryPendingTwoFactorRequests()
   }
+  const cancelPendingTwoFactorRequests = () => {
+    MyAxios.clearPendingTwoFactorRequests()
+  }
 
   const prepareStreamingRequest = (path: string, body: unknown) =>
     instance.prepareStreamingRequest(path, body)
@@ -1010,6 +1054,7 @@ export const useRequestStore = defineStore('Request', () => {
     prepareStreamingRequest,
     refreshStreamingSession,
     retryPendingTwoFactorRequests,
+    cancelPendingTwoFactorRequests,
   }
 })
 

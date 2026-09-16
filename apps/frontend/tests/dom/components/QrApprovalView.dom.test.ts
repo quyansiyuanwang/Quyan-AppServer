@@ -62,7 +62,7 @@ vi.mock('@/service/authorizationService', () => ({
   },
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     success: elMessageSuccessMock,
     error: elMessageErrorMock,

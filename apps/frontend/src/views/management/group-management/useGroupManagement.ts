@@ -1,5 +1,5 @@
 import { computed, onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'

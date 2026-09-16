@@ -179,7 +179,7 @@
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import StorageKey from '@/constant/storagekey'
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import { Notification } from '@/utils/notification'
@@ -316,11 +316,6 @@ const completeAndRedirect = async (userData?: Record<string, any>) => {
 
   await authorizationService.reloadAuthStoresAfterLogin(userData)
 
-  if (resolveCurrentSiteProfile().id === 'identity') {
-    replaceDocument(getDefaultAccountDestination())
-    return
-  }
-
   // 重试所有待 2FA 验证的请求（如果有的话）
   const requestStore = useRequestStore()
   try {
@@ -331,6 +326,11 @@ const completeAndRedirect = async (userData?: Record<string, any>) => {
   } catch (error) {
     console.error('[2FA] Failed to retry pending requests:', error)
     // 即使重试失败也继续，因为 2FA 验证已经成功了
+  }
+
+  if (resolveCurrentSiteProfile().id === 'identity') {
+    replaceDocument(getDefaultAccountDestination())
+    return
   }
 
   Notification.notify(
@@ -714,6 +714,8 @@ const handleSubmitEmailCode = async () => {
 }
 
 const handleGoBack = () => {
+  useRequestStore().cancelPendingTwoFactorRequests()
+
   if (isDisableTwoFactorFlow.value) {
     router.push(getSafeDisableRedirect())
     return

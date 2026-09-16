@@ -55,7 +55,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Refresh } from '@element-plus/icons-vue'
 import type { DeveloperProductCode } from '@/client/types.gen'
 import { developerProductService } from '@/service/developerProductService'

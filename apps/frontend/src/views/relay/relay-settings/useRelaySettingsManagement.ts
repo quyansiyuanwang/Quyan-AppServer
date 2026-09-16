@@ -1,7 +1,7 @@
 import { usePageDevice } from '@/composables/usePageDevice'
 import { Permission } from '@/constant/permission'
 import { i18ns } from '@/locales'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { configService } from '@/service/configService'

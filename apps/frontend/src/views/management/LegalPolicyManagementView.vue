@@ -329,7 +329,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules, InputInstance } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import { usePageDevice } from '@/composables/usePageDevice'

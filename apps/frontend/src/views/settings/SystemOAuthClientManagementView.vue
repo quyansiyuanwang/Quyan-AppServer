@@ -185,7 +185,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Plus, Check, Close } from '@element-plus/icons-vue'
 import { OAuthClientService } from '@/service/oauthClientService'
 import type { OAuthClientDto } from '@/client/types.gen'

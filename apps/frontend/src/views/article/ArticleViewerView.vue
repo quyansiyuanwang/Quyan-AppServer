@@ -199,7 +199,7 @@
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { User, Calendar, View, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { articleService } from '@/service/articleService'

@@ -116,7 +116,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
 import systemService from '@/service/systemService'

@@ -17,7 +17,7 @@ vi.mock('@/service/developerProductService', () => ({
     updateJsonEndpointResource: updateJsonEndpointResourceMock,
   },
 }))
-vi.mock('element-plus', () => ({ ElMessage: { success: messageSuccessMock, error: vi.fn() } }))
+vi.mock('@/utils/elementPlusRuntime', () => ({ ElMessage: { success: messageSuccessMock, error: vi.fn() } }))
 vi.mock('@/locales', () => ({ i18ns: { t: (key: string) => key } }))
 
 const endpoint = {

@@ -54,7 +54,7 @@
 </template>
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from '@/utils/elementPlusRuntime'
 import type {
   DeveloperProductCode,
   DeveloperProductUsageDto,

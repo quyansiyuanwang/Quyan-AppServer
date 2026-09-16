@@ -48,7 +48,7 @@ vi.mock('@/service/relayChannelService', () => ({
   },
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     success: messageSuccessMock,
     error: messageErrorMock,

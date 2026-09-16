@@ -221,7 +221,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onActivated } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 
 import type { OjapiKeyDto, RelayChannelOptionDto } from '@/client/types.gen'
 import { usePageDevice } from '@/composables/usePageDevice'

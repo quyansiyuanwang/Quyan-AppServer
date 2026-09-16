@@ -44,7 +44,7 @@ vi.mock('@/stores/permissionStore', () => ({
   }),
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     error: vi.fn(),
     success: vi.fn(),

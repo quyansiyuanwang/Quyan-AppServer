@@ -280,7 +280,7 @@
 </template>
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { contentSafetyService } from '@/service/contentSafetyService'

@@ -1,4 +1,4 @@
-import { ElNotification } from 'element-plus'
+import { ElNotification } from '@/utils/elementPlusRuntime'
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning'
 export type Position = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'

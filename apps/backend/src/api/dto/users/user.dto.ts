@@ -1,3 +1,5 @@
+import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-encryption.dto";
+
 /**
  * 用户基本信息
  */
@@ -49,7 +51,10 @@ export interface CreateUserDto {
   /**
    * 密码
    */
-  password: string;
+  password?: string;
+
+  /** 使用服务端公钥加密后的密码凭据。 */
+  passwordCredential?: EncryptedPasswordCredentialDto;
 
   /**
    * 邮箱
@@ -155,7 +160,10 @@ export interface ChangePasswordDTO {
   /**
    * 新密码
    */
-  newPassword: string;
+  newPassword?: string;
+
+  /** 使用服务端公钥加密后的新密码凭据。 */
+  newPasswordCredential?: EncryptedPasswordCredentialDto;
 }
 
 /**

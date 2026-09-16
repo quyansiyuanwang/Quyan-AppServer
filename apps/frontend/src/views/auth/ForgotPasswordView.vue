@@ -148,11 +148,11 @@ import router from '@/router'
 import { authorizationService } from '@/service/authorizationService'
 import { useThemeToggleStore } from '@/stores/themeToggleStore'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
-import { md5 } from '@/utils/encryption'
+
 import { Notification } from '@/utils/notification'
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { type FormInstance, type FormRules } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { warmupCaptchaTrust } from '@/service/captchaDialogService'
 import { getLoginRoute, getSafeAuthRedirect } from '@/utils/auth-routes'
@@ -431,7 +431,7 @@ const handleSubmit = async () => {
         username: form.username.trim(),
         email: form.email.trim(),
         verificationCode: form.verificationCode,
-        newPassword: md5(form.newPassword),
+        newPassword: form.newPassword,
       },
       () => {
         captchaVerifying.value = true

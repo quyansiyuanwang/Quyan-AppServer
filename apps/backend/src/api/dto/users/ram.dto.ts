@@ -1,4 +1,5 @@
 import type { Permission } from "@/constant/permission";
+import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-encryption.dto";
 
 export interface RamUserDto {
   id: string;
@@ -22,6 +23,7 @@ export interface RamUserDto {
 export interface CreateRamUserDto {
   username: string;
   password?: string;
+  passwordCredential?: EncryptedPasswordCredentialDto;
   ramUsername?: string;
   displayName?: string;
   email?: string;

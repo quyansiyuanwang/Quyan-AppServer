@@ -360,7 +360,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ArrowRight, Document, Key, Lock } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus'
 import type { JsonEndpointDto } from '@/client/types.gen'
 import JsonEditor from '@/components/editor/JsonEditor.vue'

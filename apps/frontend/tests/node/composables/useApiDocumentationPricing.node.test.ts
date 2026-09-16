@@ -11,7 +11,7 @@ const { getModelPricingMock, listCatalogOptionsMock } = vi.hoisted(() => ({
   listCatalogOptionsMock: vi.fn<() => Promise<RelayCatalogOptionDto[]>>(),
 }))
 
-vi.mock('element-plus', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('@/utils/elementPlusRuntime', () => ({ ElMessage: { error: vi.fn(), success: vi.fn() } }))
 vi.mock('@/service/modelPricingService', () => ({
   modelPricingService: { getModelPricing: getModelPricingMock },
 }))

@@ -161,7 +161,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { TopRight } from '@element-plus/icons-vue'
 import type {
   CreateDeveloperStatusMonitorDto,

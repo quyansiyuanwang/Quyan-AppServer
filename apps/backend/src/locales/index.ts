@@ -361,6 +361,7 @@ const codeMessageKeyMap: Partial<Record<CustomCode, MessageKey>> = {
   [CustomCode.LEGAL_POLICY_VERSION_CONFLICT]: "errors.legalPolicyVersionConflict",
   [CustomCode.RESOURCE_ALREADY_EXISTS]: "errors.resourceAlreadyExists",
   [CustomCode.CAPTCHA_TRUST_REQUIRED]: "errors.captchaTrustRequired",
+  [CustomCode.PASSWORD_ENCRYPTION_KEY_INVALID]: "errors.passwordEncryptionKeyInvalid",
 };
 
 export interface MessageDescriptor {

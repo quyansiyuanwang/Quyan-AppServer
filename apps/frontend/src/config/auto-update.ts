@@ -1,5 +1,5 @@
 import { i18ns } from '@/locales'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox } from '@/utils/elementPlusRuntime'
 import { reloadDocument } from '@/service/navigationService'
 
 export const extractEntryModule = (html: string): string | undefined => {

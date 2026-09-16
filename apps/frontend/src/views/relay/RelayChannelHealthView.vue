@@ -385,7 +385,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Refresh, Search } from '@element-plus/icons-vue'
 import { Permission } from '@/constant/permission'
 import { i18ns } from '@/locales'

@@ -278,7 +278,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type {
   DeveloperProductInstanceDto,
   DeveloperPushChannelDto,

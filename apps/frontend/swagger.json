@@ -30668,6 +30668,39 @@
 				"parameters": []
 			}
 		},
+		"/v1/auth/password-encryption-key": {
+			"get": {
+				"operationId": "AuthControllerGetPasswordEncryptionKey",
+				"responses": {
+					"200": {
+						"description": "获取密码加密公钥成功",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/PasswordEncryptionKeyResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "Return the active public key clients use to encrypt password submissions.",
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
 		"/v1/auth/captcha/trust-status": {
 			"get": {
 				"operationId": "AuthControllerGetCaptchaTrustStatus",
@@ -33956,7 +33989,8 @@
 					1044,
 					1045,
 					1046,
-					1047
+					1047,
+					1048
 				],
 				"type": "number"
 			},
@@ -34257,6 +34291,35 @@
 			"CreateUserResponse": {
 				"$ref": "#/components/schemas/UserDto"
 			},
+			"PasswordEncryptionAlgorithm": {
+				"type": "string",
+				"enum": [
+					"RSA-OAEP-256"
+				],
+				"nullable": false,
+				"description": "Supported client-side password encryption algorithms."
+			},
+			"EncryptedPasswordCredentialDto": {
+				"description": "Encrypted password credential accepted by password-bearing endpoints.",
+				"properties": {
+					"algorithm": {
+						"$ref": "#/components/schemas/PasswordEncryptionAlgorithm"
+					},
+					"keyId": {
+						"type": "string"
+					},
+					"ciphertext": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"algorithm",
+					"keyId",
+					"ciphertext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"CreateUserDto": {
 				"description": "创建用户请求",
 				"properties": {
@@ -34267,6 +34330,10 @@
 					"password": {
 						"type": "string",
 						"description": "密码"
+					},
+					"passwordCredential": {
+						"$ref": "#/components/schemas/EncryptedPasswordCredentialDto",
+						"description": "使用服务端公钥加密后的密码凭据。"
 					},
 					"email": {
 						"type": "string",
@@ -34282,8 +34349,7 @@
 					}
 				},
 				"required": [
-					"username",
-					"password"
+					"username"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -34321,11 +34387,12 @@
 					"newPassword": {
 						"type": "string",
 						"description": "新密码"
+					},
+					"newPasswordCredential": {
+						"$ref": "#/components/schemas/EncryptedPasswordCredentialDto",
+						"description": "使用服务端公钥加密后的新密码凭据。"
 					}
 				},
-				"required": [
-					"newPassword"
-				],
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -34863,6 +34930,9 @@
 					},
 					"password": {
 						"type": "string"
+					},
+					"passwordCredential": {
+						"$ref": "#/components/schemas/EncryptedPasswordCredentialDto"
 					},
 					"ramUsername": {
 						"type": "string"
@@ -57010,42 +57080,7 @@
 				"additionalProperties": false
 			},
 			"UpdateCarpoolPackageTemplateRequest": {
-				"properties": {
-					"name": {
-						"type": "string"
-					},
-					"description": {
-						"type": "string"
-					},
-					"salePrice": {
-						"type": "number",
-						"format": "double"
-					},
-					"upstreamCost": {
-						"type": "number",
-						"format": "double"
-					},
-					"maxMembers": {
-						"type": "number",
-						"format": "double"
-					},
-					"formationDeadlineHours": {
-						"type": "number",
-						"format": "double"
-					},
-					"monthlyPassTemplateId": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"name",
-					"salePrice",
-					"upstreamCost",
-					"maxMembers",
-					"monthlyPassTemplateId"
-				],
-				"type": "object",
-				"additionalProperties": false
+				"$ref": "#/components/schemas/CreateCarpoolPackageTemplateRequest"
 			},
 			"CarpoolOrderState": {
 				"type": "string",
@@ -58460,6 +58495,27 @@
 			"ReplaySigningSessionResponse": {
 				"$ref": "#/components/schemas/ReplaySigningSessionData"
 			},
+			"PasswordEncryptionKeyResponse": {
+				"description": "Public key metadata used to encrypt a password before submission.",
+				"properties": {
+					"algorithm": {
+						"$ref": "#/components/schemas/PasswordEncryptionAlgorithm"
+					},
+					"keyId": {
+						"type": "string"
+					},
+					"publicKey": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"algorithm",
+					"keyId",
+					"publicKey"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"VerifyCaptchaTrustResponse": {
 				"properties": {
 					"trusted": {
@@ -58643,42 +58699,10 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"TwoFactorRequiredData": {
-				"description": "需要二次验证时的登录响应",
-				"properties": {
-					"requiresTwoFactor": {
-						"type": "boolean",
-						"enum": [
-							true
-						],
-						"nullable": false,
-						"description": "是否需要二次验证"
-					},
-					"challengeToken": {
-						"type": "string",
-						"description": "二次验证 challenge token"
-					},
-					"expiresIn": {
-						"type": "number",
-						"format": "double",
-						"description": "过期秒数"
-					}
-				},
-				"required": [
-					"requiresTwoFactor",
-					"challengeToken",
-					"expiresIn"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
 			"LoginResponse": {
 				"anyOf": [
 					{
 						"$ref": "#/components/schemas/AuthData"
-					},
-					{
-						"$ref": "#/components/schemas/TwoFactorRequiredData"
 					},
 					{
 						"$ref": "#/components/schemas/PolicyConsentRequiredData"
@@ -58694,7 +58718,11 @@
 					},
 					"password": {
 						"type": "string",
-						"description": "密码"
+						"description": "密码（旧客户端字段，已废弃）"
+					},
+					"passwordCredential": {
+						"$ref": "#/components/schemas/EncryptedPasswordCredentialDto",
+						"description": "使用服务端公钥加密后的密码凭据。"
 					},
 					"agreedToLegalPolicies": {
 						"type": "boolean",
@@ -58711,7 +58739,6 @@
 				},
 				"required": [
 					"username",
-					"password",
 					"agreedToLegalPolicies"
 				],
 				"type": "object",
@@ -58770,6 +58797,35 @@
 				},
 				"required": [
 					"provider"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"TwoFactorRequiredData": {
+				"description": "需要二次验证时的登录响应",
+				"properties": {
+					"requiresTwoFactor": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false,
+						"description": "是否需要二次验证"
+					},
+					"challengeToken": {
+						"type": "string",
+						"description": "二次验证 challenge token"
+					},
+					"expiresIn": {
+						"type": "number",
+						"format": "double",
+						"description": "过期秒数"
+					}
+				},
+				"required": [
+					"requiresTwoFactor",
+					"challengeToken",
+					"expiresIn"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -59368,7 +59424,11 @@
 					},
 					"newPassword": {
 						"type": "string",
-						"description": "新密码（已 MD5 哈希）"
+						"description": "新密码（旧客户端字段，已废弃）"
+					},
+					"newPasswordCredential": {
+						"$ref": "#/components/schemas/EncryptedPasswordCredentialDto",
+						"description": "使用服务端公钥加密后的新密码凭据。"
 					},
 					"captchaToken": {
 						"type": "string",
@@ -59378,8 +59438,7 @@
 				"required": [
 					"username",
 					"email",
-					"verificationCode",
-					"newPassword"
+					"verificationCode"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -59404,7 +59463,11 @@
 					},
 					"password": {
 						"type": "string",
-						"description": "密码（已 MD5 哈希）"
+						"description": "密码（旧客户端字段，已废弃）"
+					},
+					"passwordCredential": {
+						"$ref": "#/components/schemas/EncryptedPasswordCredentialDto",
+						"description": "使用服务端公钥加密后的密码凭据。"
 					},
 					"nickname": {
 						"type": "string",
@@ -59433,7 +59496,6 @@
 				},
 				"required": [
 					"username",
-					"password",
 					"email",
 					"verificationCode",
 					"agreedToLegalPolicies"

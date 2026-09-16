@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { encryptedPasswordCredentialSchema } from "@/api/schema/auth/password-encryption.schema";
 
 const usernameRegex = /^[a-zA-Z0-9_]+$/;
 const siteRelativeRedirectRegex = /^\/(?!\/).*/;
@@ -20,12 +21,25 @@ const externalRedirectSchema = z
     },
   );
 
-export const loginBodySchema = z.object({
-  username: z.string().trim().min(3).max(20).regex(usernameRegex),
-  password: z.string().min(6).max(50),
-  agreedToLegalPolicies: z.literal(true),
-  captchaToken: z.string().max(4000).optional(),
-});
+const legacyPasswordSchema = z.string().min(6).max(50);
+
+const requirePasswordOrCredential = (data: {
+  password?: string;
+  passwordCredential?: z.infer<typeof encryptedPasswordCredentialSchema>;
+}) => Boolean(data.password) !== Boolean(data.passwordCredential);
+
+export const loginBodySchema = z
+  .object({
+    username: z.string().trim().min(3).max(20).regex(usernameRegex),
+    password: legacyPasswordSchema.optional(),
+    passwordCredential: encryptedPasswordCredentialSchema.optional(),
+    agreedToLegalPolicies: z.literal(true),
+    captchaToken: z.string().max(4000).optional(),
+  })
+  .refine(requirePasswordOrCredential, {
+    message: "password or passwordCredential is required",
+    path: ["password"],
+  });
 
 export const refreshBodySchema = z.preprocess(
   (value) => value ?? {},
@@ -55,28 +69,40 @@ export const sendPasswordResetCodeBodySchema = z.object({
   captchaToken: z.string().max(4000).optional(),
 });
 
-export const registerBodySchema = z.object({
-  username: z.string().trim().min(3).max(20).regex(usernameRegex),
-  password: z.string().min(6).max(50),
-  nickname: z.string().max(50).optional(),
-  email: z.string().email().max(200),
-  verificationCode: z.string().min(6).max(6),
-  agreedToLegalPolicies: z.literal(true),
-  captchaToken: z.string().max(4000).optional(),
-});
+export const registerBodySchema = z
+  .object({
+    username: z.string().trim().min(3).max(20).regex(usernameRegex),
+    password: legacyPasswordSchema.optional(),
+    passwordCredential: encryptedPasswordCredentialSchema.optional(),
+    nickname: z.string().max(50).optional(),
+    email: z.string().email().max(200),
+    verificationCode: z.string().min(6).max(6),
+    agreedToLegalPolicies: z.literal(true),
+    captchaToken: z.string().max(4000).optional(),
+  })
+  .refine(requirePasswordOrCredential, {
+    message: "password or passwordCredential is required",
+    path: ["password"],
+  });
 
 export const acceptPolicyConsentBodySchema = z.object({
   challengeToken: z.string().trim().min(1).max(200),
   agreedToLegalPolicies: z.literal(true),
 });
 
-export const resetPasswordBodySchema = z.object({
-  username: z.string().trim().min(3).max(20).regex(usernameRegex),
-  email: z.string().email().max(200),
-  verificationCode: z.string().trim().min(6).max(6),
-  newPassword: z.string().min(6).max(50),
-  captchaToken: z.string().max(4000).optional(),
-});
+export const resetPasswordBodySchema = z
+  .object({
+    username: z.string().trim().min(3).max(20).regex(usernameRegex),
+    email: z.string().email().max(200),
+    verificationCode: z.string().trim().min(6).max(6),
+    newPassword: legacyPasswordSchema.optional(),
+    newPasswordCredential: encryptedPasswordCredentialSchema.optional(),
+    captchaToken: z.string().max(4000).optional(),
+  })
+  .refine((data) => Boolean(data.newPassword) !== Boolean(data.newPasswordCredential), {
+    message: "newPassword or newPasswordCredential is required",
+    path: ["newPassword"],
+  });
 
 export const verifyTwoFactorLoginBodySchema = z
   .object({

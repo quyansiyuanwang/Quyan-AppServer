@@ -34,11 +34,20 @@ export const useTopLoadingProgressStore = defineStore('topLoadingProgress', () =
   })
 
   let progressTimer: ReturnType<typeof setTimeout> | null = null
+  let completionTimer: ReturnType<typeof setTimeout> | null = null
+  let generation = 0
 
   const clearTimer = () => {
     if (progressTimer !== null) {
       clearTimeout(progressTimer)
       progressTimer = null
+    }
+  }
+
+  const clearCompletionTimer = () => {
+    if (completionTimer !== null) {
+      clearTimeout(completionTimer)
+      completionTimer = null
     }
   }
 
@@ -65,13 +74,24 @@ export const useTopLoadingProgressStore = defineStore('topLoadingProgress', () =
 
   const reset = () => {
     clearTimer()
+    clearCompletionTimer()
+    generation += 1
     state.tasks.clear()
     state.completedNumber = 0
     state.progress = -1
   }
 
   const addTask = (id: string) => {
-    startTimer(100)
+    const wasEmpty = state.tasks.size === 0
+    clearCompletionTimer()
+    generation += 1
+
+    if (wasEmpty) {
+      state.completedNumber = 0
+      state.progress = 0
+      startTimer(100)
+    }
+
     state.tasks.set(id, { id, completed: false, start_time: Date.now() })
   }
 
@@ -104,6 +124,7 @@ export const useTopLoadingProgressStore = defineStore('topLoadingProgress', () =
     // 如果所有任务都已完成或清空，清理定时器
     if (state.tasks.size === 0) {
       clearTimer()
+      state.progress = -1
     }
   }
 
@@ -153,11 +174,17 @@ export const useTopLoadingProgressStore = defineStore('topLoadingProgress', () =
       const allDone = hasTasks && completedCount >= taskCount
 
       if (allDone || !hasTasks) {
+        if (!allDone) return
+        clearTimer()
         state.progress = 100
-        setTimeout(reset, 300)
+        const completedGeneration = generation
+        clearCompletionTimer()
+        completionTimer = setTimeout(() => {
+          if (generation === completedGeneration && state.tasks.size === 0) reset()
+        }, 300)
         return
       }
-      state.progress = segmentsInfo.value?.baseProgress ?? 0
+      state.progress = Math.max(state.progress, segmentsInfo.value?.baseProgress ?? 0)
     },
   )
 

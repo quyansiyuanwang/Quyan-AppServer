@@ -37,11 +37,12 @@ interface TokenPayload {
 ### 登录流程
 
 ```
-1. POST /v1/auth/login { username, password }
-2. 后端验证凭据 → 检查账户状态
-3. 如启用 2FA → 返回 CustomCode.TWO_FACTOR_REQUIRED
-4. 如需要同意法律协议 → 返回 CustomCode.POLICY_CONSENT_REQUIRED
-5. 成功 → 返回 { access_token, refresh_token }
+1. GET /v1/auth/password-encryption-key 获取 RSA-OAEP/SHA-256 公钥
+2. POST /v1/auth/login，密码使用 passwordCredential 密文提交
+3. 后端解密后验证 bcrypt；旧 MD5 哈希会在成功登录后升级
+4. 如启用 2FA → HTTP 401 + CustomCode.TWO_FACTOR_REQUIRED，验证成功后自动重试原操作
+5. 如需要同意法律协议 → 返回 CustomCode.POLICY_CONSENT_REQUIRED
+6. 成功 → 返回 { access_token }，refresh token 通过 HttpOnly Cookie 下发
 ```
 
 ### Token 刷新流程

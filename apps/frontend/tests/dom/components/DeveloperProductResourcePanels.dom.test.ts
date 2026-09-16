@@ -28,7 +28,7 @@ vi.mock('@/service/developerProductService', () => ({
   },
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: { error: messageErrorMock, success: vi.fn() },
   ElMessageBox: { confirm: vi.fn() },
 }))

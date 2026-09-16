@@ -66,6 +66,7 @@ import { CheckPermission, PermissionCheckMode } from "@/util/permission/permissi
 import { Permission } from "@/constant/permission";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
+import { passwordEncryptionService } from "@/services/auth/password-encryption.service";
 
 @Route("v1/ram")
 @Tags("RAM")
@@ -106,7 +107,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_USER_CREATE, PermissionCheckMode.ALL, "jwt")
   public async createUser(@Body() body: CreateRamUserDto, @Request() request: TypedRequest): Promise<RamUserDto> {
-    return this.ramService.createRamUser(request.user!.userId, body);
+    const password = passwordEncryptionService.resolvePassword(body.password, body.passwordCredential);
+    return this.ramService.createRamUser(request.user!.userId, { ...body, password });
   }
 
   @Put("users/{userId}")

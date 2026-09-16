@@ -33,7 +33,7 @@ vi.mock('@/composables/usePageDevice', () => ({
   }),
 }))
 
-vi.mock('element-plus', () => ({
+vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     error: messageErrorMock,
     warning: messageWarningMock,

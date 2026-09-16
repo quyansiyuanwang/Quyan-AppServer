@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
+import { constants, publicEncrypt } from "crypto";
 import request from "supertest";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
@@ -15,6 +16,7 @@ import { AUTH_REFRESH_COOKIE_NAME } from "../../src/util/auth-refresh-cookie";
 import { IMPERSONATION_HANDOFF_COOKIE_NAME } from "../../src/util/impersonation-cookie";
 import { ImpersonationService } from "../../src/services/users/impersonation.service";
 import { JWTAccessIns } from "../../src/util/auth";
+import { passwordEncryptionService } from "../../src/services/auth/password-encryption.service";
 
 describe("认证 API 集成测试", () => {
   let app: Express;
@@ -29,6 +31,22 @@ describe("认证 API 集成测试", () => {
 
   const getReplaySigningSession = async (fingerprint: string) =>
     request(app).get("/v1/auth/replay-signing-session").set("X-Client-Fingerprint", fingerprint);
+
+  const encryptPassword = (password: string): { algorithm: "RSA-OAEP-256"; keyId: string; ciphertext: string } => {
+    const metadata = passwordEncryptionService.getPublicKey();
+    return {
+      algorithm: metadata.algorithm,
+      keyId: metadata.keyId,
+      ciphertext: publicEncrypt(
+        {
+          key: metadata.publicKey,
+          padding: constants.RSA_PKCS1_OAEP_PADDING,
+          oaepHash: "sha256",
+        },
+        Buffer.from(password, "utf8"),
+      ).toString("base64"),
+    };
+  };
 
   const extractRefreshCookie = (response: { headers: Record<string, unknown> }) => {
     const setCookie = response.headers["set-cookie"];
@@ -96,6 +114,25 @@ describe("认证 API 集成测试", () => {
       expect(response.body.data.user.username).toBe("t_auth_int_user");
       expect(response.body.data.user).not.toHaveProperty("password");
       expect(extractRefreshCookie(response)).toContain(`${AUTH_REFRESH_COOKIE_NAME}=`);
+    });
+
+    it("应该接受服务端公钥加密的登录密码", async () => {
+      const response = await postWithReplay("/v1/auth/login", {
+        username: "t_auth_int_user",
+        passwordCredential: encryptPassword("test_password_123"),
+        agreedToLegalPolicies: true,
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.access_token).toBeTruthy();
+    });
+
+    it("应该返回可用的密码加密公钥且不暴露私钥", async () => {
+      const response = await request(app).get("/v1/auth/password-encryption-key").expect(200);
+      expect(response.headers["cache-control"]).toContain("max-age=300");
+      expect(response.body.data).toMatchObject({ algorithm: "RSA-OAEP-256" });
+      expect(response.body.data.publicKey).toContain("BEGIN PUBLIC KEY");
+      expect(JSON.stringify(response.body.data)).not.toContain("PRIVATE KEY");
     });
 
     it("应该通过真实接口迁移旧 MD5 密码并允许后续再次登录", async () => {

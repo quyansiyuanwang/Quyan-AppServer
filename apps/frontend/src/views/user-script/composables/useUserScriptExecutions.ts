@@ -1,5 +1,5 @@
 import { computed, onUnmounted, ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { userScriptExecutionService } from '@/service/userScriptExecutionService'
 import type { ExecRecord, ExecStatus, UserScript } from '../types'

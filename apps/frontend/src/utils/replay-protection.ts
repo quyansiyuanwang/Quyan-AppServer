@@ -1,5 +1,3 @@
-import CryptoJS from 'crypto-js'
-
 export interface ReplaySigningMaterial {
   sessionId: string
   signingKey: string
@@ -22,27 +20,56 @@ export const isReplaySigningMaterialUsable = (
   return expiresAt - bufferSeconds * 1000 > Date.now()
 }
 
+const encoder = new TextEncoder()
+const hmacKeys = new Map<string, Promise<CryptoKey>>()
+
+const toHex = (value: ArrayBuffer): string =>
+  Array.from(new Uint8Array(value), (byte) => byte.toString(16).padStart(2, '0')).join('')
+
+const getHmacKey = (signingKey: string): Promise<CryptoKey> => {
+  let keyPromise = hmacKeys.get(signingKey)
+  if (!keyPromise) {
+    keyPromise = globalThis.crypto.subtle.importKey(
+      'raw',
+      encoder.encode(signingKey).buffer as ArrayBuffer,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    )
+    hmacKeys.set(signingKey, keyPromise)
+  }
+  return keyPromise
+}
+
 /**
  * 防重放攻击工具
  */
 export class ReplayProtection {
-  /**
-   * 生成防重放请求头
-   */
-  static generateHeaders(
-    body: any,
+  static async generateHeaders(
+    body: unknown,
     path: string,
     signingMaterial: ReplaySigningMaterial,
-  ): Record<string, string> {
+  ): Promise<Record<string, string>> {
     const nonce = this.generateNonce()
     const timestamp = Math.floor(Date.now() / 1000).toString()
-    const bodyStr =
-      body instanceof Uint8Array
-        ? `sha256:${CryptoJS.SHA256(CryptoJS.lib.WordArray.create(body as unknown as number[])).toString()}`
-        : body
-          ? JSON.stringify(body)
-          : ''
-    const sign = this.generateSign(nonce, timestamp, path, bodyStr, signingMaterial.signingKey)
+    let bodyStr = ''
+    if (body instanceof Uint8Array) {
+      const digest = await globalThis.crypto.subtle.digest(
+        'SHA-256',
+        body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer,
+      )
+      bodyStr = `sha256:${toHex(digest)}`
+    } else if (body) {
+      bodyStr = JSON.stringify(body)
+    }
+
+    const sign = await this.generateSign(
+      nonce,
+      timestamp,
+      path,
+      bodyStr,
+      signingMaterial.signingKey,
+    )
 
     return {
       'X-Nonce': nonce,
@@ -52,26 +79,25 @@ export class ReplayProtection {
     }
   }
 
-  /**
-   * 生成随机Nonce
-   */
   private static generateNonce(): string {
     const array = new Uint8Array(16)
     crypto.getRandomValues(array)
     return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
   }
 
-  /**
-   * 生成签名
-   */
-  private static generateSign(
+  private static async generateSign(
     nonce: string,
     timestamp: string,
     path: string,
     body: string,
     signingKey: string,
-  ): string {
+  ): Promise<string> {
     const data = `${nonce}${timestamp}${path}${body}`
-    return CryptoJS.HmacSHA256(data, signingKey).toString()
+    const signature = await globalThis.crypto.subtle.sign(
+      'HMAC',
+      await getHmacKey(signingKey),
+      encoder.encode(data).buffer as ArrayBuffer,
+    )
+    return toHex(signature)
   }
 }

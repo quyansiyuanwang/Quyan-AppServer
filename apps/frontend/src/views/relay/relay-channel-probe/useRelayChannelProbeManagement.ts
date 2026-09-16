@@ -1,7 +1,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { RelayProbeFormat as SharedRelayChannelProbeFormat } from '@quyan/shared'
 import { RELAY_PROBE_FORMATS } from '@quyan/shared'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'

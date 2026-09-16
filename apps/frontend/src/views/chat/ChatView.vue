@@ -93,7 +93,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { useChatStore } from '@/stores/chatStore'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
