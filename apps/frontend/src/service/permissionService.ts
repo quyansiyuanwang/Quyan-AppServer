@@ -43,7 +43,10 @@ export class PermissionService {
    * @returns 用户完整权限信息
    */
   async getUserPermissions(userId: string, options?: RequestOptions) {
-    const result = await getPermissionControllerApi().getUserPermissions({ path: { userId } }, options)
+    const result = await getPermissionControllerApi().getUserPermissions(
+      { path: { userId } },
+      options,
+    )
     return result
   }
 

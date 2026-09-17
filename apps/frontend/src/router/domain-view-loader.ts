@@ -69,8 +69,9 @@ const getDomainViews = (domain: SiteProfileId): Promise<ViewModule> => {
 }
 
 /** Shares the same loader cache with post-login and intent preloading. */
-export const preloadRouteViewComponents = (to: Pick<RouteLocationResolvedGeneric, 'matched'>): Promise<void> =>
-  preloadRouteComponents(to.matched)
+export const preloadRouteViewComponents = (
+  to: Pick<RouteLocationResolvedGeneric, 'matched'>,
+): Promise<void> => preloadRouteComponents(to.matched)
 
 export const lazyRouteView = (routeName: string, feature: string, path: string) => async () => {
   const entry = getRouteCatalogEntry(routeName)

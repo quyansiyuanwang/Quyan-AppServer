@@ -37,8 +37,11 @@ export const createProtectedNavigationGuard = (router: Router, profile: SiteProf
     const attempt = ++navigation
     const started = performance.now()
     const identity = sessionCoordinator.getAuthorizationIdentity()
-    const canPreserve = () => approvedIdentity !== null && approvedIdentity === identity &&
-      identity === sessionCoordinator.getAuthorizationIdentity() && Boolean(router.currentRoute.value.matched.length)
+    const canPreserve = () =>
+      approvedIdentity !== null &&
+      approvedIdentity === identity &&
+      identity === sessionCoordinator.getAuthorizationIdentity() &&
+      Boolean(router.currentRoute.value.matched.length)
 
     // Static hosts do not always rewrite deep links to index.html. The CLI
     // starts OAuth at the identity site's root, which is always a real file.
@@ -107,14 +110,28 @@ export const createProtectedNavigationGuard = (router: Router, profile: SiteProf
         failRouteAccess(to.fullPath, error)
         return false
       }
-      failRouteAccess(to.fullPath, error, canPreserve() && (kind === 'transient' || kind === 'offline'))
-      void import('@/service/errorReportService').then(({ reportClientError }) => reportClientError({
-        errorType: 'SessionRecoveryFailure', message: 'Protected navigation recovery failed',
-        severity: 'warning', route: String(to.name ?? 'unknown'),
-        context: { kind, stage: error instanceof SessionRestoreError ? error.stage : 'authorization',
-          attempts: error instanceof SessionRestoreError ? error.attempts : 1,
-          durationMs: Math.round(performance.now() - started), navigation: attempt },
-      })).catch(() => undefined)
+      failRouteAccess(
+        to.fullPath,
+        error,
+        canPreserve() && (kind === 'transient' || kind === 'offline'),
+      )
+      void import('@/service/errorReportService')
+        .then(({ reportClientError }) =>
+          reportClientError({
+            errorType: 'SessionRecoveryFailure',
+            message: 'Protected navigation recovery failed',
+            severity: 'warning',
+            route: String(to.name ?? 'unknown'),
+            context: {
+              kind,
+              stage: error instanceof SessionRestoreError ? error.stage : 'authorization',
+              attempts: error instanceof SessionRestoreError ? error.attempts : 1,
+              durationMs: Math.round(performance.now() - started),
+              navigation: attempt,
+            },
+          }),
+        )
+        .catch(() => undefined)
       return false
     }
   }

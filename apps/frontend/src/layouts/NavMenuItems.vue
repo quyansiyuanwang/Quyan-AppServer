@@ -2,7 +2,7 @@
   <el-menu-item
     v-if="overviewRoute && router.hasRoute(overviewRoute)"
     :index="overviewRoute"
-      :data-route-name="overviewRoute"
+    :data-route-name="overviewRoute"
     @click="nav(overviewRoute, $event)"
     @contextmenu.prevent="openRouteMenu(overviewRoute, $event)"
   >
@@ -45,7 +45,7 @@
             v-for="entry in child.children"
             :key="entry.id"
             :index="entry.route!"
-      :data-route-name="entry.route!"
+            :data-route-name="entry.route!"
             @click="nav(entry.route!, $event)"
             @contextmenu.prevent="openRouteMenu(entry.route!, $event)"
           >
@@ -56,7 +56,7 @@
         <el-menu-item
           v-else
           :index="child.route!"
-      :data-route-name="child.route!"
+          :data-route-name="child.route!"
           @click="nav(child.route!, $event)"
           @contextmenu.prevent="openRouteMenu(child.route!, $event)"
         >
@@ -82,7 +82,8 @@
 
   <el-menu-item
     v-if="isDebugVisible"
-    index="debug" data-route-name="debug"
+    index="debug"
+    data-route-name="debug"
     class="item-muted"
     @click="nav('debug', $event)"
     @contextmenu.prevent="openRouteMenu('debug', $event)"

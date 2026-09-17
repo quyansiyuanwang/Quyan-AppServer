@@ -1,14 +1,28 @@
 <template>
   <component :is="profileApp" v-if="showApp" />
 
-  <aside v-if="preserveView && !isIdle" class="route-recovery-notice" role="status" aria-live="polite">
+  <aside
+    v-if="preserveView && !isIdle"
+    class="route-recovery-notice"
+    role="status"
+    aria-live="polite"
+  >
     <span>{{ isRecovering ? i18ns.t('routeAccess.recovering') : description }}</span>
-    <button v-if="!isRecovering" class="route-access-button" :disabled="!online" @click="retryNavigation">
+    <button
+      v-if="!isRecovering"
+      class="route-access-button"
+      :disabled="!online"
+      @click="retryNavigation"
+    >
       {{ online ? i18ns.t('routeAccess.retry') : i18ns.t('routeAccess.offline') }}
     </button>
   </aside>
 
-  <main v-if="!showApp && (isRedirecting || isRecovering)" class="route-access-page" aria-live="polite">
+  <main
+    v-if="!showApp && (isRedirecting || isRecovering)"
+    class="route-access-page"
+    aria-live="polite"
+  >
     <div class="route-access-loading" role="status">
       <span class="route-access-spinner" aria-hidden="true" />
       <span>Quyan</span>
@@ -21,7 +35,12 @@
       <h1 id="route-access-title">{{ title }}</h1>
       <p class="route-access-description">{{ description }}</p>
       <div class="route-access-actions">
-        <button class="route-access-button is-primary" type="button" :disabled="!isDenied && !online" @click="handlePrimary">
+        <button
+          class="route-access-button is-primary"
+          type="button"
+          :disabled="!isDenied && !online"
+          @click="handlePrimary"
+        >
           {{ primaryAction }}
         </button>
         <button class="route-access-button" type="button" @click="handleLogin">
@@ -68,12 +87,19 @@ const retryNavigation = async () => {
   const target = routeAccessState.targetPath.value
   if (!target || !online.value || isRecovering.value) return
   const resolved = router.resolve(target)
-  await router.replace({ path: resolved.path, query: resolved.query, hash: resolved.hash, force: true }).catch(() => undefined)
+  await router
+    .replace({ path: resolved.path, query: resolved.query, hash: resolved.hash, force: true })
+    .catch(() => undefined)
 }
 const onConnectivity = () => {
   online.value = navigator.onLine
   const kind = classifyRecoveryFailure(routeAccessState.error.value)
-  if (online.value && routeAccessState.status.value === 'error' && (kind === 'offline' || kind === 'transient')) void retryNavigation()
+  if (
+    online.value &&
+    routeAccessState.status.value === 'error' &&
+    (kind === 'offline' || kind === 'transient')
+  )
+    void retryNavigation()
 }
 onMounted(() => {
   window.addEventListener('online', onConnectivity)
