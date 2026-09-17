@@ -39,6 +39,8 @@
         <button
           v-for="result in group.items"
           :key="result.id"
+          :data-route-name="result.route"
+          :data-prefetch-origin="result.profile?.canonicalOrigin"
           type="button"
           class="global-navigation-search__result"
           :class="{ 'is-active': result === selectedResult }"

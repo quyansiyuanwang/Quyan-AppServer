@@ -1,3 +1,5 @@
+import { HttpStatusCode } from 'axios'
+import { REQUEST_POLICY } from '@/constant/request'
 import { createAuthControllerApi } from '@/client/services/auth-controller.gen'
 import type { UserDto } from '@/client/types.gen'
 import { CustomCode } from '@/constant/custom-code'
@@ -24,21 +26,20 @@ import {
   setCurrentStorageScopeForUserId,
 } from '@/utils/storageScope'
 import { cache } from '@/utils/common'
+import { permissionService } from '@/service/permissionService'
+import {
+  canceledRecovery,
+  createSessionRecoveryDeadline,
+  recoverSessionOperation,
+  SessionRestoreError,
+} from '@/utils/session-recovery'
+import { isRequestCanceled } from '@/utils/error-utils'
+export { SessionRestoreError } from '@/utils/session-recovery'
 
 export class SessionExpiredError extends Error {
   constructor() {
     super('Session has expired')
     this.name = 'SessionExpiredError'
-  }
-}
-
-export class SessionRestoreError extends Error {
-  readonly originalError: unknown
-
-  constructor(originalError: unknown) {
-    super('Unable to restore the session')
-    this.name = 'SessionRestoreError'
-    this.originalError = originalError
   }
 }
 
@@ -51,6 +52,7 @@ const DEFINITIVE_AUTH_FAILURE_CODES = new Set<number>([
 ])
 
 const isDefinitiveAuthFailure = (error: unknown): boolean => {
+  if (error instanceof SessionRestoreError) return isDefinitiveAuthFailure(error.originalError)
   const candidate = error as {
     code?: unknown
     data?: { code?: unknown }
@@ -58,9 +60,17 @@ const isDefinitiveAuthFailure = (error: unknown): boolean => {
     status?: unknown
   }
   const status = Number(candidate?.response?.status ?? candidate?.status)
-  if (status === 401) return true
+  const code = Number(candidate?.response?.data?.code ?? candidate?.data?.code ?? candidate?.code)
+  if (
+    [
+      CustomCode.TWO_FACTOR_REQUIRED,
+      CustomCode.POLICY_CONSENT_REQUIRED,
+      CustomCode.REPLAY_PROTECTION_FAILED,
+    ].includes(code)
+  )
+    return false
+  if (status === HttpStatusCode.Unauthorized) return true
 
-  const code = Number(candidate?.code ?? candidate?.data?.code ?? candidate?.response?.data?.code)
   return Number.isFinite(code) && DEFINITIVE_AUTH_FAILURE_CODES.has(code)
 }
 
@@ -71,6 +81,8 @@ export class SessionCoordinator {
   private restorePromise: Promise<string | null> | null = null
   private protectedSessionPromise: Promise<string | null> | null = null
   private hydratePromise: Promise<void> | null = null
+  private generation = 0
+  private recoveryController = new AbortController()
   private logoutPromise: Promise<void> | null = null
   // This projection version is intentionally kept in memory. The access token
   // refreshes frequently, while user identity and permissions only need to be
@@ -155,7 +167,21 @@ export class SessionCoordinator {
     if (user?.id) session.setUser(user)
   }
 
+  private invalidatePendingRecovery() {
+    this.generation += 1
+    this.recoveryController.abort()
+    this.recoveryController = new AbortController()
+    this.restorePromise = null
+    this.protectedSessionPromise = null
+    this.hydratePromise = null
+  }
+
+  getAuthorizationIdentity(): string {
+    return `${this.generation}:${getUserIdFromToken(getAccessToken()) ?? ''}:${getUserUpdatedAtFromToken(getAccessToken()) ?? ''}`
+  }
+
   completeLogin(auth: { access_token: string; user?: Partial<UserDto> }) {
+    this.invalidatePendingRecovery()
     this.applyAccessToken(auth.access_token, auth.user)
     void ReplaySigningService.getInstance()
       .refreshSigningMaterial()
@@ -163,9 +189,9 @@ export class SessionCoordinator {
     void heartbeatService.start().catch(() => undefined)
   }
 
-  async ensureSession(): Promise<string | null> {
+  async ensureSession(deadline = createSessionRecoveryDeadline()): Promise<string | null> {
     const token = getAccessToken()
-    if (token && !isTokenExpired({ bufferSeconds: 2 })) {
+    if (token && !isTokenExpired({ bufferSeconds: REQUEST_POLICY.proactiveRefreshBufferSeconds })) {
       useSessionStore().setAuthenticated(token)
       return token
     }
@@ -173,7 +199,7 @@ export class SessionCoordinator {
     // The backend resolves a possible HttpOnly impersonation handoff before
     // the normal refresh-cookie session. Keeping this as one request avoids
     // an unavoidable client-side probe for ordinary users on every cold load.
-    return this.refresh()
+    return this.refresh({ deadline })
   }
 
   /**
@@ -183,21 +209,27 @@ export class SessionCoordinator {
    */
   restoreProtectedSession(): Promise<string | null> {
     if (this.protectedSessionPromise) return this.protectedSessionPromise
-
+    const generation = this.generation
+    const deadline = createSessionRecoveryDeadline()
     const restoring = (async () => {
-      const token = await this.ensureSession()
-      if (!token) return null
-      await this.hydrateUserAndPermissions()
-      return token
-    })()
-
+      try {
+        const token = await this.ensureSession(deadline)
+        if (!token) return null
+        if (generation !== this.generation) throw canceledRecovery()
+        await this.hydrateUserAndPermissions(undefined, deadline)
+        return getAccessToken()
+      } catch (error) {
+        if (generation === this.generation && isDefinitiveAuthFailure(error)) {
+          this.clearLocalSession('expired')
+          return null
+        }
+        throw error
+      }
+    })().finally(() => {
+      if (this.protectedSessionPromise === restoring) this.protectedSessionPromise = null
+    })
     this.protectedSessionPromise = restoring
     return restoring
-  }
-
-  /** Allows the navigation guard to release the shared startup result after it has been consumed. */
-  releaseProtectedSessionRestore(): void {
-    this.protectedSessionPromise = null
   }
 
   /**
@@ -210,10 +242,14 @@ export class SessionCoordinator {
     return this.restorePromise ?? Promise.resolve(getAccessToken())
   }
 
-  async refresh(options: { skipImpersonationHandoff?: boolean } = {}): Promise<string | null> {
+  async refresh(
+    options: { skipImpersonationHandoff?: boolean; deadline?: number } = {},
+  ): Promise<string | null> {
     if (this.restorePromise) return this.restorePromise
 
-    this.restorePromise = (async () => {
+    const generation = this.generation
+    const signal = this.recoveryController.signal
+    const restoring = (async () => {
       const session = useSessionStore()
       // Do not transiently turn an established application shell anonymous
       // while refreshing an expired in-memory access token. In particular,
@@ -221,10 +257,16 @@ export class SessionCoordinator {
       // `restoring` destroys and recreates the menu on every token rotation.
       session.beginRestore(Boolean(getAccessToken()) && session.isAuthenticated)
       try {
-        const result = await getAuthApi().refresh(
-          { body: options },
-          { retry: false, requestWrapper: async (promise: any) => promise },
+        const result = await recoverSessionOperation(
+          'refresh',
+          (requestOptions) =>
+            getAuthApi().refresh(
+              { body: { skipImpersonationHandoff: options.skipImpersonationHandoff } },
+              { ...requestOptions, retry: false, requestWrapper: async (promise) => promise },
+            ),
+          { signal, deadline: options.deadline ?? createSessionRecoveryDeadline() },
         )
+        if (generation !== this.generation) throw canceledRecovery()
         if (result.code !== CustomCode.OK) {
           throw Object.assign(new Error(result.message || 'Session refresh rejected'), {
             code: result.code,
@@ -250,81 +292,94 @@ export class SessionCoordinator {
         void heartbeatService.start().catch(() => undefined)
         return result.data.access_token
       } catch (error) {
+        if (generation !== this.generation || isRequestCanceled(error)) throw canceledRecovery()
         if (!(error instanceof SessionExpiredError) && !isDefinitiveAuthFailure(error)) {
-          throw new SessionRestoreError(error)
+          throw error instanceof SessionRestoreError ? error : new SessionRestoreError(error)
         }
 
         this.clearLocalSession('expired')
         return null
-      } finally {
-        this.restorePromise = null
       }
-    })()
-    return this.restorePromise
+    })().finally(() => {
+      if (this.restorePromise === restoring) this.restorePromise = null
+    })
+    this.restorePromise = restoring
+    return restoring
   }
 
-  async hydrateUserAndPermissions(user?: Partial<UserDto>): Promise<void> {
+  async hydrateUserAndPermissions(
+    user?: Partial<UserDto>,
+    deadline = createSessionRecoveryDeadline(),
+  ): Promise<void> {
     if (this.hydratePromise) return this.hydratePromise
-
-    this.hydratePromise = (async () => {
+    const generation = this.generation
+    const identity = this.getAuthorizationIdentity()
+    const signal = this.recoveryController.signal
+    const hydration = (async () => {
       const session = useSessionStore()
       const userInfoStore = useUserInfoStore()
       const permissionStore = usePermissionStore()
-      const currentUserId = user?.id || userInfoStore.userInfo.id || null
-      const currentUserVersion = getUserUpdatedAtFromToken(getAccessToken())
-      const hasCurrentAuthorizationProjection =
-        currentUserId !== null &&
-        this.projectedUserId === currentUserId &&
-        this.projectedUserVersion === currentUserVersion
-
+      const userId = getUserIdFromToken(getAccessToken()) || user?.id || userInfoStore.userInfo.id
+      const version = getUserUpdatedAtFromToken(getAccessToken())
+      if (!userId) throw new SessionRestoreError(new Error('Missing session identity'), 'profile')
       if (
         session.permissionsStatus === 'ready' &&
         permissionStore.isLoaded &&
         userInfoStore.isUserInfoFetched &&
-        (!user?.id || user.id === userInfoStore.userInfo.id) &&
-        hasCurrentAuthorizationProjection
-      ) {
+        this.projectedUserId === userId &&
+        this.projectedUserVersion === version
+      )
         return
-      }
 
       session.setPermissionsStatus('loading')
       try {
-        if (user) userInfoStore.setUserInfo(user)
-        // The global permission catalog is only needed by management views.
-        // Start it immediately for cache warmth, but never make route access
-        // wait for this unrelated payload.
-        const allPermissionsPromise =
-          permissionStore.allPermissions.length === 0
-            ? permissionStore.loadAllPermissions()
-            : Promise.resolve()
-        void allPermissionsPromise.catch(() => undefined)
-
-        // /users/me and /permissions/me are independent once the access token is
-        // available. The JWT supplies the user id, so authorization hydration
-        // can run both requests in parallel instead of chaining them.
-        const userId = user?.id || getUserIdFromToken(getAccessToken()) || currentUserId
-        if (!userId) throw new Error('Unable to resolve the authenticated user id')
-        await Promise.all([
-          userInfoStore.fetchUserInfo(),
-          permissionStore.loadUserPermissions(userId, userId),
+        // Fetch without mutating stores. Only a complete, current projection may commit.
+        const [profile, permissions] = await Promise.all([
+          recoverSessionOperation(
+            'profile',
+            async (options) => {
+              const { userService } = await import('@/service/userService')
+              return userService.getMe(options)
+            },
+            { signal, deadline },
+          ),
+          recoverSessionOperation(
+            'permissions',
+            (options) => permissionService.getUserPermissions(userId, options),
+            { signal, deadline },
+          ),
         ])
+        if (generation !== this.generation || identity !== this.getAuthorizationIdentity())
+          throw canceledRecovery()
+        if (
+          profile.id !== userId ||
+          permissions.code !== CustomCode.OK ||
+          permissions.data?.userId !== userId ||
+          !Array.isArray(permissions.data.effectivePermissions)
+        ) {
+          throw new SessionRestoreError(
+            new Error('Invalid authorization projection'),
+            'permissions',
+          )
+        }
+        userInfoStore.setUserInfo(profile)
+        userInfoStore.isUserInfoFetched = true
+        permissionStore.applyCurrentUserPermissions(userId, permissions.data)
         session.setUser(userInfoStore.userInfo)
-        setCurrentStorageScopeForUserId(userInfoStore.userInfo.id)
-        permissionStore.saveCurrentUserPermissionsCache(
-          userInfoStore.userInfo.id,
-          getUserUpdatedAtFromToken(getAccessToken()),
-        )
-        this.projectedUserId = userInfoStore.userInfo.id
-        this.projectedUserVersion = getUserUpdatedAtFromToken(getAccessToken())
+        setCurrentStorageScopeForUserId(userId)
+        permissionStore.saveCurrentUserPermissionsCache(userId, version)
+        this.projectedUserId = userId
+        this.projectedUserVersion = version
         session.setPermissionsStatus('ready')
       } catch (error) {
-        session.setPermissionsStatus('failed')
+        if (generation === this.generation) session.setPermissionsStatus('failed')
         throw error
-      } finally {
-        this.hydratePromise = null
       }
-    })()
-    return this.hydratePromise
+    })().finally(() => {
+      if (this.hydratePromise === hydration) this.hydratePromise = null
+    })
+    this.hydratePromise = hydration
+    return hydration
   }
 
   async activateAuthenticatedSession(auth: { access_token: string; user?: Partial<UserDto> }) {
@@ -333,6 +388,7 @@ export class SessionCoordinator {
   }
 
   private clearLocalSession(status: Extract<SessionStatus, 'anonymous' | 'expired'>) {
+    this.invalidatePendingRecovery()
     clearAccessToken()
     ReplaySigningService.getInstance().clearSigningMaterial()
     heartbeatService.stop()
@@ -348,8 +404,10 @@ export class SessionCoordinator {
 
   async logout(): Promise<void> {
     if (this.logoutPromise) return this.logoutPromise
+    const accessToken = getAccessToken()
+    this.clearLocalSession('anonymous')
+    const generation = this.generation
     this.logoutPromise = (async () => {
-      const accessToken = getAccessToken()
       try {
         if (accessToken) {
           await getAuthApi().logout(
@@ -360,7 +418,7 @@ export class SessionCoordinator {
       } catch (error) {
         console.warn('[session] Logout request failed; completing local logout:', error)
       } finally {
-        this.clearLocalSession('anonymous')
+        if (generation === this.generation) this.clearLocalSession('anonymous')
       }
     })().finally(() => {
       this.logoutPromise = null

@@ -88,6 +88,7 @@ describe('session coordinator', () => {
     authApi.refresh.mockResolvedValue({ code: 0, data: { access_token: createAccessToken('user-1', 'v1') } })
     userService.getMe.mockResolvedValue({ id: 'user-1', username: 'user-1' })
     permissionService.getUserPermissions.mockResolvedValue({
+      code: 0,
       data: {
         userId: 'user-1',
         groupPermissions: [],
@@ -215,6 +216,7 @@ describe('session coordinator', () => {
       data: { permissions: [{ id: 'permission-1', name: 'user:read', category: 'user' }] },
     })
     permissionService.getUserPermissions.mockResolvedValue({
+      code: 0,
       data: {
         userId: 'user-1',
         groupPermissions: [],
@@ -243,6 +245,7 @@ describe('session coordinator', () => {
     let resolveUser: ((value: { id: string; username: string }) => void) | undefined
     let resolveAllPermissions:
       | ((value: {
+          code: number
           data: { permissions: { id: string; name: string; category: string }[] }
         }) => void)
       | undefined
@@ -259,6 +262,7 @@ describe('session coordinator', () => {
         }),
     )
     permissionService.getUserPermissions.mockResolvedValue({
+      code: 0,
       data: {
         userId: 'user-1',
         groupPermissions: [],
@@ -276,8 +280,8 @@ describe('session coordinator', () => {
 
     await vi.waitFor(() => {
       expect(userService.getMe).toHaveBeenCalledOnce()
-      expect(permissionService.getAllPermissions).toHaveBeenCalledOnce()
-      expect(permissionService.getUserPermissions).toHaveBeenCalledWith('user-1')
+      expect(permissionService.getAllPermissions).not.toHaveBeenCalled()
+      expect(permissionService.getUserPermissions).toHaveBeenCalledWith('user-1', expect.objectContaining({ signal: expect.any(AbortSignal) }))
     })
 
     resolveUser?.({ id: 'user-1', username: 'user-1' })
@@ -296,6 +300,7 @@ describe('session coordinator', () => {
     userInfoStore.setUserInfo({ id: 'user-1', username: 'user-1' })
     userInfoStore.isUserInfoFetched = true
     permissionService.getUserPermissions.mockResolvedValue({
+      code: 0,
       data: {
         userId: 'user-1',
         groupPermissions: [],
@@ -318,6 +323,7 @@ describe('session coordinator', () => {
     userService.getMe.mockResolvedValue({ id: 'user-1', username: 'user-1' })
     let resolvePermissions:
       | ((value: {
+          code: number
           data: {
             userId: string
             groupPermissions: string[]
@@ -341,6 +347,7 @@ describe('session coordinator', () => {
     expect(permissionStore.currentUserPermissions?.effectivePermissions).toEqual(['user:read'])
 
     resolvePermissions?.({
+      code: 0,
       data: {
         userId: 'user-1',
         groupPermissions: [],
@@ -362,6 +369,7 @@ describe('session coordinator', () => {
 
     userInfoStore.setUserInfo({ id: 'user-1', username: 'user-1' })
     permissionService.getUserPermissions.mockResolvedValue({
+      code: 0,
       data: {
         userId: 'user-1',
         groupPermissions: [],
@@ -379,4 +387,56 @@ describe('session coordinator', () => {
     expect(permissionStore.currentUserPermissions).toBeNull()
     expect(permissionStore.isLoaded).toBe(false)
   })
+  it('releases a completed authorization task without help from a navigation guard', async () => {
+    const coordinator = new SessionCoordinator()
+    coordinator.completeLogin({ access_token: createAccessToken('user-1', 'v1') })
+    userService.getMe.mockRejectedValueOnce(new Error('temporary profile failure')).mockResolvedValue({ id: 'user-1' })
+    permissionService.getUserPermissions.mockResolvedValue({ code: 0, data: { userId: 'user-1', effectivePermissions: [] } })
+    await expect(coordinator.restoreProtectedSession()).rejects.toThrow()
+    await expect(coordinator.restoreProtectedSession()).resolves.toBeTruthy()
+    expect(userService.getMe).toHaveBeenCalledTimes(2)
+    expect(permissionService.getAllPermissions).not.toHaveBeenCalled()
+  })
+
+  it('does not commit a half-loaded projection or a different user permission response', async () => {
+    const coordinator = new SessionCoordinator()
+    coordinator.completeLogin({ access_token: createAccessToken('user-1', 'v1') })
+    userService.getMe.mockResolvedValue({ id: 'user-1', username: 'private-user' })
+    permissionService.getUserPermissions.mockResolvedValue({ code: 0, data: { userId: 'user-2', effectivePermissions: ['user:read'] } })
+    await expect(coordinator.hydrateUserAndPermissions()).rejects.toThrow()
+    const { useUserInfoStore } = await import('@/stores/userInfoStore')
+    const { usePermissionStore } = await import('@/stores/permissionStore')
+    expect(useUserInfoStore().userInfo.username).not.toBe('private-user')
+    expect(usePermissionStore().isLoaded).toBe(false)
+  })
+
+  it('ignores a refresh response that arrives after a new login', async () => {
+    let resolveRefresh!: (value: unknown) => void
+    authApi.refresh.mockImplementation(() => new Promise(resolve => { resolveRefresh = resolve }))
+    const coordinator = new SessionCoordinator()
+    const old = coordinator.refresh()
+    const assertion = expect(old).rejects.toMatchObject({ name: 'AbortError' })
+    coordinator.completeLogin({ access_token: createAccessToken('user-2', 'v2') })
+    resolveRefresh({ code: 0, data: { access_token: createAccessToken('user-1', 'v1') } })
+    await assertion
+    const { getAccessToken } = await import('@/stores/request')
+    expect(getAccessToken()).toBe(createAccessToken('user-2', 'v2'))
+  })
+
+  it('ignores profile and permission responses from an earlier identity', async () => {
+    const coordinator = new SessionCoordinator()
+    coordinator.completeLogin({ access_token: createAccessToken('user-1', 'v1') })
+    let resolveUser!: (value: unknown) => void
+    userService.getMe.mockImplementation(() => new Promise(resolve => { resolveUser = resolve }))
+    permissionService.getUserPermissions.mockResolvedValue({ code: 0, data: { userId: 'user-1', effectivePermissions: [] } })
+    const old = coordinator.hydrateUserAndPermissions()
+    const assertion = expect(old).rejects.toMatchObject({ name: 'AbortError' })
+    await vi.waitFor(() => expect(userService.getMe).toHaveBeenCalledOnce())
+    coordinator.completeLogin({ access_token: createAccessToken('user-2', 'v2') })
+    resolveUser({ id: 'user-1' })
+    await assertion
+    const { usePermissionStore } = await import('@/stores/permissionStore')
+    expect(usePermissionStore().currentPermissionUserId).not.toBe('user-1')
+  })
+
 })

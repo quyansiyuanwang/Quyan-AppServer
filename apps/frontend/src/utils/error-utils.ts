@@ -11,7 +11,10 @@ export type ServiceError = Error & {
   data?: unknown
   response?: {
     data?: unknown
+    status?: number
   }
+  status?: number
+  cause?: unknown
 }
 
 interface RequestCanceledErrorLike {

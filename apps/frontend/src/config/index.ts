@@ -1,3 +1,4 @@
+import { BACKGROUND_START_POLICY as policy } from './loading-policy'
 import { useTopLoadingProgressStore } from '@/stores/topLoadingProgressStore'
 
 type IdleWindow = Window & {
@@ -40,8 +41,8 @@ const configureTopProgress = () => {
           console.warn('[config] Failed to initialize request progress wrapper:', error)
         })
     },
-    800,
-    4000,
+    policy.progress.delayMs,
+    policy.progress.idleTimeoutMs,
   )
 }
 
@@ -56,7 +57,7 @@ const scheduleWatchDog = () => {
       })
   }
 
-  scheduleAfterLoad(startWatchDog, 4000, 8000)
+  scheduleAfterLoad(startWatchDog, policy.updateCheck.delayMs, policy.updateCheck.idleTimeoutMs)
 }
 
 export function configureAll() {

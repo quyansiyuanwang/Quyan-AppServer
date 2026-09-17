@@ -1,4 +1,4 @@
-import { createApp, defineAsyncComponent, type App } from 'vue'
+import { createApp, nextTick, type App } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import router, { currentSiteProfile, installProfileRoutes } from '@/router'
 import { getPublicSiteProfile, isKnownSiteProfile } from '@/config/site-registry'
@@ -79,6 +79,9 @@ export class AppRuntime {
     // the locale chunk has necessarily finished, rather than making the
     // refresh request wait behind the entire application bootstrap.
     const i18nReady = initializeI18n()
+    const profileAppReady = loadProfileApp(currentSiteProfile)
+    // Register a rejection handler immediately while the route manifest is loading.
+    void profileAppReady.catch(() => undefined)
     await installProfileRoutes(router, currentSiteProfile)
     startupMark('routes-ready')
     startupMeasure('site-routes', 'start', 'routes-ready')
@@ -89,14 +92,13 @@ export class AppRuntime {
     )
     if (shouldRestoreProtectedSession(initialRoute)) {
       void sessionCoordinator.restoreProtectedSession().catch(() => undefined)
-      void preloadRouteViewComponents(initialRoute)
     }
+    void preloadRouteViewComponents(initialRoute)
 
-    await i18nReady
+    const [profileApp] = await Promise.all([profileAppReady, i18nReady])
     startupMark('i18n-ready')
     startupMeasure('i18n', 'start', 'i18n-ready')
 
-    const profileApp = defineAsyncComponent(() => loadProfileApp(currentSiteProfile))
     const app = createApp(RouteAccessBoundary, { profileApp })
     startupMark('app-root-ready')
     startupMeasure('app-root', 'routes-ready', 'app-root-ready')
@@ -122,7 +124,6 @@ export class AppRuntime {
     // Session restoration and permission hydration are resolved by the route
     // guard before this point. The boundary only renders the business app
     // after access has been approved.
-    this.phase = 'session-ready'
 
     // Resolve the initial navigation before mount. The guard performs cookie
     // session restoration and permission hydration in front of an access
@@ -132,6 +133,7 @@ export class AppRuntime {
     } catch (error) {
       if (!isNavigationFailure(error, NavigationFailureType.aborted)) throw error
     }
+    this.phase = 'session-ready'
     startupMark('router-ready')
     startupMeasure('router-ready', 'app-root-ready', 'router-ready')
 
@@ -140,6 +142,11 @@ export class AppRuntime {
     app.mount('#app')
     startupMark('mounted')
     startupMeasure('total-to-mount', 'start', 'mounted')
+    await nextTick()
+    requestAnimationFrame(() => {
+      startupMark('page-visible')
+      startupMeasure('total-to-visible', 'start', 'page-visible')
+    })
     installSessionExpiryRedirect()
     this.phase = 'mounted'
     this.startOptionalPlugins(app)

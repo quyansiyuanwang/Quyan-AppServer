@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
-import type { RouteLocationNormalized } from 'vue-router'
+import { preloadRouteComponents } from './preload'
+import type { RouteLocationResolvedGeneric } from 'vue-router'
 import type { SiteProfileId } from '@/config/site-registry'
 import { getRouteCatalogEntry } from '@/router/route-catalog'
 
@@ -59,39 +60,18 @@ const getDomainViews = (domain: SiteProfileId): Promise<ViewModule> => {
   }
   const loading = Promise.resolve(
     typeof subscription === 'function' ? subscription() : subscription,
-  )
+  ).catch((error) => {
+    loadedDomains.delete(domain)
+    throw error
+  })
   loadedDomains.set(domain, loading)
   return loading
 }
 
-type RouteComponentLoader = () => Promise<unknown>
-const preloadedRouteViewLoaders = new WeakMap<RouteComponentLoader, Promise<unknown>>()
-
-/**
- * Warms the exact async component(s) selected for a route without mounting
- * them. Vue Router will reuse the module promise when it resolves the route.
- */
-export const preloadRouteViewComponents = async (to: RouteLocationNormalized): Promise<void> => {
-  const loaders = to.matched
-    .flatMap((record) => (record.components ? Object.values(record.components) : []))
-    .filter((loader): loader is RouteComponentLoader => typeof loader === 'function')
-  if (loaders.length === 0) return
-
-  await Promise.all(
-    loaders.map((loader) => {
-      const existing = preloadedRouteViewLoaders.get(loader)
-      if (existing) return existing
-
-      const loading = Promise.resolve(loader()).catch((error) => {
-        preloadedRouteViewLoaders.delete(loader)
-        console.debug('[router] Route module preload failed:', error)
-        return undefined
-      })
-      preloadedRouteViewLoaders.set(loader, loading)
-      return loading
-    }),
-  )
-}
+/** Shares the same loader cache with post-login and intent preloading. */
+export const preloadRouteViewComponents = (
+  to: Pick<RouteLocationResolvedGeneric, 'matched'>,
+): Promise<void> => preloadRouteComponents(to.matched)
 
 export const lazyRouteView = (routeName: string, feature: string, path: string) => async () => {
   const entry = getRouteCatalogEntry(routeName)

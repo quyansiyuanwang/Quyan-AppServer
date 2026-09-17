@@ -6,7 +6,7 @@ import {
 } from '@/client/api-types-map.gen'
 import type { SetUserPermissionDto } from '@/client/types.gen'
 import { CustomCode } from '@/constant/custom-code'
-import { useRequestStore } from '@/stores/request'
+import { useRequestStore, type RequestOptions } from '@/stores/request'
 import { useUserInfoStore } from '@/stores/userInfoStore'
 import { cache } from '@/utils/common'
 import { toServiceError } from '@/utils/error-utils'
@@ -42,10 +42,11 @@ export class PermissionService {
    * @param userId 用户ID
    * @returns 用户完整权限信息
    */
-  async getUserPermissions(userId: string) {
-    const result = await getPermissionControllerApi().getUserPermissions({
-      path: { userId },
-    })
+  async getUserPermissions(userId: string, options?: RequestOptions) {
+    const result = await getPermissionControllerApi().getUserPermissions(
+      { path: { userId } },
+      options,
+    )
     return result
   }
 

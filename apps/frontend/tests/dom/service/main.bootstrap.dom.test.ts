@@ -84,7 +84,7 @@ describe('AppRuntime', () => {
     expect(mountMock).toHaveBeenCalledTimes(1)
     expect(installSessionExpiryRedirectMock).toHaveBeenCalledTimes(1)
     expect(restoreProtectedSessionMock).not.toHaveBeenCalled()
-    expect(preloadRouteViewComponentsMock).not.toHaveBeenCalled()
+    expect(preloadRouteViewComponentsMock).toHaveBeenCalledOnce()
     expect(runtime.getPhase()).toBe('running')
   })
 
@@ -127,7 +127,7 @@ describe('AppRuntime', () => {
     expect(mountMock).toHaveBeenCalledOnce()
   })
 
-  it('mounts the access boundary without loading the business app when route access is denied', async () => {
+  it('warms root code but mounts only the access boundary when route access is denied', async () => {
     const { loadProfileApp } = await import('@/app-roots/load-profile-app')
     const { denyRouteAccess } = await import('@/router/route-access')
     denyRouteAccess('/settings/profile', 'user:read')
@@ -139,7 +139,7 @@ describe('AppRuntime', () => {
     await runtime.start()
 
     expect(mountMock).toHaveBeenCalledOnce()
-    expect(loadProfileApp).not.toHaveBeenCalled()
+    expect(loadProfileApp).toHaveBeenCalledOnce()
   })
 
   it('does not mount while a cross-origin login redirect is in progress', async () => {

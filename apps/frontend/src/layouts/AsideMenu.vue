@@ -179,6 +179,7 @@
                 <button
                   v-for="profile in recentSiteProfiles"
                   :key="`recent-${profile.id}`"
+                  :data-prefetch-origin="profile.canonicalOrigin"
                   type="button"
                   class="overview-site-item overview-site-item--recent"
                   :class="{ 'is-active': profile.id === currentSiteProfile.id }"
@@ -379,6 +380,7 @@
       <div
         class="tab-item"
         :class="{ active: router.currentRoute.value.name === 'home' }"
+        data-route-name="home"
         @click="handleRouteNavigation('home')"
       >
         <el-icon><HomeFilled /></el-icon>
@@ -389,6 +391,7 @@
         v-if="router.hasRoute('settings')"
         class="tab-item"
         :class="{ active: router.currentRoute.value.name === 'settings' }"
+        data-route-name="settings"
         @click="handleRouteNavigation('settings')"
       >
         <el-icon><Setting /></el-icon>
@@ -443,6 +446,7 @@
             <button
               v-for="profile in recentSiteProfiles"
               :key="`recent-${profile.id}`"
+              :data-prefetch-origin="profile.canonicalOrigin"
               type="button"
               class="mobile-site-switcher__item"
               :class="{ 'is-active': profile.id === currentSiteProfile.id }"

@@ -9,11 +9,6 @@ type RouteComponentLoader = () => unknown
 
 let routeComponentPreloadPromises = new WeakMap<RouteComponentLoader, Promise<void>>()
 let preloadedRouteComponents = new WeakSet<RouteComponentLoader>()
-const getRouteComponentLoader = (record: RouteRecordNormalized): RouteComponentLoader | null => {
-  const component = record.components?.default
-  return typeof component === 'function' ? (component as RouteComponentLoader) : null
-}
-
 const preloadRouteComponent = async (loader: RouteComponentLoader): Promise<void> => {
   if (preloadedRouteComponents.has(loader)) return
 
@@ -29,6 +24,7 @@ const preloadRouteComponent = async (loader: RouteComponentLoader): Promise<void
       preloadedRouteComponents.add(loader)
     })
     .catch((error) => {
+      routeComponentPreloadPromises.delete(loader)
       console.warn('[router] Failed to preload route component:', error)
     })
 
@@ -42,8 +38,8 @@ export const preloadRouteComponents = async (
   const loaders = Array.from(
     new Set(
       records
-        .map(getRouteComponentLoader)
-        .filter((loader): loader is RouteComponentLoader => loader !== null),
+        .flatMap((record) => Object.values(record.components ?? {}))
+        .filter((loader): loader is RouteComponentLoader => typeof loader === 'function'),
     ),
   )
 

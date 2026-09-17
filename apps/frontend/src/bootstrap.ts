@@ -1,3 +1,3 @@
 export { appRuntime, AppRuntime } from '@/app-runtime'
-export const bootstrapApp = () =>
-  import('@/app-runtime').then(({ appRuntime }) => appRuntime.start())
+import { appRuntime } from '@/app-runtime'
+export const bootstrapApp = () => appRuntime.start()
