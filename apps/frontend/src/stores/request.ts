@@ -1,3 +1,4 @@
+import { parseJWT } from '@/utils/jwt'
 import { trackForegroundRequest } from '@/utils/foreground-activity'
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
@@ -82,50 +83,15 @@ const authMemoryState = {
   accessTokenExpiration: null as number | null,
 }
 
-// Token 解析相关工具函数
-interface TokenPayload<T = Record<string, unknown>> {
-  data: T
-  expiration: number
-}
-
-interface JWTClaims {
-  data: string // JSON string of TokenPayload
-  type: string
-}
-
-/**
- * 解析 JWT token 获取 payload（不验证签名，仅解码）
- */
-const parseJWT = <T = Record<string, unknown>>(token: string): TokenPayload<T> | null => {
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3 || !parts[1]) return null
-
-    // Base64URL decode payload
-    const payload = parts[1]
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/')
-    const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join(''),
-    )
-
-    const claims: JWTClaims = JSON.parse(jsonPayload)
-    const tokenPayload: TokenPayload<T> = JSON.parse(claims.data)
-
-    return tokenPayload
-  } catch {
-    return null
-  }
-}
-
 /**
  * Extract the expiry into process memory. Browser storage must never contain bearer tokens.
  */
 const saveTokenExpiration = (token: string, isRefresh: boolean = false): void => {
-  const payload = parseJWT(token)
-  if (payload?.expiration && !isRefresh) authMemoryState.accessTokenExpiration = payload.expiration
+  if (isRefresh) return
+  const expiration = parseJWT(token)?.exp
+  // Never retain another token's deadline when decoding fails or exp is absent.
+  authMemoryState.accessTokenExpiration =
+    typeof expiration === 'number' && Number.isFinite(expiration) ? expiration : null
 }
 
 /**
@@ -133,7 +99,7 @@ const saveTokenExpiration = (token: string, isRefresh: boolean = false): void =>
  */
 const isTokenExpired = (options: { bufferSeconds?: number; isRefresh?: boolean } = {}): boolean => {
   const { bufferSeconds = REQUEST_POLICY.expiryBufferSeconds, isRefresh = false } = { ...options }
-  if (isRefresh || !authMemoryState.accessTokenExpiration) return false
+  if (isRefresh || authMemoryState.accessTokenExpiration === null) return false
 
   const expirationTime = authMemoryState.accessTokenExpiration
   const currentTime = Date.now() / 1000 // 转换为秒

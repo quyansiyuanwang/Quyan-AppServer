@@ -4,11 +4,11 @@
 
 后端支持多种认证方案（在 `tsoa.json` 中定义）：
 
-| 安全方案 | 用途 | Token 格式 |
-|----------|------|------------|
-| `jwt` | 标准用户认证 | `Authorization: Bearer <jwt>` |
-| `relay-token` | AI API 代理访问 | `Authorization: Bearer rlt_<token>` 或 `x-api-key` 头 |
-| `local-or-jwt` | 开发环境本地绕过 | 同上（localhost 请求免认证） |
+| 安全方案       | 用途             | Token 格式                                            |
+| -------------- | ---------------- | ----------------------------------------------------- |
+| `jwt`          | 标准用户认证     | `Authorization: Bearer <jwt>`                         |
+| `relay-token`  | AI API 代理访问  | `Authorization: Bearer rlt_<token>` 或 `x-api-key` 头 |
+| `local-or-jwt` | 开发环境本地绕过 | 同上（localhost 请求免认证）                          |
 
 认证实现：`src/middleware/auth/auth_guard.ts` 的 `expressAuthentication()` 函数。
 
@@ -16,21 +16,33 @@
 
 ### Token 类型
 
-| Token | 用途 | 有效期（开发） | 有效期（生产推荐） |
-|-------|------|--------------|------------------|
-| Access Token | API 请求认证 | 5 秒 | 900 秒 (15 分钟) |
-| Refresh Token | 刷新 Access Token | 28800 秒 (8 小时) | 604800 秒 (7 天) |
+| Token         | 用途              | 有效期（开发）    | 有效期（生产推荐） |
+| ------------- | ----------------- | ----------------- | ------------------ |
+| Access Token  | API 请求认证      | 5 秒              | 900 秒 (15 分钟)   |
+| Refresh Token | 刷新 Access Token | 28800 秒 (8 小时) | 604800 秒 (7 天)   |
 
 Access Token 有效期极短以确保安全性；Refresh Token 用于无感刷新。
 
 ### Token 载荷
 
 ```typescript
-interface TokenPayload {
-  userId: string;
-  updatedAt: number;  // 用户信息更新时间戳，用于 token 失效
+interface TokenClaims {
+  userId: string
+  updatedAt: string // user.updateTime.toISOString()，用于授权版本失效
+  iat: number // 签发时间，Unix 秒
+  exp: number // 过期时间，Unix 秒
+  jti: string // 每次签发的唯一标识
 }
 ```
+
+载荷以 `apps/backend/src/util/auth/index.ts` 的 `JWTAccessIns.generateToken` 和
+`apps/backend/src/services/auth/auth.service.ts` 为准：以上字段直接位于 JWT payload 顶层，
+不是 `data` 字段内的 JSON 字符串，也没有自定义 `expiration` 字段。
+
+前端通过 `apps/frontend/src/utils/jwt.ts` 唯一的解码函数读取载荷：
+`storageScope.ts` 使用 `userId` / `updatedAt`，请求层使用 `exp` 调度刷新。
+解码不验证签名，也不能代替后端认证或权限接口；资料和权限仍需按当前身份加载并校验。
+测试使用同一顶层字段格式，不得用旧的嵌套载荷模拟服务端行为。
 
 `updatedAt` 字段确保用户权限变更后所有旧 token 立即失效。
 
@@ -49,10 +61,13 @@ interface TokenPayload {
 
 ```
 1. 前端 Axios 拦截器检测到 Access Token 即将过期（3 秒缓冲）
-2. 前端发起 POST /v1/auth/refresh { refresh_token }
-3. 后端验证 Refresh Token → 检查账户状态 → 返回新 token 对
+2. 前端发起 POST /v1/auth/refresh，浏览器携带 HttpOnly 刷新 Cookie
+3. 后端验证刷新 Cookie → 检查账户状态 → 返回 { access_token }
 4. 如果 Refresh Token 也过期 → 前端清除登录状态，重定向到登录页
 ```
+
+Access Token 只保存在前端内存；刷新 Cookie 不可由 JavaScript 读取。跨子站或整页加载时，
+刷新接口不保证返回用户资料，前端必须从返回 Token 的顶层 `userId` 关联后续资料与权限请求。
 
 **单 Promise 模式**：前端使用单例 Promise 防止并发刷新请求。多个 API 调用同时触发刷新时，只有第一个请求实际发起刷新，其余等待同一个 Promise 结果。
 
@@ -99,16 +114,16 @@ interface TokenPayload {
 Pinia store `permissionStore` 提供本地检查方法：
 
 ```typescript
-const permStore = usePermissionStore();
+const permStore = usePermissionStore()
 
 // 检查单个权限
-permStore.hasPermission(Permission.USER_CREATE);
+permStore.hasPermission(Permission.USER_CREATE)
 
 // 检查任意一个权限
-permStore.hasAnyPermission([Permission.USER_READ, Permission.USER_LIST]);
+permStore.hasAnyPermission([Permission.USER_READ, Permission.USER_LIST])
 
 // 检查所有权限
-permStore.hasAllPermissions([Permission.USER_UPDATE, Permission.USER_DELETE]);
+permStore.hasAllPermissions([Permission.USER_UPDATE, Permission.USER_DELETE])
 ```
 
 组件中使用 `PermissionWrapper` 进行条件渲染：
@@ -138,10 +153,12 @@ OAuth 客户端通过 `OAuthClient` 模型管理，需要审核（`reviewStatus`
 ## RAM (Resource Access Management)
 
 支持子账户体系：
+
 - **子账户 (sub_account)**: `userType = "sub_account"`, 通过 `accountOwnerId` 关联主账户
 - **子用户 (sub_user)**: `userType = "sub_user"`, 通过 `parentUserId` 关联子账户
 
 RAM 角色和策略：
+
 - `RamRole` — 可扮演的角色，含信任策略 (`trustPolicy`)
 - `RamPolicy` — 权限策略文档
 - `RamRoleSession` — 角色会话，含过期时间
@@ -159,12 +176,14 @@ RAM 角色和策略：
 ### Passkey (WebAuthn)
 
 使用 `@simplewebauthn/server` 实现：
+
 - `PasskeyCredential` 模型存储公钥凭证
 - 支持设备注册和认证
 
 ### 信任设备
 
 完成 2FA 后可标记设备为 "信任"：
+
 - 信任 cookie 在指定窗口期内免 2FA
 - `DELETE /v1/users/me/2fa/trusted-devices/{deviceId}` 撤销信任
 
