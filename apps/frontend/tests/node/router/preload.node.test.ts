@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { __resetRoutePreloadStateForTests, preloadRouteLocation } from '@/router/preload'
+import { __resetRoutePreloadStateForTests, preloadRouteLocation, preloadRouteComponents } from '@/router/preload'
 
 const createLoader = () => vi.fn(async () => ({ default: {} }))
 
@@ -76,4 +76,15 @@ describe('router preload helpers', () => {
     expect(chatLoader).toHaveBeenCalledTimes(1)
     expect(homeLoader).not.toHaveBeenCalled()
   })
+  it('retries a failed loader and shares concurrent requests for all named views', async () => {
+    const loader = vi.fn().mockRejectedValueOnce(new Error('chunk unavailable')).mockResolvedValue({ default: {} })
+    const named = createLoader()
+    const records = [{ components: { default: loader, sidebar: named } }] as never
+    await Promise.all([preloadRouteComponents(records), preloadRouteComponents(records)])
+    expect(loader).toHaveBeenCalledOnce()
+    await preloadRouteComponents(records)
+    expect(loader).toHaveBeenCalledTimes(2)
+    expect(named).toHaveBeenCalledOnce()
+  })
+
 })

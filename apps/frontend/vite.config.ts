@@ -27,6 +27,7 @@ import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
 // Pre-compression is opt-in because hosts must explicitly serve `.br`/`.gz`
 // assets. When enabled, level 6 avoids archival-grade build costs.
 const BROTLI_BUILD_QUALITY = 6
+const STATIC_COMPRESSION_THRESHOLD_BYTES = 10 * 1024
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -146,14 +147,6 @@ export default defineConfig(({ mode }) => {
           cert: readFileSync(resolvedHttpsCertPath),
         }
       : undefined
-
-  const shouldSkipModulePreload = (dep: string): boolean =>
-    dep.includes('charts-') ||
-    dep.includes('markdown-') ||
-    dep.includes('xlsx-') ||
-    dep.includes('passkey-') ||
-    dep.includes('xterm-') ||
-    dep.includes('sortablejs-')
 
   const elementPlusComponentGroups = new Map<string, ReadonlySet<string>>([
     ['ui-table', new Set(['table', 'table-v2', 'virtual-list', 'pagination'])],
@@ -456,6 +449,9 @@ export default defineConfig(({ mode }) => {
       const normalizedInitialModules = initialModules.map((moduleId) =>
         moduleId.replace(/\\/g, '/'),
       )
+      const eagerNavigationUi = normalizedInitialModules.find((id) => /\/src\/(?:config\/navigation-catalog|constant\/developer-product-navigation)\.ts$/.test(id))
+      if (eagerNavigationUi) throw new Error(`Navigation UI entered the startup graph: ${eagerNavigationUi}`)
+
       const eagerLocaleModule = normalizedInitialModules.find((moduleId) =>
         /\/src\/locales\/(?:zh-CN|en|emoji)\.ts$/.test(moduleId),
       )
@@ -606,12 +602,10 @@ export default defineConfig(({ mode }) => {
           [...indexHtml.matchAll(/\/assets\/([^"']+\.(?:js|css))/g)].map((match) => match[1]),
         ),
       ]
-      const initialSource = Buffer.concat(
-        initialAssetNames.map((fileName) => readFileSync(resolve(assetsDir, fileName))),
-      )
-      const initialRawBytes = initialSource.length
-      const initialGzipBytes = gzipSync(initialSource).length
-      const initialBrotliBytes = brotliCompressSync(initialSource).length
+      const initialSources = initialAssetNames.map((fileName) => readFileSync(resolve(assetsDir, fileName)))
+      const initialRawBytes = initialSources.reduce((sum, source) => sum + source.length, 0)
+      const initialGzipBytes = initialSources.reduce((sum, source) => sum + gzipSync(source).length, 0)
+      const initialBrotliBytes = initialSources.reduce((sum, source) => sum + brotliCompressSync(source).length, 0)
       const maxInitialAssets = 6
       const maxInitialRawBytes = 800 * 1024
       const maxInitialBrotliBytes = 230 * 1024
@@ -713,7 +707,7 @@ export default defineConfig(({ mode }) => {
         viteCompression({
           ext: '.gz',
           algorithm: 'gzip',
-          threshold: 10240,
+          threshold: STATIC_COMPRESSION_THRESHOLD_BYTES,
           deleteOriginFile: false,
         }),
       // SPA fallback: copy index.html → 404.html so static servers and
@@ -737,7 +731,7 @@ export default defineConfig(({ mode }) => {
         name: 'write-brotli-assets',
         writeBundle() {
           const outDir = resolve(__dirname, 'dist')
-          writeBrotliAssets(outDir, 10240)
+          writeBrotliAssets(outDir, STATIC_COMPRESSION_THRESHOLD_BYTES)
         },
       },
     ].filter(Boolean),
@@ -802,9 +796,9 @@ export default defineConfig(({ mode }) => {
       // combined stylesheet made every page download all Element Plus and
       // feature styles before rendering the first screen.
       cssCodeSplit: true,
-      modulePreload: {
-        resolveDependencies: (_url, deps) => deps.filter((dep) => !shouldSkipModulePreload(dep)),
-      },
+      // Let Vite preload the actual static closure of a requested async chunk.
+      // Optional capabilities stay lazy through their import boundaries, not filename filters.
+      manifest: true,
       rollupOptions: {
         preserveEntrySignatures: 'allow-extension',
         output: {

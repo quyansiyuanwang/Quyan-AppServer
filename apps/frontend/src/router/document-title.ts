@@ -1,6 +1,6 @@
 import { watch } from 'vue'
 import type { RouteLocationNormalized, Router } from 'vue-router'
-import { flattenNavigationRoutes, navigationMenuDefinition } from '@/config/navigation-catalog'
+import { flattenNavigationRoutes, navigationMenuDefinition } from '@/config/navigation-metadata'
 import type { SiteProfile } from '@/config/site-registry'
 import { i18ns, type I18nENAvailableKeys } from '@/locales'
 

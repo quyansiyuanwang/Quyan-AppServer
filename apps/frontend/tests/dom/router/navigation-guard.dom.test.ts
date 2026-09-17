@@ -29,6 +29,7 @@ const {
 vi.mock('@/service/sessionCoordinator', () => ({
   SessionRestoreError: SessionRestoreErrorMock,
   sessionCoordinator: {
+    getAuthorizationIdentity: () => "user-1:v1",
     restoreProtectedSession: restoreProtectedSessionMock,
     releaseProtectedSessionRestore: vi.fn(),
   },
@@ -60,7 +61,7 @@ const createTo = (meta: Record<string, unknown> = {}): RouteLocationNormalized =
   }) as unknown as RouteLocationNormalized
 
 describe('protected navigation guard', () => {
-  const router = { replace: vi.fn() } as unknown as Router
+  const router = { replace: vi.fn(), currentRoute: { value: { matched: [] } } } as unknown as Router
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -135,4 +136,26 @@ describe('protected navigation guard', () => {
     expect(routeAccessState.status.value).toBe('error')
     expect(routeAccessState.error.value).toBeInstanceOf(SessionRestoreErrorMock)
   })
+  it('does not let a late failure from an older navigation replace a newer success', async () => {
+    let rejectOld!: (reason: unknown) => void
+    restoreProtectedSessionMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject }))
+      .mockResolvedValueOnce('access-token')
+    const guard = createProtectedNavigationGuard(router, profile)
+    const old = guard(createTo())
+    await expect(guard(createTo())).resolves.toBe(true)
+    rejectOld(Object.assign(new Error('network'), { code: 'ERR_NETWORK' }))
+    await expect(old).resolves.toBe(false)
+    expect(routeAccessState.status.value).toBe('idle')
+  })
+
+  it('preserves a previously authorized view on temporary navigation failure', async () => {
+    const activeRouter = { currentRoute: { value: { matched: [{}] } } } as unknown as Router
+    restoreProtectedSessionMock.mockResolvedValueOnce('access-token').mockRejectedValueOnce({ response: { status: 503 } })
+    const guard = createProtectedNavigationGuard(activeRouter, profile)
+    await guard(createTo())
+    await guard(createTo())
+    expect(routeAccessState.status.value).toBe('error')
+    expect(routeAccessState.preserveView.value).toBe(true)
+  })
+
 })

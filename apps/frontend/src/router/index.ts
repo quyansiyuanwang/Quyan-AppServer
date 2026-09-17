@@ -1,3 +1,4 @@
+import { BACKGROUND_START_POLICY } from '@/config/loading-policy'
 import { createRouter, createWebHistory } from 'vue-router'
 import {
   isKnownSiteProfile,
@@ -20,12 +21,14 @@ const scheduleAnalyticsTrack = (task: () => void) => {
 
     setTimeout(() => {
       if (typeof idleWindow.requestIdleCallback === 'function') {
-        idleWindow.requestIdleCallback(task, { timeout: 5000 })
+        idleWindow.requestIdleCallback(task, {
+          timeout: BACKGROUND_START_POLICY.analytics.idleTimeoutMs,
+        })
         return
       }
 
       task()
-    }, 1200)
+    }, BACKGROUND_START_POLICY.analytics.delayMs)
   }
 
   if (document.readyState === 'complete') {
@@ -79,7 +82,7 @@ export const installProfileRoutes = async (
 }
 
 function installNavigationGuards(router: ReturnType<typeof createRouter>, profile: SiteProfile) {
-  installRoutePrefetch(router)
+  installRoutePrefetch(router, profile)
   router.beforeEach(createProtectedNavigationGuard(router, profile))
 
   router.afterEach((to, from) => {
