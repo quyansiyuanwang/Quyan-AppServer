@@ -4,20 +4,17 @@ import { registerSiteViewSubscription, type ViewModule } from '@/router/domain-v
 import { defineFeatureModule, defineSiteModule, type SiteModule } from '@/plugins/modules/contracts'
 import { getFeatureManifestEntries } from '@/plugins/modules/feature-manifest'
 
-type AppRootModule = { default: Component }
-
-const domainAppLoaders = import.meta.glob<AppRootModule>('/src/app-roots/domains/*.vue')
-
 const loadApplicationRoot = async (
   siteId: SiteProfileId,
-  appRoot: string = siteId,
+  _appRoot?: string,
 ): Promise<Component> => {
   if (siteId === 'public') return (await import('@/app-roots/PublicApp.vue')).default
   if (siteId === 'identity') return (await import('@/app-roots/IdentityApp.vue')).default
 
-  const loader = domainAppLoaders[`/src/app-roots/domains/${appRoot}.vue`]
-  if (!loader) throw new Error(`No application root is registered for site "${siteId}".`)
-  return (await loader()).default
+  // All non-public site profiles share the same router outlet. The historical
+  // per-site wrappers only set a component name and created one request per
+  // deployment without changing behavior.
+  return (await import('@/App.vue')).default
 }
 
 /**

@@ -84,6 +84,32 @@ describe('session coordinator', () => {
     expect(localStorage.getItem(StorageKey.Auth.REFRESH_TOKEN)).toBeNull()
   })
 
+  it('shares protected restoration and does not block route access on the permission catalog', async () => {
+    authApi.refresh.mockResolvedValue({ code: 0, data: { access_token: createAccessToken('user-1', 'v1') } })
+    userService.getMe.mockResolvedValue({ id: 'user-1', username: 'user-1' })
+    permissionService.getUserPermissions.mockResolvedValue({
+      data: {
+        userId: 'user-1',
+        groupPermissions: [],
+        additionalPermissions: [],
+        removedPermissions: [],
+        effectivePermissions: ['user:read'],
+      },
+    })
+    permissionService.getAllPermissions.mockImplementation(() => new Promise(() => undefined))
+    const sessionCoordinator = new SessionCoordinator()
+
+    const [first, second] = await Promise.all([
+      sessionCoordinator.restoreProtectedSession(),
+      sessionCoordinator.restoreProtectedSession(),
+    ])
+
+    expect(first).toBe(second)
+    expect(authApi.refresh).toHaveBeenCalledOnce()
+    expect(userService.getMe).toHaveBeenCalledOnce()
+    expect(permissionService.getUserPermissions).toHaveBeenCalledOnce()
+  })
+
   it('uses the single refresh endpoint instead of probing impersonation restoration first', async () => {
     authApi.refresh.mockResolvedValue({ code: 0, data: { access_token: 'cookie-access' } })
     const sessionCoordinator = new SessionCoordinator()
@@ -213,7 +239,7 @@ describe('session coordinator', () => {
     expect(permissionStore.allPermissions).toBe(allPermissionsReference)
   })
 
-  it('loads the independent user profile and permission catalog concurrently during hydration', async () => {
+  it('loads the user profile and current permissions in parallel without waiting for the catalog', async () => {
     let resolveUser: ((value: { id: string; username: string }) => void) | undefined
     let resolveAllPermissions:
       | ((value: {
@@ -243,19 +269,18 @@ describe('session coordinator', () => {
     })
 
     const sessionCoordinator = new SessionCoordinator()
-    const hydration = sessionCoordinator.hydrateUserAndPermissions()
+    const hydration = sessionCoordinator.hydrateUserAndPermissions({
+      id: 'user-1',
+      username: 'user-1',
+    })
 
     await vi.waitFor(() => {
       expect(userService.getMe).toHaveBeenCalledOnce()
       expect(permissionService.getAllPermissions).toHaveBeenCalledOnce()
-    })
-    expect(permissionService.getUserPermissions).not.toHaveBeenCalled()
-
-    resolveUser?.({ id: 'user-1', username: 'user-1' })
-    await vi.waitFor(() => {
       expect(permissionService.getUserPermissions).toHaveBeenCalledWith('user-1')
     })
 
+    resolveUser?.({ id: 'user-1', username: 'user-1' })
     resolveAllPermissions?.({
       data: { permissions: [{ id: 'permission-1', name: 'user:read', category: 'user' }] },
     })

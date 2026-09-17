@@ -6,7 +6,17 @@ import {
 } from '@/config/site-registry'
 import { getRouteCatalogEntry, getRouteGroup } from '@/router/route-catalog'
 import { bindRouteView, lazyFeatureView, lazyOptionalView } from '@/router/feature-view-loader'
+import type { Component } from 'vue'
 import type { RouteRecordRaw } from 'vue-router'
+
+const lazyProductShellView = (collection: 'config' | 'management', exportName: string) =>
+  lazyOptionalView(async () => {
+    const module =
+      collection === 'config'
+        ? await import('@/views/products/product-config-pages')
+        : await import('@/views/products/product-management-pages')
+    return { default: (module as unknown as Record<string, Component>)[exportName]! }
+  })
 
 export const routes = [
   {
@@ -495,14 +505,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-kv',
-                component: lazyFeatureView('products', 'kv/KvManagementPage.vue'),
+                component: lazyProductShellView('management', 'KvManagementPage'),
                 props: { product: 'kv' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-kv',
-                component: lazyFeatureView('products', 'kv/KvConfigPage.vue'),
+                component: lazyProductShellView('config', 'KvConfigPage'),
                 props: { product: 'kv' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -527,14 +537,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-short_link',
-                component: lazyFeatureView('products', 'short-link/ShortLinkManagementPage.vue'),
+                component: lazyProductShellView('management', 'ShortLinkManagementPage'),
                 props: { product: 'short_link' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-short_link',
-                component: lazyFeatureView('products', 'short-link/ShortLinkConfigPage.vue'),
+                component: lazyProductShellView('config', 'ShortLinkConfigPage'),
                 props: { product: 'short_link' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -566,14 +576,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-secret',
-                component: lazyFeatureView('products', 'secret/SecretManagementPage.vue'),
+                component: lazyProductShellView('management', 'SecretManagementPage'),
                 props: { product: 'secret' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-secret',
-                component: lazyFeatureView('products', 'secret/SecretConfigPage.vue'),
+                component: lazyProductShellView('config', 'SecretConfigPage'),
                 props: { product: 'secret' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -599,14 +609,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-status',
-                component: lazyFeatureView('products', 'status/StatusManagementPage.vue'),
+                component: lazyProductShellView('management', 'StatusManagementPage'),
                 props: { product: 'status' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-status',
-                component: lazyFeatureView('products', 'status/StatusConfigPage.vue'),
+                component: lazyProductShellView('config', 'StatusConfigPage'),
                 props: { product: 'status' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -631,17 +641,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-verification',
-                component: lazyFeatureView(
-                  'products',
-                  'verification/VerificationManagementPage.vue',
-                ),
+                component: lazyProductShellView('management', 'VerificationManagementPage'),
                 props: { product: 'verification' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-verification',
-                component: lazyFeatureView('products', 'verification/VerificationConfigPage.vue'),
+                component: lazyProductShellView('config', 'VerificationConfigPage'),
                 props: { product: 'verification' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -665,20 +672,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-ip_geolocation',
-                component: lazyFeatureView(
-                  'products',
-                  'ip-geolocation/IpGeolocationManagementPage.vue',
-                ),
+                component: lazyProductShellView('management', 'IpGeolocationManagementPage'),
                 props: { product: 'ip_geolocation' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-ip_geolocation',
-                component: lazyFeatureView(
-                  'products',
-                  'ip-geolocation/IpGeolocationConfigPage.vue',
-                ),
+                component: lazyProductShellView('config', 'IpGeolocationConfigPage'),
                 props: { product: 'ip_geolocation' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -704,14 +705,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-push',
-                component: lazyFeatureView('products', 'push/PushManagementPage.vue'),
+                component: lazyProductShellView('management', 'PushManagementPage'),
                 props: { product: 'push' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-push',
-                component: lazyFeatureView('products', 'push/PushConfigPage.vue'),
+                component: lazyProductShellView('config', 'PushConfigPage'),
                 props: { product: 'push' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },
@@ -736,17 +737,14 @@ export const routes = [
               {
                 path: 'management',
                 name: 'product-management-json_endpoint',
-                component: lazyFeatureView(
-                  'products',
-                  'json-endpoints/JsonEndpointManagementPage.vue',
-                ),
+                component: lazyProductShellView('management', 'JsonEndpointManagementPage'),
                 props: { product: 'json_endpoint' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE },
               },
               {
                 path: 'configuration',
                 name: 'product-config-json_endpoint',
-                component: lazyFeatureView('products', 'json-endpoints/JsonEndpointConfigPage.vue'),
+                component: lazyProductShellView('config', 'JsonEndpointConfigPage'),
                 props: { product: 'json_endpoint' },
                 meta: { permission: Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE },
               },

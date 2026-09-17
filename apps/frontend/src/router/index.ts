@@ -8,6 +8,7 @@ import {
 import { moduleHost } from '@/plugins/modules'
 import { installDocumentTitle } from './document-title'
 import { createProtectedNavigationGuard, isAuthEntryRoute } from './navigation-guard'
+import { installRoutePrefetch } from './route-prefetch'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -78,6 +79,7 @@ export const installProfileRoutes = async (
 }
 
 function installNavigationGuards(router: ReturnType<typeof createRouter>, profile: SiteProfile) {
+  installRoutePrefetch(router)
   router.beforeEach(createProtectedNavigationGuard(router, profile))
 
   router.afterEach((to, from) => {

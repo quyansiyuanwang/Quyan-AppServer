@@ -1,0 +1,8 @@
+export { default as IpGeolocationManagementPage } from './ip-geolocation/IpGeolocationManagementPage.vue'
+export { default as JsonEndpointManagementPage } from './json-endpoints/JsonEndpointManagementPage.vue'
+export { default as KvManagementPage } from './kv/KvManagementPage.vue'
+export { default as PushManagementPage } from './push/PushManagementPage.vue'
+export { default as SecretManagementPage } from './secret/SecretManagementPage.vue'
+export { default as ShortLinkManagementPage } from './short-link/ShortLinkManagementPage.vue'
+export { default as StatusManagementPage } from './status/StatusManagementPage.vue'
+export { default as VerificationManagementPage } from './verification/VerificationManagementPage.vue'
