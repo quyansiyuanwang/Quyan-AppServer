@@ -22,6 +22,10 @@
 | [14-domain-deployment.md](./14-domain-deployment.md)       | 多域名、反代、Cookie 与 CORS 运维部署                         |
 | [15-cli.md](./15-cli.md)                                   | Quyan CLI 架构、凭证边界与验证                                |
 
+## 专题审计
+
+- [全仓配置、常量与唯一事实来源审计](./configuration-source-audit.md)：范围、已确认问题、合理例外及逐领域整改顺序。
+
 ## 快速导航
 
 ### 我想了解……
