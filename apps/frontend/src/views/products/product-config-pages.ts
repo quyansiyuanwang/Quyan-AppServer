@@ -1,0 +1,8 @@
+export { default as IpGeolocationConfigPage } from './ip-geolocation/IpGeolocationConfigPage.vue'
+export { default as JsonEndpointConfigPage } from './json-endpoints/JsonEndpointConfigPage.vue'
+export { default as KvConfigPage } from './kv/KvConfigPage.vue'
+export { default as PushConfigPage } from './push/PushConfigPage.vue'
+export { default as SecretConfigPage } from './secret/SecretConfigPage.vue'
+export { default as ShortLinkConfigPage } from './short-link/ShortLinkConfigPage.vue'
+export { default as StatusConfigPage } from './status/StatusConfigPage.vue'
+export { default as VerificationConfigPage } from './verification/VerificationConfigPage.vue'

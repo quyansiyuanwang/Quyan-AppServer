@@ -69,6 +69,7 @@ const getAuthApi = cache(() => createAuthControllerApi(useRequestStore().getAxio
 export class SessionCoordinator {
   private static instance: SessionCoordinator | null = null
   private restorePromise: Promise<string | null> | null = null
+  private protectedSessionPromise: Promise<string | null> | null = null
   private hydratePromise: Promise<void> | null = null
   private logoutPromise: Promise<void> | null = null
   // This projection version is intentionally kept in memory. The access token
@@ -176,6 +177,30 @@ export class SessionCoordinator {
   }
 
   /**
+   * Restore the access token and authorization projection as one shared
+   * startup operation. App bootstrap can start this before the router is
+   * ready, while the navigation guard awaits the exact same promise.
+   */
+  restoreProtectedSession(): Promise<string | null> {
+    if (this.protectedSessionPromise) return this.protectedSessionPromise
+
+    const restoring = (async () => {
+      const token = await this.ensureSession()
+      if (!token) return null
+      await this.hydrateUserAndPermissions()
+      return token
+    })()
+
+    this.protectedSessionPromise = restoring
+    return restoring
+  }
+
+  /** Allows the navigation guard to release the shared startup result after it has been consumed. */
+  releaseProtectedSessionRestore(): void {
+    this.protectedSessionPromise = null
+  }
+
+  /**
    * Wait for a protected-navigation restore that is already in flight.
    * Request transport calls this before sending without a memory token so a
    * page mounted immediately after the navigation guard cannot race the
@@ -265,17 +290,26 @@ export class SessionCoordinator {
       session.setPermissionsStatus('loading')
       try {
         if (user) userInfoStore.setUserInfo(user)
-        // The global permission catalog does not depend on the current-user
-        // profile. Start it together with /users/me so a cold session restore
-        // does not pay an avoidable extra network round trip before mounting.
+        // The global permission catalog is only needed by management views.
+        // Start it immediately for cache warmth, but never make route access
+        // wait for this unrelated payload.
         const allPermissionsPromise =
           permissionStore.allPermissions.length === 0
             ? permissionStore.loadAllPermissions()
             : Promise.resolve()
-        await userInfoStore.fetchUserInfo()
+        void allPermissionsPromise.catch(() => undefined)
+
+        // /users/me and /permissions/me are independent once the access token is
+        // available. The JWT supplies the user id, so authorization hydration
+        // can run both requests in parallel instead of chaining them.
+        const userId = user?.id || getUserIdFromToken(getAccessToken()) || currentUserId
+        if (!userId) throw new Error('Unable to resolve the authenticated user id')
+        await Promise.all([
+          userInfoStore.fetchUserInfo(),
+          permissionStore.loadUserPermissions(userId, userId),
+        ])
         session.setUser(userInfoStore.userInfo)
         setCurrentStorageScopeForUserId(userInfoStore.userInfo.id)
-        await Promise.all([allPermissionsPromise, permissionStore.loadCurrentUserPermissions()])
         permissionStore.saveCurrentUserPermissionsCache(
           userInfoStore.userInfo.id,
           getUserUpdatedAtFromToken(getAccessToken()),
