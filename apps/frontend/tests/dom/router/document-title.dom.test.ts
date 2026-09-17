@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+import { beforeAll, describe, expect, it } from 'vitest'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import { resolveSiteProfile } from '@/config/site-registry'
 import { resolveDocumentTitle } from '@/router/document-title'
+import { initializeI18n } from '@/locales'
 
 const getKnownProfile = (hostname: string) => {
   const profile = resolveSiteProfile(hostname)
@@ -16,6 +18,10 @@ const route = (name: string, titleKey?: string) =>
   }) as Pick<RouteLocationNormalizedLoaded, 'name' | 'meta'>
 
 describe('document title', () => {
+  beforeAll(async () => {
+    await initializeI18n()
+  })
+
   it('uses the Quyan brand, translated page name, and current site', () => {
     expect(resolveDocumentTitle(route('home'), getKnownProfile('www.qysyw.cn'))).toBe(
       'Quyan · 首页 · 官网',

@@ -19,7 +19,8 @@
 │     ├── *.gen.ts           (typed SDK services)         │
 │     ├── types.gen.ts       (TypeScript types)           │
 │     ├── api-endpoints.gen.ts    (endpoint list)         │
-│     └── api-types-map.gen.ts    (type mappings)         │
+│     ├── api-types-map.gen.ts    (type mappings only)    │
+│     └── api-descriptors/        (per-controller values) │
 │   post-processing scripts:                              │
 │     ├── generate-api-constants.js                       │
 │     ├── generate-api-types-map.js                       │
@@ -121,14 +122,14 @@ cargo check --manifest-path apps/cli-native/Cargo.toml
 `pnpm run client:generate` 顺序运行：
 
 1. **generate-api-constants.js** — 从生成的 SDK 中提取 API 端点常量
-2. **generate-api-types-map.js** — 生成请求/响应类型映射表
+2. **generate-api-types-map.js** — 生成纯类型映射表，并为每个 Controller 生成独立的运行时 descriptor 文件，供对应 service 按需加载
 3. **generate-replay-protected-endpoints.js** — 从后端 spec 中提取 `@ReplayProtected` 端点列表
 
 ### 生成的客户端使用
 
 ```typescript
 // src/service/userService.ts
-import { createUserControllerApi } from '@/client/user-controller.gen'
+import { createUserControllerApi } from '@/client/services/user-controller.gen'
 import { useRequestStore } from '@/stores/request'
 
 const getApi = () => createUserControllerApi(useRequestStore().getAxios())
@@ -153,6 +154,6 @@ export class UserService {
 
 1. 前端 `src/constant/permission.ts` 从 `@quyan/shared` re-export（非本地定义）
 2. 后端 `src/constant/permission.ts` 从 `@quyan/shared` re-export（非本地定义）
-3. 前端 `PERMISSION_META` 对象覆盖了所有 `Permission` 枚举成员，没有多余或缺失
+3. 前端 `src/constant/permission-meta.ts` 的 `PERMISSION_META` 覆盖所有 `Permission` 枚举成员，没有多余或缺失
 
 此脚本确保前后端的权限定义始终一致。

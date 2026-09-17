@@ -251,7 +251,7 @@ import {
   type OAuthAuthorizeQuery,
   type OAuthAuthorizationPreview,
 } from '@/service/oauthAuthorizationService'
-import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
+import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission-meta'
 import { ALL_PERMISSIONS } from '@/constant/permission'
 import { getPermissionCategoryTranslationKey } from '@/views/management/permission-tree'
 

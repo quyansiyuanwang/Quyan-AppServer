@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
-import { SessionCoordinator } from '@/service/sessionCoordinator'
+import { SessionCoordinator, SessionRestoreError } from '@/service/sessionCoordinator'
 import { clearAccessToken } from '@/stores/request'
 
 const { permissionService, userService } = vi.hoisted(() => ({
@@ -122,6 +122,24 @@ describe('session coordinator', () => {
     await expect(sessionCoordinator.refresh()).resolves.toBeNull()
     expect(sessionCoordinator.getSnapshot().status).toBe('expired')
     expect(sessionCoordinator.getSnapshot().accessToken).toBeNull()
+  })
+
+  it('keeps the current session projection on a transient refresh failure', async () => {
+    const sessionCoordinator = new SessionCoordinator()
+    sessionCoordinator.completeLogin({ access_token: 'existing-access' })
+    authApi.refresh.mockRejectedValue(Object.assign(new Error('offline'), { status: 503 }))
+
+    await expect(sessionCoordinator.refresh()).rejects.toBeInstanceOf(SessionRestoreError)
+    expect(sessionCoordinator.getSnapshot().status).toBe('authenticated')
+    expect(sessionCoordinator.getSnapshot().accessToken).toBe('existing-access')
+  })
+
+  it('treats a server-side refresh failure as retryable instead of anonymous', async () => {
+    authApi.refresh.mockResolvedValue({ code: 1005, message: 'server unavailable', data: null })
+    const sessionCoordinator = new SessionCoordinator()
+
+    await expect(sessionCoordinator.refresh()).rejects.toBeInstanceOf(SessionRestoreError)
+    expect(sessionCoordinator.getSnapshot().status).not.toBe('anonymous')
   })
 
   it('keeps the authenticated projection mounted while an existing token refreshes', async () => {

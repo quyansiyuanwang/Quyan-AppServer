@@ -186,6 +186,17 @@ export default {
     noPermission: 'You do not have permission to access this page',
   },
 
+  routeAccess: {
+    forbiddenTitle: 'Access denied',
+    forbiddenDescription: 'Your account does not have permission to access this page.',
+    sessionErrorTitle: 'Unable to load session',
+    sessionErrorDescription:
+      'We could not verify your session or load permissions. Please try again.',
+    retry: 'Retry',
+    goBack: 'Go back',
+    backToLogin: 'Back to login',
+  },
+
   productConsole: {
     refresh: 'Refresh',
     documentation: 'Documentation',

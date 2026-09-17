@@ -182,6 +182,16 @@ const zhCN: DeepStringify<typeof en> = {
     noPermission: '暂无权限访问此页面',
   },
 
+  routeAccess: {
+    forbiddenTitle: '无权限访问',
+    forbiddenDescription: '当前账号没有访问此页面所需的权限。',
+    sessionErrorTitle: '会话加载失败',
+    sessionErrorDescription: '无法确认登录状态或加载权限，请稍后重试。',
+    retry: '重试',
+    goBack: '返回',
+    backToLogin: '返回登录',
+  },
+
   productConsole: {
     refresh: '刷新',
     documentation: '查看文档',

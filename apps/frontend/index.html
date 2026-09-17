@@ -8,10 +8,54 @@
 
     <!-- Critical CSS inline for instant render -->
     <style>
-      html,body{margin:0;padding:0;height:100%}
-      body{background:#fff;font-family:system-ui,-apple-system,sans-serif}
-      html.dark body{background:#0d1117}
-      #app{min-height:100vh}
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+      }
+      body {
+        background: #fff;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      html.dark body {
+        background: #0d1117;
+      }
+      #app {
+        min-height: 100vh;
+      }
+      .app-boot {
+        display: grid;
+        min-height: 100vh;
+        place-items: center;
+        color: #303133;
+      }
+      html.dark .app-boot {
+        color: #e5eaf3;
+      }
+      .app-boot__inner {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .app-boot__spinner {
+        width: 22px;
+        height: 22px;
+        border: 2px solid #c0c4cc;
+        border-top-color: #409eff;
+        border-radius: 50%;
+        animation: app-boot-spin 0.8s linear infinite;
+      }
+      @keyframes app-boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
     </style>
 
     <!-- Theme preflight: apply dark class before app mounts -->
@@ -51,7 +95,14 @@
   </head>
 
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="app-boot" role="status" aria-label="Quyan loading">
+        <div class="app-boot__inner">
+          <span class="app-boot__spinner" aria-hidden="true"></span>
+          <span>Quyan</span>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

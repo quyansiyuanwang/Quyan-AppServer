@@ -1,9 +1,9 @@
+import { ALL_PERMISSIONS } from '@/constant/permission'
 import {
-  ALL_PERMISSIONS,
   getPermissionCategory,
   getPermissionLabel,
   getPermissionTooltip,
-} from '@/constant/permission'
+} from '@/constant/permission-meta'
 
 const PERMISSION_CATEGORY_TRANSLATIONS = {
   user: {
