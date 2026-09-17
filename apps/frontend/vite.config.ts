@@ -270,7 +270,12 @@ export default defineConfig(({ mode }) => {
     const domainViewLoaderMatch = moduleId.match(
       /\/src\/router\/(?:\.gen\/)?domain-views\/([a-z0-9_-]+)(?:\.gen)?\.ts$/,
     )
-    if (domainViewLoaderMatch) return `domain-${domainViewLoaderMatch[1]}`
+    if (domainViewLoaderMatch) {
+      const domain = domainViewLoaderMatch[1]
+      if (domain.startsWith('product-')) return 'domain-views-products'
+      if (domain.startsWith('console-')) return 'domain-views-console'
+      return `domain-${domain}`
+    }
 
     // Site modules and application roots are selected from the hostname. They
     // must remain independent dynamic imports so one deployment does not load
@@ -495,17 +500,19 @@ export default defineConfig(({ mode }) => {
         )
       }
 
-      const domainChunks = chunks
-        .filter((chunk) => /^assets\/domain-[^-]+-/.test(chunk.fileName))
-        .map((chunk) => chunk.fileName)
-        .sort()
-      const requiredDomainChunks = ['identity', 'management-ai', 'product-kv']
+      const requiredDomainChunks = [
+        { label: 'identity', prefix: 'assets/domain-identity-' },
+        { label: 'products', prefix: 'assets/domain-views-products-' },
+        { label: 'console', prefix: 'assets/domain-views-console-' },
+        { label: 'management-ai', prefix: 'assets/domain-management-ai-' },
+      ] as const
       const missingDomainChunk = requiredDomainChunks.find(
-        (domain) =>
-          !domainChunks.some((fileName) => fileName.startsWith(`assets/domain-${domain}-`)),
+        ({ prefix }) => !chunks.some((chunk) => chunk.fileName.startsWith(prefix)),
       )
       if (missingDomainChunk) {
-        throw new Error(`Expected a domain-${missingDomainChunk} chunk in the production output`)
+        throw new Error(
+          `Expected a ${missingDomainChunk.label} domain chunk in the production output`,
+        )
       }
       const legacyFeatureChunk = chunks.find((chunk) => /^assets\/feature-/.test(chunk.fileName))
       if (legacyFeatureChunk) {
@@ -530,30 +537,24 @@ export default defineConfig(({ mode }) => {
         visitDependency(fileName)
         return [...dependencyNames].sort()
       }
-      const routeDependencies = requiredDomainChunks.map((domain) => {
-        const domainChunk = domainChunks.find((fileName) =>
-          fileName.startsWith(`assets/domain-${domain}-`),
-        )
-        if (!domainChunk) return `${domain}=missing`
-        const staticViewModule = Object.keys(chunksByFileName.get(domainChunk)?.modules ?? {}).find(
-          (moduleId) => /\/src\/views\//.test(moduleId.replace(/\\/g, '/')),
+      const routeDependencies = requiredDomainChunks.map(({ label, prefix }) => {
+        const domainChunk = chunks.find((chunk) => chunk.fileName.startsWith(prefix))
+        if (!domainChunk) return `${label}=missing`
+        const staticViewModule = Object.keys(domainChunk.modules ?? {}).find((moduleId) =>
+          /\/src\/views\//.test(moduleId.replace(/\\/g, '/')),
         )
         if (staticViewModule) {
           throw new Error(
-            `Domain bundle ${domainChunk} eagerly contains route view: ${staticViewModule}`,
+            `Domain bundle ${domainChunk.fileName} eagerly contains route view: ${staticViewModule}`,
           )
         }
-        const dependencies = collectStaticDependencies(domainChunk)
-        const foreignDomainDependency = chunksByFileName
-          .get(domainChunk)
-          ?.imports.find(
-            (fileName) =>
-              fileName.startsWith('assets/domain-') &&
-              !fileName.startsWith(`assets/domain-${domain}-`),
-          )
+        const dependencies = collectStaticDependencies(domainChunk.fileName)
+        const foreignDomainDependency = domainChunk.imports.find(
+          (fileName) => fileName.startsWith('assets/domain-') && !fileName.startsWith(prefix),
+        )
         if (foreignDomainDependency) {
           throw new Error(
-            `Domain bundle ${domainChunk} statically imports another domain bundle ${foreignDomainDependency}`,
+            `Domain bundle ${domainChunk.fileName} statically imports another domain bundle ${foreignDomainDependency}`,
           )
         }
         const stableDependencies = dependencies.filter((fileName) =>
@@ -561,7 +562,7 @@ export default defineConfig(({ mode }) => {
             `/${fileName}`,
           ),
         )
-        return `${domain}=${dependencies.length}:[${stableDependencies.join(',')}]`
+        return `${label}=${dependencies.length}:[${stableDependencies.join(',')}]`
       })
       bundleShapeReport = `initial=[${[...initialChunkNames].sort().join(',')}] routes=${routeDependencies.join(' ')}`
     },
@@ -815,7 +816,7 @@ export default defineConfig(({ mode }) => {
             // application dependencies remain graph-owned so they cannot
             // create a reverse edge from a domain chunk into the entry.
             includeDependenciesRecursively: false,
-            groups: [{ name: resolveManualChunk, includeDependenciesRecursively: false }],
+            groups: [{ name: resolveManualChunk }],
           },
         },
       },

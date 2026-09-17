@@ -7,8 +7,8 @@ import { resetRouteAccess, routeAccessState } from '@/router/route-access'
 
 const {
   SessionRestoreErrorMock,
-  ensureSessionMock,
-  hydrateUserAndPermissionsMock,
+  restoreProtectedSessionMock,
+  preloadRouteViewComponentsMock,
   navigateToLoginMock,
   hasPermissionMock,
   resolveRouteMigrationUrlMock,
@@ -17,8 +17,8 @@ const {
   class SessionRestoreError extends Error {}
   return {
     SessionRestoreErrorMock: SessionRestoreError,
-    ensureSessionMock: vi.fn(),
-    hydrateUserAndPermissionsMock: vi.fn(),
+    restoreProtectedSessionMock: vi.fn(),
+    preloadRouteViewComponentsMock: vi.fn(async () => undefined),
     navigateToLoginMock: vi.fn(),
     hasPermissionMock: vi.fn(),
     resolveRouteMigrationUrlMock: vi.fn(),
@@ -29,9 +29,12 @@ const {
 vi.mock('@/service/sessionCoordinator', () => ({
   SessionRestoreError: SessionRestoreErrorMock,
   sessionCoordinator: {
-    ensureSession: ensureSessionMock,
-    hydrateUserAndPermissions: hydrateUserAndPermissionsMock,
+    restoreProtectedSession: restoreProtectedSessionMock,
+    releaseProtectedSessionRestore: vi.fn(),
   },
+}))
+vi.mock('@/router/domain-view-loader', () => ({
+  preloadRouteViewComponents: preloadRouteViewComponentsMock,
 }))
 vi.mock('@/service/authNavigationService', () => ({ navigateToLogin: navigateToLoginMock }))
 vi.mock('@/service/navigationService', () => ({ replaceDocument: replaceDocumentMock }))
@@ -69,23 +72,23 @@ describe('protected navigation guard', () => {
     const guard = createProtectedNavigationGuard(router, profile)
 
     await expect(guard(createTo({ allowGuest: true }))).resolves.toBe(true)
-    expect(ensureSessionMock).not.toHaveBeenCalled()
-    expect(hydrateUserAndPermissionsMock).not.toHaveBeenCalled()
+    expect(restoreProtectedSessionMock).not.toHaveBeenCalled()
+    expect(preloadRouteViewComponentsMock).not.toHaveBeenCalled()
   })
 
   it('redirects a business route before rendering when no session can be restored', async () => {
-    ensureSessionMock.mockResolvedValue(null)
+    restoreProtectedSessionMock.mockResolvedValue(null)
     navigateToLoginMock.mockResolvedValue(undefined)
     const guard = createProtectedNavigationGuard(router, profile)
 
     await expect(guard(createTo())).resolves.toBe(false)
     expect(navigateToLoginMock).toHaveBeenCalledWith(router, profile, '/settings/profile')
     expect(routeAccessState.status.value).toBe('redirecting')
-    expect(hydrateUserAndPermissionsMock).not.toHaveBeenCalled()
+    expect(restoreProtectedSessionMock).toHaveBeenCalledOnce()
   })
 
   it('returns the local login route on the identity profile', async () => {
-    ensureSessionMock.mockResolvedValue(null)
+    restoreProtectedSessionMock.mockResolvedValue(null)
     const identityProfile = {
       ...profile,
       id: 'identity',
@@ -101,19 +104,20 @@ describe('protected navigation guard', () => {
   })
 
   it('continues after cookie restoration and permission hydration', async () => {
-    ensureSessionMock.mockResolvedValue('access-token')
-    hydrateUserAndPermissionsMock.mockResolvedValue(undefined)
+    restoreProtectedSessionMock.mockResolvedValue('access-token')
     hasPermissionMock.mockReturnValue(true)
     const guard = createProtectedNavigationGuard(router, profile)
 
     await expect(guard(createTo({ permission: 'user:read' }))).resolves.toBe(true)
-    expect(hydrateUserAndPermissionsMock).toHaveBeenCalledOnce()
+    expect(restoreProtectedSessionMock).toHaveBeenCalledOnce()
+    expect(preloadRouteViewComponentsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ fullPath: '/settings/profile' }),
+    )
     expect(routeAccessState.status.value).toBe('idle')
   })
 
   it('keeps the URL and marks access denied when permission is missing', async () => {
-    ensureSessionMock.mockResolvedValue('access-token')
-    hydrateUserAndPermissionsMock.mockResolvedValue(undefined)
+    restoreProtectedSessionMock.mockResolvedValue('access-token')
     hasPermissionMock.mockReturnValue(false)
     const guard = createProtectedNavigationGuard(router, profile)
 
@@ -124,7 +128,7 @@ describe('protected navigation guard', () => {
   })
 
   it('shows the retry boundary for transient session failures', async () => {
-    ensureSessionMock.mockRejectedValue(new SessionRestoreErrorMock('offline'))
+    restoreProtectedSessionMock.mockRejectedValue(new SessionRestoreErrorMock('offline'))
     const guard = createProtectedNavigationGuard(router, profile)
 
     await expect(guard(createTo())).resolves.toBe(false)

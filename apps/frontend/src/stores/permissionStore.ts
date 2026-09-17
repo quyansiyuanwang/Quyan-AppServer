@@ -150,14 +150,19 @@ export const usePermissionStore = defineStore('permissionStore', () => {
   /**
    * 加载指定用户的权限
    */
-  const loadUserPermissions = async (userId: string) => {
+  const loadUserPermissions = async (
+    userId: string,
+    expectedCurrentUserId: string | null = useUserInfoStore().userInfo.id || null,
+  ) => {
     try {
       loading.value = true
       error.value = null
       const data = await permissionService.getUserPermissions(userId)
 
-      const currentUserId = useUserInfoStore().userInfo.id
-      if (userId === currentUserId) {
+      // Startup hydration can request the profile and permissions in parallel.
+      // The JWT user id proves that this response belongs to the session even
+      // before /users/me has populated the store.
+      if (!expectedCurrentUserId || userId === expectedCurrentUserId) {
         currentUserPermissions.value = data.data || null
         currentPermissionUserId.value = data.data ? userId : null
       }

@@ -1,5 +1,5 @@
 import { createApp, defineAsyncComponent, type App } from 'vue'
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import router, { currentSiteProfile, installProfileRoutes } from '@/router'
 import { getPublicSiteProfile, isKnownSiteProfile } from '@/config/site-registry'
 import { loadProfileApp } from '@/app-roots/load-profile-app'
@@ -15,7 +15,10 @@ import { installSessionExpiryRedirect } from '@/service/sessionExpiryRedirectSer
 import { installRequestErrorNotifier } from '@/service/requestErrorNoticeInstaller'
 import { replaceDocument } from '@/service/navigationService'
 import RouteAccessBoundary from '@/components/common/RouteAccessBoundary.vue'
+import { preloadRouteViewComponents } from '@/router/domain-view-loader'
+import { shouldRestoreProtectedSession } from '@/router/navigation-guard'
 import { routeAccessState } from '@/router/route-access'
+import { sessionCoordinator } from '@/service/sessionCoordinator'
 import { isNavigationFailure, NavigationFailureType } from 'vue-router'
 
 export type AppRuntimePhase = 'created' | 'routes-ready' | 'session-ready' | 'mounted' | 'running'
@@ -68,19 +71,36 @@ export class AppRuntime {
       }
     }
 
-    await initializeI18n()
-    startupMark('i18n-ready')
-    startupMeasure('i18n', 'start', 'i18n-ready')
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    // Locale loading and the selected site's route manifest are independent.
+    // Once routes are registered, start the protected session request before
+    // the locale chunk has necessarily finished, rather than making the
+    // refresh request wait behind the entire application bootstrap.
+    const i18nReady = initializeI18n()
     await installProfileRoutes(router, currentSiteProfile)
     startupMark('routes-ready')
-    startupMeasure('site-routes', 'i18n-ready', 'routes-ready')
+    startupMeasure('site-routes', 'start', 'routes-ready')
     this.phase = 'routes-ready'
+
+    const initialRoute = router.resolve(
+      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    )
+    if (shouldRestoreProtectedSession(initialRoute)) {
+      void sessionCoordinator.restoreProtectedSession().catch(() => undefined)
+      void preloadRouteViewComponents(initialRoute)
+    }
+
+    await i18nReady
+    startupMark('i18n-ready')
+    startupMeasure('i18n', 'start', 'i18n-ready')
 
     const profileApp = defineAsyncComponent(() => loadProfileApp(currentSiteProfile))
     const app = createApp(RouteAccessBoundary, { profileApp })
     startupMark('app-root-ready')
     startupMeasure('app-root', 'routes-ready', 'app-root-ready')
-    app.use(createPinia())
+    app.use(pinia)
     app.use(router)
     app.use(i18ns.plugin)
     app.config.errorHandler = (error, _instance, info) => {

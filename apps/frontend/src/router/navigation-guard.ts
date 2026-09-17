@@ -1,6 +1,7 @@
 import type { RouteLocationNormalized, Router } from 'vue-router'
 import type { SiteProfile } from '@/config/site-registry'
 import { replaceDocument } from '@/service/navigationService'
+import { preloadRouteViewComponents } from './domain-view-loader'
 import { SessionRestoreError, sessionCoordinator } from '@/service/sessionCoordinator'
 import { navigateToLogin } from '@/service/authNavigationService'
 import { usePermissionStore } from '@/stores/permissionStore'
@@ -21,6 +22,11 @@ export const isRootOAuthEntry = (to: RouteLocationNormalized): boolean =>
   to.query.response_type === 'code' &&
   typeof to.query.client_id === 'string' &&
   typeof to.query.redirect_uri === 'string'
+
+export const shouldRestoreProtectedSession = (to: RouteLocationNormalized): boolean => {
+  if (isRootOAuthEntry(to) || isAuthEntryRoute(to) || to.meta.allowGuest === true) return false
+  return !(to.meta.allowGuestWhenEmbedded === true && String(to.query.embed ?? '') === '1')
+}
 
 export const createProtectedNavigationGuard =
   (router: Router, profile: SiteProfile) => async (to: RouteLocationNormalized) => {
@@ -49,15 +55,18 @@ export const createProtectedNavigationGuard =
       return true
     }
 
-    const allowGuestWhenEmbedded =
-      to.meta.allowGuestWhenEmbedded === true && String(to.query.embed ?? '') === '1'
-    if (allowGuestWhenEmbedded || to.meta.allowGuest === true) {
+    if (!shouldRestoreProtectedSession(to)) {
       resetRouteAccess()
       return true
     }
 
+    // Start the route module request immediately. It runs in parallel with
+    // session restoration and permission hydration, while the guard still
+    // prevents the route from mounting until access is approved.
+    void preloadRouteViewComponents(to)
+
     try {
-      const token = await sessionCoordinator.ensureSession()
+      const token = await sessionCoordinator.restoreProtectedSession()
       if (!token) {
         if (profile.id === 'identity') {
           resetRouteAccess()
@@ -68,8 +77,6 @@ export const createProtectedNavigationGuard =
         await navigateToLogin(router, profile, to.fullPath)
         return false
       }
-
-      await sessionCoordinator.hydrateUserAndPermissions()
 
       const requiredPermission = to.meta.permission
       if (requiredPermission && !usePermissionStore().hasPermission(requiredPermission)) {
@@ -85,5 +92,7 @@ export const createProtectedNavigationGuard =
       }
       failRouteAccess(to.fullPath, error)
       return false
+    } finally {
+      sessionCoordinator.releaseProtectedSessionRestore()
     }
   }
