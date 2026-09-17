@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import StorageKey from '@/constant/storagekey'
+import { createAccessToken } from '../../helpers/access-token'
 import {
   clearAccessToken,
   clearTokenExpiration,
@@ -11,27 +12,11 @@ import {
   setAccessToken,
 } from '@/stores/request'
 
-const toBase64Url = (value: string): string => {
-  return btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
+const buildToken = (expiration: number): string =>
+  createAccessToken('u1', 'version-1', { exp: expiration, iat: expiration - 60 })
 
-const buildToken = (expiration: number): string => {
-  const claims = {
-    data: JSON.stringify({ data: { uid: 'u1' }, expiration }),
-    type: 'access',
-  }
-
-  return `header.${toBase64Url(JSON.stringify(claims))}.signature`
-}
-
-const buildTokenWithoutExpiration = (): string => {
-  const claims = {
-    data: JSON.stringify({ data: { uid: 'u1' } }),
-    type: 'access',
-  }
-
-  return `header.${toBase64Url(JSON.stringify(claims))}.signature`
-}
+const buildTokenWithoutExpiration = (): string =>
+  createAccessToken('u1', 'version-1', { exp: undefined })
 
 describe('request token helpers', () => {
   beforeEach(() => {
@@ -43,9 +28,10 @@ describe('request token helpers', () => {
   it('parseJWT returns parsed payload for valid token', () => {
     const token = buildToken(1_700_000_000)
 
-    expect(parseJWT(token)).toEqual({
-      data: { uid: 'u1' },
-      expiration: 1_700_000_000,
+    expect(parseJWT(token)).toMatchObject({
+      userId: 'u1',
+      updatedAt: 'version-1',
+      exp: 1_700_000_000,
     })
   })
 
@@ -96,6 +82,31 @@ describe('request token helpers', () => {
     expect(isTokenExpired({ bufferSeconds: 2 })).toBe(true)
     expect(getAccessToken()).toBe(buildToken(expiration))
     expect(localStorage.getItem(StorageKey.Auth.ACCESS_TOKEN_EXPIRATION)).toBeNull()
+  })
+
+  it.each([
+    buildTokenWithoutExpiration(),
+    'invalid',
+    createAccessToken('u1', 'version-1', { exp: 'not-a-number' }),
+  ])('clears the previous deadline when the next token has no valid exp', (nextToken) => {
+    saveTokenExpiration(buildToken(1))
+    expect(isTokenExpired()).toBe(true)
+    saveTokenExpiration(nextToken)
+    expect(isTokenExpired()).toBe(false)
+  })
+
+  it('refreshes only when the standard exp reaches the configured buffer', () => {
+    const expiration = 1_800_000_000
+    setAccessToken(buildToken(expiration))
+    vi.spyOn(Date, 'now').mockReturnValue((expiration - 5) * 1000)
+    expect(isTokenExpired({ bufferSeconds: 2 })).toBe(false)
+    vi.spyOn(Date, 'now').mockReturnValue((expiration - 2) * 1000)
+    expect(isTokenExpired({ bufferSeconds: 2 })).toBe(true)
+  })
+
+  it('treats exp zero as expired rather than missing', () => {
+    saveTokenExpiration(buildToken(0))
+    expect(isTokenExpired()).toBe(true)
   })
 
   it('returns false when no token expiration can be resolved', () => {
