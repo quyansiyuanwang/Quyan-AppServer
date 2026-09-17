@@ -3,7 +3,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus/es'
 import { Refresh } from '@element-plus/icons-vue'
-import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
+import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission-meta'
 import { Permission } from '@/constant/permission'
 import type {
   EffectivePermissionDto,

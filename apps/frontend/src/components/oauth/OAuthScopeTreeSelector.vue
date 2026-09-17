@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import type { TreeInstance } from 'element-plus'
-import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission'
+import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission-meta'
 import { i18ns } from '@/locales'
 import { getPermissionCategoryTranslationKey } from '@/views/management/permission-tree'
 

@@ -181,6 +181,16 @@ const emoji: DeepStringify<typeof en> = {
     noPermission: '🚫 🔐',
   },
 
+  routeAccess: {
+    forbiddenTitle: '🚫 🚪',
+    forbiddenDescription: '👤 🚫 🛂 ➡️ 📄',
+    sessionErrorTitle: '⚠️ 🔐',
+    sessionErrorDescription: '❓ 👤 ⬅️ 🔁',
+    retry: '🔁',
+    goBack: '🔙',
+    backToLogin: '🔙 🔐',
+  },
+
   productConsole: {
     refresh: '♻️',
     documentation: '📖',

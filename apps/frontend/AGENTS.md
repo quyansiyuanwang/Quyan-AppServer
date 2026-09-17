@@ -75,7 +75,7 @@ pnpm run validate:permissions # Validate permission constants against backend
 1. OpenAPI spec fetched from backend at `http://localhost:10001/docs/openapi.json`
 2. Configuration in `openapi-ts.config.ts` specifies output to `src/client/` with camelCase operation IDs
 3. `pnpm run openapi:generate` generates typed SDK in `src/client/`
-4. `script/generate-api-constants.js` and `script/generate-api-types-map.js` extract endpoint metadata
+4. `script/generate-api-constants.js` extracts endpoint constants; `script/generate-api-types-map.js` keeps the type map type-only and emits per-controller runtime descriptors
 5. Axios instance in `stores/request.ts` handles auth, token refresh, interceptors
 
 **Token Management (`stores/request.ts`):**

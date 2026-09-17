@@ -1,4 +1,4 @@
-import { createApp, type App } from 'vue'
+import { createApp, defineAsyncComponent, type App } from 'vue'
 import { createPinia } from 'pinia'
 import router, { currentSiteProfile, installProfileRoutes } from '@/router'
 import { getPublicSiteProfile, isKnownSiteProfile } from '@/config/site-registry'
@@ -14,6 +14,9 @@ import { clearLegacyAuthStorage } from '@/stores/request'
 import { installSessionExpiryRedirect } from '@/service/sessionExpiryRedirectService'
 import { installRequestErrorNotifier } from '@/service/requestErrorNoticeInstaller'
 import { replaceDocument } from '@/service/navigationService'
+import RouteAccessBoundary from '@/components/common/RouteAccessBoundary.vue'
+import { routeAccessState } from '@/router/route-access'
+import { isNavigationFailure, NavigationFailureType } from 'vue-router'
 
 export type AppRuntimePhase = 'created' | 'routes-ready' | 'session-ready' | 'mounted' | 'running'
 
@@ -73,7 +76,8 @@ export class AppRuntime {
     startupMeasure('site-routes', 'i18n-ready', 'routes-ready')
     this.phase = 'routes-ready'
 
-    const app = createApp(await loadProfileApp(currentSiteProfile))
+    const profileApp = defineAsyncComponent(() => loadProfileApp(currentSiteProfile))
+    const app = createApp(RouteAccessBoundary, { profileApp })
     startupMark('app-root-ready')
     startupMeasure('app-root', 'routes-ready', 'app-root-ready')
     app.use(createPinia())
@@ -95,16 +99,23 @@ export class AppRuntime {
     configureAll()
     this.app = app
 
-    // Initial session restoration deliberately happens in the route guard as
-    // background work. Do not let a slow cookie refresh, profile request, or
-    // permission catalog delay mounting the application shell.
+    // Session restoration and permission hydration are resolved by the route
+    // guard before this point. The boundary only renders the business app
+    // after access has been approved.
     this.phase = 'session-ready'
 
-    // Route installation is local work. The guard chain must not await remote
-    // authorization so the initial shell can render immediately.
-    await router.isReady()
+    // Resolve the initial navigation before mount. The guard performs cookie
+    // session restoration and permission hydration in front of an access
+    // boundary, so protected views never mount speculatively.
+    try {
+      await router.isReady()
+    } catch (error) {
+      if (!isNavigationFailure(error, NavigationFailureType.aborted)) throw error
+    }
     startupMark('router-ready')
     startupMeasure('router-ready', 'app-root-ready', 'router-ready')
+
+    if (routeAccessState.status.value === 'redirecting') return
 
     app.mount('#app')
     startupMark('mounted')

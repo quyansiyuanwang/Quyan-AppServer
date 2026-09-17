@@ -375,7 +375,7 @@ pnpm run openapi:gen:all → 自动生成 OpenAPI 规范 + 前端 TypeScript SDK
 ```
 backend (tsoa spec-and-routes) → swagger.json
     ↓ (sync-swagger-to-frontend.mjs 复制)
-frontend (openapi-ts) → src/client/ (typed SDK + API constants + type maps)
+frontend (openapi-ts) → src/client/ (typed SDK + API constants + type-only maps + per-controller descriptors)
 ```
 
 ### 代码质量保障

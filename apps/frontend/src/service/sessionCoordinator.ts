@@ -32,6 +32,38 @@ export class SessionExpiredError extends Error {
   }
 }
 
+export class SessionRestoreError extends Error {
+  readonly originalError: unknown
+
+  constructor(originalError: unknown) {
+    super('Unable to restore the session')
+    this.name = 'SessionRestoreError'
+    this.originalError = originalError
+  }
+}
+
+const DEFINITIVE_AUTH_FAILURE_CODES = new Set<number>([
+  CustomCode.AUTH_FAILED,
+  CustomCode.ACCOUNT_DISABLED,
+  CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE,
+  CustomCode.TOKEN_EXPIRED,
+  CustomCode.TOKEN_INVALID,
+])
+
+const isDefinitiveAuthFailure = (error: unknown): boolean => {
+  const candidate = error as {
+    code?: unknown
+    data?: { code?: unknown }
+    response?: { data?: { code?: unknown }; status?: unknown }
+    status?: unknown
+  }
+  const status = Number(candidate?.response?.status ?? candidate?.status)
+  if (status === 401) return true
+
+  const code = Number(candidate?.code ?? candidate?.data?.code ?? candidate?.response?.data?.code)
+  return Number.isFinite(code) && DEFINITIVE_AUTH_FAILURE_CODES.has(code)
+}
+
 const getAuthApi = cache(() => createAuthControllerApi(useRequestStore().getAxios()))
 
 export class SessionCoordinator {
@@ -168,9 +200,12 @@ export class SessionCoordinator {
           { body: options },
           { retry: false, requestWrapper: async (promise: any) => promise },
         )
-        if (result.code !== CustomCode.OK || !result.data?.access_token) {
-          throw new SessionExpiredError()
+        if (result.code !== CustomCode.OK) {
+          throw Object.assign(new Error(result.message || 'Session refresh rejected'), {
+            code: result.code,
+          })
         }
+        if (!result.data?.access_token) throw new SessionExpiredError()
         const { impersonation } = result.data
         if (impersonation) {
           useImpersonationStore().setSession({
@@ -190,7 +225,11 @@ export class SessionCoordinator {
         void heartbeatService.start().catch(() => undefined)
         return result.data.access_token
       } catch (error) {
-        this.clearLocalSession(error instanceof SessionExpiredError ? 'expired' : 'anonymous')
+        if (!(error instanceof SessionExpiredError) && !isDefinitiveAuthFailure(error)) {
+          throw new SessionRestoreError(error)
+        }
+
+        this.clearLocalSession('expired')
         return null
       } finally {
         this.restorePromise = null

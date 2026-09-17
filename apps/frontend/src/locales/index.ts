@@ -1,5 +1,4 @@
 import { createI18n } from 'vue-i18n'
-import zhCN from './zh-CN'
 import type { NestedKeys, Assert, Equal, Tail } from '@/types/common'
 import { ref, type Ref } from 'vue'
 import StorageKey from '@/constant/storagekey'
@@ -11,7 +10,7 @@ const I18N_INIT_TIMEOUT_MS = 5000
 export type Locale = (typeof SUPPORTED_LOCALES)[number]
 export type BackendLocale = Exclude<Locale, 'emoji'>
 
-type LocaleMessages = typeof zhCN
+type LocaleMessages = typeof import('./zh-CN').default
 type EnMessages = typeof import('./en').default
 type EmojiMessages = typeof import('./emoji').default
 
@@ -29,19 +28,18 @@ const fallbackLocale: Locale = 'en'
 
 const localeLoaders: Record<Locale, () => Promise<LocaleMessages>> = {
   en: () => import('./en').then(({ default: messages }) => messages as LocaleMessages),
-  'zh-CN': () => Promise.resolve(zhCN),
+  'zh-CN': () => import('./zh-CN').then(({ default: messages }) => messages as LocaleMessages),
   emoji: () => import('./emoji').then(({ default: messages }) => messages as LocaleMessages),
 }
 
-const loadedLocales = new Set<Locale>(['zh-CN'])
+const loadedLocales = new Set<Locale>()
+const localeLoadPromises = new Map<Locale, Promise<void>>()
 
 const i18n = createI18n({
   legacy: false, // 使用 Composition API 模式
   locale: defaultLocale,
   fallbackLocale,
-  messages: {
-    [defaultLocale]: zhCN,
-  },
+  messages: {},
   globalInjection: false,
 })
 
@@ -68,33 +66,49 @@ const withTimeout = async <T>(
   }
 }
 
-const ensureLocaleMessages = async (locale: Locale): Promise<void> => {
-  if (loadedLocales.has(locale)) return
+const ensureLocaleMessages = (locale: Locale): Promise<void> => {
+  if (loadedLocales.has(locale)) return Promise.resolve()
 
-  const messages = await localeLoaders[locale]()
-  i18n.global.setLocaleMessage(locale, messages)
-  loadedLocales.add(locale)
+  const pending = localeLoadPromises.get(locale)
+  if (pending) return pending
+
+  const loadPromise = localeLoaders[locale]()
+    .then((messages) => {
+      i18n.global.setLocaleMessage(locale, messages)
+      loadedLocales.add(locale)
+    })
+    .finally(() => {
+      localeLoadPromises.delete(locale)
+    })
+
+  localeLoadPromises.set(locale, loadPromise)
+  return loadPromise
 }
 
 export const initializeI18n = async (timeoutMs = I18N_INIT_TIMEOUT_MS): Promise<void> => {
+  let initialLocale = savedLocale
   try {
     await withTimeout(
       ensureLocaleMessages(savedLocale),
       timeoutMs,
       `[i18n] initialize timeout after ${timeoutMs}ms`,
     )
-    localeRef.value = savedLocale
   } catch (error) {
     console.warn('[i18n] Failed to initialize locale messages, fallback to zh-CN.', error)
-    localeRef.value = defaultLocale
+    initialLocale = defaultLocale
+    try {
+      await withTimeout(
+        ensureLocaleMessages(defaultLocale),
+        timeoutMs,
+        `[i18n] default initialize timeout after ${timeoutMs}ms`,
+      )
+    } catch (fallbackError) {
+      console.error('[i18n] Failed to initialize any locale messages.', fallbackError)
+      return
+    }
   }
 
-  // Warm fallback language in the background to keep key-fallback experience stable.
-  if (localeRef.value !== fallbackLocale) {
-    void ensureLocaleMessages(fallbackLocale).catch((warmupError) => {
-      console.warn('[i18n] Failed to warm fallback locale.', warmupError)
-    })
-  }
+  localeRef.value = initialLocale
 }
 
 export default i18n
