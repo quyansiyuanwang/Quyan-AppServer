@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'

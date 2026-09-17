@@ -10,7 +10,7 @@ import {
 import { resolve } from 'node:path'
 import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib'
 
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
@@ -155,6 +155,63 @@ export default defineConfig(({ mode }) => {
     dep.includes('xterm-') ||
     dep.includes('sortablejs-')
 
+  const elementPlusComponentGroups = new Map<string, ReadonlySet<string>>([
+    ['ui-table', new Set(['table', 'table-v2', 'virtual-list', 'pagination'])],
+    ['ui-tree', new Set(['tree', 'tree-select'])],
+    ['ui-transfer', new Set(['transfer'])],
+    ['ui-select', new Set(['select', 'select-v2', 'option', 'option-group'])],
+    ['ui-autocomplete', new Set(['autocomplete'])],
+    ['ui-tag', new Set(['tag', 'badge'])],
+    ['ui-date', new Set(['date-picker', 'date-picker-panel', 'calendar'])],
+    ['ui-time', new Set(['time-picker', 'time-select'])],
+    [
+      'ui-input',
+      new Set([
+        'input-number',
+        'input-tag',
+        'cascader',
+        'cascader-panel',
+        'color-picker',
+        'rate',
+        'slider',
+        'upload',
+        'image',
+        'image-viewer',
+        'carousel',
+        'progress',
+      ]),
+    ],
+    ['ui-menu', new Set(['menu', 'sub-menu', 'dropdown'])],
+    ['ui-tabs', new Set(['tabs', 'breadcrumb', 'steps', 'anchor', 'backtop', 'tour'])],
+    ['ui-layout', new Set(['container', 'row', 'col', 'space', 'divider'])],
+    ['ui-feedback', new Set(['empty', 'skeleton'])],
+    ['ui-content', new Set(['collapse', 'descriptions', 'timeline', 'result'])],
+  ])
+
+  const elementPlusGraphOwnedComponents = new Set([
+    'badge',
+    'button',
+    'card',
+    'config-provider',
+    'input',
+    'message',
+    'message-box',
+    'notification',
+    'overlay',
+  ])
+
+  const resolveElementPlusChunk = (moduleId: string): string | undefined => {
+    const component = /\/element-plus\/es\/components\/([^/]+)\//.exec(moduleId)?.[1]
+    if (!component) return undefined
+    if (elementPlusGraphOwnedComponents.has(component)) return undefined
+
+    for (const [chunkName, components] of elementPlusComponentGroups) {
+      if (components.has(component)) return chunkName
+    }
+
+    return undefined
+  }
+
   const resolveNodeModuleChunk = (moduleId: string): string | undefined => {
     // Keep truly shared app/runtime dependencies in a stable base chunk.
     if (
@@ -169,6 +226,8 @@ export default defineConfig(({ mode }) => {
     if (moduleId.includes('/@simplewebauthn/')) {
       return 'passkey'
     }
+
+    if (moduleId.includes('/element-plus/es/')) return resolveElementPlusChunk(moduleId)
 
     // The chart stack is optional, but its internal packages must arrive as
     // one request when a chart page is opened. Splitting it further turns one
@@ -195,10 +254,8 @@ export default defineConfig(({ mode }) => {
     if (moduleId.includes('/xterm/')) return 'xterm'
     if (moduleId.includes('/sortablejs/')) return 'sortablejs'
 
-    // Only the shared HTTP client remains in the stable vendor layer. Vue,
-    // Element Plus and the rest of the UI dependency graph must retain their
-    // real lazy-route ownership; forcing every node_modules package here made
-    // optional editors, tables and terminals part of the initial page.
+    // Only the shared HTTP client remains in the stable vendor layer. The rest
+    // of the dependency graph keeps its real route ownership.
     if (moduleId.includes('/axios/')) return 'vendor'
 
     return undefined
@@ -295,7 +352,7 @@ export default defineConfig(({ mode }) => {
    * every domain application part of the first document's module graph.
    */
   let bundleShapeReport: string | null = null
-  const assertBundleShape = {
+  const assertBundleShape: Plugin = {
     name: 'assert-bundle-shape',
     generateBundle(_options: unknown, bundle: Record<string, unknown>) {
       const chunks = Object.values(bundle).filter(
@@ -343,21 +400,10 @@ export default defineConfig(({ mode }) => {
             .split(' -> ')
             .map((name) => chunksByFileName.get(name))
             .flatMap((chunk) => Object.keys(chunk?.modules ?? {}).slice(0, 24))
-          const isRouteBoundaryCycle = [...cycleModules].some((moduleId) =>
-            /\/src\/(?:router\/domain-views|views)\//.test(moduleId.replace(/\\/g, '/')),
+          throw new Error(
+            `Static chunk dependency cycle detected: ${cycle}\nModules: ${cycleModules.join(', ')}\n` +
+              `Vendor-to-index edges: ${vendorToIndexEdges.slice(0, 12).join(', ')}`,
           )
-          // Domain registry cycles are executed through Rolldown's strict
-          // execution-order runtime below. Other cycles (especially the
-          // framework/vendor/entry layers) remain a release blocker.
-          if (!isRouteBoundaryCycle) {
-            throw new Error(
-              `Static framework chunk dependency cycle detected: ${cycle}\nModules: ${cycleModules.join(', ')}\n` +
-                `Vendor-to-index edges: ${vendorToIndexEdges.slice(0, 12).join(', ')}`,
-            )
-          }
-          visitingChunks.delete(fileName)
-          visitedChunks.add(fileName)
-          return
         }
         if (visitedChunks.has(fileName)) return
         visitingChunks.add(fileName)
@@ -402,6 +448,29 @@ export default defineConfig(({ mode }) => {
       const initialModules = [...initialChunkNames].flatMap((fileName) =>
         Object.keys(chunksByFileName.get(fileName)?.modules ?? {}),
       )
+      const normalizedInitialModules = initialModules.map((moduleId) =>
+        moduleId.replace(/\\/g, '/'),
+      )
+      const eagerLocaleModule = normalizedInitialModules.find((moduleId) =>
+        /\/src\/locales\/(?:zh-CN|en|emoji)\.ts$/.test(moduleId),
+      )
+      if (eagerLocaleModule) {
+        throw new Error(`Locale bundle was included in the entry graph: ${eagerLocaleModule}`)
+      }
+
+      const startupApiDescriptorPattern =
+        /\/src\/client\/api-descriptors\/(?:auth|user-heartbeat|permission|error-report)-controller\.gen\.ts$/
+      const eagerApiDescriptor = normalizedInitialModules.find(
+        (moduleId) =>
+          /\/src\/client\/api-descriptors\//.test(moduleId) &&
+          !startupApiDescriptorPattern.test(moduleId),
+      )
+      if (eagerApiDescriptor) {
+        throw new Error(
+          `Non-startup API descriptors were included in the entry graph: ${eagerApiDescriptor}`,
+        )
+      }
+
       const maxInitialChunks = 8
       if (initialChunkNames.size > maxInitialChunks) {
         throw new Error(
@@ -466,6 +535,14 @@ export default defineConfig(({ mode }) => {
           fileName.startsWith(`assets/domain-${domain}-`),
         )
         if (!domainChunk) return `${domain}=missing`
+        const staticViewModule = Object.keys(chunksByFileName.get(domainChunk)?.modules ?? {}).find(
+          (moduleId) => /\/src\/views\//.test(moduleId.replace(/\\/g, '/')),
+        )
+        if (staticViewModule) {
+          throw new Error(
+            `Domain bundle ${domainChunk} eagerly contains route view: ${staticViewModule}`,
+          )
+        }
         const dependencies = collectStaticDependencies(domainChunk)
         const foreignDomainDependency = chunksByFileName
           .get(domainChunk)
@@ -535,8 +612,10 @@ export default defineConfig(({ mode }) => {
       const initialGzipBytes = gzipSync(initialSource).length
       const initialBrotliBytes = brotliCompressSync(initialSource).length
       const maxInitialAssets = 6
-      const maxInitialRawBytes = 1536 * 1024
-      const maxInitialBrotliBytes = 400 * 1024
+      const maxInitialRawBytes = 800 * 1024
+      const maxInitialBrotliBytes = 230 * 1024
+      const maxEntryRawBytes = 450 * 1024
+      const maxSharedChunkBytes = 300 * 1024
       if (initialAssetNames.length > maxInitialAssets) {
         throw new Error(
           `Entry document references ${initialAssetNames.length} assets; expected no more than ${maxInitialAssets}`,
@@ -552,9 +631,27 @@ export default defineConfig(({ mode }) => {
           `Entry assets compress to ${initialBrotliBytes} B with Brotli; expected no more than ${maxInitialBrotliBytes} B`,
         )
       }
+      const entryAssetName = initialAssetNames.find((fileName) => /^index-.*\.js$/.test(fileName))
+      const entryAssetBytes = entryAssetName ? statSync(resolve(assetsDir, entryAssetName)).size : 0
+      if (entryAssetBytes > maxEntryRawBytes) {
+        throw new Error(
+          `Entry chunk ${entryAssetName ?? '(missing)'} is ${entryAssetBytes} B; expected no more than ${maxEntryRawBytes} B`,
+        )
+      }
+      const oversizedSharedAsset = clientAssets.find((entry) => {
+        if (!entry.name.endsWith('.js')) return false
+        if (/^(?:index|framework|charts|markdown-highlighter|xterm|xlsx)-/.test(entry.name))
+          return false
+        return statSync(resolve(assetsDir, entry.name)).size > maxSharedChunkBytes
+      })
+      if (oversizedSharedAsset) {
+        throw new Error(
+          `Unexpected shared chunk over ${maxSharedChunkBytes} B: ${oversizedSharedAsset.name}`,
+        )
+      }
       console.info(
         `[bundle-shape] assets=${clientAssets.length} js=${jsAssetCount} css=${cssAssetCount} ` +
-          `initialRaw=${initialRawBytes} initialGzip=${initialGzipBytes} initialBrotli=${initialBrotliBytes} ` +
+          `entryRaw=${entryAssetBytes} initialRaw=${initialRawBytes} initialGzip=${initialGzipBytes} initialBrotli=${initialBrotliBytes} ` +
           `${bundleShapeReport ?? ''}`,
       )
     },
@@ -709,9 +806,6 @@ export default defineConfig(({ mode }) => {
       },
       rollupOptions: {
         preserveEntrySignatures: 'allow-extension',
-        experimental: {
-          strictExecutionOrder: true,
-        },
         output: {
           entryFileNames: 'assets/[name]-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
@@ -721,7 +815,7 @@ export default defineConfig(({ mode }) => {
             // application dependencies remain graph-owned so they cannot
             // create a reverse edge from a domain chunk into the entry.
             includeDependenciesRecursively: false,
-            groups: [{ name: resolveManualChunk }],
+            groups: [{ name: resolveManualChunk, includeDependenciesRecursively: false }],
           },
         },
       },

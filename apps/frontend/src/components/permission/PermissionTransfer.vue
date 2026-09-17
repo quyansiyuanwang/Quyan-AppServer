@@ -60,7 +60,7 @@
 import { computed } from 'vue'
 import { InfoFilled, Lock } from '@element-plus/icons-vue'
 import type { Permission } from '@/client/types.gen'
-import { getPermissionLabel } from '@/constant/permission'
+import { getPermissionLabel } from '@/constant/permission-meta'
 import { i18ns } from '@/locales'
 import {
   getPermissionCategoryId,

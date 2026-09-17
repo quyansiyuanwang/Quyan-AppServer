@@ -1,5 +1,8 @@
 import { afterEach, vi } from 'vitest'
 import { config } from '@vue/test-utils'
+import { initializeI18n } from '@/locales'
+
+await initializeI18n()
 
 const hasDomEnvironment = typeof window !== 'undefined' && typeof document !== 'undefined'
 

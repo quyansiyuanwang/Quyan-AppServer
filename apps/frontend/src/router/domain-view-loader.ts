@@ -2,7 +2,7 @@ import type { Component } from 'vue'
 import type { SiteProfileId } from '@/config/site-registry'
 import { getRouteCatalogEntry } from '@/router/route-catalog'
 
-export type ViewModule = Record<string, Component>
+export type ViewModule = Record<string, () => Promise<Component>>
 type ViewSubscription = ViewModule | (() => Promise<ViewModule>)
 
 /** Site plugins subscribe their own views when their entry module is imported. */
@@ -73,7 +73,7 @@ export const lazyRouteView = (routeName: string, feature: string, path: string) 
   const views = await getDomainViews(domain)
   const key = `../../views/${viewPath}`
   const view = resolveView(views, key)
-  if (view) return { default: view }
+  if (view) return { default: await view() }
 
   const availableKeys = Object.keys(views).join(', ')
   throw new Error(

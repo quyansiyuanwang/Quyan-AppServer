@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import ts from 'typescript'
 import { fileURLToPath } from 'node:url'
+import { format } from 'prettier'
 
 type RouteViewReference = { routeName: string; feature: string; viewPath: string }
 
@@ -161,13 +162,13 @@ const renderManifest = (siteId: string, viewPaths: readonly string[]): string =>
     '  [',
     paths,
     '  ],',
-    "  { eager: true, import: 'default' },",
+    "  { eager: false, import: 'default' },",
     ')',
     '',
   ].join('\n')
 }
 
-export const generateDomainViewManifests = (): { sites: number; views: number } => {
+export const generateDomainViewManifests = async (): Promise<{ sites: number; views: number }> => {
   const groups = readRouteGroups()
   const references = readRouteViews()
   const knownSiteIds = readRegisteredSiteIds()
@@ -222,7 +223,13 @@ export const generateDomainViewManifests = (): { sites: number; views: number } 
   for (const [siteId, paths] of [...bySite.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     const target = path.join(outputRoot, `${siteId}.gen.ts`)
     const temporary = `${target}.${process.pid}.tmp`
-    fs.writeFileSync(temporary, renderManifest(siteId, [...paths]), 'utf8')
+    const formatted = await format(renderManifest(siteId, [...paths]), {
+      filepath: target,
+      semi: false,
+      singleQuote: true,
+      printWidth: 100,
+    })
+    fs.writeFileSync(temporary, formatted, 'utf8')
     fs.rmSync(target, { force: true })
     fs.renameSync(temporary, target)
     viewCount += paths.size
@@ -232,8 +239,9 @@ export const generateDomainViewManifests = (): { sites: number; views: number } 
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const result = generateDomainViewManifests()
-  console.log(
-    `[domain-views:generate] generated ${result.views} views across ${result.sites} sites`,
-  )
+  void generateDomainViewManifests().then((result) => {
+    console.log(
+      `[domain-views:generate] generated ${result.views} views across ${result.sites} sites`,
+    )
+  })
 }

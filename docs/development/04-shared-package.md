@@ -140,11 +140,13 @@ export { Permission, ALL_PERMISSIONS } from '@quyan/shared';
 export { Permission, ALL_PERMISSIONS } from '@quyan/shared';
 ```
 
+权限展示元数据、分类和标签函数位于 `apps/frontend/src/constant/permission-meta.ts`，只由权限管理相关页面按需加载，避免进入应用入口包。
+
 ## 一致性校验
 
 `scripts/validate-frontend-permissions.mjs` 验证：
 1. 前后端都从 `@quyan/shared` re-export（非本地定义）
-2. 前端的 `PERMISSION_META` 覆盖了所有 `Permission` 枚举值
+2. 前端的 `permission-meta.ts` 中 `PERMISSION_META` 覆盖所有 `Permission` 枚举值
 3. 没有多余或缺失的权限条目
 
 此脚本在 `pnpm run precommit` 时自动运行。

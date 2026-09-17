@@ -16,6 +16,7 @@ const rootDir = path.resolve(__dirname, '..')
 
 const sharedFile = path.resolve(rootDir, 'packages/shared/src/permission.ts')
 const frontendFile = path.resolve(rootDir, 'apps/frontend/src/constant/permission.ts')
+const frontendMetaFile = path.resolve(rootDir, 'apps/frontend/src/constant/permission-meta.ts')
 const backendFile = path.resolve(rootDir, 'apps/backend/src/constant/permission.ts')
 
 function parseEnum(filePath) {
@@ -58,13 +59,17 @@ function hasSharedReExport(filePath) {
 const canonical = parseEnum(sharedFile)
 const canonicalKeys = Object.keys(canonical)
 
-console.log(`Canonical Permission enum: ${canonicalKeys.length} members (packages/shared/src/permission.ts)`)
+console.log(
+  `Canonical Permission enum: ${canonicalKeys.length} members (packages/shared/src/permission.ts)`,
+)
 
 let failed = false
 
 // Verify frontend re-exports from shared (no local enum)
 if (hasLocalEnum(frontendFile)) {
-  console.error('❌ Frontend permission.ts should not define a local Permission enum - it must re-export from @quyan/shared')
+  console.error(
+    '❌ Frontend permission.ts should not define a local Permission enum - it must re-export from @quyan/shared',
+  )
   failed = true
 }
 if (!hasSharedReExport(frontendFile)) {
@@ -76,7 +81,9 @@ if (!hasSharedReExport(frontendFile)) {
 
 // Verify backend re-exports from shared (no local enum)
 if (hasLocalEnum(backendFile)) {
-  console.error('❌ Backend permission.ts should not define a local Permission enum - it must re-export from @quyan/shared')
+  console.error(
+    '❌ Backend permission.ts should not define a local Permission enum - it must re-export from @quyan/shared',
+  )
   failed = true
 }
 if (!hasSharedReExport(backendFile)) {
@@ -87,16 +94,18 @@ if (!hasSharedReExport(backendFile)) {
 }
 
 // Verify frontend PERMISSION_META covers all canonical enum members
-const metaKeys = parseMetaKeys(frontendFile)
-const missingMeta = canonicalKeys.filter(k => !metaKeys.has(k))
-const extraMeta = [...metaKeys].filter(k => !canonicalKeys.includes(k))
+const metaKeys = parseMetaKeys(frontendMetaFile)
+const missingMeta = canonicalKeys.filter((k) => !metaKeys.has(k))
+const extraMeta = [...metaKeys].filter((k) => !canonicalKeys.includes(k))
 
 if (missingMeta.length) {
   console.error('❌ PERMISSION_META missing entries for: ' + missingMeta.join(', '))
   failed = true
 }
 if (extraMeta.length) {
-  console.error('❌ PERMISSION_META has extra entries not in canonical enum: ' + extraMeta.join(', '))
+  console.error(
+    '❌ PERMISSION_META has extra entries not in canonical enum: ' + extraMeta.join(', '),
+  )
   failed = true
 }
 if (missingMeta.length === 0 && extraMeta.length === 0) {

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CustomCode } from '@/constant/custom-code'
-import { DeveloperQuotaAdminControllerList } from '@/client/api-types-map.gen'
+import { DeveloperQuotaAdminControllerList } from '@/client/api-descriptors/developer-quota-admin-controller.gen'
 
 const { requestMock } = vi.hoisted(() => ({
   requestMock: {

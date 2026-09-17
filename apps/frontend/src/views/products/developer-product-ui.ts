@@ -1,5 +1,6 @@
 import type { DeveloperProductCode } from '@/client/types.gen'
-import { Permission, PERMISSION_META } from '@/constant/permission'
+import { Permission } from '@/constant/permission'
+import { PERMISSION_META } from '@/constant/permission-meta'
 import { i18ns } from '@/locales'
 
 export const PRODUCT_COPY: Record<

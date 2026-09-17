@@ -1,10 +1,8 @@
 import { watch, type WatchStopHandle } from 'vue'
 import router, { currentSiteProfile } from '@/router'
 import { isKnownSiteProfile } from '@/config/site-registry'
-import { getCentralLoginFallbackUrl, redirectToCentralLogin } from '@/service/centralLoginService'
-import { replaceDocument } from '@/service/navigationService'
+import { navigateToLogin } from '@/service/authNavigationService'
 import { useSessionStore } from '@/stores/sessionStore'
-import { getLoginRoute } from '@/utils/auth-routes'
 
 let redirectPromise: Promise<void> | null = null
 
@@ -30,19 +28,7 @@ const redirectExpiredSession = async () => {
   }
 
   const returnPath = router.currentRoute.value.fullPath
-  redirectPromise = (async () => {
-    if (currentSiteProfile.id === 'identity') {
-      await router.replace(getLoginRoute(returnPath))
-      return
-    }
-
-    try {
-      await redirectToCentralLogin(returnPath)
-    } catch (error) {
-      console.warn('[session] Central login redirect failed after session expiry:', error)
-      replaceDocument(getCentralLoginFallbackUrl(currentSiteProfile))
-    }
-  })().finally(() => {
+  redirectPromise = navigateToLogin(router, currentSiteProfile, returnPath).finally(() => {
     redirectPromise = null
   })
 

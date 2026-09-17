@@ -6,8 +6,20 @@ const ensureSessionMock = vi.fn(async () => null)
 const installRoutesMock = vi.fn(async () => undefined)
 const routerReadyMock = vi.fn(async () => undefined)
 const installSessionExpiryRedirectMock = vi.fn()
+const isNavigationFailureMock = vi.fn(() => false)
 
-vi.mock('vue', () => ({ createApp: vi.fn(() => ({ use: vi.fn(), mount: mountMock, config: {} })) }))
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    isNavigationFailure: isNavigationFailureMock,
+  }
+})
+
+vi.mock('vue', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue')>()),
+  createApp: vi.fn(() => ({ use: vi.fn(), mount: mountMock, config: {} })),
+}))
 vi.mock('pinia', () => ({ createPinia: vi.fn(() => ({})) }))
 vi.mock('@/router', () => ({
   default: {
@@ -43,6 +55,7 @@ describe('AppRuntime', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
+    isNavigationFailureMock.mockReturnValue(false)
   })
 
   it('starts once and does not probe a guest route session', async () => {
@@ -78,5 +91,33 @@ describe('AppRuntime', () => {
     await starting
 
     expect(mountMock).toHaveBeenCalledOnce()
+  })
+
+  it('mounts the access boundary without loading the business app when route access is denied', async () => {
+    const { loadProfileApp } = await import('@/app-roots/load-profile-app')
+    const { denyRouteAccess } = await import('@/router/route-access')
+    denyRouteAccess('/settings/profile', 'user:read')
+    routerReadyMock.mockRejectedValueOnce(new Error('navigation aborted'))
+    isNavigationFailureMock.mockReturnValueOnce(true)
+
+    const { AppRuntime } = await import('@/app-runtime')
+    const runtime = new AppRuntime()
+    await runtime.start()
+
+    expect(mountMock).toHaveBeenCalledOnce()
+    expect(loadProfileApp).not.toHaveBeenCalled()
+  })
+
+  it('does not mount while a cross-origin login redirect is in progress', async () => {
+    const { markRouteRedirecting } = await import('@/router/route-access')
+    markRouteRedirecting('/settings/profile')
+    routerReadyMock.mockRejectedValueOnce(new Error('navigation aborted'))
+    isNavigationFailureMock.mockReturnValueOnce(true)
+
+    const { AppRuntime } = await import('@/app-runtime')
+    const runtime = new AppRuntime()
+    await runtime.start()
+
+    expect(mountMock).not.toHaveBeenCalled()
   })
 })
