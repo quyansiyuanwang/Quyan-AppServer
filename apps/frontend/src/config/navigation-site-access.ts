@@ -1,6 +1,6 @@
 import type { Permission } from '@/constant/permission'
 import type { SiteProfileId } from './site-catalog'
-import { navigationMenuDefinition, type NavigationNode } from './navigation-catalog'
+import { navigationMenuDefinition, type NavigationNode } from './navigation-metadata'
 import { getRouteCatalogEntry } from '@/router/route-catalog'
 
 interface SiteNavigationAccess {

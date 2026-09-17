@@ -187,6 +187,8 @@ export default {
   },
 
   routeAccess: {
+    recovering: 'Restoring your session…',
+    offline: 'Offline — reconnect to retry',
     forbiddenTitle: 'Access denied',
     forbiddenDescription: 'Your account does not have permission to access this page.',
     sessionErrorTitle: 'Unable to load session',

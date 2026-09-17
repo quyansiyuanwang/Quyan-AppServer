@@ -1,3 +1,5 @@
+import { UPDATE_CHECK_POLICY as policy } from './loading-policy'
+import { hasForegroundRequests } from '@/utils/foreground-activity'
 import { i18ns } from '@/locales'
 import { ElMessageBox } from '@/utils/elementPlusRuntime'
 import { reloadDocument } from '@/service/navigationService'
@@ -7,77 +9,91 @@ export const extractEntryModule = (html: string): string | undefined => {
   return moduleScript?.match(/\bsrc=(["'])([^"']+)\1/i)?.[2]
 }
 
-let initialEntryModule: string | undefined
-let pendingEntryModule: string | undefined
-let pendingEntryModuleChecks = 0
-let isRefreshPromptShown = false
-let watchDogTimer: number | undefined
+let stopWatchDog: (() => void) | undefined
 
-export const configureWatchDog = () => {
-  if (watchDogTimer !== undefined) return
-
-  /**
-   * 监听服务器前端构建是否更新。只比较入口模块，而不是完整 HTML，
-   * 并要求连续两次观察到同一新入口，避免边缘节点短暂不一致时误提示。
-   */
-  const checkForUpdate = () => {
-    if (isRefreshPromptShown) return
-
-    fetch('/', { cache: 'no-store' })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Unexpected index response: ${response.status}`)
-        return await response.text()
-      })
-      .then((html) => {
-        const currentEntryModule = extractEntryModule(html)
-        if (!currentEntryModule) {
-          console.warn('[WatchDog] Unable to identify the index entry module')
-          return
-        }
-
-        if (!initialEntryModule) {
-          initialEntryModule = currentEntryModule
-          console.info('[WatchDog] Initial entry module set:', initialEntryModule)
-          return
-        }
-
-        if (currentEntryModule === initialEntryModule) {
-          pendingEntryModule = undefined
-          pendingEntryModuleChecks = 0
-          return
-        }
-
-        if (currentEntryModule !== pendingEntryModule) {
-          pendingEntryModule = currentEntryModule
-          pendingEntryModuleChecks = 1
-          return
-        }
-
-        pendingEntryModuleChecks += 1
-        if (pendingEntryModuleChecks >= 2) {
-          console.info('[WatchDog] Detected a stable new entry module, prompting user to refresh')
-          isRefreshPromptShown = true
-
-          ElMessageBox.confirm(
-            i18ns.t('watchdog.newVersionMessage'),
-            i18ns.t('watchdog.newVersionTitle'),
-            {
-              confirmButtonText: i18ns.t('watchdog.refreshNow'),
-              cancelButtonText: i18ns.t('watchdog.refreshLater'),
-              type: 'info',
-            },
-          )
-            .then(reloadDocument)
-            .catch(() => {
-              // 用户选择稍后刷新，不做任何操作
-            })
-        }
-      })
-      .catch((error) => {
-        console.error('[WatchDog] Failed to check index.html:', error)
-      })
+/** Serial, visibility-aware polling; failures never accumulate overlapping fetches. */
+export const configureWatchDog = (): (() => void) => {
+  if (stopWatchDog) return stopWatchDog
+  let initialEntryModule = extractEntryModule(document.documentElement.outerHTML)
+  let pendingEntryModule: string | undefined
+  let pendingChecks = 0
+  let intervalMs: number = policy.intervalMs
+  let stopped = false
+  let promptShown = false
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let controller: AbortController | undefined
+  const available = () =>
+    !stopped && !promptShown && navigator.onLine !== false && document.visibilityState !== 'hidden'
+  const schedule = () => {
+    clearTimeout(timer)
+    if (available()) timer = setTimeout(() => void check(), intervalMs)
   }
-
-  void checkForUpdate()
-  watchDogTimer = window.setInterval(checkForUpdate, 5 * 1000)
+  const check = async () => {
+    if (!available() || controller) return
+    if (hasForegroundRequests()) {
+      schedule()
+      return
+    }
+    controller = new AbortController()
+    const timeout = setTimeout(() => controller?.abort(), policy.requestTimeoutMs)
+    try {
+      const response = await fetch(import.meta.env.BASE_URL, {
+        cache: 'no-store',
+        signal: controller.signal,
+      })
+      if (!response.ok) throw new Error(`Unexpected index response: ${response.status}`)
+      const entry = extractEntryModule(await response.text())
+      if (!entry) throw new Error('Missing application entry')
+      intervalMs = policy.intervalMs
+      if (!initialEntryModule) initialEntryModule = entry
+      if (entry === initialEntryModule) {
+        pendingEntryModule = undefined
+        pendingChecks = 0
+      } else if (entry !== pendingEntryModule) {
+        pendingEntryModule = entry
+        pendingChecks = 1
+      } else if (++pendingChecks >= policy.requiredConfirmations && available()) {
+        promptShown = true
+        void ElMessageBox.confirm(
+          i18ns.t('watchdog.newVersionMessage'),
+          i18ns.t('watchdog.newVersionTitle'),
+          {
+            confirmButtonText: i18ns.t('watchdog.refreshNow'),
+            cancelButtonText: i18ns.t('watchdog.refreshLater'),
+            type: 'info',
+          },
+        )
+          .then(reloadDocument)
+          .catch(() => undefined)
+      }
+    } catch {
+      intervalMs = Math.min(intervalMs * policy.backoffMultiplier, policy.maxIntervalMs)
+      pendingEntryModule = undefined
+      pendingChecks = 0
+    } finally {
+      clearTimeout(timeout)
+      controller = undefined
+      schedule()
+    }
+  }
+  const onAvailability = () => {
+    if (!available()) {
+      clearTimeout(timer)
+      controller?.abort()
+    } else schedule()
+  }
+  document.addEventListener('visibilitychange', onAvailability)
+  window.addEventListener('online', onAvailability)
+  window.addEventListener('offline', onAvailability)
+  schedule()
+  stopWatchDog = () => {
+    stopped = true
+    clearTimeout(timer)
+    controller?.abort()
+    document.removeEventListener('visibilitychange', onAvailability)
+    window.removeEventListener('online', onAvailability)
+    window.removeEventListener('offline', onAvailability)
+    stopWatchDog = undefined
+  }
+  return stopWatchDog
 }

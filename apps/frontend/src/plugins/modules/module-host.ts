@@ -41,12 +41,17 @@ export class ModuleHost {
     if (!loader)
       return Promise.reject(new Error(`No site module is registered for "${profile.id}".`))
 
-    const loading = loader().then(({ default: module }) => {
-      if (module.id !== profile.id) {
-        throw new Error(`Site module "${module.id}" does not match profile "${profile.id}".`)
-      }
-      return module
-    })
+    const loading = loader()
+      .then(({ default: module }) => {
+        if (module.id !== profile.id) {
+          throw new Error(`Site module "${module.id}" does not match profile "${profile.id}".`)
+        }
+        return module
+      })
+      .catch((error) => {
+        this.siteLoads.delete(profile.id)
+        throw error
+      })
     this.siteLoads.set(profile.id, loading)
     return loading
   }
@@ -97,7 +102,10 @@ export class ModuleHost {
   ): Promise<void> {
     let loading = this.featureLoads.get(key)
     if (!loading) {
-      loading = feature.load()
+      loading = feature.load().catch((error) => {
+        this.featureLoads.delete(key)
+        throw error
+      })
       this.featureLoads.set(key, loading)
     }
     const runtime = await loading

@@ -137,7 +137,7 @@ describe('MyAxios session transport', () => {
         response: { status: HttpStatusCode.Unauthorized, data: {} },
         config: { url: '/v1/protected', headers: new AxiosHeaders() },
       }),
-    ).resolves.toEqual({})
+    ).rejects.toMatchObject({ response: { status: 401 } })
     expect(refreshMock).not.toHaveBeenCalled()
     expect(notifyMock).not.toHaveBeenCalled()
   })
@@ -168,7 +168,7 @@ describe('MyAxios session transport', () => {
     expect(notifyMock).toHaveBeenCalledWith(expect.any(String), 'resource missing')
   })
 
-  it('notifies transport failures before preserving the response payload', async () => {
+  it('rejects transport failures while preserving HTTP status and response payload', async () => {
     const client = new MyAxios('https://backend.example.test', 1000)
     const axiosInstance: any = client.getAxios()
     const errorHandler = axiosInstance.interceptors.response.handlers[0]?.rejected
@@ -179,7 +179,7 @@ describe('MyAxios session transport', () => {
         response: { status: HttpStatusCode.InternalServerError, data: responseData },
         config: { url: '/v1/items', method: 'get', headers: new AxiosHeaders() },
       }),
-    ).resolves.toEqual(responseData)
+    ).rejects.toMatchObject({ response: { data: responseData } })
 
     expect(notifyMock).toHaveBeenCalledWith(expect.any(String), 'upstream failed')
   })

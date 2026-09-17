@@ -1,4 +1,4 @@
-import { useRequestStore } from '@/stores/request'
+import { useRequestStore, type RequestOptions } from '@/stores/request'
 
 import { CustomCode } from '@/constant/custom-code'
 import type { CreateUserDto, UpdateUserDto } from '@/client/types.gen'
@@ -72,8 +72,8 @@ export class UserService {
     throw toServiceError(result)
   }
 
-  async getMe() {
-    const result = await userApi.getCurrentUser({})
+  async getMe(options?: RequestOptions) {
+    const result = await userApi.getCurrentUser({}, options)
 
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data

@@ -183,6 +183,8 @@ const zhCN: DeepStringify<typeof en> = {
   },
 
   routeAccess: {
+    recovering: '正在恢复会话，请稍候…',
+    offline: '当前离线，请联网后重试',
     forbiddenTitle: '无权限访问',
     forbiddenDescription: '当前账号没有访问此页面所需的权限。',
     sessionErrorTitle: '会话加载失败',

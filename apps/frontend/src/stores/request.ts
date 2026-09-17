@@ -1,3 +1,4 @@
+import { trackForegroundRequest } from '@/utils/foreground-activity'
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
 import axios, {
@@ -9,7 +10,12 @@ import axios, {
 import { defineStore } from 'pinia'
 import { HttpStatusCode } from 'axios'
 import StorageKey from '@/constant/storagekey'
-import { EXCLUDED_URLS, OPTION_KEYS } from '@/constant/request'
+import {
+  EXCLUDED_URLS,
+  OPTION_KEYS,
+  READ_ONLY_SESSION_URLS,
+  REQUEST_POLICY,
+} from '@/constant/request'
 import type { ApiEndpointDescriptor, ApiMethod } from '@/client/api-types-map.gen'
 import { CustomCode } from '@/constant/custom-code'
 import type { PromDeResp } from '@/types/responseData'
@@ -126,7 +132,7 @@ const saveTokenExpiration = (token: string, isRefresh: boolean = false): void =>
  * 检查 token 是否已过期
  */
 const isTokenExpired = (options: { bufferSeconds?: number; isRefresh?: boolean } = {}): boolean => {
-  const { bufferSeconds = 3, isRefresh = false } = { ...options }
+  const { bufferSeconds = REQUEST_POLICY.expiryBufferSeconds, isRefresh = false } = { ...options }
   if (isRefresh || !authMemoryState.accessTokenExpiration) return false
 
   const expirationTime = authMemoryState.accessTokenExpiration
@@ -190,9 +196,11 @@ export interface RequestOptions {
   enableReplayProtection?: boolean
   signal?: AbortSignal
   skipProgressBar?: boolean
+  timeout?: number
 }
 
-type FullRequestOptions = Required<Omit<RequestOptions, 'signal'>> & Pick<RequestOptions, 'signal'>
+type FullRequestOptions = Required<Omit<RequestOptions, 'signal' | 'timeout'>> &
+  Pick<RequestOptions, 'signal' | 'timeout'>
 
 const PATH_PARAM_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
@@ -398,7 +406,10 @@ class MyAxios {
 
     // 在重试前检查并刷新 token（如果需要）
     const accessToken = getAccessToken()
-    if (accessToken && isTokenExpired({ bufferSeconds: 2 })) {
+    if (
+      accessToken &&
+      isTokenExpired({ bufferSeconds: REQUEST_POLICY.proactiveRefreshBufferSeconds })
+    ) {
       console.log('[2FA Retry] Token expired, refreshing before retry...')
       try {
         await MyAxios.getRefreshPromise()
@@ -480,13 +491,8 @@ class MyAxios {
   // Delegates refresh ownership to the session coordinator while preserving a
   // transport-local shared promise for concurrent interceptor retries.
   private static async waitForPendingSessionRestore(): Promise<void> {
-    try {
-      const { sessionCoordinator } = await import('@/service/sessionCoordinator')
-      await sessionCoordinator.waitForPendingRestore()
-    } catch {
-      // Transport must remain usable even if optional session coordination
-      // cannot be loaded. The request will still be sent with the current token.
-    }
+    const { sessionCoordinator } = await import('@/service/sessionCoordinator')
+    await sessionCoordinator.waitForPendingRestore()
   }
 
   private static getRefreshPromise(): Promise<string> {
@@ -573,7 +579,7 @@ class MyAxios {
 
         // 只读模拟模式：在发送请求前拦截写操作（UX 层，后端也有独立拦截）
         const impersonationStore = useImpersonationStore()
-        if (impersonationStore.isViewOnly) {
+        if (impersonationStore.isViewOnly && !READ_ONLY_SESSION_URLS.includes(config.url ?? '')) {
           const method = (config.method ?? '').toUpperCase()
           if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
             return Promise.reject(new Error('只读模拟模式下不允许执行写操作'))
@@ -607,14 +613,14 @@ class MyAxios {
         }
 
         // 检查是否需要刷新 token（正在刷新或 token 已过期）
-        const needsRefresh = MyAxios.refreshTokenPromise || isTokenExpired({ bufferSeconds: 2 })
+        const needsRefresh =
+          MyAxios.refreshTokenPromise ||
+          isTokenExpired({ bufferSeconds: REQUEST_POLICY.proactiveRefreshBufferSeconds })
 
         if (needsRefresh) {
-          try {
-            const newToken = await MyAxios.getRefreshPromise()
-            config.headers.setAuthorization(`Bearer ${newToken}`)
-            return config
-          } catch {}
+          const newToken = await MyAxios.getRefreshPromise()
+          config.headers.setAuthorization(`Bearer ${newToken}`)
+          return config
         }
 
         config.headers.setAuthorization(`Bearer ${accessToken}`)
@@ -665,7 +671,9 @@ class MyAxios {
             response.config as RetryAxiosRequest,
             response.status,
           )
-          return Promise.reject(toServiceError(response.data, message))
+          const failure = toServiceError(response.data, message)
+          failure.status = response.status
+          return Promise.reject(failure)
         }
 
         return response.data
@@ -724,7 +732,7 @@ class MyAxios {
         const isUnauthorized = error.response?.status === HttpStatusCode.Unauthorized
         const hasAccessToken = Boolean(getAccessToken())
         const isExcluded = EXCLUDED_URLS.includes(error.config?.url || '')
-        const isRetryAttempted = originalRequest._retry === true
+        const isRetryAttempted = originalRequest?._retry === true
         const isSkipRetry = error.config?.headers?.[OPTION_KEYS.SKIP_RETRY] === 'true'
         const responseCustomCode = Number((error.response?.data as any)?.code)
         const isTwoFactorBusinessFailure =
@@ -739,6 +747,7 @@ class MyAxios {
           !isSkipRetry &&
           !isTwoFactorBusinessFailure
         ) {
+          if (!originalRequest) return Promise.reject(error)
           originalRequest._retry = true
 
           try {
@@ -769,11 +778,9 @@ class MyAxios {
           error.response?.status,
         )
 
-        if (responseData && typeof responseData === 'object') {
-          return responseData
-        }
-
-        return Promise.reject(new Error(responseMessage))
+        // Preserve HTTP status and network/cancellation codes for recovery policy.
+        // A non-2xx response is never a successful service envelope.
+        return Promise.reject(error)
       },
     )
   }
@@ -843,11 +850,14 @@ class MyAxios {
     const finalUrl = this.getFinalUrl(endpoint, path as Record<string, any>)
 
     const headers = await this._generateHeaderOptions({ endpoint, body, finalUrl }, options)
-    return await requestWrapper(
-      this.instance.post(finalUrl, body, {
-        headers,
-        signal: options?.signal,
-      }),
+    return await trackForegroundRequest(
+      requestWrapper(
+        this.instance.post(finalUrl, body, {
+          headers,
+          signal: options?.signal,
+          timeout: options?.timeout,
+        }),
+      ),
     )
   }
 
@@ -895,12 +905,15 @@ class MyAxios {
 
     const headers = await this._generateHeaderOptions({ endpoint, body: null, finalUrl }, options)
 
-    return await requestWrapper(
-      this.instance.get(finalUrl, {
-        params: params,
-        headers: headers,
-        signal: options?.signal,
-      }),
+    return await trackForegroundRequest(
+      requestWrapper(
+        this.instance.get(finalUrl, {
+          params: params,
+          headers: headers,
+          signal: options?.signal,
+          timeout: options?.timeout,
+        }),
+      ),
     )
   }
 
@@ -922,12 +935,15 @@ class MyAxios {
 
     const finalUrl = this.getFinalUrl(endpoint, path as Record<string, any>)
 
-    return await requestWrapper(
-      this.instance.delete(finalUrl, {
-        params: params,
-        headers: await this._generateHeaderOptions({ endpoint, body: null, finalUrl }, options),
-        signal: options?.signal,
-      }),
+    return await trackForegroundRequest(
+      requestWrapper(
+        this.instance.delete(finalUrl, {
+          params: params,
+          headers: await this._generateHeaderOptions({ endpoint, body: null, finalUrl }, options),
+          signal: options?.signal,
+          timeout: options?.timeout,
+        }),
+      ),
     )
   }
 
@@ -949,11 +965,14 @@ class MyAxios {
 
     const finalUrl = this.getFinalUrl(endpoint, path as Record<string, any>)
 
-    return await requestWrapper(
-      this.instance.put(finalUrl, body, {
-        headers: await this._generateHeaderOptions({ endpoint, body, finalUrl }, options),
-        signal: options?.signal,
-      }),
+    return await trackForegroundRequest(
+      requestWrapper(
+        this.instance.put(finalUrl, body, {
+          headers: await this._generateHeaderOptions({ endpoint, body, finalUrl }, options),
+          signal: options?.signal,
+          timeout: options?.timeout,
+        }),
+      ),
     )
   }
 
@@ -975,11 +994,14 @@ class MyAxios {
 
     const finalUrl = this.getFinalUrl(endpoint, path as Record<string, any>)
 
-    return await requestWrapper(
-      this.instance.patch(finalUrl, body, {
-        headers: await this._generateHeaderOptions({ endpoint, body, finalUrl }, options),
-        signal: options?.signal,
-      }),
+    return await trackForegroundRequest(
+      requestWrapper(
+        this.instance.patch(finalUrl, body, {
+          headers: await this._generateHeaderOptions({ endpoint, body, finalUrl }, options),
+          signal: options?.signal,
+          timeout: options?.timeout,
+        }),
+      ),
     )
   }
 
@@ -1036,7 +1058,10 @@ class MyAxios {
     path: string,
     body: unknown,
   ): Promise<{ url: string; headers: Record<string, string> }> {
-    if (getAccessToken() && isTokenExpired({ bufferSeconds: 2 })) {
+    if (
+      getAccessToken() &&
+      isTokenExpired({ bufferSeconds: REQUEST_POLICY.proactiveRefreshBufferSeconds })
+    ) {
       await MyAxios.getRefreshPromise()
     }
 
@@ -1094,9 +1119,9 @@ class MyAxios {
 }
 
 export const useRequestStore = defineStore('Request', () => {
-  const instance = new MyAxios(import.meta.env.VITE_BACKEND_URL, 60000)
+  const instance = new MyAxios(import.meta.env.VITE_BACKEND_URL, REQUEST_POLICY.timeoutMs)
   const createAxios = (baseURL: string) => {
-    const instance = new MyAxios(baseURL, 60000)
+    const instance = new MyAxios(baseURL, REQUEST_POLICY.timeoutMs)
 
     return instance
   }

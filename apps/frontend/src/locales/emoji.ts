@@ -182,6 +182,8 @@ const emoji: DeepStringify<typeof en> = {
   },
 
   routeAccess: {
+    recovering: '🔄 正在恢复会话…',
+    offline: '📡 当前离线，请联网后重试',
     forbiddenTitle: '🚫 🚪',
     forbiddenDescription: '👤 🚫 🛂 ➡️ 📄',
     sessionErrorTitle: '⚠️ 🔐',

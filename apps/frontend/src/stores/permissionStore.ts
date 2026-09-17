@@ -366,6 +366,13 @@ export const usePermissionStore = defineStore('permissionStore', () => {
   /**
    * 清空当前用户权限缓存
    */
+  const applyCurrentUserPermissions = (userId: string, permissions: UserFullPermissionsDto) => {
+    if (permissions.userId !== userId) throw new Error('Permission identity mismatch')
+    currentUserPermissions.value = permissions
+    currentPermissionUserId.value = userId
+    error.value = null
+  }
+
   const clearCurrentUserPermissions = () => {
     currentUserPermissions.value = null
     currentPermissionUserId.value = null
@@ -418,6 +425,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
     getPermissionsByCategory,
     saveCurrentUserPermissionsCache,
     clearCurrentUserPermissions,
+    applyCurrentUserPermissions,
     restoreCurrentUserPermissionsCache,
     clearError,
   }
