@@ -118,13 +118,34 @@ pub async fn run() -> Result<()> {
                 }
                 return handlers::handle_update(check, args.json).await;
             }
+            Command::Launch(launch_args) => {
+                if !args.json {
+                    branding::print();
+                }
+                anyhow::ensure!(!args.json, "launch hands the terminal to a child process and cannot guarantee JSON-only output");
+                integrations::launch(
+                    launch_args.client,
+                    &creds,
+                    &cfg.relay_base_url,
+                    launch_args.model.as_deref(),
+                    &launch_args.command,
+                )?;
+                return handlers::print_value(
+                    json!({"launched":true,"client":launch_args.client.id()}),
+                    args.json,
+                );
+            }
             Command::Apply(apply_args) => {
                 if !args.json {
                     branding::print();
                 }
+                let Some(client) = apply_args.client else {
+                    return handlers::print_value(integrations::catalog(), args.json);
+                };
                 let value = integrations::apply(
-                    &creds,
-                    apply_args.client.as_deref(),
+                    client,
+                    &cfg.relay_base_url,
+                    apply_args.model.as_deref(),
                     apply_args.dry_run,
                     !apply_args.no_backup,
                 )?;

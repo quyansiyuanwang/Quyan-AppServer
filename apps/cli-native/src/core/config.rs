@@ -23,7 +23,7 @@ impl Default for Config {
             locale: "zh-CN".into(),
             api_base_url: "https://api.qysyw.cn".into(),
             relay_base_url: "https://ai.qysyw.cn".into(),
-            auth_base_url: "https://auth.qysyw.cn".into(),
+            auth_base_url: default_auth_base_url(),
             metadata: serde_json::Map::new(),
         }
     }

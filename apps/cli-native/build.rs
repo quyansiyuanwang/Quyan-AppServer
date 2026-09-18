@@ -17,9 +17,10 @@ fn main() {
     // Progenitor does not model the backend's gzip/raw relay responses. They
     // are not used by the management CLI, so omit only those media entries
     // from the generated view while keeping the source Swagger unchanged.
+    let account_paths = generate_account_routes(&raw);
     normalize_media_types(&mut raw);
     normalize_free_form_schemas(&mut raw);
-    retain_cli_paths(&mut raw);
+    retain_cli_paths(&mut raw, &account_paths);
     normalize_responses(&mut raw);
     let spec: openapiv3::OpenAPI = serde_json::from_value(raw)
         .unwrap_or_else(|error| panic!("Invalid normalized Swagger document: {error}"));
@@ -31,7 +32,7 @@ fn main() {
     fs::write(output, prettyplease::unparse(&ast)).expect("Unable to write generated client");
 }
 
-fn retain_cli_paths(value: &mut serde_json::Value) {
+fn retain_cli_paths(value: &mut serde_json::Value, account_paths: &[String]) {
     let Some(paths) = value
         .get_mut("paths")
         .and_then(serde_json::Value::as_object_mut)
@@ -39,9 +40,6 @@ fn retain_cli_paths(value: &mut serde_json::Value) {
         return;
     };
     let prefixes = [
-        "/v1/users/me/profile",
-        "/v1/balance/account",
-        "/v1/balance/usage",
         "/v1/relay/tokens",
         "/v1/relay/tokens/{id}",
         "/v1/relay/tokens/{id}/usage",
@@ -53,7 +51,9 @@ fn retain_cli_paths(value: &mut serde_json::Value) {
         "/v1/auth/qr-login/consume",
         "/v1/auth/verify-2fa",
     ];
-    paths.retain(|path, _| prefixes.iter().any(|prefix| path == prefix));
+    paths.retain(|path, _| {
+        account_paths.contains(path) || prefixes.iter().any(|prefix| path == prefix)
+    });
 }
 
 fn normalize_media_types(value: &mut serde_json::Value) {
@@ -141,4 +141,31 @@ fn normalize_responses(value: &mut serde_json::Value) {
         }
         _ => {}
     }
+}
+
+fn generate_account_routes(spec: &serde_json::Value) -> Vec<String> {
+    let operations = [
+        ("PROFILE", "UserControllerGetCurrentUser"),
+        ("BALANCE", "BalanceControllerGetMyBalance"),
+        ("USAGE", "BalanceControllerGetUsage"),
+    ];
+    let mut paths = Vec::new();
+    let mut output = String::new();
+    for (name, operation) in operations {
+        let path = spec["paths"]
+            .as_object()
+            .expect("OpenAPI paths")
+            .iter()
+            .find(|(_, item)| item["get"]["operationId"].as_str() == Some(operation))
+            .map(|(path, _)| path)
+            .unwrap_or_else(|| panic!("Missing GET operation {operation} in backend OpenAPI"));
+        paths.push(path.clone());
+        output.push_str(&format!("pub const {name}: &str = {path:?};\n"));
+    }
+    fs::write(
+        PathBuf::from(env::var("OUT_DIR").unwrap()).join("account_routes.rs"),
+        output,
+    )
+    .unwrap();
+    paths
 }

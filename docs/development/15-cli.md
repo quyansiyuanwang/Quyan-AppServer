@@ -6,7 +6,7 @@ Quyan CLI 的正式实现是 `apps/cli-native` 中的 Rust + Ratatui 原生程�
 
 无子命令执行 `quyan` 时打开 Ratatui 控制台：显示共享的 QuYan 字符画、版本、服务地址、凭证配置状态与最近事件，并提供账户登录、AI Relay、客户端适配、JSON Endpoints、配置与诊断的可导航操作目录。主页菜单显式编号为 `1` 至 `6`，按对应数字可直接打开；也可以按 `Up`/`Down` 或 `j`/`k` 选择后按 `Enter`。右侧始终显示当前项的功能、凭证边界与快捷键，`?`/`h` 显示完整按键帮助，`q` 或 `Esc` 退出。
 
-所有目录项在 TUI 内都有对应实际行为：浏览器登录启动 OAuth 流程，账户概览读取资料/余额/用量，JSON Endpoints 读取产品实例，配置与诊断显示脱敏运行状态。客户端适配在 TUI 中只执行 dry-run，防止单次 Enter 修改 Claude Code 或 Codex CLI 本地文件；实际写入仍须显式执行 `quyan apply`。AI Relay 进入 Token 列表后，`r` 刷新，`Enter` 查询选中 Token 的用量，`c` 创建默认 Quyan CLI Token，`d` 后按 `y` 才会删除 Token，`n` 取消写操作，`b`/`Esc` 返回控制台。Token 原文永不渲染、写入日志或进入事件缓冲区。配置或系统密钥链不可用时，状态页显示错误并使用安全默认值，以便用户仍能找到诊断信息。
+所有目录项在 TUI 内都有对应实际行为：浏览器登录启动 OAuth 流程，账户概览读取资料/余额/用量，JSON Endpoints 读取产品实例，配置与诊断显示脱敏运行状态。客户端适配在 TUI 中按工具预览并确认写入：Tab/方向键选择 Claude Code、Codex 或 pi，输入模型后 Enter 预览，y 确认并备份，n 取消；CLI 的 `quyan apply` 不带 client 只列出适配器。`quyan launch` 从系统密钥链读取 Relay Token，注入子进程环境，不在配置文件或命令行参数中保存 Token。AI Relay 支持服务端翻页（Left/Right）、刷新（r）、查询用量（Enter）、创建（c）与删除（d）；写操作需 y 确认。u 然后 y 将选中 Token 保存为本地工具凭证；b/Esc 返回控制台。Token 原文永不渲染、写入日志或进入事件缓冲区。配置或系统密钥链不可用时，状态页显示错误并使用安全默认值，以便用户仍能找到诊断信息。
 
 ## 目录边界
 
@@ -67,3 +67,13 @@ pnpm run pack:check:cli:native
 Rust CLI 版本以 `apps/cli-native/Cargo.toml` 为准，GitHub 标签使用 `quyan-v<version>`。Release workflow 只创建 GitHub Release 并上传五个平台制品与 checksum。macOS 制品暂未进行代码签名和 notarization。
 
 涉及后端 Controller、DTO、schema 或共享契约时，额外执行 `pnpm run openapi:gen:all` 及受影响的后端/前端检查。
+
+## OAuth 回调与账户读取
+
+浏览器登录成功后 TUI 自动回主菜单，更新凭证状态并记录无敏感信息的事件。loopback HTTP 入口校验路径、state、重复参数与请求大小；无关或错误 state 请求不消耗登录会话。只有交换 Token 与系统密钥链保存成功后，才向配置的认证域 `/oauth/result?status=success` 返回 303；失败使用非成功状态。跳转启用 no-store/no-referrer，不携带授权码、state 或凭证。结果页不参与认证和授权判定。
+
+账户概览 GET 路径由 `build.rs` 根据现有 OpenAPI operationId 生成到 `OUT_DIR/account_routes.rs`；不再手写误用仅支持 PATCH 的 `me/profile`。既有 shared/OpenAPI 仍为契约事实源。
+
+## 客户端适配边界
+
+`features/integrations` 按工具维护配置键与文件格式，`files` 管理校验、备份与原子替换，`launch` 管理子进程凭证注入。地址来自运行时配置，模型由用户或已有工具配置决定。Codex 保留 TOML 注释与无关 provider；JSON 按所属字段合并，不用失败回退空配置。支持工具目录覆盖，不自动修改 Cursor/Windsurf/Cline 等未经核实的配置字段。通用 harness 仅承诺已明确支持的 OpenAI/Anthropic 环境变量；不承诺某个名称不明确的项目兼容。

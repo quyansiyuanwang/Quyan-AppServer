@@ -6,10 +6,19 @@ use serde_json::{json, Value};
 use crate::core::api::{ApiClient, AuthKind};
 use crate::utils::charts;
 
+pub const TOKEN_PAGE_SIZE: u64 = 50;
+
 pub async fn tokens(api: &ApiClient) -> Result<Value> {
+    tokens_page(api, 1).await
+}
+
+pub async fn tokens_page(api: &ApiClient, page: u64) -> Result<Value> {
     api.request(
         Method::GET,
-        "/v1/relay/tokens?page=1&pageSize=50",
+        &format!(
+            "/v1/relay/tokens?page={}&pageSize={TOKEN_PAGE_SIZE}",
+            page.max(1)
+        ),
         None,
         AuthKind::OAuth,
         false,
@@ -320,4 +329,77 @@ pub async fn visualize_stats(api: &ApiClient, plain_output: bool) -> Result<Stri
     }
 
     Ok(output)
+}
+
+/// Fetch only the selected secret; callers persist it after explicit user action.
+pub async fn credentials_with_token(
+    api: &ApiClient,
+    id: &str,
+) -> Result<crate::core::credentials::Credentials> {
+    anyhow::ensure!(
+        !id.is_empty()
+            && id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
+        "Invalid Relay Token id"
+    );
+    let token: Value = api
+        .request(
+            Method::GET,
+            &format!("/v1/relay/tokens/{id}"),
+            None,
+            AuthKind::OAuth,
+            false,
+        )
+        .await?;
+    credentials_from_token(&api.credentials, &token)
+}
+
+fn credentials_from_token(
+    current: &crate::core::credentials::Credentials,
+    value: &Value,
+) -> Result<crate::core::credentials::Credentials> {
+    use anyhow::{ensure, Context};
+    ensure!(
+        value["status"].as_i64() == Some(1),
+        "Selected Relay Token is not active"
+    );
+    if let Some(expires) = value["expiresAt"].as_str() {
+        ensure!(
+            chrono::DateTime::parse_from_rfc3339(expires)? > Utc::now(),
+            "Selected Relay Token has expired"
+        );
+    }
+    let secret = value["token"]
+        .as_str()
+        .filter(|key| crate::core::credentials::classify(key) == "relay-token")
+        .context("Selected token did not contain a usable Relay credential")?;
+    let mut credentials = current.clone();
+    credentials.relay_token = Some(secret.to_string());
+    Ok(credentials)
+}
+
+#[cfg(test)]
+mod credential_selection_tests {
+    use super::*;
+    #[test]
+    fn selecting_a_relay_key_preserves_account_and_product_credentials() {
+        let current = crate::core::credentials::Credentials {
+            access_token: Some("test-account".into()),
+            product_key: Some("dpk_test".into()),
+            ..Default::default()
+        };
+        let next =
+            credentials_from_token(&current, &json!({"status":1,"token":"rlt_test"})).unwrap();
+        assert_eq!(next.access_token, current.access_token);
+        assert_eq!(next.product_key, current.product_key);
+        assert_eq!(next.relay_token.as_deref(), Some("rlt_test"));
+        for value in [
+            json!({"status":0,"token":"rlt_test"}),
+            json!({"status":1,"token":"ak_test"}),
+            json!({"status":1,"token":"rlt_test","expiresAt":"2000-01-01T00:00:00Z"}),
+        ] {
+            assert!(credentials_from_token(&current, &value).is_err());
+        }
+    }
 }
