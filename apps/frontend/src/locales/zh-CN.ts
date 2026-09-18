@@ -646,6 +646,15 @@ const zhCN: DeepStringify<typeof en> = {
     qrApprovalDeny: '拒绝本次登录',
   },
 
+  oauthResult: {
+    successTitle: '授权成功',
+    successDescription: 'Quyan CLI 已完成登录并将凭证保存到系统密钥链。',
+    failureTitle: '未完成登录',
+    failureDescription: '请返回 CLI 查看结果，并从 CLI 重新发起浏览器登录。',
+    returnToCli: '现在可以关闭此标签页，返回终端继续使用。',
+    securityNote: '此页面仅展示 CLI 返回的结果，不包含授权码或令牌，也不会授予额外权限。',
+  },
+
   oauthAuthorize: {
     title: '授权应用',
     subtitle: '{appName} 正在申请访问您的账户',

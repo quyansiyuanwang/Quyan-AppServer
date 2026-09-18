@@ -129,77 +129,36 @@
                 {{ i18ns.t('oauthAuthorize.highRiskWarning') }}
               </el-alert>
 
-              <el-table
-                :data="preview.scopeDetails"
-                stripe
-                size="small"
-                :max-height="isDesktop ? 380 : 280"
-                style="width: 100%"
-                class="oauth-scope-table"
-              >
-                <el-table-column
-                  :label="i18ns.t('oauthAuthorize.scopeName')"
-                  min-width="160"
-                  show-overflow-tooltip
+              <ul class="oauth-scope-list" :aria-label="i18ns.t('oauthAuthorize.requestedScopes')">
+                <li
+                  v-for="scope in preview.scopeDetails"
+                  :key="scope.scope"
+                  class="oauth-scope-item"
                 >
-                  <template #default="{ row }">
-                    <div class="scope-name-cell">
-                      <strong>{{ localizeScope(row) }}</strong>
-                      <el-tag
-                        v-if="row.riskLevel === 'high'"
-                        type="warning"
-                        size="small"
-                        style="margin-left: 4px"
-                      >
-                        {{ i18ns.t('oauthAuthorize.highRisk') }}
-                      </el-tag>
-                      <el-tag
-                        v-if="!row.grantable"
-                        type="danger"
-                        size="small"
-                        style="margin-left: 4px"
-                      >
-                        {{ i18ns.t('oauthAuthorize.unavailable') }}
-                      </el-tag>
-                      <el-tag
-                        v-if="preview.missingScopes.includes(row.scope)"
-                        type="warning"
-                        effect="plain"
-                        size="small"
-                        style="margin-left: 4px"
-                      >
-                        {{ i18ns.t('oauthAuthorize.new') }}
-                      </el-tag>
-                    </div>
-                  </template>
-                </el-table-column>
-
-                <el-table-column
-                  :label="i18ns.t('oauthAuthorize.scopeId')"
-                  width="180"
-                  show-overflow-tooltip
-                >
-                  <template #default="{ row }">
-                    <code class="scope-code">{{ row.scope }}</code>
-                  </template>
-                </el-table-column>
-
-                <el-table-column
-                  :label="i18ns.t('oauthAuthorize.description')"
-                  min-width="200"
-                  show-overflow-tooltip
-                >
-                  <template #default="{ row }">
-                    <span class="scope-description">{{ localizeScope(row, true) }}</span>
-                  </template>
-                </el-table-column>
-
-                <el-table-column :label="i18ns.t('oauthAuthorize.category')" width="120">
-                  <template #default="{ row }">
-                    {{ localizeCategory(row) }}
-                  </template>
-                </el-table-column>
-              </el-table>
+                  <div class="scope-name-cell">
+                    <strong>{{ localizeScope(scope) }}</strong>
+                    <el-tag v-if="scope.riskLevel === 'high'" type="warning" size="small">
+                      {{ i18ns.t('oauthAuthorize.highRisk') }}
+                    </el-tag>
+                    <el-tag v-if="!scope.grantable" type="danger" size="small">
+                      {{ i18ns.t('oauthAuthorize.unavailable') }}
+                    </el-tag>
+                    <el-tag
+                      v-if="preview.missingScopes.includes(scope.scope)"
+                      type="warning"
+                      effect="plain"
+                      size="small"
+                    >
+                      {{ i18ns.t('oauthAuthorize.new') }}
+                    </el-tag>
+                  </div>
+                  <p class="scope-description">{{ localizeScope(scope, true) }}</p>
+                  <div class="scope-detail-line">
+                    <code class="scope-code">{{ scope.scope }}</code>
+                    <span>{{ localizeCategory(scope) }}</span>
+                  </div>
+                </li>
+              </ul>
 
               <el-alert
                 v-if="preview.unavailableScopes.length"
@@ -386,6 +345,9 @@ const highRiskScopes = computed(
 
 <style scoped>
 .oauth-authorize-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -398,6 +360,8 @@ const highRiskScopes = computed(
 
 .oauth-authorize-card {
   width: min(1040px, 100%);
+  min-width: 0;
+  overflow-wrap: anywhere;
   border-radius: 28px;
   overflow: hidden;
 }
@@ -429,11 +393,13 @@ const highRiskScopes = computed(
 
 .oauth-authorize-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   gap: 20px;
 }
 
 .oauth-panel {
+  min-width: 0;
   border: 1px solid var(--el-border-color-light);
   border-radius: 24px;
   padding: 24px;
@@ -454,9 +420,29 @@ const highRiskScopes = computed(
   flex-wrap: wrap;
 }
 
-.oauth-scope-table {
+.oauth-scope-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.oauth-scope-item {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 12px;
-  overflow: hidden;
+  background: var(--el-fill-color-blank);
+}
+
+.scope-detail-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .scope-name-cell {
@@ -475,6 +461,8 @@ const highRiskScopes = computed(
 }
 
 .scope-description {
+  margin: 8px 0;
+  line-height: 1.6;
   font-size: 13px;
   color: var(--el-text-color-regular);
 }
@@ -617,8 +605,7 @@ const highRiskScopes = computed(
     border-radius: 22px;
   }
 
-  .oauth-authorize-layout,
-  .oauth-authorize-summary-grid {
+  .oauth-authorize-layout {
     grid-template-columns: 1fr;
   }
 
@@ -627,10 +614,12 @@ const highRiskScopes = computed(
   }
 
   .oauth-authorize-actions .el-button {
+    margin-left: 0;
     width: 100%;
   }
 
   .oauth-panel {
+    min-width: 0;
     padding: 18px;
     border-radius: 20px;
   }

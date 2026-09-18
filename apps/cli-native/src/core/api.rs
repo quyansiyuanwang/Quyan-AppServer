@@ -34,10 +34,9 @@ pub struct ApiClient {
 
 impl ApiClient {
     pub fn new(credentials: Credentials, locale: &str) -> Result<Self> {
-        let api_base_url =
-            std::env::var("QUYAN_API_URL").unwrap_or_else(|_| "https://api.qysyw.cn".into());
-        let relay_base_url =
-            std::env::var("QUYAN_RELAY_URL").unwrap_or_else(|_| "https://ai.qysyw.cn".into());
+        let defaults = crate::core::config::Config::default();
+        let api_base_url = std::env::var("QUYAN_API_URL").unwrap_or(defaults.api_base_url);
+        let relay_base_url = std::env::var("QUYAN_RELAY_URL").unwrap_or(defaults.relay_base_url);
         Self::with_endpoints(credentials, locale, &api_base_url, &relay_base_url)
     }
 

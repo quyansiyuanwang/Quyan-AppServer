@@ -36,6 +36,7 @@ pub enum Command {
         command: RelayCommand,
     },
     Apply(ApplyArgs),
+    Launch(LaunchArgs),
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -82,6 +83,10 @@ pub enum RelayCommand {
 #[derive(Debug, Subcommand)]
 pub enum RelayTokenCommand {
     List,
+    /// Select an existing token for local clients and save it in the OS keychain.
+    Use {
+        id: String,
+    },
     Create(CreateRelayTokenArgs),
     Update {
         id: String,
@@ -129,9 +134,22 @@ pub enum ChannelsCommand {
 }
 
 #[derive(Debug, Args)]
+pub struct LaunchArgs {
+    #[arg(long, value_enum)]
+    pub client: crate::features::integrations::ClientKind,
+    #[arg(long)]
+    pub model: Option<String>,
+    #[arg(trailing_var_arg = true)]
+    pub command: Vec<std::ffi::OsString>,
+}
+
+#[derive(Debug, Args)]
 pub struct ApplyArgs {
     #[arg(long)]
-    pub client: Option<String>,
+    #[arg(value_enum)]
+    pub client: Option<crate::features::integrations::ClientKind>,
+    #[arg(long)]
+    pub model: Option<String>,
     #[arg(long)]
     pub dry_run: bool,
     #[arg(long)]
@@ -162,4 +180,58 @@ pub enum ProductJsonCommand {
     },
     Clear,
     Usage,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn parses_client_workflows_and_rejects_unknown_adapters() {
+        for args in [
+            vec!["quyan", "apply"],
+            vec![
+                "quyan",
+                "apply",
+                "--client",
+                "pi",
+                "--model",
+                "test-model",
+                "--dry-run",
+            ],
+            vec!["quyan", "launch", "--client", "codex"],
+            vec![
+                "quyan",
+                "launch",
+                "--client",
+                "openai",
+                "--",
+                "test-harness",
+                "--help",
+            ],
+            vec!["quyan", "relay", "token", "use", "test-id"],
+        ] {
+            assert!(Cli::try_parse_from(args).is_ok());
+        }
+        assert!(Cli::try_parse_from(["quyan", "apply", "--client", "unknown"]).is_err());
+        let parsed = Cli::try_parse_from([
+            "quyan",
+            "launch",
+            "--client",
+            "openai",
+            "--",
+            "test-harness",
+            "--help",
+        ])
+        .unwrap();
+        match parsed.command.unwrap() {
+            Command::Launch(args) => assert_eq!(
+                args.command,
+                vec![
+                    std::ffi::OsString::from("test-harness"),
+                    std::ffi::OsString::from("--help")
+                ]
+            ),
+            _ => panic!("expected launch"),
+        }
+    }
 }

@@ -681,6 +681,17 @@ export default {
     qrApprovalDeny: 'Deny this sign-in',
   },
 
+  oauthResult: {
+    successTitle: 'Authorization successful',
+    successDescription:
+      'Quyan CLI has signed in and stored your credentials in the system keychain.',
+    failureTitle: 'Login not completed',
+    failureDescription: 'Return to the CLI to review the result and start a new browser login.',
+    returnToCli: 'You can close this tab and return to your terminal.',
+    securityNote:
+      'This page only displays the result reported by the CLI. It contains no authorization code or token and grants no additional access.',
+  },
+
   oauthAuthorize: {
     title: 'Authorize application',
     subtitle: '{appName} is requesting access to your account',

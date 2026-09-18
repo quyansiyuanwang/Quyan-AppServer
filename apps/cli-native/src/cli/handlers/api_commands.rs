@@ -23,6 +23,11 @@ pub async fn handle_relay_command(
     let value = match command {
         super::super::RelayCommand::Token { command } => match command {
             super::super::RelayTokenCommand::List => relay::tokens(api).await?,
+            super::super::RelayTokenCommand::Use { id } => {
+                let credentials = relay::credentials_with_token(api, &id).await?;
+                crate::core::credentials::save(&credentials)?;
+                serde_json::json!({"selected":true,"id":id,"credentialStorage":"system-keychain"})
+            }
             super::super::RelayTokenCommand::Create(args) => {
                 relay::create_token(
                     api,

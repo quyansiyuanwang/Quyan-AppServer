@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'quyan-cli',
+  updatedAt: '2026-09-17',
   category: { en: 'Tools', 'zh-CN': '工具' },
   title: { en: 'Quyan CLI', 'zh-CN': 'Quyan CLI' },
   summary: {

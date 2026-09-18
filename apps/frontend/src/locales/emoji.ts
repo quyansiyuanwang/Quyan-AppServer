@@ -630,6 +630,15 @@ const emoji: DeepStringify<typeof en> = {
     qrApprovalAllow: '✅💬',
     qrApprovalDeny: '🚫💬',
   },
+  oauthResult: {
+    successTitle: '✅ 授权成功',
+    successDescription: '🔐 Quyan CLI 已登录，凭证已保存到系统密钥链。',
+    failureTitle: '⚠️ 未完成登录',
+    failureDescription: '↩️ 请返回 CLI 查看结果并重新登录。',
+    returnToCli: '💻 可以关闭此标签页并返回终端。',
+    securityNote: '🛡️ 仅显示 CLI 返回的结果，不包含授权码或令牌，不授予权限。',
+  },
+
   oauthAuthorize: {
     title: '✅🔐📱',
     subtitle: '{appName} 🙏🔓👤',
