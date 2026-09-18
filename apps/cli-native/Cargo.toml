@@ -36,6 +36,7 @@ url = "2.5"
 uuid = { version = "1.18", features = ["v4", "serde"] }
 semver = "1.0"
 tempfile = "3.15"
+toml_edit = "0.25"
 
 [build-dependencies]
 prettyplease = "0.2"

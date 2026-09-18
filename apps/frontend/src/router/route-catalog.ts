@@ -178,6 +178,7 @@ export const routeCatalog = attachLegacyPaths([
   { name: 'register', group: 'identity', path: '/register' },
   { name: 'forgotPassword', group: 'identity', path: '/forgot-password' },
   { name: 'authVerification', group: 'shared', path: '/auth/verify' },
+  { name: 'oauthResult', group: 'identity', path: '/oauth/result' },
   { name: 'oauthAuthorize', group: 'identity', path: '/oauth/authorize' },
   { name: 'externalAuthCallback', group: 'identity', path: '/auth/external/:provider/callback' },
   { name: 'qrApproval', group: 'identity', path: '/auth/qr-approve' },

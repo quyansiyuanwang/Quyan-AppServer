@@ -66,6 +66,12 @@ export const routes = [
         component: lazyOptionalView(() => import('@/views/auth/AuthVerificationView.vue')),
       },
       {
+        path: '/oauth/result',
+        name: 'oauthResult',
+        meta: { isAuthEntry: true },
+        component: lazyFeatureView('auth', 'OAuthResultView.vue'),
+      },
+      {
         path: '/oauth/authorize',
         name: 'oauthAuthorize',
         meta: {
