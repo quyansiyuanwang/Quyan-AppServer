@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const scriptPath = fileURLToPath(import.meta.url)
@@ -13,7 +13,34 @@ const certificatePath = join(certificateDirectory, `${localRootDomain}.pem`)
 const keyPath = join(certificateDirectory, `${localRootDomain}-key.pem`)
 const beginMarker = '# BEGIN APPSERVER LOCAL DOMAINS'
 const endMarker = '# END APPSERVER LOCAL DOMAINS'
-const localHosts = [
+const sharedProductCatalogPath = join(
+  projectRoot,
+  'packages',
+  'shared',
+  'src',
+  'developer-product.ts',
+)
+
+/**
+ * Product console hosts are read from the shared product catalog. Plain Node
+ * cannot import the TypeScript module, so the source is parsed the same way the
+ * repository's validation scripts do; an empty result fails loudly instead of
+ * silently dropping product hosts.
+ */
+const readProductHostPrefixes = () => {
+  const source = readFileSync(sharedProductCatalogPath, 'utf8')
+  const slugs = [...source.matchAll(/urlSlug:\s*['"]([^'"]+)['"]/g)].map((match) => match[1])
+  if (slugs.length === 0) {
+    throw new Error(
+      `No product urlSlug entries found in ${relative(projectRoot, sharedProductCatalogPath)}; ` +
+        'the local domain list cannot be derived.',
+    )
+  }
+  return [...new Set(slugs)].map((slug) => `${slug}.console`)
+}
+
+/** First-party hosts that are not developer products; the public site is the bare root domain. */
+const platformHostPrefixes = [
   'www',
   'legacy',
   'auth',
@@ -23,19 +50,16 @@ const localHosts = [
   'ai.console',
   'developer.console',
   'ram.console',
-  'kv.console',
-  'short-link.console',
-  'secret.console',
-  'status.console',
-  'verification.console',
-  'ip-geolocation.console',
-  'push.console',
   'oj.console',
   'management',
   'ai.management',
   'developer.management',
   'terminal.management',
-].map((prefix) => `${prefix}.${localRootDomain}`)
+]
+
+const localHosts = [...platformHostPrefixes, ...readProductHostPrefixes()].map(
+  (prefix) => `${prefix}.${localRootDomain}`,
+)
 
 const arguments_ = new Set(process.argv.slice(2))
 const uninstall = arguments_.has('--uninstall')
@@ -43,6 +67,9 @@ const removeCertificates = arguments_.has('--remove-certificates')
 const dryRun = arguments_.has('--dry-run')
 const writeHostsOnly = arguments_.has('--write-hosts-only')
 const elevated = arguments_.has('--elevated')
+const force = arguments_.has('--force')
+
+const expectedHostsLine = `127.0.0.1 ${localHosts.join(' ')}`
 
 function getHostsPath() {
   if (process.platform === 'win32') {
@@ -62,6 +89,28 @@ function removeManagedHostsBlock(content) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function extractManagedHostsBlock(content) {
+  const expression = new RegExp(
+    `${escapeRegExp(beginMarker)}\\r?\\n([\\s\\S]*?)\\r?\\n${escapeRegExp(endMarker)}`,
+  )
+  const match = expression.exec(content)
+  return match ? match[1].trim() : null
+}
+
+/**
+ * Reads the hosts file without elevation. When the managed block already
+ * matches the expected mapping there is nothing to update, so the script can
+ * skip the admin prompt entirely.
+ */
+async function isManagedHostsBlockCurrent() {
+  try {
+    const content = await readFile(getHostsPath(), 'utf8')
+    return extractManagedHostsBlock(content) === expectedHostsLine
+  } catch {
+    return false
+  }
 }
 
 async function updateHosts(addMappings) {
@@ -237,8 +286,29 @@ async function main() {
   }
 
   if (!uninstall) {
-    assertMkcertAvailable()
-    await generateCertificates()
+    const hostsCurrent = await isManagedHostsBlockCurrent()
+    const certificatesPresent = existsSync(keyPath) && existsSync(certPath)
+
+    // Repeated runs must not prompt for elevation or re-issue certificates.
+    if (!force && hostsCurrent && certificatesPresent) {
+      console.log('Local domains and HTTPS certificate are already configured; nothing to do.')
+      warnProxyConfiguration()
+      return
+    }
+
+    if (force || !certificatesPresent) {
+      assertMkcertAvailable()
+      await generateCertificates()
+    }
+
+    if (hostsCurrent) {
+      console.log('The project hosts mapping is already up to date.')
+      console.log(
+        'Local domains and HTTPS certificate are ready. Start the frontend with pnpm run dev:frontend.',
+      )
+      warnProxyConfiguration()
+      return
+    }
   }
 
   if (runElevatedHostsUpdate()) {
