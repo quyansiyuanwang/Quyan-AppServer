@@ -1,6 +1,7 @@
 import { createAuthControllerApi } from '@/client/services/auth-controller.gen'
 import { CustomCode } from '@/constant/custom-code'
 import {
+  devSingleSiteMode,
   isKnownSiteProfile,
   getSiteProfileForEnvironment,
   resolveCurrentSiteProfile,
@@ -55,6 +56,10 @@ export const createCentralLoginFlow = async (
 export const redirectToCentralLogin = async (returnPath?: string): Promise<void> => {
   const profile = resolveCurrentSiteProfile()
   if (!isKnownSiteProfile(profile) || profile.id === 'identity') return
+  // Central login requires an HTTPS return-to origin and a cross-site session
+  // cookie. The privilege-free localhost mode keeps the browser on this origin
+  // and lets callers fall back to the same-origin login entry.
+  if (devSingleSiteMode) return
 
   const flowId = await createCentralLoginFlow(returnPath)
   assignDocument(getCentralLoginUrl(profile, flowId))
@@ -159,6 +164,11 @@ export const completeCentralLogin = async (flowId: unknown): Promise<boolean> =>
 export const getDefaultAccountDestination = (): string => {
   const currentProfile = resolveCurrentSiteProfile()
   if (!isKnownSiteProfile(currentProfile)) throw new Error('Current site profile is not registered')
+
+  // Single-origin development has no reachable account site: stay on the site
+  // that is actually served instead of navigating to another hostname.
+  if (devSingleSiteMode)
+    return new URL(currentProfile.defaultPath, currentProfile.canonicalOrigin).toString()
 
   const accountProfile = getSiteProfileForEnvironment('account', currentProfile)
   if (!accountProfile) throw new Error('Account profile is not registered')
