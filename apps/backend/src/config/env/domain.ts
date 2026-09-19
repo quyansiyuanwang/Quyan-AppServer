@@ -1,6 +1,11 @@
+import { DEVELOPER_PRODUCTS } from "@quyan/shared";
 import type { EnvSnapshot } from "./source";
 
-const firstPartyHostPrefixes = [
+/**
+ * First-party hosts that are not developer products. The public site is served
+ * from the bare root domain and is therefore not part of this list.
+ */
+const platformHostPrefixes = [
   "www",
   "legacy",
   "auth",
@@ -10,18 +15,22 @@ const firstPartyHostPrefixes = [
   "ai.console",
   "developer.console",
   "ram.console",
-  "kv.console",
-  "short-link.console",
-  "secret.console",
-  "status.console",
-  "verification.console",
-  "ip-geolocation.console",
-  "push.console",
   "oj.console",
   "management",
   "ai.management",
   "developer.management",
   "terminal.management",
+] as const;
+
+/**
+ * Product consoles derive from the shared product catalog so a new developer
+ * product cannot be registered without its trusted first-party origins.
+ */
+const productHostPrefixes = DEVELOPER_PRODUCTS.map((product) => `${product.urlSlug}.console`);
+
+export const firstPartyHostPrefixes = [
+  ...platformHostPrefixes,
+  ...productHostPrefixes,
 ] as const;
 
 export function normalizeRootDomain(value: string | undefined): string | undefined {

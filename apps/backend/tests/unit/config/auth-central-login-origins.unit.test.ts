@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateKeyPairSync } from "crypto";
+import { DEVELOPER_PRODUCTS } from "@quyan/shared";
 import { buildAuthConfig } from "@/config/env/auth";
 import { buildRuntimeConfig } from "@/config/env/runtime";
 import type { EnvSnapshot } from "@/config/env/source";
@@ -32,8 +33,23 @@ describe("central-login default origins", () => {
     expect(config.webAuthn.origins).toEqual(["https://auth.qysyw.test:5173"]);
   });
 
-  it("derives exact production origins from ROOT_DOMAIN", () => {
+  it("trusts every shared product console as an exact local origin", () => {
     const source = {
+      NODE_ENV: "development",
+      PORT: "10001",
+      ROOT_DOMAIN: "qysyw.test",
+      JWT_ACCESS_SECRET: "test-access-secret",
+      JWT_REFRESH_SECRET: "test-refresh-secret",
+    } as EnvSnapshot;
+    const runtime = buildRuntimeConfig(source);
+
+    for (const product of DEVELOPER_PRODUCTS)
+      expect(runtime.corsAllowedOrigins).toContain(
+        `https://${product.urlSlug}.console.qysyw.test:5173`,
+      );
+  });
+
+  it("derives exact production origins from ROOT_DOMAIN", () => {    const source = {
       NODE_ENV: "production",
       PORT: "10001",
       ROOT_DOMAIN: "md.qysyw.cn",
