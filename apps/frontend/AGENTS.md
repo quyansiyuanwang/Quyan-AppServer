@@ -5,7 +5,8 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ## Common Commands
 
 ```bash
-pnpm run dev              # Start dev server (Vite)
+pnpm run dev              # Start dev server (Vite, multi-domain *.qysyw.test)
+pnpm run dev:localhost    # Single-site plain-HTTP localhost mode (VITE_DEV_SINGLE_SITE, .env.localhost)
 pnpm run prod             # Start dev server in production mode
 pnpm run preview          # Preview production build locally
 pnpm run build            # Type-check + production build
@@ -19,13 +20,18 @@ pnpm run format           # Prettier formatting
 pnpm run lint-format-check # Lint + format + type-check (full validation)
 pnpm run precommit        # Full pre-commit validation (API gen + permissions + lint + format + type-check)
 
-# API client generation (requires backend running at localhost:10001)
+# API client generation (reads the committed swagger.json; no backend required)
+pnpm run ensure:openapi-client # Generate src/client only when missing or older than swagger.json
 pnpm run openapi:generate  # Regenerate OpenAPI client + generate constants/types
 pnpm run client:generate   # Generate API constants and type mappings only
 
 # Validation
 pnpm run validate:permissions # Validate permission constants against backend
 ```
+
+`src/client` is generated and git-ignored, and `pnpm run dev` therefore runs
+`ensure:openapi-client` first. Root-level equivalents: `pnpm run setup`, `pnpm run doctor`,
+`pnpm run dev`, `pnpm run dev:domains` (see `docs/development/16-local-development.md`).
 
 ## Environment Requirements
 
@@ -131,11 +137,21 @@ App.vue → IndexApp.vue → overLay.vue (protected) → HomeFrameLayout.vue →
 
 ### Environment Variables
 
-Create `.env` file (see `.env.sample`):
+Create `.env` file (see `.env.example`):
 
 ```
 VITE_BACKEND_URL=http://localhost:10001
 ```
+
+`pnpm run setup` (repo root) generates it with random development secrets; never commit `.env`.
+
+`apps/frontend/.env.localhost` (committed) drives the single-origin dev server: it sets
+`VITE_DEV_SINGLE_SITE=true`, `VITE_DEV_SITE_PROFILE=management-core` and
+`VITE_HTTPS_ENABLED=false`. `src/config/dev-single-site.ts` aliases that one site profile onto
+the browser origin and adds the `identity` route group so login stays on the same origin. The
+mode is unreachable in production builds (gated on `import.meta.env.DEV` plus the explicit
+flag), and every other hostname stays rejected. Passkey, social OAuth callbacks, QR login and
+site switching require the multi-domain mode (`pnpm run dev:domains`).
 
 ### Development Server
 

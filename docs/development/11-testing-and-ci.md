@@ -22,7 +22,7 @@ pnpm --filter @quyan/frontend run test:dom
 pnpm --filter @quyan/frontend run test:taxonomy
 ```
 
-`pnpm run test` 通过 pnpm 并行启动 backend、frontend 和 CLI；应用内部的调度由 Vitest 管理。开发时不要因局部修改默认运行根级全量命令。
+`pnpm run test` 通过 pnpm 并行启动 backend 与 frontend 测试；应用内部的调度由 Vitest 管理，CLI 测试单独使用 `cargo test --manifest-path apps/cli-native/Cargo.toml`。开发时不要因局部修改默认运行根级全量命令。
 
 ## 分类与并行边界
 
