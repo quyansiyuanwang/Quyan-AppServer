@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-import md5 from "md5";
 import { Permission } from "../src/constant/permission";
+import { hashPassword, isLegacyPasswordHash } from "../src/util/crypto";
 
 const prisma = new PrismaClient();
 
@@ -202,180 +202,165 @@ async function main() {
   console.log("创建用户账号...");
 
   // 1. 超级管理员
-  const adminPassword = md5(md5("admin123"));
-  const adminUser = await prisma.user.upsert({
-    where: { username: "admin" },
-    update: {
-      groupId: adminGroup.id,
-      permissionAdds: JSON.stringify([]),
-      permissionRemoves: JSON.stringify([]),
-    },
-    create: {
+  /**
+   * Development accounts share one list so the credentials are declared once.
+   *
+   * Passwords are stored with the canonical bcrypt hashing, which is what the
+   * current login protocol (raw password encrypted with RSA-OAEP) verifies. A
+   * database created by an older revision stored md5(md5(password)); those
+   * legacy hashes are repaired below, while a password the developer changed in
+   * an up-to-date database is never overwritten.
+   */
+  interface DemoAccount {
+    username: string;
+    name: string;
+    email: string;
+    rawPassword: string;
+    groupId: string;
+    permissionAdds: string[];
+    permissionRemoves: string[];
+    description: string;
+  }
+
+  const demoAccounts: DemoAccount[] = [
+    {
       username: "admin",
       name: "超级管理员",
-      password: adminPassword,
       email: "admin@example.com",
+      rawPassword: "admin123",
       groupId: adminGroup.id,
-      permissionAdds: JSON.stringify([]),
-      permissionRemoves: JSON.stringify([]),
+      permissionAdds: [],
+      permissionRemoves: [],
+      description: "超级管理员",
     },
-  });
-  console.log("  - admin (超级管理员) - 密码: admin123");
-
-  // 2. 系统管理员
-  const sysAdminPassword = md5(md5("sysadmin123"));
-  await prisma.user.upsert({
-    where: { username: "sysadmin" },
-    update: {},
-    create: {
+    {
       username: "sysadmin",
       name: "张三",
-      password: sysAdminPassword,
       email: "zhangsan@example.com",
+      rawPassword: "sysadmin123",
       groupId: sysAdminGroup.id,
-      permissionAdds: JSON.stringify([]),
-      permissionRemoves: JSON.stringify([]),
+      permissionAdds: [],
+      permissionRemoves: [],
+      description: "系统管理员",
     },
-  });
-  console.log("  - sysadmin (系统管理员) - 密码: sysadmin123");
-
-  // 3. 用户管理员 - 额外添加了权限管理权限
-  const userAdminPassword = md5(md5("useradmin123"));
-  await prisma.user.upsert({
-    where: { username: "useradmin" },
-    update: {
-      groupId: userAdminGroup.id,
-      permissionAdds: JSON.stringify([Permission.PERMISSION_ADD, Permission.PERMISSION_REMOVE]),
-      permissionRemoves: JSON.stringify([]),
-    },
-    create: {
+    {
       username: "useradmin",
       name: "李四",
-      password: userAdminPassword,
       email: "lisi@example.com",
+      rawPassword: "useradmin123",
       groupId: userAdminGroup.id,
-      permissionAdds: JSON.stringify([Permission.PERMISSION_ADD, Permission.PERMISSION_REMOVE]),
-      permissionRemoves: JSON.stringify([]),
+      permissionAdds: [Permission.PERMISSION_ADD, Permission.PERMISSION_REMOVE],
+      permissionRemoves: [],
+      description: "用户管理员",
     },
-  });
-  console.log("  - useradmin (用户管理员) - 密码: useradmin123");
-
-  // 4. 编辑1 - 基础编辑权限
-  const editor1Password = md5(md5("editor123"));
-  await prisma.user.upsert({
-    where: { username: "editor1" },
-    update: {},
-    create: {
+    {
       username: "editor1",
       name: "王五",
-      password: editor1Password,
       email: "wangwu@example.com",
+      rawPassword: "editor123",
       groupId: editorGroup.id,
-      permissionAdds: JSON.stringify([]),
-      permissionRemoves: JSON.stringify([]),
+      permissionAdds: [],
+      permissionRemoves: [],
+      description: "编辑",
     },
-  });
-  console.log("  - editor1 (编辑) - 密码: editor123");
-
-  // 5. 编辑2 - 移除了部分权限
-  const editor2Password = md5(md5("editor223"));
-  await prisma.user.upsert({
-    where: { username: "editor2" },
-    update: {},
-    create: {
+    {
       username: "editor2",
       name: "赵六",
-      password: editor2Password,
       email: "zhaoliu@example.com",
+      rawPassword: "editor223",
       groupId: editorGroup.id,
-      permissionAdds: JSON.stringify([]),
-      permissionRemoves: JSON.stringify([Permission.USER_UPDATE]), // 移除了更新权限
+      permissionAdds: [],
+      // 移除了更新权限
+      permissionRemoves: [Permission.USER_UPDATE],
+      description: "编辑-受限",
     },
-  });
-  console.log("  - editor2 (编辑-受限) - 密码: editor223");
-
-  // 6. 查看者1
-  const viewer1Password = md5(md5("viewer123"));
-  await prisma.user.upsert({
-    where: { username: "viewer1" },
-    update: {},
-    create: {
+    {
       username: "viewer1",
       name: "孙七",
-      password: viewer1Password,
       email: "sunqi@example.com",
+      rawPassword: "viewer123",
       groupId: viewerGroup.id,
-      permissionAdds: JSON.stringify([]),
-      permissionRemoves: JSON.stringify([]),
+      permissionAdds: [],
+      permissionRemoves: [],
+      description: "查看者",
     },
-  });
-  console.log("  - viewer1 (查看者) - 密码: viewer123");
-
-  // 7. 查看者2 - 额外添加了IP黑名单查看权限
-  const viewer2Password = md5(md5("viewer223"));
-  await prisma.user.upsert({
-    where: { username: "viewer2" },
-    update: {},
-    create: {
+    {
       username: "viewer2",
       name: "周八",
-      password: viewer2Password,
       email: "zhouba@example.com",
+      rawPassword: "viewer223",
       groupId: viewerGroup.id,
-      permissionAdds: JSON.stringify([Permission.IP_BLACKLIST_READ]),
-      permissionRemoves: JSON.stringify([]),
+      permissionAdds: [Permission.IP_BLACKLIST_READ],
+      permissionRemoves: [],
+      description: "查看者+",
     },
-  });
-  console.log("  - viewer2 (查看者+) - 密码: viewer223");
-
-  // 8-10. 普通用户
-  const user1Password = md5(md5("user123"));
-  await prisma.user.upsert({
-    where: { username: "user1" },
-    update: {},
-    create: {
+    {
       username: "user1",
       name: "吴九",
-      password: user1Password,
       email: "wujiu@example.com",
+      rawPassword: "user123",
       groupId: userGroup.id,
-      permissionAdds: JSON.stringify([]),
-      permissionRemoves: JSON.stringify([]),
+      permissionAdds: [],
+      permissionRemoves: [],
+      description: "普通用户",
     },
-  });
-  console.log("  - user1 (普通用户) - 密码: user123");
-
-  const user2Password = md5(md5("user223"));
-  await prisma.user.upsert({
-    where: { username: "user2" },
-    update: {},
-    create: {
+    {
       username: "user2",
       name: "郑十",
-      password: user2Password,
       email: "zhengshi@example.com",
+      rawPassword: "user223",
       groupId: userGroup.id,
-      permissionAdds: JSON.stringify([Permission.USER_READ]), // 额外添加了用户查看权限
-      permissionRemoves: JSON.stringify([]),
+      // 额外添加了用户查看权限
+      permissionAdds: [Permission.USER_READ],
+      permissionRemoves: [],
+      description: "普通用户+",
     },
-  });
-  console.log("  - user2 (普通用户+) - 密码: user223");
-
-  const user3Password = md5(md5("user323"));
-  await prisma.user.upsert({
-    where: { username: "user3" },
-    update: {},
-    create: {
+    {
       username: "user3",
       name: "陈十一",
-      password: user3Password,
       email: "chenshiyi@example.com",
+      rawPassword: "user323",
       groupId: userGroup.id,
-      permissionAdds: JSON.stringify([]),
-      permissionRemoves: JSON.stringify([]),
+      permissionAdds: [],
+      permissionRemoves: [],
+      description: "普通用户",
     },
-  });
-  console.log("  - user3 (普通用户) - 密码: user323");
+  ];
+
+  const seedDemoUser = async (account: DemoAccount) => {
+    const existing = await prisma.user.findUnique({
+      where: { username: account.username },
+      select: { password: true },
+    });
+    const hashedPassword = hashPassword(account.rawPassword);
+    const shouldRepairPassword = !existing || isLegacyPasswordHash(existing.password);
+    const sharedFields = {
+      groupId: account.groupId,
+      permissionAdds: JSON.stringify(account.permissionAdds),
+      permissionRemoves: JSON.stringify(account.permissionRemoves),
+    };
+
+    const user = await prisma.user.upsert({
+      where: { username: account.username },
+      update: { ...sharedFields, ...(shouldRepairPassword ? { password: hashedPassword } : {}) },
+      create: {
+        username: account.username,
+        name: account.name,
+        password: hashedPassword,
+        email: account.email,
+        ...sharedFields,
+      },
+    });
+    console.log(`  - ${account.username} (${account.description}) - 密码: ${account.rawPassword}`);
+    return user;
+  };
+
+  const seededUsers = new Map<string, Awaited<ReturnType<typeof seedDemoUser>>>();
+  for (const account of demoAccounts)
+    seededUsers.set(account.username, await seedDemoUser(account));
+
+  const adminUser = seededUsers.get("admin");
+  if (!adminUser) throw new Error("The admin account was not seeded");
 
   console.log("✓ 用户账号创建完成\n");
 
