@@ -28,10 +28,7 @@ const platformHostPrefixes = [
  */
 const productHostPrefixes = DEVELOPER_PRODUCTS.map((product) => `${product.urlSlug}.console`);
 
-export const firstPartyHostPrefixes = [
-  ...platformHostPrefixes,
-  ...productHostPrefixes,
-] as const;
+export const firstPartyHostPrefixes = [...platformHostPrefixes, ...productHostPrefixes] as const;
 
 export function normalizeRootDomain(value: string | undefined): string | undefined {
   const normalized = String(value || "")

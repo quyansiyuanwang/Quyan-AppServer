@@ -1,6 +1,10 @@
 import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from "@quyan/shared";
 
 export interface TimePeriodMultiplierRule {
+  /** Omitted/ignore preserves legacy local-time rules; holiday filters use Asia/Shanghai. */
+  holidayMode?: "ignore" | "exclude" | "only";
+  /** Match the entire calendar day rather than the configured time range. */
+  allDay?: boolean;
   name: string;
   enabled: boolean;
   dayOfWeek: string;

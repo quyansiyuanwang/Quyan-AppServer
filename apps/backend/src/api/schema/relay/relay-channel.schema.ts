@@ -25,6 +25,8 @@ const dayOfWeekRegex = /^([1-7](,[1-7])*)?$/;
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const timePeriodRuleSchema = z.object({
+  holidayMode: z.enum(["ignore", "exclude", "only"]).optional(),
+  allDay: z.boolean().optional(),
   name: z.string().trim().min(1).max(100),
   enabled: z.boolean(),
   dayOfWeek: z.string().regex(dayOfWeekRegex, "dayOfWeek must be comma-separated 1-7 or empty"),

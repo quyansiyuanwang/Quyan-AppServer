@@ -4032,6 +4032,13 @@ const emoji: DeepStringify<typeof en> = {
     anthropicUrlNoKey: '🚷 🌊 🩺 😛 😉 🔌 🗝️ 👹',
     geminiUrlNoKey: '😦 🌊 🩺 😛 😉 🔌 🗝️ 👹',
 
+    holidayMode: '中国节假日条件',
+    holidayMode_ignore: '不区分节假日',
+    holidayMode_exclude: '排除节假日',
+    holidayMode_only: '仅节假日',
+    timeRuleAllDay: '全天',
+    holidayModeHelp:
+      '节假日规则按北京时间判断，含公布的连休放假日期；仅节假日忽略星期选择。补班不改变星期。日历不可用时跳过相关规则并告警；多条命中规则相乘。不区分节假日保留服务器时区。',
     timeRules: '⌛ 💹 📡',
     timeRuleName: '🧾 🏷️',
     timeRuleDays: '📅 🔢',

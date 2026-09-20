@@ -44,12 +44,11 @@ describe("central-login default origins", () => {
     const runtime = buildRuntimeConfig(source);
 
     for (const product of DEVELOPER_PRODUCTS)
-      expect(runtime.corsAllowedOrigins).toContain(
-        `https://${product.urlSlug}.console.qysyw.test:5173`,
-      );
+      expect(runtime.corsAllowedOrigins).toContain(`https://${product.urlSlug}.console.qysyw.test:5173`);
   });
 
-  it("derives exact production origins from ROOT_DOMAIN", () => {    const source = {
+  it("derives exact production origins from ROOT_DOMAIN", () => {
+    const source = {
       NODE_ENV: "production",
       PORT: "10001",
       ROOT_DOMAIN: "md.qysyw.cn",

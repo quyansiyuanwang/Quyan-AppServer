@@ -226,6 +226,37 @@ describe('useRelaySettingsManagement', () => {
     copyTextWithFallbackMock.mockResolvedValue(true)
   })
 
+  it('round-trips holiday conditions and supports a full-day rule without a time range', async () => {
+    const { api, wrapper } = await mountComposable()
+    api.openAddTimeRule()
+    api.timeRuleFormRef.value = {
+      validate: vi.fn().mockResolvedValue(true),
+    } as unknown as NonNullable<typeof api.timeRuleFormRef.value>
+    api.timeRuleForm.value.name = 'Holiday discount'
+    api.timeRuleForm.value.holidayMode = 'only'
+    api.timeRuleForm.value.allDay = true
+    api.timeRuleForm.value.multiplier = 0.5
+    api.timeRuleDays.value = [1, 2, 3, 4, 5]
+    api.timeRuleRange.value = []
+    await api.saveTimeRule()
+    expect(api.channelForm.value.timePeriodMultipliers[0]).toMatchObject({
+      holidayMode: 'only',
+      allDay: true,
+      multiplier: 0.5,
+      startTime: '00:00',
+      endTime: '00:00',
+    })
+    api.openEditTimeRule(0)
+    expect(api.timeRuleForm.value).toMatchObject({ holidayMode: 'only', allDay: true })
+    api.timeRuleForm.value.holidayMode = 'exclude'
+    await api.saveTimeRule()
+    expect(api.channelForm.value.timePeriodMultipliers).toHaveLength(1)
+    expect(api.channelForm.value.timePeriodMultipliers[0]?.holidayMode).toBe('exclude')
+    api.openAddTimeRule()
+    expect(api.timeRuleForm.value).toMatchObject({ holidayMode: 'ignore', allDay: false })
+    wrapper.unmount()
+  })
+
   it('shows the OpenAI upstream editor for every explicit OpenAI format', async () => {
     const { api, wrapper } = await mountComposable()
 

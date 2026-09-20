@@ -356,8 +356,7 @@ async function main() {
   };
 
   const seededUsers = new Map<string, Awaited<ReturnType<typeof seedDemoUser>>>();
-  for (const account of demoAccounts)
-    seededUsers.set(account.username, await seedDemoUser(account));
+  for (const account of demoAccounts) seededUsers.set(account.username, await seedDemoUser(account));
 
   const adminUser = seededUsers.get("admin");
   if (!adminUser) throw new Error("The admin account was not seeded");
