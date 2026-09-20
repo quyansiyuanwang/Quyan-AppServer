@@ -52,11 +52,14 @@ distractors
 docssite
 dompurify
 dotenv
+dorny
+dscacheutil
 DPEHPK
 Dtos
 Dups
 Ebbinghaus
 echarts
+edgeone
 editorconfig
 entrypoint
 entrypoints
@@ -69,13 +72,18 @@ FEFF
 feishu
 filename
 filenames
+findstr
 fkey
+flushcache
+flushdns
 fmts
 frontend
 frontmatter
 FULLTEXT
 getenv
+geolocation
 ggrep
+gitlink
 globals
 grecaptcha
 hashedpassword
@@ -103,6 +111,7 @@ jwtid
 keyid
 keypair
 keypairs
+killall
 kwargs
 legacysig
 lifetime
@@ -129,6 +138,8 @@ myapp
 mysqldump
 nodemailer
 nodemon
+noexist
+noproxy
 nonstream
 nostream
 notif
@@ -165,6 +176,7 @@ Quyan
 quyansiyuanwang
 qysyw
 qysywdb
+Ratatui
 rcrg
 readonly
 recaptcha
@@ -178,6 +190,7 @@ repl
 replayless
 repo
 repos
+resolvectl
 reurl
 rimraf
 rlt
@@ -189,6 +202,7 @@ rtdu
 rtok
 runtime
 rushstack
+Schannel
 sess
 setex
 shenzhen
@@ -197,6 +211,7 @@ siteverify
 smhdw
 SNSAPI
 sortablejs
+Sottile
 spacebar
 spinbutton
 spki
@@ -212,6 +227,8 @@ supertest
 swagger
 tailwindcss
 taoliya
+taskkill
+Tauri
 tctx
 terser
 testuser
@@ -267,9 +284,12 @@ webpack
 wechat
 wildcard
 wildcards
+winget
 winston
 wordbank
 wordbanks
+worktree
+worktrees
 wrongpassword
 xterm
 XVCJ

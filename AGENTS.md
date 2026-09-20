@@ -48,7 +48,10 @@ AppServerMonorepo/
 ## 常用命令
 
 ```bash
-pnpm run dev                     # 并行启动 backend + frontend + docs-site（CLI 单独启动）
+pnpm run setup                   # 幂等初始化：工具链检查 + .env + 生成物 + 迁移 + 种子数据
+pnpm run doctor                  # 只读诊断本地环境（工具链、.env、生成物、MySQL/Redis）
+pnpm run dev                     # 免特权启动 backend + frontend + docs-site（http://localhost:5173）
+pnpm run dev:domains             # 多域名 *.qysyw.test + HTTPS（需要 mkcert 与管理员权限）
 pnpm run dev:frontend            # 只启动前端
 pnpm run dev:backend             # 只启动后端
 pnpm run dev:docs                # 启动文档站点
@@ -59,13 +62,16 @@ pnpm run build:frontend          # 只构建前端
 pnpm run build:docs              # 只构建文档站点
 pnpm run build:cli:native        # 构建 Rust 原生 CLI
 pnpm run openapi:gen:all         # 完整 OpenAPI 生成流水线
-pnpm run test                    # 运行所有测试
+pnpm run test                    # 运行 backend 与 frontend 测试
 pnpm run lint                    # 运行所有 lint
 pnpm run format                  # 运行所有格式化
 pnpm run clean                   # 清理所有 dist
 pnpm run precommit               # 完整预提交验证
 pnpm run type-check              # 所有项目类型检查
 ```
+
+本地启动模式（免特权单站点与多域名 HTTPS 的差别、故障排查、能力边界）见
+[docs/development/16-local-development.md](./docs/development/16-local-development.md)。
 
 ### 针对单个项目
 
@@ -227,6 +233,7 @@ pnpm run openapi:gen:all          # 完整流水线
 | [13-docs-site.md](./docs/development/13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                   |
 | [14-domain-deployment.md](./docs/development/14-domain-deployment.md)       | 多域名、Cookie、CORS 与部署边界                      |
 | [15-cli.md](./docs/development/15-cli.md)                                   | Quyan CLI 架构、凭证边界与验证                       |
+| [16-local-development.md](./docs/development/16-local-development.md)       | 本地启动模式、免特权 localhost 与故障排查            |
 
 各项目的 CLAUDE.md/AGENTS.md 位于：
 

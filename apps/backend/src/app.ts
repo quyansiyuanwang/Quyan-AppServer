@@ -1,3 +1,4 @@
+import { ChinaHolidayCalendarService } from "./services/relay/china-holiday-calendar.service";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -242,4 +243,5 @@ export function setupService() {
   RelayChannelProviderSettlementSchedulerService.getInstance().start();
   DataLifecycleSchedulerService.getInstance().start();
   CarpoolExpirationSchedulerService.getInstance().start();
+  ChinaHolidayCalendarService.getInstance().start();
 }

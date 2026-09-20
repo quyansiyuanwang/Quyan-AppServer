@@ -1,3 +1,4 @@
+import { ChinaHolidayCalendarService } from "./services/relay/china-holiday-calendar.service";
 import { createApp, setupService } from "./app";
 import { disconnectDatabase } from "./config/database";
 import { env } from "./config/env";
@@ -79,6 +80,7 @@ const gracefulShutdown = async (signal: string) => {
     RelayChannelProviderSettlementSchedulerService.getInstance().stop();
     DataLifecycleSchedulerService.getInstance().stop();
     CarpoolExpirationSchedulerService.getInstance().stop();
+    await ChinaHolidayCalendarService.getInstance().stop();
     await remoteTerminalGatewayBootstrap.close();
     agentRuntimeGateway.close();
     await closeHttpServer();

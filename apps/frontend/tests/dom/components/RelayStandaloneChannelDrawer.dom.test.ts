@@ -2,6 +2,7 @@
 import { defineComponent, h, reactive, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
+import HolidayRuleFields from '@/components/relay/HolidayRuleFields.vue'
 import RelayStandaloneChannelDrawer, {
   type StandaloneChannelFormState,
 } from '@/views/relay/components/RelayStandaloneChannelDrawer.vue'
@@ -68,6 +69,30 @@ const mountDrawer = (mode: 'management' | 'provider') =>
   })
 
 describe('RelayStandaloneChannelDrawer', () => {
+  it.each(['management', 'provider'] as const)(
+    '%s mode edits holiday conditions on the original rule',
+    async (mode) => {
+      const wrapper = mountDrawer(mode)
+      const form = wrapper.props('form')
+      form.timePeriodMultipliers.push({
+        name: 'holiday',
+        enabled: true,
+        dayOfWeek: '1',
+        startTime: '00:00',
+        endTime: '00:00',
+        multiplier: 0.5,
+      })
+      await wrapper.vm.$nextTick()
+      const fields = wrapper.findComponent(HolidayRuleFields)
+      expect(fields.exists()).toBe(true)
+      fields.vm.$emit('update:holidayMode', 'only')
+      fields.vm.$emit('update:allDay', true)
+      await wrapper.vm.$nextTick()
+      expect(form.timePeriodMultipliers[0]).toMatchObject({ holidayMode: 'only', allDay: true })
+      wrapper.unmount()
+    },
+  )
+
   it.each(['management', 'provider'] as const)(
     '%s mode renders only standalone-compatible sections',
     (mode) => {

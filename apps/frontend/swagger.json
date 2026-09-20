@@ -47910,6 +47910,19 @@
 			},
 			"TimePeriodMultiplierRule": {
 				"properties": {
+					"holidayMode": {
+						"type": "string",
+						"enum": [
+							"ignore",
+							"exclude",
+							"only"
+						],
+						"description": "Omitted/ignore preserves legacy local-time rules; holiday filters use Asia/Shanghai."
+					},
+					"allDay": {
+						"type": "boolean",
+						"description": "Match the entire calendar day rather than the configured time range."
+					},
 					"name": {
 						"type": "string"
 					},

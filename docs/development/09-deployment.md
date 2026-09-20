@@ -117,26 +117,30 @@ pnpm run dev:frontend
 # /api/* 请求代理到 localhost:10001
 ```
 
-### 多域名本地开发
+### 本地启动模式
 
-多域名 SPA 与中心认证使用 `*.qysyw.test`。开发者无需手动编辑 hosts 或维护本地证书：
+本地开发有两种模式，完整说明与故障排查见 [16-local-development.md](./16-local-development.md)。
 
-`pnpm run dev` 会先自动执行 `local:setup`，随后启动 backend、frontend 和 docs-site；停止该开发命令或任一服务异常退出后，会自动执行 `local:teardown`。首次运行仍可能出现 mkcert、UAC 或 `sudo` 提示。
+**免特权单站点（`pnpm run dev`）**：单一注册站点运行在 `http://localhost:5173`，不需要 hosts 改动、证书或管理员权限。后端由 `scripts/dev-local-backend.mjs` 注入进程级覆盖（`CORS_ALLOWED_ORIGINS`、`FRONTEND_BASE_URL` 指向该 origin，三个 Cookie 域为空即主机级 Cookie），前端以 `vite --mode localhost` 读取 `apps/frontend/.env.localhost`。该模式下 Passkey、社交 OAuth 回跳、扫码登录与站点切换不可用。
+
+**多域名 HTTPS（`pnpm run dev:domains`）**：与生产一致的多域名 SPA 与中心认证拓扑，使用 `*.qysyw.test`。
+
+`pnpm run dev:domains` 会先调用 `scripts/setup-local-domains.mjs`：脚本只在 hosts 区块或证书确实需要变化时才请求提权与重签证书，已配置时直接跳过，因此重复启动不会再弹出 UAC/`sudo`。退出后 hosts 记录与证书**保留**，需要清理时显式执行：
 
 ```powershell
-# 首次需要安装 mkcert；脚本会按当前平台请求 hosts 写入权限
+# 首次需要安装 mkcert；脚本会在需要变化时按当前平台请求 hosts 写入权限
 pnpm run local:setup
+
+# 强制重写 hosts 区块并重签证书
+pnpm run local:setup -- --force
 
 # 移除本项目添加的 hosts 记录和本地证书（不会移除 mkcert 根证书）
 pnpm run local:teardown
-
-# 只移除 hosts 记录，保留本地证书
-node scripts/setup-local-domains.mjs --uninstall
 ```
 
 `local:setup` 会在 hosts 文件中维护一个专用标记区块，并生成 `apps/frontend/.certs/` 中的本地 HTTPS 证书。重复执行可安全更新该区块；卸载不会修改其他项目的 hosts 记录或系统信任根。脚本在 Windows 通过 UAC、在 macOS/Linux 通过 `sudo` 写入 hosts，但始终以开发者自己的用户身份安装并生成 `mkcert` 证书，确保浏览器能信任它。请直接执行 `pnpm run local:setup`，不要以 `sudo pnpm` 启动。`mkcert` 未安装时会给出当前平台的安装提示。证书文件存在时，前端 Vite 配置会自动启用 HTTPS。
 
-启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.<LOCAL_ROOT_DOMAIN>:5173/`、`https://terminal.<LOCAL_ROOT_DOMAIN>:5173/` 或 `https://management.<LOCAL_ROOT_DOMAIN>:5173/`；`localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为。
+启动前端后，请从站点注册表中的完整域名访问，例如 `https://www.<LOCAL_ROOT_DOMAIN>:5173/`、`https://terminal.<LOCAL_ROOT_DOMAIN>:5173/` 或 `https://management.<LOCAL_ROOT_DOMAIN>:5173/`；在**多域名模式**下 `localhost` 与未注册 hostname 会显示拒绝页面，这是多域名隔离的预期行为（免特权的 `pnpm run dev` 则按设计只服务一个站点）。
 
 原版单域名前端使用独立的 `legacy.<LOCAL_ROOT_DOMAIN>` Host，不由多域名 Vite 进程提供。先启动当前分支的前端于 `5173`，再在 `origin/master` 的独立工作树中使用同一套本地证书启动前端于 `5174`。原版工作树设置 `VITE_HTTPS_KEY_PATH` 和 `VITE_HTTPS_CERT_PATH` 指向生成的证书，并设置 `VITE_MULTI_DOMAIN_ENTRY_ORIGIN=https://www.<LOCAL_ROOT_DOMAIN>:5173`；多域名工作树可选设置 `VITE_LEGACY_APP_ORIGIN=https://legacy.<LOCAL_ROOT_DOMAIN>:5174`。
 
@@ -150,7 +154,7 @@ curl.exe --noproxy '*' --ssl-no-revoke -I https://www.<LOCAL_ROOT_DOMAIN>:5173/
 
 不要用 `http://` 访问 HTTPS Vite 端口；否则会得到 `HTTP/0.9` 或类似协议错误。
 
-本地前端仍通过 Vite 的 `/api` 代理访问 `http://localhost:10001`。若需要验证 API host-only Cookie 或真实跨源部署行为，应使用独立的本地 HTTPS 反向代理，而不是把 API 域名指向 Vite。
+本地前端仍通过 Vite 的 `/api` 代理访问 `http://localhost:10001`。多域名模式使用域级 Cookie（`Domain=.<LOCAL_ROOT_DOMAIN>`）以便中心登录跨子站回落；免特权模式使用主机级 Cookie，因此不能用于验证跨源部署行为，需要验证时应使用独立的本地 HTTPS 反向代理，而不是把 API 域名指向 Vite。
 
 ### 多域名路由与迁移
 

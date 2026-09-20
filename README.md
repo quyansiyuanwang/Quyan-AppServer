@@ -34,11 +34,16 @@ AppServerMonorepo/
 
 ## 前置要求
 
-- **Node.js**: `^20.19.0 || >=22.12.0`
-- **pnpm**: `^10.33.0`
-- **Bun**: 开发/构建后端所需
-- **MySQL**: 后端数据库
-- **Redis**: 后端缓存/会话
+| 依赖            | 版本                     | 用途                                         |
+| --------------- | ------------------------ | -------------------------------------------- |
+| Node.js         | `^20.19.0 \|\| >=22.12.0` | 全仓工具链                                   |
+| pnpm            | `10.33.0`                | 包管理（`corepack enable` 可自动匹配版本）   |
+| Bun             | `>= 1.3`                 | 后端 dev 与构建运行时                        |
+| MySQL           | 8.x                      | 后端数据库                                   |
+| Redis           | 7.x                      | 后端缓存、限流与会话                         |
+| mkcert（可选）  | —                        | 仅 `pnpm run dev:domains` 多域名 HTTPS 需要   |
+
+Rust 工具链仅在开发或打包原生 CLI（`apps/cli-native`）时需要。`pnpm run doctor` 会逐项检查以上依赖并就缺失项给出可直接复制的修复命令。
 
 ## 快速开始
 
@@ -50,19 +55,39 @@ cd Quyan-AppServer
 # 安装依赖
 pnpm install
 
-# 初始化后端数据库（首次）
-pnpm --filter @quyan/backend db:push
-pnpm --filter @quyan/backend db:seed
+# 幂等初始化：生成 .env（随机开发密钥）、Prisma Client、前端 API 客户端、数据库迁移与种子数据
+pnpm run setup
 
-# 启动开发服务器
+# 免特权启动：不需要 hosts 改动、证书或管理员权限
 pnpm run dev
 
 # 访问
-# - 管理面板: http://localhost:5173
+# - 管理面板（默认站点）: http://localhost:5173
 # - API 服务: http://localhost:10001
 # - Swagger UI: http://localhost:10001/docs
 # - 文档站点: http://localhost:4173
+# - 种子账号: admin / admin123
 ```
+
+不需要手工复制 `.env`：`pnpm run setup` 从 `.env.example` 生成 `apps/*/.env` 并填充互不相同的随机开发密钥，**从不覆盖已有文件**。请先启动本机 MySQL 与 Redis；未就绪时 `setup` 会打印按 `DATABASE_URL` 派生的建库语句并以非零状态退出。
+
+常用补充命令：
+
+```bash
+pnpm run doctor         # 只读诊断（工具链、.env、生成物、MySQL/Redis）
+pnpm run setup --skip-seed --skip-db   # 只准备配置与生成物
+```
+
+### 两种本地启动模式
+
+| 模式             | 命令                  | 站点拓扑                              | 环境要求                            | 能力边界                                                             |
+| ---------------- | --------------------- | ------------------------------------- | ----------------------------------- | -------------------------------------------------------------------- |
+| 免特权单站点     | `pnpm run dev`        | 单一注册站点运行在 `http://localhost:5173` | 无（不需要 mkcert 或管理员权限）    | Passkey、社交 OAuth 回跳、扫码登录与站点切换不可用，请改用 `dev:domains` |
+| 多域名 HTTPS     | `pnpm run dev:domains` | `https://<site>.qysyw.test:5173`      | 首次需要 mkcert 与写入 hosts 的权限 | 与生产多域名拓扑一致，覆盖全部能力                                   |
+
+`pnpm run dev:domains` 首次会写入 hosts 并生成 `apps/frontend/.certs/` 证书；之后重复执行不会再提权、也不会重签证书（`--force` 可强制重建）。退出后 hosts 记录与证书**保留**，需要清理时执行 `pnpm run local:teardown`。
+
+免特权模式默认渲染运营管理站点，可在 `apps/frontend/.env.localhost` 中通过 `VITE_DEV_SITE_PROFILE` 切换为其他注册站点（例如 `account`、`public`、`terminal`、`chat`）。
 
 ### 独立交付物子模块
 
@@ -84,12 +109,17 @@ git submodule update --init --recursive
 ### 开发
 
 ```bash
-pnpm run dev              # 并行启动 backend + frontend + docs-site（CLI 单独启动）
+pnpm run setup            # 幂等初始化（配置、生成物、迁移、种子数据）
+pnpm run doctor           # 只读诊断本地环境
+pnpm run dev              # 免特权：backend + frontend + docs-site（http://localhost:5173）
+pnpm run dev:domains      # 多域名 *.qysyw.test + HTTPS（需要 mkcert/管理员权限）
 pnpm run dev:backend      # 只启动后端
 pnpm run dev:frontend     # 只启动前端
 pnpm run dev:docs         # 启动文档站点
 pnpm run dev:cli          # 启动 Quyan CLI
 ```
+
+只启动单个应用时，前端 dev 会按需生成被忽略的 `src/client` API 客户端（`pnpm run ensure:openapi-client`），后端仍需要 `apps/backend/.env`。
 
 ### 构建
 
@@ -163,11 +193,13 @@ pnpm run mcp:serve        # 启动本机 stdio MCP server
 
 ```bash
 pnpm run db:generate      # 生成 Prisma Client
-pnpm run db:push          # 推送 schema 变更
+pnpm run db:migrate       # 执行已提交迁移（生产/本地初始化）
 pnpm run db:migrate:dev   # 创建开发迁移
-pnpm run db:migrate       # 执行生产迁移
-pnpm run db:seed          # 填充种子数据
+pnpm run db:seed          # 填充种子数据（可重复执行）
+pnpm run db:push          # 仅用于临时试验：推送 schema 而不生成迁移
 ```
+
+本地初始化统一使用 `pnpm run setup`（内部执行 `migrate deploy` + `seed`），不要用 `db:push` 替代迁移。
 
 ### OpenAPI 生成管线
 

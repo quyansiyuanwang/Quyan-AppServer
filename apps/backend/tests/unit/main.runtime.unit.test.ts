@@ -9,6 +9,7 @@ describe("main runtime bootstrap", () => {
   it("forces process exit with code 1 when graceful shutdown timeout elapses", async () => {
     vi.useFakeTimers();
     const setupService = vi.fn();
+    const stopHolidayCalendar = vi.fn().mockResolvedValue(undefined);
     const close = vi.fn();
     const serverOn = vi.fn();
     const handleUpgrade = vi.fn(() => true);
@@ -83,6 +84,9 @@ describe("main runtime bootstrap", () => {
     vi.doMock("../../src/services/relay/relay-channel-provider-settlement-scheduler.service", () => ({
       RelayChannelProviderSettlementSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
     }));
+    vi.doMock("../../src/services/relay/china-holiday-calendar.service", () => ({
+      ChinaHolidayCalendarService: { getInstance: vi.fn(() => ({ stop: stopHolidayCalendar })) },
+    }));
     vi.doMock("../../src/services/system/data-lifecycle-scheduler.service", () => ({
       DataLifecycleSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
     }));
@@ -100,8 +104,9 @@ describe("main runtime bootstrap", () => {
       expect(serverOn).toHaveBeenCalledWith("upgrade", expect.any(Function));
 
       handlers.get("SIGINT")?.();
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(0);
       expect(info).toHaveBeenCalledWith("SIGINT received, starting graceful shutdown");
+      expect(stopHolidayCalendar).toHaveBeenCalledTimes(1);
       expect(close).toHaveBeenCalledTimes(1);
 
       vi.advanceTimersByTime(12 * 60 * 1000);
@@ -116,6 +121,7 @@ describe("main runtime bootstrap", () => {
 
   it("boots server, sets timeouts, sends PM2 ready signal, and registers shutdown hooks", async () => {
     const setupService = vi.fn();
+    const stopHolidayCalendar = vi.fn().mockResolvedValue(undefined);
     const close = vi.fn((callback?: () => void) => callback?.());
     const serverOn = vi.fn();
     const handleUpgrade = vi.fn(() => true);
@@ -191,6 +197,9 @@ describe("main runtime bootstrap", () => {
     vi.doMock("../../src/services/relay/relay-channel-provider-settlement-scheduler.service", () => ({
       RelayChannelProviderSettlementSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
     }));
+    vi.doMock("../../src/services/relay/china-holiday-calendar.service", () => ({
+      ChinaHolidayCalendarService: { getInstance: vi.fn(() => ({ stop: stopHolidayCalendar })) },
+    }));
     vi.doMock("../../src/services/system/data-lifecycle-scheduler.service", () => ({
       DataLifecycleSchedulerService: { getInstance: vi.fn(() => ({ stop: vi.fn() })) },
     }));
@@ -225,6 +234,7 @@ describe("main runtime bootstrap", () => {
       for (let index = 0; index < 8; index += 1) await Promise.resolve();
 
       expect(info).toHaveBeenCalledWith("SIGTERM received, starting graceful shutdown");
+      expect(stopHolidayCalendar).toHaveBeenCalledTimes(1);
       expect(close).toHaveBeenCalledTimes(1);
       expect(info).toHaveBeenCalledWith("Graceful shutdown completed");
       expect(processExitSpy).not.toHaveBeenCalledWith(0);

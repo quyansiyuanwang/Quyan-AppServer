@@ -5,7 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Common Commands
 
 ```bash
-pnpm run dev              # Start dev server (Vite)
+pnpm run dev              # Start dev server (Vite, multi-domain *.qysyw.test)
+pnpm run dev:localhost    # Single-site plain-HTTP localhost mode (VITE_DEV_SINGLE_SITE, .env.localhost)
 pnpm run prod             # Start dev server in production mode
 pnpm run preview          # Preview production build locally
 pnpm run build            # Type-check + production build
@@ -19,7 +20,8 @@ pnpm run format           # Prettier formatting
 pnpm run lint-format-check # Lint + format + type-check (full validation)
 pnpm run precommit        # Full pre-commit validation (API gen + permissions + lint + format + type-check)
 
-# API client generation (requires backend running at localhost:10001)
+# API client generation (reads the committed swagger.json; no backend required)
+pnpm run ensure:openapi-client # Generate src/client only when missing or older than swagger.json
 pnpm run openapi:generate  # Regenerate OpenAPI client + generate constants/types
 pnpm run client:generate   # Generate API constants and type mappings only
 
@@ -131,11 +133,20 @@ App.vue → IndexApp.vue → overLay.vue (protected) → HomeFrameLayout.vue →
 
 ### Environment Variables
 
-Create `.env` file (see `.env.sample`):
+Create `.env` file (see `.env.example`):
 
 ```
 VITE_BACKEND_URL=http://localhost:10001
 ```
+
+`pnpm run setup`（仓库根目录）会生成该文件并填充随机开发密钥；`.env` 不要提交。
+
+`apps/frontend/.env.localhost`（已提交）驱动单源开发服务器：`VITE_DEV_SINGLE_SITE=true`、
+`VITE_DEV_SITE_PROFILE=management-core`、`VITE_HTTPS_ENABLED=false`。
+`src/config/dev-single-site.ts` 会把该站点 profile 别名到浏览器当前 origin（并并入 `identity`
+路由组，使登录保持同源）；该模式由 `import.meta.env.DEV` 与显式开关共同控制，生产构建不可达，
+其它 hostname 仍被拒绝。Passkey、社交 OAuth 回跳、扫码登录与站点切换需要多域名模式
+（`pnpm run dev:domains`）。
 
 ### Development Server
 

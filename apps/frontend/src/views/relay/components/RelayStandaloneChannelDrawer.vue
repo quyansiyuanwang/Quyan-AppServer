@@ -196,9 +196,23 @@
         class="rule-row time-rule-row"
       >
         <el-input v-model="rule.name" :placeholder="i18ns.t('relay.timeRuleName')" />
-        <el-input v-model="rule.dayOfWeek" :placeholder="i18ns.t('relay.timeRuleDays')" />
-        <el-time-picker v-model="rule.startTime" value-format="HH:mm" />
-        <el-time-picker v-model="rule.endTime" value-format="HH:mm" />
+        <el-input
+          :disabled="rule.holidayMode === 'only'"
+          v-model="rule.dayOfWeek"
+          :placeholder="i18ns.t('relay.timeRuleDays')"
+        />
+        <el-time-picker
+          :clearable="false"
+          :disabled="rule.allDay"
+          v-model="rule.startTime"
+          value-format="HH:mm"
+        />
+        <el-time-picker
+          :clearable="false"
+          :disabled="rule.allDay"
+          v-model="rule.endTime"
+          value-format="HH:mm"
+        />
         <el-input-number v-model="rule.multiplier" :min="0.01" :step="0.01" :precision="6" />
         <el-switch v-model="rule.enabled" />
         <el-button
@@ -207,6 +221,7 @@
           :icon="Delete"
           @click="editorForm.timePeriodMultipliers.splice(index, 1)"
         />
+        <HolidayRuleFields v-model:holiday-mode="rule.holidayMode" v-model:all-day="rule.allDay" />
       </div>
       <el-button plain size="small" :icon="Plus" @click="$emit('add-time-rule')">{{
         i18ns.t('relay.timeRuleAdd')
@@ -251,6 +266,7 @@
 </template>
 
 <script setup lang="ts">
+import HolidayRuleFields from '@/components/relay/HolidayRuleFields.vue'
 import { computed, type PropType } from 'vue'
 import type { RelayConfiguredRequestFormat, RelayUpstreamFormat } from '@quyan/shared'
 import { Delete, Plus, Search } from '@element-plus/icons-vue'

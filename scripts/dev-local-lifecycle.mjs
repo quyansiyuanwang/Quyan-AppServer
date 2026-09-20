@@ -1,7 +1,16 @@
-import { spawn } from 'node:child_process'
+// Multi-domain local development: `*.qysyw.test` hosts plus the generated HTTPS
+// certificate. Requires mkcert and (on first run) permission to edit the hosts
+// file; repeated runs reuse the existing configuration without prompting.
+//
+// The privilege-free alternative is `pnpm run dev`.
+
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { findBusyPorts, resolvePnpmInvocation, spawnForeground } from './lib/platform.mjs'
+import { LOCAL_DEV_PORTS } from './lib/dev-provision.mjs'
+
+const DEFAULT_PORTS = Object.values(LOCAL_DEV_PORTS)
 
 const scriptPath = fileURLToPath(import.meta.url)
 const projectRoot = dirname(dirname(scriptPath))
@@ -14,83 +23,57 @@ const concurrentlyCli = join(
 )
 const localDomainsScript = join(projectRoot, 'scripts', 'setup-local-domains.mjs')
 
-let activeChild = null
-let teardownPromise = null
-let setupCompleted = false
-let shutdownRequested = false
-
-const runNode = (arguments_) =>
-  new Promise((resolve) => {
-    const child = spawn(process.execPath, arguments_, {
-      cwd: projectRoot,
-      stdio: 'inherit',
-    })
-    activeChild = child
-
-    child.once('error', (error) => {
-      console.error(`[local-lifecycle] Failed to start process: ${error.message}`)
-      if (activeChild === child) activeChild = null
-      resolve(1)
-    })
-    child.once('close', (code) => {
-      if (activeChild === child) activeChild = null
-      resolve(code ?? 1)
-    })
-  })
-
-const runLocalDomains = (arguments_ = []) => runNode([localDomainsScript, ...arguments_])
-
-const teardown = async () => {
-  if (!setupCompleted) return 0
-  if (!teardownPromise) {
-    console.log('[local-lifecycle] Tearing down local domains and certificates...')
-    teardownPromise = runLocalDomains(['--uninstall', '--remove-certificates'])
-  }
-  return teardownPromise
-}
-
-const requestShutdown = (signal) => {
-  if (shutdownRequested) return
-  shutdownRequested = true
-  console.log(`[local-lifecycle] Received ${signal}; stopping development services...`)
-  activeChild?.kill(signal)
-}
-
-for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
-  process.once(signal, () => requestShutdown(signal))
-}
+const forwardedArguments = process.argv.slice(2)
+const invocation = resolvePnpmInvocation()
+const quote = (value) => (value.includes(' ') ? `"${value}"` : value)
+const pnpmCommand = (arguments_) =>
+  [quote(invocation.command), ...invocation.arguments, ...arguments_].map(quote).join(' ')
 
 const main = async () => {
-  console.log('[local-lifecycle] Setting up local domains and HTTPS certificates...')
-  const setupExitCode = await runLocalDomains()
+  console.log('[local-lifecycle] 准备本地域名与 HTTPS 证书…')
+  const setupExitCode = await spawnForeground(
+    process.execPath,
+    [localDomainsScript, ...forwardedArguments],
+    { shell: false },
+  )
   if (setupExitCode !== 0) {
     process.exitCode = setupExitCode
     return
   }
 
-  setupCompleted = true
-  if (shutdownRequested) {
-    process.exitCode = await teardown()
-    return
+  console.log('[local-lifecycle] 启动 backend、frontend 与 docs-site…')
+  console.log(
+    '[local-lifecycle] 退出后 hosts 记录与证书会保留，需要清理时执行 pnpm run local:teardown。',
+  )
+  console.log('[local-lifecycle] 免特权模式（无需 mkcert/管理员）请改用 pnpm run dev。')
+
+  const exitCode = await spawnForeground(
+    process.execPath,
+    [
+      concurrentlyCli,
+      '--kill-others-on-fail',
+      '--names',
+      'backend,frontend,docs',
+      '--prefix-colors',
+      'blue,green,magenta',
+      pnpmCommand(['--filter', '@quyan/backend', 'run', 'dev']),
+      pnpmCommand(['--filter', '@quyan/frontend', 'run', 'dev']),
+      pnpmCommand(['--filter', '@quyan/docs-site', 'run', 'dev']),
+    ],
+    { shell: false },
+  )
+
+  const leftover = await findBusyPorts(DEFAULT_PORTS)
+  if (leftover.length) {
+    console.warn(
+      `[local-lifecycle] 以下端口仍被占用：${leftover.join(', ')}；` +
+        (process.platform === 'win32'
+          ? `可用 netstat -ano | findstr :${leftover[0]} 与 taskkill /T /F /PID <PID> 清理。`
+          : `可用 lsof -i :${leftover[0]} 清理。`),
+    )
   }
 
-  console.log('[local-lifecycle] Starting backend, frontend, and docs services...')
-  const devExitCode = await runNode([
-    concurrentlyCli,
-    '--kill-others-on-fail',
-    '--names',
-    'backend,frontend,docs',
-    'pnpm --filter @quyan/backend dev',
-    'pnpm --filter @quyan/frontend dev',
-    'pnpm --filter @quyan/docs-site dev',
-  ])
-  const teardownExitCode = await teardown()
-
-  process.exitCode = teardownExitCode || (shutdownRequested ? 0 : devExitCode)
+  process.exitCode = exitCode
 }
 
-main().catch(async (error) => {
-  console.error(error instanceof Error ? error.stack || error.message : error)
-  const teardownExitCode = await teardown()
-  process.exitCode = teardownExitCode || 1
-})
+await main()

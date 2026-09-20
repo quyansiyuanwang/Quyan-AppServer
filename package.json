@@ -6,8 +6,13 @@
     "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
+    "_0_setup": "",
+    "setup": "node scripts/setup-dev.mjs",
+    "doctor": "node scripts/setup-dev.mjs --check",
     "_1_dev": "",
-    "dev": "node scripts/dev-local-lifecycle.mjs",
+    "dev": "node scripts/dev-local.mjs",
+    "dev:localhost": "node scripts/dev-local.mjs",
+    "dev:domains": "node scripts/dev-local-lifecycle.mjs",
     "dev:local-lifecycle": "node scripts/dev-local-lifecycle.mjs",
     "dev:backend": "pnpm --filter @quyan/backend dev",
     "dev:frontend": "pnpm --filter @quyan/frontend dev",

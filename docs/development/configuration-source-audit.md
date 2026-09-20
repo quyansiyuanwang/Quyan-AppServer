@@ -50,6 +50,14 @@ P1 表示已确认来源不一致或执行入口脱节，具有功能/部署风�
 
 **整改验收：** 新增产品时集合覆盖测试；验证本地 DNS/证书 SAN、开发主机校验、精确信任 origin。实际线上是否被环境覆盖、是否已经导致请求失败，本轮未验证。
 
+**整改进展（本地开发体验改造）：** 产品 origin 已改为从共享产品目录派生——后端
+`src/config/env/domain.ts` 直接引用 `DEVELOPER_PRODUCTS`；`scripts/setup-local-domains.mjs`
+在运行时从共享源读取产品 slug；前端侧清单收敛到 `apps/frontend/src/config/first-party-hosts.ts`
+并由 `tests/node/config/first-party-hosts.node.test.ts` 与共享目录、站点目录对账。缺失的
+`json-endpoints.console` 已补齐，后端新增 `auth-central-login-origins.unit.test.ts` 断言覆盖。
+平台前缀（`www`、`auth`、`legacy`、控制台与运营前缀）仍按用途分别维护：Vite 的
+`allowedHosts` 有意不含 `legacy`。
+
 ### C02 · P1 · Relay 管理表单的回退值已与后端默认值漂移
 
 定位：

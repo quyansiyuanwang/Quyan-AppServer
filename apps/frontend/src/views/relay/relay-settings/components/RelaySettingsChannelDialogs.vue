@@ -824,11 +824,16 @@
                 />
                 <el-table-column :label="i18ns.t('relay.timeRuleDays')" min-width="120">
                   <template #default="{ row }">
-                    {{ formatTimeRuleDays(row.dayOfWeek) }}
+                    {{ row.holidayMode === 'only' ? '' : formatTimeRuleDays(row.dayOfWeek) }} ·
+                    {{ formatTimeRuleHolidayMode(row.holidayMode) }}
                   </template>
                 </el-table-column>
                 <el-table-column :label="i18ns.t('relay.timeRuleTimeRange')" min-width="120">
-                  <template #default="{ row }">{{ row.startTime }} - {{ row.endTime }}</template>
+                  <template #default="{ row }">{{
+                    row.allDay
+                      ? i18ns.t('relay.timeRuleAllDay')
+                      : `${row.startTime} - ${row.endTime}`
+                  }}</template>
                 </el-table-column>
                 <el-table-column :label="i18ns.t('relay.timeRuleMultiplier')" width="80">
                   <template #default="{ row }">
@@ -865,8 +870,13 @@
                   <el-switch v-model="rule.enabled" size="small" />
                 </div>
                 <div class="text-sm text-[#909399] mt-1">
-                  {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} -
-                  {{ rule.endTime }}
+                  {{ rule.holidayMode === 'only' ? '' : formatTimeRuleDays(rule.dayOfWeek) }} ·
+                  {{ formatTimeRuleHolidayMode(rule.holidayMode) }} ·
+                  {{
+                    rule.allDay
+                      ? i18ns.t('relay.timeRuleAllDay')
+                      : `${rule.startTime} - ${rule.endTime}`
+                  }}
                 </div>
                 <div class="flex justify-between items-center mt-1">
                   <el-tag :type="rule.multiplier >= 1 ? 'warning' : 'success'" size="small"
@@ -1573,7 +1583,13 @@
               >
             </div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
-              {{ formatTimeRuleDays(rule.dayOfWeek) }} · {{ rule.startTime }} - {{ rule.endTime }}
+              {{ rule.holidayMode === 'only' ? '' : formatTimeRuleDays(rule.dayOfWeek) }} ·
+              {{ formatTimeRuleHolidayMode(rule.holidayMode) }} ·
+              {{
+                rule.allDay
+                  ? i18ns.t('relay.timeRuleAllDay')
+                  : `${rule.startTime} - ${rule.endTime}`
+              }}
             </div>
             <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
               {{ rule.enabled ? i18ns.t('relay.enabled') : i18ns.t('relay.disabled') }}
@@ -1673,6 +1689,7 @@ const {
   filteredModelNames,
   openAddTimeRule,
   formatTimeRuleDays,
+  formatTimeRuleHolidayMode,
   openEditTimeRule,
   removeTimeRule,
   channelSaving,
