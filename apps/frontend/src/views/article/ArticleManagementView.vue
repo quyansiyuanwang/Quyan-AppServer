@@ -457,6 +457,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, reactive, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -513,7 +514,7 @@ function initSortable() {
         )
         ElMessage.success(i18ns.t('article.reorderSuccess'))
       } catch (e: any) {
-        ElMessage.error(e.message || 'Failed to reorder')
+        showRequestErrorNotice(e)
         await loadArticles()
       }
     },
@@ -596,7 +597,7 @@ async function loadArticles() {
     await nextTick()
     initSortable()
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to load articles')
+    showRequestErrorNotice(e)
   } finally {
     loading.value = false
   }
@@ -646,7 +647,7 @@ async function handleEdit(row: ArticleListItemDto) {
           .filter(Boolean)
       : []
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to load article')
+    showRequestErrorNotice(e)
   }
 }
 
@@ -680,7 +681,7 @@ async function handleSubmit() {
     editorTab.value = 'edit'
     await loadArticles()
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to save article')
+    showRequestErrorNotice(e)
   } finally {
     submitting.value = false
     handleReset()
@@ -693,7 +694,7 @@ async function handleSetDefault(row: ArticleListItemDto) {
     ElMessage.success(i18ns.t('article.setDefaultSuccess'))
     await loadArticles()
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to set default')
+    showRequestErrorNotice(e)
   }
 }
 
@@ -703,7 +704,7 @@ async function handleClearDefault() {
     ElMessage.success(i18ns.t('article.clearDefaultSuccess'))
     await loadArticles()
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to clear default')
+    showRequestErrorNotice(e)
   }
 }
 
@@ -713,7 +714,7 @@ async function handlePublish(row: ArticleListItemDto) {
     ElMessage.success(i18ns.t('article.publishSuccess'))
     await loadArticles()
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to publish')
+    showRequestErrorNotice(e)
   }
 }
 
@@ -723,7 +724,7 @@ async function handleUnpublish(row: ArticleListItemDto) {
     ElMessage.success(i18ns.t('article.unpublishSuccess'))
     await loadArticles()
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to unpublish')
+    showRequestErrorNotice(e)
   }
 }
 
@@ -737,7 +738,7 @@ async function handleDelete(row: ArticleListItemDto) {
     await loadArticles()
   } catch (e: any) {
     if (e !== 'cancel') {
-      ElMessage.error(e.message || 'Failed to delete')
+      showRequestErrorNotice(e)
     }
   }
 }

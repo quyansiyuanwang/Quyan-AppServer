@@ -22,6 +22,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { ref, watch } from 'vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import type { DeveloperJsonEndpointDto, DeveloperProductInstanceDto } from '@/client/types.gen'
@@ -65,7 +66,7 @@ const save = async () => {
     draft.value = JSON.parse(JSON.stringify(endpoint.value.jsonContent))
     ElMessage.success(i18ns.t('productResources.save'))
   } catch (cause: any) {
-    ElMessage.error(cause?.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(cause, i18ns.t('operationFailed'))
   } finally {
     saving.value = false
   }

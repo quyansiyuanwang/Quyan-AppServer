@@ -1,3 +1,4 @@
+import { buildBackendUrl, localeHeaders } from '@/utils/public-request'
 import { parseJWT } from '@/utils/jwt'
 import { trackForegroundRequest } from '@/utils/foreground-activity'
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
@@ -25,8 +26,14 @@ import { ReplayProtection } from '@/utils/replay-protection'
 import { getOrCreateClientFingerprint } from '@/utils/client-fingerprint'
 import { useImpersonationStore } from '@/stores/impersonationStore'
 import { ReplaySigningService } from '@/service/replaySigningService'
-import { getBackendLocale, i18ns } from '@/locales'
-import { isRequestCanceled, toServiceError } from '@/utils/error-utils'
+import { getBackendLocale } from '@/locales'
+import {
+  setErrorPresentation,
+  getErrorMessage,
+  normalizeRequestError,
+  isRequestCanceled,
+  toServiceError,
+} from '@/utils/error-utils'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import {
   isTwoFactorRequiredResponse,
@@ -51,6 +58,7 @@ interface PendingTwoFactorRequest {
 }
 
 type RetryAxiosRequest = InternalAxiosRequestConfig & {
+  errorPresentation?: 'global' | 'local' | 'silent'
   _retry?: boolean
   _replaySigningRetry?: boolean
   _twoFactorRetry?: boolean
@@ -139,7 +147,7 @@ export const clearLegacyAuthStorage = (): void => {
 
 const getLocaleHeaders = (): Record<string, string> => {
   const locale = getBackendLocale()
-  return locale ? { 'X-Locale': locale } : {}
+  return localeHeaders(locale)
 }
 
 export {
@@ -153,6 +161,7 @@ export {
 }
 
 export interface RequestOptions {
+  errorPresentation?: 'global' | 'local' | 'silent'
   retry?: boolean
   requestWrapper?: <T>(promise: Promise<T>) => Promise<T>
   directRequest?: boolean
@@ -197,6 +206,7 @@ class MyAxios {
   private static refreshTokenPromise: Promise<string> | null = null
   private static pendingTwoFactorRequests: PendingTwoFactorRequest[] = []
   static _defaultOptions: FullRequestOptions = {
+    errorPresentation: 'global',
     retry: true,
     requestWrapper: (p) => p,
     directRequest: false,
@@ -287,8 +297,9 @@ class MyAxios {
     request?: RetryAxiosRequest,
     status?: number,
   ): void {
+    if (request?.errorPresentation && request.errorPresentation !== 'global') return
     const url = String(request?.url || '')
-    const code = Number(responseData?.code)
+    const code = Number(responseData?.response?.data?.code ?? responseData?.code)
 
     // These flows own their own UI or are automatically retried by the caller.
     if (
@@ -302,12 +313,7 @@ class MyAxios {
       return
     }
 
-    const message =
-      typeof responseData?.message === 'string' && responseData.message.trim()
-        ? responseData.message.trim()
-        : fallbackMessage || i18ns.t('loadFailed')
-
-    showRequestErrorNotice(message)
+    showRequestErrorNotice(responseData, fallbackMessage)
   }
 
   // 保存待 2FA 验证的请求，并保持原 Promise 等待验证完成后的重试结果。
@@ -630,14 +636,15 @@ class MyAxios {
 
         // 如果code不为0，抛出错误
         if (response.data?.code !== undefined && Number(response.data.code) !== CustomCode.OK) {
-          const message = response.data.message || 'Request failed'
+          const message = getErrorMessage(response.data)
+          const failure = toServiceError(response.data, message)
+          setErrorPresentation(failure, response.config.errorPresentation ?? 'global')
           MyAxios.notifyRequestFailure(
-            response.data,
+            failure,
             message,
             response.config as RetryAxiosRequest,
             response.status,
           )
-          const failure = toServiceError(response.data, message)
           failure.status = response.status
           return Promise.reject(failure)
         }
@@ -732,17 +739,9 @@ class MyAxios {
           }
         }
 
-        const responseMessage =
-          typeof responseData?.message === 'string' && responseData.message.trim()
-            ? responseData.message
-            : error.message || 'Request failed'
-
-        MyAxios.notifyRequestFailure(
-          responseData,
-          responseMessage,
-          originalRequest,
-          error.response?.status,
-        )
+        setErrorPresentation(error, originalRequest?.errorPresentation ?? 'global')
+        normalizeRequestError(error)
+        MyAxios.notifyRequestFailure(error, error.message, originalRequest, error.response?.status)
 
         // Preserve HTTP status and network/cancellation codes for recovery policy.
         // A non-2xx response is never a successful service envelope.
@@ -822,6 +821,7 @@ class MyAxios {
           headers,
           signal: options?.signal,
           timeout: options?.timeout,
+          errorPresentation: mergedOptions.errorPresentation,
         }),
       ),
     )
@@ -878,6 +878,7 @@ class MyAxios {
           headers: headers,
           signal: options?.signal,
           timeout: options?.timeout,
+          errorPresentation: mergedOptions.errorPresentation,
         }),
       ),
     )
@@ -908,6 +909,7 @@ class MyAxios {
           headers: await this._generateHeaderOptions({ endpoint, body: null, finalUrl }, options),
           signal: options?.signal,
           timeout: options?.timeout,
+          errorPresentation: mergedOptions.errorPresentation,
         }),
       ),
     )
@@ -937,6 +939,7 @@ class MyAxios {
           headers: await this._generateHeaderOptions({ endpoint, body, finalUrl }, options),
           signal: options?.signal,
           timeout: options?.timeout,
+          errorPresentation: mergedOptions.errorPresentation,
         }),
       ),
     )
@@ -966,6 +969,7 @@ class MyAxios {
           headers: await this._generateHeaderOptions({ endpoint, body, finalUrl }, options),
           signal: options?.signal,
           timeout: options?.timeout,
+          errorPresentation: mergedOptions.errorPresentation,
         }),
       ),
     )
@@ -1057,8 +1061,7 @@ class MyAxios {
     params?: Record<string, string | number | boolean | null | undefined>,
     cacheBust: boolean = false,
   ): string {
-    const isAbsolute = /^https?:\/\//.test(url)
-    const finalUrl = new URL(url, isAbsolute ? undefined : this.baseURL)
+    const finalUrl = new URL(buildBackendUrl(url, this.baseURL))
 
     if (params) {
       Object.entries(params).forEach(([key, value]) => {

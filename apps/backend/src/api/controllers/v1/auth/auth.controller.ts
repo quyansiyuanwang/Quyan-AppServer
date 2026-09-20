@@ -1,3 +1,7 @@
+import { browserStateResetGuard } from "@/middleware/auth/browser-state-reset.middleware";
+import { browserStateResetRateLimitMiddleware } from "@/middleware/rate-limit-policies";
+import { BrowserStateResetService } from "@/services/auth/browser-state-reset.service";
+import type { BrowserStateResetDto, BrowserStateResetResponse } from "@/api/dto/auth/auth.dto";
 import {
   Body,
   Get,
@@ -615,6 +619,16 @@ export class AuthController extends Controller {
     @Request() request: ExpressRequest,
   ): Promise<AcceptPolicyConsentResponse> {
     return this.authService.acceptPolicyConsent(requestBody, request);
+  }
+
+  /** 清理当前浏览器登录 Cookie，不依赖已有认证或重放会话。 */
+  @Post("browser-state/reset")
+  @Middlewares(browserStateResetGuard, browserStateResetRateLimitMiddleware)
+  public async resetBrowserState(
+    @Body() _body: BrowserStateResetDto,
+    @Request() request: ExpressRequest,
+  ): Promise<BrowserStateResetResponse> {
+    return BrowserStateResetService.getInstance().reset(request);
   }
 
   /**

@@ -74,6 +74,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { DeveloperProductInstanceDto, DeveloperSecretDto } from '@/client/types.gen'
@@ -169,8 +170,7 @@ const remove = async (alias: string) => {
     await load()
     ElMessage.success(t('deleteSuccess'))
   } catch (cause) {
-    if (cause !== 'cancel')
-      ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    if (cause !== 'cancel') showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }

@@ -366,6 +366,8 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/utils/error-utils'
+
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { Permission } from '@/constant/permission'
@@ -551,8 +553,7 @@ const handleImpersonate = async (row: UserDto) => {
     if (err !== 'cancel') {
       ElMessage.error(
         i18ns.t('UserManagement.impersonateFailed', {
-          msg:
-            err instanceof Error ? err.message : i18ns.t('UserManagement.impersonateFailedUnknown'),
+          msg: getErrorMessage(err, i18ns.t('UserManagement.impersonateFailedUnknown')),
         }),
       )
     }

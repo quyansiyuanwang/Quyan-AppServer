@@ -114,6 +114,19 @@ const ticket = {
 }
 
 export default {
+  requestErrors: {
+    failed: 'Request failed. Please try again.',
+    timeout: 'The request timed out. Please try again.',
+    offline: 'You are offline. Check your connection.',
+    network: 'Unable to connect. Check your network and try again.',
+    unauthorized: 'Please sign in again.',
+    forbidden: 'You do not have permission for this action.',
+    notFound: 'The requested resource is unavailable.',
+    rateLimited: 'Too many requests. Please try again later.',
+    server: 'The service is temporarily unavailable. Please try again later.',
+    repair: 'Unable to sign in? Check and repair',
+  },
+
   login: 'Login',
   register: 'Register',
   logout: 'Logout',

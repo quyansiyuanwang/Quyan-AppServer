@@ -110,6 +110,19 @@ const ticket = {
 }
 
 const zhCN: DeepStringify<typeof en> = {
+  requestErrors: {
+    failed: '操作失败，请重试。',
+    timeout: '请求超时，请稍后重试。',
+    offline: '当前处于离线状态，请检查网络。',
+    network: '连接失败，请检查网络后重试。',
+    unauthorized: '登录状态已失效，请重新登录。',
+    forbidden: '你没有执行此操作的权限。',
+    notFound: '请求的资源不存在或已不可用。',
+    rateLimited: '操作过于频繁，请稍后重试。',
+    server: '服务暂时不可用，请稍后重试。',
+    repair: '无法登录？检查与修复',
+  },
+
   login: '登录',
   register: '注册',
   logout: '登出',

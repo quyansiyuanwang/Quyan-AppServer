@@ -1,3 +1,5 @@
+import { createUserFacingError } from '@/utils/error-utils'
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { RelayProbeFormat as SharedRelayChannelProbeFormat } from '@quyan/shared'
 import { RELAY_PROBE_FORMATS } from '@quyan/shared'
@@ -727,35 +729,35 @@ export const useRelayChannelProbeManagement = () => {
         workflow: source.workflow as RelayChannelProbeWorkflowStepDto[],
       }
     } catch {
-      throw new Error(i18ns.t('relay.channelProbeImportInvalid'))
+      throw createUserFacingError(i18ns.t('relay.channelProbeImportInvalid'))
     }
   }
   function validBalanceDivisor(value: unknown): number {
     if (value == null) return 1
     const divisor = Number(value)
     if (!Number.isFinite(divisor) || divisor < 0.000001 || divisor > 1_000_000_000)
-      throw new Error(i18ns.t('relay.channelProbeInvalidBalanceDivisor'))
+      throw createUserFacingError(i18ns.t('relay.channelProbeInvalidBalanceDivisor'))
     return divisor
   }
   function validUpstreamRateMultiplier(value: unknown): number {
     if (value == null) return 1
     const multiplier = Number(value)
     if (!Number.isFinite(multiplier) || multiplier < 0.000001 || multiplier > 1000)
-      throw new Error(i18ns.t('relay.channelProbeInvalidUpstreamRate'))
+      throw createUserFacingError(i18ns.t('relay.channelProbeInvalidUpstreamRate'))
     return multiplier
   }
   function validSampleCount(value: unknown): number {
     if (value == null) return 3
     const count = Number(value)
     if (!Number.isInteger(count) || count < 1 || count > 10)
-      throw new Error(i18ns.t('relay.channelProbeInvalidSampleCount'))
+      throw createUserFacingError(i18ns.t('relay.channelProbeInvalidSampleCount'))
     return count
   }
   function validMeasurementInputTokens(value: unknown): number {
     if (value == null) return 1024
     const count = Number(value)
     if (!Number.isInteger(count) || count < 0 || count > 32768)
-      throw new Error(i18ns.t('relay.channelProbeInvalidSampleCount'))
+      throw createUserFacingError(i18ns.t('relay.channelProbeInvalidSampleCount'))
     return count
   }
   function validBalanceSettlementTolerance(value: unknown): number {
@@ -768,14 +770,14 @@ export const useRelayChannelProbeManagement = () => {
       tolerance > 1000000 ||
       Math.abs(Math.round(scaledTolerance) - scaledTolerance) >= 1e-8
     )
-      throw new Error(i18ns.t('relay.channelProbeInvalidBalanceSettlementTolerance'))
+      throw createUserFacingError(i18ns.t('relay.channelProbeInvalidBalanceSettlementTolerance'))
     return tolerance
   }
   function validBalanceSettlementReads(value: unknown): number {
     if (value == null) return 2
     const reads = Number(value)
     if (!Number.isInteger(reads) || reads < 2 || reads > 5)
-      throw new Error(i18ns.t('relay.channelProbeInvalidSampleCount'))
+      throw createUserFacingError(i18ns.t('relay.channelProbeInvalidSampleCount'))
     return reads
   }
   function applyImportedConfiguration() {
@@ -804,7 +806,7 @@ export const useRelayChannelProbeManagement = () => {
       importDialogOpen.value = false
       ElMessage.success(i18ns.t('relay.channelProbeImported'))
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('relay.channelProbeImportInvalid')))
+      showRequestErrorNotice(error, i18ns.t('relay.channelProbeImportInvalid'))
     }
   }
   function statusLabel(status: string) {
@@ -1309,7 +1311,7 @@ export const useRelayChannelProbeManagement = () => {
   }
   function ensureUniqueFieldKey(key: string, target: Record<string, unknown>, label: string) {
     if (!key.trim() || Object.prototype.hasOwnProperty.call(target, key.trim()))
-      throw new Error(i18ns.t('relay.channelProbeInvalidField', { label }))
+      throw createUserFacingError(i18ns.t('relay.channelProbeInvalidField', { label }))
   }
   function textFields(entries: ProbeKeyValueEntry[], label: string): Record<string, string> {
     const result: Record<string, string> = {}
@@ -1330,11 +1332,15 @@ export const useRelayChannelProbeManagement = () => {
       else if (entry.valueType === 'number') {
         const numeric = Number(value)
         if (!Number.isFinite(numeric))
-          throw new Error(i18ns.t('relay.channelProbeInvalidField', { label: entry.key }))
+          throw createUserFacingError(
+            i18ns.t('relay.channelProbeInvalidField', { label: entry.key }),
+          )
         result[entry.key.trim()] = numeric
       } else if (entry.valueType === 'boolean') {
         if (value !== 'true' && value !== 'false')
-          throw new Error(i18ns.t('relay.channelProbeInvalidField', { label: entry.key }))
+          throw createUserFacingError(
+            i18ns.t('relay.channelProbeInvalidField', { label: entry.key }),
+          )
         result[entry.key.trim()] = value === 'true'
       } else {
         try {
@@ -1349,10 +1355,10 @@ export const useRelayChannelProbeManagement = () => {
   function formWorkflow(): RelayChannelProbeWorkflowStepDto[] {
     const balanceCount = workflowSteps.value.filter((step) => step.balancePath.trim()).length
     if (workflowSteps.value.length < 1 || balanceCount !== 1)
-      throw new Error(i18ns.t('relay.channelProbeBalancePathRequired'))
+      throw createUserFacingError(i18ns.t('relay.channelProbeBalancePathRequired'))
     return workflowSteps.value.map((step) => {
       if (!/^[A-Za-z][A-Za-z0-9_]{0,49}$/.test(step.name) || !step.url.trim())
-        throw new Error(i18ns.t('relay.channelProbeInvalidStep'))
+        throw createUserFacingError(i18ns.t('relay.channelProbeInvalidStep'))
       return {
         name: step.name,
         method: step.method,
@@ -1602,8 +1608,7 @@ export const useRelayChannelProbeManagement = () => {
         syncSelectedLatestRun()
       }
     } catch (error) {
-      if (requestId === runsRequest)
-        ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      if (requestId === runsRequest) showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       if (requestId === runsRequest) runsLoading.value = false
     }
@@ -1657,7 +1662,7 @@ export const useRelayChannelProbeManagement = () => {
         member.credentials = []
       })
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       saving.value = false
     }
@@ -1686,7 +1691,7 @@ export const useRelayChannelProbeManagement = () => {
       credentialNames.value = []
       credentials.value = []
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       clearingProfile.value = false
     }
@@ -1709,7 +1714,7 @@ export const useRelayChannelProbeManagement = () => {
       if (selected.value?.channelId === row.channelId) await loadRuns()
       startPolling()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       runningId.value = ''
     }
@@ -1738,7 +1743,7 @@ export const useRelayChannelProbeManagement = () => {
       ElMessage.success(i18ns.t('relay.channelProbeStateReset'))
       if (selected.value?.channelId === row.channelId) await loadRuns()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       resettingChannelId.value = ''
     }
@@ -1773,7 +1778,7 @@ export const useRelayChannelProbeManagement = () => {
       ElMessage.success(i18ns.t('relay.channelProbeHistoryCleared', { count: result.deleted }))
       await loadRuns()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       clearingHistoryScope.value = ''
     }
@@ -1815,7 +1820,7 @@ export const useRelayChannelProbeManagement = () => {
         ElMessage.warning(result.rejected.map((item: { reason: string }) => item.reason).join('；'))
       startPolling()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       batchRunning.value = false
     }
@@ -1864,7 +1869,7 @@ export const useRelayChannelProbeManagement = () => {
         await loadRuns()
       startPolling()
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       batchRunning.value = false
     }
@@ -1900,7 +1905,7 @@ export const useRelayChannelProbeManagement = () => {
         ElMessage.warning(result.rejected.map((item: { reason: string }) => item.reason).join('；'))
       if (!result.rejected.length) batchProfileDialogOpen.value = false
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       batchProfileSaving.value = false
     }
@@ -2004,7 +2009,7 @@ export const useRelayChannelProbeManagement = () => {
         clearSelection()
       }
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       applying.value = false
     }

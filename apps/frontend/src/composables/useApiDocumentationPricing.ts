@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { i18ns } from '@/locales'
 import type { ModelPricingDto, RelayCatalogOptionDto } from '@/client/types.gen'
@@ -49,8 +50,7 @@ const buildHighlightCacheKey = (keyword: string, text: string): string =>
   JSON.stringify([keyword, text])
 
 const resolveErrorMessage = (error: unknown, fallback: string): string => {
-  if (error instanceof Error && error.message) return error.message
-  return fallback
+  return getErrorMessage(error, fallback)
 }
 
 export const useApiDocumentationPricing = () => {

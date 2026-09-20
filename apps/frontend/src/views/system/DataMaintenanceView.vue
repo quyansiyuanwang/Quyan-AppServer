@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
@@ -57,11 +58,7 @@ const formatDate = (value: string | null | undefined) =>
 const statusLabel = (status: string) => i18ns.t(`dataMaintenance.${status}` as never) || status
 
 const showMaintenanceError = (error: unknown) => {
-  ElMessage.error(
-    error instanceof Error && error.message
-      ? error.message
-      : i18ns.t('dataMaintenance.executeFailed'),
-  )
+  showRequestErrorNotice(error, i18ns.t('dataMaintenance.executeFailed'))
 }
 
 const loadRuns = async () => {

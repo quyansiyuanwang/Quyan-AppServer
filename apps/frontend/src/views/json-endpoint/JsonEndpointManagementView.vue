@@ -358,6 +358,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ArrowRight, Document, Key, Lock } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -501,7 +502,7 @@ async function loadEndpoints() {
   try {
     endpointList.value = await jsonEndpointService.getEndpoints(ownerFilter.value || undefined)
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('loadFailed'))
   } finally {
     loading.value = false
   }
@@ -541,7 +542,7 @@ async function handleDelete(row: JsonEndpointDto) {
     ElMessage.success(i18ns.t('deleteSuccess'))
     await loadEndpoints()
   } catch (error: any) {
-    if (error !== 'cancel') ElMessage.error(error.message || i18ns.t('deleteFailed'))
+    if (error !== 'cancel') showRequestErrorNotice(error, i18ns.t('deleteFailed'))
   }
 }
 async function handleSubmit() {
@@ -604,7 +605,7 @@ async function handleSubmit() {
     drawerVisible.value = false
     await loadEndpoints()
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   } finally {
     submitting.value = false
   }

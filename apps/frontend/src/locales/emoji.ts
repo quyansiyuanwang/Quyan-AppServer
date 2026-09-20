@@ -109,6 +109,19 @@ const ticket = {
 }
 
 const emoji: DeepStringify<typeof en> = {
+  requestErrors: {
+    failed: '⚠️ 操作失败，请重试。',
+    timeout: '⏱️ 请求超时，请稍后重试。',
+    offline: '📡 当前离线，请检查网络。',
+    network: '📡 连接失败，请检查网络后重试。',
+    unauthorized: '🔐 请重新登录。',
+    forbidden: '🔒 没有执行此操作的权限。',
+    notFound: '🔎 资源不可用。',
+    rateLimited: '⏳ 操作频繁，请稍后重试。',
+    server: '🛠️ 服务暂时不可用，请稍后重试。',
+    repair: '🛠️ 无法登录？检查与修复',
+  },
+
   login: '🔐',
   register: '📝',
   logout: '👋',

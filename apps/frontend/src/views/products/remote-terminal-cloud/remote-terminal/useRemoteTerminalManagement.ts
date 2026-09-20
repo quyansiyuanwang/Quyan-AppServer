@@ -1,3 +1,4 @@
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { FullScreen, Link, Monitor, Plus, Refresh, RefreshRight } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
@@ -376,7 +377,7 @@ export const useRemoteTerminalManagement = () => {
       }
     } catch (error) {
       if (!options?.silent) {
-        ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminal.loadFailed')))
+        showRequestErrorNotice(error, i18ns.t('remoteTerminal.loadFailed'))
       }
     } finally {
       preferenceLoading.value = false
@@ -434,7 +435,7 @@ export const useRemoteTerminalManagement = () => {
 
       return true
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminal.loadFailed')))
+      showRequestErrorNotice(error, i18ns.t('remoteTerminal.loadFailed'))
       return false
     }
   }
@@ -639,7 +640,7 @@ export const useRemoteTerminalManagement = () => {
         upsertDirectoryTreeCacheData([createDirectoryTreeOption(normalizedTargetPath)])
       }
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminal.browseDirectoriesFailed')))
+      showRequestErrorNotice(error, i18ns.t('remoteTerminal.browseDirectoriesFailed'))
     } finally {
       directoryBrowserLoading.value = false
     }
@@ -677,7 +678,7 @@ export const useRemoteTerminalManagement = () => {
 
       resolve(treeOptions)
     } catch (error) {
-      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminal.browseDirectoriesFailed')))
+      showRequestErrorNotice(error, i18ns.t('remoteTerminal.browseDirectoriesFailed'))
       resolve([])
     } finally {
       directoryBrowserLoading.value = false

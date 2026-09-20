@@ -238,6 +238,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/utils/error-utils'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, onMounted, computed } from 'vue'
@@ -298,7 +299,7 @@ const loadUptimeStatus = async () => {
     }
   } catch (err: any) {
     console.error('Failed to load uptime status:', err)
-    error.value = err.message || i18ns.t('relay.loadUptimeFailed')
+    error.value = getErrorMessage(err, i18ns.t('relay.loadUptimeFailed'))
   } finally {
     loading.value = false
   }

@@ -1,3 +1,4 @@
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { Permission } from '@/constant/permission'
 import { i18ns } from '@/locales'
@@ -93,11 +94,7 @@ const showRequestError = (error: unknown, fallback: string) => {
   // interceptor. Do not overwrite that flow with an ordinary operation error.
   if (isTwoFactorRequiredResponse(error)) return
 
-  const message =
-    error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
-      ? error.message
-      : undefined
-  ElMessage.error(message || fallback)
+  showRequestErrorNotice(error, fallback)
 }
 
 const resolveModelId = (source: ModelIdentitySource): string => {

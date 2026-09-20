@@ -266,8 +266,28 @@ export default defineConfig(({ mode }) => {
     return undefined
   }
 
+  // Keep the independent repair document's dependency closure together. Derive
+  // ownership from the actual graph instead of duplicating a module allowlist.
+  const repairDependencies = new Set<string>()
+  const repairDependencyGraph: Plugin = {
+    name: 'repair-dependency-graph',
+    buildEnd() {
+      repairDependencies.clear()
+      const entry = [...this.getModuleIds()].find((id) =>
+        id.replace(/\\/g, '/').endsWith('/src/repair/main.ts'),
+      )
+      const visit = (id: string) => {
+        if (repairDependencies.has(id)) return
+        repairDependencies.add(id)
+        this.getModuleInfo(id)?.importedIds.forEach(visit)
+      }
+      if (entry) this.getModuleInfo(entry)?.importedIds.forEach(visit)
+    },
+  }
+
   const resolveManualChunk = (id: string): string | undefined => {
     const moduleId = id.replace(/\\/g, '/')
+    if (repairDependencies.has(id) && !moduleId.endsWith('.css')) return 'repair-core'
 
     // Keep Babel virtual helpers in the base chunk so feature chunks
     // cannot accidentally become entry dependencies.
@@ -353,10 +373,39 @@ export default defineConfig(({ mode }) => {
           'dynamicImports' in entry &&
           'modules' in entry,
       )
-      const entry = chunks.find((chunk) => chunk.isEntry)
+      const entry = chunks.find(
+        (chunk) =>
+          chunk.isEntry &&
+          Object.keys(chunk.modules).some((id) => id.replace(/\\/g, '/').endsWith('/src/main.ts')),
+      )
       if (!entry) return
 
       const chunksByFileName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]))
+      const repairEntry = chunks.find(
+        (chunk) =>
+          chunk.isEntry &&
+          Object.keys(chunk.modules).some((id) =>
+            id.replace(/\\/g, '/').endsWith('/src/repair/main.ts'),
+          ),
+      )
+      if (!repairEntry) throw new Error('Missing independent repair entry')
+      const repairVisited = new Set<string>()
+      const checkRepair = (fileName: string) => {
+        if (repairVisited.has(fileName)) return
+        repairVisited.add(fileName)
+        const chunk = chunksByFileName.get(fileName)
+        for (const id of Object.keys(chunk?.modules ?? {})) {
+          if (
+            /\/src\/(?:stores|locales)\/|\/src\/(?:main|app-runtime)\.ts|\/src\/utils\/sessionDB\.ts|\/node_modules\/(?:pinia|vue-router)\//.test(
+              id.replace(/\\/g, '/'),
+            )
+          ) {
+            throw new Error(`Repair entry depends on application initialization: ${id}`)
+          }
+        }
+        chunk?.imports.forEach(checkRepair)
+      }
+      checkRepair(repairEntry.fileName)
       const indexChunk = chunks.find((chunk) => /^assets\/index-/.test(chunk.fileName))
       const vendorChunk = chunks.find((chunk) => /^assets\/vendor-/.test(chunk.fileName))
       const indexModules = new Set(Object.keys(indexChunk?.modules ?? {}))
@@ -432,8 +481,13 @@ export default defineConfig(({ mode }) => {
       const normalizedInitialModules = initialModules.map((moduleId) =>
         moduleId.replace(/\\/g, '/'),
       )
-      const eagerNavigationUi = normalizedInitialModules.find((id) => /\/src\/(?:config\/navigation-catalog|constant\/developer-product-navigation)\.ts$/.test(id))
-      if (eagerNavigationUi) throw new Error(`Navigation UI entered the startup graph: ${eagerNavigationUi}`)
+      const eagerNavigationUi = normalizedInitialModules.find((id) =>
+        /\/src\/(?:config\/navigation-catalog|constant\/developer-product-navigation)\.ts$/.test(
+          id,
+        ),
+      )
+      if (eagerNavigationUi)
+        throw new Error(`Navigation UI entered the startup graph: ${eagerNavigationUi}`)
 
       const eagerLocaleModule = normalizedInitialModules.find((moduleId) =>
         /\/src\/locales\/(?:zh-CN|en|emoji)\.ts$/.test(moduleId),
@@ -585,11 +639,20 @@ export default defineConfig(({ mode }) => {
           [...indexHtml.matchAll(/\/assets\/([^"']+\.(?:js|css))/g)].map((match) => match[1]),
         ),
       ]
-      const initialSources = initialAssetNames.map((fileName) => readFileSync(resolve(assetsDir, fileName)))
+      const initialSources = initialAssetNames.map((fileName) =>
+        readFileSync(resolve(assetsDir, fileName)),
+      )
       const initialRawBytes = initialSources.reduce((sum, source) => sum + source.length, 0)
-      const initialGzipBytes = initialSources.reduce((sum, source) => sum + gzipSync(source).length, 0)
-      const initialBrotliBytes = initialSources.reduce((sum, source) => sum + brotliCompressSync(source).length, 0)
-      const maxInitialAssets = 6
+      const initialGzipBytes = initialSources.reduce(
+        (sum, source) => sum + gzipSync(source).length,
+        0,
+      )
+      const initialBrotliBytes = initialSources.reduce(
+        (sum, source) => sum + brotliCompressSync(source).length,
+        0,
+      )
+      // One shared, bootstrap-independent repair-core asset is added by the second HTML entry.
+      const maxInitialAssets = 7
       const maxInitialRawBytes = 800 * 1024
       const maxInitialBrotliBytes = 230 * 1024
       const maxEntryRawBytes = 450 * 1024
@@ -649,6 +712,7 @@ export default defineConfig(({ mode }) => {
       }),
       buildInfoPlugin(),
       vue(),
+      repairDependencyGraph,
       assertBundleShape,
       enableVueDevTools && vueDevTools(),
       // The report is useful for an explicit bundle-analysis run, but writing
@@ -783,6 +847,10 @@ export default defineConfig(({ mode }) => {
       // Optional capabilities stay lazy through their import boundaries, not filename filters.
       manifest: true,
       rollupOptions: {
+        input: {
+          app: resolve(import.meta.dirname, 'index.html'),
+          repair: resolve(import.meta.dirname, 'repair.html'),
+        },
         preserveEntrySignatures: 'allow-extension',
         output: {
           entryFileNames: 'assets/[name]-[hash].js',

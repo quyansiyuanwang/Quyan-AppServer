@@ -3,9 +3,9 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { socialAuthService } from '@/service/socialAuthService'
 import { authorizationService } from '@/service/authorizationService'
@@ -39,7 +39,7 @@ onMounted(async () => {
     )
     replaceDocument(authorizeUrl)
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsBindFailed'))
+    showRequestErrorNotice(error, i18ns.t('SettingsView.externalAccountsBindFailed'))
     await router.replace(getLoginRoute())
   }
 })

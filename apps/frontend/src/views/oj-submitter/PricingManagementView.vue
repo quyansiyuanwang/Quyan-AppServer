@@ -289,6 +289,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, onMounted } from 'vue'
 import { i18ns } from '@/locales'
@@ -331,7 +332,7 @@ const loadPricing = async () => {
     const result = await ojPricingService.listPricing()
     pricings.value = result as unknown as OjModelPricingDto[]
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ojSubmitter.pricingLoadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ojSubmitter.pricingLoadFailed'))
   } finally {
     loading.value = false
   }
@@ -386,7 +387,7 @@ const handleSubmit = async () => {
     showDialog.value = false
     loadPricing()
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('error'))
+    showRequestErrorNotice(error, i18ns.t('error'))
   } finally {
     saving.value = false
   }
@@ -402,7 +403,7 @@ const handleDelete = async (row: OjModelPricingDto) => {
     loadPricing()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || i18ns.t('error'))
+      showRequestErrorNotice(error, i18ns.t('error'))
     }
   }
 }

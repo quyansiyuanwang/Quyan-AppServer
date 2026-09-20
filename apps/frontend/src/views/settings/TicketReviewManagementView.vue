@@ -440,6 +440,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { i18ns } from '@/locales'
@@ -447,7 +448,6 @@ import { ticketService } from '@/service/ticketService'
 import { userService } from '@/service/userService'
 import { Permission } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
-import { getErrorMessage } from '@/utils/error-utils'
 import { usePageDevice } from '@/composables/usePageDevice'
 import type {
   CreateTicketReviewCommentDto,
@@ -651,7 +651,7 @@ async function loadReviewList() {
     pagination.total = result.data.total
     items.value.forEach((item) => ensureUserOption(item.assigneeUserId, item.assigneeUsername))
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.loadListFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.loadListFailed'))
   } finally {
     listLoading.value = false
   }
@@ -665,7 +665,7 @@ async function loadDetail(id: string) {
     ensureUserOption(result.data.assigneeUserId, result.data.assigneeUsername)
     syncReviewFormFromDetail()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.loadDetailFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.loadDetailFailed'))
   } finally {
     detailLoading.value = false
   }
@@ -691,7 +691,7 @@ async function loadAssignmentRules() {
       rule.assigneeUserIds.forEach((userId) => ensureUserOption(userId))
     })
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.assignmentRulesLoadFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.assignmentRulesLoadFailed'))
   } finally {
     assignmentRulesLoading.value = false
   }
@@ -725,7 +725,7 @@ async function saveAssignmentRules() {
     }))
     ElMessage.success(i18ns.t('message.information.saveSuccess'))
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.assignmentRulesSaveFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.assignmentRulesSaveFailed'))
   } finally {
     assignmentRulesSaving.value = false
   }
@@ -761,7 +761,7 @@ async function submitReviewUpdate() {
     ElMessage.success(i18ns.t('message.information.saveSuccess'))
     await loadReviewList()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.reviewSaveFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.reviewSaveFailed'))
   } finally {
     reviewSubmitting.value = false
   }
@@ -787,7 +787,7 @@ async function submitReviewComment() {
     await loadDetail(detail.value.id)
     await loadReviewList()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.commentFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.commentFailed'))
   } finally {
     commentSubmitting.value = false
   }
@@ -807,7 +807,7 @@ async function handleDelete(id: string) {
     await loadReviewList()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(getErrorMessage(error, i18ns.t('ticket.deleteFailed')))
+      showRequestErrorNotice(error, i18ns.t('ticket.deleteFailed'))
     }
   }
 }

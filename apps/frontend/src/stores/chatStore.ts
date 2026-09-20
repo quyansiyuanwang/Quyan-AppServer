@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/utils/error-utils'
 import { defineStore } from 'pinia'
 import { computed, reactive, ref } from 'vue'
 import type { Conversation, Message, ChatToken } from '@/types/chat'
@@ -217,7 +218,7 @@ export const useChatStore = defineStore('chat', () => {
       const draft = getDraft()
       if (draft) {
         draft.clientState = 'failed'
-        draft.errorMessage = error instanceof Error ? error.message : 'Streaming request failed'
+        draft.errorMessage = getErrorMessage(error)
       }
     } finally {
       if (isCurrentRequest(requestId, conversation.id)) {
@@ -287,7 +288,7 @@ export const useChatStore = defineStore('chat', () => {
       const draft = getDraft()
       if (draft) {
         draft.clientState = 'failed'
-        draft.errorMessage = error instanceof Error ? error.message : 'Agent task failed'
+        draft.errorMessage = getErrorMessage(error)
       }
     } finally {
       if (isCurrentRequest(requestId, conversation.id)) activeRequests.delete(conversation.id)

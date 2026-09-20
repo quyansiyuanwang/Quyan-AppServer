@@ -189,6 +189,8 @@
 </template>
 
 <script setup lang="ts">
+import { createUserFacingError } from '@/utils/error-utils'
+
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
@@ -441,7 +443,7 @@ const claimMonthlyPassTemplate = async (template: MonthlyPassTemplateDto) => {
   try {
     const result = await monthlyPassService.claimPublishedTemplate({ templateId: template.id })
     if (!result || typeof result.purchaseAmount !== 'number') {
-      throw new Error(i18ns.t('apiDoc.balanceRedeemFailed'))
+      throw createUserFacingError(i18ns.t('apiDoc.balanceRedeemFailed'))
     }
     ElMessage.success(
       i18ns.t('apiDoc.balanceRedeemSuccess', {

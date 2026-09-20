@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/utils/error-utils'
 import { NICKNAME_PATTERN, USERNAME_PATTERN } from '@/constant/pattern'
 import StorageKey from '@/constant/storagekey'
 import { CustomCode } from '@/constant/custom-code'
@@ -1200,7 +1201,7 @@ export function useLoginOrRegister() {
     } catch (error) {
       Notification.notify(
         i18ns.t('error'),
-        (error instanceof Error && error.message) || i18ns.t('message.error.loginFailed'),
+        getErrorMessage(error, i18ns.t('message.error.loginFailed')),
         'error',
       )
     } finally {
@@ -1220,7 +1221,7 @@ export function useLoginOrRegister() {
     } catch (error) {
       Notification.notify(
         i18ns.t('error'),
-        (error instanceof Error && error.message) || i18ns.t('message.error.loginFailed'),
+        getErrorMessage(error, i18ns.t('message.error.loginFailed')),
         'error',
       )
     } finally {

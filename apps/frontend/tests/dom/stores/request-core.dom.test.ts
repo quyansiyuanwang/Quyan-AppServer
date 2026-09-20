@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
 import { clearAccessToken, clearLegacyAuthStorage, MyAxios, setAccessToken } from '@/stores/request'
 import { checkApiResult } from '@/utils/service-utils'
-import { configureRequestErrorNotifier } from '@/utils/requestErrorNotice'
+import { configureRequestErrorNotifier, showRequestErrorNotice } from '@/utils/requestErrorNotice'
 
 const refreshMock = vi.fn()
 const waitForPendingRestoreMock = vi.fn()
@@ -46,6 +46,26 @@ describe('MyAxios session transport', () => {
     sessionStorage.clear()
     ;(MyAxios as any).refreshTokenPromise = null
   })
+
+  it.each(['local', 'silent'] as const)(
+    'honors %s presentation through HTTP failures',
+    async (presentation) => {
+      const client = new MyAxios('https://backend.example.test', 1000)
+      const instance: any = client.getAxios()
+      const rejected = instance.interceptors.response.handlers[0].rejected
+      const error = Object.assign(new Error('Request failed with status code 503'), {
+        config: { url: '/v1/probe', headers: new AxiosHeaders(), errorPresentation: presentation },
+        response: {
+          status: 503,
+          data: { code: 500, message: `localized ${presentation} failure` },
+        },
+      })
+      await expect(rejected(error)).rejects.toBe(error)
+      expect(notifyMock).not.toHaveBeenCalled()
+      showRequestErrorNotice(error)
+      expect(notifyMock).toHaveBeenCalledTimes(presentation === 'local' ? 1 : 0)
+    },
+  )
 
   it('keeps the access token in memory and removes legacy persistent credentials', () => {
     localStorage.setItem(StorageKey.Auth.ACCESS_TOKEN, 'legacy-access')

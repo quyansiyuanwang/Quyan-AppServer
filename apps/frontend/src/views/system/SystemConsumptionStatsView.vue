@@ -114,6 +114,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
@@ -315,7 +316,7 @@ const loadStats = async () => {
       }
     }
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('ConsumptionStats.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ConsumptionStats.loadFailed'))
   } finally {
     loading.value = false
   }

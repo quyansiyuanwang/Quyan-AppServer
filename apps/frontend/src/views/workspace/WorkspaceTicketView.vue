@@ -89,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import type { FormRules } from 'element-plus'
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
@@ -317,7 +318,7 @@ async function loadMyTickets() {
     ticketList.value = result.data.items
     pagination.total = result.data.total
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.loadListFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.loadListFailed'))
   } finally {
     listLoading.value = false
   }
@@ -329,7 +330,7 @@ async function loadTicketDetail(id: string) {
     const result = await ticketService.getMyTicketDetail(id)
     selectedDetail.value = result.data
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.loadDetailFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.loadDetailFailed'))
   } finally {
     detailLoading.value = false
   }
@@ -400,7 +401,7 @@ async function startEditingByRow(id: string) {
     await nextTick()
     ticketFormRef.value?.clearValidate()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.loadDetailFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.loadDetailFailed'))
   }
 }
 
@@ -428,7 +429,7 @@ async function submitComment() {
     await loadTicketDetail(selectedDetail.value.id)
     await loadMyTickets()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('ticket.commentFailed')))
+    showRequestErrorNotice(error, i18ns.t('ticket.commentFailed'))
   } finally {
     commentSubmitting.value = false
   }

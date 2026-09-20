@@ -147,6 +147,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -226,7 +227,7 @@ async function confirmRegister() {
     if (err?.name === 'NotAllowedError') {
       ElMessage.warning(i18ns.t('passkey.cancelled'))
     } else {
-      ElMessage.error(err?.message || i18ns.t('unknownError'))
+      showRequestErrorNotice(err, i18ns.t('unknownError'))
     }
     throw err
   } finally {

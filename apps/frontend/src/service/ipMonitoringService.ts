@@ -24,7 +24,7 @@ export class IPMonitoringService {
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data
     }
-    throw toServiceError(result, 'Failed to get monitoring dashboard')
+    throw toServiceError(result)
   }
 
   async getIpErrorStatus(ip: string): Promise<IpErrorStatusResponse> {
@@ -34,7 +34,7 @@ export class IPMonitoringService {
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data
     }
-    throw toServiceError(result, 'Failed to get IP error status')
+    throw toServiceError(result)
   }
 
   async resetIpErrorWeight(ip: string): Promise<void> {
@@ -42,7 +42,7 @@ export class IPMonitoringService {
       path: { ip },
     })
     if (result?.code !== undefined && result.code !== CustomCode.OK) {
-      throw toServiceError(result, 'Failed to reset IP error weight')
+      throw toServiceError(result)
     }
   }
 
@@ -52,7 +52,7 @@ export class IPMonitoringService {
       body: { weight },
     })
     if (result?.code !== undefined && result.code !== CustomCode.OK) {
-      throw toServiceError(result, 'Failed to set IP error weight')
+      throw toServiceError(result)
     }
   }
 }

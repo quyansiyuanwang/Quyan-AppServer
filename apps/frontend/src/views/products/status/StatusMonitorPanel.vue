@@ -160,6 +160,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { TopRight } from '@element-plus/icons-vue'
@@ -384,7 +385,7 @@ const toggle = async (row: DeveloperStatusMonitorDto) => {
     await load()
     ElMessage.success(t('updateSuccess'))
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -397,7 +398,7 @@ const check = async (id: string) => {
     await load()
     ElMessage.success(t('success'))
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     const next = new Set(checkingIds.value)
     next.delete(id)
@@ -415,8 +416,7 @@ const remove = async (row: DeveloperStatusMonitorDto) => {
     await load()
     ElMessage.success(t('deleteSuccess'))
   } catch (cause) {
-    if (cause !== 'cancel')
-      ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    if (cause !== 'cancel') showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -433,7 +433,7 @@ const togglePublished = async () => {
     ElMessage.success(t('updateSuccess'))
   } catch (cause) {
     published.value = previous
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }

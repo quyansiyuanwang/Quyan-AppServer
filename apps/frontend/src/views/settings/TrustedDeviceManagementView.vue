@@ -141,6 +141,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -249,7 +250,7 @@ const loadTrustedDevices = async (silent = false) => {
 
     errorMessage.value = error?.message || i18ns.t('twoFactor.trustedDevicesLoadFailed')
     if (!silent) {
-      ElMessage.error(error?.message || i18ns.t('twoFactor.trustedDevicesLoadFailed'))
+      showRequestErrorNotice(error, i18ns.t('twoFactor.trustedDevicesLoadFailed'))
     }
   } finally {
     if (isUnmounted.value || !isRequestCurrent(requestContext.requestId)) return
@@ -309,7 +310,7 @@ const handleRemoveTrustedDevice = async (device: TwoFactorTrustedDevice) => {
       return
     }
 
-    ElMessage.error(error?.message || i18ns.t('twoFactor.trustedDeviceDeleteFailed'))
+    showRequestErrorNotice(error, i18ns.t('twoFactor.trustedDeviceDeleteFailed'))
   } finally {
     if (isUnmounted.value) return
     removingDeviceId.value = null

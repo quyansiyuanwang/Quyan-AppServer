@@ -80,7 +80,7 @@ export class PasskeyService {
     }
 
     if (!this.isAuthSuccessPayload(payload)) {
-      throw toServiceError(res, 'Invalid passkey authentication response')
+      throw toServiceError(res)
     }
 
     authorizationService.completeLogin(payload)

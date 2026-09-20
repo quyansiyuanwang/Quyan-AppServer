@@ -212,6 +212,14 @@ export class RateLimiterService {
     await this.redisService.delete(key);
   }
 
+  /** Recovery is unauthenticated: consume atomically and fail closed when Redis is unavailable. */
+  async consumeBrowserStateResetRateLimit(ipAddress: string): Promise<RateLimitCheckResult> {
+    const policy = RATE_LIMITER_CONFIG.browserStateReset;
+    const key = `rate:browser-state-reset:${ipAddress}`;
+    const count = await this.redisService.tryIncrementWithinLimit(key, policy.maxRequests, policy.windowMinutes * 60);
+    return { allowed: count !== null && count >= 0, retryAfter: policy.windowMinutes * 60 };
+  }
+
   async checkNamedRedisWindowRateLimit<TPolicyName extends RedisWindowRateLimitPolicyName>(
     policyName: TPolicyName,
     context: RedisWindowRateLimitPolicyContextMap[TPolicyName],

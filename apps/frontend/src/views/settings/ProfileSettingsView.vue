@@ -178,6 +178,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -229,7 +230,7 @@ const handleUpdateProfile = async () => {
     userInfoStore.setName(result.name ?? null)
     ElMessage.success(i18ns.t('SettingsView.profileUpdateSuccess'))
   } catch (err: any) {
-    ElMessage.error(err?.message || i18ns.t('message.error.modifyFailed'))
+    showRequestErrorNotice(err, i18ns.t('message.error.modifyFailed'))
   } finally {
     profileSaving.value = false
   }
@@ -257,7 +258,7 @@ const handleSendEmailCode = async () => {
     ElMessage.success(i18ns.t('SettingsView.codeSent'))
     startCooldown()
   } catch (err: any) {
-    ElMessage.error(err?.message || i18ns.t('message.error.modifyFailed'))
+    showRequestErrorNotice(err, i18ns.t('message.error.modifyFailed'))
   } finally {
     sendingCode.value = false
   }
@@ -273,7 +274,7 @@ const handleChangeEmail = async () => {
     userInfoStore.setEmail(emailForm.value.newEmail)
     emailForm.value = { newEmail: '', verificationCode: '' }
   } catch (err: any) {
-    ElMessage.error(err?.message || i18ns.t('message.error.modifyFailed'))
+    showRequestErrorNotice(err, i18ns.t('message.error.modifyFailed'))
   } finally {
     emailChanging.value = false
   }

@@ -23,13 +23,13 @@ export class IPWhitelistService {
       params: { limit, offset },
     })
     if (result?.code === CustomCode.OK && result.data) return result.data
-    throw toServiceError(result, 'Failed to get IP whitelists')
+    throw toServiceError(result)
   }
 
   async add(data: CreateIpWhitelistDto) {
     const result = await ipWhitelistApi.addWhiteIp({ body: data })
     if (result?.code === CustomCode.OK && result.data) return result.data
-    throw toServiceError(result, 'Failed to add IP to whitelist')
+    throw toServiceError(result)
   }
 
   async remove(ip: string) {
@@ -37,7 +37,7 @@ export class IPWhitelistService {
       path: { ip },
     })
     if (result?.code === CustomCode.OK) return true
-    throw toServiceError(result, 'Failed to remove IP from whitelist')
+    throw toServiceError(result)
   }
 }
 

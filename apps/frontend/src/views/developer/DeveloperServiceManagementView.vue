@@ -96,6 +96,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Plus, Refresh } from '@element-plus/icons-vue'
@@ -141,7 +142,7 @@ const load = async () => {
   try {
     overrides.value = await developerQuotaAdminService.list()
   } catch (error: any) {
-    ElMessage.error(error?.message || '开发者额度规则加载失败')
+    showRequestErrorNotice(error)
   } finally {
     loading.value = false
   }
@@ -186,7 +187,7 @@ const save = async () => {
     dialogVisible.value = false
     await load()
   } catch (error: any) {
-    ElMessage.error(error?.message || '额度覆盖保存失败')
+    showRequestErrorNotice(error)
   } finally {
     saving.value = false
   }
@@ -201,8 +202,7 @@ const removeOverride = async (override: DeveloperQuotaOverrideDto) => {
     ElMessage.success('额度覆盖已删除')
     await load()
   } catch (error: any) {
-    if (error !== 'cancel' && error !== 'close')
-      ElMessage.error(error?.message || '额度覆盖删除失败')
+    if (error !== 'cancel' && error !== 'close') showRequestErrorNotice(error)
   }
 }
 

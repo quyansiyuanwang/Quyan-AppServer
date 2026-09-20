@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'login-register',
+  updatedAt: '2026-09-20',
   category: {
     en: 'Access',
     'zh-CN': '访问',
