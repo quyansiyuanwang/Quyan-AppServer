@@ -12,6 +12,6 @@ apps/frontend/src/router/.gen/
 .eslintcache
 
 .claude/
-tmp/
+.tmp/
 
 *.log
