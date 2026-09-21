@@ -1,7 +1,16 @@
 import type en from "./en";
 import type { DeepStringify } from "./types";
 
-const zhCN: DeepStringify<typeof en> = {
+/**
+ * 中文（zh-CN）消息目录。
+ *
+ * 刻意使用 `as const satisfies DeepStringify<typeof en>` 而不是 `const zhCN: DeepStringify<typeof en>`：
+ * - `satisfies` 仍在编译期校验「key 齐全 / 无多余 key / 叶子都是字符串」；
+ * - 同时**保留字面量类型**，使 `locales/index.ts` 的 `_AssertLocalePlaceholders`
+ *   能在编译期比对中英文占位符集合。若改回类型注解形式，叶子会被拓宽为 `string`，
+ *   占位符一致性将无法在类型层校验（该断言会直接失败）。
+ */
+const zhCN = {
   common: {
     success: "操作成功",
   },
@@ -50,6 +59,33 @@ const zhCN: DeepStringify<typeof en> = {
     passwordCredentialConflict: "不能同时提交密码和加密密码凭据",
     passwordRequired: "请输入密码",
     databaseOperationFailed: "数据库操作失败",
+  },
+  validation: {
+    fieldRequired: "{{field}}为必填项",
+    fieldInvalidType: "{{field}}类型不正确，应为 {{expected}}",
+    fieldTooShort: "{{field}}长度至少为 {{min}} 个字符",
+    fieldTooLong: "{{field}}长度不能超过 {{max}} 个字符",
+    fieldTooSmall: "{{field}}不能小于 {{min}}",
+    fieldTooLarge: "{{field}}不能大于 {{max}}",
+    fieldInvalidFormat: "{{field}}格式不正确",
+    fieldInvalidEnum: "{{field}}只能是以下值之一：{{values}}",
+    fieldUnknown: "{{field}}不是允许的字段",
+    fieldInvalidValue: "{{field}}的值无效",
+    summaryMore: "其余问题详见字段详情",
+    fields: {
+      username: "用户名",
+      email: "邮箱",
+      password: "密码",
+      name: "名称",
+      title: "标题",
+      content: "内容",
+      code: "代码",
+      token: "Token",
+      ip: "IP 地址",
+      reason: "原因",
+      permission: "权限",
+      permissions: "权限列表",
+    },
   },
   agent: {
     credentialEncryptionNotConfigured: "尚未配置 Agent 凭据加密",
@@ -191,6 +227,6 @@ const zhCN: DeepStringify<typeof en> = {
   billing: {
     redemptionCodeDeleted: "删除成功",
   },
-};
+} as const satisfies DeepStringify<typeof en>;
 
 export default zhCN;

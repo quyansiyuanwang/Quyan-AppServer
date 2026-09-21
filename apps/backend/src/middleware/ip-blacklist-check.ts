@@ -5,6 +5,7 @@ import { extractClientIp } from "@/util/ip-extractor";
 import { CustomCode } from "@/constant/custom-code";
 import { HttpStatusCode } from "axios";
 import { getLogger, LogCategory } from "@/util/logger";
+import { sendApplicationError } from "@/util/response-renderer";
 
 const logger = getLogger("IPBlacklistCheckMiddleware", LogCategory.MIDDLEWARE);
 
@@ -29,11 +30,16 @@ export async function ipBlacklistCheckMiddleware(req: Request, res: Response, ne
         method: req.method,
         expireTime: blacklistInfo?.ExpireTime,
       });
-      res.status(HttpStatusCode.Forbidden).json({
-        code: CustomCode.IP_BLACKLISTED,
-        message: "您的 IP 地址已被封禁",
-        data: { expireTime: blacklistInfo?.ExpireTime, reason: blacklistInfo?.reason },
-      });
+      sendApplicationError(
+        res,
+        {
+          statusCode: HttpStatusCode.Forbidden,
+          code: CustomCode.IP_BLACKLISTED,
+          descriptor: { key: "errors.ipBlacklisted" },
+          data: { expireTime: blacklistInfo?.ExpireTime, reason: blacklistInfo?.reason },
+        },
+        req,
+      );
       return;
     }
 

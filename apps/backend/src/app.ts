@@ -26,7 +26,7 @@ import { registerSwaggerUi } from "./util/swagger-ui";
 import { SystemService } from "./services/system/system.service";
 import { RedisService } from "./services/infrastructure/redis.service";
 import { getLogger, LogCategory } from "./util/logger";
-import { DEFAULT_BACKEND_LOCALE, translateMessage } from "./locales";
+import { sendApplicationError } from "./util/response-renderer";
 import { createCorsOriginAllowlist, isCorsOriginAllowed } from "./util/cors-origin-matcher";
 import { ForbiddenError } from "./util/errors";
 
@@ -156,10 +156,16 @@ export function createApp() {
     res.setTimeout(600000, () => {
       logger.warn("Response timeout", { path: req.path, method: req.method });
       if (!res.headersSent)
-        res.status(504).json({
-          code: 504,
-          message: translateMessage("errors.gatewayTimeout", req.locale ?? DEFAULT_BACKEND_LOCALE),
-        });
+        sendApplicationError(
+          res,
+          {
+            statusCode: HttpStatusCode.GatewayTimeout,
+            // 沿用既有字面量 504：`CustomCode` 中没有对应成员，改为其他值会改变外部契约
+            code: HttpStatusCode.GatewayTimeout,
+            descriptor: { key: "errors.gatewayTimeout" },
+          },
+          req,
+        );
     });
     next();
   });
@@ -210,10 +216,15 @@ export function createApp() {
 
   // Catch-all for 404
   app.use((req, res) => {
-    res.status(HttpStatusCode.NotFound).json({
-      code: CustomCode.NOT_FOUND,
-      message: translateMessage("errors.notFound", req.locale ?? DEFAULT_BACKEND_LOCALE),
-    });
+    sendApplicationError(
+      res,
+      {
+        statusCode: HttpStatusCode.NotFound,
+        code: CustomCode.NOT_FOUND,
+        descriptor: { key: "errors.notFound" },
+      },
+      req,
+    );
   });
 
   app.use(exceptionMiddleware);

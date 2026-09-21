@@ -201,12 +201,15 @@ describe("backend locale-aware response messages", () => {
   it("localizes validation and not-found messages", async () => {
     const app = createApp();
 
+    // P06：TSOA 校验失败的顶层消息改为**字段摘要**（不再固定为通用 "Validation failed"），
+    // 且字段消息来自结构化规则映射，而不是原样透传 TSOA 英文原文。
     await request(app)
       .get("/validate")
       .set("X-Locale", "en")
       .expect(422)
       .expect(({ body }) => {
-        expect(body.message).toBe("Validation failed");
+        expect(body.message).toBe("Name is required");
+        expect(body.fields).toEqual({ name: ["Name is required"] });
         expect(body.error).toBe("Request validation failed");
       });
 

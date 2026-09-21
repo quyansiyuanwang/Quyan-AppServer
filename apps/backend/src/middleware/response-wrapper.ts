@@ -1,15 +1,25 @@
 import type { Request, Response, NextFunction } from "express";
-import { CustomCode } from "../constant/custom-code.js";
-import { DEFAULT_BACKEND_LOCALE, translateDescriptor, translateKnownMessage, translateMessage } from "@/locales";
+import {
+  buildSuccessEnvelope,
+  isApplicationEnvelope,
+  resolveResponseLocale,
+  resolveResponseMessage,
+  resolveSuccessMessageSource,
+} from "@/util/response-renderer";
 
 /**
  * 响应包装中间件
- * 自动将所有成功响应包装为 {code, message, data} 格式
+ * 自动将所有应用响应包装为 {code, message, data} 格式
  *
  * 跳过条件：
- * 1. 响应已经包含 code 字段（已被包装）
- * 2. res.locals.skipResponseWrapper 为 true
- * 3. 响应状态码不在 200-299 范围内
+ * 1. `res.locals.skipResponseWrapper` 为 true（文档、文件、第三方协议、流式响应等适配器边界）
+ *
+ * 本地化规则（P05 统一出口，与 `application-response` 共享同一个渲染入口）：
+ * - 2xx：包装为成功信封；消息按「已渲染 → 描述符 → 遗留原文 → common.success」解析
+ * - 2xx 且响应体已带数字 `code`：视为已成型信封，只统一 `message`
+ * - 非 2xx：**保持信封形状与附加字段不变**，只把 `message` 交给同一渲染入口。
+ *   旧实现完全跳过非 2xx，导致「显式业务失败」与「抛异常」文案不一致（F03）。
+ * - 已在出口渲染过的消息（`sendApplicationError` 标记）不再二次翻译。
  */
 export function responseWrapperMiddleware(req: Request, res: Response, next: NextFunction): void {
   // 保存原始的 json 方法
@@ -17,14 +27,23 @@ export function responseWrapperMiddleware(req: Request, res: Response, next: Nex
 
   // 重写 json 方法以拦截响应
   res.json = function (body: any): Response {
-    // 检查是否需要跳过包装
-    if (res.locals.skipResponseWrapper === true || res.statusCode < 200 || res.statusCode >= 300)
-      return originalJson(body);
+    // 适配器边界：第三方协议、文档、文件、流式响应不得被包装或本地化
+    if (res.locals.skipResponseWrapper === true) return originalJson(body);
 
-    // 如果响应体已经包含 code 字段，说明已被包装，尝试本地化 message 后直接返回
-    if (body && typeof body === "object" && "code" in body && typeof body.code === "number") {
-      if (typeof body.message === "string")
-        body.message = translateKnownMessage(body.message, res.locals.locale ?? req.locale ?? DEFAULT_BACKEND_LOCALE);
+    const locale = resolveResponseLocale(res, req);
+    const alreadyRendered = res.locals.messageRendered === true;
+
+    // 非 2xx：保留既有信封与附加字段（fields / error / data），只统一 message
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      if (!alreadyRendered && isApplicationEnvelope(body) && typeof body.message === "string")
+        body.message = resolveResponseMessage({ rawMessage: body.message }, locale);
+      return originalJson(body);
+    }
+
+    // 2xx 且响应体已带数字 code：视为已成型信封，只统一 message
+    if (isApplicationEnvelope(body)) {
+      if (!alreadyRendered && typeof body.message === "string")
+        body.message = resolveResponseMessage({ rawMessage: body.message }, locale);
       return originalJson(body);
     }
 
@@ -42,33 +61,11 @@ export function responseWrapperMiddleware(req: Request, res: Response, next: Nex
       }
     }
 
-    // 包装响应体
-    const locale = res.locals.locale ?? req.locale ?? DEFAULT_BACKEND_LOCALE;
-    const translatedMessage = res.locals.responseMessageDescriptor
-      ? translateDescriptor(res.locals.responseMessageDescriptor, locale)
-      : res.locals.responseMessage
-        ? translateKnownMessage(res.locals.responseMessage, locale)
-        : explicitMessage
-          ? translateKnownMessage(explicitMessage, locale)
-          : translateMessage("common.success", locale);
+    const source = resolveSuccessMessageSource(res.locals, explicitMessage);
 
-    const wrappedResponse: any = {
-      code: CustomCode.OK,
-      message: translatedMessage,
-    };
-
-    // 只有在有实际数据时才添加 data 字段
-    // 空对象不添加 data 字段
-    const isEmptyObject =
-      normalizedBody &&
-      typeof normalizedBody === "object" &&
-      Object.keys(normalizedBody).length === 0 &&
-      !Array.isArray(normalizedBody);
-
-    if (normalizedBody !== undefined && normalizedBody !== null && (!isEmptyObject || hadMessageOnlyBody))
-      wrappedResponse.data = normalizedBody;
-
-    return originalJson(wrappedResponse);
+    return originalJson(
+      buildSuccessEnvelope(normalizedBody, resolveResponseMessage(source, locale), { hadMessageOnlyBody }),
+    );
   };
 
   next();

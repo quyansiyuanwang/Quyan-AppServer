@@ -7,19 +7,50 @@ import { ApiError, ValidationError, TooManyRequestsError, ResourceLockedError } 
 import { ValidateError } from "@tsoa/runtime";
 import { getLogger, LogCategory } from "@/util/logger";
 import { env } from "@/config/env";
-import { DEFAULT_BACKEND_LOCALE, translateKnownMessage, translateMessage, type BackendLocale } from "@/locales";
+import { translateMessage } from "@/locales";
+import { problemFromTsoaEnumField, problemFromTsoaField, type ValidationProblem } from "@/util/validation-problems";
+import { resolveResponseLocale, sendApplicationError, type ApplicationErrorInit } from "@/util/response-renderer";
 import { ErrorReportService } from "@/services/system/error-report.service";
 
 const logger = getLogger("ExceptionMiddleware", LogCategory.SYSTEM);
 
-function getLocale(req: Request, res: Response): BackendLocale {
-  return res.locals.locale ?? req.locale ?? DEFAULT_BACKEND_LOCALE;
-}
+/**
+ * 把 ApiError 转成统一渲染入口的初始化参数。
+ *
+ * 消息来源优先级由 `resolveResponseMessage` 统一决定（描述符 → 遗留原文），
+ * 这里不再自行翻译，避免「异常出口」与「显式响应出口」各有一套翻译逻辑（F03）。
+ */
+function toErrorInit(err: ApiError): ApplicationErrorInit {
+  const init: ApplicationErrorInit = {
+    statusCode: err.statusCode,
+    code: err.code,
+    descriptor: err.messageKey ? { key: err.messageKey, params: err.messageParams } : undefined,
+    message: err.message,
+  };
 
-function localizeApiErrorMessage(err: ApiError, locale: BackendLocale): string {
-  if (err.messageKey) return translateMessage(err.messageKey, locale, err.messageParams, err.message);
+  if (err.data && typeof err.data === "object") init.data = { ...err.data };
 
-  return translateKnownMessage(err.message, locale);
+  if (err instanceof TooManyRequestsError && err.retryAfter) {
+    init.retryAfter = err.retryAfter;
+    init.data = { ...(init.data ?? {}), retryAfter: err.retryAfter };
+  }
+
+  if (err instanceof ResourceLockedError && err.retryAfter) {
+    init.retryAfter = err.retryAfter;
+    init.data = { ...(init.data ?? {}), retryAfter: err.retryAfter };
+  }
+
+  if (err instanceof ValidationError && err.fields) init.fields = err.fields;
+
+  // P06：统一校验模型交给边界渲染成 fields 并生成顶层摘要。
+  // 刻意**不**覆盖 `descriptor`：若该错误带有明确业务原因（messageKey 非通用校验失败），
+  // 渲染器会保留它、只用摘要补 fields；覆盖会按计划禁止的方式把具体原因降级成泛化提示。
+  if (err instanceof ValidationError && err.problems && err.problems.length > 0) init.problems = err.problems;
+
+  // 开发环境下附加堆栈信息
+  if (env.runtime.isDevelopment && !err.isOperational) init.stack = err.stack;
+
+  return init;
 }
 
 /**
@@ -86,111 +117,108 @@ export function exceptionMiddleware(err: Error, req: Request, res: Response, nex
     }
   }
 
-  const locale = getLocale(req, res);
+  const locale = resolveResponseLocale(res, req);
 
   // 处理 tsoa 验证错误
   if (err instanceof ValidateError) {
-    const fields: Record<string, string[]> = {};
-    Object.keys(err.fields).forEach((field) => {
+    // TSOA 只暴露 message 文本，没有结构化 validator 元数据。
+    // 这里只识别其版本固定的模板文法，无法识别（含自定义 errorMsg）时回退到安全的字段级提示。
+    const problems: ValidationProblem[] = Object.keys(err.fields).map((field) => {
       const fieldError = err.fields[field];
-      fields[field] = [fieldError.message || "Validation failed"];
+      return problemFromTsoaEnumField(field, fieldError.message) ?? problemFromTsoaField(field, fieldError.message);
     });
 
-    return res.status(HttpStatusCode.UnprocessableEntity).json({
-      code: CustomCode.VALIDATION_FAILED,
-      message: translateMessage("errors.validationFailed", locale),
-      error: translateMessage("errors.requestValidationFailed", locale),
-      fields,
-    });
+    sendApplicationError(
+      res,
+      {
+        statusCode: HttpStatusCode.UnprocessableEntity,
+        code: CustomCode.VALIDATION_FAILED,
+        descriptor: { key: "errors.validationFailed" },
+        error: translateMessage("errors.requestValidationFailed", locale),
+        problems,
+      },
+      req,
+    );
+    return;
   }
 
   // 处理自定义 ApiError
   if (err instanceof ApiError) {
-    const response: any = {
-      code: err.code,
-      message: localizeApiErrorMessage(err, locale),
-    };
-
-    if (err.data && typeof err.data === "object") response.data = { ...err.data };
-
-    // 如果是 TooManyRequestsError，附加 Retry-After 头和 retryAfter 数据
-    if (err instanceof TooManyRequestsError && err.retryAfter) {
-      res.setHeader("Retry-After", err.retryAfter.toString());
-      response.data = {
-        ...(response.data || {}),
-        retryAfter: err.retryAfter,
-      };
-    }
-
-    if (err instanceof ResourceLockedError && err.retryAfter) {
-      res.setHeader("Retry-After", err.retryAfter.toString());
-      response.data = {
-        ...(response.data || {}),
-        retryAfter: err.retryAfter,
-      };
-    }
-
-    // 如果是 ValidationError，附加字段错误信息
-    if (err instanceof ValidationError && err.fields) response.fields = err.fields;
-
-    // 开发环境下附加堆栈信息
-    if (env.runtime.isDevelopment && !err.isOperational) response.stack = err.stack;
-
-    return res.status(err.statusCode).json(response);
+    sendApplicationError(res, toErrorInit(err), req);
+    return;
   }
 
   // 处理 JWT 错误
-  if (err.name === "JsonWebTokenError")
-    return res.status(HttpStatusCode.Unauthorized).json({
-      code: CustomCode.TOKEN_INVALID,
-      message: translateMessage("errors.invalidToken", locale),
-      error: err.message,
-    });
+  if (err.name === "JsonWebTokenError") {
+    sendApplicationError(
+      res,
+      {
+        statusCode: HttpStatusCode.Unauthorized,
+        code: CustomCode.TOKEN_INVALID,
+        descriptor: { key: "errors.invalidToken" },
+        error: err.message,
+      },
+      req,
+    );
+    return;
+  }
 
-  if (err.name === "TokenExpiredError")
-    return res.status(HttpStatusCode.Unauthorized).json({
-      code: CustomCode.TOKEN_EXPIRED,
-      message: translateMessage("errors.tokenExpired", locale),
-      error: err.message,
-    });
+  if (err.name === "TokenExpiredError") {
+    sendApplicationError(
+      res,
+      {
+        statusCode: HttpStatusCode.Unauthorized,
+        code: CustomCode.TOKEN_EXPIRED,
+        descriptor: { key: "errors.tokenExpired" },
+        error: err.message,
+      },
+      req,
+    );
+    return;
+  }
 
   // 处理 Prisma 错误
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === "P2002") {
-      const response: Record<string, unknown> = {
-        code: CustomCode.RESOURCE_ALREADY_EXISTS,
-        message: translateMessage("errors.resourceAlreadyExists", locale),
-      };
-
-      if (env.runtime.isDevelopment) {
-        response.error = err.message;
-        response.target = getPrismaErrorTarget(err);
-      }
-
-      return res.status(HttpStatusCode.Conflict).json(response);
+      sendApplicationError(
+        res,
+        {
+          statusCode: HttpStatusCode.Conflict,
+          code: CustomCode.RESOURCE_ALREADY_EXISTS,
+          descriptor: { key: "errors.resourceAlreadyExists" },
+          error: env.runtime.isDevelopment ? err.message : undefined,
+          diagnosticFields: env.runtime.isDevelopment ? { target: getPrismaErrorTarget(err) } : undefined,
+        },
+        req,
+      );
+      return;
     }
 
-    return res.status(HttpStatusCode.BadRequest).json({
-      code: CustomCode.VALIDATION_FAILED,
-      message: translateMessage("errors.databaseOperationFailed", locale),
-      error: env.runtime.isDevelopment ? err.message : undefined,
-    });
+    sendApplicationError(
+      res,
+      {
+        statusCode: HttpStatusCode.BadRequest,
+        code: CustomCode.VALIDATION_FAILED,
+        descriptor: { key: "errors.databaseOperationFailed" },
+        error: env.runtime.isDevelopment ? err.message : undefined,
+      },
+      req,
+    );
+    return;
   }
 
-  // 处理未知错误
+  // 处理未知错误：保留原始异常用于受控诊断，但生产环境不外发其细节
   ErrorReportService.getInstance().reportServerExceptionSafely(req, err);
-  const response: any = {
-    code: CustomCode.INTERNAL_SERVER_ERROR,
-    message: env.runtime.isProduction
-      ? translateMessage("errors.internalServerError", locale)
-      : err.message || translateMessage("errors.internalServerError", locale),
-  };
-
-  // 开发环境下提供详细错误信息
-  if (env.runtime.isDevelopment) {
-    response.error = err.message;
-    response.stack = err.stack;
-  }
-
-  res.status(HttpStatusCode.InternalServerError).json(response);
+  sendApplicationError(
+    res,
+    {
+      statusCode: HttpStatusCode.InternalServerError,
+      code: CustomCode.INTERNAL_SERVER_ERROR,
+      message: env.runtime.isProduction ? undefined : err.message,
+      defaultMessageKey: "errors.internalServerError",
+      error: env.runtime.isDevelopment ? err.message : undefined,
+      stack: env.runtime.isDevelopment ? err.stack : undefined,
+    },
+    req,
+  );
 }

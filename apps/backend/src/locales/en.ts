@@ -48,6 +48,39 @@ const en = {
     passwordRequired: "Password is required",
     databaseOperationFailed: "Database operation failed",
   },
+  /**
+   * 字段级校验消息（P06 统一校验模型）。
+   *
+   * 所有模板只接受**安全领域标量**参数（字段显示名、长度、范围、枚举名），
+   * 绝不插入用户提交的值。`fields` 子域是字段显示名的领域映射，未知字段回退到安全路径。
+   */
+  validation: {
+    fieldRequired: "{{field}} is required",
+    fieldInvalidType: "{{field}} must be a valid {{expected}}",
+    fieldTooShort: "{{field}} must be at least {{min}} characters",
+    fieldTooLong: "{{field}} must be at most {{max}} characters",
+    fieldTooSmall: "{{field}} must be no less than {{min}}",
+    fieldTooLarge: "{{field}} must be no greater than {{max}}",
+    fieldInvalidFormat: "{{field}} is not in a valid format",
+    fieldInvalidEnum: "{{field}} must be one of: {{values}}",
+    fieldUnknown: "{{field}} is not an allowed field",
+    fieldInvalidValue: "{{field}} has an invalid value",
+    summaryMore: "see field details for the remaining issues",
+    fields: {
+      username: "Username",
+      email: "Email",
+      password: "Password",
+      name: "Name",
+      title: "Title",
+      content: "Content",
+      code: "Code",
+      token: "Token",
+      ip: "IP address",
+      reason: "Reason",
+      permission: "Permission",
+      permissions: "Permissions",
+    },
+  },
   agent: {
     credentialEncryptionNotConfigured: "Agent credential encryption is not configured",
     workspaceNotFound: "Agent workspace not found",
