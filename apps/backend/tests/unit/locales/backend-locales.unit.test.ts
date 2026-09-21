@@ -1,11 +1,6 @@
 import * as localesModule from "../../../src/locales";
 import { describe, expect, it } from "vitest";
-import {
-  backendI18n,
-  normalizeBackendLocale,
-  translateDescriptor,
-  translateMessage,
-} from "../../../src/locales";
+import { backendI18n, normalizeBackendLocale, translateDescriptor, translateMessage } from "../../../src/locales";
 
 describe("backend locales", () => {
   it("normalizes backend locales", () => {

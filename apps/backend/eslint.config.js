@@ -130,8 +130,7 @@ function carriesMessageDescriptor(node) {
     }
     if (argument.type !== "ObjectExpression") return false;
     return argument.properties.some(
-      (property) =>
-        property.type === "Property" && getStaticPropertyName(property.key) === "messageKey",
+      (property) => property.type === "Property" && getStaticPropertyName(property.key) === "messageKey",
     );
   });
 }
@@ -211,8 +210,7 @@ const backendI18nPlugin = {
       meta: {
         type: "problem",
         docs: {
-          description:
-            "Require an i18n message descriptor on business errors instead of a raw text literal.",
+          description: "Require an i18n message descriptor on business errors instead of a raw text literal.",
         },
         schema: [],
         messages: {
@@ -383,7 +381,8 @@ export default [
 
   {
     name: "app/test-unit-prisma-boundary",
-    files: ["tests/unit/**/*.unit.test.ts"],    rules: {
+    files: ["tests/unit/**/*.unit.test.ts"],
+    rules: {
       "no-restricted-imports": [
         "error",
         {

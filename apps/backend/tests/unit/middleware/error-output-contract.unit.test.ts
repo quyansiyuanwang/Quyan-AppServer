@@ -229,7 +229,7 @@ describe("P02 baseline · locale resolution and request isolation", () => {
     responses.forEach((response, index) => {
       expect(response.headers["x-locale"]).toBe(locales[index]);
       // P13 起原文不再反查翻译：两种语言下都原样返回（隔离性仍由「每个请求各自语言」保证）
-        expect(response.body.message).toBe("用户组不存在");
+      expect(response.body.message).toBe("用户组不存在");
     });
   });
 });
