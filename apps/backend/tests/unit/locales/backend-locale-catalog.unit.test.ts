@@ -119,6 +119,8 @@ describe("P04 · 目录结构与 key 一致性", () => {
         "accessKey",
         "ipWhitelist",
         "impersonation",
+        "developerProject",
+        "developerProduct",
       ].sort(),
     );
   });

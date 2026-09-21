@@ -217,7 +217,7 @@ export class DeveloperProjectRepository {
 
   private async assertProjectOwner(projectId: string, userId: string) {
     const project = await prisma.developerProject.findFirst({ where: { id: projectId, userId, status: 1 } });
-    if (!project) throw new NotFoundError("项目不存在");
+    if (!project) throw new NotFoundError("项目不存在", undefined, { messageKey: "developerProject.projectNotFound" });
     return project;
   }
 
@@ -255,9 +255,10 @@ export class DeveloperProjectRepository {
       where: { id: projectId, userId, status: 1 },
       data: { statusPagePublished: body.published },
     });
-    if (!result.count) throw new NotFoundError("项目不存在");
+    if (!result.count)
+      throw new NotFoundError("项目不存在", undefined, { messageKey: "developerProject.projectNotFound" });
     const project = await prisma.developerProject.findFirst({ where: { id: projectId, userId, status: 1 } });
-    if (!project) throw new NotFoundError("项目不存在");
+    if (!project) throw new NotFoundError("项目不存在", undefined, { messageKey: "developerProject.projectNotFound" });
     return this.toProjectDto(project);
   }
 
@@ -351,14 +352,18 @@ export class DeveloperProjectRepository {
   ): Promise<DeveloperQuotaOverrideDto> {
     if (body.subjectType === "project") {
       const project = await prisma.developerProject.findFirst({ where: { id: body.subjectId, status: 1 } });
-      if (!project) throw new NotFoundError("项目不存在");
+      if (!project)
+        throw new NotFoundError("项目不存在", undefined, { messageKey: "developerProject.projectNotFound" });
     } else {
       const user = await prisma.user.findFirst({ where: { id: body.subjectId, status: 1 } });
-      if (!user) throw new NotFoundError("用户不存在");
+      if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
     }
     const service = body.service ?? "*";
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
-    if (expiresAt && expiresAt.getTime() <= Date.now()) throw new BadRequestError("过期时间必须晚于当前时间");
+    if (expiresAt && expiresAt.getTime() <= Date.now())
+      throw new BadRequestError("过期时间必须晚于当前时间", undefined, {
+        messageKey: "developerProject.expiryMustBeFuture",
+      });
     const override = await prisma.developerQuotaOverride.upsert({
       where: { subjectType_subjectId_service: { subjectType: body.subjectType, subjectId: body.subjectId, service } },
       create: {
@@ -376,7 +381,8 @@ export class DeveloperProjectRepository {
 
   async deleteQuotaOverride(id: string): Promise<void> {
     const result = await prisma.developerQuotaOverride.updateMany({ where: { id, status: 1 }, data: { status: -1 } });
-    if (!result.count) throw new NotFoundError("额度覆盖不存在");
+    if (!result.count)
+      throw new NotFoundError("额度覆盖不存在", undefined, { messageKey: "developerProject.quotaOverrideNotFound" });
   }
 
   async createProjectApiKey(
@@ -387,7 +393,10 @@ export class DeveloperProjectRepository {
     await this.assertProjectOwner(projectId, userId);
     const rawKey = `${KEY_PREFIX}${randomBytes(32).toString("base64url")}`;
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : undefined;
-    if (expiresAt && expiresAt.getTime() <= Date.now()) throw new BadRequestError("过期时间必须晚于当前时间");
+    if (expiresAt && expiresAt.getTime() <= Date.now())
+      throw new BadRequestError("过期时间必须晚于当前时间", undefined, {
+        messageKey: "developerProject.expiryMustBeFuture",
+      });
     const key = await prisma.developerProjectApiKey.create({
       data: {
         projectId,
@@ -416,7 +425,8 @@ export class DeveloperProjectRepository {
       where: { id: keyId, projectId },
       data: { status: 0 },
     });
-    if (!result.count) throw new NotFoundError("项目 API Key 不存在");
+    if (!result.count)
+      throw new NotFoundError("项目 API Key 不存在", undefined, { messageKey: "developerProject.apiKeyNotFound" });
   }
 
   async authenticateProjectKey(rawKey: string, requiredScopes: string[]): Promise<NonNullable<ProjectKeyRecord>> {
@@ -425,10 +435,16 @@ export class DeveloperProjectRepository {
       include: { project: { select: { userId: true } } },
     });
     if (!key || (key.expiresAt && key.expiresAt.getTime() <= Date.now()))
-      throw new UnauthorizedError("项目 API Key 无效或已过期");
+      throw new UnauthorizedError("项目 API Key 无效或已过期", undefined, {
+        messageKey: "developerProject.apiKeyInvalid",
+      });
     const scopes = this.readScopes(key.scopes);
     const missing = requiredScopes.filter((scope) => !scopes.includes(scope as DeveloperApiKeyScope));
-    if (missing.length) throw new ForbiddenError(`项目 API Key 缺少权限: ${missing.join(", ")}`);
+    if (missing.length)
+      throw new ForbiddenError(`项目 API Key 缺少权限: ${missing.join(", ")}`, undefined, {
+        messageKey: "developerProject.apiKeyMissingPermissions",
+        messageParams: { permissions: missing.join(", ") },
+      });
     await prisma.developerProjectApiKey.updateMany({
       where: { id: key.id, status: 1 },
       data: { lastUsedAt: new Date(), requestCount: { increment: 1 } },
@@ -459,7 +475,8 @@ export class DeveloperProjectRepository {
             where: { id: projectId },
             select: { id: true, userId: true, dailyFreeQuota: true, overageEnabled: true },
           });
-          if (!project) throw new NotFoundError("项目不存在");
+          if (!project)
+            throw new NotFoundError("项目不存在", undefined, { messageKey: "developerProject.projectNotFound" });
           const dailyFreeQuota = await this.resolveDailyFreeQuota(tx, project, service);
           const existingUsage = await tx.developerQuotaUsage.findUnique({
             where: { projectId_service_usageDate: { projectId, service, usageDate } },
@@ -475,7 +492,9 @@ export class DeveloperProjectRepository {
             update: { requestCount: { increment: 1 } },
           });
           if (usage.requestCount > dailyFreeQuota && !project.overageEnabled)
-            throw new ForbiddenError("今日免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
+            throw new ForbiddenError("今日免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED, {
+              messageKey: "developerProject.dailyFreeQuotaExhausted",
+            });
           let chargeAmount = 0;
           if (usage.requestCount > dailyFreeQuota && overagePrice > 0) {
             const mutation = await applyBalanceAccountMutation(tx, {
@@ -486,7 +505,9 @@ export class DeveloperProjectRepository {
               requireActive: true,
             });
             if (!mutation)
-              throw new ForbiddenError("余额不足，无法执行超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
+              throw new ForbiddenError("余额不足，无法执行超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT, {
+                messageKey: "developerProject.insufficientBalance",
+              });
             await tx.balanceTransaction.create({
               data: {
                 userId: project.userId,
@@ -550,7 +571,7 @@ export class DeveloperProjectRepository {
     const item = await prisma.developerKvEntry.findFirst({ where: { projectId, key, status: 1 } });
     if (!item || (item.expiresAt && item.expiresAt.getTime() <= Date.now())) {
       if (item) await prisma.developerKvEntry.delete({ where: { id: item.id } });
-      throw new NotFoundError("KV 键不存在");
+      throw new NotFoundError("KV 键不存在", undefined, { messageKey: "developerProject.kvKeyNotFound" });
     }
     return {
       key: item.key,
@@ -578,11 +599,15 @@ export class DeveloperProjectRepository {
 
   async setKv(projectId: string, key: string, body: SetKvValueDto): Promise<DeveloperKvValueDto> {
     const serialized = JSON.stringify(body.value);
-    if (Buffer.byteLength(serialized) > MAX_KV_VALUE_BYTES) throw new BadRequestError("KV 值超过 64KB 限制");
+    if (Buffer.byteLength(serialized) > MAX_KV_VALUE_BYTES)
+      throw new BadRequestError("KV 值超过 64KB 限制", undefined, { messageKey: "developerProject.kvValueTooLarge" });
     const existing = await prisma.developerKvEntry.findUnique({ where: { projectId_key: { projectId, key } } });
     if (!existing) {
       const count = await prisma.developerKvEntry.count({ where: { projectId, status: 1 } });
-      if (count >= MAX_KV_ENTRIES) throw new ForbiddenError("项目 KV 条目数已达上限");
+      if (count >= MAX_KV_ENTRIES)
+        throw new ForbiddenError("项目 KV 条目数已达上限", undefined, {
+          messageKey: "developerProject.kvEntryLimitReached",
+        });
     }
     const expiresAt = body.ttlSeconds ? new Date(Date.now() + body.ttlSeconds * 1000) : null;
     const item = await prisma.developerKvEntry.upsert({
@@ -601,7 +626,8 @@ export class DeveloperProjectRepository {
 
   async deleteKv(projectId: string, key: string): Promise<void> {
     const result = await prisma.developerKvEntry.deleteMany({ where: { projectId, key } });
-    if (!result.count) throw new NotFoundError("KV 键不存在");
+    if (!result.count)
+      throw new NotFoundError("KV 键不存在", undefined, { messageKey: "developerProject.kvKeyNotFound" });
   }
 
   async getProjectKv(projectId: string, userId: string, key: string): Promise<DeveloperKvValueDto> {
@@ -673,7 +699,8 @@ export class DeveloperProjectRepository {
   ): Promise<DeveloperShortLinkDto> {
     await this.assertProjectOwner(projectId, userId);
     const existing = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
-    if (!existing) throw new NotFoundError("短链接不存在");
+    if (!existing)
+      throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
     const result = await prisma.developerShortLink.updateMany({
       where: { id: linkId, projectId },
@@ -683,16 +710,18 @@ export class DeveloperProjectRepository {
         expiresAt: body.expiresAt === null ? null : body.expiresAt ? new Date(body.expiresAt) : undefined,
       },
     });
-    if (!result.count) throw new NotFoundError("短链接不存在");
+    if (!result.count)
+      throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
     const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
-    if (!link) throw new NotFoundError("短链接不存在");
+    if (!link) throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
     return this.shortLinkDto(link);
   }
 
   async deleteShortLink(projectId: string, linkId: string, userId: string): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
     const result = await prisma.developerShortLink.deleteMany({ where: { id: linkId, projectId } });
-    if (!result.count) throw new NotFoundError("短链接不存在");
+    if (!result.count)
+      throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
   }
 
   async resolveShortLink(code: string): Promise<{ targetUrl: string; instanceId: string; linkId: string }> {
@@ -719,13 +748,21 @@ export class DeveloperProjectRepository {
       },
     });
     if (!link || (link.expiresAt && link.expiresAt.getTime() <= Date.now()))
-      throw new NotFoundError("短链接不存在或已过期");
+      throw new NotFoundError("短链接不存在或已过期", undefined, {
+        messageKey: "developerProject.shortLinkNotFoundOrExpired",
+      });
     const productConfig = await prisma.developerProductConfig.findUnique({
       where: { productCode: "short_link" },
       select: { enabled: true },
     });
-    if (!productConfig?.enabled) throw new NotFoundError("短链接不存在或已过期");
-    if (!link.project.productInstance) throw new NotFoundError("短链接不存在或已过期");
+    if (!productConfig?.enabled)
+      throw new NotFoundError("短链接不存在或已过期", undefined, {
+        messageKey: "developerProject.shortLinkNotFoundOrExpired",
+      });
+    if (!link.project.productInstance)
+      throw new NotFoundError("短链接不存在或已过期", undefined, {
+        messageKey: "developerProject.shortLinkNotFoundOrExpired",
+      });
     return { targetUrl: link.targetUrl, instanceId: link.project.productInstance.id, linkId: link.id };
   }
 
@@ -765,7 +802,7 @@ export class DeveloperProjectRepository {
   ): Promise<DeveloperShortLinkStatsDto> {
     await this.assertProjectOwner(projectId, userId);
     const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
-    if (!link) throw new NotFoundError("短链接不存在");
+    if (!link) throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
 
     const periodEnd = new Date();
     const periodStart = startOfShortLinkStatsDay(periodEnd);
@@ -891,7 +928,8 @@ export class DeveloperProjectRepository {
         },
       },
     });
-    if (!project) throw new NotFoundError("状态页不存在");
+    if (!project)
+      throw new NotFoundError("状态页不存在", undefined, { messageKey: "developerProject.statusPageNotFound" });
     const entitlement = project.productInstance?.entitlement;
     if (
       !project.productInstance ||
@@ -901,13 +939,14 @@ export class DeveloperProjectRepository {
       entitlement.productCode !== "status" ||
       entitlement.status !== 1
     ) {
-      throw new NotFoundError("状态页不存在");
+      throw new NotFoundError("状态页不存在", undefined, { messageKey: "developerProject.statusPageNotFound" });
     }
     const config = await prisma.developerProductConfig.findUnique({
       where: { productCode: "status" },
       select: { enabled: true },
     });
-    if (!config?.enabled) throw new NotFoundError("状态页不存在");
+    if (!config?.enabled)
+      throw new NotFoundError("状态页不存在", undefined, { messageKey: "developerProject.statusPageNotFound" });
     const { productInstance: _productInstance, ...publicProject } = project;
     return {
       ...publicProject,
@@ -923,7 +962,8 @@ export class DeveloperProjectRepository {
 
   private getEncryptionKey(): Buffer {
     const secret = env.integrations.developerProduct.secretsMasterKey;
-    if (secret.length < 64) throw new BadRequestError("密钥托管未配置");
+    if (secret.length < 64)
+      throw new BadRequestError("密钥托管未配置", undefined, { messageKey: "developerProject.vaultNotConfigured" });
     return createHash("sha256").update(secret).digest();
   }
 
@@ -982,12 +1022,17 @@ export class DeveloperProjectRepository {
   async deleteSecret(projectId: string, alias: string, userId: string): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
     const result = await prisma.developerSecret.deleteMany({ where: { projectId, alias } });
-    if (!result.count) throw new NotFoundError("密钥别名不存在");
+    if (!result.count)
+      throw new NotFoundError("密钥别名不存在", undefined, { messageKey: "developerProject.secretAliasNotFound" });
   }
 
   async resolveSecret(projectId: string, alias: string): Promise<string> {
     const record = await prisma.developerSecret.findFirst({ where: { projectId, alias, status: 1 } });
-    if (!record) throw new BadRequestError(`未定义的密钥别名: ${alias}`);
+    if (!record)
+      throw new BadRequestError(`未定义的密钥别名: ${alias}`, undefined, {
+        messageKey: "developerProject.secretAliasUndefined",
+        messageParams: { alias },
+      });
     const value = this.decryptSecret(record);
     void prisma.developerSecret.updateMany({ where: { id: record.id, status: 1 }, data: { lastUsedAt: new Date() } });
     return value;
@@ -996,7 +1041,9 @@ export class DeveloperProjectRepository {
   async substituteSecretsForProject(projectId: string, userId: string, value: string): Promise<string> {
     await this.assertProjectOwner(projectId, userId);
     if (value.includes("{{") && !/\{\{[A-Z][A-Z0-9_]{0,99}\}\}/.test(value))
-      throw new BadRequestError("密钥占位符格式无效");
+      throw new BadRequestError("密钥占位符格式无效", undefined, {
+        messageKey: "developerProject.secretPlaceholderInvalid",
+      });
     const aliases = [...value.matchAll(/\{\{([A-Z][A-Z0-9_]{0,99})\}\}/g)].map((match) => match[1]);
     if (!aliases.length) return value;
 
@@ -1005,7 +1052,10 @@ export class DeveloperProjectRepository {
       const secret = await this.resolveSecret(projectId, alias);
       resolved = resolved.replaceAll(`{{${alias}}}`, secret);
     }
-    if (resolved.length > 100_000) throw new BadRequestError("密钥替换后的内容超过大小限制");
+    if (resolved.length > 100_000)
+      throw new BadRequestError("密钥替换后的内容超过大小限制", undefined, {
+        messageKey: "developerProject.secretExpansionTooLarge",
+      });
     return resolved;
   }
 
@@ -1025,7 +1075,9 @@ export class DeveloperProjectRepository {
     };
     const resolved = await replace(value);
     if (Buffer.byteLength(JSON.stringify(resolved)) > 100_000)
-      throw new BadRequestError("密钥替换后的内容超过大小限制");
+      throw new BadRequestError("密钥替换后的内容超过大小限制", undefined, {
+        messageKey: "developerProject.secretExpansionTooLarge",
+      });
     return resolved;
   }
 
@@ -1116,7 +1168,8 @@ export class DeveloperProjectRepository {
   ): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
     const existing = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
-    if (!existing) throw new NotFoundError("监控目标不存在");
+    if (!existing)
+      throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
     const clearResponseBodyMatch = body.responseBodyMatchMode === null || body.responseBodyMatch === null;
     const responseBodyMatchMode = clearResponseBodyMatch
@@ -1150,19 +1203,22 @@ export class DeveloperProjectRepository {
         enabled: body.enabled,
       },
     });
-    if (!result.count) throw new NotFoundError("监控目标不存在");
+    if (!result.count)
+      throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
     const monitor = await prisma.developerStatusMonitor.findFirst({
       where: { id: monitorId, projectId },
       include: { project: { select: { userId: true } } },
     });
-    if (!monitor) throw new NotFoundError("监控目标不存在");
+    if (!monitor)
+      throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
     return this.monitorDto(monitor);
   }
 
   async deleteStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
     const result = await prisma.developerStatusMonitor.deleteMany({ where: { id: monitorId, projectId } });
-    if (!result.count) throw new NotFoundError("监控目标不存在");
+    if (!result.count)
+      throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
   }
 
   async checkStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<DeveloperStatusMonitorDto> {
@@ -1171,7 +1227,8 @@ export class DeveloperProjectRepository {
       where: { id: monitorId, projectId },
       include: { project: { select: { userId: true } } },
     });
-    if (!monitor) throw new NotFoundError("监控目标不存在");
+    if (!monitor)
+      throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
     return this.performStatusCheck(monitor);
   }
 
@@ -1203,7 +1260,10 @@ export class DeveloperProjectRepository {
       let response;
       for (let redirectCount = 0; redirectCount <= MAX_STATUS_MONITOR_REDIRECTS; redirectCount++) {
         const currentUrl = target.url.toString();
-        if (visited.has(currentUrl)) throw new BadRequestError("监控请求发生重定向循环");
+        if (visited.has(currentUrl))
+          throw new BadRequestError("监控请求发生重定向循环", undefined, {
+            messageKey: "developerProject.monitorRedirectLoop",
+          });
         visited.add(currentUrl);
         response = await axios.request({
           url: currentUrl,
@@ -1221,7 +1281,10 @@ export class DeveloperProjectRepository {
         if (![301, 302, 303, 307, 308].includes(response.status)) break;
         const location = response.headers?.location;
         if (typeof location !== "string" || !location.trim()) break;
-        if (redirectCount === MAX_STATUS_MONITOR_REDIRECTS) throw new BadRequestError("监控重定向次数超过限制");
+        if (redirectCount === MAX_STATUS_MONITOR_REDIRECTS)
+          throw new BadRequestError("监控重定向次数超过限制", undefined, {
+            messageKey: "developerProject.monitorTooManyRedirects",
+          });
         target = await assertSafeOutboundUrl(new URL(location, target.url).toString());
         if (
           response.status === 303 ||
@@ -1231,7 +1294,8 @@ export class DeveloperProjectRepository {
           requestData = undefined;
         }
       }
-      if (!response) throw new BadRequestError("监控请求失败");
+      if (!response)
+        throw new BadRequestError("监控请求失败", undefined, { messageKey: "developerProject.monitorRequestFailed" });
       statusCode = response.status;
       const configuredCodes = Array.isArray(monitor.successStatusCodes)
         ? monitor.successStatusCodes.filter((code): code is number => typeof code === "number")
@@ -1277,10 +1341,12 @@ export class DeveloperProjectRepository {
           downAlertedAt: nextDownAlertedAt,
         },
       });
-      if (!result.count && !shouldAlertDown) throw new NotFoundError("监控目标不存在");
+      if (!result.count && !shouldAlertDown)
+        throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
       claimedDownAlert = shouldAlertDown && result.count === 1;
       const updatedMonitor = await tx.developerStatusMonitor.findFirst({ where: { id: monitor.id } });
-      if (!updatedMonitor) throw new NotFoundError("监控目标不存在");
+      if (!updatedMonitor)
+        throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
       await tx.developerStatusCheck.create({
         data: { monitorId: monitor.id, checkedAt, checkStatus: lastStatus, statusCode, latencyMs, errorMessage },
       });
@@ -1317,29 +1383,50 @@ export class DeveloperProjectRepository {
     responseBodyMatch?: string | null;
   }): StatusMonitorConfiguration {
     const method = configuration.method.toUpperCase();
-    if (!STATUS_MONITOR_METHODS.has(method)) throw new BadRequestError("不支持的监控请求方法");
+    if (!STATUS_MONITOR_METHODS.has(method))
+      throw new BadRequestError("不支持的监控请求方法", undefined, {
+        messageKey: "developerProject.monitorMethodUnsupported",
+      });
     const { requestBody, responseBodyMatchMode, responseBodyMatch } = configuration;
     if (requestBody !== undefined && requestBody !== null) {
-      if (!STATUS_MONITOR_BODY_METHODS.has(method)) throw new BadRequestError("GET 和 HEAD 监控不支持请求负载");
+      if (!STATUS_MONITOR_BODY_METHODS.has(method))
+        throw new BadRequestError("GET 和 HEAD 监控不支持请求负载", undefined, {
+          messageKey: "developerProject.monitorPayloadNotAllowed",
+        });
       if (Buffer.byteLength(requestBody) > MAX_STATUS_MONITOR_REQUEST_BODY_BYTES)
-        throw new BadRequestError("请求负载超过大小限制");
+        throw new BadRequestError("请求负载超过大小限制", undefined, {
+          messageKey: "developerProject.payloadTooLarge",
+        });
       try {
         JSON.parse(requestBody);
       } catch {
-        throw new BadRequestError("请求负载必须是合法 JSON");
+        throw new BadRequestError("请求负载必须是合法 JSON", undefined, {
+          messageKey: "developerProject.payloadInvalidJson",
+        });
       }
     }
     if (responseBodyMatchMode === null || responseBodyMatch === null) {
       if (responseBodyMatchMode !== null || responseBodyMatch !== null)
-        throw new BadRequestError("响应体匹配模式和预期内容必须同时提供");
+        throw new BadRequestError("响应体匹配模式和预期内容必须同时提供", undefined, {
+          messageKey: "developerProject.responseMatchBothRequired",
+        });
     } else if (responseBodyMatchMode || responseBodyMatch) {
-      if (method === "HEAD") throw new BadRequestError("HEAD 监控不支持响应体匹配");
+      if (method === "HEAD")
+        throw new BadRequestError("HEAD 监控不支持响应体匹配", undefined, {
+          messageKey: "developerProject.responseMatchNotAllowedForHead",
+        });
       if (!responseBodyMatchMode || !responseBodyMatch)
-        throw new BadRequestError("响应体匹配模式和预期内容必须同时提供");
+        throw new BadRequestError("响应体匹配模式和预期内容必须同时提供", undefined, {
+          messageKey: "developerProject.responseMatchBothRequired",
+        });
       if (!STATUS_MONITOR_RESPONSE_BODY_MATCH_MODES.has(responseBodyMatchMode))
-        throw new BadRequestError("不支持的响应体匹配模式");
+        throw new BadRequestError("不支持的响应体匹配模式", undefined, {
+          messageKey: "developerProject.responseMatchModeUnsupported",
+        });
       if (Buffer.byteLength(responseBodyMatch) > MAX_STATUS_MONITOR_RESPONSE_BODY_MATCH_BYTES)
-        throw new BadRequestError("响应体匹配内容超过大小限制");
+        throw new BadRequestError("响应体匹配内容超过大小限制", undefined, {
+          messageKey: "developerProject.responseMatchTooLarge",
+        });
     }
     return {
       method,
@@ -1409,7 +1496,9 @@ export class DeveloperProjectRepository {
         : Promise.resolve(0),
     ]);
     if (projectCount >= 20 || recipientCount >= 3 || ipCount >= 10)
-      throw new TooManyRequestsError("验证码发送过于频繁，请稍后再试");
+      throw new TooManyRequestsError("验证码发送过于频繁，请稍后再试", undefined, undefined, {
+        messageKey: "developerProject.verificationCodeTooFrequent",
+      });
   }
 
   async sendVerification(
@@ -1426,7 +1515,7 @@ export class DeveloperProjectRepository {
     let deliver: () => Promise<void>;
     if (body.channel === "email") {
       const smtp = await this.configService.getSmtpConfig();
-      if (!smtp.host) throw new BadRequestError("SMTP 未配置");
+      if (!smtp.host) throw new BadRequestError("SMTP 未配置", undefined, { messageKey: "errors.smtpNotConfigured" });
       const transporter = nodemailer.createTransport({
         host: smtp.host,
         port: smtp.port,
@@ -1449,7 +1538,10 @@ export class DeveloperProjectRepository {
       ]);
       const endpoint = config[CONFIG_KEYS.DEVELOPER.SMS_ENDPOINT]?.trim();
       const token = config[CONFIG_KEYS.DEVELOPER.SMS_TOKEN]?.trim();
-      if (!endpoint || !token) throw new BadRequestError("短信渠道未启用", CustomCode.DEVELOPER_CHANNEL_NOT_ENABLED);
+      if (!endpoint || !token)
+        throw new BadRequestError("短信渠道未启用", CustomCode.DEVELOPER_CHANNEL_NOT_ENABLED, {
+          messageKey: "developerProject.smsChannelDisabled",
+        });
       const target = await assertSafeOutboundUrl(endpoint);
       deliver = async () => {
         await axios.post(
@@ -1524,7 +1616,8 @@ export class DeveloperProjectRepository {
 
   async lookupIp(projectId: string, requestedIp?: string, options?: { skipQuota?: boolean }) {
     const ip = requestedIp?.trim();
-    if (!ip || !isIP(ip) || isUnsafeOutboundAddress(ip)) throw new BadRequestError("仅支持公网 IP 地址");
+    if (!ip || !isIP(ip) || isUnsafeOutboundAddress(ip))
+      throw new BadRequestError("仅支持公网 IP 地址", undefined, { messageKey: "developerProject.publicIpOnly" });
     const cached = await this.getCachedIpLocation(ip);
     // Cached responses still represent an API invocation and therefore keep the
     // established quota semantics, but never need another provider request.
@@ -1534,7 +1627,10 @@ export class DeveloperProjectRepository {
     }
     const endpoint = env.integrations.developerProduct.ipGeolocationEndpoint;
     const baiduAk = env.integrations.baiduMap.ipLocationAk;
-    if (!endpoint && !baiduAk) throw new BadRequestError("IP 定位服务尚未配置");
+    if (!endpoint && !baiduAk)
+      throw new BadRequestError("IP 定位服务尚未配置", undefined, {
+        messageKey: "developerProject.ipGeolocationNotConfigured",
+      });
     const base = endpoint ? await assertSafeOutboundUrl(endpoint) : undefined;
     const receipt = options?.skipQuota ? undefined : await this.consumeQuota(projectId, "ip");
     try {
@@ -1626,7 +1722,10 @@ export class DeveloperProjectRepository {
       maxRedirects: 0,
       maxContentLength: MAX_OUTBOUND_RESPONSE_BYTES,
     });
-    if (response.data?.status !== 0) throw new BadRequestError("百度 IP 定位查询失败");
+    if (response.data?.status !== 0)
+      throw new BadRequestError("百度 IP 定位查询失败", undefined, {
+        messageKey: "developerProject.ipGeolocationQueryFailed",
+      });
     const detail = response.data.content?.address_detail;
     const address = response.data.content?.address?.trim();
     return {
@@ -1661,7 +1760,10 @@ export class DeveloperProjectRepository {
       },
       select: { id: true, backingProjectId: true },
     });
-    if (!instance) throw new BadRequestError("选择的密钥托管项目不可用");
+    if (!instance)
+      throw new BadRequestError("选择的密钥托管项目不可用", undefined, {
+        messageKey: "developerProject.selectedVaultProjectUnavailable",
+      });
     await this.resolveSecret(instance.backingProjectId, reference.alias);
     return { secretInstanceId: instance.id, secretProjectId: instance.backingProjectId };
   }
@@ -1686,7 +1788,10 @@ export class DeveloperProjectRepository {
       },
       select: { backingProjectId: true },
     });
-    if (!instance) throw new BadRequestError("引用的密钥托管项目不可用");
+    if (!instance)
+      throw new BadRequestError("引用的密钥托管项目不可用", undefined, {
+        messageKey: "developerProject.referencedVaultProjectUnavailable",
+      });
     return this.resolveSecret(instance.backingProjectId, alias);
   }
 
@@ -1752,7 +1857,8 @@ export class DeveloperProjectRepository {
       where: { id: channelId, projectId },
       select: { secretAlias: true, config: true },
     });
-    if (!channel) throw new NotFoundError("推送渠道不存在");
+    if (!channel)
+      throw new NotFoundError("推送渠道不存在", undefined, { messageKey: "developerProject.pushChannelNotFound" });
     return this.pushChannelSecretReferenceDto(channel);
   }
 
@@ -1764,7 +1870,8 @@ export class DeveloperProjectRepository {
   ): Promise<DeveloperPushChannelDto> {
     await this.assertProjectOwner(projectId, userId);
     const existing = await prisma.developerPushChannel.findFirst({ where: { id: channelId, projectId } });
-    if (!existing) throw new NotFoundError("推送渠道不存在");
+    if (!existing)
+      throw new NotFoundError("推送渠道不存在", undefined, { messageKey: "developerProject.pushChannelNotFound" });
     const endpoint = body.endpoint ? (await assertSafeOutboundUrl(body.endpoint)).url.toString() : undefined;
     const selectedReference =
       body.secretReference === undefined
@@ -1788,16 +1895,19 @@ export class DeveloperProjectRepository {
         enabled: body.enabled,
       },
     });
-    if (!result.count) throw new NotFoundError("推送渠道不存在");
+    if (!result.count)
+      throw new NotFoundError("推送渠道不存在", undefined, { messageKey: "developerProject.pushChannelNotFound" });
     const channel = await prisma.developerPushChannel.findFirst({ where: { id: channelId, projectId } });
-    if (!channel) throw new NotFoundError("推送渠道不存在");
+    if (!channel)
+      throw new NotFoundError("推送渠道不存在", undefined, { messageKey: "developerProject.pushChannelNotFound" });
     return this.pushChannelDto(channel);
   }
 
   async deletePushChannel(projectId: string, channelId: string, userId: string): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
     const result = await prisma.developerPushChannel.deleteMany({ where: { id: channelId, projectId } });
-    if (!result.count) throw new NotFoundError("推送渠道不存在");
+    if (!result.count)
+      throw new NotFoundError("推送渠道不存在", undefined, { messageKey: "developerProject.pushChannelNotFound" });
   }
 
   private toPushDeliveryDto(delivery: {
@@ -1838,9 +1948,11 @@ export class DeveloperProjectRepository {
     data: Prisma.DeveloperPushDeliveryUpdateManyMutationInput,
   ): Promise<DeveloperPushDeliveryDto> {
     const result = await prisma.developerPushDelivery.updateMany({ where: { id: deliveryId }, data });
-    if (!result.count) throw new NotFoundError("推送记录不存在");
+    if (!result.count)
+      throw new NotFoundError("推送记录不存在", undefined, { messageKey: "developerProject.pushRecordNotFound" });
     const updated = await prisma.developerPushDelivery.findUnique({ where: { id: deliveryId } });
-    if (!updated) throw new NotFoundError("推送记录不存在");
+    if (!updated)
+      throw new NotFoundError("推送记录不存在", undefined, { messageKey: "developerProject.pushRecordNotFound" });
     return this.toPushDeliveryDto(updated);
   }
 
@@ -1855,10 +1967,16 @@ export class DeveloperProjectRepository {
     },
   ): Promise<DeveloperPushDeliveryDto> {
     try {
-      if (!channel.enabled || !channel.endpoint) throw new BadRequestError("推送渠道未配置地址或已停用");
+      if (!channel.enabled || !channel.endpoint)
+        throw new BadRequestError("推送渠道未配置地址或已停用", undefined, {
+          messageKey: "developerProject.pushChannelUnavailable",
+        });
       const target = await assertSafeOutboundUrl(channel.endpoint);
       const secretReference = this.readPushSecretReference(channel.config);
-      if (channel.secretAlias && !secretReference) throw new BadRequestError("推送渠道凭据必须重新选择密钥托管项目");
+      if (channel.secretAlias && !secretReference)
+        throw new BadRequestError("推送渠道凭据必须重新选择密钥托管项目", undefined, {
+          messageKey: "developerProject.pushChannelCredentialMustReselectVault",
+        });
       const secret =
         secretReference && channel.secretAlias
           ? await this.resolveStoredPushSecret(secretReference, channel.secretAlias)
@@ -1930,7 +2048,10 @@ export class DeveloperProjectRepository {
       const channels = await prisma.developerPushChannel.findMany({
         where: { projectId, id: { in: body.channelIds }, enabled: true, status: 1 },
       });
-      if (!channels.length) throw new NotFoundError("未找到可用的推送渠道");
+      if (!channels.length)
+        throw new NotFoundError("未找到可用的推送渠道", undefined, {
+          messageKey: "developerProject.noAvailablePushChannel",
+        });
       if (!options?.skipQuota) receipt = await this.consumeQuota(projectId, "push");
       const deliveries = await Promise.all(
         channels.map((channel) =>

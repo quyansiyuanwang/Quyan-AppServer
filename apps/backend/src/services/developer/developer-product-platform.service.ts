@@ -230,12 +230,14 @@ export class DeveloperProductPlatformService {
       !permissions ||
       !this.productPermissions(productCode).some((permission) => permissions.effectivePermissions.includes(permission))
     )
-      throw new ForbiddenError("RAM 权限不足，无法访问该产品");
+      throw new ForbiddenError("RAM 权限不足，无法访问该产品", undefined, {
+        messageKey: "developerProduct.ramAccessDenied",
+      });
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
     });
-    if (!user) throw new UnauthorizedError("用户不存在");
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     return user;
   }
 
@@ -245,12 +247,15 @@ export class DeveloperProductPlatformService {
     required: Permission,
   ): Promise<void> {
     const permissions = await this.permissionService.getUserFullPermissions(actorUserId);
-    if (!permissions?.effectivePermissions.includes(required)) throw new ForbiddenError("RAM 权限不足，无法操作该产品");
+    if (!permissions?.effectivePermissions.includes(required))
+      throw new ForbiddenError("RAM 权限不足，无法操作该产品", undefined, {
+        messageKey: "developerProduct.ramOperationDenied",
+      });
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
     });
-    if (!user) throw new UnauthorizedError("用户不存在");
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     return;
   }
 
@@ -300,7 +305,9 @@ export class DeveloperProductPlatformService {
       select: { id: true, username: true, displayName: true, accountOwnerId: true, userType: true },
     });
     if (!user || user.userType !== "root" || (user.accountOwnerId && user.accountOwnerId !== user.id))
-      throw new BadRequestError("只能管理主账号产品记录");
+      throw new BadRequestError("只能管理主账号产品记录", undefined, {
+        messageKey: "developerProduct.accountOwnerOnly",
+      });
     return user;
   }
 
@@ -389,7 +396,8 @@ export class DeveloperProductPlatformService {
       },
       include: { accountOwner: { select: { username: true, displayName: true } } },
     });
-    if (!config) throw new NotFoundError("产品配置不存在");
+    if (!config)
+      throw new NotFoundError("产品配置不存在", undefined, { messageKey: "developerProduct.productConfigNotFound" });
     return this.managedAccountDto(user, account);
   }
 
@@ -398,7 +406,10 @@ export class DeveloperProductPlatformService {
     const entitlement = await prisma.developerProductEntitlement.findFirst({
       where: { accountOwnerId: user.id, productCode, status: 1 },
     });
-    if (!entitlement) throw new NotFoundError("该用户尚未启用产品运营记录");
+    if (!entitlement)
+      throw new NotFoundError("该用户尚未启用产品运营记录", undefined, {
+        messageKey: "developerProduct.productOperationNotEnabled",
+      });
     return entitlement;
   }
 
@@ -440,7 +451,7 @@ export class DeveloperProductPlatformService {
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
     });
-    if (!user) throw new UnauthorizedError("用户不存在");
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     return this.listInstancesForAccountOwner(this.accountOwnerId(user), productCode);
   }
 
@@ -472,7 +483,10 @@ export class DeveloperProductPlatformService {
     const activeCount = await prisma.developerProductInstance.count({
       where: { entitlementId: entitlement.id, status: 1 },
     });
-    if (activeCount >= entitlement.instanceLimit) throw new ForbiddenError("产品实例数量已达到授权上限");
+    if (activeCount >= entitlement.instanceLimit)
+      throw new ForbiddenError("产品实例数量已达到授权上限", undefined, {
+        messageKey: "developerProduct.instanceLimitReached",
+      });
     const suffix = randomBytes(5).toString("hex");
     const instance = await prisma.$transaction(async (tx) => {
       const backingProject = await tx.developerProject.create({
@@ -522,13 +536,14 @@ export class DeveloperProductPlatformService {
       },
       include: { entitlement: { select: { accountOwnerId: true, productCode: true } } },
     });
-    if (!instance) throw new NotFoundError("产品实例不存在");
+    if (!instance)
+      throw new NotFoundError("产品实例不存在", undefined, { messageKey: "developerProduct.instanceNotFound" });
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
     });
     if (!user || instance.entitlement.accountOwnerId !== this.accountOwnerId(user))
-      throw new NotFoundError("产品实例不存在");
+      throw new NotFoundError("产品实例不存在", undefined, { messageKey: "developerProduct.instanceNotFound" });
     return instance;
   }
 
@@ -543,7 +558,8 @@ export class DeveloperProductPlatformService {
       where: { id: instanceId, status: 1 },
       data: { enabled: body.enabled },
     });
-    if (!updated.count) throw new NotFoundError("产品实例不存在");
+    if (!updated.count)
+      throw new NotFoundError("产品实例不存在", undefined, { messageKey: "developerProduct.instanceNotFound" });
     const instance = await this.getOwnedInstance(actorUserId, productCode, instanceId, false);
     return this.instanceDto(instance);
   }
@@ -559,7 +575,8 @@ export class DeveloperProductPlatformService {
         await tx.jsonEndpoint.deleteMany({ where: { developerProductInstanceId: instance.id } });
       }
       const deleted = await tx.developerProject.deleteMany({ where: { id: instance.backingProjectId } });
-      if (!deleted.count) throw new NotFoundError("产品实例不存在");
+      if (!deleted.count)
+        throw new NotFoundError("产品实例不存在", undefined, { messageKey: "developerProduct.instanceNotFound" });
     });
   }
 
@@ -574,7 +591,9 @@ export class DeveloperProductPlatformService {
       },
     });
     if (!endpoint || endpoint.developerProductInstance?.entitlement.productCode !== productCode)
-      throw new NotFoundError("JSON 产品实例不存在");
+      throw new NotFoundError("JSON 产品实例不存在", undefined, {
+        messageKey: "developerProduct.jsonInstanceNotFound",
+      });
     return {
       id: endpoint.id,
       instanceId,
@@ -593,7 +612,10 @@ export class DeveloperProductPlatformService {
     const endpoint = await prisma.jsonEndpoint.findFirst({
       where: { developerProductInstanceId: instanceId, status: 1 },
     });
-    if (!endpoint) throw new NotFoundError("JSON 产品实例不存在");
+    if (!endpoint)
+      throw new NotFoundError("JSON 产品实例不存在", undefined, {
+        messageKey: "developerProduct.jsonInstanceNotFound",
+      });
     await prisma.jsonEndpoint.update({ where: { id: endpoint.id }, data: { jsonContent: jsonContent as any } });
     return this.getJsonEndpoint(instanceId);
   }
@@ -609,14 +631,18 @@ export class DeveloperProductPlatformService {
       where: { id: instanceId, status: 1, entitlement: { productCode, status: 1 } },
       include: { entitlement: true },
     });
-    if (!instance) throw new NotFoundError("产品实例不存在");
+    if (!instance)
+      throw new NotFoundError("产品实例不存在", undefined, { messageKey: "developerProduct.instanceNotFound" });
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
     });
     if (!user || instance.entitlement.accountOwnerId !== this.accountOwnerId(user))
-      throw new NotFoundError("产品实例不存在");
-    if (!instance.enabled) throw new ForbiddenError("产品实例已停用", CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED);
+      throw new NotFoundError("产品实例不存在", undefined, { messageKey: "developerProduct.instanceNotFound" });
+    if (!instance.enabled)
+      throw new ForbiddenError("产品实例已停用", CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED, {
+        messageKey: "developerProduct.instanceDisabled",
+      });
     return instance;
   }
 
@@ -649,7 +675,7 @@ export class DeveloperProductPlatformService {
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
     });
-    if (!user) throw new UnauthorizedError("用户不存在");
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     const accountOwnerId = this.accountOwnerId(user);
     const isAccountOwner = user.id === accountOwnerId;
     const subjects = await prisma.user.findMany({
@@ -685,23 +711,31 @@ export class DeveloperProductPlatformService {
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
     });
-    if (!actor) throw new UnauthorizedError("用户不存在");
+    if (!actor) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     const accountOwnerId = this.accountOwnerId(actor);
     if (actor.id !== accountOwnerId && body.subjectUserId !== actor.id)
-      throw new ForbiddenError("RAM 用户只能创建绑定自身的产品 API Key");
+      throw new ForbiddenError("RAM 用户只能创建绑定自身的产品 API Key", undefined, {
+        messageKey: "developerProduct.ramUserSelfBindingOnly",
+      });
     const subject = await prisma.user.findUnique({
       where: { id: body.subjectUserId },
       select: { id: true, accountOwnerId: true },
     });
     if (!subject || this.accountOwnerId(subject) !== instance.entitlement.accountOwnerId)
-      throw new BadRequestError("RAM 主体不属于该账号");
+      throw new BadRequestError("RAM 主体不属于该账号", undefined, {
+        messageKey: "developerProduct.ramPrincipalNotInAccount",
+      });
     const allowed = this.productPermissions(productCode);
     const actions = body.actions.filter((action): action is Permission => allowed.includes(action as Permission));
     if (!actions.length || actions.length !== new Set(body.actions).size)
-      throw new BadRequestError("Key 动作不属于该产品");
+      throw new BadRequestError("Key 动作不属于该产品", undefined, {
+        messageKey: "developerProduct.keyActionNotInProduct",
+      });
     const subjectPermissions = await this.permissionService.getUserFullPermissions(subject.id);
     if (!subjectPermissions || actions.some((action) => !subjectPermissions.effectivePermissions.includes(action)))
-      throw new ForbiddenError("RAM 主体未拥有所选产品权限");
+      throw new ForbiddenError("RAM 主体未拥有所选产品权限", undefined, {
+        messageKey: "developerProduct.ramPrincipalMissingProductPermission",
+      });
     const rawKey = `${PRODUCT_KEY_PREFIX}${randomBytes(32).toString("hex")}`;
     const key = await prisma.developerProductApiKey.create({
       data: {
@@ -728,11 +762,13 @@ export class DeveloperProductPlatformService {
       where: { id: keyId, instanceId, status: 1 },
       data: { status: -1 },
     });
-    if (!result.count) throw new NotFoundError("产品 API Key 不存在");
+    if (!result.count)
+      throw new NotFoundError("产品 API Key 不存在", undefined, { messageKey: "developerProduct.apiKeyNotFound" });
   }
 
   async authenticateProductKey(rawKey: string, requiredActions: Permission[]): Promise<ProductKeyContext> {
-    if (!rawKey.startsWith(PRODUCT_KEY_PREFIX)) throw new UnauthorizedError("未提供产品 API Key");
+    if (!rawKey.startsWith(PRODUCT_KEY_PREFIX))
+      throw new UnauthorizedError("未提供产品 API Key", undefined, { messageKey: "auth.missingProductApiKey" });
     const key = await prisma.developerProductApiKey.findFirst({
       where: { keyHash: hash(rawKey), status: 1 },
       include: {
@@ -740,23 +776,37 @@ export class DeveloperProductPlatformService {
         subjectUser: { select: { id: true, status: true, accountOwnerId: true } },
       },
     });
-    if (!key || key.instance.status !== 1) throw new UnauthorizedError("产品 API Key 无效");
+    if (!key || key.instance.status !== 1)
+      throw new UnauthorizedError("产品 API Key 无效", undefined, { messageKey: "developerProduct.apiKeyInvalid" });
     if (!key.instance.enabled)
-      throw new ForbiddenError("产品实例已停用", CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED);
-    if (key.expiresAt && key.expiresAt <= new Date()) throw new UnauthorizedError("产品 API Key 已过期");
+      throw new ForbiddenError("产品实例已停用", CustomCode.DEVELOPER_PRODUCT_INSTANCE_DISABLED, {
+        messageKey: "developerProduct.instanceDisabled",
+      });
+    if (key.expiresAt && key.expiresAt <= new Date())
+      throw new UnauthorizedError("产品 API Key 已过期", undefined, { messageKey: "developerProduct.apiKeyExpired" });
     const productCode = key.instance.entitlement.productCode;
-    if (!isDeveloperProductCode(productCode)) throw new UnauthorizedError("产品 API Key 产品无效");
+    if (!isDeveloperProductCode(productCode))
+      throw new UnauthorizedError("产品 API Key 产品无效", undefined, {
+        messageKey: "developerProduct.apiKeyProductInvalid",
+      });
     const config = await prisma.developerProductConfig.findUnique({ where: { productCode } });
-    if (!config?.enabled) throw new ForbiddenError("产品当前未启用");
-    if (key.subjectUser.status !== 1) throw new UnauthorizedError("RAM 主体已禁用");
+    if (!config?.enabled)
+      throw new ForbiddenError("产品当前未启用", undefined, { messageKey: "developerProduct.productDisabled" });
+    if (key.subjectUser.status !== 1)
+      throw new UnauthorizedError("RAM 主体已禁用", undefined, { messageKey: "developerProduct.ramPrincipalDisabled" });
     const ownerId = this.accountOwnerId(key.subjectUser);
-    if (ownerId !== key.instance.entitlement.accountOwnerId) throw new UnauthorizedError("RAM 主体不属于产品账号");
+    if (ownerId !== key.instance.entitlement.accountOwnerId)
+      throw new UnauthorizedError("RAM 主体不属于产品账号", undefined, {
+        messageKey: "developerProduct.ramPrincipalNotInProductAccount",
+      });
     const actions = this.readActions(key.actions);
     if (requiredActions.some((action) => !actions.includes(action)))
-      throw new ForbiddenError("产品 API Key 未授权该动作");
+      throw new ForbiddenError("产品 API Key 未授权该动作", undefined, {
+        messageKey: "developerProduct.apiKeyActionNotAuthorized",
+      });
     const permissions = await this.permissionService.getUserFullPermissions(key.subjectUserId);
     if (!permissions || requiredActions.some((action) => !permissions.effectivePermissions.includes(action)))
-      throw new ForbiddenError("RAM 权限不足");
+      throw new ForbiddenError("RAM 权限不足", undefined, { messageKey: "developerProduct.ramPermissionDenied" });
     await prisma.developerProductApiKey.updateMany({
       where: { id: key.id, status: 1 },
       data: { lastUsedAt: new Date(), requestCount: { increment: 1 } },
@@ -775,7 +825,8 @@ export class DeveloperProductPlatformService {
 
   async getUsage(entitlementId: string): Promise<DeveloperProductUsageDto> {
     const entitlement = await prisma.developerProductEntitlement.findUnique({ where: { id: entitlementId } });
-    if (!entitlement || !isDeveloperProductCode(entitlement.productCode)) throw new NotFoundError("产品授权不存在");
+    if (!entitlement || !isDeveloperProductCode(entitlement.productCode))
+      throw new NotFoundError("产品授权不存在", undefined, { messageKey: "developerProduct.entitlementNotFound" });
     const config = await prisma.developerProductConfig.findUnique({ where: { productCode: entitlement.productCode } });
     const usageDate = toDatabaseDate();
     let usage = await prisma.developerProductQuotaUsage.findUnique({
@@ -811,7 +862,8 @@ export class DeveloperProductPlatformService {
     entitlementId: string,
   ): Promise<DeveloperProductUsageDto> {
     const usage = await this.getUsage(entitlementId);
-    if (usage.productCode !== productCode) throw new NotFoundError("产品授权不存在");
+    if (usage.productCode !== productCode)
+      throw new NotFoundError("产品授权不存在", undefined, { messageKey: "developerProduct.entitlementNotFound" });
     return usage;
   }
 
@@ -820,7 +872,8 @@ export class DeveloperProductPlatformService {
       where: { id: entitlementId, productCode, status: 1 },
       select: { id: true },
     });
-    if (!entitlement) throw new NotFoundError("产品授权不存在");
+    if (!entitlement)
+      throw new NotFoundError("产品授权不存在", undefined, { messageKey: "developerProduct.entitlementNotFound" });
     const logs = await prisma.developerProductCallLog.findMany({
       where: { entitlementId },
       orderBy: { createTime: "desc" },
@@ -857,7 +910,10 @@ export class DeveloperProductPlatformService {
         return await prisma.$transaction(async (tx) => {
           const entitlement = await tx.developerProductEntitlement.findUnique({ where: { id: context.entitlementId } });
           const config = await tx.developerProductConfig.findUnique({ where: { productCode: context.productCode } });
-          if (!entitlement || !config) throw new NotFoundError("产品授权或配置不存在");
+          if (!entitlement || !config)
+            throw new NotFoundError("产品授权或配置不存在", undefined, {
+              messageKey: "developerProduct.entitlementOrConfigNotFound",
+            });
           const usage = await this.incrementQuotaUsage(tx, entitlement.id, usageDate, legacyUsageDate);
           const chargeAmount = Number(config.overagePrice);
           // A zero price deliberately represents a free, unlimited product. We still
@@ -878,7 +934,9 @@ export class DeveloperProductPlatformService {
               chargeAmount: 0,
             };
           if (!entitlement.overageEnabled)
-            throw new ForbiddenError("今日产品免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED);
+            throw new ForbiddenError("今日产品免费额度已用尽", CustomCode.DEVELOPER_QUOTA_EXCEEDED, {
+              messageKey: "developerProduct.dailyFreeQuotaExhausted",
+            });
           const mutation = await applyBalanceAccountMutation(tx, {
             userId: entitlement.accountOwnerId,
             balanceDelta: new Decimal(-chargeAmount),
@@ -887,7 +945,9 @@ export class DeveloperProductPlatformService {
             requireActive: true,
           });
           if (!mutation)
-            throw new ForbiddenError("余额不足，无法执行产品超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT);
+            throw new ForbiddenError("余额不足，无法执行产品超额调用", CustomCode.DEVELOPER_BALANCE_INSUFFICIENT, {
+              messageKey: "developerProduct.insufficientBalance",
+            });
           await tx.balanceTransaction.create({
             data: {
               userId: entitlement.accountOwnerId,
@@ -1098,7 +1158,8 @@ export class DeveloperProductPlatformService {
     });
     if (!instance) return undefined;
     const config = await prisma.developerProductConfig.findUnique({ where: { productCode } });
-    if (!config?.enabled) throw new ForbiddenError("产品当前未启用");
+    if (!config?.enabled)
+      throw new ForbiddenError("产品当前未启用", undefined, { messageKey: "developerProduct.productDisabled" });
     return {
       instanceId: instance.id,
       backingProjectId: instance.backingProjectId,
@@ -1116,7 +1177,8 @@ export class DeveloperProductPlatformService {
     callback: () => Promise<T>,
   ): Promise<T> {
     const context = await this.getInstanceMeteringContext(productCode, { id: instanceId });
-    if (!context) throw new NotFoundError("产品实例不存在");
+    if (!context)
+      throw new NotFoundError("产品实例不存在", undefined, { messageKey: "developerProduct.instanceNotFound" });
     return this.executeMetered(context, action, callback);
   }
 
