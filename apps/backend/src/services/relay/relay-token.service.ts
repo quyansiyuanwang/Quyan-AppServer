@@ -58,13 +58,12 @@ import type {
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import { BalanceRepository } from "@/store/billing/balance.repository";
 import type { BalanceStore } from "@/store/billing/balance.store";
+import { MONTHLY_PASS_QUOTA_WINDOW_MS } from "@/constant/monthly-pass";
 import {
-  MONTHLY_PASS_DECIMAL_SCALE,
-  MONTHLY_PASS_MAX_AMOUNT_QUOTA,
-  MONTHLY_PASS_MAX_INTEGER_QUOTA,
-  MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
-  MONTHLY_PASS_QUOTA_WINDOW_MS,
-} from "@/constant/monthly-pass";
+  getMonthlyPassQuotaValidationError,
+  getMonthlyPassQuotaWindowHoursValidationError,
+  isMonthlyPassIntegerQuotaUnit,
+} from "@/util/monthly-pass-validation.util";
 import { extractClientIp } from "@/util/ip-extractor";
 import {
   isIpWhitelisted,
@@ -94,18 +93,32 @@ const DEFAULT_DAILY_RESET_TIMEZONE_OFFSET_MINUTES = 0;
 
 const normalizeRequestFormatTransforms = (value: unknown): RelayRequestFormatTransform[] | null => {
   if (value == null) return value === null ? null : [];
-  if (!Array.isArray(value)) throw new BadRequestError("requestFormatTransforms must be an array");
+  if (!Array.isArray(value))
+    throw new BadRequestError("requestFormatTransforms must be an array", undefined, {
+      messageKey: "relayToken.formatTransformsMustBeArray",
+    });
   const seen = new Set<string>();
-  if (value.length > 3) throw new BadRequestError("requestFormatTransforms supports at most 3 rules");
+  if (value.length > 3)
+    throw new BadRequestError("requestFormatTransforms supports at most 3 rules", undefined, {
+      messageKey: "relayToken.formatTransformsMaxRules",
+    });
   return value.map((item) => {
     const rule = item as Partial<RelayRequestFormatTransform>;
     if (
       !["openai-chat-completions", "openai-responses", "anthropic"].includes(String(rule.sourceFormat)) ||
       !["openai-chat-completions", "openai-responses", "anthropic"].includes(String(rule.targetFormat))
     )
-      throw new BadRequestError("Unsupported request format transform");
-    if (rule.sourceFormat === rule.targetFormat) throw new BadRequestError("Transform source and target must differ");
-    if (seen.has(String(rule.sourceFormat))) throw new BadRequestError("Transform source formats must be unique");
+      throw new BadRequestError("Unsupported request format transform", undefined, {
+        messageKey: "relayToken.formatTransformUnsupported",
+      });
+    if (rule.sourceFormat === rule.targetFormat)
+      throw new BadRequestError("Transform source and target must differ", undefined, {
+        messageKey: "relayToken.formatTransformSameSourceTarget",
+      });
+    if (seen.has(String(rule.sourceFormat)))
+      throw new BadRequestError("Transform source formats must be unique", undefined, {
+        messageKey: "relayToken.formatTransformSourceUnique",
+      });
     seen.add(String(rule.sourceFormat));
     return { sourceFormat: rule.sourceFormat!, targetFormat: rule.targetFormat! };
   });
@@ -120,51 +133,47 @@ type UsageSummaryRange = {
   endDate?: Date;
 };
 
-const hasDecimalPrecision = (value: number, scale: number): boolean => {
-  const factor = 10 ** scale;
-  const scaled = value * factor;
-  return Math.abs(Math.round(scaled) - scaled) < 1e-8;
-};
-
 const normalizeQuotaUnit = (value?: string | null): RelayTokenQuotaUnit => {
   if (value === "request" || value === "token") return value;
   return "amount";
 };
 
-const isIntegerQuotaUnit = (unit: RelayTokenQuotaUnit): boolean => {
-  return unit === "request" || unit === "token";
-};
-
-const getQuotaMaxByUnit = (unit: RelayTokenQuotaUnit): number => {
-  return isIntegerQuotaUnit(unit) ? MONTHLY_PASS_MAX_INTEGER_QUOTA : MONTHLY_PASS_MAX_AMOUNT_QUOTA;
-};
-
 const normalizeQuotaValue = (value: number, unit: RelayTokenQuotaUnit): number => {
-  if (isIntegerQuotaUnit(unit)) return Math.floor(value);
+  if (isMonthlyPassIntegerQuotaUnit(unit)) return Math.floor(value);
   return round4(value);
 };
 
+/**
+ * 归一化配额窗口小时数。
+ *
+ * 校验原因复用 `getMonthlyPassQuotaWindowHoursValidationError`（与月卡共用同一套 key），
+ * 不再在本文件维护第二份英文原句（P09d 收敛：原先此处与本文件 `validateQuotaValue` 都是
+ * `monthly-pass-validation.util.ts` 的重复实现，且返回英文导致 zh-CN 用户看到英文）。
+ */
 const normalizeQuotaWindowHours = (value: number): number => {
-  if (!Number.isFinite(value)) throw new BadRequestError("quotaWindowHours must be a finite number");
+  if (!Number.isFinite(value))
+    throw new BadRequestError("quotaWindowHours must be a finite number", undefined, {
+      messageKey: "relayToken.quotaWindowHoursFinite",
+    });
+
   const normalized = round4(Math.max(0, value));
-  if (normalized > MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS)
-    throw new BadRequestError(`quotaWindowHours must be less than or equal to ${MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS}`);
+  const issue = getMonthlyPassQuotaWindowHoursValidationError(normalized, { allowExceedMax: false });
+  if (issue)
+    throw new BadRequestError("quotaWindowHours is out of range", undefined, {
+      messageKey: issue.key,
+      messageParams: issue.params,
+    });
+
   return normalized;
 };
 
 const validateQuotaValue = (fieldName: string, value: number, unit: RelayTokenQuotaUnit): void => {
-  if (!Number.isFinite(value) || value <= 0) throw new BadRequestError(`${fieldName} must be greater than 0`);
-
-  if (isIntegerQuotaUnit(unit) && !Number.isInteger(value))
-    throw new BadRequestError(`${fieldName} must be an integer when quotaUnit is ${unit}`);
-
-  if (!isIntegerQuotaUnit(unit) && !hasDecimalPrecision(value, MONTHLY_PASS_DECIMAL_SCALE))
-    throw new BadRequestError(
-      `${fieldName} must have at most ${MONTHLY_PASS_DECIMAL_SCALE} decimal places when quotaUnit is amount`,
-    );
-
-  const max = getQuotaMaxByUnit(unit);
-  if (value > max) throw new BadRequestError(`${fieldName} must not exceed ${max} when quotaUnit is ${unit}`);
+  const issue = getMonthlyPassQuotaValidationError(fieldName, value, unit);
+  if (issue)
+    throw new BadRequestError("relay token quota validation failed", undefined, {
+      messageKey: issue.key,
+      messageParams: issue.params,
+    });
 };
 
 export class RelayTokenService {
@@ -227,10 +236,11 @@ export class RelayTokenService {
     permission: Permission = Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
   ) {
     const token = await this.relayTokenRepo.findByIdWithRelations(tokenId);
-    if (!token) throw new NotFoundError("Relay token not found");
+    if (!token) throw new NotFoundError("Relay token not found", undefined, { messageKey: "relayToken.notFound" });
 
     const managedUserId = await this.resolveManagedUserId(actorUserId, targetUserId ?? token.userId, permission);
-    if (token.userId !== managedUserId) throw new NotFoundError("Relay token not found");
+    if (token.userId !== managedUserId)
+      throw new NotFoundError("Relay token not found", undefined, { messageKey: "relayToken.notFound" });
 
     return token;
   }
@@ -245,7 +255,10 @@ export class RelayTokenService {
     if (!normalized) return null;
 
     const parsed = new Date(normalized);
-    if (Number.isNaN(parsed.getTime())) throw new BadRequestError("expiresAt must be a valid datetime");
+    if (Number.isNaN(parsed.getTime()))
+      throw new BadRequestError("expiresAt must be a valid datetime", undefined, {
+        messageKey: "relayToken.invalidExpiresAt",
+      });
     return parsed;
   }
 
@@ -497,16 +510,23 @@ export class RelayTokenService {
 
   async validateToken(token: string, request?: Request, trustedClientIp?: string) {
     const relayToken = await this.relayTokenRepo.findByToken(token);
-    if (!relayToken || relayToken.status !== MANAGED_STATUS.ENABLED) throw new NotFoundError("Invalid relay token");
+    if (!relayToken || relayToken.status !== MANAGED_STATUS.ENABLED)
+      throw new NotFoundError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
 
-    if (relayToken.expiresAt && relayToken.expiresAt < new Date()) throw new BadRequestError("Relay token expired");
+    if (relayToken.expiresAt && relayToken.expiresAt < new Date())
+      throw new BadRequestError("Relay token expired", undefined, { messageKey: "relayToken.expired" });
 
     if (relayToken.ipWhitelist) {
-      if (!request && !trustedClientIp) throw new ForbiddenError("Relay token IP whitelist requires request context");
+      if (!request && !trustedClientIp)
+        throw new ForbiddenError("Relay token IP whitelist requires request context", undefined, {
+          messageKey: "relayToken.ipWhitelistRequiresContext",
+        });
 
       const clientIp = trustedClientIp || extractClientIp(request!);
       if (!isIpWhitelisted(clientIp, relayToken.ipWhitelist))
-        throw new ForbiddenError("Current IP is not allowed for this relay token");
+        throw new ForbiddenError("Current IP is not allowed for this relay token", undefined, {
+          messageKey: "relayToken.ipNotAllowed",
+        });
     }
 
     return relayToken;
@@ -745,7 +765,9 @@ export class RelayTokenService {
       channel.providerServiceEnabled === false ||
       channel.channelType !== "automatic-proxy-pool"
     )
-      throw new BadRequestError("Automatic proxy pool not found or unavailable");
+      throw new BadRequestError("Automatic proxy pool not found or unavailable", undefined, {
+        messageKey: "relayToken.automaticPoolUnavailable",
+      });
     return channel as RelayChannel & {
       poolMembers?: Array<{
         memberChannelId: string;
@@ -782,9 +804,15 @@ export class RelayTokenService {
     );
 
     if (normalizedIds.some((channelId) => !memberIds.has(channelId)))
-      throw new BadRequestError("Blocked channels must be enabled members of the selected automatic proxy pool");
+      throw new BadRequestError(
+        "Blocked channels must be enabled members of the selected automatic proxy pool",
+        undefined,
+        { messageKey: "relayToken.blockedChannelsMustBePoolMembers" },
+      );
     if (memberIds.size > 0 && normalizedIds.length >= memberIds.size)
-      throw new BadRequestError("At least one automatic proxy pool channel must remain available");
+      throw new BadRequestError("At least one automatic proxy pool channel must remain available", undefined, {
+        messageKey: "relayToken.automaticPoolLastChannel",
+      });
 
     return normalizedIds;
   }
@@ -1143,7 +1171,10 @@ export class RelayTokenService {
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_ROUTE_TRACE_READ);
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_CHANNEL_POOL_METADATA_READ);
     const trace = await this.relayUsageRepo.findRequestRouteTrace(requestId);
-    if (!trace) throw new NotFoundError("Relay request diagnostics not found");
+    if (!trace)
+      throw new NotFoundError("Relay request diagnostics not found", undefined, {
+        messageKey: "relayToken.diagnosticsNotFound",
+      });
     return {
       requestId: trace.requestId,
       attempts: trace.relayUsages.map((usage) => ({
@@ -1163,7 +1194,9 @@ export class RelayTokenService {
 
   private async assertGlobalRelayOperatorPermission(actorUserId: string, permission: Permission): Promise<void> {
     if (await this.permissionService.hasPermission(actorUserId, permission)) return;
-    throw new ForbiddenError("Relay operations permission is required");
+    throw new ForbiddenError("Relay operations permission is required", undefined, {
+      messageKey: "relayToken.operationsPermissionRequired",
+    });
   }
 
   async getUsageSummaries(
@@ -1598,7 +1631,9 @@ export class RelayTokenService {
 
     if (startDate || query?.endDate) {
       if ((startDate && Number.isNaN(startDate.getTime())) || (endDate && Number.isNaN(endDate.getTime())))
-        throw new BadRequestError("startDate and endDate must be valid datetimes");
+        throw new BadRequestError("startDate and endDate must be valid datetimes", undefined, {
+          messageKey: "relayToken.invalidDateRange",
+        });
 
       return {
         mode: "custom",
@@ -1625,7 +1660,9 @@ export class RelayTokenService {
     if (query?.windowHours != null) {
       const windowHours = round4(Number(query.windowHours));
       if (!Number.isFinite(windowHours) || windowHours < 0)
-        throw new BadRequestError("windowHours must be a valid non-negative number");
+        throw new BadRequestError("windowHours must be a valid non-negative number", undefined, {
+          messageKey: "relayToken.invalidWindowHours",
+        });
 
       return {
         mode: "window",
@@ -1646,7 +1683,9 @@ export class RelayTokenService {
     const hours = Number(hoursText);
     const minutes = Number(minutesText);
     if (!Number.isInteger(hours) || !Number.isInteger(minutes))
-      throw new BadRequestError("resetAt must be in HH:mm format");
+      throw new BadRequestError("resetAt must be in HH:mm format", undefined, {
+        messageKey: "relayToken.invalidResetAt",
+      });
 
     const shiftedNowMs = now.getTime() + timezoneOffsetMinutes * 60 * 1000;
     const shiftedNow = new Date(shiftedNowMs);
@@ -1752,7 +1791,9 @@ export class RelayTokenService {
       }
     }
 
-    throw new BadRequestError("Unable to generate a unique relay token name");
+    throw new BadRequestError("Unable to generate a unique relay token name", undefined, {
+      messageKey: "relayToken.nameGenerationFailed",
+    });
   }
 
   private toSwitchLogDto(log: any): RelayChannelSwitchLogDto {
@@ -1787,7 +1828,10 @@ export class RelayTokenService {
           ? [{ channelId, priority: 0 }]
           : [];
 
-    if (normalizedConfigs.length === 0) throw new BadRequestError("At least one relay channel must be configured");
+    if (normalizedConfigs.length === 0)
+      throw new BadRequestError("At least one relay channel must be configured", undefined, {
+        messageKey: "relayToken.atLeastOneChannelRequired",
+      });
     await this.assertChannelsExist(
       actorUserId,
       normalizedConfigs.map((config) => config.channelId),
@@ -1821,7 +1865,10 @@ export class RelayTokenService {
       userId,
     );
 
-    if (tokens.length !== uniqueIds.length) throw new NotFoundError("One or more relay tokens were not found");
+    if (tokens.length !== uniqueIds.length)
+      throw new NotFoundError("One or more relay tokens were not found", undefined, {
+        messageKey: "relayToken.batchNotFound",
+      });
 
     const tokenMap = new Map(tokens.map((token) => [token.id, token]));
     return uniqueIds.map((id) => tokenMap.get(id)!).filter(Boolean);
@@ -1952,7 +1999,10 @@ export class RelayTokenService {
       validateQuotaValue("quotaLimit", quotaLimit, quotaUnit);
 
       const ruleKey = `${quotaUnit}:${quotaWindowHours}`;
-      if (seenRuleKeys.has(ruleKey)) throw new BadRequestError("quotaWindowHours + quotaUnit must be unique");
+      if (seenRuleKeys.has(ruleKey))
+        throw new BadRequestError("quotaWindowHours + quotaUnit must be unique", undefined, {
+          messageKey: "monthlyPass.quotaWindowUnique",
+        });
       seenRuleKeys.add(ruleKey);
 
       return {
@@ -1974,7 +2024,10 @@ export class RelayTokenService {
     if (channels.length !== uniqueChannelIds.length) {
       const foundIds = new Set(channels.map((channel) => channel.id));
       const missingIds = uniqueChannelIds.filter((id) => !foundIds.has(id));
-      throw new BadRequestError(`Relay channel not found or disabled: ${missingIds.join(", ")}`);
+      throw new BadRequestError(`Relay channel not found or disabled: ${missingIds.join(", ")}`, undefined, {
+        messageKey: "relayToken.channelNotFoundOrDisabled",
+        messageParams: { count: missingIds.length },
+      });
     }
 
     const automaticPoolIds = channels
@@ -1983,6 +2036,8 @@ export class RelayTokenService {
     if (automaticPoolIds.length)
       throw new BadRequestError(
         `Automatic proxy pools can only be configured in automatic routing mode: ${automaticPoolIds.join(", ")}`,
+        undefined,
+        { messageKey: "relayToken.automaticPoolModeOnly" },
       );
 
     await Promise.all(
@@ -2004,7 +2059,10 @@ export class RelayTokenService {
     if (rawEntries.length === 0) return null;
 
     for (const entry of rawEntries)
-      if (!isValidIpWhitelistEntry(entry)) throw new BadRequestError(`Invalid ipWhitelist entry: ${entry}`);
+      if (!isValidIpWhitelistEntry(entry))
+        throw new BadRequestError(`Invalid ipWhitelist entry: ${entry}`, undefined, {
+          messageKey: "relayToken.invalidIpWhitelistEntry",
+        });
 
     const normalizedEntries = normalizeIpWhitelistEntries(value);
     return normalizedEntries.length ? normalizedEntries.join("\n") : null;

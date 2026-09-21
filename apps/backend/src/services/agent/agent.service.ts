@@ -204,7 +204,7 @@ export class AgentService {
       body.relayTokenId || conversation.relayTokenId || undefined,
       userId,
     );
-    if (!token) throw new ForbiddenError("Invalid relay token", undefined, { messageKey: "agent.invalidRelayToken" });
+    if (!token) throw new ForbiddenError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
     const requestedModel = body.model.trim();
     if (!requestedModel)
       throw new BadRequestError("Agent model is required", undefined, { messageKey: "agent.modelRequired" });
