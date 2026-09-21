@@ -371,6 +371,7 @@ const en = {
     cannotTransferToSelf: "Cannot transfer to yourself",
     directTransferDisabled: "Direct transfer is not enabled yet",
     amountCannotBeZero: "Amount cannot be zero",
+    transactionQueryRangeTooWide: "query time range must not exceed {{maxDays}} days",
   },
   legalPolicy: {
     versionNotFound: "Legal policy version does not exist",
@@ -557,6 +558,10 @@ const en = {
     quotaWindowHoursMax: "quotaWindowHours must be less than or equal to {{max}}",
     fieldMustBePositiveInteger: "{{field}} must be a positive integer",
     quotaChangedConcurrently: "Monthly pass quota changed concurrently, please retry",
+    originalPriceRequiredForPriceFirst: "originalPrice is required when using price-first monthly pass templates",
+    discountPercentRequiredForPriceFirst: "discountPercent is required when using price-first monthly pass templates",
+    defaultQuotaNotAllowedForPriceFirstCreate: "defaultQuota cannot be provided when using price-first monthly pass templates",
+    targetSelectionRequired: "userIds or targetFilter is required",
   },
   relayChannel: {
     channelTypeConflict: "channelType and channelTypes cannot be used together",

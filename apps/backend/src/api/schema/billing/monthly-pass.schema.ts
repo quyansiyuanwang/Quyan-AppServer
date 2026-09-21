@@ -59,6 +59,7 @@ const validateUniqueQuotaWindowRules = (
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "quotaWindowHours + quotaUnit must be unique",
+        params: { messageKey: "monthlyPass.quotaWindowUnique" },
         path: ["quotaWindows", index, "quotaWindowHours"],
       });
     ruleKeySet.add(ruleKey);
@@ -107,6 +108,7 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
       code: z.ZodIssueCode.custom,
       path: ["purchaseLimitPerUser"],
       message: "purchaseLimitPerUser and purchaseLimitWindowDays must be set together",
+      params: { messageKey: "monthlyPass.purchaseLimitPairRequired" },
     });
 
   const hasPricingInput = value.originalPrice !== undefined || value.discountPercent !== undefined;
@@ -117,6 +119,7 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
         code: z.ZodIssueCode.custom,
         path: ["originalPrice"],
         message: "originalPrice is required when using price-first monthly pass templates",
+        params: { messageKey: "monthlyPass.originalPriceRequiredForPriceFirst" },
       });
 
     if (value.discountPercent === undefined)
@@ -124,6 +127,7 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
         code: z.ZodIssueCode.custom,
         path: ["discountPercent"],
         message: "discountPercent is required when using price-first monthly pass templates",
+        params: { messageKey: "monthlyPass.discountPercentRequiredForPriceFirst" },
       });
 
     if (value.defaultQuota !== undefined)
@@ -131,6 +135,7 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
         code: z.ZodIssueCode.custom,
         path: ["defaultQuota"],
         message: "defaultQuota cannot be provided when using price-first monthly pass templates",
+        params: { messageKey: "monthlyPass.defaultQuotaNotAllowedForPriceFirstCreate" },
       });
 
     if (value.quotaUnit !== undefined && value.quotaUnit !== "amount")
@@ -138,6 +143,7 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
         code: z.ZodIssueCode.custom,
         path: ["quotaUnit"],
         message: "quotaUnit must be amount for price-first monthly pass templates",
+        params: { messageKey: "monthlyPass.quotaUnitMustBeAmount" },
       });
 
     if (
@@ -148,6 +154,10 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
         code: z.ZodIssueCode.custom,
         path: ["originalPrice"],
         message: `originalPrice must have at most ${MONTHLY_PASS_PRICE_DECIMAL_SCALE} decimal places`,
+        params: {
+          messageKey: "monthlyPass.fieldDecimalPlaces",
+          messageParams: { field: "originalPrice", scale: MONTHLY_PASS_PRICE_DECIMAL_SCALE },
+        },
       });
 
     if (
@@ -158,6 +168,10 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
         code: z.ZodIssueCode.custom,
         path: ["discountPercent"],
         message: `discountPercent must have at most ${MONTHLY_PASS_DISCOUNT_PERCENT_SCALE} decimal places`,
+        params: {
+          messageKey: "monthlyPass.discountPercentDecimalPlaces",
+          messageParams: { scale: MONTHLY_PASS_DISCOUNT_PERCENT_SCALE },
+        },
       });
 
     validateQuotaByUnit(ctx, "amount", "dailyQuota", value.dailyQuota);
@@ -167,6 +181,7 @@ const monthlyPassTemplateBaseSchema = monthlyPassTemplateBaseObjectSchema.superR
         code: z.ZodIssueCode.custom,
         path: ["defaultQuota"],
         message: "defaultQuota is required when not using price-first monthly pass templates",
+        params: { messageKey: "monthlyPass.defaultQuotaRequired" },
       });
 
     const quotaUnit = value.quotaUnit ?? "amount";
@@ -334,6 +349,7 @@ export const assignBatchUserMonthlyPassBodySchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "endAt must be later than startAt",
+        params: { messageKey: "monthlyPass.endAtNotAfterStartAt" },
         path: ["endAt"],
       });
 
@@ -352,6 +368,7 @@ export const assignBatchUserMonthlyPassBodySchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "userIds or targetFilter is required",
+        params: { messageKey: "monthlyPass.targetSelectionRequired" },
         path: ["userIds"],
       });
   });

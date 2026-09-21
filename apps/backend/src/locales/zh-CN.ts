@@ -376,6 +376,7 @@ const zhCN = {
     cannotTransferToSelf: "不能向自己转账",
     directTransferDisabled: "直接转账功能暂未启用",
     amountCannotBeZero: "金额不能为 0",
+    transactionQueryRangeTooWide: "查询时间范围不能超过 {{maxDays}} 天",
   },
   legalPolicy: {
     versionNotFound: "法律协议版本不存在",
@@ -561,6 +562,10 @@ const zhCN = {
     quotaWindowHoursMax: "quotaWindowHours 不能超过 {{max}}",
     fieldMustBePositiveInteger: "{{field}} 必须为正整数",
     quotaChangedConcurrently: "月卡额度被并发修改，请重试",
+    originalPriceRequiredForPriceFirst: "使用价格优先月卡模板时必须提供 originalPrice",
+    discountPercentRequiredForPriceFirst: "使用价格优先月卡模板时必须提供 discountPercent",
+    defaultQuotaNotAllowedForPriceFirstCreate: "使用价格优先月卡模板时不能提供 defaultQuota",
+    targetSelectionRequired: "必须提供 userIds 或 targetFilter",
   },
   relayChannel: {
     channelTypeConflict: "channelType 与 channelTypes 不能同时使用",

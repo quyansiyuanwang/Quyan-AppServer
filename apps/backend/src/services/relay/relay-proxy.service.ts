@@ -59,6 +59,7 @@ import {
   LockBackendUnavailableError,
   PayloadTooLargeError,
   TooManyRequestsError,
+  ApiError,
   type ApiErrorOptions,
 } from "@/util/errors";
 import { RelayConfigService } from "./relay-config.service";
@@ -747,10 +748,19 @@ export class RelayProxyService {
     const fallbackMessage = lastError instanceof Error ? lastError.message : "No available relay channel";
     const detail = issueSummary ? ` Attempt summary: ${issueSummary}` : ` Last error: ${fallbackMessage}`;
 
+    // 具体原因优先：最后一次失败若已带描述符（例如「余额不足」「渠道不支持该模型」），
+    // 直接沿用它的 key/params。否则退回通用路由失败文案。
+    // 逐次尝试的汇总（含渠道名与内部错误原文）只保留在**内部诊断** `message` 里，不进用户可见消息，
+    // 避免用「路由失败」覆盖明确业务原因，也避免把内部诊断回显给用户。
+    const options: ApiErrorOptions =
+      lastError instanceof ApiError && lastError.messageKey
+        ? { messageKey: lastError.messageKey, messageParams: lastError.messageParams }
+        : { messageKey: "relayProxy.modelRoutingFailed", messageParams: { retries: maxRetries } };
+
     return new BadRequestError(
       `Model ${requestedModel} could not be routed within maxRetries=${maxRetries}.${detail}`,
       undefined,
-      { messageKey: "relayProxy.modelRoutingFailed", messageParams: { retries: maxRetries } },
+      options,
     );
   }
 

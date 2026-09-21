@@ -923,7 +923,8 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
       .send(createTemplateBody);
 
     expect(templateResponse.status).toBe(400);
-    expect(String(templateResponse.body?.message || "")).toContain("Unknown or inactive monthly pass models");
+    // 有意变更：不再回显请求里的模型名单，只报数量（见 .tmp/backend-i18n-refactor-plan.md §3.1）
+    expect(String(templateResponse.body?.message || "")).toContain("selected model(s) are unknown or inactive");
     await expect(
       prisma.monthlyPassTemplate.findUnique({ where: { name: templateNameModelMismatch } }),
     ).resolves.toBeNull();
@@ -1392,7 +1393,8 @@ describe("月卡功能 + 中转模拟AI输出 集成测试", () => {
 
     expect(templateResponse.status).toBe(400);
     expect(String(templateResponse.body?.message || "")).toContain(
-      "Unknown, inactive, or inaccessible monthly pass channels",
+      // 有意变更：不再回显渠道名单，只报数量
+      "selected channel(s) are unknown, inactive, or inaccessible",
     );
     await expect(
       prisma.monthlyPassTemplate.findUnique({ where: { name: templateNameChannelMismatch } }),
