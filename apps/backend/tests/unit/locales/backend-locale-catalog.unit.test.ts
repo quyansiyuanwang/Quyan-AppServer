@@ -134,6 +134,15 @@ describe("P04 · 目录结构与 key 一致性", () => {
         "remoteTerminalProduct",
         "remoteTerminal",
         "jsonEndpoint",
+        "supportAi",
+        "article",
+        "chat",
+        "ojSubmitter",
+        "developerOutboundUrl",
+        "ticket",
+        "userScript",
+        "reurl",
+        "notification",
       ].sort(),
     );
   });

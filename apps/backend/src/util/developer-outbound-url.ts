@@ -94,10 +94,14 @@ export async function assertSafeOutboundUrl(rawUrl: string): Promise<SafeOutboun
   try {
     url = new URL(rawUrl);
   } catch {
-    throw new BadRequestError("URL 无效");
+    throw new BadRequestError("URL 无效", undefined, { messageKey: "developerOutboundUrl.urlInvalid" });
   }
-  if (url.protocol !== "https:" && url.protocol !== "http:") throw new BadRequestError("仅允许 HTTP(S) URL");
-  if (url.username || url.password) throw new BadRequestError("URL 不允许包含凭据");
+  if (url.protocol !== "https:" && url.protocol !== "http:")
+    throw new BadRequestError("仅允许 HTTP(S) URL", undefined, { messageKey: "developerOutboundUrl.httpOnly" });
+  if (url.username || url.password)
+    throw new BadRequestError("URL 不允许包含凭据", undefined, {
+      messageKey: "developerOutboundUrl.credentialsNotAllowed",
+    });
 
   const host = url.hostname.replace(/^\[|\]$/g, "");
   let addresses: Array<{ address: string; family: number }>;
@@ -107,11 +111,13 @@ export async function assertSafeOutboundUrl(rawUrl: string): Promise<SafeOutboun
     try {
       addresses = await lookup(host, { all: true, verbatim: true });
     } catch {
-      throw new BadRequestError("无法解析目标主机");
+      throw new BadRequestError("无法解析目标主机", undefined, { messageKey: "developerOutboundUrl.hostUnresolvable" });
     }
   }
   if (!addresses.length || addresses.some((entry) => isUnsafeOutboundAddress(entry.address)))
-    throw new ForbiddenError("不允许访问内网地址");
+    throw new ForbiddenError("不允许访问内网地址", undefined, {
+      messageKey: "developerOutboundUrl.privateAddressDenied",
+    });
 
   const resolved = addresses[0];
   const family = resolved.family === 6 ? 6 : 4;

@@ -29,7 +29,9 @@ export class RemoteTerminalAgentController extends Controller {
     try {
       return await this.gatewayService.registerAgent(body);
     } catch (error) {
-      throw new BadRequestError(error instanceof Error ? error.message : "Agent registration failed");
+      throw new BadRequestError(error instanceof Error ? error.message : "Agent registration failed", undefined, {
+        messageKey: "remoteTerminal.agentRegistrationFailed",
+      });
     }
   }
 
@@ -45,7 +47,9 @@ export class RemoteTerminalAgentController extends Controller {
     try {
       return await this.gatewayService.heartbeatAgent(body);
     } catch (error) {
-      throw new BadRequestError(error instanceof Error ? error.message : "Agent heartbeat failed");
+      throw new BadRequestError(error instanceof Error ? error.message : "Agent heartbeat failed", undefined, {
+        messageKey: "remoteTerminal.agentHeartbeatFailed",
+      });
     }
   }
 }

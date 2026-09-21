@@ -139,7 +139,8 @@ export class NotificationManagementService {
     request: Request,
   ): Promise<NotificationWebhookDto> {
     const existing = await this.repository.findWebhookById(id, userId);
-    if (!existing) throw new NotFoundError("Webhook not found");
+    if (!existing)
+      throw new NotFoundError("Webhook not found", undefined, { messageKey: "notification.webhookNotFound" });
 
     const updateData: NotificationWebhookUpdateInput = {};
     if (dto.name !== undefined) updateData.name = dto.name;
@@ -168,7 +169,8 @@ export class NotificationManagementService {
 
   async deleteWebhook(id: string, userId: string, request: Request): Promise<void> {
     const existing = await this.repository.findWebhookById(id, userId);
-    if (!existing) throw new NotFoundError("Webhook not found");
+    if (!existing)
+      throw new NotFoundError("Webhook not found", undefined, { messageKey: "notification.webhookNotFound" });
 
     await this.repository.deleteWebhook(id, userId);
 
@@ -205,7 +207,8 @@ export class NotificationManagementService {
 
   async testWebhook(id: string, userId: string): Promise<{ success: boolean; error?: string }> {
     const webhook = await this.repository.findWebhookById(id, userId);
-    if (!webhook) throw new NotFoundError("Webhook not found");
+    if (!webhook)
+      throw new NotFoundError("Webhook not found", undefined, { messageKey: "notification.webhookNotFound" });
 
     try {
       await this.notificationService["sendWebhook"](

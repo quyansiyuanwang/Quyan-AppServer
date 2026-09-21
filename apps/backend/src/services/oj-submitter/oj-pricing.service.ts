@@ -47,7 +47,11 @@ export class OJPricingService {
   async getPricing(model: string) {
     const pricing = await this.ojModelPricingRepository.findActiveByModel(model);
 
-    if (!pricing) throw new NotFoundError(`Pricing not found for model: ${model}`);
+    if (!pricing)
+      throw new NotFoundError(`Pricing not found for model: ${model}`, undefined, {
+        messageKey: "ojSubmitter.pricingNotFound",
+        messageParams: { model },
+      });
 
     return {
       id: pricing.id,
@@ -82,7 +86,11 @@ export class OJPricingService {
     // 检查是否已存在
     const existing = await this.ojModelPricingRepository.findByModel(data.model);
 
-    if (existing) throw new BadRequestError(`Pricing already exists for model: ${data.model}`);
+    if (existing)
+      throw new BadRequestError(`Pricing already exists for model: ${data.model}`, undefined, {
+        messageKey: "ojSubmitter.pricingAlreadyExists",
+        messageParams: { model: data.model },
+      });
 
     const pricing = await this.ojModelPricingRepository.create({
       model: data.model,
@@ -138,7 +146,11 @@ export class OJPricingService {
   ) {
     const existing = await this.ojModelPricingRepository.findActiveByModel(model);
 
-    if (!existing) throw new NotFoundError(`Pricing not found for model: ${model}`);
+    if (!existing)
+      throw new NotFoundError(`Pricing not found for model: ${model}`, undefined, {
+        messageKey: "ojSubmitter.pricingNotFound",
+        messageParams: { model },
+      });
 
     const updateData: any = {};
     if (data.inputPrice !== undefined) updateData.inputPrice = new Decimal(data.inputPrice);
@@ -183,7 +195,11 @@ export class OJPricingService {
   async deletePricing(model: string, actorUserId: string, request?: Request) {
     const existing = await this.ojModelPricingRepository.findActiveByModel(model);
 
-    if (!existing) throw new NotFoundError(`Pricing not found for model: ${model}`);
+    if (!existing)
+      throw new NotFoundError(`Pricing not found for model: ${model}`, undefined, {
+        messageKey: "ojSubmitter.pricingNotFound",
+        messageParams: { model },
+      });
 
     await this.ojModelPricingRepository.softDeleteByModel(model);
 

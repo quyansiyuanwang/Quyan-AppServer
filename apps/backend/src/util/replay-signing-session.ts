@@ -70,5 +70,12 @@ export function verifyReplaySign(actual: string, expected: string): boolean {
 }
 
 export function createReplayProtectionUnavailableError(): ApiError {
-  return new ApiError("防重放保护服务暂时不可用，请稍后重试", 503, CustomCode.REPLAY_PROTECTION_FAILED, false);
+  return new ApiError(
+    "防重放保护服务暂时不可用，请稍后重试",
+    503,
+    CustomCode.REPLAY_PROTECTION_FAILED,
+    false,
+    undefined,
+    { messageKey: "auth.replayProtectionUnavailable" },
+  );
 }

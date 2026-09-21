@@ -7,7 +7,10 @@ export type ObjectStorageBucketName = "archive" | "staging";
 export function createObjectStorageClient(config: ObjectStorageBucketConfig, bucket: ObjectStorageBucketName): OSS {
   if (!config.enabled) {
     const label = bucket === "staging" ? "Import staging OSS" : "Archive OSS";
-    throw new BadRequestError(`${label} is not configured`);
+    throw new BadRequestError(`${label} is not configured`, undefined, {
+      messageKey: "errors.configNotConfigured",
+      messageParams: { label },
+    });
   }
   return new OSS({
     region: config.region,
