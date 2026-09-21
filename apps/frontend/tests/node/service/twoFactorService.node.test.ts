@@ -329,14 +329,14 @@ describe('twoFactorService', () => {
 
   it('throws enriched service error when trusted devices API fails', async () => {
     requestMock.get.mockResolvedValueOnce({
-      code: CustomCode.UNAUTHORIZED,
+      code: CustomCode.AUTH_FAILED,
       message: 'unauthorized',
       data: null,
     })
 
     await expect(twoFactorService.listTrustedDevices()).rejects.toMatchObject({
       message: 'unauthorized',
-      code: CustomCode.UNAUTHORIZED,
+      code: CustomCode.AUTH_FAILED,
     })
   })
 
