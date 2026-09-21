@@ -202,6 +202,7 @@ export function createApp() {
         new ForbiddenError(
           "旧 DeveloperProject API 已停用，请迁移至 /v1/products",
           CustomCode.DEVELOPER_PRODUCT_LEGACY_DISABLED,
+          { messageKey: "auth.legacyDeveloperApiDisabled" },
         ),
       );
       return;
