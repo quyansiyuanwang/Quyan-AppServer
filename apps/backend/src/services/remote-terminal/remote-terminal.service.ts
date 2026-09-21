@@ -77,7 +77,13 @@ export class RemoteTerminalService {
         items: response.items,
       };
     } catch (error) {
-      throw new BadRequestError(error instanceof Error ? error.message : "Remote directory browsing failed");
+      throw new BadRequestError(
+        error instanceof Error ? error.message : "Remote directory browsing failed",
+        undefined,
+        {
+          messageKey: "remoteTerminal.directoryBrowsingFailed",
+        },
+      );
     }
   }
 
@@ -94,7 +100,13 @@ export class RemoteTerminalService {
         quickCommands: preferences.quickCommands,
       };
     } catch (error) {
-      throw new BadRequestError(error instanceof Error ? error.message : "Failed to load remote terminal preferences");
+      throw new BadRequestError(
+        error instanceof Error ? error.message : "Failed to load remote terminal preferences",
+        undefined,
+        {
+          messageKey: "remoteTerminal.preferencesLoadFailed",
+        },
+      );
     }
   }
 
@@ -115,7 +127,13 @@ export class RemoteTerminalService {
         quickCommands: preferences.quickCommands,
       };
     } catch (error) {
-      throw new BadRequestError(error instanceof Error ? error.message : "Failed to save remote terminal preferences");
+      throw new BadRequestError(
+        error instanceof Error ? error.message : "Failed to save remote terminal preferences",
+        undefined,
+        {
+          messageKey: "remoteTerminal.preferencesSaveFailed",
+        },
+      );
     }
   }
 
@@ -139,7 +157,13 @@ export class RemoteTerminalService {
 
       return await this.gatewayService.createSession(userId, body, browserWebSocketBaseUrl);
     } catch (error) {
-      throw new BadRequestError(error instanceof Error ? error.message : "Remote terminal session creation failed");
+      throw new BadRequestError(
+        error instanceof Error ? error.message : "Remote terminal session creation failed",
+        undefined,
+        {
+          messageKey: "remoteTerminal.sessionCreationFailed",
+        },
+      );
     }
   }
 }

@@ -131,6 +131,8 @@ describe("P04 · 目录结构与 key 一致性", () => {
         "relayProxy",
         "carpool",
         "redemptionCode",
+        "remoteTerminalProduct",
+        "remoteTerminal",
       ].sort(),
     );
   });

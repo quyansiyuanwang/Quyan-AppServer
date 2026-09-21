@@ -76,13 +76,21 @@ const parseOptionalDate = (fieldName: string, value?: string | null): Date | nul
   if (value === undefined) return undefined;
   if (value === null) return null;
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) throw new BadRequestError(`${fieldName} must be a valid date string`);
+  if (Number.isNaN(parsed.getTime()))
+    throw new BadRequestError(`${fieldName} must be a valid date string`, undefined, {
+      messageKey: "monthlyPass.fieldInvalidDate",
+      messageParams: { field: fieldName },
+    });
   return parsed;
 };
 
 const parseRequiredDate = (fieldName: string, value: string): Date => {
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) throw new BadRequestError(`${fieldName} must be a valid date string`);
+  if (Number.isNaN(parsed.getTime()))
+    throw new BadRequestError(`${fieldName} must be a valid date string`, undefined, {
+      messageKey: "monthlyPass.fieldInvalidDate",
+      messageParams: { field: fieldName },
+    });
   return parsed;
 };
 
@@ -117,7 +125,10 @@ export class RemoteTerminalProductService {
 
   private async assertDeviceUnbindAllowed(existing: RemoteTerminalDeviceBindingWithRelations): Promise<void> {
     const config = await this.configService.getRemoteTerminalUnbindConfig();
-    if (config.maxCount <= 0) throw new BadRequestError("Device unbinding is currently disabled.");
+    if (config.maxCount <= 0)
+      throw new BadRequestError("Device unbinding is currently disabled.", undefined, {
+        messageKey: "remoteTerminalProduct.unbindDisabled",
+      });
 
     const windowStart = new Date(Date.now() - config.windowHours * 60 * 60 * 1000);
     const effectiveStart =
@@ -132,6 +143,11 @@ export class RemoteTerminalProductService {
     if (revokedCount >= config.maxCount)
       throw new BadRequestError(
         `Device unbind limit reached. Up to ${config.maxCount} unbinds are allowed within ${config.windowHours} hours.`,
+        undefined,
+        {
+          messageKey: "remoteTerminalProduct.unbindLimitReached",
+          messageParams: { maxCount: config.maxCount, windowHours: config.windowHours },
+        },
       );
   }
 
@@ -140,8 +156,14 @@ export class RemoteTerminalProductService {
     deviceBindingId: string,
   ): Promise<RemoteTerminalUnbindReminderDto> {
     const existing = await this.productRepository.findDeviceBindingById(deviceBindingId);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Device binding not found");
-    if (existing.userId !== userId) throw new ForbiddenError("You can only view your own device unbind policy");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Device binding not found", undefined, {
+        messageKey: "remoteTerminalProduct.deviceBindingNotFound",
+      });
+    if (existing.userId !== userId)
+      throw new ForbiddenError("You can only view your own device unbind policy", undefined, {
+        messageKey: "remoteTerminalProduct.unbindPolicyOwnOnly",
+      });
 
     const config = await this.configService.getRemoteTerminalUnbindConfig();
     const windowStartAt = new Date(Date.now() - config.windowHours * 60 * 60 * 1000);
@@ -166,15 +188,23 @@ export class RemoteTerminalProductService {
 
   private validatePrice(value?: number): number | null | undefined {
     if (value === undefined) return undefined;
-    if (!Number.isFinite(value) || value < 0) throw new BadRequestError("price must be greater than or equal to 0");
-    if (!hasDecimalPrecision(value, 4)) throw new BadRequestError("price must have at most 4 decimal places");
+    if (!Number.isFinite(value) || value < 0)
+      throw new BadRequestError("price must be greater than or equal to 0", undefined, {
+        messageKey: "remoteTerminalProduct.priceNonNegative",
+      });
+    if (!hasDecimalPrecision(value, 4))
+      throw new BadRequestError("price must have at most 4 decimal places", undefined, {
+        messageKey: "remoteTerminalProduct.priceDecimalPlaces",
+      });
     return Number(value.toFixed(4));
   }
 
   private validateBillingUnit(value?: string | null): RemoteTerminalBillingUnit {
     if (!value) return "day";
     if (value === "day" || value === "week" || value === "month") return value;
-    throw new BadRequestError("billingUnit must be one of: day, week, month");
+    throw new BadRequestError("billingUnit must be one of: day, week, month", undefined, {
+      messageKey: "remoteTerminalProduct.billingUnitInvalid",
+    });
   }
 
   private getBillingUnitDays(value: RemoteTerminalBillingUnit): number {
@@ -184,7 +214,10 @@ export class RemoteTerminalProductService {
   private validateMinimumPurchaseUnits(value?: number): number | undefined {
     const normalized = this.validatePositiveInteger("minimumPurchaseUnits", value);
     if (normalized !== undefined && normalized > MAX_DURATION_DAYS)
-      throw new BadRequestError(`minimumPurchaseUnits must be less than or equal to ${MAX_DURATION_DAYS}`);
+      throw new BadRequestError(`minimumPurchaseUnits must be less than or equal to ${MAX_DURATION_DAYS}`, undefined, {
+        messageKey: "remoteTerminalProduct.minimumPurchaseUnitsMax",
+        messageParams: { max: MAX_DURATION_DAYS },
+      });
     return normalized;
   }
 
@@ -193,14 +226,20 @@ export class RemoteTerminalProductService {
     if (value === null) return null;
     const normalized = this.validatePositiveInteger("maximumPurchaseUnits", value);
     if (normalized !== undefined && normalized > MAX_DURATION_DAYS)
-      throw new BadRequestError(`maximumPurchaseUnits must be less than or equal to ${MAX_DURATION_DAYS}`);
+      throw new BadRequestError(`maximumPurchaseUnits must be less than or equal to ${MAX_DURATION_DAYS}`, undefined, {
+        messageKey: "remoteTerminalProduct.maximumPurchaseUnitsMax",
+        messageParams: { max: MAX_DURATION_DAYS },
+      });
     return normalized;
   }
 
   private validatePurchaseUnits(value?: number): number | undefined {
     const normalized = this.validatePositiveInteger("purchaseUnits", value);
     if (normalized !== undefined && normalized > MAX_DURATION_DAYS)
-      throw new BadRequestError(`purchaseUnits must be less than or equal to ${MAX_DURATION_DAYS}`);
+      throw new BadRequestError(`purchaseUnits must be less than or equal to ${MAX_DURATION_DAYS}`, undefined, {
+        messageKey: "remoteTerminalProduct.purchaseUnitsMax",
+        messageParams: { max: MAX_DURATION_DAYS },
+      });
     return normalized;
   }
 
@@ -208,8 +247,15 @@ export class RemoteTerminalProductService {
     if (value === undefined) return undefined;
     if (value === null) return null;
     if (!Number.isFinite(value) || value < 0)
-      throw new BadRequestError(`${fieldName} must be greater than or equal to 0`);
-    if (!hasDecimalPrecision(value, 4)) throw new BadRequestError(`${fieldName} must have at most 4 decimal places`);
+      throw new BadRequestError(`${fieldName} must be greater than or equal to 0`, undefined, {
+        messageKey: "monthlyPass.fieldMustBeNonNegative",
+        messageParams: { field: fieldName },
+      });
+    if (!hasDecimalPrecision(value, 4))
+      throw new BadRequestError(`${fieldName} must have at most 4 decimal places`, undefined, {
+        messageKey: "monthlyPass.fieldDecimalPlaces",
+        messageParams: { field: fieldName, scale: 4 },
+      });
     return Number(value.toFixed(4));
   }
 
@@ -246,7 +292,11 @@ export class RemoteTerminalProductService {
   private validateOptionalPositiveIntegerOrNull(fieldName: string, value?: number | null): number | null | undefined {
     if (value === undefined) return undefined;
     if (value === null) return null;
-    if (!Number.isInteger(value) || value <= 0) throw new BadRequestError(`${fieldName} must be a positive integer`);
+    if (!Number.isInteger(value) || value <= 0)
+      throw new BadRequestError(`${fieldName} must be a positive integer`, undefined, {
+        messageKey: "monthlyPass.fieldMustBePositiveInteger",
+        messageParams: { field: fieldName },
+      });
     return value;
   }
 
@@ -263,7 +313,9 @@ export class RemoteTerminalProductService {
     const hasLimit = normalizedLimit !== undefined && normalizedLimit !== null;
     const hasWindow = normalizedWindow !== undefined && normalizedWindow !== null;
     if (hasLimit !== hasWindow)
-      throw new BadRequestError("purchaseLimitPerUser and purchaseLimitWindowDays must be set together");
+      throw new BadRequestError("purchaseLimitPerUser and purchaseLimitWindowDays must be set together", undefined, {
+        messageKey: "monthlyPass.purchaseLimitPairRequired",
+      });
 
     return {
       purchaseLimitPerUser: normalizedLimit,
@@ -288,6 +340,14 @@ export class RemoteTerminalProductService {
     if (currentCount >= template.purchaseLimitPerUser)
       throw new BadRequestError(
         `purchase limit exceeded: at most ${template.purchaseLimitPerUser} claim(s) per ${template.purchaseLimitWindowDays} day(s)`,
+        undefined,
+        {
+          messageKey: "monthlyPass.purchaseLimitExceeded",
+          messageParams: {
+            limit: template.purchaseLimitPerUser,
+            windowDays: template.purchaseLimitWindowDays,
+          },
+        },
       );
   }
 
@@ -319,49 +379,74 @@ export class RemoteTerminalProductService {
 
   private validatePositiveInteger(fieldName: string, value?: number): number | undefined {
     if (value === undefined) return undefined;
-    if (!Number.isInteger(value) || value <= 0) throw new BadRequestError(`${fieldName} must be a positive integer`);
+    if (!Number.isInteger(value) || value <= 0)
+      throw new BadRequestError(`${fieldName} must be a positive integer`, undefined, {
+        messageKey: "monthlyPass.fieldMustBePositiveInteger",
+        messageParams: { field: fieldName },
+      });
     return value;
   }
 
   private validateNonNegativeInteger(fieldName: string, value?: number): number | undefined {
     if (value === undefined) return undefined;
-    if (!Number.isInteger(value) || value < 0) throw new BadRequestError(`${fieldName} must be a non-negative integer`);
+    if (!Number.isInteger(value) || value < 0)
+      throw new BadRequestError(`${fieldName} must be a non-negative integer`, undefined, {
+        messageKey: "remoteTerminalProduct.fieldNonNegativeInteger",
+        messageParams: { field: fieldName },
+      });
     return value;
   }
 
   private validateDurationDays(value?: number): number | undefined {
     const normalized = this.validatePositiveInteger("durationDays", value);
     if (normalized !== undefined && normalized > MAX_DURATION_DAYS)
-      throw new BadRequestError(`durationDays must be less than or equal to ${MAX_DURATION_DAYS}`);
+      throw new BadRequestError(`durationDays must be less than or equal to ${MAX_DURATION_DAYS}`, undefined, {
+        messageKey: "remoteTerminalProduct.durationDaysMax",
+        messageParams: { max: MAX_DURATION_DAYS },
+      });
     return normalized;
   }
 
   private validateDeviceLimit(value?: number): number | undefined {
     const normalized = this.validateNonNegativeInteger("deviceLimit", value);
     if (normalized !== undefined && normalized > MAX_DEVICE_LIMIT)
-      throw new BadRequestError(`deviceLimit must be less than or equal to ${MAX_DEVICE_LIMIT}`);
+      throw new BadRequestError(`deviceLimit must be less than or equal to ${MAX_DEVICE_LIMIT}`, undefined, {
+        messageKey: "remoteTerminalProduct.deviceLimitMax",
+        messageParams: { max: MAX_DEVICE_LIMIT },
+      });
     return normalized;
   }
 
   private validateTerminalLimit(value?: number): number | undefined {
     const normalized = this.validateNonNegativeInteger("terminalLimit", value);
     if (normalized !== undefined && normalized > MAX_TERMINAL_LIMIT)
-      throw new BadRequestError(`terminalLimit must be less than or equal to ${MAX_TERMINAL_LIMIT}`);
+      throw new BadRequestError(`terminalLimit must be less than or equal to ${MAX_TERMINAL_LIMIT}`, undefined, {
+        messageKey: "remoteTerminalProduct.terminalLimitMax",
+        messageParams: { max: MAX_TERMINAL_LIMIT },
+      });
     return normalized;
   }
 
   private ensureAtLeastOneQuota(deviceLimit?: number, terminalLimit?: number): void {
     if ((deviceLimit ?? 0) <= 0 && (terminalLimit ?? 0) <= 0)
-      throw new BadRequestError("deviceLimit and terminalLimit cannot both be 0");
+      throw new BadRequestError("deviceLimit and terminalLimit cannot both be 0", undefined, {
+        messageKey: "remoteTerminalProduct.limitsCannotBothBeZero",
+      });
   }
 
   private ensureAtLeastOneOfferedUnit(devicePrice?: number | null, terminalPrice?: number | null): void {
     if (devicePrice == null && terminalPrice == null)
-      throw new BadRequestError("devicePrice and terminalPrice cannot both be empty");
+      throw new BadRequestError("devicePrice and terminalPrice cannot both be empty", undefined, {
+        messageKey: "remoteTerminalProduct.pricesCannotBothBeEmpty",
+      });
   }
 
   private ensureUnitSupported(fieldName: "deviceCount" | "terminalCount", count: number, price?: number | null): void {
-    if (count > 0 && price == null) throw new BadRequestError(`${fieldName} is unavailable for this template`);
+    if (count > 0 && price == null)
+      throw new BadRequestError(`${fieldName} is unavailable for this template`, undefined, {
+        messageKey: "remoteTerminalProduct.fieldUnavailableForTemplate",
+        messageParams: { field: fieldName },
+      });
   }
 
   private calculatePurchaseAmount(params: {
@@ -384,9 +469,15 @@ export class RemoteTerminalProductService {
     terminalCount: number,
   ): void {
     if (deviceCount < existing.deviceLimit)
-      throw new BadRequestError("deviceCount cannot be lower than the current entitlement device limit");
+      throw new BadRequestError("deviceCount cannot be lower than the current entitlement device limit", undefined, {
+        messageKey: "remoteTerminalProduct.deviceCountBelowEntitlement",
+      });
     if (terminalCount < existing.terminalLimit)
-      throw new BadRequestError("terminalCount cannot be lower than the current entitlement terminal limit");
+      throw new BadRequestError(
+        "terminalCount cannot be lower than the current entitlement terminal limit",
+        undefined,
+        { messageKey: "remoteTerminalProduct.terminalCountBelowEntitlement" },
+      );
   }
 
   private calculateMergedUpgradeDurationDays(
@@ -443,7 +534,10 @@ export class RemoteTerminalProductService {
   }
 
   private ensureDateRange(startAt: Date, endAt: Date): void {
-    if (endAt.getTime() <= startAt.getTime()) throw new BadRequestError("endAt must be greater than startAt");
+    if (endAt.getTime() <= startAt.getTime())
+      throw new BadRequestError("endAt must be greater than startAt", undefined, {
+        messageKey: "remoteTerminalProduct.endAtNotAfterStartAt",
+      });
   }
 
   private toTemplateDto(record: {
@@ -616,7 +710,7 @@ export class RemoteTerminalProductService {
 
   private async ensureUserExists(userId: string): Promise<void> {
     const user = await this.userRepository.findActiveById(userId);
-    if (!user) throw new NotFoundError("User not found");
+    if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
   }
 
   private buildRandomToken(): string {
@@ -694,7 +788,10 @@ export class RemoteTerminalProductService {
   ): Promise<RemoteTerminalProductTemplateDto> {
     const name = body.name.trim();
     const existing = await this.productRepository.findTemplateByName(name);
-    if (existing) throw new BadRequestError("Template name already exists");
+    if (existing)
+      throw new BadRequestError("Template name already exists", undefined, {
+        messageKey: "remoteTerminalProduct.templateNameExists",
+      });
 
     const billingUnit = this.validateBillingUnit(body.billingUnit);
     const minimumPurchaseUnits = this.validateMinimumPurchaseUnits(body.minimumPurchaseUnits) ?? 1;
@@ -709,7 +806,9 @@ export class RemoteTerminalProductService {
     );
 
     if (maximumPurchaseUnits != null && minimumPurchaseUnits > maximumPurchaseUnits)
-      throw new BadRequestError("minimumPurchaseUnits cannot be greater than maximumPurchaseUnits");
+      throw new BadRequestError("minimumPurchaseUnits cannot be greater than maximumPurchaseUnits", undefined, {
+        messageKey: "remoteTerminalProduct.purchaseUnitsRangeInvalid",
+      });
 
     this.ensureAtLeastOneOfferedUnit(devicePrice, terminalPrice);
 
@@ -756,12 +855,18 @@ export class RemoteTerminalProductService {
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
     const existing = await this.productRepository.findTemplateById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Template not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Template not found", undefined, {
+        messageKey: "remoteTerminalProduct.templateNotFound",
+      });
 
     const nextName = body.name?.trim();
     if (nextName && nextName !== existing.name) {
       const duplicate = await this.productRepository.findTemplateByName(nextName);
-      if (duplicate && duplicate.id !== id) throw new BadRequestError("Template name already exists");
+      if (duplicate && duplicate.id !== id)
+        throw new BadRequestError("Template name already exists", undefined, {
+          messageKey: "remoteTerminalProduct.templateNameExists",
+        });
     }
 
     const data: Prisma.RemoteTerminalProductTemplateUncheckedUpdateInput = {};
@@ -829,7 +934,9 @@ export class RemoteTerminalProductService {
         ? (data.maximumPurchaseUnits as number | null)
         : existing.maximumPurchaseUnits;
     if (nextMaximumPurchaseUnits != null && nextMinimumPurchaseUnits > nextMaximumPurchaseUnits)
-      throw new BadRequestError("minimumPurchaseUnits cannot be greater than maximumPurchaseUnits");
+      throw new BadRequestError("minimumPurchaseUnits cannot be greater than maximumPurchaseUnits", undefined, {
+        messageKey: "remoteTerminalProduct.purchaseUnitsRangeInvalid",
+      });
 
     this.ensureAtLeastOneOfferedUnit(nextDevicePrice, nextTerminalPrice);
 
@@ -856,9 +963,14 @@ export class RemoteTerminalProductService {
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
     const existing = await this.productRepository.findTemplateById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Template not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Template not found", undefined, {
+        messageKey: "remoteTerminalProduct.templateNotFound",
+      });
     if (existing.status !== MANAGED_STATUS.ENABLED)
-      throw new BadRequestError("Only enabled templates can be published");
+      throw new BadRequestError("Only enabled templates can be published", undefined, {
+        messageKey: "remoteTerminalProduct.templateNotEnabledForPublish",
+      });
 
     const updated = await this.productRepository.updateTemplate(id, {
       publishStatus: "published",
@@ -885,7 +997,10 @@ export class RemoteTerminalProductService {
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
     const existing = await this.productRepository.findTemplateById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Template not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Template not found", undefined, {
+        messageKey: "remoteTerminalProduct.templateNotFound",
+      });
 
     const updated = await this.productRepository.updateTemplate(id, {
       publishStatus: "draft",
@@ -908,7 +1023,10 @@ export class RemoteTerminalProductService {
 
   public async deleteTemplate(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
     const existing = await this.productRepository.findTemplateById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Template not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Template not found", undefined, {
+        messageKey: "remoteTerminalProduct.templateNotFound",
+      });
 
     await this.productRepository.softDeleteTemplate(id);
     await this.businessLogService.logOperation({
@@ -968,7 +1086,9 @@ export class RemoteTerminalProductService {
 
     const template = body.templateId ? await this.productRepository.findTemplateById(body.templateId) : null;
     if (body.templateId && (!template || template.status === MANAGED_STATUS.DELETED))
-      throw new NotFoundError("Template not found");
+      throw new NotFoundError("Template not found", undefined, {
+        messageKey: "remoteTerminalProduct.templateNotFound",
+      });
     if (template) await this.enforceTemplatePurchaseLimit(body.userId, template);
 
     const startAt = parseRequiredDate("startAt", body.startAt);
@@ -980,12 +1100,19 @@ export class RemoteTerminalProductService {
 
     const deviceLimit = this.validateDeviceLimit(body.deviceLimit);
     const terminalLimit = this.validateTerminalLimit(body.terminalLimit);
-    if (deviceLimit === undefined) throw new BadRequestError("deviceLimit is required");
-    if (terminalLimit === undefined) throw new BadRequestError("terminalLimit is required");
+    if (deviceLimit === undefined)
+      throw new BadRequestError("deviceLimit is required", undefined, {
+        messageKey: "remoteTerminalProduct.deviceLimitRequired",
+      });
+    if (terminalLimit === undefined)
+      throw new BadRequestError("terminalLimit is required", undefined, {
+        messageKey: "remoteTerminalProduct.terminalLimitRequired",
+      });
     this.ensureAtLeastOneQuota(deviceLimit, terminalLimit);
 
     const name = body.name?.trim() || template?.name;
-    if (!name) throw new BadRequestError("name is required");
+    if (!name)
+      throw new BadRequestError("name is required", undefined, { messageKey: "remoteTerminalProduct.nameRequired" });
 
     const devicePrice = template
       ? this.restoreUnitPriceFromStoredValues(billingUnit, template.devicePrice, template.deviceDailyPrice)
@@ -1057,23 +1184,40 @@ export class RemoteTerminalProductService {
 
     const template = await this.productRepository.findTemplateById(body.templateId);
     if (!template || template.status !== MANAGED_STATUS.ENABLED || template.publishStatus !== "published")
-      throw new NotFoundError("Published template not found");
+      throw new NotFoundError("Published template not found", undefined, {
+        messageKey: "remoteTerminalProduct.publishedTemplateNotFound",
+      });
 
     const billingUnit = this.validateBillingUnit(template.billingUnit);
     const minimumPurchaseUnits = template.minimumPurchaseUnits ?? 1;
     const maximumPurchaseUnits = template.maximumPurchaseUnits ?? undefined;
     const purchaseUnits = this.validatePurchaseUnits(body.purchaseUnits);
-    if (purchaseUnits === undefined) throw new BadRequestError("purchaseUnits is required");
+    if (purchaseUnits === undefined)
+      throw new BadRequestError("purchaseUnits is required", undefined, {
+        messageKey: "remoteTerminalProduct.purchaseUnitsRequired",
+      });
     if (purchaseUnits < minimumPurchaseUnits)
-      throw new BadRequestError(`purchaseUnits must be greater than or equal to ${minimumPurchaseUnits}`);
+      throw new BadRequestError(`purchaseUnits must be greater than or equal to ${minimumPurchaseUnits}`, undefined, {
+        messageKey: "remoteTerminalProduct.purchaseUnitsBelowMinimum",
+        messageParams: { min: minimumPurchaseUnits },
+      });
     if (maximumPurchaseUnits != null && purchaseUnits > maximumPurchaseUnits)
-      throw new BadRequestError(`purchaseUnits cannot exceed ${maximumPurchaseUnits}`);
+      throw new BadRequestError(`purchaseUnits cannot exceed ${maximumPurchaseUnits}`, undefined, {
+        messageKey: "remoteTerminalProduct.purchaseUnitsAboveMaximum",
+        messageParams: { max: maximumPurchaseUnits },
+      });
     const durationDays = this.calculateDurationDaysFromPurchaseUnits(purchaseUnits, billingUnit);
     this.validateDurationDays(durationDays);
     const deviceCount = this.validateDeviceLimit(body.deviceCount);
     const terminalCount = this.validateTerminalLimit(body.terminalCount);
-    if (deviceCount === undefined) throw new BadRequestError("deviceCount is required");
-    if (terminalCount === undefined) throw new BadRequestError("terminalCount is required");
+    if (deviceCount === undefined)
+      throw new BadRequestError("deviceCount is required", undefined, {
+        messageKey: "remoteTerminalProduct.deviceCountRequired",
+      });
+    if (terminalCount === undefined)
+      throw new BadRequestError("terminalCount is required", undefined, {
+        messageKey: "remoteTerminalProduct.terminalCountRequired",
+      });
     this.ensureAtLeastOneQuota(deviceCount, terminalCount);
 
     const devicePrice = this.restoreUnitPriceFromStoredValues(
@@ -1092,15 +1236,39 @@ export class RemoteTerminalProductService {
     this.ensureUnitSupported("terminalCount", terminalCount, terminalPrice);
 
     if (template.maxDeviceCount != null && deviceCount > template.maxDeviceCount)
-      throw new BadRequestError(`deviceCount cannot exceed ${template.maxDeviceCount} for this template`);
+      throw new BadRequestError(`deviceCount cannot exceed ${template.maxDeviceCount} for this template`, undefined, {
+        messageKey: "remoteTerminalProduct.deviceCountAboveTemplateMax",
+        messageParams: { max: template.maxDeviceCount },
+      });
     if (template.maxTerminalCount != null && terminalCount > template.maxTerminalCount)
-      throw new BadRequestError(`terminalCount cannot exceed ${template.maxTerminalCount} for this template`);
+      throw new BadRequestError(
+        `terminalCount cannot exceed ${template.maxTerminalCount} for this template`,
+        undefined,
+        {
+          messageKey: "remoteTerminalProduct.terminalCountAboveTemplateMax",
+          messageParams: { max: template.maxTerminalCount },
+        },
+      );
     const targetEntitlementId = body.targetEntitlementId?.trim() || undefined;
     if (!targetEntitlementId) {
       if (template.minimumDeviceCount != null && deviceCount < template.minimumDeviceCount)
-        throw new BadRequestError(`deviceCount must be at least ${template.minimumDeviceCount} for this template`);
+        throw new BadRequestError(
+          `deviceCount must be at least ${template.minimumDeviceCount} for this template`,
+          undefined,
+          {
+            messageKey: "remoteTerminalProduct.deviceCountBelowTemplateMin",
+            messageParams: { min: template.minimumDeviceCount },
+          },
+        );
       if (template.minimumTerminalCount != null && terminalCount < template.minimumTerminalCount)
-        throw new BadRequestError(`terminalCount must be at least ${template.minimumTerminalCount} for this template`);
+        throw new BadRequestError(
+          `terminalCount must be at least ${template.minimumTerminalCount} for this template`,
+          undefined,
+          {
+            messageKey: "remoteTerminalProduct.terminalCountBelowTemplateMin",
+            messageParams: { min: template.minimumTerminalCount },
+          },
+        );
     }
     if (!targetEntitlementId) await this.enforceTemplatePurchaseLimit(userId, template);
 
@@ -1119,12 +1287,21 @@ export class RemoteTerminalProductService {
     if (targetEntitlementId) {
       const existing = await this.productRepository.findEntitlementById(targetEntitlementId);
       if (!existing || existing.status === MANAGED_STATUS.DELETED)
-        throw new NotFoundError("Target entitlement not found");
-      if (existing.userId !== userId) throw new ForbiddenError("You do not have access to this entitlement");
+        throw new NotFoundError("Target entitlement not found", undefined, {
+          messageKey: "remoteTerminalProduct.targetEntitlementNotFound",
+        });
+      if (existing.userId !== userId)
+        throw new ForbiddenError("You do not have access to this entitlement", undefined, {
+          messageKey: "remoteTerminalProduct.entitlementAccessDenied",
+        });
       if (existing.status !== MANAGED_STATUS.ENABLED)
-        throw new BadRequestError("Only enabled entitlements can be renewed or upgraded");
+        throw new BadRequestError("Only enabled entitlements can be renewed or upgraded", undefined, {
+          messageKey: "remoteTerminalProduct.entitlementNotEnabledForRenewal",
+        });
       if (existing.templateId !== template.id)
-        throw new BadRequestError("Target entitlement must belong to the selected template");
+        throw new BadRequestError("Target entitlement must belong to the selected template", undefined, {
+          messageKey: "remoteTerminalProduct.targetEntitlementWrongTemplate",
+        });
 
       this.ensureMergedQuotaTargets(existing, deviceCount, terminalCount);
 
@@ -1244,7 +1421,10 @@ export class RemoteTerminalProductService {
     request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementDto> {
     const existing = await this.productRepository.findEntitlementById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Entitlement not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Entitlement not found", undefined, {
+        messageKey: "remoteTerminalProduct.entitlementNotFound",
+      });
 
     const startAt = parseOptionalDate("startAt", body.startAt);
     const endAt = parseOptionalDate("endAt", body.endAt);
@@ -1257,11 +1437,19 @@ export class RemoteTerminalProductService {
 
     const nextDeviceLimit = this.validateDeviceLimit(body.deviceLimit ?? existing.deviceLimit);
     const nextTerminalLimit = this.validateTerminalLimit(body.terminalLimit ?? existing.terminalLimit);
-    if (nextDeviceLimit === undefined) throw new BadRequestError("deviceLimit is required");
-    if (nextTerminalLimit === undefined) throw new BadRequestError("terminalLimit is required");
+    if (nextDeviceLimit === undefined)
+      throw new BadRequestError("deviceLimit is required", undefined, {
+        messageKey: "remoteTerminalProduct.deviceLimitRequired",
+      });
+    if (nextTerminalLimit === undefined)
+      throw new BadRequestError("terminalLimit is required", undefined, {
+        messageKey: "remoteTerminalProduct.terminalLimitRequired",
+      });
     this.ensureAtLeastOneQuota(nextDeviceLimit, nextTerminalLimit);
     if (existing.devices.length > nextDeviceLimit)
-      throw new BadRequestError("deviceLimit cannot be lower than current registered device count");
+      throw new BadRequestError("deviceLimit cannot be lower than current registered device count", undefined, {
+        messageKey: "remoteTerminalProduct.deviceLimitBelowRegistered",
+      });
 
     const updateData: Prisma.RemoteTerminalUserEntitlementUncheckedUpdateInput = {
       name: body.name?.trim(),
@@ -1310,7 +1498,10 @@ export class RemoteTerminalProductService {
 
   public async deleteEntitlement(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
     const existing = await this.productRepository.findEntitlementById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Entitlement not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Entitlement not found", undefined, {
+        messageKey: "remoteTerminalProduct.entitlementNotFound",
+      });
 
     await this.productRepository.softDeleteEntitlement(id);
     await this.businessLogService.logOperation({
@@ -1333,9 +1524,14 @@ export class RemoteTerminalProductService {
     request?: TypedRequest,
   ): Promise<RemoteTerminalRegistrationTokenDto> {
     const entitlement = await this.productRepository.findEntitlementById(entitlementId);
-    if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Entitlement not found");
+    if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Entitlement not found", undefined, {
+        messageKey: "remoteTerminalProduct.entitlementNotFound",
+      });
     if (!this.canIssueRegistrationToken(entitlement.deviceLimit))
-      throw new BadRequestError("Registration token is unavailable when deviceLimit is 0");
+      throw new BadRequestError("Registration token is unavailable when deviceLimit is 0", undefined, {
+        messageKey: "remoteTerminalProduct.registrationTokenUnavailable",
+      });
 
     const nextLabel =
       body.label !== undefined ? (normalizeText(body.label) ?? null) : (entitlement.registrationToken?.label ?? null);
@@ -1375,19 +1571,32 @@ export class RemoteTerminalProductService {
     request?: TypedRequest,
   ): Promise<RemoteTerminalRegistrationTokenDto> {
     const entitlement = await this.productRepository.findEntitlementById(entitlementId);
-    if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Entitlement not found");
-    if (entitlement.userId !== userId) throw new ForbiddenError("You can only rotate your own registration token");
+    if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Entitlement not found", undefined, {
+        messageKey: "remoteTerminalProduct.entitlementNotFound",
+      });
+    if (entitlement.userId !== userId)
+      throw new ForbiddenError("You can only rotate your own registration token", undefined, {
+        messageKey: "remoteTerminalProduct.rotateOwnTokenOnly",
+      });
 
     return this.rotateRegistrationToken(entitlementId, body, userId, request);
   }
 
   public async issueInstallToken(userId: string, entitlementId: string): Promise<RemoteTerminalInstallTokenDto> {
     const entitlement = await this.productRepository.findEntitlementById(entitlementId);
-    if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Entitlement not found");
+    if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Entitlement not found", undefined, {
+        messageKey: "remoteTerminalProduct.entitlementNotFound",
+      });
     if (entitlement.userId !== userId)
-      throw new ForbiddenError("You can only issue install tokens for your own entitlement");
+      throw new ForbiddenError("You can only issue install tokens for your own entitlement", undefined, {
+        messageKey: "remoteTerminalProduct.issueInstallTokenOwnOnly",
+      });
     if (!this.canIssueRegistrationToken(entitlement.deviceLimit))
-      throw new BadRequestError("Registration token is unavailable when deviceLimit is 0");
+      throw new BadRequestError("Registration token is unavailable when deviceLimit is 0", undefined, {
+        messageKey: "remoteTerminalProduct.registrationTokenUnavailable",
+      });
     const secret = env.integrations.remoteTerminal.installTokenSecret;
     if (!secret || secret.length < 64) throw new Error("RTM_INSTALL_TOKEN_SECRET must be at least 64 characters");
     return buildInstallToken(entitlementId, secret);
@@ -1430,7 +1639,10 @@ export class RemoteTerminalProductService {
 
   public async revokeDevice(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
     const existing = await this.productRepository.findDeviceBindingById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Device binding not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Device binding not found", undefined, {
+        messageKey: "remoteTerminalProduct.deviceBindingNotFound",
+      });
 
     await this.assertDeviceUnbindAllowed(existing);
 
@@ -1453,8 +1665,14 @@ export class RemoteTerminalProductService {
 
   public async revokeCurrentUserDevice(userId: string, id: string, request?: TypedRequest): Promise<void> {
     const existing = await this.productRepository.findDeviceBindingById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Device binding not found");
-    if (existing.userId !== userId) throw new ForbiddenError("You cannot revoke this device");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Device binding not found", undefined, {
+        messageKey: "remoteTerminalProduct.deviceBindingNotFound",
+      });
+    if (existing.userId !== userId)
+      throw new ForbiddenError("You cannot revoke this device", undefined, {
+        messageKey: "remoteTerminalProduct.cannotRevokeDevice",
+      });
 
     await this.assertDeviceUnbindAllowed(existing);
 
@@ -1478,7 +1696,10 @@ export class RemoteTerminalProductService {
 
   public async adminRevokeDevice(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
     const existing = await this.productRepository.findDeviceBindingById(id);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Device binding not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Device binding not found", undefined, {
+        messageKey: "remoteTerminalProduct.deviceBindingNotFound",
+      });
 
     await this.productRepository.updateDeviceBinding(id, {
       status: MANAGED_STATUS.DELETED,
@@ -1499,7 +1720,10 @@ export class RemoteTerminalProductService {
 
   public async resetUnbindCount(entitlementId: string, actorUserId: string, request?: TypedRequest): Promise<void> {
     const existing = await this.productRepository.findEntitlementById(entitlementId);
-    if (!existing || existing.status === MANAGED_STATUS.DELETED) throw new NotFoundError("Entitlement not found");
+    if (!existing || existing.status === MANAGED_STATUS.DELETED)
+      throw new NotFoundError("Entitlement not found", undefined, {
+        messageKey: "remoteTerminalProduct.entitlementNotFound",
+      });
 
     const now = new Date();
     await this.productRepository.updateEntitlement(entitlementId, { unbindResetAt: now });
@@ -1527,7 +1751,10 @@ export class RemoteTerminalProductService {
     deviceId: string,
   ): Promise<RemoteTerminalDeviceBindingWithRelations> {
     const record = await this.productRepository.findAccessibleDeviceBindingByDeviceId(userId, deviceId, new Date());
-    if (!record) throw new ForbiddenError("Device is not available for current user");
+    if (!record)
+      throw new ForbiddenError("Device is not available for current user", undefined, {
+        messageKey: "remoteTerminalProduct.deviceNotAvailableForUser",
+      });
     return record;
   }
 }
