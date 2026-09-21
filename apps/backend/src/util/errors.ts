@@ -327,12 +327,20 @@ export class LockBackendUnavailableError extends ApiError {
 
 /**
  * 504 Gateway Timeout
+ *
+ * 默认使用通用 `errors.gatewayTimeout`；上游调用点可用描述符区分
+ * 「请求超时 / 上游不可用 / 暂时不可用」等具体原因，避免被通用提示覆盖。
  */
-export class GatewayTimeoutError extends ApiError {
-  constructor(message: string = "Gateway timeout", code?: number) {
-    super(message, HttpStatusCode.GatewayTimeout, code || CustomCode.INTERNAL_SERVER_ERROR, false, undefined, {
-      messageKey: "errors.gatewayTimeout",
-    });
+export class GatewayTimeoutError<TKey extends MessageKey = MessageKey> extends ApiError {
+  constructor(message: string = "Gateway timeout", code?: number, options?: ClassOptionsArg<TKey>) {
+    super(
+      message,
+      HttpStatusCode.GatewayTimeout,
+      code || CustomCode.INTERNAL_SERVER_ERROR,
+      false,
+      undefined,
+      buildLooseOptions("errors.gatewayTimeout", options),
+    );
   }
 }
 

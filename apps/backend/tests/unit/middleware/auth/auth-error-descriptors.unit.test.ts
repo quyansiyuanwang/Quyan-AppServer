@@ -78,6 +78,51 @@ const BOUNDARY_REASONS: MessageKey[] = [
   "auth.passkeyCredentialNotFound",
   "auth.passkeyAuthenticationFailed",
   "auth.passkeyAuthenticationNotVerified",
+  "auth.twoFactorStorageUnavailable",
+  // P07c：外部登录、扫码登录、中央登录流程与共享的 OAuth 客户端校验
+  "auth.unsupportedExternalProvider",
+  "auth.externalProviderDisabled",
+  "auth.bindingCallbackOriginInvalid",
+  "auth.externalStateExpired",
+  "auth.externalStateInvalid",
+  "auth.externalBindingSessionExpired",
+  "auth.externalBindingSessionInvalid",
+  "auth.githubTokenFetchFailed",
+  "auth.wechatTokenFetchFailed",
+  "auth.qrLoginUserNotFound",
+  "auth.externalIdentityAlreadyBound",
+  "auth.bindingRequiresLogin",
+  "auth.externalStateProviderMismatch",
+  "auth.bindingStateExpired",
+  "auth.externalBindingFailed",
+  "auth.boundUserNotFound",
+  "auth.bindingProviderMismatch",
+  "auth.identityAlreadyBoundToAccount",
+  "auth.identityNotBoundToAccount",
+  "auth.qrLoginDisabled",
+  "auth.qrLoginSessionExpired",
+  "auth.qrLoginSessionConsumed",
+  "auth.qrLoginSessionPending",
+  "auth.qrLoginConfirmForbidden",
+  "auth.centralLoginStorageUnavailable",
+  "auth.centralLoginReturnUrlInvalid",
+  "auth.centralLoginReturnUrlNotAllowed",
+  "auth.centralLoginFlowNotFound",
+  "auth.centralLoginFlowConsumed",
+  "auth.centralLoginFlowOwnerMismatch",
+  "oauth.invalidRedirectUri",
+  "oauth.pkceChallengeRequired",
+  "oauth.pkceMethodRequiresChallenge",
+  "oauth.invalidScope",
+];
+
+/** 需要安全标量参数才能渲染的认证域 key */
+const PARAMETERIZED_REASONS: Array<{ key: MessageKey; params: Record<string, string | number> }> = [
+  { key: "auth.externalProviderTimeout", params: { provider: "GitHub" } },
+  { key: "auth.externalProviderUnavailable", params: { provider: "GitHub" } },
+  { key: "auth.externalProviderTemporarilyUnavailable", params: { provider: "GitHub" } },
+  { key: "oauth.clientNotFound", params: { client: "OAuth" } },
+  { key: "oauth.clientNotApproved", params: { client: "OAuth" } },
 ];
 
 describe("P07 · 认证域具体原因不被合并", () => {
@@ -115,6 +160,32 @@ describe("P07 · 认证域描述符渲染", () => {
     );
     expect(translateMessage("auth.insufficientOAuthScope", "zh-CN", { scopes: "user:read" })).toBe(
       "OAuth 授权范围不足：user:read",
+    );
+  });
+
+  it("renders parameterized reasons in both locales without residual placeholders", () => {
+    const failures: string[] = [];
+
+    for (const { key, params } of PARAMETERIZED_REASONS)
+      for (const locale of SUPPORTED_BACKEND_LOCALES) {
+        const message = translateMessage(key, locale, params as never);
+        if (message.includes("{{") || message.includes("}}")) failures.push(`${locale} ${key}: residual placeholder`);
+        if (!message.includes(String(Object.values(params)[0])))
+          failures.push(`${locale} ${key}: parameter not interpolated`);
+      }
+
+    expect(failures).toEqual([]);
+  });
+
+  it("reuses one shared OAuth client key for both authorization servers", () => {
+    // 同一事实（客户端不存在 / 未通过审批）在 OAuth 与 Auth Center 下只维护一份 key，
+    // 产品名作为安全标量参数传入，避免两套镜像文案。
+    expect(translateMessage("oauth.clientNotFound", "en", { client: "OAuth" })).toBe("OAuth client not found");
+    expect(translateMessage("oauth.clientNotFound", "en", { client: "Auth Center" })).toBe(
+      "Auth Center client not found",
+    );
+    expect(translateMessage("oauth.clientNotFound", "zh-CN", { client: "Auth Center" })).toBe(
+      "Auth Center 客户端不存在",
     );
   });
 });
