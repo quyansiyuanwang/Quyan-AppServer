@@ -4,6 +4,7 @@ import { AxiosHeaders, CanceledError, HttpStatusCode } from 'axios'
 import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
 import { clearAccessToken, clearLegacyAuthStorage, MyAxios, setAccessToken } from '@/stores/request'
+import { getBackendLocale, setLocale } from '@/locales'
 import { checkApiResult } from '@/utils/service-utils'
 import { configureRequestErrorNotifier, showRequestErrorNotice } from '@/utils/requestErrorNotice'
 
@@ -66,6 +67,49 @@ describe('MyAxios session transport', () => {
       expect(notifyMock).toHaveBeenCalledTimes(presentation === 'local' ? 1 : 0)
     },
   )
+
+  it('sends the current locale on every request-layer transport', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const locales: Array<string | null | undefined> = []
+    const localeOf = (headers: unknown) =>
+      new AxiosHeaders(headers as never).get('X-Locale') as string | null | undefined
+
+    axiosInstance.defaults.adapter = async (config: any) => {
+      locales.push(localeOf(config.headers))
+      return {
+        data: { code: 0, message: 'ok' },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }
+    const fetchMock = vi.fn(async (_url: string, init: any) => {
+      locales.push(localeOf(init.headers))
+      return { ok: true, status: 200, json: async () => ({ code: 0, message: 'ok' }) }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const endpoint = { method: 'GET', url: '/v1/probe' } as any
+    try {
+      // Interceptor path (generated client), direct fetch path and the
+      // lifecycle keepalive path must agree on the request language.
+      await client.get(endpoint)
+      await client.get(endpoint, undefined, { directRequest: true, skipProgressBar: true })
+      await client.postKeepalive('/v1/probe', { ping: true })
+
+      expect(locales).toEqual([getBackendLocale(), getBackendLocale(), getBackendLocale()])
+
+      locales.length = 0
+      await setLocale('en')
+      await client.get(endpoint)
+      expect(locales).toEqual(['en'])
+    } finally {
+      vi.unstubAllGlobals()
+      await setLocale('zh-CN')
+    }
+  })
 
   it('keeps the access token in memory and removes legacy persistent credentials', () => {
     localStorage.setItem(StorageKey.Auth.ACCESS_TOKEN, 'legacy-access')

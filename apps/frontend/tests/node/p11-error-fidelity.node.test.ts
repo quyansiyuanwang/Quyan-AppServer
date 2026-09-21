@@ -67,6 +67,160 @@ const sourceFiles = walk(SRC_ROOT).filter(
 )
 const rel = (file: string) => relative(SRC_ROOT, file).split('\\').join('/')
 
+/**
+ * 原生出口点：`fetch`/`axios`/`WebSocket`/`EventSource`/`XMLHttpRequest`/`sendBeacon`
+ * 不经过 `stores/request.ts`，因此语言头必须由调用点自行提供。
+ * 注释与字符串字面量先剔除，避免把文档说明或「用户脚本检测模式」当成真实出口。
+ */
+const RAW_EGRESS_PATTERNS = [
+  /\bfetch\s*\(/,
+  /\baxios\s*\./,
+  /new\s+WebSocket\s*\(/,
+  /new\s+EventSource\s*\(/,
+  /new\s+XMLHttpRequest\s*\(/,
+  /\bsendBeacon\s*\(/,
+]
+
+/** 请求语言只有一个来源：`localeHeaders()` / 请求层的 `getLocaleHeaders()`。 */
+const LOCALE_BEARING = /localeHeaders\(|getLocaleHeaders\(|['"]X-Locale['"]\s*:/
+
+/** SSE 传输层不构造语言头，调用点必须提供（`prepareStreamingRequest` 已含语言头）。 */
+const TRANSPORT_CALLER_LOCALE = /localeHeaders\(|getLocaleHeaders\(|prepareStreamingRequest\(/
+
+/**
+ * 已复核豁免：出口指向的不是本项目后端，或响应中的 `message` 不会呈现给用户。
+ * 每一项都必须写明原因；新增原生出口点必须在此登记，否则
+ * 「classifies every raw HTTP egress」失败。
+ */
+const REVIEWED_EGRESS_EXEMPTIONS: Record<string, string> = {
+  'config/auto-update.ts': '抓取自身 index.html 探测构建版本，不是后端接口',
+  'service/streaming/sse.ts': 'SSE 传输层，语言头由调用点注入（由传输层调用点测试锁定）',
+  'utils/captcha.ts': '公开验证码配置，只读取 provider/enabled，响应 message 不呈现',
+  'utils/http-client.ts': '通用传输层，唯一消费者是遥测 tracker，响应 message 不呈现',
+  'utils/heatmap/collector.ts': '热力图遥测，失败仅重新入队，响应 message 不呈现',
+  'views/debug/DebugView.vue': 'axios 直连用户填写的第三方中转地址，非本项目后端',
+  'views/products/remote-terminal-cloud/my-remote-terminal-products/useMyRemoteTerminalProducts.ts':
+    'RTC 版本列表只取 tags 字段，失败置本地错误标志',
+  'views/products/remote-terminal-cloud/remote-terminal/useRemoteTerminalManagement.ts':
+    'WebSocket 握手无法携带自定义请求头（协议限制）',
+}
+
+/** `/` 出现在这些字符之后时按正则字面量处理（启发式，避免正则里的引号吞掉真实代码）。 */
+const REGEX_AFTER_CHAR = new Set([
+  '',
+  '(',
+  ',',
+  '=',
+  ':',
+  '[',
+  '!',
+  '&',
+  '|',
+  '?',
+  '{',
+  '}',
+  ';',
+  '+',
+  '-',
+  '*',
+  '%',
+  '<',
+  '>',
+  '~',
+  '^',
+])
+const REGEX_AFTER_KEYWORD = new Set([
+  'return',
+  'typeof',
+  'case',
+  'in',
+  'of',
+  'do',
+  'else',
+  'void',
+  'delete',
+  'throw',
+  'new',
+  'yield',
+  'await',
+  'instanceof',
+])
+
+/**
+ * 剔除注释、字符串与正则字面量，保留换行以维持行号。
+ * 只覆盖标记所需的语法子集：模板字面量按普通代码处理（不会漏掉其中的出口点）。
+ */
+function stripCommentsAndStrings(text: string): string {
+  let out = ''
+  let state: 'code' | 'line' | 'block' | 'single' | 'double' | 'regex' = 'code'
+  let inCharacterClass = false
+
+  const startsRegex = (): boolean => {
+    const trailingWord = /([A-Za-z_$][\w$]*)\s*$/.exec(out)
+    if (trailingWord) return REGEX_AFTER_KEYWORD.has(trailingWord[1])
+    return REGEX_AFTER_CHAR.has(out.trimEnd().slice(-1))
+  }
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+    const next = text[i + 1]
+    if (state === 'code') {
+      if (ch === '/' && next === '/') {
+        state = 'line'
+        i += 1
+      } else if (ch === '/' && next === '*') {
+        state = 'block'
+        i += 1
+      } else if (ch === '/' && startsRegex()) {
+        state = 'regex'
+      } else if (ch === "'") {
+        state = 'single'
+      } else if (ch === '"') {
+        state = 'double'
+      } else {
+        out += ch
+      }
+      continue
+    }
+    if (state === 'line') {
+      if (ch === '\n') {
+        state = 'code'
+        out += '\n'
+      }
+      continue
+    }
+    if (state === 'block') {
+      if (ch === '*' && next === '/') {
+        state = 'code'
+        i += 1
+      } else if (ch === '\n') {
+        out += '\n'
+      }
+      continue
+    }
+    if (state === 'regex') {
+      if (ch === '\\') i += 1
+      else if (ch === '[') inCharacterClass = true
+      else if (ch === ']') inCharacterClass = false
+      else if (ch === '/' && !inCharacterClass) state = 'code'
+      continue
+    }
+    if (ch === '\\') i += 1
+    else if ((state === 'single' && ch === "'") || (state === 'double' && ch === '"'))
+      state = 'code'
+    else if (ch === '\n') out += '\n'
+  }
+  return out
+}
+
+/** 含原生出口点的源文件（不含注释与字符串字面量中的假阳性）。 */
+function rawEgressFiles(): string[] {
+  return sourceFiles.filter((file) => {
+    const code = stripCommentsAndStrings(readFileSync(file, 'utf8'))
+    return RAW_EGRESS_PATTERNS.some((pattern) => pattern.test(code))
+  })
+}
+
 describe('P11 frontend error fidelity', () => {
   it('hands the caught error to the shared helper in every user-facing notice', () => {
     const offenders: string[] = []
@@ -103,31 +257,46 @@ describe('P11 frontend error fidelity', () => {
     expect(duplicates).toEqual([])
   })
 
-  it('sends X-Locale from every backend fetch that can surface a message', () => {
-    // 遥测、静态资源、以及只解析业务字段（不展示 message）的调用点不在此列，
-    // 已在计划文档 §3 记录为有意豁免。
-    const requiresLocale = [
-      'service/developerProductService.ts',
-      'service/replaySigningService.ts',
-      'service/agentService.ts',
-      'service/socialAuthService.ts',
-      'utils/public-request.ts',
-      'stores/request.ts',
-    ]
-    const missing = requiresLocale.filter((path) => {
-      const text = readFileSync(join(SRC_ROOT, path), 'utf8')
-      return !(
-        text.includes('localeHeaders(') ||
-        text.includes('getLocaleHeaders(') ||
-        /['"]X-Locale['"]\s*:/.test(text)
-      )
-    })
-    expect(missing).toEqual([])
-  })
-
   it('keeps the locale header helper as the single source of the X-Locale contract', () => {
     const helper = readFileSync(join(SRC_ROOT, 'utils/public-request.ts'), 'utf8')
     expect(helper).toMatch(/export const localeHeaders/)
     expect(helper).toContain("'X-Locale'")
+  })
+
+  it('classifies every raw HTTP egress that bypasses the request layer', () => {
+    const offenders = rawEgressFiles()
+      .filter((file) => !LOCALE_BEARING.test(readFileSync(file, 'utf8')))
+      .filter((file) => !(rel(file) in REVIEWED_EGRESS_EXEMPTIONS))
+      .map(rel)
+
+    expect(offenders).toEqual([])
+  })
+
+  it('keeps the raw-egress exemption ledger honest', () => {
+    const files = new Set(rawEgressFiles().map(rel))
+    const stale = Object.keys(REVIEWED_EGRESS_EXEMPTIONS).filter((path) => !files.has(path))
+    expect(stale).toEqual([])
+
+    const unreasoned = Object.entries(REVIEWED_EGRESS_EXEMPTIONS)
+      .filter(([, reason]) => reason.trim().length < 10)
+      .map(([path]) => path)
+    expect(unreasoned).toEqual([])
+  })
+
+  it('passes a locale to every transport that takes its headers from the caller', () => {
+    // `service/streaming/sse.ts` 只是 SSE 传输层，语言头由调用点提供。
+    const callers = sourceFiles.filter((file) =>
+      /new SSEStream\(|createSseClient\(/.test(readFileSync(file, 'utf8')),
+    )
+    expect(callers.map(rel).sort()).toEqual([
+      'service/agentService.ts',
+      'service/chatService.ts',
+      'service/socialAuthService.ts',
+    ])
+
+    const missing = callers
+      .filter((file) => !TRANSPORT_CALLER_LOCALE.test(readFileSync(file, 'utf8')))
+      .map(rel)
+    expect(missing).toEqual([])
   })
 })
