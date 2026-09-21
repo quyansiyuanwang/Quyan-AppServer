@@ -16,6 +16,7 @@ import { getBackendLocale } from '@/locales'
 import { SSEStream, type SSEOptions } from '@/service/streaming/sse'
 import { useRequestStore } from '@/stores/request'
 import { cache } from '@/utils/common'
+import { localeHeaders } from '@/utils/public-request'
 import { toServiceError } from '@/utils/error-utils'
 
 const getAuthControllerApi = cache(() => createAuthControllerApi(useRequestStore().getAxios()))
@@ -155,7 +156,7 @@ export class SocialAuthService {
         credentials: 'include',
         headers: {
           Accept: 'text/event-stream',
-          ...(getBackendLocale() ? { 'X-Locale': getBackendLocale() } : {}),
+          ...localeHeaders(getBackendLocale()),
         },
       },
       callbacks,
