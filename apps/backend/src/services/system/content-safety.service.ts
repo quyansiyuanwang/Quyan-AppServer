@@ -191,7 +191,10 @@ export class ContentSafetyService {
 
   async setRuleOverride(userId: string, ruleId: string, enabled: boolean) {
     const rule = await this.repository.findRuleById(ruleId);
-    if (!rule || rule.ownerUserId) throw new BadRequestError("Only system rules can be overridden");
+    if (!rule || rule.ownerUserId)
+      throw new BadRequestError("Only system rules can be overridden", undefined, {
+        messageKey: "contentSafety.onlySystemRulesOverridable",
+      });
     await this.repository.upsertRuleOverride(userId, ruleId, enabled);
     this.rulesCache = null;
     return { success: true };
@@ -232,7 +235,10 @@ export class ContentSafetyService {
 
   async updateUserRule(userId: string, id: string, input: any) {
     const rule = await this.repository.findRuleById(id);
-    if (!rule || rule.ownerUserId !== userId) throw new BadRequestError("Content safety rule is not editable");
+    if (!rule || rule.ownerUserId !== userId)
+      throw new BadRequestError("Content safety rule is not editable", undefined, {
+        messageKey: "contentSafety.ruleNotEditable",
+      });
     await this.validateRule(input, false);
     return this.repository.update(id, {
       name: input.name.trim(),
@@ -247,7 +253,10 @@ export class ContentSafetyService {
 
   async deleteUserRule(userId: string, id: string) {
     const rule = await this.repository.findRuleById(id);
-    if (!rule || rule.ownerUserId !== userId) throw new BadRequestError("Content safety rule is not editable");
+    if (!rule || rule.ownerUserId !== userId)
+      throw new BadRequestError("Content safety rule is not editable", undefined, {
+        messageKey: "contentSafety.ruleNotEditable",
+      });
     return this.repository.softDelete(id);
   }
 
@@ -920,9 +929,15 @@ export class ContentSafetyService {
   }
 
   private async prepareCsvImport(csv: string, ownerUserId?: string) {
-    if (Buffer.byteLength(csv, "utf8") > 1024 * 1024) throw new BadRequestError("Content safety CSV is too large");
+    if (Buffer.byteLength(csv, "utf8") > 1024 * 1024)
+      throw new BadRequestError("Content safety CSV is too large", undefined, {
+        messageKey: "contentSafety.csvTooLarge",
+      });
     const rows = this.parseCsv(csv);
-    if (rows.length < 2) throw new BadRequestError("Content safety CSV must include a header and at least one row");
+    if (rows.length < 2)
+      throw new BadRequestError("Content safety CSV must include a header and at least one row", undefined, {
+        messageKey: "contentSafety.csvNeedsHeaderAndRow",
+      });
     const header = rows[0]!.map((value) =>
       value
         .replace(/^\uFEFF/, "")
@@ -931,7 +946,9 @@ export class ContentSafetyService {
     );
     const required = ["name", "type", "pattern", "direction", "action"];
     if (required.some((field) => !header.includes(field)))
-      throw new BadRequestError("Content safety CSV header is invalid");
+      throw new BadRequestError("Content safety CSV header is invalid", undefined, {
+        messageKey: "contentSafety.csvHeaderInvalid",
+      });
     const index = (field: string) => header.indexOf(field);
     const existingRows: any[] = await this.repository.listRulesForExport(ownerUserId);
     const byId = new Map(existingRows.map((row) => [row.id, row]));
@@ -955,11 +972,16 @@ export class ContentSafetyService {
       try {
         await this.validateRule(input);
         const key = this.stableRuleKey(input);
-        if (seen.has(input.id || key)) throw new BadRequestError("Duplicate rule key in CSV");
+        if (seen.has(input.id || key))
+          throw new BadRequestError("Duplicate rule key in CSV", undefined, {
+            messageKey: "contentSafety.duplicateRuleKey",
+          });
         seen.add(input.id || key);
         const existing = input.id ? byId.get(input.id) : byKey.get(key);
         if (ownerUserId && existing?.ownerUserId === null)
-          throw new BadRequestError("System rules cannot be overwritten from a user CSV");
+          throw new BadRequestError("System rules cannot be overwritten from a user CSV", undefined, {
+            messageKey: "contentSafety.systemRuleCannotBeOverwritten",
+          });
         const data = {
           name: input.name.trim(),
           type: input.type,
@@ -1023,11 +1045,13 @@ export class ContentSafetyService {
       input.pattern.trim().length < 2 ||
       input.pattern.length > 2000
     )
-      throw new BadRequestError("Invalid content safety rule");
+      throw new BadRequestError("Invalid content safety rule", undefined, { messageKey: "contentSafety.invalidRule" });
     if (checkLimit) {
       const stats = await this.repository.ruleStats();
       if (stats.count >= 500 || stats.patternBytes + Buffer.byteLength(input.pattern.trim(), "utf8") > 1024 * 1024)
-        throw new BadRequestError("Content safety rule limit reached");
+        throw new BadRequestError("Content safety rule limit reached", undefined, {
+          messageKey: "contentSafety.ruleLimitReached",
+        });
     }
     if (input.type === "regex") {
       if (/\\(?:1|2|3|4|5|6|7|8|9)/.test(input.pattern) || /\([^)]*[+*][^)]*\)[+*]/.test(input.pattern))
@@ -1036,7 +1060,9 @@ export class ContentSafetyService {
       try {
         regex = new RegExp(input.pattern, "iu");
       } catch {
-        throw new BadRequestError("Invalid content safety regex");
+        throw new BadRequestError("Invalid content safety regex", undefined, {
+          messageKey: "contentSafety.invalidRegex",
+        });
       }
       if (regex.test("")) throw new Error("Content safety regex must not match empty text");
     }
@@ -1066,7 +1092,10 @@ export class ContentSafetyService {
         cell = "";
       } else cell += char;
     }
-    if (quoted) throw new BadRequestError("Content safety CSV contains an unterminated quoted field");
+    if (quoted)
+      throw new BadRequestError("Content safety CSV contains an unterminated quoted field", undefined, {
+        messageKey: "contentSafety.unterminatedQuotedField",
+      });
     if (cell.length || row.length) {
       row.push(cell);
       rows.push(row);

@@ -121,6 +121,9 @@ describe("P04 · 目录结构与 key 一致性", () => {
         "impersonation",
         "developerProject",
         "developerProduct",
+        "dataMaintenance",
+        "dataLifecycle",
+        "contentSafety",
       ].sort(),
     );
   });

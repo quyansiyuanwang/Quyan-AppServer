@@ -174,7 +174,9 @@ export class ErrorReportService {
     const key = `error-report:client:${ipAddress}`;
     const count = Number((await this.redisService.get(key)) || "0");
     if (count + weight > CLIENT_REPORT_LIMIT)
-      throw new TooManyRequestsError("Error report rate limit exceeded", CLIENT_REPORT_WINDOW_SECONDS);
+      throw new TooManyRequestsError("Error report rate limit exceeded", CLIENT_REPORT_WINDOW_SECONDS, undefined, {
+        messageKey: "system.errorReportRateLimited",
+      });
     await this.redisService.increment(key, CLIENT_REPORT_WINDOW_SECONDS, weight);
   }
 
@@ -188,7 +190,9 @@ export class ErrorReportService {
     const allowedOrigins = env.runtime.corsAllowedOrigins;
     const allowlist = createCorsOriginAllowlist(allowedOrigins);
     if (allowlist.length > 0 && !isCorsOriginAllowed(origin, allowlist))
-      throw new ForbiddenError("Client error report origin is not allowed");
+      throw new ForbiddenError("Client error report origin is not allowed", undefined, {
+        messageKey: "system.errorReportOriginNotAllowed",
+      });
   }
 
   public reportServerExceptionSafely(request: Request, error: Error): void {
