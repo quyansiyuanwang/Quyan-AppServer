@@ -122,6 +122,10 @@ const zhCN = {
     cannotDeletePeer: "不能删除同级或更高级别的用户",
     deleted: "删除成功",
     usernameExists: "用户名已存在",
+    emailNotFound: "用户邮箱不存在",
+    emailUnchanged: "新邮箱不能与当前邮箱相同",
+    emailTaken: "该邮箱已被其他用户使用",
+    emailChangeTooFrequent: "每天只能修改一次邮箱，请明天再试",
     passwordChanged: "密码修改成功",
   },
   group: {
@@ -133,6 +137,9 @@ const zhCN = {
     cannotModifyPermissionsForPeer: "不能修改同级或更高级别组的权限",
     permissionsUpdated: "权限更新成功",
     deleted: "删除成功",
+    identifierExists: "组标识已存在",
+    notDeletable: "该用户组不允许删除",
+    hasUsers: "该组下仍有用户，无法删除",
   },
   permission: {
     operatorNotFound: "操作者用户不存在",
@@ -165,6 +172,17 @@ const zhCN = {
     pkceChallengeRequired: "PKCE 需要提供 code_challenge",
     pkceMethodRequiresChallenge: "指定 code_challenge_method 时必须提供 code_challenge",
     invalidScope: "scope 无效",
+    clientIdExists: "OAuth 客户端 ID 已存在",
+    publicClientNoSecret: "{{client}} 客户端不使用客户端密钥",
+    clientAlreadyPendingReview: "{{client}} 客户端已在待审核状态",
+    onlyPendingClientReviewable: "只有待审核的 {{client}} 客户端可以审核",
+    publicClientCannotUseClientCredentials: "{{client}} 公开客户端不能启用 client_credentials 授权类型",
+    publicClientRequiresPkce: "{{client}} 公开客户端使用 authorization_code 时必须启用 PKCE",
+    refreshLifetimeTooShort: "refreshTokenLifetime 必须大于或等于 accessTokenLifetime",
+    refreshGrantRequiresAuthorizationCode: "启用 refresh_token 授权类型前必须启用 authorization_code",
+    authorizationCodeRequiresRedirectUri: "authorization_code 授权类型至少需要一个重定向地址",
+    systemClientImmutableFields: "系统 OAuth 客户端无法修改以下字段：{{fields}}",
+    systemClientNotDeletable: "系统 OAuth 客户端无法删除",
   },
   auth: {
     replaySigningSessionIssued: "获取签名会话成功",
@@ -341,10 +359,19 @@ const zhCN = {
   accessKey: {
     oauthThirdPartyReadForbidden: "第三方应用无权读取已有 Access Key",
     oauthThirdPartyDeleteForbidden: "第三方应用无权删除已有 Access Key",
+    invalid: "AccessKey 无效",
+    expired: "AccessKey 已过期",
+    notFound: "AccessKey 不存在",
   },
   ipWhitelist: {
     ipRequired: "IP 地址不能为空",
     notFoundByIp: "IP {{ip}} 不在白名单中",
+  },
+  impersonation: {
+    nestedSessionNotAllowed: "不能在模拟会话中发起另一个模拟",
+    cannotImpersonateSelf: "不能模拟自己",
+    targetLevelTooHigh: "无法模拟权限等级不低于自身的用户",
+    permissionDenied: "无模拟权限",
   },
 } as const satisfies DeepStringify<typeof en>;
 

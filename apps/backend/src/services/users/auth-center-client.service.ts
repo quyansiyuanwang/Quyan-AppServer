@@ -240,7 +240,11 @@ export class AuthCenterClientService {
 
   async deleteClientForReview(id: string, reviewerUserId: string, request?: Request): Promise<void> {
     const existing = await this.repository.findById(id);
-    if (!existing) throw new NotFoundError("Auth Center client not found");
+    if (!existing)
+      throw new NotFoundError("Auth Center client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "Auth Center" },
+      });
 
     await this.repository.delete(id);
 
@@ -263,7 +267,10 @@ export class AuthCenterClientService {
   async regenerateSecret(id: string, userId: string, request?: Request): Promise<AuthCenterClientWithSecretDto> {
     const existing = await this.requireOwnedClient(id, userId);
     if (existing.clientType === "public")
-      throw new BadRequestError("Public Auth Center client does not use client secret");
+      throw new BadRequestError("Public Auth Center client does not use client secret", undefined, {
+        messageKey: "oauth.publicClientNoSecret",
+        messageParams: { client: "Auth Center" },
+      });
 
     const rawClientSecret = this.generateClientSecret();
     const updated = await this.repository.update(id, {
@@ -293,7 +300,10 @@ export class AuthCenterClientService {
     const existing = await this.requireOwnedClient(id, userId);
 
     if (existing.reviewStatus === REVIEW_STATUS.PENDING)
-      throw new BadRequestError("Auth Center client is already pending review");
+      throw new BadRequestError("Auth Center client is already pending review", undefined, {
+        messageKey: "oauth.clientAlreadyPendingReview",
+        messageParams: { client: "Auth Center" },
+      });
 
     const updated = await this.repository.update(id, {
       reviewStatus: REVIEW_STATUS.PENDING,
@@ -353,9 +363,16 @@ export class AuthCenterClientService {
     request?: Request,
   ): Promise<AuthCenterClientDto> {
     const existing = await this.repository.findById(id);
-    if (!existing) throw new NotFoundError("Auth Center client not found");
+    if (!existing)
+      throw new NotFoundError("Auth Center client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "Auth Center" },
+      });
     if (existing.reviewStatus !== REVIEW_STATUS.PENDING)
-      throw new BadRequestError("Only pending Auth Center clients can be reviewed");
+      throw new BadRequestError("Only pending Auth Center clients can be reviewed", undefined, {
+        messageKey: "oauth.onlyPendingClientReviewable",
+        messageParams: { client: "Auth Center" },
+      });
 
     const updated = await this.repository.update(id, {
       reviewStatus: data.reviewStatus,
@@ -389,7 +406,11 @@ export class AuthCenterClientService {
 
   private async requireOwnedClient(id: string, userId: string): Promise<AuthCenterClient> {
     const client = await this.repository.findById(id);
-    if (!client || client.userId !== userId) throw new NotFoundError("Auth Center client not found");
+    if (!client || client.userId !== userId)
+      throw new NotFoundError("Auth Center client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "Auth Center" },
+      });
     return client;
   }
 
@@ -402,19 +423,35 @@ export class AuthCenterClientService {
     refreshTokenLifetime: number;
   }): void {
     if (input.grantTypes.includes("refresh_token") && !input.grantTypes.includes("authorization_code"))
-      throw new BadRequestError("refresh_token grant requires authorization_code grant");
+      throw new BadRequestError("refresh_token grant requires authorization_code grant", undefined, {
+        messageKey: "oauth.refreshGrantRequiresAuthorizationCode",
+      });
 
     if (input.grantTypes.includes("authorization_code") && input.redirectUris.length === 0)
-      throw new BadRequestError("authorization_code grant requires at least one redirect URI");
+      throw new BadRequestError("authorization_code grant requires at least one redirect URI", undefined, {
+        messageKey: "oauth.authorizationCodeRequiresRedirectUri",
+      });
 
     if (input.clientType === "public" && input.grantTypes.includes("client_credentials"))
-      throw new BadRequestError("Public Auth Center client cannot enable client_credentials grant");
+      throw new BadRequestError("Public Auth Center client cannot enable client_credentials grant", undefined, {
+        messageKey: "oauth.publicClientCannotUseClientCredentials",
+        messageParams: { client: "Auth Center" },
+      });
 
     if (input.clientType === "public" && input.grantTypes.includes("authorization_code") && !input.isPkceRequired)
-      throw new BadRequestError("Public Auth Center client must enable PKCE for authorization_code grant");
+      throw new BadRequestError("Public Auth Center client must enable PKCE for authorization_code grant", undefined, {
+        messageKey: "oauth.publicClientRequiresPkce",
+        messageParams: { client: "Auth Center" },
+      });
 
     if (input.refreshTokenLifetime < input.accessTokenLifetime)
-      throw new BadRequestError("refreshTokenLifetime must be greater than or equal to accessTokenLifetime");
+      throw new BadRequestError(
+        "refreshTokenLifetime must be greater than or equal to accessTokenLifetime",
+        undefined,
+        {
+          messageKey: "oauth.refreshLifetimeTooShort",
+        },
+      );
   }
 
   private normalizeGrantTypes(values: string[] | undefined, clientType: string): AuthCenterGrantType[] {

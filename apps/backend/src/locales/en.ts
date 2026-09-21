@@ -116,6 +116,10 @@ const en = {
     cannotDeletePeer: "Cannot delete a user at the same or higher level",
     deleted: "Deleted successfully",
     usernameExists: "Username already exists",
+    emailNotFound: "User email does not exist",
+    emailUnchanged: "The new email cannot be the same as the current email",
+    emailTaken: "This email is already used by another user",
+    emailChangeTooFrequent: "Email can only be changed once per day, please try again tomorrow",
     passwordChanged: "Password changed successfully",
   },
   group: {
@@ -127,6 +131,9 @@ const en = {
     cannotModifyPermissionsForPeer: "Cannot modify permissions of a group at the same or higher level",
     permissionsUpdated: "Permissions updated successfully",
     deleted: "Deleted successfully",
+    identifierExists: "Group identifier already exists",
+    notDeletable: "This user group cannot be deleted",
+    hasUsers: "This group still has users and cannot be deleted",
   },
   permission: {
     operatorNotFound: "Operator user does not exist",
@@ -159,6 +166,17 @@ const en = {
     pkceChallengeRequired: "PKCE code_challenge is required",
     pkceMethodRequiresChallenge: "code_challenge_method requires code_challenge",
     invalidScope: "Invalid scope",
+    clientIdExists: "OAuth client ID already exists",
+    publicClientNoSecret: "{{client}} client does not use a client secret",
+    clientAlreadyPendingReview: "{{client}} client is already pending review",
+    onlyPendingClientReviewable: "Only pending {{client}} clients can be reviewed",
+    publicClientCannotUseClientCredentials: "{{client}} public client cannot enable the client_credentials grant",
+    publicClientRequiresPkce: "{{client}} public client must enable PKCE for the authorization_code grant",
+    refreshLifetimeTooShort: "refreshTokenLifetime must be greater than or equal to accessTokenLifetime",
+    refreshGrantRequiresAuthorizationCode: "The refresh_token grant requires the authorization_code grant",
+    authorizationCodeRequiresRedirectUri: "The authorization_code grant requires at least one redirect URI",
+    systemClientImmutableFields: "System OAuth client fields cannot be modified: {{fields}}",
+    systemClientNotDeletable: "System OAuth client cannot be deleted",
   },
   auth: {
     replaySigningSessionIssued: "Replay signing session issued successfully",
@@ -336,10 +354,19 @@ const en = {
   accessKey: {
     oauthThirdPartyReadForbidden: "A third-party application cannot read existing Access Keys",
     oauthThirdPartyDeleteForbidden: "A third-party application cannot delete existing Access Keys",
+    invalid: "Invalid AccessKey",
+    expired: "AccessKey expired",
+    notFound: "AccessKey not found",
   },
   ipWhitelist: {
     ipRequired: "IP address is required",
     notFoundByIp: "IP {{ip}} is not whitelisted",
+  },
+  impersonation: {
+    nestedSessionNotAllowed: "Cannot start another impersonation inside an impersonated session",
+    cannotImpersonateSelf: "Cannot impersonate yourself",
+    targetLevelTooHigh: "Cannot impersonate a user whose privilege level is not lower than yours",
+    permissionDenied: "No impersonation permission",
   },
 } as const;
 

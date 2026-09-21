@@ -109,7 +109,7 @@ export class GroupService {
 
   async createGroup(data: CreateGroupDto, actorUserId: string, request?: Request): Promise<GroupDto> {
     const existing = await this.groupRepository.findByUsername(data.username);
-    if (existing) throw new BadRequestError("组标识已存在");
+    if (existing) throw new BadRequestError("组标识已存在", undefined, { messageKey: "group.identifierExists" });
 
     const group = await this.groupRepository.createWithUserCount({
       username: data.username,
@@ -138,7 +138,7 @@ export class GroupService {
 
   async updateGroup(groupId: string, data: UpdateGroupDto, actorUserId: string, request?: Request): Promise<GroupDto> {
     const existing = await this.groupRepository.findById(groupId);
-    if (!existing) throw new NotFoundError("用户组不存在");
+    if (!existing) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
 
     const updateData: Record<string, any> = {};
     if (data.name !== undefined) updateData.name = data.name;
@@ -167,9 +167,11 @@ export class GroupService {
 
   async deleteGroup(groupId: string, actorUserId: string, request?: Request): Promise<void> {
     const group = await this.groupRepository.findByIdWithUserCount(groupId);
-    if (!group) throw new NotFoundError("用户组不存在");
-    if (group.username === env.security.protectedGroupName) throw new BadRequestError("该用户组不允许删除");
-    if (group._count.users > 0) throw new BadRequestError("该组下仍有用户，无法删除");
+    if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
+    if (group.username === env.security.protectedGroupName)
+      throw new BadRequestError("该用户组不允许删除", undefined, { messageKey: "group.notDeletable" });
+    if (group._count.users > 0)
+      throw new BadRequestError("该组下仍有用户，无法删除", undefined, { messageKey: "group.hasUsers" });
 
     await this.groupRepository.softDelete(groupId);
 
@@ -190,7 +192,7 @@ export class GroupService {
 
   async getGroupPermissions(groupId: string): Promise<string[]> {
     const group = await this.groupRepository.findById(groupId);
-    if (!group) throw new NotFoundError("用户组不存在");
+    if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
     const permissions = typeof group.permissions === "string" ? JSON.parse(group.permissions) : group.permissions;
     return Array.isArray(permissions) ? permissions : [];
   }
@@ -202,7 +204,7 @@ export class GroupService {
     request?: Request,
   ): Promise<void> {
     const group = await this.groupRepository.findById(groupId);
-    if (!group) throw new NotFoundError("用户组不存在");
+    if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
 
     await this.groupRepository.updateById(groupId, { permissions });
 
