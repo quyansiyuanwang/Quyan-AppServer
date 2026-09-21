@@ -84,16 +84,19 @@ export class JsonEndpointService {
   private normalizeEd25519PublicKey(value: string): { publicKey: string; fingerprint: string } {
     const input = value.trim();
     if (!/^-----BEGIN PUBLIC KEY-----[\s\S]+-----END PUBLIC KEY-----$/.test(input))
-      throw new BadRequestError("公钥必须是 Ed25519 SPKI PEM 格式");
+      throw new BadRequestError("公钥必须是 Ed25519 SPKI PEM 格式", undefined, {
+        messageKey: "jsonEndpoint.publicKeyMustBeEd25519SpkiPem",
+      });
 
     let key: KeyObject;
     try {
       key = createPublicKey(input);
     } catch {
-      throw new BadRequestError("公钥格式无效");
+      throw new BadRequestError("公钥格式无效", undefined, { messageKey: "jsonEndpoint.publicKeyFormatInvalid" });
     }
 
-    if (key.type !== "public" || key.asymmetricKeyType !== "ed25519") throw new BadRequestError("仅支持 Ed25519 公钥");
+    if (key.type !== "public" || key.asymmetricKeyType !== "ed25519")
+      throw new BadRequestError("仅支持 Ed25519 公钥", undefined, { messageKey: "jsonEndpoint.ed25519PublicKeyOnly" });
 
     const publicKey = key.export({ type: "spki", format: "pem" }).toString();
     return {
@@ -119,7 +122,10 @@ export class JsonEndpointService {
       };
 
     if (accessMode === ACCESS_MODE_PUBLIC_KEY) {
-      if (!publicKey) throw new BadRequestError("签名访问必须提供 Ed25519 公钥");
+      if (!publicKey)
+        throw new BadRequestError("签名访问必须提供 Ed25519 公钥", undefined, {
+          messageKey: "jsonEndpoint.signaturePublicKeyRequired",
+        });
       return {
         isPublic: false,
         apiKey: null,
@@ -130,7 +136,10 @@ export class JsonEndpointService {
       };
     }
 
-    if (!passwordHash) throw new BadRequestError("非公开端点必须设置访问密码");
+    if (!passwordHash)
+      throw new BadRequestError("非公开端点必须设置访问密码", undefined, {
+        messageKey: "jsonEndpoint.passwordRequiredForNonPublic",
+      });
     return {
       isPublic: false,
       apiKey: passwordHash,
@@ -191,7 +200,7 @@ export class JsonEndpointService {
 
   private async getOwnerUsername(userId: string): Promise<string> {
     const owner = await this.userRepository.findById(userId);
-    if (!owner) throw new NotFoundError("端点所属用户不存在");
+    if (!owner) throw new NotFoundError("端点所属用户不存在", undefined, { messageKey: "jsonEndpoint.ownerNotFound" });
     return owner.username;
   }
 
@@ -201,12 +210,13 @@ export class JsonEndpointService {
 
   private async assertCanAccessEndpoint(endpoint: JsonEndpoint, actorUserId: string): Promise<void> {
     if (endpoint.userId === actorUserId) return;
-    if (!(await this.canManage(actorUserId))) throw new ForbiddenError("无权管理此端点");
+    if (!(await this.canManage(actorUserId)))
+      throw new ForbiddenError("无权管理此端点", undefined, { messageKey: "jsonEndpoint.manageDenied" });
   }
 
   private async assertCanSetRootSlug(actorUserId: string): Promise<void> {
     if (!(await this.permissionService.hasPermission(actorUserId, Permission.JSON_ENDPOINT_ROOT_SLUG)))
-      throw new ForbiddenError("无权设置根 slug");
+      throw new ForbiddenError("无权设置根 slug", undefined, { messageKey: "jsonEndpoint.rootSlugDenied" });
   }
 
   /**
@@ -214,7 +224,10 @@ export class JsonEndpointService {
    */
   private validateSlug(slug: string): void {
     const slugRegex = /^[a-z0-9-_]+$/;
-    if (!slugRegex.test(slug)) throw new BadRequestError("Slug 仅允许小写字母、数字、连字符和下划线");
+    if (!slugRegex.test(slug))
+      throw new BadRequestError("Slug 仅允许小写字母、数字、连字符和下划线", undefined, {
+        messageKey: "jsonEndpoint.slugFormatInvalid",
+      });
   }
 
   /**
@@ -226,21 +239,27 @@ export class JsonEndpointService {
 
     const canManage = await this.canManage(userId);
     const ownerUserId = data.ownerUserId || userId;
-    if (ownerUserId !== userId && !canManage) throw new ForbiddenError("无权指定端点所属用户");
+    if (ownerUserId !== userId && !canManage)
+      throw new ForbiddenError("无权指定端点所属用户", undefined, { messageKey: "jsonEndpoint.assignOwnerDenied" });
     const ownerUsername = await this.getOwnerUsername(ownerUserId);
     const isRootSlug = data.isRootSlug === true;
     if (isRootSlug) {
       await this.assertCanSetRootSlug(userId);
-      if (await this.repository.findByRootSlug(data.slug)) throw new BadRequestError("根 Slug 已被使用");
+      if (await this.repository.findByRootSlug(data.slug))
+        throw new BadRequestError("根 Slug 已被使用", undefined, { messageKey: "jsonEndpoint.rootSlugTaken" });
     } else if (await this.repository.findByUserAndSlug(ownerUsername, data.slug)) {
-      throw new BadRequestError("该用户下 Slug 已被使用");
+      throw new BadRequestError("该用户下 Slug 已被使用", undefined, { messageKey: "jsonEndpoint.userSlugTaken" });
     }
 
     const accessMode = data.isPublic ? undefined : (data.accessMode ?? ACCESS_MODE_STATIC_PASSWORD);
     if (accessMode === ACCESS_MODE_STATIC_PASSWORD && !data.isPublic && !data.password)
-      throw new BadRequestError("静态密码访问必须设置访问密码");
+      throw new BadRequestError("静态密码访问必须设置访问密码", undefined, {
+        messageKey: "jsonEndpoint.passwordRequiredForStaticPassword",
+      });
     if (accessMode === ACCESS_MODE_PUBLIC_KEY && !data.isPublic && !data.publicKey)
-      throw new BadRequestError("签名访问必须提供 Ed25519 公钥");
+      throw new BadRequestError("签名访问必须提供 Ed25519 公钥", undefined, {
+        messageKey: "jsonEndpoint.signaturePublicKeyRequired",
+      });
 
     const passwordHash = !data.isPublic && data.password ? await this.hashPassword(data.password) : undefined;
     const normalizedPublicKey =
@@ -284,7 +303,7 @@ export class JsonEndpointService {
    */
   async getEndpoint(id: string, userId: string): Promise<JsonEndpointDto> {
     const endpoint = await this.repository.findById(id);
-    if (!endpoint) throw new NotFoundError("端点不存在");
+    if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
 
     await this.assertCanAccessEndpoint(endpoint, userId);
     return this.mapToDto(endpoint, await this.getOwnerUsername(endpoint.userId));
@@ -295,7 +314,8 @@ export class JsonEndpointService {
    */
   async listEndpoints(userId: string, ownerUserId?: string): Promise<JsonEndpointDto[]> {
     const canManage = await this.canManage(userId);
-    if (ownerUserId && ownerUserId !== userId && !canManage) throw new ForbiddenError("无权查看其他用户端点");
+    if (ownerUserId && ownerUserId !== userId && !canManage)
+      throw new ForbiddenError("无权查看其他用户端点", undefined, { messageKey: "jsonEndpoint.viewOthersDenied" });
     const endpoints =
       canManage && !ownerUserId
         ? await this.repository.findAll()
@@ -306,7 +326,8 @@ export class JsonEndpointService {
   }
 
   async listOwnerOptions(actorUserId: string): Promise<JsonEndpointOwnerOptionDto[]> {
-    if (!(await this.canManage(actorUserId))) throw new ForbiddenError("无权管理端点所属用户");
+    if (!(await this.canManage(actorUserId)))
+      throw new ForbiddenError("无权管理端点所属用户", undefined, { messageKey: "jsonEndpoint.manageOwnerDenied" });
     const users = await this.userRepository.listNonDeleted();
     return users
       .filter((user) => user.status === 1)
@@ -324,7 +345,7 @@ export class JsonEndpointService {
     request?: Request,
   ): Promise<JsonEndpointDto> {
     const endpoint = await this.repository.findById(id);
-    if (!endpoint) throw new NotFoundError("端点不存在");
+    if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
 
     await this.assertCanAccessEndpoint(endpoint, userId);
 
@@ -336,7 +357,7 @@ export class JsonEndpointService {
     if (data.isRootSlug !== undefined && data.isRootSlug !== endpoint.isRootSlug) {
       await this.assertCanSetRootSlug(userId);
       if (data.isRootSlug && (await this.repository.findByRootSlug(endpoint.slug)))
-        throw new BadRequestError("根 Slug 已被使用");
+        throw new BadRequestError("根 Slug 已被使用", undefined, { messageKey: "jsonEndpoint.rootSlugTaken" });
       updateData.isRootSlug = data.isRootSlug;
       updateData.rootSlug = data.isRootSlug ? endpoint.slug : null;
     }
@@ -348,21 +369,29 @@ export class JsonEndpointService {
       : (data.accessMode ?? (endpoint.isPublic ? undefined : existingAccessMode) ?? ACCESS_MODE_STATIC_PASSWORD);
 
     if (!finalIsPublic && data.password && finalAccessMode !== ACCESS_MODE_STATIC_PASSWORD)
-      throw new BadRequestError("只有静态密码模式可以设置访问密码");
+      throw new BadRequestError("只有静态密码模式可以设置访问密码", undefined, {
+        messageKey: "jsonEndpoint.passwordOnlyForStaticMode",
+      });
     if (!finalIsPublic && data.publicKey && finalAccessMode !== ACCESS_MODE_PUBLIC_KEY)
-      throw new BadRequestError("只有 Ed25519 签名模式可以设置公钥");
+      throw new BadRequestError("只有 Ed25519 签名模式可以设置公钥", undefined, {
+        messageKey: "jsonEndpoint.publicKeyOnlyForSignatureMode",
+      });
 
     let passwordHash: string | undefined;
     let normalizedPublicKey: { publicKey: string; fingerprint: string } | undefined;
     if (!finalIsPublic && finalAccessMode === ACCESS_MODE_STATIC_PASSWORD) {
       if (data.password) passwordHash = await this.hashPassword(data.password);
       else if (existingAccessMode !== ACCESS_MODE_STATIC_PASSWORD || !endpoint.apiKey)
-        throw new BadRequestError("静态密码访问必须设置访问密码");
+        throw new BadRequestError("静态密码访问必须设置访问密码", undefined, {
+          messageKey: "jsonEndpoint.passwordRequiredForStaticPassword",
+        });
     }
     if (!finalIsPublic && finalAccessMode === ACCESS_MODE_PUBLIC_KEY) {
       if (data.publicKey) normalizedPublicKey = this.normalizeEd25519PublicKey(data.publicKey);
       else if (existingAccessMode !== ACCESS_MODE_PUBLIC_KEY || !endpoint.publicKey)
-        throw new BadRequestError("签名访问必须提供 Ed25519 公钥");
+        throw new BadRequestError("签名访问必须提供 Ed25519 公钥", undefined, {
+          messageKey: "jsonEndpoint.signaturePublicKeyRequired",
+        });
     }
 
     const accessConfig = this.createAccessConfig(
@@ -402,7 +431,7 @@ export class JsonEndpointService {
    */
   async deleteEndpoint(id: string, userId: string, request?: Request): Promise<void> {
     const endpoint = await this.repository.findById(id);
-    if (!endpoint) throw new NotFoundError("端点不存在");
+    if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
 
     await this.assertCanAccessEndpoint(endpoint, userId);
 
@@ -436,10 +465,18 @@ export class JsonEndpointService {
     credentials: JsonEndpointAccessCredentials,
   ): Promise<void> {
     const { timestamp, nonce, signature, pathname } = credentials;
-    if (!timestamp || !nonce || !signature || !pathname) throw new UnauthorizedError("此端点需要 Ed25519 签名访问");
-    if (!/^\d{10}$/.test(timestamp)) throw new UnauthorizedError("签名时间戳无效");
-    if (!noncePattern.test(nonce)) throw new UnauthorizedError("签名 nonce 无效");
-    if (!signaturePattern.test(signature)) throw new UnauthorizedError("签名格式无效");
+    if (!timestamp || !nonce || !signature || !pathname)
+      throw new UnauthorizedError("此端点需要 Ed25519 签名访问", undefined, {
+        messageKey: "jsonEndpoint.signatureAccessRequired",
+      });
+    if (!/^\d{10}$/.test(timestamp))
+      throw new UnauthorizedError("签名时间戳无效", undefined, {
+        messageKey: "jsonEndpoint.signatureTimestampInvalid",
+      });
+    if (!noncePattern.test(nonce))
+      throw new UnauthorizedError("签名 nonce 无效", undefined, { messageKey: "jsonEndpoint.signatureNonceInvalid" });
+    if (!signaturePattern.test(signature))
+      throw new UnauthorizedError("签名格式无效", undefined, { messageKey: "jsonEndpoint.signatureFormatInvalid" });
 
     const timestampSeconds = Number(timestamp);
     const now = Math.floor(Date.now() / 1000);
@@ -447,37 +484,47 @@ export class JsonEndpointService {
       !Number.isSafeInteger(timestampSeconds) ||
       Math.abs(now - timestampSeconds) > SIGNATURE_TIMESTAMP_TOLERANCE_SECONDS
     )
-      throw new UnauthorizedError("签名请求已过期");
+      throw new UnauthorizedError("签名请求已过期", undefined, { messageKey: "jsonEndpoint.signatureRequestExpired" });
     if (!endpoint.publicKey || endpoint.signatureAlgorithm !== SIGNATURE_ALGORITHM)
-      throw new ForbiddenError("端点签名配置错误");
+      throw new ForbiddenError("端点签名配置错误", undefined, { messageKey: "jsonEndpoint.signatureConfigInvalid" });
 
     let publicKey: KeyObject;
     try {
       publicKey = createPublicKey(endpoint.publicKey);
       if (publicKey.type !== "public" || publicKey.asymmetricKeyType !== "ed25519") throw new Error("unsupported key");
     } catch {
-      throw new ForbiddenError("端点签名配置错误");
+      throw new ForbiddenError("端点签名配置错误", undefined, { messageKey: "jsonEndpoint.signatureConfigInvalid" });
     }
 
     let signatureBuffer: Buffer;
     try {
       signatureBuffer = Buffer.from(signature, "base64url");
     } catch {
-      throw new UnauthorizedError("签名格式无效");
+      throw new UnauthorizedError("签名格式无效", undefined, { messageKey: "jsonEndpoint.signatureFormatInvalid" });
     }
-    if (signatureBuffer.length !== 64) throw new UnauthorizedError("签名格式无效");
+    if (signatureBuffer.length !== 64)
+      throw new UnauthorizedError("签名格式无效", undefined, { messageKey: "jsonEndpoint.signatureFormatInvalid" });
 
     const canonicalPayload = ["GET", pathname, this.getCanonicalQuery(credentials.originalUrl), timestamp, nonce].join(
       "\n",
     );
     if (!verify(null, Buffer.from(canonicalPayload), publicKey, signatureBuffer))
-      throw new ForbiddenError("签名验证失败");
+      throw new ForbiddenError("签名验证失败", undefined, { messageKey: "auth.signatureInvalid" });
 
-    if (!this.redisService.isRedisAvailable()) throw new UnauthorizedError("签名服务暂不可用");
+    if (!this.redisService.isRedisAvailable())
+      throw new UnauthorizedError("签名服务暂不可用", undefined, {
+        messageKey: "jsonEndpoint.signatureServiceUnavailable",
+      });
     const nonceKey = `json-endpoint:signature-nonce:${endpoint.id}:${nonce}`;
     const reserved = await this.redisService.setIfNotExists(nonceKey, "1", SIGNATURE_NONCE_TTL_MS);
-    if (reserved === null) throw new UnauthorizedError("签名服务暂不可用");
-    if (!reserved) throw new UnauthorizedError("签名 nonce 已被使用");
+    if (reserved === null)
+      throw new UnauthorizedError("签名服务暂不可用", undefined, {
+        messageKey: "jsonEndpoint.signatureServiceUnavailable",
+      });
+    if (!reserved)
+      throw new UnauthorizedError("签名 nonce 已被使用", undefined, {
+        messageKey: "jsonEndpoint.signatureNonceReused",
+      });
   }
 
   /**
@@ -487,18 +534,22 @@ export class JsonEndpointService {
     endpoint: JsonEndpoint | null,
     credentials: JsonEndpointAccessCredentials = {},
   ): Promise<PublicJsonData> {
-    if (!endpoint) throw new NotFoundError("端点不存在");
+    if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
 
     // 验证访问权限
     if (!endpoint.isPublic) {
       if (this.resolveAccessMode(endpoint) === ACCESS_MODE_PUBLIC_KEY) {
         await this.verifySignatureAccess(endpoint, credentials);
       } else {
-        if (!credentials.password) throw new UnauthorizedError("此端点需要访问密码");
-        if (!endpoint.apiKey) throw new ForbiddenError("端点配置错误");
+        if (!credentials.password)
+          throw new UnauthorizedError("此端点需要访问密码", undefined, {
+            messageKey: "jsonEndpoint.passwordAccessRequired",
+          });
+        if (!endpoint.apiKey)
+          throw new ForbiddenError("端点配置错误", undefined, { messageKey: "jsonEndpoint.configInvalid" });
 
         const isValid = await this.verifyPassword(credentials.password, endpoint.apiKey);
-        if (!isValid) throw new ForbiddenError("密码错误");
+        if (!isValid) throw new ForbiddenError("密码错误", undefined, { messageKey: "jsonEndpoint.passwordIncorrect" });
       }
     }
 
