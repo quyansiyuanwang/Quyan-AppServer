@@ -362,7 +362,7 @@ export class DeveloperProjectRepository {
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null;
     if (expiresAt && expiresAt.getTime() <= Date.now())
       throw new BadRequestError("过期时间必须晚于当前时间", undefined, {
-        messageKey: "developerProject.expiryMustBeFuture",
+        messageKey: "errors.expiryMustBeFuture",
       });
     const override = await prisma.developerQuotaOverride.upsert({
       where: { subjectType_subjectId_service: { subjectType: body.subjectType, subjectId: body.subjectId, service } },
@@ -395,7 +395,7 @@ export class DeveloperProjectRepository {
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : undefined;
     if (expiresAt && expiresAt.getTime() <= Date.now())
       throw new BadRequestError("过期时间必须晚于当前时间", undefined, {
-        messageKey: "developerProject.expiryMustBeFuture",
+        messageKey: "errors.expiryMustBeFuture",
       });
     const key = await prisma.developerProjectApiKey.create({
       data: {

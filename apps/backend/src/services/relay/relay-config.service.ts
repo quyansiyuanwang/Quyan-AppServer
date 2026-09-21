@@ -93,7 +93,10 @@ export class RelayConfigService {
       }
     }
     if (issues.length)
-      throw new BadRequestError(`Strict two-tier topology audit failed: ${issues.slice(0, 10).join("; ")}`);
+      throw new BadRequestError(`Strict two-tier topology audit failed: ${issues.slice(0, 10).join("; ")}`, undefined, {
+        messageKey: "relay.topologyAuditFailed",
+        messageParams: { count: issues.length },
+      });
   }
 
   private async fetchModelRates(): Promise<ModelPricingItemDto[]> {
@@ -179,10 +182,12 @@ export class RelayConfigService {
     try {
       existing = await this.relayConfigRepository.findLatestActive();
     } catch {
-      throw new NotFoundError("Relay config not found (database schema out of sync, run migrations)");
+      throw new NotFoundError("Relay config not found (database schema out of sync, run migrations)", undefined, {
+        messageKey: "relay.configSchemaOutOfSync",
+      });
     }
 
-    if (!existing) throw new NotFoundError("Relay config not found");
+    if (!existing) throw new NotFoundError("Relay config not found", undefined, { messageKey: "relay.configNotFound" });
 
     if (data.channelTopologyMode === "strict-two-tier" && existing.channelTopologyMode !== "strict-two-tier")
       await this.assertStrictTwoTierTopology();

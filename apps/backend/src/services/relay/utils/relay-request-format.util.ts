@@ -45,9 +45,13 @@ export const resolveRelayRequestFormat = (req: RelayRequestLike): RelayRequestFo
   if (requestPath === PREFIX || requestPath === `${PREFIX}/`)
     throw new BadRequestError(
       "Missing API endpoint path. Please specify a valid endpoint like /relay/proxy/v1/chat/completions or /relay/proxy/v1/images/generations.",
+      undefined,
+      { messageKey: "relay.endpointPathRequired" },
     );
   throw new BadRequestError(
     `Unsupported request path for format detection: ${requestPath}. Only OpenAI (/chat/completions, /responses, /images/generations, /images/edits, /images/variations), Anthropic (/messages), and Gemini (/models/*:generateContent or :streamGenerateContent) are allowed.`,
+    undefined,
+    { messageKey: "relay.unsupportedRequestPath" },
   );
 };
 

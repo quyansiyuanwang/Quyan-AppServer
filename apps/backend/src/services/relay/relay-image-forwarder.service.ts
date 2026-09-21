@@ -241,7 +241,11 @@ export class RelayImageForwarderService {
         if (firstByteTime === null) firstByteTime = Date.now();
 
         if (responseBytes > responseLimit) {
-          callback(new PayloadTooLargeError("Upstream image response body too large"));
+          callback(
+            new PayloadTooLargeError("Upstream image response body too large", undefined, {
+              messageKey: "relay.imageUpstreamTooLarge",
+            }),
+          );
           return;
         }
 

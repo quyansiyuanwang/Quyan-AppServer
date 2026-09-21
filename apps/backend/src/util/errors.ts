@@ -299,14 +299,26 @@ export class TooManyRequestsError<TKey extends MessageKey = MessageKey> extends 
 
 /**
  * 409 Resource Locked
+ *
+ * 默认使用通用 `errors.lockConflict`；调用点可用描述符说明具体被占用的资源。
  */
-export class ResourceLockedError extends ApiError {
+export class ResourceLockedError<TKey extends MessageKey = MessageKey> extends ApiError {
   public readonly retryAfter?: number;
 
-  constructor(message: string = "Resource is locked", retryAfter?: number, code?: number) {
-    super(message, HttpStatusCode.Conflict, code || CustomCode.DISTRIBUTED_LOCK_CONFLICT, true, undefined, {
-      messageKey: "errors.lockConflict",
-    });
+  constructor(
+    message: string = "Resource is locked",
+    retryAfter?: number,
+    code?: number,
+    options?: ClassOptionsArg<TKey>,
+  ) {
+    super(
+      message,
+      HttpStatusCode.Conflict,
+      code || CustomCode.DISTRIBUTED_LOCK_CONFLICT,
+      true,
+      undefined,
+      buildLooseOptions("errors.lockConflict", options),
+    );
     this.retryAfter = retryAfter;
   }
 }

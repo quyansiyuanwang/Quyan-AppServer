@@ -160,7 +160,7 @@ export class RelayController extends Controller {
     @Query() resetAt?: string,
     @Query() timezoneOffsetMinutes?: number,
   ): Promise<RelayTokenCurrentQuotaDto> {
-    if (!request.relayToken) throw new UnauthorizedError("This endpoint requires a relay token");
+    if (!request.relayToken) throw new UnauthorizedError("This endpoint requires a relay token", undefined, { messageKey: "relay.tokenRequired" });
 
     const query: RelayTokenCurrentQuotaQueryDto = {
       startDate,
