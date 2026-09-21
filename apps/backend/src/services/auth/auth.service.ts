@@ -882,7 +882,7 @@ export class AuthService {
 
     // 4. Check username uniqueness
     const existing = await this.userRepository.findByUsername(data.username);
-    if (existing) throw new BadRequestError("用户名已存在", undefined, { messageKey: "auth.usernameExists" });
+    if (existing) throw new BadRequestError("用户名已存在", undefined, { messageKey: "user.usernameExists" });
 
     // 5. Get default group
     const defaultGroup = await this.groupRepository.findActiveByUsername(regConfig.defaultGroupUsername);

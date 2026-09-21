@@ -60,7 +60,7 @@ const BOUNDARY_REASONS: MessageKey[] = [
   "auth.loginRateLimit",
   "auth.missingRefreshToken",
   "auth.invalidRefreshToken",
-  "auth.usernameExists",
+  "user.usernameExists",
   "auth.usernameEmailMismatch",
   "auth.defaultGroupNotFound",
   "auth.invalidTwoFactorSetupSession",

@@ -60,20 +60,18 @@ function duplicateTextGroups(entries: Map<string, string>): Array<{ text: string
  *
  * 新增跨域重复会让本测试失败——若确认是有意的域边界复用，请把新的分组加入此清单；
  * 若只是同一事实的第二次定义，应复用既有 key 而不是新建（见 AGENTS.md「先复用或推导，再新增定义」）。
- * 预期该清单在 P08 收敛 RAM 镜像 key 后缩小。
+ *
+ * P08：RAM 的 5 组镜像 key（`ram.userNotFound` / `ram.groupNotFound` / `ram.actorNotFound` /
+ * `ram.invalidPermissions` / `ram.usernameExists`）已收敛到既有 key，本清单相应缩小；
+ * 用户名唯一性统一由 `user.usernameExists` 承担。
  */
 const KNOWN_CROSS_DOMAIN_SAME_TEXT: readonly (readonly string[])[] = [
-  ["user.notFound", "permission.userNotFound", "ram.userNotFound"],
+  ["user.notFound", "permission.userNotFound"],
   ["user.emailChangeCodeSent", "auth.verificationCodeSent"],
   ["user.deleted", "group.deleted", "billing.redemptionCodeDeleted"],
-  ["group.notFound", "permission.groupNotFound", "ram.groupNotFound"],
+  ["group.notFound", "permission.groupNotFound"],
   ["group.cannotModifyPermissionsForPeer", "permission.cannotModifyPeerGroup"],
-  ["permission.invalidPermissions", "ram.invalidPermissions"],
-  ["permission.operatorNotFound", "ram.actorNotFound"],
   ["errors.forbidden", "permission.insufficientPermission"],
-  // P07b 新增：主账号注册与 RAM 子账号创建各自需要「用户名已存在」，文案相同但域不同。
-  // P08 收敛 RAM 镜像 key 时一并复核。
-  ["auth.usernameExists", "ram.usernameExists"],
 ];
 
 const SAMPLE_VALUE = "<v>";
