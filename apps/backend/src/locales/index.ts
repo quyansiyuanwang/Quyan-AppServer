@@ -82,7 +82,6 @@ const catalogs = {
   "zh-CN": zhCN,
 } satisfies Record<BackendLocale, LocaleMessages>;
 
-
 export interface MessageDescriptor<TKey extends MessageKey = MessageKey> {
   key: TKey;
   params?: TranslationParams;
