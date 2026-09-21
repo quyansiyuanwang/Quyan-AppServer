@@ -170,7 +170,9 @@ export class ForbiddenError<TKey extends MessageKey = MessageKey> extends ApiErr
 /** Generic response for content safety blocks; never includes matched text or rule details. */
 export class ContentSafetyBlockedError extends ForbiddenError {
   constructor() {
-    super("Request blocked by content safety policy");
+    super("Request blocked by content safety policy", undefined, {
+      messageKey: "errors.contentSafetyBlocked",
+    });
     this.name = "ContentSafetyBlockedError";
   }
 }

@@ -128,6 +128,7 @@ describe("P04 · 目录结构与 key 一致性", () => {
         "relayChannel",
         "relayChannelProbe",
         "relayToken",
+        "relayProxy",
       ].sort(),
     );
   });
