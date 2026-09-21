@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { MessageKey } from "@/locales";
 import { ALL_NOTIFICATION_EVENTS, THRESHOLD_EVENTS } from "@/constant/notification-event";
 import { TICKET_PRIORITIES, TICKET_TYPES } from "@/constant/ticket";
 
@@ -102,120 +103,126 @@ export const setSocialAuthConfigBodySchema = z
     wechatWeb: socialAuthWechatSchema,
   })
   .superRefine((data, ctx) => {
-    const requireWhenEnabled = (enabled: boolean, value: string, path: (string | number)[], message: string) => {
-      if (enabled && !value.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path, message });
+    const requireWhenEnabled = (enabled: boolean, value: string, path: (string | number)[], messageKey: MessageKey) => {
+      // 携带描述符：否则统一校验模型只能回退到通用「无效值」，丢失「启用该提供方后必填」这一具体原因
+      if (enabled && !value.trim()) ctx.addIssue({ code: z.ZodIssueCode.custom, path, params: { messageKey } });
     };
 
     requireWhenEnabled(
       data.github.enabled,
       data.github.clientId,
       ["github", "clientId"],
-      "启用 GitHub 时必须填写 clientId",
+      "system.socialAuthGithubClientIdRequired",
     );
     requireWhenEnabled(
       data.github.enabled,
       data.github.clientSecret,
       ["github", "clientSecret"],
-      "启用 GitHub 时必须填写 clientSecret",
+      "system.socialAuthGithubClientSecretRequired",
     );
     requireWhenEnabled(
       data.github.enabled,
       data.github.authorizeUrl,
       ["github", "authorizeUrl"],
-      "启用 GitHub 时必须填写授权地址",
+      "system.socialAuthGithubAuthorizeUrlRequired",
     );
     requireWhenEnabled(
       data.github.enabled,
       data.github.tokenUrl,
       ["github", "tokenUrl"],
-      "启用 GitHub 时必须填写令牌地址",
+      "system.socialAuthGithubTokenUrlRequired",
     );
     requireWhenEnabled(
       data.github.enabled,
       data.github.userUrl,
       ["github", "userUrl"],
-      "启用 GitHub 时必须填写用户信息地址",
+      "system.socialAuthGithubUserUrlRequired",
     );
     requireWhenEnabled(
       data.github.enabled,
       data.github.emailUrl,
       ["github", "emailUrl"],
-      "启用 GitHub 时必须填写邮箱地址接口",
+      "system.socialAuthGithubEmailUrlRequired",
     );
-    requireWhenEnabled(data.github.enabled, data.github.scope, ["github", "scope"], "启用 GitHub 时必须填写 scope");
+    requireWhenEnabled(
+      data.github.enabled,
+      data.github.scope,
+      ["github", "scope"],
+      "system.socialAuthGithubScopeRequired",
+    );
 
     requireWhenEnabled(
       data.wechatOpen.enabled,
       data.wechatOpen.appId,
       ["wechatOpen", "appId"],
-      "启用微信开放平台时必须填写 appId",
+      "system.socialAuthWechatOpenAppIdRequired",
     );
     requireWhenEnabled(
       data.wechatOpen.enabled,
       data.wechatOpen.appSecret,
       ["wechatOpen", "appSecret"],
-      "启用微信开放平台时必须填写 appSecret",
+      "system.socialAuthWechatOpenAppSecretRequired",
     );
     requireWhenEnabled(
       data.wechatOpen.enabled,
       data.wechatOpen.authorizeUrl,
       ["wechatOpen", "authorizeUrl"],
-      "启用微信开放平台时必须填写授权地址",
+      "system.socialAuthWechatOpenAuthorizeUrlRequired",
     );
     requireWhenEnabled(
       data.wechatOpen.enabled,
       data.wechatOpen.tokenUrl,
       ["wechatOpen", "tokenUrl"],
-      "启用微信开放平台时必须填写令牌地址",
+      "system.socialAuthWechatOpenTokenUrlRequired",
     );
     requireWhenEnabled(
       data.wechatOpen.enabled,
       data.wechatOpen.userUrl,
       ["wechatOpen", "userUrl"],
-      "启用微信开放平台时必须填写用户信息地址",
+      "system.socialAuthWechatOpenUserUrlRequired",
     );
     requireWhenEnabled(
       data.wechatOpen.enabled,
       data.wechatOpen.scope,
       ["wechatOpen", "scope"],
-      "启用微信开放平台时必须填写 scope",
+      "system.socialAuthWechatOpenScopeRequired",
     );
 
     requireWhenEnabled(
       data.wechatWeb.enabled,
       data.wechatWeb.appId,
       ["wechatWeb", "appId"],
-      "启用微信网页时必须填写 appId",
+      "system.socialAuthWechatWebAppIdRequired",
     );
     requireWhenEnabled(
       data.wechatWeb.enabled,
       data.wechatWeb.appSecret,
       ["wechatWeb", "appSecret"],
-      "启用微信网页时必须填写 appSecret",
+      "system.socialAuthWechatWebAppSecretRequired",
     );
     requireWhenEnabled(
       data.wechatWeb.enabled,
       data.wechatWeb.authorizeUrl,
       ["wechatWeb", "authorizeUrl"],
-      "启用微信网页时必须填写授权地址",
+      "system.socialAuthWechatWebAuthorizeUrlRequired",
     );
     requireWhenEnabled(
       data.wechatWeb.enabled,
       data.wechatWeb.tokenUrl,
       ["wechatWeb", "tokenUrl"],
-      "启用微信网页时必须填写令牌地址",
+      "system.socialAuthWechatWebTokenUrlRequired",
     );
     requireWhenEnabled(
       data.wechatWeb.enabled,
       data.wechatWeb.userUrl,
       ["wechatWeb", "userUrl"],
-      "启用微信网页时必须填写用户信息地址",
+      "system.socialAuthWechatWebUserUrlRequired",
     );
     requireWhenEnabled(
       data.wechatWeb.enabled,
       data.wechatWeb.scope,
       ["wechatWeb", "scope"],
-      "启用微信网页时必须填写 scope",
+      "system.socialAuthWechatWebScopeRequired",
     );
   });
 

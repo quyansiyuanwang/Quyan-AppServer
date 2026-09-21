@@ -35,6 +35,7 @@ const remoteTerminalShortcutSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "key is required when kind=key",
+        params: { messageKey: "remoteTerminal.shortcutKeyRequired" },
         path: ["key"],
       });
 
@@ -42,6 +43,7 @@ const remoteTerminalShortcutSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "sequence is required when kind=sequence",
+        params: { messageKey: "remoteTerminal.shortcutSequenceRequired" },
         path: ["sequence"],
       });
   });
