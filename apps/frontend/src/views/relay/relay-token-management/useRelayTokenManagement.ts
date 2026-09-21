@@ -1,4 +1,4 @@
-import { createUserFacingError } from '@/utils/error-utils'
+import { createUserFacingError, getErrorMessage } from '@/utils/error-utils'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
 import type {
@@ -2411,8 +2411,8 @@ export const useRelayTokenManagement = () => {
       const importUri = buildCcswitchImportUri(row, format)
       window.location.href = importUri
       ElMessage.info(i18ns.t('relay.launchToCcswitchSuccess'))
-    } catch {
-      ElMessage.error(i18ns.t('relay.launchToCcswitchFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('relay.launchToCcswitchFailed')))
     }
   }
 

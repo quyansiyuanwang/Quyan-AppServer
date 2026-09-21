@@ -115,6 +115,7 @@
 
 <script setup lang="ts">
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
@@ -333,8 +334,8 @@ const applyUserRegexSelection = () => {
 
   try {
     matcher = new RegExp(userRegex.value, 'i')
-  } catch {
-    ElMessage.warning('Invalid user regex')
+  } catch (error) {
+    ElMessage.warning(getErrorMessage(error, 'Invalid user regex'))
     return
   }
 

@@ -359,6 +359,7 @@
 
 <script setup lang="ts">
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ArrowRight, Document, Key, Lock } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -443,8 +444,8 @@ const copyText = async (value: string) => {
   try {
     await navigator.clipboard.writeText(value)
     ElMessage.success(i18ns.t('copySuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('copyFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
   }
 }
 const copyUrl = (path: string) => copyText(absoluteUrl(path))
@@ -475,8 +476,8 @@ async function generateEd25519KeyPair() {
     savedPublicKeyFingerprint.value = ''
     generatedPrivateKey.value = pemFromBuffer('PRIVATE KEY', privateKey)
     privateKeyDialogVisible.value = true
-  } catch {
-    ElMessage.error(i18ns.t('jsonEndpoint.keyGenerationUnsupported'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('jsonEndpoint.keyGenerationUnsupported')))
   } finally {
     generatingKeyPair.value = false
   }

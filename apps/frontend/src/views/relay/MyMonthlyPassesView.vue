@@ -175,6 +175,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElCard, ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -207,14 +208,6 @@ const loadingMonthlyPassBalance = ref(false)
 
 const resolveTabFromRoute = (): MonthlyPassTab =>
   route.query.tab === 'purchase' ? 'purchase' : 'myPasses'
-
-const toErrorMessage = (error: unknown, fallback: string) => {
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message
-    if (typeof message === 'string' && message.trim()) return message
-  }
-  return fallback
-}
 
 const formatMonthlyPassDecimal = (value: number, precision = 4) => {
   return value.toFixed(precision).replace(/\.?0+$/, '')
@@ -311,7 +304,7 @@ const loadMyPasses = async () => {
     const result = await monthlyPassService.listMyUserPasses({ page: 1, pageSize: 100 })
     records.value = result.records || []
   } catch (error) {
-    ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.refreshFailed')))
+    ElMessage.error(getErrorMessage(error, i18ns.t('monthlyPass.refreshFailed')))
   } finally {
     loading.value = false
   }
@@ -347,7 +340,7 @@ const loadPublishedMonthlyPasses = async () => {
     }
   } catch (error) {
     publishedMonthlyPasses.value = []
-    monthlyPassLoadError.value = toErrorMessage(error, i18ns.t('apiDoc.monthlyPassesLoadFailed'))
+    monthlyPassLoadError.value = getErrorMessage(error, i18ns.t('apiDoc.monthlyPassesLoadFailed'))
   } finally {
     loadingPublishedMonthlyPasses.value = false
   }

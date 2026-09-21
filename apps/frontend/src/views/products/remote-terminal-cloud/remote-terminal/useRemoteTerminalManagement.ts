@@ -1334,8 +1334,8 @@ export const useRemoteTerminalManagement = () => {
       try {
         await navigator.clipboard.writeText(selection)
         tab.terminal?.clearSelection()
-      } catch {
-        ElMessage.error(i18ns.t('copyFailed'))
+      } catch (error) {
+        ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
       }
       return
     }
@@ -1352,8 +1352,8 @@ export const useRemoteTerminalManagement = () => {
       }
 
       tab.terminal?.focus()
-    } catch {
-      ElMessage.error(i18ns.t('operationFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
     }
   }
 
@@ -1485,8 +1485,8 @@ export const useRemoteTerminalManagement = () => {
     try {
       await navigator.clipboard.writeText(buildShareUrl())
       ElMessage.success(i18ns.t('remoteTerminal.linkCopied'))
-    } catch {
-      ElMessage.error(i18ns.t('remoteTerminal.linkCopyFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminal.linkCopyFailed')))
     }
   }
 
@@ -1507,8 +1507,8 @@ export const useRemoteTerminalManagement = () => {
       } else {
         await container.requestFullscreen()
       }
-    } catch {
-      ElMessage.error(i18ns.t('remoteTerminal.fullscreenFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminal.fullscreenFailed')))
     }
   }
 

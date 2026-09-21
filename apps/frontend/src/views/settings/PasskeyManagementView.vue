@@ -148,6 +148,7 @@
 
 <script setup lang="ts">
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -181,7 +182,7 @@ async function loadCredentials() {
   try {
     credentials.value = await passkeyService.listCredentials()
   } catch (e) {
-    ElMessage.error(i18ns.t('unknownError'))
+    ElMessage.error(getErrorMessage(e, i18ns.t('unknownError')))
     throw e
   } finally {
     loading.value = false
@@ -194,8 +195,8 @@ async function handleRegister() {
     pendingOptions.value =
       (await passkeyService.getRegistrationOptions()) as PublicKeyCredentialCreationOptionsJSON &
         RecordStringAny
-  } catch {
-    ElMessage.error(i18ns.t('unknownError'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('unknownError')))
     registering.value = false
     return
   } finally {
@@ -225,7 +226,7 @@ async function confirmRegister() {
     await loadCredentials()
   } catch (err: any) {
     if (err?.name === 'NotAllowedError') {
-      ElMessage.warning(i18ns.t('passkey.cancelled'))
+      ElMessage.warning(getErrorMessage(err, i18ns.t('passkey.cancelled')))
     } else {
       showRequestErrorNotice(err, i18ns.t('unknownError'))
     }
@@ -245,7 +246,7 @@ async function handleDelete(credentialId: string) {
     await loadCredentials()
   } catch (e) {
     if (e !== 'cancel') {
-      ElMessage.error(i18ns.t('unknownError'))
+      ElMessage.error(getErrorMessage(e, i18ns.t('unknownError')))
     }
   }
 }

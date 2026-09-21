@@ -1,3 +1,5 @@
+import { localeHeaders } from '@/utils/public-request'
+import { getBackendLocale } from '@/locales'
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
 import StorageKey from '@/constant/storagekey'
 import { CustomCode } from '@/constant/custom-code'
@@ -103,6 +105,7 @@ export class ReplaySigningService {
       credentials: 'include',
       headers: {
         ...(fingerprint ? { 'X-Client-Fingerprint': fingerprint } : {}),
+        ...localeHeaders(getBackendLocale()),
       },
     })
 

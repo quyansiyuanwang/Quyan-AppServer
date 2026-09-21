@@ -462,8 +462,8 @@ const loadUserList = async () => {
     })
     userList.value = response.users
     pagination.value.total = response.total
-  } catch {
-    ElMessage.error(i18ns.t('UserManagement.loadFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('UserManagement.loadFailed')))
   } finally {
     loading.value = false
   }
@@ -473,8 +473,8 @@ const loadGroups = async () => {
   try {
     const response = await groupService.getAllGroups()
     groups.value = Array.isArray(response) ? response : response.groups
-  } catch {
-    ElMessage.error(i18ns.t('GroupManagement.loadFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('GroupManagement.loadFailed')))
   }
 }
 
@@ -502,8 +502,8 @@ const handleResetPasswordSubmit = async () => {
     })
     ElMessage.success(i18ns.t('UserManagement.resetPasswordSuccess'))
     resetPasswordDialogVisible.value = false
-  } catch {
-    ElMessage.error(i18ns.t('UserManagement.resetPasswordFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('UserManagement.resetPasswordFailed')))
   } finally {
     resetPasswordSubmitting.value = false
   }
@@ -536,7 +536,7 @@ const handleDelete = async (row: UserDto) => {
     loadUserList()
   } catch (err) {
     if (err !== 'cancel') {
-      ElMessage.error(i18ns.t('UserManagement.deleteFailed'))
+      ElMessage.error(getErrorMessage(err, i18ns.t('UserManagement.deleteFailed')))
     }
   }
 }
@@ -587,11 +587,14 @@ const handleSubmit = async () => {
     }
     dialogVisible.value = false
     loadUserList()
-  } catch {
+  } catch (error) {
     ElMessage.error(
-      isEdit.value
-        ? i18ns.t('UserManagement.updateFailed')
-        : i18ns.t('UserManagement.createFailed'),
+      getErrorMessage(
+        error,
+        isEdit.value
+          ? i18ns.t('UserManagement.updateFailed')
+          : i18ns.t('UserManagement.createFailed'),
+      ),
     )
   } finally {
     submitting.value = false

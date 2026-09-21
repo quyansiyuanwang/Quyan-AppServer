@@ -183,6 +183,7 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -259,7 +260,7 @@ const loadReviewItems = async () => {
     items.value = res.data.items
     total.value = res.data.total
   } catch (error) {
-    ElMessage.error(t('authCenterClient.loadReviewFailed'))
+    ElMessage.error(getErrorMessage(error, t('authCenterClient.loadReviewFailed')))
     throw error
   } finally {
     loading.value = false
@@ -300,8 +301,8 @@ const submitReviewDecision = async () => {
     pendingDecision.value = null
     reviewComment.value = ''
     await loadReviewItems()
-  } catch {
-    ElMessage.error(t('authCenterClient.reviewFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, t('authCenterClient.reviewFailed')))
   } finally {
     submitting.value = false
   }
@@ -319,7 +320,7 @@ const handleDelete = async (row: AuthCenterClientReviewListItemDto) => {
     await loadReviewItems()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('authCenterClient.deleteFailed'))
+      ElMessage.error(getErrorMessage(error, t('authCenterClient.deleteFailed')))
     }
   }
 }

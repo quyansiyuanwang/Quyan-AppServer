@@ -337,6 +337,7 @@
 
 <script setup lang="ts">
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
+import { getErrorMessage } from '@/utils/error-utils'
 import StorageKey from '@/constant/storagekey'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -383,15 +384,6 @@ onMounted(async () => {
   }
 })
 
-const toErrorMessage = (error: unknown, fallback: string) => {
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message
-    if (typeof message === 'string' && message.trim()) return message
-  }
-
-  return fallback
-}
-
 const openProtectedDebugUrl = async (resourceUrl: string) => {
   const previewWindow = window.open('', '_blank')
 
@@ -417,7 +409,7 @@ const openProtectedDebugUrl = async (resourceUrl: string) => {
     assignDocument(targetUrl)
   } catch (error) {
     previewWindow?.close()
-    ElMessage.error(toErrorMessage(error, i18ns.t('apiDoc.openSwaggerDocsFailed')))
+    ElMessage.error(getErrorMessage(error, i18ns.t('apiDoc.openSwaggerDocsFailed')))
   }
 }
 
@@ -474,7 +466,7 @@ const handleClearTrustedWindow = async () => {
     ElMessage.success(i18ns.t('DebugView.clearTrustedWindowSuccess'))
   } catch (error) {
     console.error('Failed to clear trusted 2FA window:', error)
-    ElMessage.error(i18ns.t('DebugView.clearTrustedWindowFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('DebugView.clearTrustedWindowFailed')))
   } finally {
     clearingTrustedWindow.value = false
   }

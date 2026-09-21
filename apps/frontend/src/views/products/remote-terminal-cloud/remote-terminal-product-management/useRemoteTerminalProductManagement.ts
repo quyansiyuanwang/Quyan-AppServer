@@ -1,4 +1,5 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus/es'
 import { i18ns } from '@/locales'
@@ -258,14 +259,6 @@ export function useRemoteTerminalProductManagement(
     terminalLimit: [{ validator: validateEntitlementQuota, trigger: 'change' }],
   }
 
-  const toErrorMessage = (error: unknown, fallback: string) => {
-    if (error && typeof error === 'object' && 'message' in error) {
-      const message = (error as { message?: unknown }).message
-      if (typeof message === 'string' && message.trim()) return message
-    }
-    return fallback
-  }
-
   const canReadTemplate = computed(() =>
     permissionStore.hasPermission(Permission.REMOTE_TERMINAL_PRODUCT_READ),
   )
@@ -470,7 +463,7 @@ export function useRemoteTerminalProductManagement(
       if (section === 'entitlements') await loadEntitlements()
       if (section === 'devices') await Promise.all([loadEntitlements(), loadDevices()])
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.refreshFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.refreshFailed')))
     } finally {
       loading.value = false
     }
@@ -535,7 +528,7 @@ export function useRemoteTerminalProductManagement(
       templateDialogVisible.value = false
       await refreshAll()
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.saveFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.saveFailed')))
     } finally {
       dialogSubmitting.value = false
     }
@@ -547,7 +540,7 @@ export function useRemoteTerminalProductManagement(
       ElMessage.success(i18ns.t('updateSuccess'))
       await refreshAll()
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.publishFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.publishFailed')))
     }
   }
 
@@ -557,7 +550,7 @@ export function useRemoteTerminalProductManagement(
       ElMessage.success(i18ns.t('updateSuccess'))
       await refreshAll()
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.unpublishFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.unpublishFailed')))
     }
   }
 
@@ -569,7 +562,7 @@ export function useRemoteTerminalProductManagement(
       await refreshAll()
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.deleteFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.deleteFailed')))
     }
   }
 
@@ -636,7 +629,7 @@ export function useRemoteTerminalProductManagement(
       entitlementDialogVisible.value = false
       await refreshAll()
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.saveFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.saveFailed')))
     } finally {
       dialogSubmitting.value = false
     }
@@ -650,7 +643,7 @@ export function useRemoteTerminalProductManagement(
       await refreshAll()
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.deleteFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.deleteFailed')))
     }
   }
 
@@ -674,7 +667,7 @@ export function useRemoteTerminalProductManagement(
       tokenDialogVisible.value = false
       await refreshAll()
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.tokenRotateFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.tokenRotateFailed')))
     } finally {
       dialogSubmitting.value = false
     }
@@ -704,7 +697,7 @@ export function useRemoteTerminalProductManagement(
       limitAdjustTarget.value = undefined
       await refreshAll()
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.saveFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.saveFailed')))
     } finally {
       dialogSubmitting.value = false
     }
@@ -724,7 +717,7 @@ export function useRemoteTerminalProductManagement(
       await refreshAll()
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.resetUnbindFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.resetUnbindFailed')))
     } finally {
       resettingUnbind.value = false
     }
@@ -738,7 +731,7 @@ export function useRemoteTerminalProductManagement(
       await refreshAll()
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.revokeFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.revokeFailed')))
     }
   }
 

@@ -49,10 +49,6 @@ const normalizeFormats = (formats?: string): string[] => normalizeRelayFormats(f
 const buildHighlightCacheKey = (keyword: string, text: string): string =>
   JSON.stringify([keyword, text])
 
-const resolveErrorMessage = (error: unknown, fallback: string): string => {
-  return getErrorMessage(error, fallback)
-}
-
 export const useApiDocumentationPricing = () => {
   const loading = ref(false)
   const loadErrorMessage = ref('')
@@ -517,7 +513,7 @@ export const useApiDocumentationPricing = () => {
     try {
       pricingData.value = await modelPricingService.getModelPricing()
     } catch (error) {
-      loadErrorMessage.value = resolveErrorMessage(error, i18ns.t('apiDoc.loadFailed'))
+      loadErrorMessage.value = getErrorMessage(error, i18ns.t('apiDoc.loadFailed'))
       ElMessage.error(loadErrorMessage.value)
       throw error
     } finally {
@@ -529,7 +525,7 @@ export const useApiDocumentationPricing = () => {
     try {
       channels.value = await relayChannelService.listCatalogOptions()
     } catch (error) {
-      loadErrorMessage.value = resolveErrorMessage(error, i18ns.t('relay.loadFailed'))
+      loadErrorMessage.value = getErrorMessage(error, i18ns.t('relay.loadFailed'))
       ElMessage.error(loadErrorMessage.value)
       throw error
     }

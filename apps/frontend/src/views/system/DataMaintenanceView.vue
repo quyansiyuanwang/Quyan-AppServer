@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
@@ -70,8 +71,8 @@ const loadRuns = async () => {
     })
     runs.value = result?.items ?? []
     total.value = result?.total ?? 0
-  } catch {
-    ElMessage.error(i18ns.t('dataMaintenance.loadFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('dataMaintenance.loadFailed')))
   } finally {
     historyLoading.value = false
   }

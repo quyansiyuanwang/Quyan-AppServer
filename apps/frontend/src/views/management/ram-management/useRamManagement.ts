@@ -1,4 +1,5 @@
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -539,8 +540,8 @@ export function useRamManagement(section: RamManagementSection) {
     try {
       await navigator.clipboard.writeText(createdAccessKeySecret.value)
       ElMessage.success(i18ns.t('RamManagement.secretCopied'))
-    } catch {
-      ElMessage.error(i18ns.t('copyFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
     }
   }
 
@@ -548,8 +549,8 @@ export function useRamManagement(section: RamManagementSection) {
     try {
       await navigator.clipboard.writeText(createdPasswordValue.value)
       ElMessage.success(i18ns.t('RamManagement.secretCopied'))
-    } catch {
-      ElMessage.error(i18ns.t('copyFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
     }
   }
 

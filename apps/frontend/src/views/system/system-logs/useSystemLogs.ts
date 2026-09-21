@@ -1,4 +1,5 @@
 import { Refresh } from '@element-plus/icons-vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { computed, onMounted, ref } from 'vue'
 import type {
@@ -440,7 +441,7 @@ export const useSystemLogs = () => {
       logs.value = data.logs
       total.value = data.total
     } catch (error) {
-      ElMessage.error(i18ns.t('SystemLogs.loadFailed'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('SystemLogs.loadFailed')))
       console.error('Failed to load system logs:', error)
     } finally {
       apiLoading.value = false
@@ -469,7 +470,7 @@ export const useSystemLogs = () => {
         true,
       )) as SystemLogStats
     } catch (error) {
-      ElMessage.error(i18ns.t('SystemLogs.loadStatsFailed'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('SystemLogs.loadStatsFailed')))
       console.error('Failed to load system log stats:', error)
     } finally {
       apiStatsLoading.value = false
@@ -511,7 +512,7 @@ export const useSystemLogs = () => {
       selectedServerLogFileName.value = targetFileName
       await loadServerLogContent(targetFileName)
     } catch (error) {
-      ElMessage.error(i18ns.t('SystemLogs.loadServerLogFilesFailed'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('SystemLogs.loadServerLogFilesFailed')))
       console.error('Failed to load server log files:', error)
     } finally {
       serverFilesLoading.value = false
@@ -540,7 +541,7 @@ export const useSystemLogs = () => {
       selectedServerLogFileName.value = targetFileName
       serverLogContent.value = data
     } catch (error) {
-      ElMessage.error(i18ns.t('SystemLogs.loadServerLogContentFailed'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('SystemLogs.loadServerLogContentFailed')))
       console.error('Failed to load server log content:', error)
     } finally {
       serverContentLoading.value = false

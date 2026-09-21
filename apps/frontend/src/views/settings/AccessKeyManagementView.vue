@@ -166,6 +166,7 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { i18ns } from '@/locales'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { twoFactorManagementService } from '@/service/twoFactor/twoFactorManagementService'
@@ -206,7 +207,7 @@ const loadAccessKeys = async () => {
     const res = await accesskeyService.getAccessKeys()
     accessKeys.value = res.data
   } catch (error) {
-    ElMessage.error(t('accesskey.loadFailed'))
+    ElMessage.error(getErrorMessage(error, t('accesskey.loadFailed')))
     throw error
   } finally {
     loading.value = false
@@ -251,7 +252,7 @@ const sendCode = async () => {
       }
     }, 1000)
   } catch (error) {
-    ElMessage.error(t('loginOrRegisterPage.requestFailed'))
+    ElMessage.error(getErrorMessage(error, t('loginOrRegisterPage.requestFailed')))
     throw error
   }
 }
@@ -280,7 +281,7 @@ const handleCreate = async () => {
     loadAccessKeys()
   } catch (error: any) {
     if (error?.code === CustomCode.TWO_FACTOR_REQUIRED) return
-    ElMessage.error(t('accesskey.createFailed'))
+    ElMessage.error(getErrorMessage(error, t('accesskey.createFailed')))
     throw error
   }
 }
@@ -295,7 +296,7 @@ const handleDelete = async (row: AccessKeyDto) => {
     loadAccessKeys()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('accesskey.deleteFailed'))
+      ElMessage.error(getErrorMessage(error, t('accesskey.deleteFailed')))
     }
   }
 }

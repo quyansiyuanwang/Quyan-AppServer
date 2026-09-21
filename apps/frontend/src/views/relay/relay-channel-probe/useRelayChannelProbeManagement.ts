@@ -573,8 +573,8 @@ export const useRelayChannelProbeManagement = () => {
     try {
       await navigator.clipboard.writeText(variableTemplate(name))
       ElMessage.success(i18ns.t('relay.channelProbeVariableCopied'))
-    } catch {
-      ElMessage.warning(i18ns.t('relay.channelProbeVariableCopyFailed'))
+    } catch (error) {
+      ElMessage.warning(getErrorMessage(error, i18ns.t('relay.channelProbeVariableCopyFailed')))
     }
   }
   function applyPayloadPreset() {
@@ -649,8 +649,8 @@ export const useRelayChannelProbeManagement = () => {
     try {
       await navigator.clipboard.writeText(content)
       ElMessage.success(i18ns.t('relay.channelProbeCopied'))
-    } catch {
-      ElMessage.warning(i18ns.t('relay.channelProbeCopyFailed'))
+    } catch (error) {
+      ElMessage.warning(getErrorMessage(error, i18ns.t('relay.channelProbeCopyFailed')))
     }
   }
   function openImportDialog() {
@@ -667,8 +667,8 @@ export const useRelayChannelProbeManagement = () => {
     if (!file) return
     try {
       importText.value = await file.text()
-    } catch {
-      ElMessage.error(i18ns.t('relay.channelProbeImportInvalid'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('relay.channelProbeImportInvalid')))
     }
   }
   function parseImportedProfile(): ProbeProfileExport['profile'] {

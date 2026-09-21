@@ -1,3 +1,5 @@
+import { localeHeaders } from '@/utils/public-request'
+import { getBackendLocale } from '@/locales'
 import type {
   CreateDeveloperProductApiKeyDto,
   CreateDeveloperProductInstanceDto,
@@ -52,6 +54,8 @@ export class DeveloperProductService {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${apiKey.trim()}`,
+        // 错误消息由后端按 X-Locale 渲染，直连 fetch 必须与主请求保持一致
+        ...localeHeaders(getBackendLocale()),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),

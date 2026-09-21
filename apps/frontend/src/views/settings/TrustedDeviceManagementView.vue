@@ -151,7 +151,7 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import { usePagination } from '@/composables/usePagination'
 import { trustedDeviceService } from '@/service/twoFactor/trustedDeviceService'
 import type { TwoFactorTrustedDevice } from '@/types/trusted-device'
-import { isRequestCanceled, isValidationFieldError } from '@/utils/error-utils'
+import { isRequestCanceled, isValidationFieldError, getErrorMessage } from '@/utils/error-utils'
 
 const { isDesktop } = usePageDevice()
 
@@ -306,7 +306,7 @@ const handleRemoveTrustedDevice = async (device: TwoFactorTrustedDevice) => {
     if (isUnmounted.value) return
 
     if (isValidationFieldError(error, 'deviceId')) {
-      ElMessage.error(i18ns.t('twoFactor.trustedDeviceInvalidId'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('twoFactor.trustedDeviceInvalidId')))
       return
     }
 

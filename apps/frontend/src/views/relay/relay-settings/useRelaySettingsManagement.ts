@@ -1,4 +1,5 @@
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { Permission } from '@/constant/permission'
 import { i18ns } from '@/locales'
@@ -743,8 +744,8 @@ export const useRelaySettingsManagement = () => {
       showImportDialog.value = false
       importText.value = ''
       ElMessage.success(i18ns.t('ServerConfigView.importSuccess'))
-    } catch {
-      ElMessage.error(i18ns.t('ServerConfigView.importFormatError'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('ServerConfigView.importFormatError')))
     }
   }
 
@@ -1909,8 +1910,8 @@ export const useRelaySettingsManagement = () => {
         ElMessage.error(i18ns.t('relay.channelImportFormatError'))
         return
       }
-    } catch {
-      ElMessage.error(i18ns.t('relay.channelImportFormatError'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('relay.channelImportFormatError')))
       return
     }
 

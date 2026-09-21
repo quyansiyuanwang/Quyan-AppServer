@@ -396,6 +396,7 @@
 
 <script setup lang="ts">
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { usePageDevice } from '@/composables/usePageDevice'
 import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import { onMounted, ref } from 'vue'
@@ -587,7 +588,7 @@ const changePassword = async () => {
   } catch (err) {
     if ((err as any)?.code === CustomCode.TWO_FACTOR_REQUIRED) return
     console.error(err)
-    ElMessage.error(i18ns.t('message.error.modifyFailed'))
+    ElMessage.error(getErrorMessage(err, i18ns.t('message.error.modifyFailed')))
   }
 }
 
@@ -717,8 +718,8 @@ const handleCopyTwoFactorSecret = async () => {
   try {
     await navigator.clipboard.writeText(secret)
     ElMessage.success(i18ns.t('copySuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('copyFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
   }
 }
 
@@ -727,8 +728,8 @@ const handleCopyRecoveryCodes = async () => {
     const text = twoFactorRecoveryCodes.value.join('\n')
     await navigator.clipboard.writeText(text)
     ElMessage.success(i18ns.t('copySuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('copyFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
   }
 }
 
