@@ -34,12 +34,14 @@ const validateQuotaByUnit = (
   if (value == null) return;
 
   const unit = quotaUnit ?? "amount";
-  const message = getMonthlyPassQuotaValidationError(fieldName, value, unit);
-  if (message)
+  const issue = getMonthlyPassQuotaValidationError(fieldName, value, unit);
+  if (issue)
+    // 结构化描述符经 `params` 传给统一校验模型，由响应边界本地化（P06/P09）
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: [fieldName],
-      message,
+      message: issue.key,
+      params: { messageKey: issue.key, messageParams: issue.params },
     });
 };
 
@@ -224,13 +226,25 @@ export const updateMonthlyPassTemplateBodySchema = monthlyPassTemplateBaseObject
   })
   .superRefine((value, ctx) => {
     if (value.originalPrice !== undefined) {
-      const message = getMonthlyPassPriceValidationError("originalPrice", value.originalPrice);
-      if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["originalPrice"], message });
+      const issue = getMonthlyPassPriceValidationError("originalPrice", value.originalPrice);
+      if (issue)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["originalPrice"],
+          message: issue.key,
+          params: { messageKey: issue.key, messageParams: issue.params },
+        });
     }
 
     if (value.discountPercent !== undefined) {
-      const message = getMonthlyPassDiscountPercentValidationError(value.discountPercent);
-      if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["discountPercent"], message });
+      const issue = getMonthlyPassDiscountPercentValidationError(value.discountPercent);
+      if (issue)
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["discountPercent"],
+          message: issue.key,
+          params: { messageKey: issue.key, messageParams: issue.params },
+        });
     }
 
     const quotaUnit = value.quotaUnit ?? "amount";

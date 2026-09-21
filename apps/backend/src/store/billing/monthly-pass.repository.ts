@@ -77,7 +77,8 @@ export class MonthlyPassRepository implements MonthlyPassStore {
       totalUsedDelta: new Decimal(data.purchaseAmount),
       minimumBalance: 0,
     });
-    if (!mutation) throw new BadRequestError("Insufficient balance");
+    if (!mutation)
+      throw new BadRequestError("Insufficient balance", undefined, { messageKey: "billing.insufficientBalance" });
 
     await tx.balanceTransaction.create({
       data: {
@@ -270,7 +271,10 @@ export class MonthlyPassRepository implements MonthlyPassStore {
           },
         });
         if (currentCount >= purchase.limit.maximum)
-          throw new BadRequestError(`purchase limit exceeded: at most ${purchase.limit.maximum} claim(s)`);
+          throw new BadRequestError(`purchase limit exceeded: at most ${purchase.limit.maximum} claim(s)`, undefined, {
+            messageKey: "monthlyPass.purchaseLimitExceededShort",
+            messageParams: { limit: purchase.limit.maximum },
+          });
       }
 
       await this.chargePurchase(tx, purchase);

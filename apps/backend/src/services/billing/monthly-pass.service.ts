@@ -134,7 +134,14 @@ const normalizeDiscountPercentValue = (value: number): number => round2(value);
 const normalizeValidityDays = (value?: number | null): number => {
   const normalized = value ?? MONTHLY_PASS_DEFAULT_VALIDITY_DAYS;
   if (!Number.isInteger(normalized) || normalized < 1 || normalized > MONTHLY_PASS_MAX_VALIDITY_DAYS)
-    throw new BadRequestError(`validityDays must be an integer between 1 and ${MONTHLY_PASS_MAX_VALIDITY_DAYS}`);
+    throw new BadRequestError(
+      `validityDays must be an integer between 1 and ${MONTHLY_PASS_MAX_VALIDITY_DAYS}`,
+      undefined,
+      {
+        messageKey: "monthlyPass.validityDaysRange",
+        messageParams: { max: MONTHLY_PASS_MAX_VALIDITY_DAYS },
+      },
+    );
   return normalized;
 };
 
@@ -146,7 +153,11 @@ const validateOptionalPositiveIntegerOrNull = (fieldName: string, value?: number
       ? MONTHLY_PASS_PURCHASE_LIMIT_MAX
       : MONTHLY_PASS_PURCHASE_LIMIT_WINDOW_MAX_DAYS;
   const message = getMonthlyPassPositiveIntegerValidationError(fieldName, value, max);
-  if (message) throw new BadRequestError(message);
+  if (message)
+    throw new BadRequestError("monthly pass validation failed", undefined, {
+      messageKey: message.key,
+      messageParams: message.params,
+    });
   return value;
 };
 
@@ -160,7 +171,9 @@ const validatePurchaseLimitConfig = (
   const hasLimit = normalizedLimit !== undefined && normalizedLimit !== null;
   const hasWindow = normalizedWindow !== undefined && normalizedWindow !== null;
   if (hasLimit !== hasWindow)
-    throw new BadRequestError("purchaseLimitPerUser and purchaseLimitWindowDays must be set together");
+    throw new BadRequestError("purchaseLimitPerUser and purchaseLimitWindowDays must be set together", undefined, {
+      messageKey: "monthlyPass.purchaseLimitPairRequired",
+    });
 
   return {
     purchaseLimitPerUser: normalizedLimit,
@@ -174,13 +187,21 @@ const normalizeAssignmentMode = (value?: MonthlyPassAssignmentMode): MonthlyPass
 const parseDateStringOrThrow = (fieldName: "startTime" | "endTime", value?: string): Date | undefined => {
   if (!value) return undefined;
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) throw new BadRequestError(`${fieldName} must be a valid date string`);
+  if (Number.isNaN(parsed.getTime()))
+    throw new BadRequestError(`${fieldName} must be a valid date string`, undefined, {
+      messageKey: "monthlyPass.fieldInvalidDate",
+      messageParams: { field: fieldName },
+    });
   return parsed;
 };
 
 const parseRequiredDateStringOrThrow = (fieldName: "startAt" | "endAt", value: string): Date => {
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) throw new BadRequestError(`${fieldName} must be a valid date string`);
+  if (Number.isNaN(parsed.getTime()))
+    throw new BadRequestError(`${fieldName} must be a valid date string`, undefined, {
+      messageKey: "monthlyPass.fieldInvalidDate",
+      messageParams: { field: fieldName },
+    });
   return parsed;
 };
 
@@ -190,7 +211,11 @@ const validateQuotaValue = (
   unit: MonthlyPassQuotaUnit,
 ): void => {
   const message = getMonthlyPassQuotaValidationError(fieldName, value, unit);
-  if (message) throw new BadRequestError(message);
+  if (message)
+    throw new BadRequestError("monthly pass validation failed", undefined, {
+      messageKey: message.key,
+      messageParams: message.params,
+    });
 };
 
 const validatePriceValue = (
@@ -199,12 +224,20 @@ const validatePriceValue = (
   options: { allowZero?: boolean } = {},
 ): void => {
   const message = getMonthlyPassPriceValidationError(fieldName, value, options);
-  if (message) throw new BadRequestError(message);
+  if (message)
+    throw new BadRequestError("monthly pass validation failed", undefined, {
+      messageKey: message.key,
+      messageParams: message.params,
+    });
 };
 
 const validateDiscountPercentValue = (value: number): void => {
   const message = getMonthlyPassDiscountPercentValidationError(value);
-  if (message) throw new BadRequestError(message);
+  if (message)
+    throw new BadRequestError("monthly pass validation failed", undefined, {
+      messageKey: message.key,
+      messageParams: message.params,
+    });
 };
 
 const isPriceFirstTemplateRecord = (record: {
@@ -218,7 +251,11 @@ const normalizeQuotaWindowHours = (value?: number | null, enforceMax = false): n
   if (value == null) return null;
   const error = getMonthlyPassQuotaWindowHoursValidationError(value, { allowExceedMax: !enforceMax });
   if (error) {
-    if (enforceMax) throw new BadRequestError(error);
+    if (enforceMax)
+      throw new BadRequestError("monthly pass validation failed", undefined, {
+        messageKey: error.key,
+        messageParams: error.params,
+      });
     return null;
   }
 
@@ -324,11 +361,17 @@ export class MonthlyPassService {
       const quotaLimit = Number(quotaWindow.quotaLimit);
       const quotaWindowHours = normalizeQuotaWindowHours(Number(quotaWindow.quotaWindowHours), true);
 
-      if (quotaWindowHours == null) throw new BadRequestError("quotaWindowHours is required");
+      if (quotaWindowHours == null)
+        throw new BadRequestError("quotaWindowHours is required", undefined, {
+          messageKey: "monthlyPass.quotaWindowHoursRequired",
+        });
       validateQuotaValue("dailyQuota", quotaLimit, quotaUnit);
 
       const ruleKey = `${quotaUnit}:${quotaWindowHours}`;
-      if (seenRuleKeys.has(ruleKey)) throw new BadRequestError("quotaWindowHours + quotaUnit must be unique");
+      if (seenRuleKeys.has(ruleKey))
+        throw new BadRequestError("quotaWindowHours + quotaUnit must be unique", undefined, {
+          messageKey: "monthlyPass.quotaWindowUnique",
+        });
       seenRuleKeys.add(ruleKey);
 
       return {
@@ -444,7 +487,8 @@ export class MonthlyPassService {
       }
     }
 
-    if (userIdSet.size === 0) throw new BadRequestError("No target users found");
+    if (userIdSet.size === 0)
+      throw new BadRequestError("No target users found", undefined, { messageKey: "monthlyPass.noTargetUsers" });
 
     const usernames = await this.userRepository.findUsernamesByIds([...userIdSet]);
     const usernameMap = new Map(usernames.map((item) => [item.id, item.username]));
@@ -549,7 +593,10 @@ export class MonthlyPassService {
 
     if (dailyQuota != null) {
       validateQuotaValue("dailyQuota", dailyQuota, "amount");
-      if (dailyQuota > defaultQuota) throw new BadRequestError("dailyQuota cannot exceed defaultQuota");
+      if (dailyQuota > defaultQuota)
+        throw new BadRequestError("dailyQuota cannot exceed defaultQuota", undefined, {
+          messageKey: "monthlyPass.dailyQuotaExceedsDefault",
+        });
     }
 
     return {
@@ -584,6 +631,14 @@ export class MonthlyPassService {
     if (currentCount >= template.purchaseLimitPerUser)
       throw new BadRequestError(
         `purchase limit exceeded: at most ${template.purchaseLimitPerUser} claim(s) per ${template.purchaseLimitWindowDays} day(s)`,
+        undefined,
+        {
+          messageKey: "monthlyPass.purchaseLimitExceeded",
+          messageParams: {
+            limit: template.purchaseLimitPerUser,
+            windowDays: template.purchaseLimitWindowDays,
+          },
+        },
       );
   }
 
@@ -752,7 +807,10 @@ export class MonthlyPassService {
     const activeModelNames = new Set(modelRecords.map((item) => item.model.trim()).filter(Boolean));
     const unknownModels = modelNames.filter((modelName) => !activeModelNames.has(modelName));
     if (unknownModels.length > 0)
-      throw new BadRequestError(`Unknown or inactive monthly pass models: ${unknownModels.join(", ")}`);
+      throw new BadRequestError(`Unknown or inactive monthly pass models: ${unknownModels.join(", ")}`, undefined, {
+        messageKey: "monthlyPass.unknownModels",
+        messageParams: { count: unknownModels.length },
+      });
 
     if (channelIds.length === 0) return;
 
@@ -761,6 +819,8 @@ export class MonthlyPassService {
     if (invalidChannelIds.length > 0)
       throw new BadRequestError(
         `Unknown, inactive, or inaccessible monthly pass channels: ${invalidChannelIds.join(", ")}`,
+        undefined,
+        { messageKey: "monthlyPass.unknownChannels", messageParams: { count: invalidChannelIds.length } },
       );
 
     const selectedOptions = channelIds.map((channelId) => optionById.get(channelId)!);
@@ -770,6 +830,8 @@ export class MonthlyPassService {
     if (unusableChannelIds.length > 0)
       throw new BadRequestError(
         `Monthly pass channels have no usable model capabilities: ${unusableChannelIds.join(", ")}`,
+        undefined,
+        { messageKey: "monthlyPass.channelsWithoutCapabilities", messageParams: { count: unusableChannelIds.length } },
       );
 
     if (modelNames.length === 0) return;
@@ -782,6 +844,8 @@ export class MonthlyPassService {
     if (unsupportedModels.length > 0)
       throw new BadRequestError(
         `Monthly pass models are unavailable through the selected channels: ${unsupportedModels.join(", ")}`,
+        undefined,
+        { messageKey: "monthlyPass.modelsUnavailable", messageParams: { count: unsupportedModels.length } },
       );
 
     const incompatibleChannelIds = selectedOptions
@@ -792,6 +856,8 @@ export class MonthlyPassService {
     if (incompatibleChannelIds.length > 0)
       throw new BadRequestError(
         `Monthly pass channels do not support any selected model: ${incompatibleChannelIds.join(", ")}`,
+        undefined,
+        { messageKey: "monthlyPass.channelsIncompatible", messageParams: { count: incompatibleChannelIds.length } },
       );
   }
 
@@ -850,7 +916,10 @@ export class MonthlyPassService {
   ): Promise<MonthlyPassTemplateDto> {
     const name = data.name.trim();
     const existed = await this.monthlyPassRepository.findTemplateByName(name);
-    if (existed) throw new BadRequestError("Monthly pass template name already exists");
+    if (existed)
+      throw new BadRequestError("Monthly pass template name already exists", undefined, {
+        messageKey: "monthlyPass.templateNameExists",
+      });
 
     await this.validateTemplateScope(data.allowedModels, data.allowedChannels, actorUserId);
 
@@ -862,7 +931,11 @@ export class MonthlyPassService {
     const record = hasPricingInput
       ? await (async () => {
           if (data.originalPrice == null || data.discountPercent == null)
-            throw new BadRequestError("originalPrice and discountPercent are required to derive monthly pass pricing");
+            throw new BadRequestError(
+              "originalPrice and discountPercent are required to derive monthly pass pricing",
+              undefined,
+              { messageKey: "monthlyPass.pricingInputsRequired" },
+            );
 
           const derivedPricing = await this.deriveTemplatePricing({
             originalPrice: data.originalPrice,
@@ -909,7 +982,11 @@ export class MonthlyPassService {
         })()
       : await (async () => {
           if (data.defaultQuota == null)
-            throw new BadRequestError("defaultQuota is required when not using price-first monthly pass templates");
+            throw new BadRequestError(
+              "defaultQuota is required when not using price-first monthly pass templates",
+              undefined,
+              { messageKey: "monthlyPass.defaultQuotaRequired" },
+            );
 
           const quotaUnit = normalizeQuotaUnit(data.quotaUnit);
           validateQuotaValue("defaultQuota", data.defaultQuota, quotaUnit);
@@ -919,7 +996,10 @@ export class MonthlyPassService {
 
           if (dailyQuota != null) {
             validateQuotaValue("dailyQuota", dailyQuota, quotaUnit);
-            if (dailyQuota > defaultQuota) throw new BadRequestError("dailyQuota cannot exceed defaultQuota");
+            if (dailyQuota > defaultQuota)
+              throw new BadRequestError("dailyQuota cannot exceed defaultQuota", undefined, {
+                messageKey: "monthlyPass.dailyQuotaExceedsDefault",
+              });
           }
 
           const resolvedQuotaWindowHours =
@@ -976,10 +1056,14 @@ export class MonthlyPassService {
   async publishTemplate(id: string, actorUserId: string, request?: Request): Promise<MonthlyPassTemplateDto> {
     const existing = await this.monthlyPassRepository.findTemplateById(id);
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
-      throw new NotFoundError("Monthly pass template not found");
+      throw new NotFoundError("Monthly pass template not found", undefined, {
+        messageKey: "monthlyPass.templateNotFound",
+      });
 
     if (normalizeTemplatePublishStatus(existing.publishStatus) === "published")
-      throw new BadRequestError("Monthly pass template is already published");
+      throw new BadRequestError("Monthly pass template is already published", undefined, {
+        messageKey: "monthlyPass.templateAlreadyPublished",
+      });
 
     await this.validateTemplateScope(
       parseAllowedModels(existing.allowedModels),
@@ -1010,10 +1094,14 @@ export class MonthlyPassService {
   async unpublishTemplate(id: string, actorUserId: string, request?: Request): Promise<MonthlyPassTemplateDto> {
     const existing = await this.monthlyPassRepository.findTemplateById(id);
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
-      throw new NotFoundError("Monthly pass template not found");
+      throw new NotFoundError("Monthly pass template not found", undefined, {
+        messageKey: "monthlyPass.templateNotFound",
+      });
 
     if (normalizeTemplatePublishStatus(existing.publishStatus) === "draft")
-      throw new BadRequestError("Monthly pass template is already unpublished");
+      throw new BadRequestError("Monthly pass template is already unpublished", undefined, {
+        messageKey: "monthlyPass.templateAlreadyUnpublished",
+      });
 
     const record = await this.monthlyPassRepository.updateTemplate(id, {
       publishStatus: "draft",
@@ -1043,11 +1131,16 @@ export class MonthlyPassService {
   ): Promise<MonthlyPassTemplateDto> {
     const existing = await this.monthlyPassRepository.findTemplateById(id);
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
-      throw new NotFoundError("Monthly pass template not found");
+      throw new NotFoundError("Monthly pass template not found", undefined, {
+        messageKey: "monthlyPass.templateNotFound",
+      });
 
     if (data.name && data.name.trim() !== existing.name) {
       const conflict = await this.monthlyPassRepository.findTemplateByName(data.name.trim());
-      if (conflict && conflict.id !== id) throw new BadRequestError("Monthly pass template name already exists");
+      if (conflict && conflict.id !== id)
+        throw new BadRequestError("Monthly pass template name already exists", undefined, {
+          messageKey: "monthlyPass.templateNameExists",
+        });
     }
 
     await this.validateTemplateScope(
@@ -1078,17 +1171,27 @@ export class MonthlyPassService {
       | undefined;
 
     if (finalIsPriceFirst && data.defaultQuota !== undefined)
-      throw new BadRequestError("defaultQuota cannot be provided when updating price-first monthly pass templates");
+      throw new BadRequestError(
+        "defaultQuota cannot be provided when updating price-first monthly pass templates",
+        undefined,
+        { messageKey: "monthlyPass.defaultQuotaNotAllowedForPriceFirst" },
+      );
 
     if (finalIsPriceFirst && data.quotaUnit !== undefined && data.quotaUnit !== "amount")
-      throw new BadRequestError("quotaUnit must be amount for price-first monthly pass templates");
+      throw new BadRequestError("quotaUnit must be amount for price-first monthly pass templates", undefined, {
+        messageKey: "monthlyPass.quotaUnitMustBeAmount",
+      });
 
     if (hasPricingUpdate) {
       const finalOriginalPrice = data.originalPrice ?? existingOriginalPrice;
       const finalDiscountPercent = data.discountPercent ?? existingDiscountPercent;
 
       if (finalOriginalPrice == null || finalDiscountPercent == null)
-        throw new BadRequestError("originalPrice and discountPercent are required to derive monthly pass pricing");
+        throw new BadRequestError(
+          "originalPrice and discountPercent are required to derive monthly pass pricing",
+          undefined,
+          { messageKey: "monthlyPass.pricingInputsRequired" },
+        );
 
       derivedPricing = await this.deriveTemplatePricing({
         originalPrice: finalOriginalPrice,
@@ -1168,7 +1271,10 @@ export class MonthlyPassService {
 
       if (finalDailyQuota != null) {
         validateQuotaValue("dailyQuota", finalDailyQuota, finalQuotaUnit);
-        if (finalDailyQuota > finalDefaultQuota) throw new BadRequestError("dailyQuota cannot exceed defaultQuota");
+        if (finalDailyQuota > finalDefaultQuota)
+          throw new BadRequestError("dailyQuota cannot exceed defaultQuota", undefined, {
+            messageKey: "monthlyPass.dailyQuotaExceedsDefault",
+          });
       }
 
       if (finalDailyQuota != null && normalizedQuotaWindowHours === undefined) {
@@ -1214,7 +1320,10 @@ export class MonthlyPassService {
 
       if (finalDailyQuota != null) {
         validateQuotaValue("dailyQuota", finalDailyQuota, "amount");
-        if (finalDailyQuota > existingDefaultQuota) throw new BadRequestError("dailyQuota cannot exceed defaultQuota");
+        if (finalDailyQuota > existingDefaultQuota)
+          throw new BadRequestError("dailyQuota cannot exceed defaultQuota", undefined, {
+            messageKey: "monthlyPass.dailyQuotaExceedsDefault",
+          });
       }
 
       if (finalDailyQuota != null && normalizedQuotaWindowHours === undefined) {
@@ -1267,7 +1376,9 @@ export class MonthlyPassService {
   async deleteTemplate(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.monthlyPassRepository.findTemplateById(id);
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
-      throw new NotFoundError("Monthly pass template not found");
+      throw new NotFoundError("Monthly pass template not found", undefined, {
+        messageKey: "monthlyPass.templateNotFound",
+      });
 
     await this.monthlyPassRepository.softDeleteTemplate(id);
 
@@ -1319,16 +1430,25 @@ export class MonthlyPassService {
   ): Promise<ClaimMonthlyPassResultDto> {
     const template = await this.monthlyPassRepository.findTemplateById(data.templateId);
     if (!template || template.status !== MANAGED_STATUS.ENABLED)
-      throw new NotFoundError("Monthly pass template not found");
+      throw new NotFoundError("Monthly pass template not found", undefined, {
+        messageKey: "monthlyPass.templateNotFound",
+      });
 
     if (normalizeTemplatePublishStatus(template.publishStatus) !== "published")
-      throw new BadRequestError("Monthly pass template is not published");
+      throw new BadRequestError("Monthly pass template is not published", undefined, {
+        messageKey: "monthlyPass.templateNotPublished",
+      });
 
     if (!template.allowBalanceRedemption)
-      throw new BadRequestError("Monthly pass template does not allow balance redemption");
+      throw new BadRequestError("Monthly pass template does not allow balance redemption", undefined, {
+        messageKey: "monthlyPass.balanceRedemptionNotAllowed",
+      });
 
     const discountedPrice = template.discountedPrice == null ? null : Number(template.discountedPrice);
-    if (discountedPrice == null) throw new BadRequestError("Monthly pass template cannot be redeemed by balance");
+    if (discountedPrice == null)
+      throw new BadRequestError("Monthly pass template cannot be redeemed by balance", undefined, {
+        messageKey: "monthlyPass.cannotRedeemByBalance",
+      });
 
     validatePriceValue("discountedPrice", discountedPrice, { allowZero: true });
 
@@ -1423,11 +1543,17 @@ export class MonthlyPassService {
       this.monthlyPassRepository.findTemplateById(data.templateId),
     ]);
 
-    if (!user || user.status < AccountStatus.DISABLED) throw new NotFoundError("User not found");
+    if (!user || user.status < AccountStatus.DISABLED)
+      throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
     if (!template || template.status !== MANAGED_STATUS.ENABLED)
-      throw new NotFoundError("Monthly pass template not found");
+      throw new NotFoundError("Monthly pass template not found", undefined, {
+        messageKey: "monthlyPass.templateNotFound",
+      });
 
-    if (endAt.getTime() <= startAt.getTime()) throw new BadRequestError("endAt must be later than startAt");
+    if (endAt.getTime() <= startAt.getTime())
+      throw new BadRequestError("endAt must be later than startAt", undefined, {
+        messageKey: "monthlyPass.endAtNotAfterStartAt",
+      });
 
     const quotaUnit = normalizeQuotaUnit(data.quotaUnit ?? template.quotaUnit);
 
@@ -1446,7 +1572,10 @@ export class MonthlyPassService {
     if (dailyQuota != null) {
       validateQuotaValue("dailyQuota", dailyQuota, quotaUnit);
 
-      if (dailyQuota > totalQuota) throw new BadRequestError("dailyQuota cannot exceed totalQuota");
+      if (dailyQuota > totalQuota)
+        throw new BadRequestError("dailyQuota cannot exceed totalQuota", undefined, {
+          messageKey: "monthlyPass.dailyQuotaExceedsTotal",
+        });
     }
 
     const templateQuotaWindowHours = normalizeQuotaWindowHours(template.quotaWindowHours);
@@ -1507,7 +1636,8 @@ export class MonthlyPassService {
     request?: Request,
   ): Promise<UserMonthlyPassDto> {
     const existing = await this.monthlyPassRepository.findUserPassById(id);
-    if (!existing || existing.status < MANAGED_STATUS.DISABLED) throw new NotFoundError("User monthly pass not found");
+    if (!existing || existing.status < MANAGED_STATUS.DISABLED)
+      throw new NotFoundError("User monthly pass not found", undefined, { messageKey: "monthlyPass.userPassNotFound" });
 
     const parsedStartAt =
       data.startAt === undefined ? undefined : parseRequiredDateStringOrThrow("startAt", data.startAt);
@@ -1515,7 +1645,10 @@ export class MonthlyPassService {
 
     const finalStartAt = parsedStartAt ?? existing.startAt;
     const finalEndAt = parsedEndAt ?? existing.endAt;
-    if (finalEndAt.getTime() <= finalStartAt.getTime()) throw new BadRequestError("endAt must be later than startAt");
+    if (finalEndAt.getTime() <= finalStartAt.getTime())
+      throw new BadRequestError("endAt must be later than startAt", undefined, {
+        messageKey: "monthlyPass.endAtNotAfterStartAt",
+      });
 
     const finalQuotaUnit =
       data.quotaUnit === undefined ? normalizeQuotaUnit(existing.quotaUnit) : normalizeQuotaUnit(data.quotaUnit);
@@ -1541,10 +1674,16 @@ export class MonthlyPassService {
     if (finalDailyQuota != null) {
       validateQuotaValue("dailyQuota", finalDailyQuota, finalQuotaUnit);
 
-      if (finalDailyQuota > totalQuota) throw new BadRequestError("dailyQuota cannot exceed totalQuota");
+      if (finalDailyQuota > totalQuota)
+        throw new BadRequestError("dailyQuota cannot exceed totalQuota", undefined, {
+          messageKey: "monthlyPass.dailyQuotaExceedsTotal",
+        });
     }
 
-    if (totalQuota < usedQuota) throw new BadRequestError("totalQuota cannot be less than usedQuota");
+    if (totalQuota < usedQuota)
+      throw new BadRequestError("totalQuota cannot be less than usedQuota", undefined, {
+        messageKey: "monthlyPass.totalQuotaBelowUsed",
+      });
 
     const existingQuotaWindowHours = normalizeQuotaWindowHours(existing.quotaWindowHours);
     const requestedQuotaWindowHours =
@@ -1603,7 +1742,8 @@ export class MonthlyPassService {
 
   async deleteUserPass(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.monthlyPassRepository.findUserPassById(id);
-    if (!existing || existing.status < MANAGED_STATUS.DISABLED) throw new NotFoundError("User monthly pass not found");
+    if (!existing || existing.status < MANAGED_STATUS.DISABLED)
+      throw new NotFoundError("User monthly pass not found", undefined, { messageKey: "monthlyPass.userPassNotFound" });
 
     await this.monthlyPassRepository.softDeleteUserPass(id);
 
@@ -1677,7 +1817,9 @@ export class MonthlyPassService {
             const durationMs = endAt.getTime() - startAt.getTime();
             const quotaUnit = normalizeQuotaUnit(data.quotaUnit ?? latestPass.quotaUnit);
             if (normalizeQuotaUnit(latestPass.quotaUnit) !== quotaUnit)
-              throw new BadRequestError("Cannot extend a monthly pass with a different quotaUnit");
+              throw new BadRequestError("Cannot extend a monthly pass with a different quotaUnit", undefined, {
+                messageKey: "monthlyPass.cannotExtendWithDifferentUnit",
+              });
 
             const incrementQuota = normalizeQuotaValue(
               data.totalQuota ?? Number(latestPass.template.defaultQuota),
@@ -1701,7 +1843,10 @@ export class MonthlyPassService {
 
             if (dailyQuota != null) {
               validateQuotaValue("dailyQuota", dailyQuota, quotaUnit);
-              if (dailyQuota > updatedTotalQuota) throw new BadRequestError("dailyQuota cannot exceed totalQuota");
+              if (dailyQuota > updatedTotalQuota)
+                throw new BadRequestError("dailyQuota cannot exceed totalQuota", undefined, {
+                  messageKey: "monthlyPass.dailyQuotaExceedsTotal",
+                });
             }
 
             const requestedQuotaWindowHours =
@@ -1820,7 +1965,9 @@ export class MonthlyPassService {
     const parsedEndTime = parseDateStringOrThrow("endTime", endTime);
 
     if (parsedStartTime && parsedEndTime && parsedEndTime.getTime() < parsedStartTime.getTime())
-      throw new BadRequestError("endTime must be later than startTime");
+      throw new BadRequestError("endTime must be later than startTime", undefined, {
+        messageKey: "monthlyPass.endTimeNotAfterStartTime",
+      });
 
     const where: Prisma.MonthlyPassUsageWhereInput = { status: MANAGED_STATUS.ENABLED };
     if (userId) where.userId = userId;

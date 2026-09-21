@@ -124,6 +124,7 @@ describe("P04 · 目录结构与 key 一致性", () => {
         "dataMaintenance",
         "dataLifecycle",
         "contentSafety",
+        "monthlyPass",
       ].sort(),
     );
   });
