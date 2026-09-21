@@ -311,16 +311,22 @@ export class ResourceLockedError extends ApiError {
 
 /**
  * 503 Distributed lock backend unavailable
+ *
+ * 默认使用通用 `errors.lockBackendUnavailable`；调用点可用描述符说明是哪个队列/锁后端不可用。
  */
-export class LockBackendUnavailableError extends ApiError {
-  constructor(message: string = "Distributed lock backend unavailable", code?: number) {
+export class LockBackendUnavailableError<TKey extends MessageKey = MessageKey> extends ApiError {
+  constructor(
+    message: string = "Distributed lock backend unavailable",
+    code?: number,
+    options?: ClassOptionsArg<TKey>,
+  ) {
     super(
       message,
       HttpStatusCode.ServiceUnavailable,
       code || CustomCode.DISTRIBUTED_LOCK_BACKEND_UNAVAILABLE,
       false,
       undefined,
-      { messageKey: "errors.lockBackendUnavailable" },
+      buildLooseOptions("errors.lockBackendUnavailable", options),
     );
   }
 }
