@@ -20,18 +20,25 @@ export class PermissionGuard {
       try {
         const userId = req.user?.userId;
 
-        if (!userId) throw new ForbiddenError("未授权访问");
+        if (!userId) throw new ForbiddenError("未授权访问", undefined, { messageKey: "errors.unauthorized" });
 
         const checkResult = await permissionService.checkUserPermissions(userId, requiredPermissions);
 
         if (requireAll) {
           // 需要全部权限
           if (!checkResult.hasPermission)
-            throw new ForbiddenError(`缺少必要权限: ${checkResult.missingPermissions?.join(", ")}`);
+            throw new ForbiddenError(`缺少必要权限: ${checkResult.missingPermissions?.join(", ")}`, undefined, {
+              messageKey: "permission.missingRequiredPermissions",
+              messageParams: { permissions: (checkResult.missingPermissions ?? []).join(", ") },
+            });
         } else {
           // 满足任一权限即可
           const hasAny = await permissionService.hasAnyPermission(userId, requiredPermissions);
-          if (!hasAny) throw new ForbiddenError(`需要以下权限之一: ${requiredPermissions.join(", ")}`);
+          if (!hasAny)
+            throw new ForbiddenError(`需要以下权限之一: ${requiredPermissions.join(", ")}`, undefined, {
+              messageKey: "permission.requiresAnyPermission",
+              messageParams: { permissions: requiredPermissions.join(", ") },
+            });
         }
 
         // 权限检查通过，将权限信息附加到请求对象

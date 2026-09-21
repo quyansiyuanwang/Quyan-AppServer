@@ -48,6 +48,7 @@ const en = {
     passwordRequired: "Password is required",
     accountDeleted: "Account has been deleted",
     accountStatusAbnormal: "Abnormal account status",
+    endpointNotFound: "Endpoint not found",
     databaseOperationFailed: "Database operation failed",
   },
   /**
@@ -134,6 +135,8 @@ const en = {
     invalidPermissions: "Invalid permissions: {{permissions}}",
     targetUserNotFound: "Target user does not exist",
     cannotGrantUnownedPermissions: "Cannot grant permissions you do not have: {{permissions}}",
+    missingRequiredPermissions: "Missing required permissions: {{permissions}}",
+    requiresAnyPermission: "Requires one of the following permissions: {{permissions}}",
     cannotModifySelf: "You cannot modify your own permissions",
     cannotModifyPeer: "You cannot modify permissions of users at or above your own level",
     insufficientPermission: "Insufficient permissions",
@@ -197,6 +200,7 @@ const en = {
     invalidRefreshToken: "Invalid refresh token",
     usernameEmailMismatch: "Username and email do not match",
     defaultGroupNotFound: "Default user group does not exist",
+    loginSessionNotFound: "Login session does not exist, please log in again",
     invalidTwoFactorSetupSession: "Invalid two-factor setup session",
     twoFactorVerificationFailed: "Two-factor verification failed",
     emailNotBoundForCode: "This account has no bound email and cannot use email verification codes",
@@ -261,6 +265,10 @@ const en = {
   },
   system: {
     configUpdated: "Configuration updated successfully",
+    invalidConfirmationPhrase: "Confirmation phrase is invalid",
+    errorGroupNotFound: "Error group not found",
+    logNotFound: "Log not found",
+    logFileNotFound: "Log file not found",
   },
   ipBlacklist: {
     useCheckEndpoint: "Please use the /check/:ip endpoint to inspect a specific IP",
@@ -306,9 +314,32 @@ const en = {
     cannotAssumeUnboundRole: "The current user is not bound to this role and cannot assume it",
     roleSessionNotFound: "Role session does not exist or has expired",
     policyNameExists: "Permission policy name already exists",
+    systemManagedPolicyNotModifiable: "System-managed product owner policies cannot be modified",
+    systemManagedPolicyNotDeletable: "System-managed product owner policies cannot be deleted",
+    systemManagedPolicyNotRebindable: "System-managed product owner policies cannot be rebound",
+    systemManagedPolicyNotUnbindable: "System-managed product owner policies cannot be unbound",
   },
   billing: {
     redemptionCodeDeleted: "Deleted successfully",
+  },
+  legalPolicy: {
+    versionNotFound: "Legal policy version does not exist",
+    publishedVersionImmutable: "Published policy versions cannot be modified, please create a new version",
+    publishedVersionNotDeletable: "Published policy versions cannot be deleted",
+    versionAlreadyPublished: "This policy version is already published",
+    versionNotPublished: "This policy version is not published and does not need to be unpublished",
+    unpublishWouldLeaveNoVersion: "Unpublishing would leave this policy type without an active version",
+    currentPolicyNotFound: "No currently published policies exist",
+    policiesNotFullyPublished: "The current terms of service or privacy policy are not fully published",
+    unpublishedDraftExists: "There is already an unpublished draft for this policy type",
+  },
+  accessKey: {
+    oauthThirdPartyReadForbidden: "A third-party application cannot read existing Access Keys",
+    oauthThirdPartyDeleteForbidden: "A third-party application cannot delete existing Access Keys",
+  },
+  ipWhitelist: {
+    ipRequired: "IP address is required",
+    notFoundByIp: "IP {{ip}} is not whitelisted",
   },
 } as const;
 

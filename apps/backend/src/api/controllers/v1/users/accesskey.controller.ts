@@ -15,7 +15,13 @@ import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/uti
 import { ForbiddenError } from "@/util/errors";
 
 function assertNoOAuthAccessToken(request: TypedRequest, action: "读取" | "删除"): void {
-  if (request.oauthAccessToken) throw new ForbiddenError(`第三方应用无权${action}已有 Access Key`);
+  if (!request.oauthAccessToken) return;
+
+  // 读取与删除是两种不同的被拒操作，各自保留具体提示
+  throw new ForbiddenError(`第三方应用无权${action}已有 Access Key`, undefined, {
+    messageKey:
+      action === "读取" ? "accessKey.oauthThirdPartyReadForbidden" : "accessKey.oauthThirdPartyDeleteForbidden",
+  });
 }
 
 @Route("v1/accesskeys")

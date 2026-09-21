@@ -60,6 +60,7 @@ const zhCN = {
     passwordRequired: "请输入密码",
     accountDeleted: "账号已被删除",
     accountStatusAbnormal: "账号状态异常",
+    endpointNotFound: "接口不存在",
     databaseOperationFailed: "数据库操作失败",
   },
   validation: {
@@ -140,6 +141,8 @@ const zhCN = {
     invalidPermissions: "无效的权限: {{permissions}}",
     targetUserNotFound: "目标用户不存在",
     cannotGrantUnownedPermissions: "不能授予自己未拥有的权限: {{permissions}}",
+    missingRequiredPermissions: "缺少必要权限：{{permissions}}",
+    requiresAnyPermission: "需要以下权限之一：{{permissions}}",
     cannotModifySelf: "不允许修改自己的权限",
     cannotModifyPeer: "无权修改等级大于或等于自己的用户的权限",
     insufficientPermission: "权限不足",
@@ -203,6 +206,7 @@ const zhCN = {
     invalidRefreshToken: "无效的刷新令牌",
     usernameEmailMismatch: "用户名与邮箱不匹配",
     defaultGroupNotFound: "默认用户组不存在",
+    loginSessionNotFound: "登录会话不存在，请重新登录",
     invalidTwoFactorSetupSession: "无效的二次验证配置会话",
     twoFactorVerificationFailed: "二次验证失败",
     emailNotBoundForCode: "当前账号未绑定邮箱，无法使用邮箱验证码",
@@ -267,6 +271,10 @@ const zhCN = {
   },
   system: {
     configUpdated: "配置更新成功",
+    invalidConfirmationPhrase: "确认短语不正确",
+    errorGroupNotFound: "错误分组不存在",
+    logNotFound: "日志不存在",
+    logFileNotFound: "日志文件不存在",
   },
   ipBlacklist: {
     useCheckEndpoint: "请使用 /check/:ip 端点检查特定 IP",
@@ -311,9 +319,32 @@ const zhCN = {
     cannotAssumeUnboundRole: "当前用户未绑定该角色，无法扮演",
     roleSessionNotFound: "角色会话不存在或已过期",
     policyNameExists: "权限策略名称已存在",
+    systemManagedPolicyNotModifiable: "系统托管的产品所有者策略不可修改",
+    systemManagedPolicyNotDeletable: "系统托管的产品所有者策略不可删除",
+    systemManagedPolicyNotRebindable: "系统托管的产品所有者策略不可重新绑定",
+    systemManagedPolicyNotUnbindable: "系统托管的产品所有者策略不可解绑",
   },
   billing: {
     redemptionCodeDeleted: "删除成功",
+  },
+  legalPolicy: {
+    versionNotFound: "法律协议版本不存在",
+    publishedVersionImmutable: "已发布的协议版本不允许修改，请新建版本",
+    publishedVersionNotDeletable: "已发布的协议版本不允许删除",
+    versionAlreadyPublished: "该协议版本已发布",
+    versionNotPublished: "该协议版本尚未发布，无需撤销发布",
+    unpublishWouldLeaveNoVersion: "撤销后将导致当前协议类型无有效协议，无法执行撤销发布",
+    currentPolicyNotFound: "当前已发布协议不存在",
+    policiesNotFullyPublished: "当前服务协议或隐私政策尚未完整发布",
+    unpublishedDraftExists: "当前协议类型已有未发布草稿，请先更新或发布现有草稿",
+  },
+  accessKey: {
+    oauthThirdPartyReadForbidden: "第三方应用无权读取已有 Access Key",
+    oauthThirdPartyDeleteForbidden: "第三方应用无权删除已有 Access Key",
+  },
+  ipWhitelist: {
+    ipRequired: "IP 地址不能为空",
+    notFoundByIp: "IP {{ip}} 不在白名单中",
   },
 } as const satisfies DeepStringify<typeof en>;
 

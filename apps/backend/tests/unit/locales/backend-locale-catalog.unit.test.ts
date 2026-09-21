@@ -115,6 +115,9 @@ describe("P04 · 目录结构与 key 一致性", () => {
         "system",
         "user",
         "validation",
+        "legalPolicy",
+        "accessKey",
+        "ipWhitelist",
       ].sort(),
     );
   });

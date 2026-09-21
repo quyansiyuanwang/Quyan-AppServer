@@ -76,7 +76,10 @@ export class DataMaintenanceController extends Controller {
     @Body() body: OptimizeRequest,
   ): Promise<DataMaintenanceRunDTO> {
     const confirmation = body.confirmation;
-    if (confirmation !== "OPTIMIZE") throw new BadRequestError("Confirmation phrase is invalid");
+    if (confirmation !== "OPTIMIZE")
+      throw new BadRequestError("Confirmation phrase is invalid", undefined, {
+        messageKey: "system.invalidConfirmationPhrase",
+      });
     return this.service.createOptimizeRun(
       body.datasets,
       request.user?.userId,
@@ -129,7 +132,10 @@ export class DataMaintenanceController extends Controller {
     @Body() _body: Record<string, unknown>,
   ): Promise<DataMaintenanceRunDTO> {
     const confirmation = request.headers["x-maintenance-confirmation"];
-    if (confirmation !== "IMPORT") throw new BadRequestError("Confirmation phrase is invalid");
+    if (confirmation !== "IMPORT")
+      throw new BadRequestError("Confirmation phrase is invalid", undefined, {
+        messageKey: "system.invalidConfirmationPhrase",
+      });
     return this.service.createImportRun(
       dataset,
       Buffer.isBuffer(request.body) ? request.body : Buffer.from([]),

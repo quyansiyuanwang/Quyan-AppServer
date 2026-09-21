@@ -109,7 +109,7 @@ export class PasskeyController extends Controller {
   ): Promise<PasskeyAuthVerifyResponse> {
     const userId = await this.passkeyService.verifyAuthentication(body.sessionId, body.response as any);
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new UnauthorizedError("用户不存在");
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
 
     const clientIp = extractClientIp(request);
     const userAgent = this.getUserAgent(request.headers["user-agent"]);

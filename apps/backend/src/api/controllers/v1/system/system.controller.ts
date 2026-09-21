@@ -186,7 +186,7 @@ export class SystemController extends Controller {
     @Path() logId: string,
   ): Promise<SystemLogDetailDTO> {
     const detail = await this.systemService.getLogDetail(logId);
-    if (!detail) throw new NotFoundError("Log not found");
+    if (!detail) throw new NotFoundError("Log not found", undefined, { messageKey: "system.logNotFound" });
     return detail;
   }
 
@@ -215,7 +215,7 @@ export class SystemController extends Controller {
     @Query() search?: string,
   ): Promise<ServerLogContentDTO> {
     const content = await this.systemService.getServerLogContent(fileName, lines, search);
-    if (!content) throw new NotFoundError("Log file not found");
+    if (!content) throw new NotFoundError("Log file not found", undefined, { messageKey: "system.logFileNotFound" });
     return content;
   }
 }

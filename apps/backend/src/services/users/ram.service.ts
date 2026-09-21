@@ -702,7 +702,10 @@ export class RamService {
     const policy = await this.ramPolicyRepository.findPolicyById(policyId);
     if (!policy) throw new NotFoundError("权限策略不存在", undefined, { messageKey: "ram.policyNotFound" });
     this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
-    if (policy.type === "managed_product_owner") throw new ForbiddenError("系统托管的产品所有者策略不可修改");
+    if (policy.type === "managed_product_owner")
+      throw new ForbiddenError("系统托管的产品所有者策略不可修改", undefined, {
+        messageKey: "ram.systemManagedPolicyNotModifiable",
+      });
 
     const updateData: Record<string, unknown> = {};
     if (data.description !== undefined) updateData.description = data.description;
@@ -719,7 +722,10 @@ export class RamService {
     const policy = await this.ramPolicyRepository.findPolicyById(policyId);
     if (!policy) throw new NotFoundError("权限策略不存在", undefined, { messageKey: "ram.policyNotFound" });
     this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
-    if (policy.type === "managed_product_owner") throw new ForbiddenError("系统托管的产品所有者策略不可删除");
+    if (policy.type === "managed_product_owner")
+      throw new ForbiddenError("系统托管的产品所有者策略不可删除", undefined, {
+        messageKey: "ram.systemManagedPolicyNotDeletable",
+      });
     await this.ramPolicyRepository.softDeletePolicy(policyId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DELETED, {
       subject: "权限策略已删除",
@@ -731,7 +737,10 @@ export class RamService {
 
   async attachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
     const { accountOwnerId, policy } = await this.assertPolicyAttachmentScope(actorUserId, data);
-    if (policy.type === "managed_product_owner") throw new ForbiddenError("系统托管的产品所有者策略不可重新绑定");
+    if (policy.type === "managed_product_owner")
+      throw new ForbiddenError("系统托管的产品所有者策略不可重新绑定", undefined, {
+        messageKey: "ram.systemManagedPolicyNotRebindable",
+      });
     await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
 
     await this.ramPolicyRepository.attachPolicy(accountOwnerId, data.policyId, data.targetType, data.targetId);
@@ -746,7 +755,10 @@ export class RamService {
 
   async detachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
     const { policy } = await this.assertPolicyAttachmentScope(actorUserId, data);
-    if (policy.type === "managed_product_owner") throw new ForbiddenError("系统托管的产品所有者策略不可解绑");
+    if (policy.type === "managed_product_owner")
+      throw new ForbiddenError("系统托管的产品所有者策略不可解绑", undefined, {
+        messageKey: "ram.systemManagedPolicyNotUnbindable",
+      });
 
     await this.ramPolicyRepository.detachPolicy(data.policyId, data.targetType, data.targetId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DETACHED, {
