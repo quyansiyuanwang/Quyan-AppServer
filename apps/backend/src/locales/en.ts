@@ -560,7 +560,8 @@ const en = {
     quotaChangedConcurrently: "Monthly pass quota changed concurrently, please retry",
     originalPriceRequiredForPriceFirst: "originalPrice is required when using price-first monthly pass templates",
     discountPercentRequiredForPriceFirst: "discountPercent is required when using price-first monthly pass templates",
-    defaultQuotaNotAllowedForPriceFirstCreate: "defaultQuota cannot be provided when using price-first monthly pass templates",
+    defaultQuotaNotAllowedForPriceFirstCreate:
+      "defaultQuota cannot be provided when using price-first monthly pass templates",
     targetSelectionRequired: "userIds or targetFilter is required",
   },
   relayChannel: {
