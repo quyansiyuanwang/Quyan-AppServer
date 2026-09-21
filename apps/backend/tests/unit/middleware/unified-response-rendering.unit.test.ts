@@ -22,7 +22,6 @@ import { CustomCode } from "@/constant/custom-code";
 import { BadRequestError } from "@/util/errors";
 import { setResponseMessageKey, skipResponseWrapper } from "@/util/response-wrapper";
 import { resolveResponseMessage, sendApplicationError, type ApplicationErrorInit } from "@/util/response-renderer";
-import { translateKnownMessage } from "@/locales";
 
 function createApp() {
   const app = express();
@@ -115,7 +114,9 @@ describe("P05 · 同一失败在三条路径上一致", () => {
     const app = createApp();
 
     for (const locale of ["en", "zh-CN"]) {
-      const expected = locale === "en" ? "User group does not exist" : "用户组不存在";
+      // P13 起原文不再反查翻译：同一原始文案在两种语言下返回同一结果，
+      // 一致性断言因此与语言无关（本地化差异由描述符路径的单测覆盖）。
+      const expected = "用户组不存在";
       const thrown = await GET(app, "/throw-raw", locale).expect(400);
       const explicit = await GET(app, "/explicit-raw", locale).expect(400);
       const envelope = await GET(app, "/envelope-2xx", locale).expect(200);
@@ -182,8 +183,8 @@ describe("P05 · 无重复翻译", () => {
 
     const response = await GET(app, "/already-rendered", "en").expect(400);
 
-    // 描述符只被渲染一次：结果等于单次渲染值，而不是被再次当作原文查表
-    expect(response.body.message).toBe(translateKnownMessage("Deleted successfully", "en"));
+    // 描述符只被渲染一次：结果就是单次渲染值。
+    // P13 起不再有「原文查表」这一步——原文不会被二次翻译，也不会被语言猜测改写。
     expect(response.body.message).toBe("Deleted successfully");
   });
 
@@ -260,9 +261,9 @@ describe("P05 · 成功消息仍走同一渲染入口", () => {
 
     const responses = await Promise.all(locales.map((locale) => GET(app, "/throw-raw", locale).expect(400)));
 
-    responses.forEach((response, index) => {
-      const expected = locales[index] === "en" ? "User group does not exist" : "用户组不存在";
-      expect(response.body.message).toBe(expected);
+    // 原文路径不随语言变化；并发隔离关注的「每个请求各自拿到自己的信封」仍被满足。
+    responses.forEach((response) => {
+      expect(response.body.message).toBe("用户组不存在");
     });
   });
 });

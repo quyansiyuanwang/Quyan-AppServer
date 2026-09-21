@@ -805,6 +805,10 @@ const en = {
     issueInstallTokenOwnOnly: "You can only issue install tokens for your own entitlement",
     cannotRevokeDevice: "You cannot revoke this device",
     deviceNotAvailableForUser: "Device is not available for current user",
+    templateDeleted: "Remote terminal product template deleted",
+    unbindCountReset: "Device unbind count reset",
+    entitlementDeleted: "Remote terminal entitlement deleted",
+    deviceRevoked: "Remote terminal device revoked",
   },
   remoteTerminal: {
     directoryBrowsingFailed: "Remote directory browsing failed",

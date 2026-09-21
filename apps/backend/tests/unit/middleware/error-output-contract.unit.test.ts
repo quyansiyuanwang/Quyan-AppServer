@@ -40,7 +40,7 @@ import {
   UnauthorizedError,
   ValidationError,
 } from "@/util/errors";
-import { setResponseMessage, setResponseMessageKey } from "@/util/response-wrapper";
+import { setResponseMessageKey } from "@/util/response-wrapper";
 import { ErrorReportService } from "@/services/system/error-report.service";
 import { translateMessage } from "@/locales";
 
@@ -65,9 +65,9 @@ function createApp() {
     res.json({ ok: true });
   });
 
-  // 成功消息 · 原文反查路径（F01 遗留，P13 拆除）
-  app.get("/success-raw-message", (req: Request, res: Response) => {
-    setResponseMessage(req as never, "登出成功");
+  // 成功消息 · 描述符路径（P13 后原文字面量入口已删除，只保留 key 版）
+  app.get("/success-keyed-message", (req: Request, res: Response) => {
+    setResponseMessageKey(req as never, "auth.logoutSuccess");
     res.json({ ok: true });
   });
 
@@ -228,7 +228,8 @@ describe("P02 baseline · locale resolution and request isolation", () => {
 
     responses.forEach((response, index) => {
       expect(response.headers["x-locale"]).toBe(locales[index]);
-      expect(response.body.message).toBe(locales[index] === "en" ? "User group does not exist" : "用户组不存在");
+      // P13 起原文不再反查翻译：两种语言下都原样返回（隔离性仍由「每个请求各自语言」保证）
+        expect(response.body.message).toBe("用户组不存在");
     });
   });
 });
@@ -266,36 +267,35 @@ describe("P02 baseline · success response wrapping", () => {
       });
   });
 
-  it("still renders success messages through the legacy reverse catalog", async () => {
+  // P13 **有意翻转**：旧实现靠原文反查把「登出成功」翻成英文；原文入口删除后，
+  // 成功消息只能来自描述符，因此这条改为验证 key 驱动的本地化。
+  it("renders success messages from a descriptor in both locales", async () => {
     const app = createApp();
 
-    await GET(app, "/success-raw-message", "en")
+    await GET(app, "/success-keyed-message", "en")
       .expect(200)
       .expect(({ body }) => {
         expect(body.message).toBe("Logged out successfully");
       });
 
-    await GET(app, "/success-raw-message", "zh-CN")
+    await GET(app, "/success-keyed-message", "zh-CN")
       .expect(200)
       .expect(({ body }) => {
         expect(body.message).toBe("登出成功");
       });
   });
 
-  it("localizes an already wrapped 2xx body by raw message lookup", async () => {
+  // P13 **有意翻转**：原文不再被反查翻译，也不做语言猜测——两种语言下都原样返回。
+  it("leaves an already wrapped 2xx body's raw message untranslated", async () => {
     const app = createApp();
 
-    await GET(app, "/pre-wrapped-2xx", "en")
-      .expect(200)
-      .expect(({ body }) => {
-        expect(body).toEqual({ code: CustomCode.OK, message: "Logged out successfully" });
-      });
-
-    await GET(app, "/pre-wrapped-2xx", "zh-CN")
-      .expect(200)
-      .expect(({ body }) => {
-        expect(body).toEqual({ code: CustomCode.OK, message: "登出成功" });
-      });
+    for (const locale of ["en", "zh-CN"] as const) {
+      await GET(app, "/pre-wrapped-2xx", locale)
+        .expect(200)
+        .expect(({ body }) => {
+          expect(body).toEqual({ code: CustomCode.OK, message: "登出成功" });
+        });
+    }
   });
 });
 
@@ -303,13 +303,14 @@ describe("P02 baseline · non-2xx responses", () => {
   // 本节断言在 P05 被**有意翻转**：旧实现让包装器完全跳过非 2xx，导致
   // 「显式业务失败」与「抛异常」文案不一致（F03）。P05 后非 2xx 只统一 `message`，
   // 信封形状与附加字段仍保持原样、不重新包装。
-  it("localizes an explicit non-2xx envelope without re-wrapping it", async () => {
+  // P13 **有意翻转**：非 2xx 的原文消息同样不再反查翻译（旧实现返回英文）。
+  it("keeps an explicit non-2xx envelope raw and without re-wrapping it", async () => {
     const app = createApp();
 
     await GET(app, "/direct-404", "en")
       .expect(404)
       .expect(({ body }) => {
-        expect(body).toEqual({ code: CustomCode.NOT_FOUND, message: "User group does not exist" });
+        expect(body).toEqual({ code: CustomCode.NOT_FOUND, message: "用户组不存在" });
       });
 
     await GET(app, "/direct-404", "zh-CN")
@@ -327,7 +328,7 @@ describe("P02 baseline · non-2xx responses", () => {
       .expect(({ body }) => {
         expect(body).toEqual({
           code: CustomCode.VALIDATION_FAILED,
-          message: "User group does not exist",
+          message: "用户组不存在",
           fields: { "body.email": ["Invalid email"] },
           requestId: "rid-1",
         });
@@ -397,14 +398,16 @@ describe("P02 baseline · ApiError output contract", () => {
     });
   });
 
-  it("localizes only through the reverse catalog while the legacy path exists", async () => {
+  // P13 **有意翻转**：旧机制下这条验证「仅靠原文反查即可本地化」；原文入口删除后，
+  // 同样的输入不再被翻译——这正是「原文映射不再承担生产翻译」的可执行证据。
+  it("no longer translates raw text without a descriptor", async () => {
     const app = createApp();
 
     // 目录内原文：可被反向翻译
     await GET(app, "/raw-cjk-catalogued", "en")
       .expect(400)
       .expect(({ body }) => {
-        expect(body.message).toBe("User group does not exist");
+        expect(body.message).toBe("用户组不存在");
       });
 
     await GET(app, "/raw-cjk-catalogued", "zh-CN")
@@ -444,13 +447,14 @@ describe("P02 baseline · ApiError output contract", () => {
       });
   });
 
+  // P13 **有意翻转**：无 key 的 401 不再被原文反查翻译成英文；业务码映射保持不变。
   it("keeps the 401 code mapping for a keyless unauthorized error", async () => {
     const app = createApp();
 
     await GET(app, "/unauthorized-raw", "en")
       .expect(401)
       .expect(({ body }) => {
-        expect(body).toEqual({ code: CustomCode.AUTH_FAILED, message: "Unauthorized access" });
+        expect(body).toEqual({ code: CustomCode.AUTH_FAILED, message: "未授权访问" });
       });
   });
 

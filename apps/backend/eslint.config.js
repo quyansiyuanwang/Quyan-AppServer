@@ -10,8 +10,55 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const backendLocalePath = path.join(__dirname, "src/locales/en.ts");
+const backendErrorsPath = path.join(__dirname, "src/util/errors.ts");
 let backendMessageKeysCache = new Set();
 let backendMessageKeysMtimeMs = -1;
+let backendApiErrorClassesCache = null;
+let backendErrorsMtimeMs = -1;
+
+/**
+ * 面向用户的 API 错误类集合，从 `src/util/errors.ts` 推导（单一事实来源）：
+ * 取所有继承自 `ApiError` 的导出类，按继承关系求传递闭包。
+ *
+ * 刻意**不**按名字猜测——`src` 中还有继承裸 `Error` 的内部错误类
+ * （例如 `CaptchaProviderUnavailableError`、`RelayFormatTransformError`），
+ * 它们的消息不会到达客户端，不应被本规则约束。
+ */
+function loadBackendApiErrorClasses() {
+  const source = readFileSync(backendErrorsPath, "utf8");
+  const parents = new Map();
+  for (const match of source.matchAll(/export class (\w+)(?:<[^>]*>)? extends (\w+)/g)) {
+    parents.set(match[1], match[2]);
+  }
+
+  const isApiError = (name, seen = new Set()) => {
+    if (name === "ApiError") return true;
+    if (!name || seen.has(name)) return false;
+    seen.add(name);
+    return isApiError(parents.get(name), seen);
+  };
+
+  return new Set([...parents.keys()].filter((name) => isApiError(name)));
+}
+
+function getBackendApiErrorClasses() {
+  const mtimeMs = statSync(backendErrorsPath).mtimeMs;
+  if (mtimeMs !== backendErrorsMtimeMs) {
+    backendApiErrorClassesCache = loadBackendApiErrorClasses();
+    backendErrorsMtimeMs = mtimeMs;
+  }
+  return backendApiErrorClassesCache;
+}
+
+/**
+ * 构造函数内部就固定携带描述符的类：调用点无需再传 `messageKey`。
+ * 与 `tests/unit/locales` 的口径、以及迁移统计脚本保持一致。
+ */
+const INTERNALLY_KEYED_ERROR_CLASSES = new Set([
+  "ContentSafetyBlockedError",
+  "TwoFactorRequiredError",
+  "PolicyConsentRequiredError",
+]);
 
 function loadBackendMessageKeys() {
   const localesSource = readFileSync(backendLocalePath, "utf8");
@@ -57,6 +104,36 @@ function getStaticPropertyName(node) {
 
 function getStaticString(node) {
   return node?.type === "Literal" && typeof node.value === "string" ? node.value : undefined;
+}
+
+/** 不带插值的模板字面量 `\`text\`` 视为静态原文 */
+function isStaticLiteralText(node) {
+  if (!node) return false;
+  if (node.type === "Literal" && typeof node.value === "string") return true;
+  return node.type === "TemplateLiteral" && node.expressions.length === 0;
+}
+
+/** 该调用/构造是否在任意实参里携带了消息描述符 */
+function carriesMessageDescriptor(node) {
+  return node.arguments.some((argument) => {
+    if (!argument) return false;
+    // backendI18n.errorOptions("key") / createMessageOptions("key")，含成员调用形式
+    if (argument.type === "CallExpression") {
+      const callee = argument.callee;
+      const name =
+        callee.type === "Identifier"
+          ? callee.name
+          : callee.type === "MemberExpression"
+            ? getStaticPropertyName(callee.property)
+            : undefined;
+      if (name && ["errorOptions", "createMessageOptions"].includes(name)) return true;
+    }
+    if (argument.type !== "ObjectExpression") return false;
+    return argument.properties.some(
+      (property) =>
+        property.type === "Property" && getStaticPropertyName(property.key) === "messageKey",
+    );
+  });
 }
 
 function isBackendI18nMember(node, methodNames) {
@@ -117,6 +194,80 @@ const backendI18nPlugin = {
         };
       },
     },
+
+    /**
+     * P13 门禁：禁止新增「不带消息描述符的原文错误」。
+     *
+     * 旧机制（`translateKnownMessage` 原文反查 + 前缀猜测）已在 P13 删除，
+     * 因此 `throw new XxxError("中文/英文原文")` 这类调用点，其文案将原样发给
+     * 客户端且不随语言变化。本规则让「新增旧式调用」在静态检查阶段就被挡住。
+     *
+     * 允许的形状：
+     *  - 任意实参中出现 `{ messageKey }`，或 `backendI18n.errorOptions("key")`；
+     *  - 错误类默认文案（无参数构造）；
+     *  - 动态传入（非字面量）的消息，例如被调用方决定的 `rawMessage` 兜底。
+     */
+    "no-raw-error-message": {
+      meta: {
+        type: "problem",
+        docs: {
+          description:
+            "Require an i18n message descriptor on business errors instead of a raw text literal.",
+        },
+        schema: [],
+        messages: {
+          rawMessage:
+            "Business errors must carry a message descriptor. Add `{ messageKey: \"<domain.key>\" }` (with `messageParams` when the template has placeholders) instead of the raw literal '{{text}}'.",
+        },
+      },
+      create(context) {
+        return {
+          NewExpression(node) {
+            if (node.callee.type !== "Identifier") return;
+            const className = node.callee.name;
+            // 只约束面向用户的 API 错误类；内部错误类（继承裸 Error）不在范围内
+            if (!getBackendApiErrorClasses().has(className)) return;
+            if (INTERNALLY_KEYED_ERROR_CLASSES.has(className)) return;
+            const first = node.arguments[0];
+            if (!isStaticLiteralText(first)) return;
+            if (carriesMessageDescriptor(node)) return;
+
+            const text = getStaticString(first) ?? first.quasis?.[0]?.value?.raw ?? "<template>";
+            context.report({ node, messageId: "rawMessage", data: { text: String(text).slice(0, 60) } });
+          },
+        };
+      },
+    },
+
+    /** P13 门禁：旧译文机制已删除，任何重新引入都会被捕获 */
+    "no-legacy-i18n-api": {
+      meta: {
+        type: "problem",
+        docs: {
+          description: "Forbid the removed legacy raw-message translation APIs.",
+        },
+        schema: [],
+        messages: {
+          legacy:
+            "'{{name}}' was removed in P13 (raw-text reverse lookup and prefix guessing). Use `messageKey` descriptors and `translateMessage` instead.",
+        },
+      },
+      create(context) {
+        const LEGACY = new Set(["translateKnownMessage", "getLegacyRawMessageEntries"]);
+        return {
+          CallExpression(node) {
+            const name =
+              node.callee.type === "Identifier"
+                ? node.callee.name
+                : node.callee.type === "MemberExpression"
+                  ? getStaticPropertyName(node.callee.property)
+                  : undefined;
+            if (!name || !LEGACY.has(name)) return;
+            context.report({ node, messageId: "legacy", data: { name } });
+          },
+        };
+      },
+    },
   },
 };
 
@@ -154,6 +305,7 @@ export default [
     rules: {
       ...tseslint.configs.recommended.rules,
       "backend-i18n/known-message-key": "error",
+      "backend-i18n/no-legacy-i18n-api": "error",
       "no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [
@@ -221,9 +373,17 @@ export default [
   },
 
   {
-    name: "app/test-unit-prisma-boundary",
-    files: ["tests/unit/**/*.unit.test.ts"],
+    name: "app/src-i18n-descriptor-required",
+    // 仅约束生产代码：测试会**有意**构造无描述符的错误，用来固定兜底路径的行为。
+    files: ["src/**/*.ts"],
     rules: {
+      "backend-i18n/no-raw-error-message": "error",
+    },
+  },
+
+  {
+    name: "app/test-unit-prisma-boundary",
+    files: ["tests/unit/**/*.unit.test.ts"],    rules: {
       "no-restricted-imports": [
         "error",
         {

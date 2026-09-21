@@ -3,7 +3,6 @@ import { CustomCode } from "@/constant/custom-code";
 import {
   DEFAULT_BACKEND_LOCALE,
   renderDescriptorSafely,
-  translateKnownMessage,
   translateMessage,
   type BackendLocale,
   type MessageDescriptor,
@@ -94,8 +93,9 @@ export function resolveResponseMessage(source: MessageSource, locale: BackendLoc
     return rendered.message;
   }
 
-  if (source.rawMessage !== undefined && source.rawMessage !== "")
-    return translateKnownMessage(source.rawMessage, locale);
+  // 遗留原文**不再反查翻译**（P13 已删除原文目录与前缀猜测）：调用点若未提供描述符，
+  // 原文按原样返回，不做语言猜测。生产路径已全部携带描述符，此分支只服务兜底。
+  if (source.rawMessage !== undefined && source.rawMessage !== "") return source.rawMessage;
 
   return translateMessage(source.defaultKey ?? "common.success", locale);
 }

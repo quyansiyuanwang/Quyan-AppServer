@@ -808,6 +808,10 @@ const zhCN = {
     issueInstallTokenOwnOnly: "只能为你自己的权益签发安装令牌",
     cannotRevokeDevice: "你无权撤销该设备",
     deviceNotAvailableForUser: "该设备对当前用户不可用",
+    templateDeleted: "远程终端产品模板已删除",
+    unbindCountReset: "设备解绑次数已重置",
+    entitlementDeleted: "远程终端权益已删除",
+    deviceRevoked: "远程终端设备已撤销",
   },
   remoteTerminal: {
     directoryBrowsingFailed: "远程目录浏览失败",

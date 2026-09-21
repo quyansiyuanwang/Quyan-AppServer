@@ -13,10 +13,10 @@
 import { describe, expect, it } from "vitest";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
+import * as localesModule from "@/locales";
 import {
   DEFAULT_BACKEND_LOCALE,
   SUPPORTED_BACKEND_LOCALES,
-  getLegacyRawMessageEntries,
   inspectMessageDescriptor,
   renderDescriptorSafely,
   translateMessage,
@@ -75,10 +75,6 @@ const KNOWN_CROSS_DOMAIN_SAME_TEXT: readonly (readonly string[])[] = [
 ];
 
 const SAMPLE_VALUE = "<v>";
-
-/** 遗留原文反查目录的基线（只允许收缩）：P04 实测值 */
-const LEGACY_RAW_BASELINE = { en: 144, "zh-CN": 144 } satisfies Record<BackendLocale, number>;
-const LEGACY_PENDING_BASELINE = { en: 143, "zh-CN": 99 } satisfies Record<BackendLocale, number>;
 
 const catalogs: Record<BackendLocale, Map<string, string>> = {
   en: flatten(en as Catalog),
@@ -223,19 +219,17 @@ describe("P04 · 无重复事实源", () => {
     expect(unregistered).toEqual([]);
   });
 
-  it("keeps the legacy raw-message dictionary shrinking-only", () => {
-    for (const locale of SUPPORTED_BACKEND_LOCALES) {
-      const raw = getLegacyRawMessageEntries(locale);
-      expect(raw.length).toBeLessThanOrEqual(LEGACY_RAW_BASELINE[locale]);
-
-      const catalogValues = new Set(catalogs[locale].values());
-      const pending = raw.filter((entry) => !catalogValues.has(entry));
-      expect(pending.length).toBeLessThanOrEqual(LEGACY_PENDING_BASELINE[locale]);
-    }
+  it("no longer ships a legacy raw-message dictionary or reverse lookup", () => {
+    // P13 已删除原文反查目录与前缀猜测：`@/locales` 不再导出任何原文翻译入口。
+    // 这条断言把「旧机制不得回归」固定下来——若有人重新引入，会先在这里失败。
+    const exported = Object.keys(localesModule);
+    expect(exported).not.toContain("translateKnownMessage");
+    expect(exported).not.toContain("getLegacyRawMessageEntries");
   });
 
-  it("keeps both legacy dictionaries keyed identically", () => {
-    expect([...getLegacyRawMessageEntries("en")].sort()).toEqual([...getLegacyRawMessageEntries("zh-CN")].sort());
+  it("keeps the single message entry point as translateMessage", () => {
+    expect(typeof localesModule.translateMessage).toBe("function");
+    expect(typeof localesModule.renderDescriptorSafely).toBe("function");
   });
 });
 
