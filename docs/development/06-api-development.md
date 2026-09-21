@@ -71,10 +71,12 @@ export class UserService {
   private userRepo = UserRepository.getInstance();
 
   public async createUser(data: CreateUserRequest): Promise<User> {
-    // 业务校验
+    // 业务校验：用户可见消息走消息目录 key，第二参留下内部诊断原文
     const existing = await this.userRepo.findByUsername(data.username);
     if (existing) {
-      throw new ConflictError("Username already exists");
+      throw new ConflictError("Username already exists", undefined, {
+        messageKey: "user.usernameExists",
+      });
     }
     // 创建用户
     return this.userRepo.createUser({ ...data });

@@ -15,7 +15,7 @@ import {
  * 1. `res.locals.skipResponseWrapper` 为 true（文档、文件、第三方协议、流式响应等适配器边界）
  *
  * 本地化规则（P05 统一出口，与 `application-response` 共享同一个渲染入口）：
- * - 2xx：包装为成功信封；消息按「已渲染 → 描述符 → 遗留原文 → common.success」解析
+ * - 2xx：包装为成功信封；消息按「已渲染 → 描述符 → 诊断原文 → common.success」解析
  * - 2xx 且响应体已带数字 `code`：视为已成型信封，只统一 `message`
  * - 非 2xx：**保持信封形状与附加字段不变**，只把 `message` 交给同一渲染入口。
  *   旧实现完全跳过非 2xx，导致「显式业务失败」与「抛异常」文案不一致（F03）。

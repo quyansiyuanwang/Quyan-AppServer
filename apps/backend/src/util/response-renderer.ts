@@ -39,7 +39,7 @@ export interface ApplicationErrorInit {
   code: number;
   /** 消息描述符；与 `message` 同时给出时描述符优先 */
   descriptor?: MessageDescriptor;
-  /** 遗留原文 / 内部诊断原文；仅在无描述符时参与原文反查 */
+  /** 内部诊断原文；无描述符时原样返回，不做反查翻译 */
   message?: string;
   /** 既无描述符也无可用原文时的兜底 key */
   defaultMessageKey?: MessageKey;

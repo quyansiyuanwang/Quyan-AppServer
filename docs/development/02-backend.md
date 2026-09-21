@@ -169,20 +169,80 @@ src/store/
 
 认证实现：`src/middleware/auth/auth_guard.ts` 的 `expressAuthentication()` 函数。
 
-## 错误处理
+## 错误处理与本地化
 
-自定义错误类（`src/util/errors.ts`）：
+### 写法：业务错误必须携带消息描述符
+
+用户可见的消息来自 `src/locales` 的消息目录，**不写字面量原文**（原文不再被翻译，见下方「已退场的旧机制」）：
 
 ```typescript
-throw new NotFoundError("User not found");        // → 404, CustomCode.NOT_FOUND
-throw new UnauthorizedError("Invalid token");      // → 401, CustomCode.AUTH_FAILED
-throw new ForbiddenError("No permission");         // → 403, CustomCode.PERMISSION_DENIED
-throw new ValidationError("Invalid input");        // → 422, CustomCode.VALIDATION_FAILED
-throw new TwoFactorRequiredError("2FA required");  // → 401, CustomCode.TWO_FACTOR_REQUIRED
-throw new TooManyRequestsError("Rate limited");    // → 429, CustomCode.TOO_MANY_REQUESTS
+import { BadRequestError, NotFoundError, TooManyRequestsError, TwoFactorRequiredError } from "@/util/errors";
+
+// 无占位符
+throw new NotFoundError("Relay channel not found", undefined, {
+  messageKey: "relayChannel.notFound",
+});
+
+// 带安全标量参数
+throw new BadRequestError("Invalid quota window", undefined, {
+  messageKey: "monthlyPass.quotaWindowHoursMax",
+  messageParams: { max: MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS },
+});
+
+// 自带挑战数据的错误类：第二参是 data，不要再塞 options
+throw new TwoFactorRequiredError(undefined, { challengeToken, expiresIn });
+
+// options 的位置随类而异，建议一律显式写全
+throw new TooManyRequestsError("Rate limited", retryAfter, undefined, {
+  messageKey: "supportAi.requestLimitReached",
+});
 ```
 
-所有错误被 `exceptionMiddleware` 统一捕获并格式化为 `{code, message}` 格式。
+`message` 参数保留为**内部诊断原文**：写日志、堆栈和排障时读它；用户看到的始终是描述符的渲染结果。
+描述符渲染失败（key 不存在、缺参数）时出口会记录受控告警并回退到安全文案，不输出 key 或残留占位符。
+
+### 参数边界：只允许安全领域标量
+
+`messageParams` 只接受数字、容量/上限常量、权限名、枚举成员、闭集标识（状态、格式、模型名等）
+这类明确安全的领域标量。**不得**传入请求体、Cookie/Token、数据库记录、上游响应或任意
+`Error.message`——凡是「因为不合法才报错」的原始输入都不回显，否则等于把用户输入原样回吐给用户。
+
+### 单一输出边界
+
+`throw`、显式失败响应、2xx 业务失败三条路径都经 `src/util/response-renderer.ts` 的同一入口渲染：
+
+- 优先级：已渲染消息 → 描述符 → 原文（**原样返回，不做反查与语言猜测**）→ `defaultMessageKey` → `common.success`
+- 语言取自 `X-Locale`（`src/middleware/locale.ts`），缺失或非法时回退 `en`
+- 同一业务失败在三条路径上得到完全相同的 `{ code, message, data? }`；`fields`、`Retry-After`
+  与认证挑战 `data` 形状保持不变
+- 内部诊断不进响应：`cause` 通过 `Object.defineProperty` 定义为不可枚举，只能经 `getDiagnosticCause()` 取用
+
+### 字段校验
+
+统一模型位于 `src/util/validation-problems.ts`：Zod issue、TSOA 字段错误与自定义 `superRefine`
+都归一成 `ValidationProblem { path, rule, params }`，出口渲染成既有 `fields` 形状，
+并在**没有更明确的业务原因**时生成顶层摘要（最多 3 项、240 字符）。
+
+### 新增消息 key
+
+1. 在 `src/locales/en.ts` 与 `src/locales/zh-CN.ts` 的**同一业务域**下添加同名 key（文案按语言各自撰写，占位符必须一致）
+2. 编译期门禁：`_AssertLocaleKeys`（两个目录 key 集合一致）、`_AssertLocalePlaceholders`（占位符集合一致，报错会指出具体 key）
+3. 运行期门禁：`tests/unit/locales/backend-locale-catalog.unit.test.ts` 校验域清单、同域无重复文案、
+   跨域重复必须登记、每个 key 在两种语言下可渲染且无残留占位符
+4. ESLint `backend-i18n/known-message-key` 校验字面量 key 是否真实存在
+
+### 已退场的旧机制
+
+原文反查（`translateKnownMessage`）、前缀猜测、原文目录与原文写法入口 `setResponseMessage`
+已于 P13 删除：**原文不再被翻译，也不再充当翻译来源**。两条 ESLint 规则防止回归：
+
+| 规则 | 拦截什么 |
+| --- | --- |
+| `backend-i18n/no-raw-error-message` | API 错误类用字面量原文构造且实参未携带描述符 |
+| `backend-i18n/no-legacy-i18n-api` | 再次调用 `translateKnownMessage` / `getLegacyRawMessageEntries` |
+
+API 错误类集合由 `src/util/errors.ts` 推导（继承 `ApiError` 的传递闭包），
+继承裸 `Error` 的内部错误类不受约束——它们的消息不会到达客户端。
 
 ## 路径别名
 

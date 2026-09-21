@@ -17,7 +17,7 @@ const logger = getLogger("ExceptionMiddleware", LogCategory.SYSTEM);
 /**
  * 把 ApiError 转成统一渲染入口的初始化参数。
  *
- * 消息来源优先级由 `resolveResponseMessage` 统一决定（描述符 → 遗留原文），
+ * 消息来源优先级由 `resolveResponseMessage` 统一决定（描述符 → 诊断原文），
  * 这里不再自行翻译，避免「异常出口」与「显式响应出口」各有一套翻译逻辑（F03）。
  */
 function toErrorInit(err: ApiError): ApplicationErrorInit {
