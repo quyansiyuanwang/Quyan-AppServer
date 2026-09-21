@@ -71,6 +71,9 @@ const KNOWN_CROSS_DOMAIN_SAME_TEXT: readonly (readonly string[])[] = [
   ["permission.invalidPermissions", "ram.invalidPermissions"],
   ["permission.operatorNotFound", "ram.actorNotFound"],
   ["errors.forbidden", "permission.insufficientPermission"],
+  // P07b 新增：主账号注册与 RAM 子账号创建各自需要「用户名已存在」，文案相同但域不同。
+  // P08 收敛 RAM 镜像 key 时一并复核。
+  ["auth.usernameExists", "ram.usernameExists"],
 ];
 
 const SAMPLE_VALUE = "<v>";

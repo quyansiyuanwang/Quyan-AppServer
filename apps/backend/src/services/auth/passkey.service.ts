@@ -46,7 +46,7 @@ export class PasskeyService {
 
   async generateRegistrationOptions(userId: string) {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("User not found");
+    if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
 
     const existingCredentials = await this.passkeyCredentialRepository.findRegistrationViewByUserId(userId);
 
@@ -71,7 +71,10 @@ export class PasskeyService {
 
   async verifyRegistration(userId: string, response: RegistrationResponseJSON, name?: string) {
     const challenge = await this.redis.get(this.challengeKey(userId));
-    if (!challenge) throw new BadRequestError("Challenge expired or not found");
+    if (!challenge)
+      throw new BadRequestError("Challenge expired or not found", undefined, {
+        messageKey: "auth.passkeyChallengeExpired",
+      });
 
     let verification;
     try {
@@ -83,11 +86,15 @@ export class PasskeyService {
       });
     } catch (err) {
       logger.warn("Passkey registration verification failed:", err);
-      throw new BadRequestError("Registration verification failed");
+      throw new BadRequestError("Registration verification failed", undefined, {
+        messageKey: "auth.passkeyRegistrationFailed",
+      });
     }
 
     if (!verification.verified || !verification.registrationInfo)
-      throw new BadRequestError("Registration not verified");
+      throw new BadRequestError("Registration not verified", undefined, {
+        messageKey: "auth.passkeyRegistrationNotVerified",
+      });
 
     const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
 
@@ -122,12 +129,16 @@ export class PasskeyService {
 
   async verifyAuthentication(sessionId: string, response: AuthenticationResponseJSON) {
     const raw = await this.redis.get(this.authChallengeKey(sessionId));
-    if (!raw) throw new BadRequestError("Challenge expired or not found");
+    if (!raw)
+      throw new BadRequestError("Challenge expired or not found", undefined, {
+        messageKey: "auth.passkeyChallengeExpired",
+      });
 
     const { challenge } = JSON.parse(raw) as { challenge: string };
 
     const credential = await this.passkeyCredentialRepository.findByCredentialId(response.id);
-    if (!credential) throw new NotFoundError("Credential not found");
+    if (!credential)
+      throw new NotFoundError("Credential not found", undefined, { messageKey: "auth.passkeyCredentialNotFound" });
 
     let verification;
     try {
@@ -145,10 +156,15 @@ export class PasskeyService {
       });
     } catch (err) {
       logger.warn("Passkey authentication verification failed:", err);
-      throw new BadRequestError("Authentication verification failed");
+      throw new BadRequestError("Authentication verification failed", undefined, {
+        messageKey: "auth.passkeyAuthenticationFailed",
+      });
     }
 
-    if (!verification.verified) throw new BadRequestError("Authentication not verified");
+    if (!verification.verified)
+      throw new BadRequestError("Authentication not verified", undefined, {
+        messageKey: "auth.passkeyAuthenticationNotVerified",
+      });
 
     await this.passkeyCredentialRepository.updateCounter(
       credential.credentialId,
@@ -173,7 +189,8 @@ export class PasskeyService {
 
   async deleteCredential(userId: string, credentialId: string) {
     const cred = await this.passkeyCredentialRepository.findByCredentialId(credentialId);
-    if (!cred || cred.userId !== userId) throw new NotFoundError("Credential not found");
+    if (!cred || cred.userId !== userId)
+      throw new NotFoundError("Credential not found", undefined, { messageKey: "auth.passkeyCredentialNotFound" });
     await this.passkeyCredentialRepository.deleteByCredentialId(credentialId);
   }
 }
