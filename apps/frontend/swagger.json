@@ -32065,6 +32065,49 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/auth/browser-state/reset": {
+			"post": {
+				"operationId": "AuthControllerResetBrowserState",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BrowserStateResetResponse"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "参数验证失败",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidationErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"description": "清理当前浏览器登录 Cookie，不依赖已有认证或重放会话。",
+				"tags": [
+					"Authentication"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BrowserStateResetDto"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/auth/logout": {
 			"post": {
 				"operationId": "AuthControllerLogout",
@@ -59538,6 +59581,41 @@
 				"required": [
 					"challengeToken",
 					"agreedToLegalPolicies"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BrowserStateResetResponse": {
+				"properties": {
+					"cookiesCleared": {
+						"type": "boolean",
+						"description": "Set-Cookie expiration instructions emitted, not proof of browser acceptance."
+					},
+					"sessionRevoked": {
+						"type": "boolean",
+						"description": "Current refresh credential revoked, or no refresh credential was present."
+					}
+				},
+				"required": [
+					"cookiesCleared",
+					"sessionRevoked"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BrowserStateResetDto": {
+				"description": "Explicit confirmation; this endpoint never accepts cookie names or account identifiers.",
+				"properties": {
+					"confirm": {
+						"type": "boolean",
+						"enum": [
+							true
+						],
+						"nullable": false
+					}
+				},
+				"required": [
+					"confirm"
 				],
 				"type": "object",
 				"additionalProperties": false

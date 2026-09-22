@@ -54,7 +54,10 @@ export class EmailService {
     content: { subject: string; title: string; intro: string; footer: string },
   ): Promise<void> {
     const smtpConfig = await this.configService.getSmtpConfig();
-    if (!smtpConfig.host) throw new BadRequestError("SMTP 未配置", CustomCode.SMTP_NOT_CONFIGURED);
+    if (!smtpConfig.host)
+      throw new BadRequestError("SMTP 未配置", CustomCode.SMTP_NOT_CONFIGURED, {
+        messageKey: "errors.smtpNotConfigured",
+      });
 
     const regConfig = await this.configService.getRegistrationConfig();
     const code = Math.floor(100000 + Math.random() * 900000).toString();

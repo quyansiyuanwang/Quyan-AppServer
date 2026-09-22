@@ -76,10 +76,16 @@ export const requireRelayChannelForFormat = (
 ): RelayChannelAccessLike => {
   const channel = relayToken.channel;
   if (!channel)
-    throw new ForbiddenError("No channel assigned to this relay token. Please assign a channel before using the API.");
+    throw new ForbiddenError(
+      "No channel assigned to this relay token. Please assign a channel before using the API.",
+      undefined,
+      { messageKey: "relay.noChannelAssigned" },
+    );
 
   if (typeof channel.status === "number" && channel.status !== RELAY_CHANNEL_STATUS.ENABLED)
-    throw new ForbiddenError("The assigned relay channel is disabled. Please contact an administrator.");
+    throw new ForbiddenError("The assigned relay channel is disabled. Please contact an administrator.", undefined, {
+      messageKey: "relay.assignedChannelDisabled",
+    });
 
   const allowedFormats = channel.allowedFormats?.trim() || RELAY_REQUEST_FORMATS.join(",");
   if (!supportsRelayRequestFormat(allowedFormats, requestFormat)) {
@@ -87,7 +93,11 @@ export const requireRelayChannelForFormat = (
       requestFormat === "openai-chat-completions"
         ? "openai format requests (openai-chat-completions format requests)"
         : `${requestFormat} format requests`;
-    throw new BadRequestError(`Channel does not support ${formatLabel}. Allowed formats: ${allowedFormats}`);
+    throw new BadRequestError(
+      `Channel does not support ${formatLabel}. Allowed formats: ${allowedFormats}`,
+      undefined,
+      { messageKey: "relayProxy.channelFormatUnsupported" },
+    );
   }
 
   return channel;

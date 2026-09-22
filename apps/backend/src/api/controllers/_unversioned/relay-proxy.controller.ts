@@ -18,7 +18,7 @@ export class RelayProxyController extends Controller {
 
   private async handleRequest(request: ExpressRequest): Promise<any> {
     const token = extractRelayToken(request);
-    if (!token) throw new UnauthorizedError("Invalid relay token");
+    if (!token) throw new UnauthorizedError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
 
     const relayToken = await this.relayTokenService.validateToken(
       token,
@@ -43,7 +43,7 @@ export class RelayProxyController extends Controller {
 
   private async handleUsageV2Request(request: ExpressRequest): Promise<RelayTokenCurrentQuotaDto> {
     const token = extractRelayToken(request);
-    if (!token) throw new UnauthorizedError("Invalid relay token");
+    if (!token) throw new UnauthorizedError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
 
     const relayToken = await this.relayTokenService.validateToken(token, request);
 
@@ -62,7 +62,7 @@ export class RelayProxyController extends Controller {
 
   private async handleUsageV1Request(request: ExpressRequest): Promise<RelayTokenCurrentQuotaDto> {
     const token = extractRelayToken(request);
-    if (!token) throw new UnauthorizedError("Invalid relay token");
+    if (!token) throw new UnauthorizedError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
 
     const relayToken = await this.relayTokenService.validateToken(token, request);
 
@@ -72,7 +72,7 @@ export class RelayProxyController extends Controller {
 
   private async handleModelsRequest(request: ExpressRequest): Promise<any> {
     const token = extractRelayToken(request);
-    if (!token) throw new UnauthorizedError("Invalid relay token");
+    if (!token) throw new UnauthorizedError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
 
     const relayToken = await this.relayTokenService.validateToken(token, request);
     const filteredModelNames = await this.relayProxyService.getAvailableModelsForToken(

@@ -163,13 +163,16 @@ export class AuthorizationService {
       const result = await this.withCaptchaFallback(
         'login',
         async (_captchaToken) =>
-          await getAuthControllerApi().login({
-            body: {
-              username,
-              passwordCredential,
-              agreedToLegalPolicies: true,
+          await getAuthControllerApi().login(
+            {
+              body: {
+                username,
+                passwordCredential,
+                agreedToLegalPolicies: true,
+              },
             },
-          }),
+            { errorPresentation: 'local' },
+          ),
         onCaptchaStart,
         onCaptchaEnd,
       )
@@ -329,7 +332,7 @@ export class AuthorizationService {
       if (refreshResult?.access_token) {
         return refreshResult.access_token
       } else {
-        throw toServiceError(undefined, 'Unable to refresh access token')
+        throw toServiceError(undefined)
       }
     }
   }
@@ -467,16 +470,19 @@ export class AuthorizationService {
       return this.withCaptchaFallback(
         'register',
         async (_captchaToken) =>
-          await getAuthControllerApi().register({
-            body: {
-              username: data.username,
-              nickname: data.nickname,
-              email: data.email,
-              verificationCode: data.verificationCode,
-              passwordCredential,
-              agreedToLegalPolicies: true,
+          await getAuthControllerApi().register(
+            {
+              body: {
+                username: data.username,
+                nickname: data.nickname,
+                email: data.email,
+                verificationCode: data.verificationCode,
+                passwordCredential,
+                agreedToLegalPolicies: true,
+              },
             },
-          }),
+            { errorPresentation: 'local' },
+          ),
         onCaptchaStart,
         onCaptchaEnd,
       )
@@ -496,7 +502,7 @@ export class AuthorizationService {
       return result.data as AuthData
     }
 
-    throw toServiceError(result, 'Failed to accept legal policies')
+    throw toServiceError(result)
   }
 }
 

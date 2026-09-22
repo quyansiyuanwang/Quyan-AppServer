@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { i18ns } from '@/locales'
+import { i18ns, getLocale } from '@/locales'
+import { BROWSER_REPAIR_PATH } from '@/constant/browser-repair'
 import type { LoginForm, RegisterForm } from '../useLoginOrRegister'
 import { useLoginOrRegisterContext } from '../context'
 
@@ -52,6 +53,9 @@ const sendCodeDisabled = computed(() => {
     :class="['login-card', 'surface-card', state.isDesktop.value ? 'page-card' : 'mobile-card']"
     shadow="hover"
   >
+    <a :href="`${BROWSER_REPAIR_PATH}?locale=${getLocale()}`" class="repair-entry">{{
+      i18ns.t('requestErrors.repair')
+    }}</a>
     <h1 class="login-title">
       {{ isLogin ? i18ns.t('login') : i18ns.t('register') }}
     </h1>
@@ -337,6 +341,12 @@ const sendCodeDisabled = computed(() => {
 </template>
 
 <style scoped lang="scss">
+.repair-entry {
+  display: block;
+  text-align: center;
+  margin-bottom: 1rem;
+  color: var(--el-color-primary);
+}
 .social-auth-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

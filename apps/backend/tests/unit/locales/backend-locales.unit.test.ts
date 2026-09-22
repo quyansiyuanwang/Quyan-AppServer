@@ -1,11 +1,6 @@
+import * as localesModule from "../../../src/locales";
 import { describe, expect, it } from "vitest";
-import {
-  backendI18n,
-  normalizeBackendLocale,
-  translateDescriptor,
-  translateKnownMessage,
-  translateMessage,
-} from "../../../src/locales";
+import { backendI18n, normalizeBackendLocale, translateDescriptor, translateMessage } from "../../../src/locales";
 
 describe("backend locales", () => {
   it("normalizes backend locales", () => {
@@ -42,9 +37,9 @@ describe("backend locales", () => {
     });
   });
 
-  it("keeps legacy known-message translation compatibility", () => {
-    expect(translateKnownMessage("用户名已存在", "en")).toBe("Username already exists");
-    expect(translateKnownMessage("无效的权限: relay:token", "en")).toBe("Invalid permissions: relay:token");
-    expect(translateKnownMessage("unknown raw message", "zh-CN")).toBe("unknown raw message");
+  it("no longer exposes legacy raw-message translation (P13)", () => {
+    // 旧机制（原文反查 + 前缀猜测）已删除：`@/locales` 只提供 key 驱动的翻译入口。
+    expect(Object.keys(localesModule)).not.toContain("translateKnownMessage");
+    expect(Object.keys(localesModule)).not.toContain("getLegacyRawMessageEntries");
   });
 });

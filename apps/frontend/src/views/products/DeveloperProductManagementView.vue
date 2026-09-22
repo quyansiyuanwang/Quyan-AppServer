@@ -211,6 +211,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Refresh, Search } from '@element-plus/icons-vue'
@@ -354,7 +355,7 @@ const save = async () => {
     await loadDetails()
     ElMessage.success(t('productOperations.saveSuccess'))
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     saving.value = false
   }

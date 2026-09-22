@@ -19,8 +19,13 @@ export class SSEStream {
         signal: this.controller.signal,
       })
 
-      if (!response.ok) throw toServiceError(undefined, `HTTP ${response.status}`)
-      if (!response.body) throw toServiceError(undefined, 'No response body')
+      if (!response.ok) {
+        const data: unknown = await response.json().catch(() => undefined)
+        const error = toServiceError(data)
+        error.status = response.status
+        throw error
+      }
+      if (!response.body) throw toServiceError(undefined)
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()

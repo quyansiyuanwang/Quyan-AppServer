@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { ArchiveArtifactDto, DataLifecycleRunDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
@@ -246,9 +247,9 @@ const download = async (artifactId: string) => {
     } else {
       window.location.href = response.url
     }
-  } catch {
+  } catch (error) {
     downloadWindow?.close()
-    ElMessage.error(i18ns.t('dataLifecycle.downloadFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('dataLifecycle.downloadFailed')))
   }
 }
 

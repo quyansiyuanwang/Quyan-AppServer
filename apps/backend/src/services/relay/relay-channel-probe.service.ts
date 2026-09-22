@@ -154,7 +154,10 @@ export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndp
 
 export function assertProbeEndpointCompatibility(endpoint: RelayChannelProbeEndpoint, format: ProbeFormat): void {
   const compatible = isProbeEndpointCompatible(endpoint, format);
-  if (!compatible) throw new BadRequestError("探针接口与请求格式不兼容");
+  if (!compatible)
+    throw new BadRequestError("探针接口与请求格式不兼容", undefined, {
+      messageKey: "relayChannelProbe.apiFormatIncompatible",
+    });
 }
 
 export function isProbeEndpointCompatible(endpoint: RelayChannelProbeEndpoint, format: ProbeFormat): boolean {
@@ -587,9 +590,15 @@ export function resolveProbeModelPricing(
 ): { rate: ModelPricingItemDto; upstreamModelId: string } {
   const pricingModel = resolveMappedModel(probeModel.trim(), channelModelMapping);
   const rate = modelRates.find((item) => item.model === pricingModel);
-  if (!rate) throw new BadRequestError("探针模型没有本地定价配置");
+  if (!rate)
+    throw new BadRequestError("探针模型没有本地定价配置", undefined, {
+      messageKey: "relayChannelProbe.modelNoLocalPricing",
+    });
   const upstreamModelId = rate.modelId?.trim() || resolveModelId(rate).trim();
-  if (!upstreamModelId) throw new BadRequestError("探针模型缺少上游模型标识");
+  if (!upstreamModelId)
+    throw new BadRequestError("探针模型缺少上游模型标识", undefined, {
+      messageKey: "relayChannelProbe.modelMissingUpstreamId",
+    });
   return { rate, upstreamModelId };
 }
 
@@ -635,7 +644,11 @@ export function buildProbeUpstreamEndpoint(
 
 export function assertProbeUsage(usage: ProbeUsage): void {
   if (usage.totalTokens > 0) return;
-  throw new BadRequestError("最小模型请求未返回可计费用量；请确认上游地址包含正确 API 版本、请求格式和模型。");
+  throw new BadRequestError(
+    "最小模型请求未返回可计费用量；请确认上游地址包含正确 API 版本、请求格式和模型。",
+    undefined,
+    { messageKey: "relayChannelProbe.minimalRequestNoBillableUsage" },
+  );
 }
 
 function redactProbeErrorText(value: string): string {
@@ -814,12 +827,17 @@ export class RelayChannelProbeService {
   }
 
   private async assertPoolMember(channelId: string, memberChannelId?: string): Promise<RelayChannel> {
-    if (!memberChannelId) throw new BadRequestError("逻辑混池探针必须指定物理成员");
+    if (!memberChannelId)
+      throw new BadRequestError("逻辑混池探针必须指定物理成员", undefined, {
+        messageKey: "relayChannelProbe.pooledProbeMemberRequired",
+      });
     const member = (await this.resolvePoolMembers(channelId)).find(
       (candidate) => candidate.channel.id === memberChannelId,
     );
     if (!member || !member.membershipEnabled || !this.isEnabledProbeMember(member.channel))
-      throw new BadRequestError("物理成员不属于该逻辑混池或当前不可用");
+      throw new BadRequestError("物理成员不属于该逻辑混池或当前不可用", undefined, {
+        messageKey: "relayChannelProbe.pooledMemberUnavailable",
+      });
     return member.channel;
   }
 
@@ -844,17 +862,24 @@ export class RelayChannelProbeService {
 
   private assertProbeRelayChannelCompatibility(channel: RelayChannel, format: string, model: string): void {
     if (!supportsRelayRequestFormat(channel.allowedFormats, format as RelayRequestFormat))
-      throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`);
+      throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`, undefined, {
+        messageKey: "relayChannelProbe.formatProbeUnsupported",
+      });
     const allowedModels = parseAllowedModelsJson(channel.allowedModels) ?? [];
     if (allowedModels.length && !allowedModels.includes(model))
-      throw new BadRequestError(`渠道不支持探针模型 ${model}，请从渠道已配置模型中选择`);
+      throw new BadRequestError(`渠道不支持探针模型 ${model}，请从渠道已配置模型中选择`, undefined, {
+        messageKey: "relayChannelProbe.modelNotSupportedByChannel",
+      });
     const upstreamConfigured =
       format === "openai" || format.startsWith("openai-")
         ? Boolean(channel.openaiUpstreamUrl && channel.openaiUpstreamApiKey)
         : format === "anthropic"
           ? Boolean(channel.anthropicUpstreamUrl && channel.anthropicUpstreamApiKey)
           : Boolean(channel.geminiUpstreamUrl && channel.geminiUpstreamApiKey);
-    if (!upstreamConfigured) throw new BadRequestError(`渠道缺少 ${format} 格式的上游地址或凭据`);
+    if (!upstreamConfigured)
+      throw new BadRequestError(`渠道缺少 ${format} 格式的上游地址或凭据`, undefined, {
+        messageKey: "relayChannelProbe.upstreamMissingForFormat",
+      });
   }
 
   /**
@@ -899,13 +924,17 @@ export class RelayChannelProbeService {
   async getProfile(channelId: string, actorUserId: string): Promise<RelayChannelProbeProfileDto> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     const profile = await this.repository.findProfile(channelId);
-    if (!profile) throw new NotFoundError("渠道探针档案不存在");
+    if (!profile)
+      throw new NotFoundError("渠道探针档案不存在", undefined, { messageKey: "relayChannelProbe.profileNotFound" });
     return this.toProfileDto(profile);
   }
 
   async upsertProfile(channelId: string, body: UpsertRelayChannelProbeProfileRequest, actorUserId: string) {
     const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-    if (!isProbeableChannelType(channel.channelType)) throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针");
+    if (!isProbeableChannelType(channel.channelType))
+      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针", undefined, {
+        messageKey: "relayChannelProbe.balanceProbeScopeInvalid",
+      });
     const existing = await this.repository.findProfile(channelId);
     if (channel.channelType !== "pooled")
       this.assertProbeChannelCompatibility(channel, body.probeFormat, body.probeModel);
@@ -924,20 +953,33 @@ export class RelayChannelProbeService {
     const encrypted = body.credentials ? this.encryptCredentials(body.credentials) : undefined;
     let encryptedMemberCredentials: { ciphertext: string; iv: string; authTag: string } | undefined;
     if (channel.channelType === "pooled") {
-      if (body.credentials) throw new BadRequestError("逻辑混池必须按物理成员配置探针凭据");
+      if (body.credentials)
+        throw new BadRequestError("逻辑混池必须按物理成员配置探针凭据", undefined, {
+          messageKey: "relayChannelProbe.pooledMemberCredentialsRequired",
+        });
       const members = await this.resolvePoolMembers(channelId);
       const activeMembers = members.filter(
         (member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel),
       );
-      if (!activeMembers.length) throw new BadRequestError("逻辑混池没有可用的物理成员用于探针");
+      if (!activeMembers.length)
+        throw new BadRequestError("逻辑混池没有可用的物理成员用于探针", undefined, {
+          messageKey: "relayChannelProbe.pooledNoUsableMember",
+        });
       const memberIds = new Set(members.map((member) => member.channel.id));
       const existingCredentials = existing ? this.tryDecryptCredentials(existing) : {};
       if (body.memberCredentials && Object.keys(body.memberCredentials).some((id) => !memberIds.has(id)))
-        throw new BadRequestError("逻辑混池包含无效的物理成员探针凭据");
+        throw new BadRequestError("逻辑混池包含无效的物理成员探针凭据", undefined, {
+          messageKey: "relayChannelProbe.pooledInvalidMemberCredentials",
+        });
       const mergedCredentials = { ...existingCredentials, ...(body.memberCredentials ?? {}) };
-      if (!existing && !body.memberCredentials) throw new BadRequestError("首次配置逻辑混池探针必须提供各物理成员凭据");
+      if (!existing && !body.memberCredentials)
+        throw new BadRequestError("首次配置逻辑混池探针必须提供各物理成员凭据", undefined, {
+          messageKey: "relayChannelProbe.pooledInitialMemberCredentialsRequired",
+        });
       if (activeMembers.some((member) => !mergedCredentials[member.channel.id]))
-        throw new BadRequestError("逻辑混池缺少启用物理成员的探针凭据");
+        throw new BadRequestError("逻辑混池缺少启用物理成员的探针凭据", undefined, {
+          messageKey: "relayChannelProbe.pooledMissingEnabledMemberCredentials",
+        });
       encryptedMemberCredentials = this.encryptCredentials(
         Object.fromEntries(
           [...memberIds].flatMap((memberId) =>
@@ -946,9 +988,13 @@ export class RelayChannelProbeService {
         ),
       );
     } else if (body.memberCredentials) {
-      throw new BadRequestError("仅逻辑混池可按成员配置探针凭据");
+      throw new BadRequestError("仅逻辑混池可按成员配置探针凭据", undefined, {
+        messageKey: "relayChannelProbe.pooledMemberCredentialsOnly",
+      });
     } else if (!existing && !encrypted) {
-      throw new BadRequestError("首次配置探针必须提供凭据");
+      throw new BadRequestError("首次配置探针必须提供凭据", undefined, {
+        messageKey: "relayChannelProbe.initialCredentialsRequired",
+      });
     }
     const profile = await this.repository.upsertProfile({
       where: { relayChannelId: channelId },
@@ -1013,8 +1059,11 @@ export class RelayChannelProbeService {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     await this.channelLockService.withWrite(channelId, async () => {
       if (await this.repository.findActiveRun(channelId))
-        throw new ConflictError("渠道存在排队或运行中的探针，暂时不能清空档案");
-      if (!(await this.repository.findProfile(channelId))) throw new NotFoundError("渠道探针档案不存在");
+        throw new ConflictError("渠道存在排队或运行中的探针，暂时不能清空档案", undefined, {
+          messageKey: "relayChannelProbe.activeProbeBlocksProfileReset",
+        });
+      if (!(await this.repository.findProfile(channelId)))
+        throw new NotFoundError("渠道探针档案不存在", undefined, { messageKey: "relayChannelProbe.profileNotFound" });
       await this.repository.deleteProfile(channelId);
     });
   }
@@ -1041,28 +1090,45 @@ export class RelayChannelProbeService {
     actorUserId: string,
   ): Promise<RelayChannelProbeRunDto> {
     const profile = await this.repository.findProfileWithChannel(channelId);
-    if (!profile) throw new NotFoundError("渠道探针档案不存在");
-    if (!profile.enabled) throw new BadRequestError("渠道探针已停用");
+    if (!profile)
+      throw new NotFoundError("渠道探针档案不存在", undefined, { messageKey: "relayChannelProbe.profileNotFound" });
+    if (!profile.enabled)
+      throw new BadRequestError("渠道探针已停用", undefined, { messageKey: "relayChannelProbe.probeDisabled" });
     const probeEndpoint = normalizeProbeEndpoint(profile.probeEndpoint, profile.probeFormat as ProbeFormat);
     if (!isProbeableChannelType(profile.relayChannel.channelType as RelayChannelType))
-      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针");
+      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针", undefined, {
+        messageKey: "relayChannelProbe.balanceProbeScopeInvalid",
+      });
     const executionChannel =
       profile.relayChannel.channelType === "pooled"
         ? await this.assertPoolMember(channelId, body.memberChannelId)
         : profile.relayChannel;
     if (profile.relayChannel.channelType !== "pooled" && body.memberChannelId)
-      throw new BadRequestError("仅逻辑混池可指定物理成员探针目标");
+      throw new BadRequestError("仅逻辑混池可指定物理成员探针目标", undefined, {
+        messageKey: "relayChannelProbe.pooledMemberTargetOnly",
+      });
     this.assertProbeRelayChannelCompatibility(executionChannel, profile.probeFormat, profile.probeModel);
     const memberChannelId = profile.relayChannel.channelType === "pooled" ? executionChannel.id : null;
     const active = await this.repository.findActiveRun(channelId, memberChannelId);
-    if (active) throw new ConflictError("该渠道已有探针任务正在排队或执行");
+    if (active)
+      throw new ConflictError("该渠道已有探针任务正在排队或执行", undefined, {
+        messageKey: "relayChannelProbe.probeAlreadyQueued",
+      });
     if (!this.redis.isRedisAvailable())
-      throw new LockBackendUnavailableError("Relay channel probe queue backend unavailable");
+      throw new LockBackendUnavailableError("Relay channel probe queue backend unavailable", undefined, {
+        messageKey: "relayChannelProbe.queueBackendUnavailable",
+      });
     const reservationId = randomUUID();
     const queueKey = this.getRunQueueSlotKey(channelId, memberChannelId || undefined);
     const reserved = await this.redis.setIfNotExists(queueKey, reservationId, RUN_QUEUE_SLOT_TTL_MS);
-    if (reserved === null) throw new LockBackendUnavailableError("Relay channel probe queue backend unavailable");
-    if (!reserved) throw new ConflictError("该渠道已有探针任务正在排队或执行");
+    if (reserved === null)
+      throw new LockBackendUnavailableError("Relay channel probe queue backend unavailable", undefined, {
+        messageKey: "relayChannelProbe.queueBackendUnavailable",
+      });
+    if (!reserved)
+      throw new ConflictError("该渠道已有探针任务正在排队或执行", undefined, {
+        messageKey: "relayChannelProbe.probeAlreadyQueued",
+      });
 
     try {
       const run = await this.repository.createRun({
@@ -1157,9 +1223,14 @@ export class RelayChannelProbeService {
     const channelService = RelayChannelService.getInstance();
     const sourceChannel = await channelService.getChannel(body.sourceChannelId, actorUserId);
     if (!isProbeableChannelType(sourceChannel.channelType))
-      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针");
+      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针", undefined, {
+        messageKey: "relayChannelProbe.balanceProbeScopeInvalid",
+      });
     const sourceProfile = await this.repository.findProfileWithChannel(body.sourceChannelId);
-    if (!sourceProfile) throw new NotFoundError("来源渠道尚未配置探针档案");
+    if (!sourceProfile)
+      throw new NotFoundError("来源渠道尚未配置探针档案", undefined, {
+        messageKey: "relayChannelProbe.sourceProfileNotFound",
+      });
 
     const copied: RelayChannelProbeProfileDto[] = [];
     const rejected: Array<{ channelId: string; reason: string }> = [];
@@ -1254,21 +1325,34 @@ export class RelayChannelProbeService {
       try {
         await RelayChannelService.getInstance().getChannel(run.relayChannelId, actorUserId);
         if (run.status !== "succeeded" || run.suggestedMultiplier == null || run.appliedAt)
-          throw new BadRequestError("探针结果不可应用");
-        if (run.calibrationStatus !== "verified") throw new BadRequestError("探针结果未通过稳定性校验");
+          throw new BadRequestError("探针结果不可应用", undefined, {
+            messageKey: "relayChannelProbe.resultNotApplicable",
+          });
+        if (run.calibrationStatus !== "verified")
+          throw new BadRequestError("探针结果未通过稳定性校验", undefined, {
+            messageKey: "relayChannelProbe.resultStabilityFailed",
+          });
         if (!run.finishedAt || Date.now() - run.finishedAt.getTime() > SUGGESTION_MAX_AGE_MS)
-          throw new BadRequestError("探针建议已过期");
+          throw new BadRequestError("探针建议已过期", undefined, { messageKey: "relayChannelProbe.suggestionExpired" });
         if (
           run.sourceChannelMultiplier == null ||
           Number(run.relayChannel.multiplier) !== Number(run.sourceChannelMultiplier)
         )
-          throw new ConflictError("渠道倍率已变更，请重新探针");
-        if (!run.profile || !run.pricingFingerprint) throw new BadRequestError("旧探针结果缺少计费快照，不可应用");
+          throw new ConflictError("渠道倍率已变更，请重新探针", undefined, {
+            messageKey: "relayChannelProbe.multiplierChangedReprobe",
+          });
+        if (!run.profile || !run.pricingFingerprint)
+          throw new BadRequestError("旧探针结果缺少计费快照，不可应用", undefined, {
+            messageKey: "relayChannelProbe.legacyResultMissingBillingSnapshot",
+          });
         const currentPricing = await this.resolveProbeModelPricing(run.profile);
         const currentFingerprint = this.fingerprintPricingSnapshot(
           await this.createPricingSnapshot(run.profile, currentPricing.rate),
         );
-        if (currentFingerprint !== run.pricingFingerprint) throw new ConflictError("探针计费配置已变更，请重新探针");
+        if (currentFingerprint !== run.pricingFingerprint)
+          throw new ConflictError("探针计费配置已变更，请重新探针", undefined, {
+            messageKey: "relayChannelProbe.billingConfigChangedReprobe",
+          });
         const targetMultiplier = overrides.get(run.id) ?? Number(run.suggestedMultiplier);
         const sourceMultiplier = Number(run.sourceChannelMultiplier);
         if (
@@ -1285,7 +1369,9 @@ export class RelayChannelProbeService {
           const previousSuggestedMultiplier =
             previous[0]?.suggestedMultiplier == null ? undefined : Number(previous[0].suggestedMultiplier);
           if (requiresLargeMultiplierConfirmation(sourceMultiplier, targetMultiplier, previousSuggestedMultiplier))
-            throw new BadRequestError("大幅倍率变更需要另一条独立、稳定的探针结果确认");
+            throw new BadRequestError("大幅倍率变更需要另一条独立、稳定的探针结果确认", undefined, {
+              messageKey: "relayChannelProbe.largeMultiplierChangeNeedsConfirmation",
+            });
         }
         const appliedRun = await this.repository.applySuggestedMultiplier({
           runId: run.id,
@@ -1294,7 +1380,10 @@ export class RelayChannelProbeService {
           suggestedMultiplier: targetMultiplier,
           actorUserId,
         });
-        if (!appliedRun) throw new ConflictError("渠道倍率已变更，请重新探针");
+        if (!appliedRun)
+          throw new ConflictError("渠道倍率已变更，请重新探针", undefined, {
+            messageKey: "relayChannelProbe.multiplierChangedReprobe",
+          });
         applied += 1;
       } catch (error) {
         rejected.push({ runId: run.id, reason: error instanceof Error ? error.message : "应用失败" });
@@ -1522,7 +1611,10 @@ export class RelayChannelProbeService {
           this.readSettledBalance(workflow, { ...variables }, balanceTolerance, balanceReads, before.balance),
         );
         const divisor = Number(profile.upstreamBalanceDivisor);
-        if (!Number.isFinite(divisor) || divisor <= 0) throw new BadRequestError("上游余额换算除数无效");
+        if (!Number.isFinite(divisor) || divisor <= 0)
+          throw new BadRequestError("上游余额换算除数无效", undefined, {
+            messageKey: "relayChannelProbe.invalidBalanceDivisor",
+          });
         const upstreamBalanceBefore = before.balance / divisor;
         const upstreamBalanceAfter = after.balance / divisor;
         const upstreamBalanceDelta = upstreamBalanceBefore - upstreamBalanceAfter;
@@ -1660,15 +1752,25 @@ export class RelayChannelProbeService {
       });
       for (const [name, path] of Object.entries(step.extract || {})) {
         const value = readProbeJsonPath(response.data, path);
-        if (value == null) throw new BadRequestError(`探针变量 ${name} 未在上游响应中找到`);
+        if (value == null)
+          throw new BadRequestError(`探针变量 ${name} 未在上游响应中找到`, undefined, {
+            messageKey: "relayChannelProbe.variableNotFound",
+            messageParams: { variable: name },
+          });
         variables[name] = String(value);
       }
       if (step.balancePath) {
         balance = toNumber(readProbeJsonPath(response.data, step.balancePath));
-        if (balance === undefined) throw new BadRequestError("上游余额字段不是有效数值");
+        if (balance === undefined)
+          throw new BadRequestError("上游余额字段不是有效数值", undefined, {
+            messageKey: "relayChannelProbe.invalidBalanceValue",
+          });
       }
     }
-    if (balance === undefined) throw new BadRequestError("余额工作流未返回余额");
+    if (balance === undefined)
+      throw new BadRequestError("余额工作流未返回余额", undefined, {
+        messageKey: "relayChannelProbe.balanceWorkflowNoBalance",
+      });
     return { balance, observedAt: new Date().toISOString() };
   }
 
@@ -1697,7 +1799,9 @@ export class RelayChannelProbeService {
       previous = snapshot;
       await waitForProbeSettlement(PROBE_BALANCE_SETTLEMENT_POLL_MS);
     }
-    throw new BadRequestError("PROBE_BALANCE_SETTLEMENT_TIMEOUT:上游余额在超时前未显示稳定扣费");
+    throw new BadRequestError("PROBE_BALANCE_SETTLEMENT_TIMEOUT:上游余额在超时前未显示稳定扣费", undefined, {
+      messageKey: "relayChannelProbe.balanceSettlementTimeout",
+    });
   }
 
   private async callUpstream(
@@ -1725,13 +1829,19 @@ export class RelayChannelProbeService {
         : format === "gemini"
           ? channel.geminiUpstreamApiKey
           : channel.openaiUpstreamApiKey;
-    if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
+    if (!upstreamUrl || !apiKey)
+      throw new BadRequestError("渠道缺少对应格式的上游配置", undefined, {
+        messageKey: "relayChannel.upstreamConfigMissingForFormat",
+      });
     const base = await assertSafeOutboundUrl(upstreamUrl);
     const interpolatedPayload = interpolateRequiredProbeVariables(
       { ...(profile.probePayload as Record<string, unknown>), model: upstreamModelId },
       variables,
     );
-    if (!isRecord(interpolatedPayload)) throw new BadRequestError("探针请求体必须是 JSON 对象");
+    if (!isRecord(interpolatedPayload))
+      throw new BadRequestError("探针请求体必须是 JSON 对象", undefined, {
+        messageKey: "relayChannelProbe.requestBodyMustBeJson",
+      });
     let payload = interpolatedPayload;
     // Earlier profiles were initialized with {}, which cannot safely carry a cache marker.
     // Preserve every configured field, but turn that exact empty legacy shape into the same
@@ -1752,6 +1862,8 @@ export class RelayChannelProbeService {
       } else if (!forceWithoutCacheBuster) {
         throw new BadRequestError(
           "PROBE_CACHE_BUSTER_INJECTION_FAILED:当前请求体不包含该接口可注入的提示字段，请应用最小请求预设或修正请求格式",
+          undefined,
+          { messageKey: "relayChannelProbe.cacheBusterInjectionFailed" },
         );
       }
     }
@@ -1771,7 +1883,10 @@ export class RelayChannelProbeService {
       maxContentLength: MAX_RESPONSE_BYTES,
       validateStatus: (status) => status >= 200 && status < 300,
     });
-    if (!isRecord(response.data)) throw new BadRequestError("上游模型响应必须是 JSON 对象");
+    if (!isRecord(response.data))
+      throw new BadRequestError("上游模型响应必须是 JSON 对象", undefined, {
+        messageKey: "relayChannelProbe.upstreamModelResponseMustBeJson",
+      });
     return { response: response.data, cacheBusterId: injectedCacheBusterId, measurementInputInjected };
   }
 
@@ -1937,7 +2052,10 @@ export class RelayChannelProbeService {
 
   private getEncryptionKey(): Buffer {
     const secret = env.relay.channelProbe.masterKey;
-    if (secret.length < 64) throw new BadRequestError("渠道探针主密钥未配置");
+    if (secret.length < 64)
+      throw new BadRequestError("渠道探针主密钥未配置", undefined, {
+        messageKey: "relayChannelProbe.masterKeyNotConfigured",
+      });
     return createHash("sha256").update(secret).digest();
   }
   private encryptCredentials(credentials: Record<string, unknown>) {
@@ -1950,7 +2068,9 @@ export class RelayChannelProbeService {
   }
   private decryptCredentials(profile: ProbeProfileRecord): Record<string, unknown> {
     if (!profile.encryptedCredentials || !profile.credentialIv || !profile.credentialAuthTag)
-      throw new BadRequestError("渠道探针凭据未配置");
+      throw new BadRequestError("渠道探针凭据未配置", undefined, {
+        messageKey: "relayChannelProbe.credentialsNotConfigured",
+      });
     const decipher = createDecipheriv(
       "aes-256-gcm",
       this.getEncryptionKey(),
@@ -1963,13 +2083,18 @@ export class RelayChannelProbeService {
       ),
     );
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-      throw new BadRequestError("渠道探针凭据格式无效");
+      throw new BadRequestError("渠道探针凭据格式无效", undefined, {
+        messageKey: "relayChannelProbe.credentialsInvalidFormat",
+      });
     return parsed as Record<string, unknown>;
   }
 
   private resolveProbeExecutionChannel(profile: ProbeProfileRecord, memberChannelId: string | null) {
     if (profile.relayChannel.channelType !== "pooled") return profile.relayChannel;
-    if (!memberChannelId) throw new BadRequestError("逻辑混池探针缺少物理成员目标");
+    if (!memberChannelId)
+      throw new BadRequestError("逻辑混池探针缺少物理成员目标", undefined, {
+        messageKey: "relayChannelProbe.pooledMissingMemberTarget",
+      });
     const pooled = profile.relayChannel as RelayChannelWithProbeMembers;
     const strictMembers = pooled.pooledChildren ?? [];
     const members = strictMembers.length
@@ -1980,7 +2105,10 @@ export class RelayChannelProbeService {
     const member = members.find(
       (candidate) => candidate.id === memberChannelId && this.isEnabledProbeMember(candidate),
     );
-    if (!member) throw new BadRequestError("逻辑混池物理成员已不可用");
+    if (!member)
+      throw new BadRequestError("逻辑混池物理成员已不可用", undefined, {
+        messageKey: "relayChannelProbe.pooledMemberNoLongerAvailable",
+      });
     return member;
   }
 
@@ -1988,11 +2116,16 @@ export class RelayChannelProbeService {
     const credentials = this.decryptCredentials(profile);
     const candidate = profile.relayChannel.channelType === "pooled" ? credentials[memberId] : credentials;
     if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
-      throw new BadRequestError("逻辑混池缺少当前物理成员的探针凭据");
+      throw new BadRequestError("逻辑混池缺少当前物理成员的探针凭据", undefined, {
+        messageKey: "relayChannelProbe.pooledMissingMemberCredentials",
+      });
     const variables = Object.entries(candidate).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",
     );
-    if (variables.length !== Object.keys(candidate).length) throw new BadRequestError("渠道探针凭据格式无效");
+    if (variables.length !== Object.keys(candidate).length)
+      throw new BadRequestError("渠道探针凭据格式无效", undefined, {
+        messageKey: "relayChannelProbe.credentialsInvalidFormat",
+      });
     return Object.fromEntries(variables);
   }
   private toProfileDto(profile: any): RelayChannelProbeProfileDto {
@@ -2121,17 +2254,24 @@ export class RelayChannelProbeService {
     model: string,
   ): void {
     if (!supportsRelayRequestFormat(channel.allowedFormats, format as RelayRequestFormat))
-      throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`);
+      throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`, undefined, {
+        messageKey: "relayChannelProbe.formatProbeUnsupported",
+      });
 
     if (channel.allowedModels.length && !channel.allowedModels.includes(model))
-      throw new BadRequestError(`渠道不支持探针模型 ${model}，请从渠道已配置模型中选择`);
+      throw new BadRequestError(`渠道不支持探针模型 ${model}，请从渠道已配置模型中选择`, undefined, {
+        messageKey: "relayChannelProbe.modelNotSupportedByChannel",
+      });
 
     const upstreamConfigured = format.startsWith("openai-")
       ? Boolean(channel.openaiUpstreamUrl && channel.hasOpenaiUpstreamApiKey)
       : format === "anthropic"
         ? Boolean(channel.anthropicUpstreamUrl && channel.hasAnthropicUpstreamApiKey)
         : Boolean(channel.geminiUpstreamUrl && channel.hasGeminiUpstreamApiKey);
-    if (!upstreamConfigured) throw new BadRequestError(`渠道缺少 ${format} 格式的上游地址或凭据`);
+    if (!upstreamConfigured)
+      throw new BadRequestError(`渠道缺少 ${format} 格式的上游地址或凭据`, undefined, {
+        messageKey: "relayChannelProbe.upstreamMissingForFormat",
+      });
   }
 
   private async cleanupExpiredRuns(): Promise<void> {

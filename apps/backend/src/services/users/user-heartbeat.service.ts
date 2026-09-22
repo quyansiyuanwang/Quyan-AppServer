@@ -99,13 +99,18 @@ export class UserHeartbeatService {
 
   async recordHeartbeat(userId: string, request: TypedRequest): Promise<SendHeartbeatResponse> {
     const authSessionId = extractAuthSessionId(request) || setAuthSessionIdCookie(request);
-    if (!authSessionId) throw new UnauthorizedError("登录会话不存在，请重新登录");
+    if (!authSessionId)
+      throw new UnauthorizedError("登录会话不存在，请重新登录", undefined, { messageKey: "auth.loginSessionNotFound" });
 
     const forcedOfflineUser = await this.redisService.get(this.getForceOfflineUserKey(userId));
-    if (forcedOfflineUser) throw new UnauthorizedError("用户已被强制下线，请重新登录");
+    if (forcedOfflineUser)
+      throw new UnauthorizedError("用户已被强制下线，请重新登录", undefined, { messageKey: "auth.forcedOffline" });
 
     const forcedOfflineSession = await this.redisService.get(buildForceOfflineAuthSessionKey(authSessionId));
-    if (forcedOfflineSession) throw new UnauthorizedError("当前会话已被强制结束，请重新登录");
+    if (forcedOfflineSession)
+      throw new UnauthorizedError("当前会话已被强制结束，请重新登录", undefined, {
+        messageKey: "auth.sessionForcedEnded",
+      });
 
     const runtimeConfig = await this.getRuntimeConfig();
     const cutoffTime = new Date(Date.now() - runtimeConfig.timeoutSeconds * 1000);

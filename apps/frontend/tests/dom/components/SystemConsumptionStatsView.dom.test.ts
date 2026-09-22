@@ -2,12 +2,10 @@
 import { computed, defineComponent, h } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { configureRequestErrorNotifier } from '@/utils/requestErrorNotice'
+import { i18ns } from '@/locales'
 
-const {
-  getConsumptionStatsMock,
-  warningMock,
-  errorMock,
-} = vi.hoisted(() => ({
+const { getConsumptionStatsMock, warningMock, errorMock } = vi.hoisted(() => ({
   getConsumptionStatsMock: vi.fn(),
   warningMock: vi.fn(),
   errorMock: vi.fn(),
@@ -77,7 +75,8 @@ const ElButtonStub = defineComponent({
   name: 'ElButton',
   emits: ['click'],
   setup(_props, { emit, slots }) {
-    return () => h('button', { class: 'el-button-stub', onClick: () => emit('click') }, slots.default?.())
+    return () =>
+      h('button', { class: 'el-button-stub', onClick: () => emit('click') }, slots.default?.())
   },
 })
 
@@ -90,7 +89,8 @@ const ElInputStub = defineComponent({
       h('input', {
         class: 'el-input-stub',
         value: props.modelValue,
-        onInput: (event: Event) => emit('update:modelValue', (event.target as HTMLInputElement).value),
+        onInput: (event: Event) =>
+          emit('update:modelValue', (event.target as HTMLInputElement).value),
         onKeyup: (event: KeyboardEvent) => emit('keyup', event),
       })
   },
@@ -235,7 +235,27 @@ const baseStatsResponse = {
     avgTokensPerRequest: 100,
   },
   daily: [],
-  byUser: [{ key: 'user-1', label: 'Alice', totalSpend: 3, chargedSpend: 2, coveredSpend: 1, totalRequests: 2, zeroChargeRequests: 0, totalTokens: 200, inputTokens: 120, outputTokens: 80, cacheCreationTokens: 0, cacheReadTokens: 0, activeUsers: 1, consumingUsers: 1, avgSpendPerRequest: 1.5, avgTokensPerRequest: 100, share: 100 }],
+  byUser: [
+    {
+      key: 'user-1',
+      label: 'Alice',
+      totalSpend: 3,
+      chargedSpend: 2,
+      coveredSpend: 1,
+      totalRequests: 2,
+      zeroChargeRequests: 0,
+      totalTokens: 200,
+      inputTokens: 120,
+      outputTokens: 80,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      activeUsers: 1,
+      consumingUsers: 1,
+      avgSpendPerRequest: 1.5,
+      avgTokensPerRequest: 100,
+      share: 100,
+    },
+  ],
   byChannel: [],
   byModel: [],
   userDailyDistribution: [],
@@ -266,6 +286,9 @@ const mountView = () =>
       },
     },
   })
+
+// 组件通过 showRequestErrorNotice 报错，其输出经通知器；镜像生产的接线方式（见 requestErrorNoticeInstaller）
+configureRequestErrorNotifier((_title, message) => errorMock(message))
 
 describe('SystemConsumptionStatsView', () => {
   beforeEach(() => {
@@ -389,11 +412,13 @@ describe('SystemConsumptionStatsView', () => {
     await vm.loadStats()
     await flushPromises()
 
-    expect(errorMock).toHaveBeenCalledWith('network failed')
+    // 原始 Error 不含后端信封：按设计回退到本地化兜底，不再把原始 message 直接展示给用户
+    expect(errorMock).toHaveBeenCalledWith(i18ns.t('ConsumptionStats.loadFailed'))
   })
 
   it('falls back safely when filterOptions is missing', async () => {
-    const { filterOptions: _filterOptions, ...responseWithoutFilterOptions } = structuredClone(baseStatsResponse)
+    const { filterOptions: _filterOptions, ...responseWithoutFilterOptions } =
+      structuredClone(baseStatsResponse)
     getConsumptionStatsMock.mockResolvedValueOnce(responseWithoutFilterOptions)
 
     const wrapper = mountView()

@@ -20,6 +20,10 @@ declare global {
       responseMessage?: string;
       responseMessageDescriptor?: MessageDescriptor;
       skipResponseWrapper?: boolean;
+      /** 消息已在出口渲染完成（`sendApplicationError` 设置），包装器不再二次翻译 */
+      messageRendered?: boolean;
+      /** 已渲染完成的消息文本，仅在 `messageRendered` 为 true 时使用 */
+      renderedMessage?: string;
     }
   }
 }

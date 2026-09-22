@@ -100,7 +100,12 @@ export const upsertRelayChannelProbeProfileBodySchema = z
   })
   .superRefine((value, ctx) => {
     if (value.workflow.filter((step) => step.balancePath).length !== 1)
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["workflow"], message: "Exactly one balancePath is required" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["workflow"],
+        message: "Exactly one balancePath is required",
+        params: { messageKey: "relayChannelProbe.exactlyOneBalancePath" },
+      });
     const endpoint = value.probeEndpoint;
     if (
       endpoint &&
@@ -113,6 +118,7 @@ export const upsertRelayChannelProbeProfileBodySchema = z
         code: z.ZodIssueCode.custom,
         path: ["probeEndpoint"],
         message: "Probe endpoint is incompatible with probe format",
+        params: { messageKey: "relayChannelProbe.apiFormatIncompatible" },
       });
   });
 export const createRelayChannelProbeRunBodySchema = z.object({
@@ -171,6 +177,7 @@ export const copyRelayChannelProbeProfileBodySchema = z
         code: z.ZodIssueCode.custom,
         path: ["targetChannelIds"],
         message: "Source channel cannot also be a target",
+        params: { messageKey: "relayChannelProbe.sourceCannotBeTarget" },
       });
   });
 export const applyRelayChannelProbeRunsBodySchema = z
@@ -195,9 +202,19 @@ export const applyRelayChannelProbeRunsBodySchema = z
     const seen = new Set<string>();
     for (const [index, override] of (value.overrides || []).entries()) {
       if (!value.runIds.includes(override.runId))
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["overrides", index, "runId"], message: "Unknown runId" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["overrides", index, "runId"],
+          message: "Unknown runId",
+          params: { messageKey: "relayChannelProbe.unknownRunId" },
+        });
       if (seen.has(override.runId))
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["overrides", index, "runId"], message: "Duplicate runId" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["overrides", index, "runId"],
+          message: "Duplicate runId",
+          params: { messageKey: "relayChannelProbe.duplicateRunId" },
+        });
       seen.add(override.runId);
     }
   });

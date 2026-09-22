@@ -21,6 +21,7 @@ const validateDateRange = (value: { startDate?: string; endDate?: string }, ctx:
       code: z.ZodIssueCode.custom,
       path: ["endDate"],
       message: "startDate must be less than or equal to endDate",
+      params: { messageKey: "validation.dateRangeOrder" },
     });
     return;
   }
@@ -31,6 +32,7 @@ const validateDateRange = (value: { startDate?: string; endDate?: string }, ctx:
     code: z.ZodIssueCode.custom,
     path: ["endDate"],
     message: `date range cannot exceed ${SYSTEM_QUERY_MAX_RANGE_DAYS} days`,
+    params: { messageKey: "validation.dateRangeTooWide", messageParams: { maxDays: SYSTEM_QUERY_MAX_RANGE_DAYS } },
   });
 };
 

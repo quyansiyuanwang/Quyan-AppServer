@@ -49,7 +49,7 @@ export const createCentralLoginFlow = async (
   const result = await getAuthControllerApi().createCentralLoginFlow({
     body: { returnTo: returnTo.toString() },
   })
-  if (!result.data?.flowId) throw toServiceError(result, 'Failed to create central login flow')
+  if (!result.data?.flowId) throw toServiceError(result)
   return result.data.flowId
 }
 
@@ -73,8 +73,7 @@ export const redirectToCentralPasskeyManagement = async (): Promise<void> => {
   const result = await getAuthControllerApi().createAuthenticatedCentralLoginFlow({
     body: { returnTo: new URL('/settings/security', profile.canonicalOrigin).toString() },
   })
-  if (!result.data?.flowId)
-    throw toServiceError(result, 'Failed to create passkey registration flow')
+  if (!result.data?.flowId) throw toServiceError(result)
   assignDocument(getCentralAuthUrl(profile, '/auth/passkeys', result.data.flowId))
 }
 
@@ -88,8 +87,7 @@ export const redirectToCentralExternalBinding = async (
   const result = await getAuthControllerApi().createAuthenticatedCentralLoginFlow({
     body: { returnTo: new URL('/settings/security', profile.canonicalOrigin).toString() },
   })
-  if (!result.data?.flowId)
-    throw toServiceError(result, 'Failed to create external account binding flow')
+  if (!result.data?.flowId) throw toServiceError(result)
 
   const target = new URL('/auth/external/bind', profile.authOrigin)
   target.searchParams.set('provider', provider)
@@ -99,7 +97,7 @@ export const redirectToCentralExternalBinding = async (
 
 export const consumeCentralLoginFlow = async (flowId: string): Promise<string> => {
   const result = await getAuthControllerApi().consumeCentralLoginFlow({ body: { flowId } })
-  if (!result.data?.returnTo) throw toServiceError(result, 'Failed to resume central login flow')
+  if (!result.data?.returnTo) throw toServiceError(result)
   return result.data.returnTo
 }
 

@@ -1,7 +1,9 @@
+import { getErrorMessage, isRequestCanceled, isSilentError } from './error-utils'
 import { i18ns } from '@/locales'
 
 const ERROR_NOTICE_DEDUPE_MS = 1_500
 const recentErrorNotices = new Map<string, number>()
+const notifiedErrors = new WeakSet<object>()
 const pendingNotices: string[] = []
 
 type RequestErrorNotifier = (title: string, message: string) => void
@@ -16,9 +18,15 @@ export const configureRequestErrorNotifier = (notifier: RequestErrorNotifier): v
 }
 
 export const showRequestErrorNotice = (
-  rawMessage: string | undefined,
+  source: unknown,
   fallbackMessage: string = i18ns.t('loadFailed'),
 ): void => {
+  if (isRequestCanceled(source) || isSilentError(source)) return
+  if (typeof source === 'object' && source !== null) {
+    if (notifiedErrors.has(source)) return
+    notifiedErrors.add(source)
+  }
+  const rawMessage = typeof source === 'string' ? source : getErrorMessage(source, fallbackMessage)
   const message = String(rawMessage || '')
     .replace(/\s+/g, ' ')
     .trim()

@@ -52,6 +52,10 @@ const relayTokenQuotaWindowSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `quotaLimit must be an integer when quotaUnit is ${value.quotaUnit}`,
+        params: {
+          messageKey: "monthlyPass.fieldMustBeIntegerForUnit",
+          messageParams: { field: "quotaLimit", unit: value.quotaUnit },
+        },
         path: ["quotaLimit"],
       });
 
@@ -59,6 +63,10 @@ const relayTokenQuotaWindowSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `quotaLimit must have at most ${MONTHLY_PASS_DECIMAL_SCALE} decimal places when quotaUnit is amount`,
+        params: {
+          messageKey: "monthlyPass.fieldDecimalPlacesForAmount",
+          messageParams: { field: "quotaLimit", scale: MONTHLY_PASS_DECIMAL_SCALE },
+        },
         path: ["quotaLimit"],
       });
 
@@ -67,6 +75,10 @@ const relayTokenQuotaWindowSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `quotaLimit must not exceed ${max} when quotaUnit is ${value.quotaUnit}`,
+        params: {
+          messageKey: "monthlyPass.fieldMustNotExceedForUnit",
+          messageParams: { field: "quotaLimit", max, unit: value.quotaUnit },
+        },
         path: ["quotaLimit"],
       });
   });
@@ -135,12 +147,14 @@ const relayRequestFormatTransformsSchema = z
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "sourceFormat and targetFormat must differ",
+          params: { messageKey: "relayToken.formatTransformSameSourceTarget" },
           path: [index, "targetFormat"],
         });
       if (sources.has(rule.sourceFormat))
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "sourceFormat must be unique",
+          params: { messageKey: "relayToken.formatTransformSourceUnique" },
           path: [index, "sourceFormat"],
         });
       sources.add(rule.sourceFormat);
@@ -215,30 +229,35 @@ export const createRelayTokenBodySchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "channelId or channelConfigs is required",
+        params: { messageKey: "relayToken.channelSelectionRequired" },
         path: ["channelConfigs"],
       });
     if (value.routingMode === "automatic-pool" && !value.automaticProxyPoolChannelId)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId is required",
+        params: { messageKey: "relayToken.automaticPoolChannelRequired" },
         path: ["automaticProxyPoolChannelId"],
       });
     if (value.routingMode === "automatic-pool" && (value.channelId || value.channelConfigs?.length))
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automatic pool mode cannot include ordered channels",
+        params: { messageKey: "relayToken.automaticPoolNoOrderedChannels" },
         path: ["channelConfigs"],
       });
     if (value.routingMode !== "automatic-pool" && value.automaticProxyPoolChannelId)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
+        params: { messageKey: "relayToken.automaticPoolChannelModeOnly" },
         path: ["automaticProxyPoolChannelId"],
       });
     if (value.routingMode !== "automatic-pool" && value.blockedAutomaticProxyPoolChannelIds?.length)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "blockedAutomaticProxyPoolChannelIds can only be used in automatic pool mode",
+        params: { messageKey: "relayToken.blockedChannelsModeOnly" },
         path: ["blockedAutomaticProxyPoolChannelIds"],
       });
 
@@ -251,6 +270,7 @@ export const createRelayTokenBodySchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "channelId must be unique",
+            params: { messageKey: "relayToken.channelIdUnique" },
             path: ["channelConfigs", index, "channelId"],
           });
         channelIdSet.add(config.channelId);
@@ -259,6 +279,7 @@ export const createRelayTokenBodySchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "priority must be unique",
+            params: { messageKey: "relayToken.priorityUnique" },
             path: ["channelConfigs", index, "priority"],
           });
         prioritySet.add(config.priority);
@@ -274,6 +295,7 @@ export const createRelayTokenBodySchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "quotaWindowHours + quotaUnit must be unique",
+            params: { messageKey: "monthlyPass.quotaWindowUnique" },
             path: ["quotaWindows", index, "quotaWindowHours"],
           });
         ruleKeySet.add(ruleKey);
@@ -308,24 +330,28 @@ export const updateRelayTokenBodySchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId is required",
+        params: { messageKey: "relayToken.automaticPoolChannelRequired" },
         path: ["automaticProxyPoolChannelId"],
       });
     if (value.routingMode === "automatic-pool" && (value.channelId || value.channelConfigs?.length))
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automatic pool mode cannot include ordered channels",
+        params: { messageKey: "relayToken.automaticPoolNoOrderedChannels" },
         path: ["channelConfigs"],
       });
     if (value.routingMode !== "automatic-pool" && value.automaticProxyPoolChannelId)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
+        params: { messageKey: "relayToken.automaticPoolChannelModeOnly" },
         path: ["automaticProxyPoolChannelId"],
       });
     if (value.routingMode !== "automatic-pool" && value.blockedAutomaticProxyPoolChannelIds?.length)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "blockedAutomaticProxyPoolChannelIds can only be used in automatic pool mode",
+        params: { messageKey: "relayToken.blockedChannelsModeOnly" },
         path: ["blockedAutomaticProxyPoolChannelIds"],
       });
     if (value.channelConfigs) {
@@ -337,6 +363,7 @@ export const updateRelayTokenBodySchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "channelId must be unique",
+            params: { messageKey: "relayToken.channelIdUnique" },
             path: ["channelConfigs", index, "channelId"],
           });
         channelIdSet.add(config.channelId);
@@ -345,6 +372,7 @@ export const updateRelayTokenBodySchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "priority must be unique",
+            params: { messageKey: "relayToken.priorityUnique" },
             path: ["channelConfigs", index, "priority"],
           });
         prioritySet.add(config.priority);
@@ -360,6 +388,7 @@ export const updateRelayTokenBodySchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "quotaWindowHours + quotaUnit must be unique",
+            params: { messageKey: "monthlyPass.quotaWindowUnique" },
             path: ["quotaWindows", index, "quotaWindowHours"],
           });
         ruleKeySet.add(ruleKey);
@@ -412,30 +441,35 @@ const relayTokenImportItemSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "channelId or channelConfigs is required",
+        params: { messageKey: "relayToken.channelSelectionRequired" },
         path: ["channelConfigs"],
       });
     if (value.routingMode === "automatic-pool" && !value.automaticProxyPoolChannelId)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId is required",
+        params: { messageKey: "relayToken.automaticPoolChannelRequired" },
         path: ["automaticProxyPoolChannelId"],
       });
     if (value.routingMode === "automatic-pool" && (value.channelId || value.channelConfigs?.length))
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automatic pool mode cannot include ordered channels",
+        params: { messageKey: "relayToken.automaticPoolNoOrderedChannels" },
         path: ["channelConfigs"],
       });
     if (value.routingMode !== "automatic-pool" && value.automaticProxyPoolChannelId)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "automaticProxyPoolChannelId can only be used in automatic pool mode",
+        params: { messageKey: "relayToken.automaticPoolChannelModeOnly" },
         path: ["automaticProxyPoolChannelId"],
       });
     if (value.routingMode !== "automatic-pool" && value.blockedAutomaticProxyPoolChannelIds?.length)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "blockedAutomaticProxyPoolChannelIds can only be used in automatic pool mode",
+        params: { messageKey: "relayToken.blockedChannelsModeOnly" },
         path: ["blockedAutomaticProxyPoolChannelIds"],
       });
 
@@ -448,6 +482,7 @@ const relayTokenImportItemSchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "channelId must be unique",
+            params: { messageKey: "relayToken.channelIdUnique" },
             path: ["channelConfigs", index, "channelId"],
           });
         channelIdSet.add(config.channelId);
@@ -456,6 +491,7 @@ const relayTokenImportItemSchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "priority must be unique",
+            params: { messageKey: "relayToken.priorityUnique" },
             path: ["channelConfigs", index, "priority"],
           });
         prioritySet.add(config.priority);
@@ -471,6 +507,7 @@ const relayTokenImportItemSchema = z
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: "quotaWindowHours + quotaUnit must be unique",
+            params: { messageKey: "monthlyPass.quotaWindowUnique" },
             path: ["quotaWindows", index, "quotaWindowHours"],
           });
         ruleKeySet.add(ruleKey);
@@ -538,6 +575,7 @@ export const relayTokenUsageQuerySchema = relayTokenUsageQueryBaseSchema.superRe
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "startDate must be less than or equal to endDate",
+        params: { messageKey: "validation.dateRangeOrder" },
         path: ["startDate"],
       });
   }
@@ -568,6 +606,7 @@ export const relayTokenUsageSummaryQuerySchema = relayTokenUsageQueryBaseSchema
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "startDate must be less than or equal to endDate",
+          params: { messageKey: "validation.dateRangeOrder" },
           path: ["startDate"],
         });
     }
@@ -587,6 +626,7 @@ export const relayTokenUsageDetailQuerySchema = relayTokenUsageQueryBaseSchema
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: "startDate must be less than or equal to endDate",
+          params: { messageKey: "validation.dateRangeOrder" },
           path: ["startDate"],
         });
     }

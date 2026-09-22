@@ -30,6 +30,8 @@ const createRelayWriteConflictError = (): ResourceLockedError =>
   new ResourceLockedError(
     "Relay billing transaction is contended by another request; please retry later",
     RELAY_TRANSACTION_RETRY_AFTER_SECONDS,
+    undefined,
+    { messageKey: "relay.billingTransactionContended" },
   );
 
 const isWriteConflict = (error: unknown): boolean =>
@@ -430,7 +432,9 @@ export class RelayProxyRepository implements RelayProxyStore {
               });
 
               if (quotaUpdate.count !== 1)
-                throw new ConflictError("Monthly pass quota changed concurrently, please retry");
+                throw new ConflictError("Monthly pass quota changed concurrently, please retry", undefined, {
+                  messageKey: "monthlyPass.quotaChangedConcurrently",
+                });
 
               await tx.monthlyPassUsage.create({
                 data: {

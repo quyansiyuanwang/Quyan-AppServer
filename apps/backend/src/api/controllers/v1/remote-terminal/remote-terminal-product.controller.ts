@@ -50,7 +50,7 @@ import { validateBody, validateParams, validateQuery } from "@/middleware/valida
 import { RemoteTerminalProductService } from "@/services/remote-terminal/remote-terminal-product.service";
 import type { TypedRequest } from "@/types/express";
 import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
-import { setResponseMessage } from "@/util/response-wrapper";
+import { setResponseMessageKey } from "@/util/response-wrapper";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
 @Route("v1/remote-terminal/products")
@@ -165,7 +165,7 @@ export class RemoteTerminalProductController extends Controller {
   )
   public async deleteTemplate(@Path() id: string, @Request() request: TypedRequest): Promise<{ message: string }> {
     await this.remoteTerminalProductService.deleteTemplate(id, request.user!.userId, request);
-    setResponseMessage(request, "Remote terminal product template deleted");
+    setResponseMessageKey(request, "remoteTerminalProduct.templateDeleted");
     return { message: "Remote terminal product template deleted" };
   }
 
@@ -250,7 +250,7 @@ export class RemoteTerminalProductController extends Controller {
   )
   public async resetUnbindCount(@Path() id: string, @Request() request: TypedRequest): Promise<{ message: string }> {
     await this.remoteTerminalProductService.resetUnbindCount(id, request.user!.userId, request);
-    setResponseMessage(request, "Device unbind count reset");
+    setResponseMessageKey(request, "remoteTerminalProduct.unbindCountReset");
     return { message: "Device unbind count reset" };
   }
 
@@ -265,7 +265,7 @@ export class RemoteTerminalProductController extends Controller {
   )
   public async deleteEntitlement(@Path() id: string, @Request() request: TypedRequest): Promise<{ message: string }> {
     await this.remoteTerminalProductService.deleteEntitlement(id, request.user!.userId, request);
-    setResponseMessage(request, "Remote terminal entitlement deleted");
+    setResponseMessageKey(request, "remoteTerminalProduct.entitlementDeleted");
     return { message: "Remote terminal entitlement deleted" };
   }
 
@@ -366,7 +366,7 @@ export class RemoteTerminalProductController extends Controller {
   )
   public async revokeDevice(@Path() id: string, @Request() request: TypedRequest): Promise<{ message: string }> {
     await this.remoteTerminalProductService.adminRevokeDevice(id, request.user!.userId, request);
-    setResponseMessage(request, "Remote terminal device revoked");
+    setResponseMessageKey(request, "remoteTerminalProduct.deviceRevoked");
     return { message: "Remote terminal device revoked" };
   }
 
@@ -383,7 +383,7 @@ export class RemoteTerminalProductController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<{ message: string }> {
     await this.remoteTerminalProductService.revokeCurrentUserDevice(request.user!.userId, id, request);
-    setResponseMessage(request, "Remote terminal device revoked");
+    setResponseMessageKey(request, "remoteTerminalProduct.deviceRevoked");
     return { message: "Remote terminal device revoked" };
   }
 }

@@ -56,7 +56,7 @@ export class ContentSafetyController extends Controller {
     const actorUserId = request.user!.userId;
     if (!targetUserId || targetUserId === actorUserId) return actorUserId;
     if (!(await this.permissionService.hasPermission(actorUserId, Permission.SYSTEM_CONFIG)))
-      throw new ForbiddenError("Access denied");
+      throw new ForbiddenError("Access denied", undefined, { messageKey: "errors.forbidden" });
     return targetUserId;
   }
   @Get("config")

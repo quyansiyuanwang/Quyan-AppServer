@@ -277,6 +277,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type {
@@ -400,7 +401,7 @@ const loadSecretProjects = async () => {
       secretProjects.value = projects
   } catch (cause) {
     if (sequence === secretProjectsSequence)
-      ElMessage.error(getErrorMessage(cause, t('productResources.pushCredentialLoadFailed')))
+      showRequestErrorNotice(cause, t('productResources.pushCredentialLoadFailed'))
   } finally {
     if (sequence === secretProjectsSequence) secretProjectsLoading.value = false
   }
@@ -427,7 +428,7 @@ const loadSecrets = async (secretInstanceId = form.value.secretInstanceId) => {
       secrets.value = nextSecrets
   } catch (cause) {
     if (sequence === secretsSequence)
-      ElMessage.error(getErrorMessage(cause, t('productResources.pushCredentialLoadFailed')))
+      showRequestErrorNotice(cause, t('productResources.pushCredentialLoadFailed'))
   } finally {
     if (sequence === secretsSequence) secretsLoading.value = false
   }
@@ -561,7 +562,7 @@ const toggle = async (row: DeveloperPushChannelDto) => {
     await loadChannels()
     ElMessage.success(t('updateSuccess'))
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -577,8 +578,7 @@ const remove = async (row: DeveloperPushChannelDto) => {
     await loadChannels()
     ElMessage.success(t('deleteSuccess'))
   } catch (cause) {
-    if (cause !== 'cancel')
-      ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    if (cause !== 'cancel') showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }

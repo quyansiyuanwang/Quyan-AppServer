@@ -123,9 +123,12 @@ export class RedemptionCodeService {
     } catch (error) {
       if (!(error instanceof Error)) throw error;
 
-      if (error.message === "REDEMPTION_CODE_NOT_FOUND") throw new BadRequestError("兑换码不存在");
-      if (error.message === "REDEMPTION_CODE_ALREADY_USED") throw new BadRequestError("兑换码已被使用");
-      if (error.message === "REDEMPTION_CODE_EXPIRED") throw new BadRequestError("兑换码已过期");
+      if (error.message === "REDEMPTION_CODE_NOT_FOUND")
+        throw new BadRequestError("兑换码不存在", undefined, { messageKey: "redemptionCode.notFound" });
+      if (error.message === "REDEMPTION_CODE_ALREADY_USED")
+        throw new BadRequestError("兑换码已被使用", undefined, { messageKey: "redemptionCode.alreadyUsed" });
+      if (error.message === "REDEMPTION_CODE_EXPIRED")
+        throw new BadRequestError("兑换码已过期", undefined, { messageKey: "redemptionCode.expired" });
 
       throw error;
     }
@@ -151,11 +154,14 @@ export class RedemptionCodeService {
   }
 
   private validateCreateRules(body: CreateRedemptionCodeDto, count: number): void {
-    if (body.expiresAt && body.expiresAt <= new Date()) throw new BadRequestError("过期时间必须晚于当前时间");
+    if (body.expiresAt && body.expiresAt <= new Date())
+      throw new BadRequestError("过期时间必须晚于当前时间", undefined, { messageKey: "errors.expiryMustBeFuture" });
 
     // Defense-in-depth: keep service safe even if called outside TSOA validation pipeline.
     if (!Number.isInteger(count) || count < 1 || count > 1000)
-      throw new BadRequestError("生成数量必须是 1 到 1000 的整数");
+      throw new BadRequestError("生成数量必须是 1 到 1000 的整数", undefined, {
+        messageKey: "redemptionCode.generateCountRange",
+      });
   }
 
   private toDto(record: {

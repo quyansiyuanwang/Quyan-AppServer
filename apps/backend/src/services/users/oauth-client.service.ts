@@ -116,7 +116,8 @@ export class OAuthClientService {
     const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
     const clientId = data.clientId.trim();
     const existing = await this.repository.findByClientId(clientId);
-    if (existing) throw new BadRequestError("OAuth client ID already exists");
+    if (existing)
+      throw new BadRequestError("OAuth client ID already exists", undefined, { messageKey: "oauth.clientIdExists" });
 
     const clientType = data.clientType ?? "public";
     const rawClientSecret = clientType === "public" ? "" : this.generateClientSecret();
@@ -179,7 +180,11 @@ export class OAuthClientService {
     request?: Request,
   ): Promise<OAuthClientDto> {
     const existing = await this.repository.findById(id);
-    if (!existing || !existing.isSystemClient) throw new NotFoundError("System OAuth client not found");
+    if (!existing || !existing.isSystemClient)
+      throw new NotFoundError("System OAuth client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "System OAuth" },
+      });
 
     const updateData: OAuthClientUpdateInput = {};
     if (data.scopes !== undefined)
@@ -233,6 +238,10 @@ export class OAuthClientService {
         throw new ForbiddenError(
           `系统 OAuth 客户端无法修改以下字段: ${forbidden.join(", ")}`,
           CustomCode.SYSTEM_RESOURCE_PROTECTED,
+          {
+            messageKey: "oauth.systemClientImmutableFields",
+            messageParams: { fields: forbidden.join(", ") },
+          },
         );
       }
     }
@@ -295,7 +304,9 @@ export class OAuthClientService {
 
     // 保护系统客户端不被删除
     if (existing.isSystemClient) {
-      throw new ForbiddenError("系统 OAuth 客户端无法删除", CustomCode.SYSTEM_RESOURCE_PROTECTED);
+      throw new ForbiddenError("系统 OAuth 客户端无法删除", CustomCode.SYSTEM_RESOURCE_PROTECTED, {
+        messageKey: "oauth.systemClientNotDeletable",
+      });
     }
 
     await this.repository.delete(id);
@@ -315,11 +326,17 @@ export class OAuthClientService {
 
   async deleteClientForReview(id: string, reviewerUserId: string, request?: Request): Promise<void> {
     const existing = await this.repository.findById(id);
-    if (!existing) throw new NotFoundError("OAuth client not found");
+    if (!existing)
+      throw new NotFoundError("OAuth client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "OAuth" },
+      });
 
     // 保护系统客户端不被删除
     if (existing.isSystemClient) {
-      throw new ForbiddenError("系统 OAuth 客户端无法删除", CustomCode.SYSTEM_RESOURCE_PROTECTED);
+      throw new ForbiddenError("系统 OAuth 客户端无法删除", CustomCode.SYSTEM_RESOURCE_PROTECTED, {
+        messageKey: "oauth.systemClientNotDeletable",
+      });
     }
 
     await this.repository.delete(id);
@@ -342,7 +359,11 @@ export class OAuthClientService {
 
   async regenerateSecret(id: string, userId: string, request?: Request): Promise<OAuthClientWithSecretDto> {
     const existing = await this.requireOwnedClient(id, userId);
-    if (existing.clientType === "public") throw new BadRequestError("Public OAuth client does not use client secret");
+    if (existing.clientType === "public")
+      throw new BadRequestError("Public OAuth client does not use client secret", undefined, {
+        messageKey: "oauth.publicClientNoSecret",
+        messageParams: { client: "OAuth" },
+      });
 
     const rawClientSecret = this.generateClientSecret();
     const updated = await this.repository.update(id, {
@@ -372,7 +393,10 @@ export class OAuthClientService {
     const existing = await this.requireOwnedClient(id, userId);
 
     if (existing.reviewStatus === REVIEW_STATUS.PENDING)
-      throw new BadRequestError("OAuth client is already pending review");
+      throw new BadRequestError("OAuth client is already pending review", undefined, {
+        messageKey: "oauth.clientAlreadyPendingReview",
+        messageParams: { client: "OAuth" },
+      });
 
     const updated = await this.repository.update(id, {
       reviewStatus: REVIEW_STATUS.PENDING,
@@ -430,9 +454,16 @@ export class OAuthClientService {
     request?: Request,
   ): Promise<OAuthClientDto> {
     const existing = await this.repository.findById(id);
-    if (!existing) throw new NotFoundError("OAuth client not found");
+    if (!existing)
+      throw new NotFoundError("OAuth client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "OAuth" },
+      });
     if (existing.reviewStatus !== REVIEW_STATUS.PENDING)
-      throw new BadRequestError("Only pending OAuth clients can be reviewed");
+      throw new BadRequestError("Only pending OAuth clients can be reviewed", undefined, {
+        messageKey: "oauth.onlyPendingClientReviewable",
+        messageParams: { client: "OAuth" },
+      });
 
     const updated = await this.repository.update(id, {
       reviewStatus: data.reviewStatus,
@@ -466,7 +497,11 @@ export class OAuthClientService {
 
   private async requireOwnedClient(id: string, userId: string): Promise<OAuthClient> {
     const client = await this.repository.findById(id);
-    if (!client || client.userId !== userId) throw new NotFoundError("OAuth client not found");
+    if (!client || client.userId !== userId)
+      throw new NotFoundError("OAuth client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "OAuth" },
+      });
     return client;
   }
 

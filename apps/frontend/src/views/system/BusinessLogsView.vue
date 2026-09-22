@@ -96,7 +96,7 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import { usePagination } from '@/composables/usePagination'
 import { i18ns } from '@/locales'
 import systemService from '@/service/systemService'
-import { isRequestCanceled } from '@/utils/error-utils'
+import { isRequestCanceled, getErrorMessage } from '@/utils/error-utils'
 import BusinessLogsDesktopTable from './business-logs/components/BusinessLogsDesktopTable.vue'
 import BusinessLogsFilters from './business-logs/components/BusinessLogsFilters.vue'
 import BusinessLogsMobileList from './business-logs/components/BusinessLogsMobileList.vue'
@@ -374,7 +374,7 @@ const loadLogs = async () => {
   } catch (error) {
     if (!isRequestCurrent(requestContext.requestId) || isRequestCanceled(error)) return
 
-    ElMessage.error(i18ns.t('BusinessLogs.loadFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('BusinessLogs.loadFailed')))
     console.error('Failed to load business logs:', error)
   } finally {
     if (!isRequestCurrent(requestContext.requestId)) return
@@ -410,7 +410,7 @@ const loadStats = async () => {
     stats.value = data
   } catch (error) {
     if (requestId !== latestStatsRequestId || isRequestCanceled(error)) return
-    ElMessage.error(i18ns.t('BusinessLogs.loadStatsFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('BusinessLogs.loadStatsFailed')))
     console.error('Failed to load business log stats:', error)
   } finally {
     if (requestId !== latestStatsRequestId) return
@@ -423,7 +423,7 @@ const loadFilterOptions = async () => {
   try {
     businessLogFilterOptions.value = await systemService.getBusinessLogFilterOptions()
   } catch (error) {
-    ElMessage.error(i18ns.t('BusinessLogs.loadOptionsFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('BusinessLogs.loadOptionsFailed')))
     console.error('Failed to load business log filter options:', error)
   }
 }

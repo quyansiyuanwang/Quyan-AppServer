@@ -56,6 +56,8 @@ vi.mock('@/locales', () => ({
     t: (key: string) => key,
     or_t: (_cond: boolean, a: string, _b: string) => a,
   },
+  // 修复入口链接会带上当前语言（/repair.html?locale=…），mock 必须一并提供
+  getLocale: () => 'zh-CN',
 }))
 
 vi.mock('@/utils/notification', () => ({

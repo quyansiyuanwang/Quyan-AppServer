@@ -22,8 +22,14 @@ export class OJQAController extends Controller {
     @Body() body: AskQuestionRequest,
     @Request() request: TypedRequest,
   ): Promise<AskQuestionResponse> {
-    if (!apiKey) throw new UnauthorizedError("API key is required in X-API-Key header");
-    if (!body.question) throw new BadRequestError("Question is required in the request body");
+    if (!apiKey)
+      throw new UnauthorizedError("API key is required in X-API-Key header", undefined, {
+        messageKey: "ojSubmitter.apiKeyRequired",
+      });
+    if (!body.question)
+      throw new BadRequestError("Question is required in the request body", undefined, {
+        messageKey: "ojSubmitter.questionRequired",
+      });
     if (!body.model) body.model = "gpt-3.5-turbo"; // 默认模型
     const ipAddress = request.ip || "unknown";
 

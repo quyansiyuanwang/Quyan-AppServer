@@ -100,9 +100,14 @@ export class DataLifecycleService {
   }
 
   public async updatePolicy(dataset: string, enabled: boolean, hotRetentionDays: number) {
-    if (!isDataset(dataset)) throw new BadRequestError("Unsupported lifecycle dataset");
+    if (!isDataset(dataset))
+      throw new BadRequestError("Unsupported lifecycle dataset", undefined, {
+        messageKey: "dataLifecycle.unsupportedDataset",
+      });
     if (!Number.isInteger(hotRetentionDays) || hotRetentionDays < 1 || hotRetentionDays > 3650)
-      throw new BadRequestError("hotRetentionDays must be between 1 and 3650");
+      throw new BadRequestError("hotRetentionDays must be between 1 and 3650", undefined, {
+        messageKey: "dataLifecycle.hotRetentionDaysRange",
+      });
     const policy = await this.repository.updateLifecyclePolicy(dataset, { enabled, hotRetentionDays });
     return {
       ...policy,
@@ -111,9 +116,13 @@ export class DataLifecycleService {
   }
 
   public async preview(dataset: string) {
-    if (!isDataset(dataset)) throw new BadRequestError("Unsupported lifecycle dataset");
+    if (!isDataset(dataset))
+      throw new BadRequestError("Unsupported lifecycle dataset", undefined, {
+        messageKey: "dataLifecycle.unsupportedDataset",
+      });
     const policy = await this.repository.getLifecyclePolicy(dataset);
-    if (!policy) throw new NotFoundError("Lifecycle policy not found");
+    if (!policy)
+      throw new NotFoundError("Lifecycle policy not found", undefined, { messageKey: "dataLifecycle.policyNotFound" });
     const cutoffAt = this.cutoff(policy.hotRetentionDays);
     const candidateCount = await this.countCandidates(dataset, cutoffAt);
     return {
@@ -125,9 +134,13 @@ export class DataLifecycleService {
   }
 
   public async listCandidates(dataset: string, page: number, pageSize: number) {
-    if (!isDataset(dataset)) throw new BadRequestError("Unsupported lifecycle dataset");
+    if (!isDataset(dataset))
+      throw new BadRequestError("Unsupported lifecycle dataset", undefined, {
+        messageKey: "dataLifecycle.unsupportedDataset",
+      });
     const policy = await this.repository.getLifecyclePolicy(dataset);
-    if (!policy) throw new NotFoundError("Lifecycle policy not found");
+    if (!policy)
+      throw new NotFoundError("Lifecycle policy not found", undefined, { messageKey: "dataLifecycle.policyNotFound" });
     const cutoffAt = this.cutoff(policy.hotRetentionDays);
     const candidateCount = await this.countCandidates(dataset, cutoffAt);
     const skip = (page - 1) * pageSize;
@@ -145,10 +158,17 @@ export class DataLifecycleService {
   }
 
   public async runPolicy(dataset: string, runType: "manual" | "scheduled", startedByUserId?: string) {
-    if (!isDataset(dataset)) throw new BadRequestError("Unsupported lifecycle dataset");
-    if (!env.integrations.objectStorage.archive.enabled) throw new BadRequestError("Archive OSS is not configured");
+    if (!isDataset(dataset))
+      throw new BadRequestError("Unsupported lifecycle dataset", undefined, {
+        messageKey: "dataLifecycle.unsupportedDataset",
+      });
+    if (!env.integrations.objectStorage.archive.enabled)
+      throw new BadRequestError("Archive OSS is not configured", undefined, {
+        messageKey: "dataLifecycle.archiveOssNotConfigured",
+      });
     const policy = await this.repository.getLifecyclePolicy(dataset);
-    if (!policy) throw new NotFoundError("Lifecycle policy not found");
+    if (!policy)
+      throw new NotFoundError("Lifecycle policy not found", undefined, { messageKey: "dataLifecycle.policyNotFound" });
     if (!policy.enabled && runType === "scheduled") return null;
 
     const cutoffAt = this.cutoff(policy.hotRetentionDays);
@@ -313,9 +333,15 @@ export class DataLifecycleService {
   }
 
   public async getArchiveDownloadInfo(artifactId: string) {
-    if (!env.integrations.objectStorage.archive.enabled) throw new BadRequestError("Archive OSS is not configured");
+    if (!env.integrations.objectStorage.archive.enabled)
+      throw new BadRequestError("Archive OSS is not configured", undefined, {
+        messageKey: "dataLifecycle.archiveOssNotConfigured",
+      });
     const artifact = await this.repository.getArchiveArtifact(artifactId);
-    if (!artifact || artifact.deletedAt) throw new NotFoundError("Archive artifact not found");
+    if (!artifact || artifact.deletedAt)
+      throw new NotFoundError("Archive artifact not found", undefined, {
+        messageKey: "dataLifecycle.artifactNotFound",
+      });
     const client = this.getOssClient();
     const head = (await client.head(artifact.objectKey)) as {
       res?: { headers?: Record<string, string | string[] | undefined> };

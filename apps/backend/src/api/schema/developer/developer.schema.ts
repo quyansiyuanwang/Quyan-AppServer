@@ -47,7 +47,11 @@ const statusMonitorRequestBodySchema = z
     try {
       JSON.parse(value);
     } catch {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "请求负载必须是合法 JSON" });
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "请求负载必须是合法 JSON",
+        params: { messageKey: "developerProject.payloadInvalidJson" },
+      });
     }
   });
 const statusMonitorResponseBodyMatchSchema = z.string().min(1).max(10_000);
@@ -67,18 +71,25 @@ function validateStatusMonitorBodyConfiguration(
   const hasResponseBodyMatchMode = value.responseBodyMatchMode !== undefined && value.responseBodyMatchMode !== null;
   const hasResponseBodyMatch = value.responseBodyMatch !== undefined && value.responseBodyMatch !== null;
   if ((method === "GET" || method === "HEAD") && hasRequestBody)
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ["requestBody"], message: "GET 和 HEAD 监控不支持请求负载" });
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["requestBody"],
+      message: "GET 和 HEAD 监控不支持请求负载",
+      params: { messageKey: "developerProject.monitorPayloadNotAllowed" },
+    });
   if (method === "HEAD" && (hasResponseBodyMatchMode || hasResponseBodyMatch))
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["responseBodyMatch"],
       message: "HEAD 监控不支持响应体匹配",
+      params: { messageKey: "developerProject.responseMatchNotAllowedForHead" },
     });
   if (hasResponseBodyMatchMode !== hasResponseBodyMatch)
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: hasResponseBodyMatchMode ? ["responseBodyMatch"] : ["responseBodyMatchMode"],
       message: "响应体匹配模式和预期内容必须同时提供",
+      params: { messageKey: "developerProject.responseMatchBothRequired" },
     });
 }
 

@@ -36,10 +36,11 @@ export class ReURLController extends Controller {
     const { ttl = 60, token: providedToken } = requestBody;
 
     // 验证 TTL 范围
-    if (ttl <= 0) throw new BadRequestError("TTL 必须大于 0");
+    if (ttl <= 0) throw new BadRequestError("TTL 必须大于 0", undefined, { messageKey: "reurl.ttlPositive" });
 
     // 建议最大 TTL 为 1 小时（3600 秒）
-    if (ttl > 3600) throw new BadRequestError("TTL 不能超过 3600 秒（1 小时）");
+    if (ttl > 3600)
+      throw new BadRequestError("TTL 不能超过 3600 秒（1 小时）", undefined, { messageKey: "reurl.ttlMax" });
 
     // 获取 JWT token
     let token: string;
@@ -50,7 +51,7 @@ export class ReURLController extends Controller {
       // 从 Authorization header 获取当前用户的 token
       const authHeader = request.headers["authorization"];
       if (!authHeader || !authHeader.startsWith("Bearer "))
-        throw new BadRequestError("未提供 token 且无法从请求头获取");
+        throw new BadRequestError("未提供 token 且无法从请求头获取", undefined, { messageKey: "reurl.tokenMissing" });
 
       token = authHeader.replace("Bearer ", "").trim();
     }

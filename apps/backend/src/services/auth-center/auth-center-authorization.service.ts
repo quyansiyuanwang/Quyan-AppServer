@@ -363,15 +363,26 @@ export class AuthCenterAuthorizationService {
 
   private async requireClient(clientId: string): Promise<AuthCenterClient> {
     const client = await this.repository.findClientByClientId(clientId.trim());
-    if (!client) throw new NotFoundError("Auth Center client not found");
+    if (!client)
+      throw new NotFoundError("Auth Center client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "Auth Center" },
+      });
     this.ensureClientApproved(client);
     return client;
   }
 
   private ensureClientApproved(client: AuthCenterClient): void {
-    if (client.status !== MANAGED_STATUS.ENABLED) throw new BadRequestError("Auth Center client is disabled");
+    if (client.status !== MANAGED_STATUS.ENABLED)
+      throw new BadRequestError("Auth Center client is disabled", undefined, {
+        messageKey: "oauth.clientDisabled",
+        messageParams: { client: "Auth Center" },
+      });
     if (client.reviewStatus !== APPROVED_REVIEW_STATUS)
-      throw new BadRequestError("Auth Center client is not approved for authorization");
+      throw new BadRequestError("Auth Center client is not approved for authorization", undefined, {
+        messageKey: "oauth.clientNotApproved",
+        messageParams: { client: "Auth Center" },
+      });
   }
 
   private async ensureUserEligible(userId: string): Promise<User> {
@@ -391,15 +402,20 @@ export class AuthCenterAuthorizationService {
 
     const redirectUri = query.redirect_uri.trim();
     const allowedRedirectUris = this.readJsonStringArray(client.redirectUris);
-    if (!allowedRedirectUris.includes(redirectUri)) throw new BadRequestError("Invalid redirect_uri");
+    if (!allowedRedirectUris.includes(redirectUri))
+      throw new BadRequestError("Invalid redirect_uri", undefined, { messageKey: "oauth.invalidRedirectUri" });
 
     const allowedScopes = this.readJsonStringArray(client.scopes);
     this.parseScopes(query.scope, allowedScopes);
 
     if (client.isPkceRequired && !query.code_challenge?.trim())
-      throw new BadRequestError("PKCE code_challenge is required");
+      throw new BadRequestError("PKCE code_challenge is required", undefined, {
+        messageKey: "oauth.pkceChallengeRequired",
+      });
     if (!query.code_challenge?.trim() && query.code_challenge_method)
-      throw new BadRequestError("code_challenge_method requires code_challenge");
+      throw new BadRequestError("code_challenge_method requires code_challenge", undefined, {
+        messageKey: "oauth.pkceMethodRequiresChallenge",
+      });
   }
 
   private ensureGrantTypeEnabled(client: AuthCenterClient, grantType: string): void {
@@ -509,7 +525,8 @@ export class AuthCenterAuthorizationService {
     );
 
     const invalidScope = requestedScopes.find((scope) => !allowedScopes.includes(scope));
-    if (invalidScope) throw new BadRequestError(`Invalid scope: ${invalidScope}`);
+    if (invalidScope)
+      throw new BadRequestError(`Invalid scope: ${invalidScope}`, undefined, { messageKey: "oauth.invalidScope" });
 
     return requestedScopes;
   }

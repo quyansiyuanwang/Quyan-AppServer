@@ -103,7 +103,8 @@ export class ErrorReportController extends Controller {
   @Middlewares(validateParams(errorGroupIdParamsSchema))
   public async getGroup(@Path() id: string) {
     const group = await this.service.getGroup(id);
-    if (!group) throw new NotFoundError("Error group not found");
+    if (!group)
+      throw new NotFoundError("Error group not found", undefined, { messageKey: "system.errorGroupNotFound" });
     return group;
   }
 
@@ -131,7 +132,8 @@ export class ErrorReportController extends Controller {
   )
   public async updateStatus(@Path() id: string, @Body() body: UpdateErrorGroupStatusRequest) {
     const group = await this.service.getGroup(id);
-    if (!group) throw new NotFoundError("Error group not found");
+    if (!group)
+      throw new NotFoundError("Error group not found", undefined, { messageKey: "system.errorGroupNotFound" });
     return this.service.updateGroupStatus(id, body.resolutionStatus);
   }
 }

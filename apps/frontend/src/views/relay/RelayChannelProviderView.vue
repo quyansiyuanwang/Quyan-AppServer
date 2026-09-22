@@ -182,6 +182,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   RELAY_REQUEST_FORMATS,
@@ -457,7 +458,7 @@ const saveForm = async () => {
     await Promise.all([loadSubmissions(1), loadChangeRequests()])
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error?.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -474,7 +475,7 @@ const deleteSubmission = async (channel: RelayChannelDto) => {
     await Promise.all([loadSubmissions(1), loadChangeRequests()])
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error?.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   }
 }
 const updateServiceStatus = async (channel: RelayChannelDto) => {
@@ -491,7 +492,7 @@ const updateServiceStatus = async (channel: RelayChannelDto) => {
     await Promise.all([loadSubmissions(), loadChangeRequests()])
   } catch (error: any) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(error?.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   } finally {
     serviceStatusChannelId.value = undefined
   }
@@ -522,7 +523,7 @@ const probeModels = async (format: UpstreamFormat) => {
       .map((model) => model.pricingModel || model.id)
     ElMessage.success(i18ns.t('relay.modelDiscoverySuccess'))
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   } finally {
     probeLoading[format] = false
   }
@@ -541,7 +542,7 @@ const loadSubmissions = async (page = submissionPage.page) => {
     submittedChannels.value = data.items
     Object.assign(submissionPage, { page: data.page, total: data.total })
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   } finally {
     submissionsLoading.value = false
   }
@@ -554,7 +555,7 @@ const loadChangeRequests = async () => {
     })
     changeRequests.value = data.items
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 const loadEarnings = async (page = earningsPage.page) => {
@@ -569,7 +570,7 @@ const loadEarnings = async (page = earningsPage.page) => {
     settledAmount.value = data.settledAmount
     Object.assign(earningsPage, { page: data.page, total: data.total })
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   } finally {
     earningsLoading.value = false
   }
@@ -581,7 +582,7 @@ const claim = async () => {
     ElMessage.success(i18ns.t('relay.claimSuccess'))
     await loadEarnings(1)
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   } finally {
     claiming.value = false
   }

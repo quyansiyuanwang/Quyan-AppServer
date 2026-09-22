@@ -193,7 +193,7 @@ export class TwoFactorService {
       this.twoFactorCredentialRepository.findByUserId(userId),
     ]);
 
-    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND);
+    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND, { messageKey: "user.notFound" });
 
     const recoveryCodeHashes = this.parseRecoveryCodeHashes(credential?.recoveryCodeHashes);
 
@@ -211,7 +211,7 @@ export class TwoFactorService {
 
   async beginSetup(userId: string): Promise<SetupResult> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND);
+    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND, { messageKey: "user.notFound" });
 
     const setupToken = this.generateOpaqueToken(32);
     const secret = this.generateBase32Secret(32);
@@ -245,7 +245,9 @@ export class TwoFactorService {
   async confirmSetup(userId: string, setupToken: string, code: string): Promise<ConfirmSetupResult> {
     const setupSession = await this.getSetupSessionOrThrow(setupToken);
     if (setupSession.userId !== userId)
-      throw new UnauthorizedError("无效的二次验证配置会话", CustomCode.TWO_FACTOR_SETUP_SESSION_EXPIRED);
+      throw new UnauthorizedError("无效的二次验证配置会话", CustomCode.TWO_FACTOR_SETUP_SESSION_EXPIRED, {
+        messageKey: "auth.invalidTwoFactorSetupSession",
+      });
 
     const rateLimitIdentifier = this.rateLimitIdentifier("setup_confirm", userId);
     await this.checkRateLimit(rateLimitIdentifier);
@@ -253,7 +255,9 @@ export class TwoFactorService {
     const verified = this.verifyTotpCode(setupSession.secret, code);
     if (!verified) {
       await this.markRateLimitFailure(rateLimitIdentifier);
-      throw new UnauthorizedError("二次验证码错误", CustomCode.TWO_FACTOR_CODE_INVALID);
+      throw new UnauthorizedError("二次验证码错误", CustomCode.TWO_FACTOR_CODE_INVALID, {
+        messageKey: "errors.twoFactorCodeInvalid",
+      });
     }
 
     await this.clearRateLimit(rateLimitIdentifier);
@@ -287,8 +291,11 @@ export class TwoFactorService {
 
   async disable(userId: string, payload: VerifyPayloadInput): Promise<ToggleResult> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND);
-    if (!user.twoFactorEnabled) throw new BadRequestError("二次验证未开启", CustomCode.TWO_FACTOR_NOT_ENABLED);
+    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND, { messageKey: "user.notFound" });
+    if (!user.twoFactorEnabled)
+      throw new BadRequestError("二次验证未开启", CustomCode.TWO_FACTOR_NOT_ENABLED, {
+        messageKey: "errors.twoFactorNotEnabled",
+      });
 
     await this.verifyUserFactorOrRecoveryCode(userId, payload);
 
@@ -317,8 +324,11 @@ export class TwoFactorService {
 
   async updatePasskeyPolicy(userId: string, passkeyRequired: boolean): Promise<ToggleResult> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND);
-    if (!user.twoFactorEnabled) throw new BadRequestError("二次验证未开启", CustomCode.TWO_FACTOR_NOT_ENABLED);
+    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND, { messageKey: "user.notFound" });
+    if (!user.twoFactorEnabled)
+      throw new BadRequestError("二次验证未开启", CustomCode.TWO_FACTOR_NOT_ENABLED, {
+        messageKey: "errors.twoFactorNotEnabled",
+      });
 
     const updated = await this.userRepository.updateById(userId, {
       twoFactorPasskeyRequired: passkeyRequired,
@@ -332,8 +342,11 @@ export class TwoFactorService {
 
   async regenerateRecoveryCodes(userId: string, payload: VerifyPayloadInput): Promise<RegenerateRecoveryCodesResult> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND);
-    if (!user.twoFactorEnabled) throw new BadRequestError("二次验证未开启", CustomCode.TWO_FACTOR_NOT_ENABLED);
+    if (!user) throw new BadRequestError("用户不存在", CustomCode.NOT_FOUND, { messageKey: "user.notFound" });
+    if (!user.twoFactorEnabled)
+      throw new BadRequestError("二次验证未开启", CustomCode.TWO_FACTOR_NOT_ENABLED, {
+        messageKey: "errors.twoFactorNotEnabled",
+      });
 
     await this.verifyUserFactorOrRecoveryCode(userId, payload);
 
@@ -643,7 +656,9 @@ export class TwoFactorService {
     const challenge = await this.getLoginChallengeOrThrow(challengeToken);
     const user = await this.userRepository.findById(challenge.userId);
     if (!user || !user.email)
-      throw new BadRequestError("当前账号未绑定邮箱，无法使用邮箱验证码", CustomCode.VERIFICATION_CODE_INVALID);
+      throw new BadRequestError("当前账号未绑定邮箱，无法使用邮箱验证码", CustomCode.VERIFICATION_CODE_INVALID, {
+        messageKey: "auth.emailNotBoundForCode",
+      });
 
     await this.emailService.sendLoginVerificationCode(user.email);
 
@@ -659,12 +674,18 @@ export class TwoFactorService {
 
     const payload = this.normalizeVerifyPayload(payloadInput);
     const credential = await this.twoFactorCredentialRepository.findByUserId(userId);
-    if (!credential) throw new UnauthorizedError("二次验证失败", CustomCode.TWO_FACTOR_CODE_INVALID);
+    if (!credential)
+      throw new UnauthorizedError("二次验证失败", CustomCode.TWO_FACTOR_CODE_INVALID, {
+        messageKey: "auth.twoFactorVerificationFailed",
+      });
 
     try {
       if (payload.code) {
         const verified = this.verifyTotpCode(credential.secret, payload.code);
-        if (!verified) throw new UnauthorizedError("二次验证码错误", CustomCode.TWO_FACTOR_CODE_INVALID);
+        if (!verified)
+          throw new UnauthorizedError("二次验证码错误", CustomCode.TWO_FACTOR_CODE_INVALID, {
+            messageKey: "errors.twoFactorCodeInvalid",
+          });
 
         await this.twoFactorCredentialRepository.updateLastUsedAt(userId, new Date());
         await this.clearRateLimit(rateLimitIdentifier);
@@ -673,10 +694,16 @@ export class TwoFactorService {
 
       if (payload.emailCode) {
         const user = await this.userRepository.findById(userId);
-        if (!user || !user.email) throw new UnauthorizedError("二次验证失败", CustomCode.TWO_FACTOR_CODE_INVALID);
+        if (!user || !user.email)
+          throw new UnauthorizedError("二次验证失败", CustomCode.TWO_FACTOR_CODE_INVALID, {
+            messageKey: "auth.twoFactorVerificationFailed",
+          });
 
         const verified = await this.emailService.verifyCode(user.email, payload.emailCode);
-        if (!verified) throw new UnauthorizedError("邮箱验证码错误", CustomCode.TWO_FACTOR_CODE_INVALID);
+        if (!verified)
+          throw new UnauthorizedError("邮箱验证码错误", CustomCode.TWO_FACTOR_CODE_INVALID, {
+            messageKey: "auth.emailCodeInvalid",
+          });
 
         await this.twoFactorCredentialRepository.updateLastUsedAt(userId, new Date());
         await this.clearRateLimit(rateLimitIdentifier);
@@ -684,13 +711,19 @@ export class TwoFactorService {
       }
 
       const recoveryCode = payload.recoveryCode;
-      if (!recoveryCode) throw new UnauthorizedError("二次验证失败", CustomCode.TWO_FACTOR_CODE_INVALID);
+      if (!recoveryCode)
+        throw new UnauthorizedError("二次验证失败", CustomCode.TWO_FACTOR_CODE_INVALID, {
+          messageKey: "auth.twoFactorVerificationFailed",
+        });
 
       const recoveryCodeHashes = this.parseRecoveryCodeHashes(credential.recoveryCodeHashes);
       const hashed = this.hashRecoveryCode(recoveryCode);
       const matchedIndex = this.findMatchingHashIndex(recoveryCodeHashes, hashed);
 
-      if (matchedIndex < 0) throw new UnauthorizedError("恢复码错误", CustomCode.TWO_FACTOR_CODE_INVALID);
+      if (matchedIndex < 0)
+        throw new UnauthorizedError("恢复码错误", CustomCode.TWO_FACTOR_CODE_INVALID, {
+          messageKey: "auth.recoveryCodeInvalid",
+        });
 
       const nextHashes = recoveryCodeHashes.filter((_item, index) => index !== matchedIndex);
       await Promise.all([
@@ -752,7 +785,10 @@ export class TwoFactorService {
     const emailCode = payload.emailCode?.trim() || undefined;
 
     const provided = [Boolean(code), Boolean(recoveryCode), Boolean(emailCode)].filter(Boolean).length;
-    if (provided !== 1) throw new UnauthorizedError("二次验证失败", CustomCode.TWO_FACTOR_CODE_INVALID);
+    if (provided !== 1)
+      throw new UnauthorizedError("二次验证失败", CustomCode.TWO_FACTOR_CODE_INVALID, {
+        messageKey: "auth.twoFactorVerificationFailed",
+      });
 
     if (code) return { code };
     if (recoveryCode) return { recoveryCode };
@@ -832,14 +868,20 @@ export class TwoFactorService {
 
   private async getSetupSessionOrThrow(setupToken: string): Promise<TwoFactorSetupSession> {
     const raw = await this.redisService.get(this.setupKey(setupToken));
-    if (!raw) throw new BadRequestError("二次验证配置会话已过期", CustomCode.TWO_FACTOR_SETUP_SESSION_EXPIRED);
+    if (!raw)
+      throw new BadRequestError("二次验证配置会话已过期", CustomCode.TWO_FACTOR_SETUP_SESSION_EXPIRED, {
+        messageKey: "errors.twoFactorSetupSessionExpired",
+      });
 
     return JSON.parse(raw) as TwoFactorSetupSession;
   }
 
   private async getLoginChallengeOrThrow(challengeToken: string): Promise<TwoFactorLoginChallenge> {
     const raw = await this.redisService.get(this.loginChallengeKey(challengeToken));
-    if (!raw) throw new UnauthorizedError("二次验证会话已过期", CustomCode.TWO_FACTOR_CHALLENGE_EXPIRED);
+    if (!raw)
+      throw new UnauthorizedError("二次验证会话已过期", CustomCode.TWO_FACTOR_CHALLENGE_EXPIRED, {
+        messageKey: "errors.twoFactorChallengeExpired",
+      });
 
     return JSON.parse(raw) as TwoFactorLoginChallenge;
   }

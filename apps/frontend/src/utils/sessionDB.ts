@@ -1,6 +1,6 @@
 import { getCurrentStorageScope } from '@/utils/storageScope'
 
-const DB_NAME_PREFIX = 'AppServerSessionDB'
+import { getSessionDbName } from '@/constant/session-db'
 const DB_VERSION = 3
 
 interface StoreConfig {
@@ -27,7 +27,7 @@ class SessionDB {
   private activeDbName: string | null = null
 
   private getDbName(): string {
-    return `${DB_NAME_PREFIX}::${getCurrentStorageScope()}`
+    return getSessionDbName(getCurrentStorageScope())
   }
 
   async init(): Promise<void> {
@@ -45,6 +45,7 @@ class SessionDB {
       request.onerror = () => reject(request.error)
       request.onsuccess = () => {
         this.db = request.result
+        this.db.onversionchange = () => this.close()
         this.activeDbName = dbName
         resolve()
       }
@@ -184,6 +185,12 @@ class SessionDB {
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
     })
+  }
+
+  close(): void {
+    this.db?.close()
+    this.db = null
+    this.activeDbName = null
   }
 
   async deleteDB(): Promise<void> {

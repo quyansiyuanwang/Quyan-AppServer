@@ -1,5 +1,5 @@
 import { RATE_LIMITER_CONFIG } from "@/config/rate-limiter";
-import type { MessageDescriptor } from "@/locales";
+import type { MessageDescriptor, MessageKey, MessageParamsForKey } from "@/locales";
 import { getLogger, LogCategory } from "@/util/logger";
 import { EmailRateLimitLogRepository } from "@/store/auth/email-rate-limit-log.repository";
 import type { EmailRateLimitLogStore } from "@/store/auth/email-rate-limit-log.store";
@@ -85,12 +85,20 @@ export interface RateLimitErrorDescriptor {
   message: string;
 }
 
-interface BackoffRateLimitErrorOptions {
+/**
+ * 退避限流错误的消息选项。
+ *
+ * `messageKey` 与 `messageParams` 必须成对出现，避免出现「只传 params」「key 与 params 不匹配」
+ * 这类弱类型组合（`ApiErrorOptions` 的编译期约束在此调用链上同样成立）。
+ */
+type BackoffRateLimitMessageOptions =
+  | { messageKey: MessageKey; messageParams?: MessageParamsForKey<MessageKey> }
+  | { messageKey?: undefined; messageParams?: undefined };
+
+type BackoffRateLimitErrorOptions = BackoffRateLimitMessageOptions & {
   windowMs: number;
   errorMessage?: string;
-  messageKey?: MessageDescriptor["key"];
-  messageParams?: MessageDescriptor["params"];
-}
+};
 
 export class RateLimiterService {
   private static instance: RateLimiterService;
@@ -164,10 +172,17 @@ export class RateLimiterService {
 
     if (record.lockoutUntil > now) {
       const retryAfter = Math.max(1, Math.ceil((record.lockoutUntil - now) / 1000));
-      throw new TooManyRequestsError(options.errorMessage || "请求过于频繁，请稍后再试", retryAfter, undefined, {
-        messageKey: options.messageKey,
-        messageParams: options.messageParams,
-      });
+      const messageOptions: BackoffRateLimitMessageOptions =
+        options.messageKey === undefined
+          ? {}
+          : { messageKey: options.messageKey, messageParams: options.messageParams };
+
+      throw new TooManyRequestsError(
+        options.errorMessage || "请求过于频繁，请稍后再试",
+        retryAfter,
+        undefined,
+        messageOptions,
+      );
     }
   }
 
@@ -210,6 +225,14 @@ export class RateLimiterService {
 
   async clearBackoffRateLimit(key: string): Promise<void> {
     await this.redisService.delete(key);
+  }
+
+  /** Recovery is unauthenticated: consume atomically and fail closed when Redis is unavailable. */
+  async consumeBrowserStateResetRateLimit(ipAddress: string): Promise<RateLimitCheckResult> {
+    const policy = RATE_LIMITER_CONFIG.browserStateReset;
+    const key = `rate:browser-state-reset:${ipAddress}`;
+    const count = await this.redisService.tryIncrementWithinLimit(key, policy.maxRequests, policy.windowMinutes * 60);
+    return { allowed: count !== null && count >= 0, retryAfter: policy.windowMinutes * 60 };
   }
 
   async checkNamedRedisWindowRateLimit<TPolicyName extends RedisWindowRateLimitPolicyName>(

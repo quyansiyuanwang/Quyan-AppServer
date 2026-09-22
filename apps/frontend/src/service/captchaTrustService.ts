@@ -29,7 +29,7 @@ export class CaptchaTrustService {
       return result.data as { trusted: true; expiresInSeconds: number }
     }
 
-    throw toServiceError(result, 'Failed to establish captcha trust')
+    throw toServiceError(result)
   }
 }
 

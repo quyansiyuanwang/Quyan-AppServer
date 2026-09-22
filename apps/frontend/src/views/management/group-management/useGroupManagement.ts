@@ -1,4 +1,5 @@
 import { computed, onMounted, reactive, ref } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus'
 import { i18ns } from '@/locales'
@@ -109,7 +110,7 @@ export const useGroupManagement = () => {
       groupList.value = response.groups
       pagination.value.total = response.total
     } catch (error) {
-      ElMessage.error(i18ns.t('GroupManagement.loadFailed'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('GroupManagement.loadFailed')))
       console.error('Failed to load groups:', error)
     } finally {
       loading.value = false
@@ -142,7 +143,7 @@ export const useGroupManagement = () => {
       void loadGroups()
     } catch (error) {
       if (error !== 'cancel') {
-        ElMessage.error(i18ns.t('GroupManagement.deleteFailed'))
+        ElMessage.error(getErrorMessage(error, i18ns.t('GroupManagement.deleteFailed')))
       }
     }
   }
@@ -155,7 +156,7 @@ export const useGroupManagement = () => {
       originalPermissions.value = [...permissions]
       permDialogVisible.value = true
     } catch (_error) {
-      ElMessage.error(i18ns.t('GroupManagement.permissionLoadFailed'))
+      ElMessage.error(getErrorMessage(_error, i18ns.t('GroupManagement.permissionLoadFailed')))
     }
   }
 
@@ -171,7 +172,7 @@ export const useGroupManagement = () => {
       permDialogVisible.value = false
       await loadGroups()
     } catch (_error) {
-      ElMessage.error(i18ns.t('GroupManagement.permissionSaveFailed'))
+      ElMessage.error(getErrorMessage(_error, i18ns.t('GroupManagement.permissionSaveFailed')))
     } finally {
       permSaving.value = false
     }
@@ -214,9 +215,12 @@ export const useGroupManagement = () => {
       void loadGroups()
     } catch (error) {
       ElMessage.error(
-        isEdit.value
-          ? i18ns.t('GroupManagement.updateFailed')
-          : i18ns.t('GroupManagement.createFailed'),
+        getErrorMessage(
+          error,
+          isEdit.value
+            ? i18ns.t('GroupManagement.updateFailed')
+            : i18ns.t('GroupManagement.createFailed'),
+        ),
       )
       throw error
     } finally {

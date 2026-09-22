@@ -76,6 +76,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormRules } from 'element-plus'
@@ -154,7 +155,7 @@ async function loadScripts() {
     scriptList.value = await userScriptService.getScripts()
     resetPage()
   } catch (error: unknown) {
-    ElMessage.error(error instanceof Error ? error.message : String(error))
+    showRequestErrorNotice(error)
   } finally {
     loading.value = false
   }
@@ -209,7 +210,7 @@ async function handleSave() {
     dialogVisible.value = false
     await loadScripts()
   } catch (error: unknown) {
-    ElMessage.error(error instanceof Error ? error.message : String(error))
+    showRequestErrorNotice(error)
   } finally {
     saving.value = false
   }
@@ -232,7 +233,7 @@ async function handleDelete(row: UserScript) {
     selectedIds.value = new Set([...selectedIds.value].filter((id) => id !== row.id))
     await loadScripts()
   } catch (error: unknown) {
-    ElMessage.error(error instanceof Error ? error.message : String(error))
+    showRequestErrorNotice(error)
   }
 }
 
@@ -245,7 +246,7 @@ async function handleHistory(row: UserScript) {
   try {
     historyList.value = await userScriptExecutionService.listByScript(row.id)
   } catch (error: unknown) {
-    ElMessage.error(error instanceof Error ? error.message : String(error))
+    showRequestErrorNotice(error)
   } finally {
     historyLoading.value = false
   }

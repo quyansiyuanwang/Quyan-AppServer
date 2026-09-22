@@ -1,3 +1,4 @@
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -578,7 +579,7 @@ export function useBalanceHistory() {
       userInfoStore.setUserInfo({ balance: result.data?.balance })
       redeemCode.value = ''
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('redemption.redeemFailed'))
+      showRequestErrorNotice(error, i18ns.t('redemption.redeemFailed'))
     } finally {
       redeeming.value = false
     }
@@ -596,7 +597,7 @@ export function useBalanceHistory() {
         }
       }
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('balance.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('balance.loadFailed'))
     } finally {
       loadingStats.value = false
     }
@@ -644,7 +645,7 @@ export function useBalanceHistory() {
         await incrementalUpdateTransactions({ rangeKey, loadToken })
       }
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('balance.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('balance.loadFailed'))
       console.error('Failed to refresh transactions:', error)
     } finally {
       if (isHistoryLoadCurrent(rangeKey, loadToken)) {
@@ -735,7 +736,7 @@ export function useBalanceHistory() {
     try {
       await fetchAndApplyRangeTransactions(rangeKey, loadToken)
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('balance.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('balance.loadFailed'))
       console.error('Failed to load transactions:', error)
     } finally {
       if (isHistoryLoadCurrent(rangeKey, loadToken)) {
@@ -805,7 +806,7 @@ export function useBalanceHistory() {
       const result = await balanceTransactionService.getMyBalance()
       userInfoStore.setUserInfo({ balance: result.data?.balance })
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
     } finally {
       refreshingBalance.value = false
     }

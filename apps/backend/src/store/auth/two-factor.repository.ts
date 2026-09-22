@@ -39,7 +39,9 @@ export class TwoFactorCredentialRepository implements TwoFactorCredentialStore {
         logger.error(MISSING_DELEGATE_MESSAGE);
       }
 
-      throw new InternalServerError("二次验证存储不可用，请联系管理员。");
+      throw new InternalServerError("二次验证存储不可用，请联系管理员。", undefined, {
+        messageKey: "auth.twoFactorStorageUnavailable",
+      });
     }
 
     this.delegate = candidate;

@@ -1,3 +1,5 @@
+import { createUserFacingError, getErrorMessage } from '@/utils/error-utils'
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
 import type {
   ContentSafetyAction as SharedContentSafetyAction,
@@ -771,11 +773,11 @@ export const useRelayTokenManagement = () => {
       const channelId = config.channelId.trim()
 
       if (!channelId) {
-        throw new Error(i18ns.t('relay.channelRequired'))
+        throw createUserFacingError(i18ns.t('relay.channelRequired'))
       }
 
       if (seen.has(channelId)) {
-        throw new Error(i18ns.t('relay.duplicateChannels'))
+        throw createUserFacingError(i18ns.t('relay.duplicateChannels'))
       }
 
       seen.add(channelId)
@@ -809,11 +811,11 @@ export const useRelayTokenManagement = () => {
     try {
       parsed = JSON.parse(rawContent)
     } catch {
-      throw new Error(i18ns.t('relay.tokenChannelImportFormatError'))
+      throw createUserFacingError(i18ns.t('relay.tokenChannelImportFormatError'))
     }
 
     if (!Array.isArray(parsed)) {
-      throw new Error(i18ns.t('relay.tokenChannelImportFormatError'))
+      throw createUserFacingError(i18ns.t('relay.tokenChannelImportFormatError'))
     }
 
     const seen = new Set<string>()
@@ -827,11 +829,11 @@ export const useRelayTokenManagement = () => {
             : ''
 
       if (!channelId) {
-        throw new Error(i18ns.t('relay.tokenChannelImportFormatError'))
+        throw createUserFacingError(i18ns.t('relay.tokenChannelImportFormatError'))
       }
 
       if (seen.has(channelId)) {
-        throw new Error(i18ns.t('relay.duplicateChannels'))
+        throw createUserFacingError(i18ns.t('relay.duplicateChannels'))
       }
 
       seen.add(channelId)
@@ -843,12 +845,12 @@ export const useRelayTokenManagement = () => {
     try {
       const copied = await copyTextWithFallback(buildTokenChannelExportContent())
       if (!copied) {
-        throw new Error(i18ns.t('copyFailed'))
+        throw createUserFacingError(i18ns.t('copyFailed'))
       }
 
       ElMessage.success(i18ns.t('copySuccess'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('copyFailed'))
+      showRequestErrorNotice(error, i18ns.t('copyFailed'))
     }
   }
 
@@ -861,7 +863,7 @@ export const useRelayTokenManagement = () => {
       )
       ElMessage.success(i18ns.t('relay.tokenChannelExportSuccess'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
     }
   }
 
@@ -877,7 +879,7 @@ export const useRelayTokenManagement = () => {
       showTokenChannelImportDialog.value = false
       ElMessage.success(i18ns.t('relay.tokenChannelImportSuccess'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.tokenChannelImportFormatError'))
+      showRequestErrorNotice(error, i18ns.t('relay.tokenChannelImportFormatError'))
     }
   }
 
@@ -1213,7 +1215,7 @@ export const useRelayTokenManagement = () => {
       serverTokens.value = relayTokens
       syncSelectedTokenIds()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
     } finally {
       loadingTokens.value = false
     }
@@ -1302,12 +1304,12 @@ export const useRelayTokenManagement = () => {
       const copied = await copyTextWithFallback(JSON.stringify(items, null, 2))
 
       if (!copied) {
-        throw new Error(i18ns.t('copyFailed'))
+        throw createUserFacingError(i18ns.t('copyFailed'))
       }
 
       ElMessage.success(i18ns.t('copySuccess'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('copyFailed'))
+      showRequestErrorNotice(error, i18ns.t('copyFailed'))
     }
   }
 
@@ -1319,7 +1321,7 @@ export const useRelayTokenManagement = () => {
       })
       await copyRelayTokenExportItems(result.tokens || buildRelayTokenExportItems([row]))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
     }
   }
 
@@ -1337,7 +1339,7 @@ export const useRelayTokenManagement = () => {
       downloadRelayTokenExport(result.tokens || buildRelayTokenExportItems([row]), row.id)
       ElMessage.success(i18ns.t('relay.tokenExportSuccess'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
     }
   }
 
@@ -1353,7 +1355,7 @@ export const useRelayTokenManagement = () => {
       downloadRelayTokenExport(result.tokens || buildRelayTokenExportItems(selectedTokens.value))
       ElMessage.success(i18ns.t('relay.tokenExportSuccess'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
     }
   }
 
@@ -1362,12 +1364,12 @@ export const useRelayTokenManagement = () => {
       const copied = await copyTextWithFallback(token)
 
       if (!copied) {
-        throw new Error(i18ns.t('copyFailed'))
+        throw createUserFacingError(i18ns.t('copyFailed'))
       }
 
       ElMessage.success(i18ns.t('copySuccess'))
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('copyFailed'))
+      showRequestErrorNotice(error, i18ns.t('copyFailed'))
     }
   }
 
@@ -1397,7 +1399,7 @@ export const useRelayTokenManagement = () => {
         result.tokens || buildRelayTokenExportItems(selectedTokens.value),
       )
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
     }
   }
 
@@ -1410,7 +1412,7 @@ export const useRelayTokenManagement = () => {
       ElMessage.success(i18ns.t('relay.tokenDuplicateSuccess'))
       await loadTokens({ forceAllReload: true })
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -1429,7 +1431,7 @@ export const useRelayTokenManagement = () => {
       ElMessage.success(i18ns.t('relay.tokenBatchDuplicateSuccess', { count }))
       await loadTokens({ forceAllReload: true })
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -1454,7 +1456,7 @@ export const useRelayTokenManagement = () => {
       )
       await loadTokens({ forceAllReload: true })
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -1491,7 +1493,7 @@ export const useRelayTokenManagement = () => {
       )
       await loadTokens({ forceAllReload: true })
     } catch (error: any) {
-      if (error !== 'cancel') ElMessage.error(error.message || i18ns.t('operationFailed'))
+      if (error !== 'cancel') showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -1514,7 +1516,7 @@ export const useRelayTokenManagement = () => {
       await loadTokens({ forceAllReload: true })
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || i18ns.t('operationFailed'))
+        showRequestErrorNotice(error, i18ns.t('operationFailed'))
       }
     }
   }
@@ -1559,7 +1561,7 @@ export const useRelayTokenManagement = () => {
     try {
       parsed = JSON.parse(rawContent)
     } catch {
-      throw new Error(i18ns.t('relay.tokenImportFormatError'))
+      throw createUserFacingError(i18ns.t('relay.tokenImportFormatError'))
     }
 
     const imported =
@@ -1568,7 +1570,7 @@ export const useRelayTokenManagement = () => {
         : parsed
 
     if (!Array.isArray(imported)) {
-      throw new Error(i18ns.t('relay.tokenImportFormatError'))
+      throw createUserFacingError(i18ns.t('relay.tokenImportFormatError'))
     }
 
     return imported as RelayTokenImportItemDto[]
@@ -1592,7 +1594,7 @@ export const useRelayTokenManagement = () => {
       )
       await loadTokens({ forceAllReload: true })
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.tokenImportFormatError'))
+      showRequestErrorNotice(error, i18ns.t('relay.tokenImportFormatError'))
     }
   }
 
@@ -1908,11 +1910,15 @@ export const useRelayTokenManagement = () => {
 
     return editForm.value.requestFormatTransforms.map((rule, index) => {
       if (!rule.sourceFormat || !rule.targetFormat) {
-        throw new Error(i18ns.t('relay.requestFormatTransformIncomplete', { index: index + 1 }))
+        throw createUserFacingError(
+          i18ns.t('relay.requestFormatTransformIncomplete', { index: index + 1 }),
+        )
       }
 
       if (rule.sourceFormat === rule.targetFormat) {
-        throw new Error(i18ns.t('relay.requestFormatTransformSameFormat', { index: index + 1 }))
+        throw createUserFacingError(
+          i18ns.t('relay.requestFormatTransformSameFormat', { index: index + 1 }),
+        )
       }
 
       if (sources.has(rule.sourceFormat)) {
@@ -1939,7 +1945,7 @@ export const useRelayTokenManagement = () => {
       const rawQuotaLimit = Number(quotaWindow.quotaLimit)
 
       if (!Number.isFinite(rawQuotaLimit)) {
-        throw new Error(i18ns.t('relay.quotaWindowLimitRequired', { index: index + 1 }))
+        throw createUserFacingError(i18ns.t('relay.quotaWindowLimitRequired', { index: index + 1 }))
       }
 
       const normalizedQuotaLimit = normalizeQuotaForSubmit(rawQuotaLimit, quotaUnit)
@@ -1947,7 +1953,9 @@ export const useRelayTokenManagement = () => {
         normalizedQuotaLimit < getQuotaMin(quotaUnit) ||
         normalizedQuotaLimit > getQuotaMax(quotaUnit)
       ) {
-        throw new Error(i18ns.t('relay.quotaWindowLimitOutOfRange', { index: index + 1 }))
+        throw createUserFacingError(
+          i18ns.t('relay.quotaWindowLimitOutOfRange', { index: index + 1 }),
+        )
       }
 
       const quotaWindowHours =
@@ -1960,12 +1968,12 @@ export const useRelayTokenManagement = () => {
       const normalizedQuotaWindowHours = normalizeQuotaWindowHours(quotaWindowHours)
 
       if (normalizedQuotaWindowHours == null) {
-        throw new Error(i18ns.t('relay.quotaWindowHoursRequired', { index: index + 1 }))
+        throw createUserFacingError(i18ns.t('relay.quotaWindowHoursRequired', { index: index + 1 }))
       }
 
       const uniqueKey = `${quotaUnit}:${normalizedQuotaWindowHours}`
       if (seen.has(uniqueKey)) {
-        throw new Error(i18ns.t('relay.quotaWindowDuplicate'))
+        throw createUserFacingError(i18ns.t('relay.quotaWindowDuplicate'))
       }
       seen.add(uniqueKey)
 
@@ -1993,19 +2001,19 @@ export const useRelayTokenManagement = () => {
     }))
 
     if (trimmedConfigs.some((config) => !config.channelId)) {
-      throw new Error(i18ns.t('relay.channelRequired'))
+      throw createUserFacingError(i18ns.t('relay.channelRequired'))
     }
 
     const uniqueIds = new Set(trimmedConfigs.map((config) => config.channelId))
     if (uniqueIds.size !== trimmedConfigs.length) {
-      throw new Error(i18ns.t('relay.duplicateChannels'))
+      throw createUserFacingError(i18ns.t('relay.duplicateChannels'))
     }
 
     const automaticPoolIds = new Set(
       automaticProxyPoolChannelOptions.value.map((channel) => channel.id),
     )
     if (trimmedConfigs.some((config) => automaticPoolIds.has(config.channelId))) {
-      throw new Error(i18ns.t('relay.channelRequired'))
+      throw createUserFacingError(i18ns.t('relay.channelRequired'))
     }
 
     const unavailableChannelIds = trimmedConfigs
@@ -2043,10 +2051,10 @@ export const useRelayTokenManagement = () => {
     )
 
     if (blockedChannelIds.some((channelId) => !memberIds.has(channelId))) {
-      throw new Error(i18ns.t('relay.blockedAutomaticPoolChannelInvalid'))
+      throw createUserFacingError(i18ns.t('relay.blockedAutomaticPoolChannelInvalid'))
     }
     if (memberIds.size > 0 && blockedChannelIds.length >= memberIds.size) {
-      throw new Error(i18ns.t('relay.blockedAutomaticPoolChannelAll'))
+      throw createUserFacingError(i18ns.t('relay.blockedAutomaticPoolChannelAll'))
     }
 
     return blockedChannelIds
@@ -2062,7 +2070,7 @@ export const useRelayTokenManagement = () => {
 
       const normalizedRule = parseRegexRule(rawRule) ? rawRule : rawRule.toLowerCase()
       if (!isValidRetryStatusRule(normalizedRule)) {
-        throw new Error(i18ns.t('relay.invalidRetryStatusRule', { rule: rawRule }))
+        throw createUserFacingError(i18ns.t('relay.invalidRetryStatusRule', { rule: rawRule }))
       }
 
       if (seen.has(normalizedRule)) continue
@@ -2123,7 +2131,7 @@ export const useRelayTokenManagement = () => {
           (channel) => channel.id === automaticProxyPoolChannelId,
         )
       ) {
-        throw new Error(i18ns.t('relay.automaticProxyPoolChannelRequired'))
+        throw createUserFacingError(i18ns.t('relay.automaticProxyPoolChannelRequired'))
       }
       const blockedAutomaticProxyPoolChannelIds =
         routingMode === 'automatic-pool' ? buildBlockedAutomaticProxyPoolChannelIdsPayload() : []
@@ -2226,7 +2234,7 @@ export const useRelayTokenManagement = () => {
       showEditDialog.value = false
       void loadTokens()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.createFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.createFailed'))
     } finally {
       saving.value = false
     }
@@ -2251,7 +2259,7 @@ export const useRelayTokenManagement = () => {
       void loadTokens()
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || i18ns.t('operationFailed'))
+        showRequestErrorNotice(error, i18ns.t('operationFailed'))
       }
     }
   }
@@ -2278,7 +2286,7 @@ export const useRelayTokenManagement = () => {
       await loadTokens({ forceAllReload: true })
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || i18ns.t('relay.refreshTokenFailed'))
+        showRequestErrorNotice(error, i18ns.t('relay.refreshTokenFailed'))
       }
     }
   }
@@ -2363,7 +2371,7 @@ export const useRelayTokenManagement = () => {
     } else if (format === 'gemini') {
       endpoint = `${baseEndpoint}/v1beta`
     } else {
-      throw new Error(i18ns.t('relay.unsupportedFormat', { format }))
+      throw createUserFacingError(i18ns.t('relay.unsupportedFormat', { format }))
     }
 
     const searchParams = new URLSearchParams({
@@ -2403,8 +2411,8 @@ export const useRelayTokenManagement = () => {
       const importUri = buildCcswitchImportUri(row, format)
       window.location.href = importUri
       ElMessage.info(i18ns.t('relay.launchToCcswitchSuccess'))
-    } catch {
-      ElMessage.error(i18ns.t('relay.launchToCcswitchFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('relay.launchToCcswitchFailed')))
     }
   }
 
@@ -2631,7 +2639,7 @@ export const useRelayTokenManagement = () => {
       )
       switchLogs.value = result.logs || []
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
     } finally {
       loadingSwitchLogs.value = false
     }
@@ -2817,7 +2825,7 @@ export const useRelayTokenManagement = () => {
       void loadTokens()
     } catch (error: any) {
       if (error !== 'cancel') {
-        ElMessage.error(error.message || i18ns.t('relay.deleteFailed'))
+        showRequestErrorNotice(error, i18ns.t('relay.deleteFailed'))
       }
     }
   }

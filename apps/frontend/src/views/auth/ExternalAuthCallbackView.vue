@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/elementPlusRuntime'
@@ -92,7 +93,7 @@ onMounted(async () => {
     ElMessage.error(i18ns.t('message.error.loginFailed'))
     await router.replace(getLoginRoute())
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('message.error.loginFailed'))
+    showRequestErrorNotice(error, i18ns.t('message.error.loginFailed'))
     await router.replace(getLoginRoute())
   } finally {
     loading.value = false

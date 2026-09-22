@@ -70,6 +70,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { DeveloperKvValueDto, DeveloperProductInstanceDto } from '@/client/types.gen'
@@ -135,7 +136,7 @@ const edit = async (row: Summary) => {
     }
     dialog.value = true
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -175,8 +176,7 @@ const remove = async (key: string) => {
     await load()
     ElMessage.success(t('deleteSuccess'))
   } catch (cause) {
-    if (cause !== 'cancel')
-      ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    if (cause !== 'cancel') showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }

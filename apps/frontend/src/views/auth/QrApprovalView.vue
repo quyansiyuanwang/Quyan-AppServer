@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from '@/utils/elementPlusRuntime'
@@ -102,7 +103,7 @@ const loadContext = async () => {
   try {
     session.value = await socialAuthService.getQrLoginSessionContext(sessionId.value)
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('message.error.loginFailed'))
+    showRequestErrorNotice(error, i18ns.t('message.error.loginFailed'))
   } finally {
     loading.value = false
   }
@@ -142,7 +143,7 @@ const handleConfirm = async (approve: boolean) => {
       ElMessage.info(i18ns.t('cancel'))
     }
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('message.error.loginFailed'))
+    showRequestErrorNotice(error, i18ns.t('message.error.loginFailed'))
     await loadContext()
   } finally {
     submitting.value = false

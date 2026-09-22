@@ -71,8 +71,7 @@ export class PasswordEncryptionService {
     const loading = authApi
       .getPasswordEncryptionKey()
       .then(async (result) => {
-        if (result.code !== CustomCode.OK || !result.data)
-          throw toServiceError(result, 'Failed to load password encryption key')
+        if (result.code !== CustomCode.OK || !result.data) throw toServiceError(result)
         if (result.data.algorithm !== 'RSA-OAEP-256')
           throw new Error(`Unsupported password encryption algorithm: ${result.data.algorithm}`)
 

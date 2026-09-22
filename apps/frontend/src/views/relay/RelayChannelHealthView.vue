@@ -384,6 +384,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Refresh, Search } from '@element-plus/icons-vue'
@@ -523,7 +524,7 @@ const refreshAutomaticPoolRoute = async (channelId: string) => {
     const index = automaticPools.value.findIndex((pool) => pool.channelId === channelId)
     if (index >= 0) automaticPools.value.splice(index, 1, result)
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, i18ns.t('relay.healthLoadFailed')))
+    showRequestErrorNotice(cause, i18ns.t('relay.healthLoadFailed'))
   } finally {
     refreshingPoolId.value = null
   }
@@ -560,7 +561,7 @@ const saveConfig = async () => {
     ElMessage.success(i18ns.t('relay.healthSaveSuccess'))
     await loadOverview()
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, i18ns.t('operationFailed')))
+    showRequestErrorNotice(cause, i18ns.t('operationFailed'))
   } finally {
     saving.value = false
   }
@@ -581,7 +582,7 @@ const confirmClear = async (item: RelayChannelHealthOverviewItemDto) => {
     ElMessage.success(i18ns.t('relay.healthClearSuccess'))
     await loadOverview()
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, i18ns.t('operationFailed')))
+    showRequestErrorNotice(cause, i18ns.t('operationFailed'))
   } finally {
     clearingId.value = null
   }
@@ -616,7 +617,7 @@ const saveBatchConfig = async () => {
     ElMessage.success(i18ns.t('relay.healthBatchSaveSuccess', { count: result.affected }))
     await loadOverview()
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, i18ns.t('operationFailed')))
+    showRequestErrorNotice(cause, i18ns.t('operationFailed'))
   } finally {
     batchSaving.value = false
   }
@@ -637,7 +638,7 @@ const confirmBatchClear = async () => {
     ElMessage.success(i18ns.t('relay.healthBatchClearSuccess', { count: result.affected }))
     await loadOverview()
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, i18ns.t('operationFailed')))
+    showRequestErrorNotice(cause, i18ns.t('operationFailed'))
   } finally {
     batchClearing.value = false
   }

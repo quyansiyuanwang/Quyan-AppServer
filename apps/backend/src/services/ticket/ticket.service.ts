@@ -140,7 +140,8 @@ export class TicketService {
     request?: Request,
   ): Promise<TicketDetailDto> {
     const existing = await this.requireOwnedTicket(id, userId);
-    if (isTicketTerminalStatus(existing.workflowStatus)) throw new BadRequestError("当前工单已结束，不能再修改");
+    if (isTicketTerminalStatus(existing.workflowStatus))
+      throw new BadRequestError("当前工单已结束，不能再修改", undefined, { messageKey: "ticket.closedForUpdate" });
 
     const updateData = this.buildSelfUpdateInput(body);
     if (Object.keys(updateData).length === 0) return this.getMyTicketDetail(id, userId);
@@ -170,7 +171,8 @@ export class TicketService {
     request?: Request,
   ): Promise<TicketCommentDto> {
     const ticket = await this.requireOwnedTicket(id, userId);
-    if (isTicketTerminalStatus(ticket.workflowStatus)) throw new BadRequestError("当前工单已结束，不能再追加评论");
+    if (isTicketTerminalStatus(ticket.workflowStatus))
+      throw new BadRequestError("当前工单已结束，不能再追加评论", undefined, { messageKey: "ticket.closedForComment" });
 
     const created = await this.repository.createComment({
       ticketId: id,
@@ -230,7 +232,7 @@ export class TicketService {
 
   async getReviewTicketDetail(id: string): Promise<TicketDetailDto> {
     const ticket = await this.repository.findByIdWithRelations(id);
-    if (!ticket) throw new NotFoundError("工单不存在");
+    if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
     const comments = await this.repository.findCommentsByTicketId(id);
     return this.toDetailDto(ticket, comments);
   }
@@ -242,7 +244,7 @@ export class TicketService {
     request?: Request,
   ): Promise<TicketDetailDto> {
     const existing = await this.repository.findByIdWithRelations(id);
-    if (!existing) throw new NotFoundError("工单不存在");
+    if (!existing) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
 
     const updateData: Record<string, unknown> = {};
     if (Object.prototype.hasOwnProperty.call(body, "type") && body.type !== undefined) updateData.type = body.type;
@@ -257,7 +259,10 @@ export class TicketService {
       const normalizedAssignee = this.normalizeNullableId(body.assigneeUserId);
       if (normalizedAssignee) {
         const assignee = await this.userRepository.findActiveById(normalizedAssignee);
-        if (!assignee) throw new BadRequestError("分配的处理人不存在或不可用");
+        if (!assignee)
+          throw new BadRequestError("分配的处理人不存在或不可用", undefined, {
+            messageKey: "ticket.assigneeUnavailable",
+          });
       }
       updateData.assigneeUserId = normalizedAssignee;
     }
@@ -353,7 +358,7 @@ export class TicketService {
     request?: Request,
   ): Promise<TicketCommentDto> {
     const ticket = await this.repository.findByIdWithRelations(id);
-    if (!ticket) throw new NotFoundError("工单不存在");
+    if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
 
     const created = await this.repository.createComment({
       ticketId: id,
@@ -395,7 +400,7 @@ export class TicketService {
 
   async deleteTicket(id: string, reviewerUserId: string, request?: Request): Promise<void> {
     const ticket = await this.repository.findById(id);
-    if (!ticket) throw new NotFoundError("工单不存在");
+    if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
     await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
@@ -447,8 +452,9 @@ export class TicketService {
 
   private async requireOwnedTicket(id: string, userId: string): Promise<TicketWithRelations> {
     const ticket = await this.repository.findByIdWithRelations(id);
-    if (!ticket) throw new NotFoundError("工单不存在");
-    if (ticket.userId !== userId) throw new ForbiddenError("无权访问该工单");
+    if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
+    if (ticket.userId !== userId)
+      throw new ForbiddenError("无权访问该工单", undefined, { messageKey: "ticket.accessDenied" });
     return ticket;
   }
 

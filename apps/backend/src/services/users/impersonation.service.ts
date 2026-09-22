@@ -40,10 +40,13 @@ export class ImpersonationService {
   ): Promise<StartImpersonationResponse> {
     // 防止链式模拟（已在模拟会话中的 token 携带 impersonatorId）
     if (request?.user?.impersonatorId)
-      throw new ForbiddenError("不能在模拟会话中发起另一个模拟", CustomCode.IMPERSONATION_NOT_ALLOWED);
+      throw new ForbiddenError("不能在模拟会话中发起另一个模拟", CustomCode.IMPERSONATION_NOT_ALLOWED, {
+        messageKey: "impersonation.nestedSessionNotAllowed",
+      });
 
     // 防止自我模拟
-    if (impersonatorId === targetUserId) throw new BadRequestError("不能模拟自己");
+    if (impersonatorId === targetUserId)
+      throw new BadRequestError("不能模拟自己", undefined, { messageKey: "impersonation.cannotImpersonateSelf" });
 
     // 加载双方用户（含 group 信息）
     const [impersonator, target] = await Promise.all([
@@ -51,13 +54,16 @@ export class ImpersonationService {
       this.userRepository.findByIdWithGroup(targetUserId),
     ]);
 
-    if (!impersonator) throw new NotFoundError("操作者用户不存在");
-    if (!target) throw new NotFoundError("目标用户不存在");
+    if (!impersonator)
+      throw new NotFoundError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    if (!target) throw new NotFoundError("目标用户不存在", undefined, { messageKey: "permission.targetUserNotFound" });
 
     // 特权层级检查：group.level 数值越小权限越高
     // 若目标 level <= 操作者 level，说明目标权限不低于操作者，禁止模拟
     if ((target.group?.level ?? Infinity) <= (impersonator.group?.level ?? -1))
-      throw new ForbiddenError("无法模拟权限等级不低于自身的用户", CustomCode.IMPERSONATION_NOT_ALLOWED);
+      throw new ForbiddenError("无法模拟权限等级不低于自身的用户", CustomCode.IMPERSONATION_NOT_ALLOWED, {
+        messageKey: "impersonation.targetLevelTooHigh",
+      });
 
     // 确定模拟模式：优先授予 act，其次 view
     const [hasAct, hasView] = await Promise.all([
@@ -68,7 +74,10 @@ export class ImpersonationService {
     let mode: "view" | "act";
     if (hasAct) mode = "act";
     else if (hasView) mode = "view";
-    else throw new ForbiddenError("无模拟权限", CustomCode.IMPERSONATION_NOT_ALLOWED);
+    else
+      throw new ForbiddenError("无模拟权限", CustomCode.IMPERSONATION_NOT_ALLOWED, {
+        messageKey: "impersonation.permissionDenied",
+      });
 
     // 签发模拟 token（短期，无 refresh）
     const token = JWTAccessIns.generateToken(

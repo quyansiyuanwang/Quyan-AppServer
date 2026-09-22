@@ -266,14 +266,21 @@ export class OAuthAuthorizationService {
 
   private async requireClient(clientId: string): Promise<OAuthClient> {
     const client = await this.repository.findClientByClientId(clientId.trim());
-    if (!client) throw new NotFoundError("OAuth client not found");
+    if (!client)
+      throw new NotFoundError("OAuth client not found", undefined, {
+        messageKey: "oauth.clientNotFound",
+        messageParams: { client: "OAuth" },
+      });
     this.ensureClientApproved(client);
     return client;
   }
 
   private ensureClientApproved(client: OAuthClient): void {
     if (client.reviewStatus !== APPROVED_REVIEW_STATUS)
-      throw new BadRequestError("OAuth client is not approved for authorization");
+      throw new BadRequestError("OAuth client is not approved for authorization", undefined, {
+        messageKey: "oauth.clientNotApproved",
+        messageParams: { client: "OAuth" },
+      });
   }
 
   private validateAuthorizationRequest(client: OAuthClient, query: OAuthAuthorizeQueryDto): void {
@@ -281,15 +288,20 @@ export class OAuthAuthorizationService {
 
     const redirectUri = query.redirect_uri.trim();
     const allowedRedirectUris = this.readJsonStringArray(client.redirectUris);
-    if (!allowedRedirectUris.includes(redirectUri)) throw new BadRequestError("Invalid redirect_uri");
+    if (!allowedRedirectUris.includes(redirectUri))
+      throw new BadRequestError("Invalid redirect_uri", undefined, { messageKey: "oauth.invalidRedirectUri" });
 
     const allowedScopes = this.readJsonStringArray(client.scopes);
     this.parseScopes(query.scope, allowedScopes);
 
     if (client.isPkceRequired && !query.code_challenge?.trim())
-      throw new BadRequestError("PKCE code_challenge is required");
+      throw new BadRequestError("PKCE code_challenge is required", undefined, {
+        messageKey: "oauth.pkceChallengeRequired",
+      });
     if (!query.code_challenge?.trim() && query.code_challenge_method)
-      throw new BadRequestError("code_challenge_method requires code_challenge");
+      throw new BadRequestError("code_challenge_method requires code_challenge", undefined, {
+        messageKey: "oauth.pkceMethodRequiresChallenge",
+      });
   }
 
   private ensureGrantTypeEnabled(client: OAuthClient, grantType: string): void {
@@ -367,7 +379,8 @@ export class OAuthAuthorizationService {
 
     const normalizedScopes = requestedScopes.length > 0 ? requestedScopes : [];
     const invalidScope = normalizedScopes.find((scope) => !allowedScopes.includes(scope));
-    if (invalidScope) throw new BadRequestError(`Invalid scope: ${invalidScope}`);
+    if (invalidScope)
+      throw new BadRequestError(`Invalid scope: ${invalidScope}`, undefined, { messageKey: "oauth.invalidScope" });
 
     return normalizedScopes;
   }

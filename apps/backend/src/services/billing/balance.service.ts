@@ -46,10 +46,11 @@ export class BalanceService {
   }
 
   async recharge(userId: string, amount: number, description?: string, countAsStatistics = false) {
-    if (amount === 0) throw new BadRequestError("Amount cannot be zero");
+    if (amount === 0)
+      throw new BadRequestError("Amount cannot be zero", undefined, { messageKey: "billing.amountCannotBeZero" });
 
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("User not found");
+    if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
 
     return this.balanceRepository.recharge({
       userId,

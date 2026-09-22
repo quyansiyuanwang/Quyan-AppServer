@@ -63,7 +63,10 @@ export class CentralLoginFlowService {
   }
 
   private ensureStorageAvailable(): void {
-    if (!this.redis.isRedisAvailable()) throw new InternalServerError("Central login flow storage is unavailable");
+    if (!this.redis.isRedisAvailable())
+      throw new InternalServerError("Central login flow storage is unavailable", undefined, {
+        messageKey: "auth.centralLoginStorageUnavailable",
+      });
   }
 
   private normalizeReturnTo(returnTo: string): string {
@@ -71,11 +74,15 @@ export class CentralLoginFlowService {
     try {
       parsed = new URL(returnTo);
     } catch {
-      throw new BadRequestError("Invalid central login return URL");
+      throw new BadRequestError("Invalid central login return URL", undefined, {
+        messageKey: "auth.centralLoginReturnUrlInvalid",
+      });
     }
 
     if (parsed.protocol !== "https:" || parsed.username || parsed.password || !this.allowedOrigins.has(parsed.origin))
-      throw new BadRequestError("Central login return URL is not allowed");
+      throw new BadRequestError("Central login return URL is not allowed", undefined, {
+        messageKey: "auth.centralLoginReturnUrlNotAllowed",
+      });
 
     return `${parsed.origin}${parsed.pathname}${parsed.search}${parsed.hash}`;
   }
@@ -94,25 +101,38 @@ export class CentralLoginFlowService {
   public async getFlowContext(flowId: string): Promise<CentralLoginFlowContext> {
     this.ensureStorageAvailable();
     const raw = await this.redis.get(this.buildKey(flowId));
-    if (!raw) throw new NotFoundError("Central login flow not found or expired");
+    if (!raw)
+      throw new NotFoundError("Central login flow not found or expired", undefined, {
+        messageKey: "auth.centralLoginFlowNotFound",
+      });
     return { flowId };
   }
 
   public async consumeFlow(flowId: string, userId: string): Promise<ConsumedCentralLoginFlow> {
     this.ensureStorageAvailable();
     const raw = await this.redis.getAndDelete(this.buildKey(flowId));
-    if (!raw) throw new NotFoundError("Central login flow not found or already consumed");
+    if (!raw)
+      throw new NotFoundError("Central login flow not found or already consumed", undefined, {
+        messageKey: "auth.centralLoginFlowConsumed",
+      });
 
     let stored: StoredCentralLoginFlow;
     try {
       stored = JSON.parse(raw) as StoredCentralLoginFlow;
     } catch {
-      throw new NotFoundError("Central login flow not found or expired");
+      throw new NotFoundError("Central login flow not found or expired", undefined, {
+        messageKey: "auth.centralLoginFlowNotFound",
+      });
     }
 
-    if (typeof stored.returnTo !== "string") throw new NotFoundError("Central login flow not found or expired");
+    if (typeof stored.returnTo !== "string")
+      throw new NotFoundError("Central login flow not found or expired", undefined, {
+        messageKey: "auth.centralLoginFlowNotFound",
+      });
     if (stored.ownerUserId && stored.ownerUserId !== userId)
-      throw new ForbiddenError("Central login flow belongs to another user");
+      throw new ForbiddenError("Central login flow belongs to another user", undefined, {
+        messageKey: "auth.centralLoginFlowOwnerMismatch",
+      });
 
     return { returnTo: this.normalizeReturnTo(stored.returnTo) };
   }

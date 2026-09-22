@@ -289,6 +289,7 @@
   </main>
 </template>
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { DocumentCopy, Key, Plus, Refresh } from '@element-plus/icons-vue'
@@ -530,8 +531,7 @@ const revokeKey = async (keyId: string) => {
     await loadKeys()
     ElMessage.success(t('productConsole.keyRevoked'))
   } catch (cause) {
-    if (cause !== 'cancel')
-      ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    if (cause !== 'cancel') showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     keyActionLoading.value = false
   }
@@ -548,7 +548,7 @@ const setEnabled = async (instance: DeveloperProductInstanceDto) => {
         : t('productConsole.instanceRestored'),
     )
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     instanceActionLoading.value = false
   }
@@ -567,8 +567,7 @@ const removeInstance = async (instance: DeveloperProductInstanceDto) => {
     await load()
     ElMessage.success(t('productConsole.instanceDeleted'))
   } catch (cause) {
-    if (cause !== 'cancel')
-      ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    if (cause !== 'cancel') showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     instanceActionLoading.value = false
   }

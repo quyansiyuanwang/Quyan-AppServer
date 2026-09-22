@@ -197,6 +197,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { i18ns } from '@/locales'
 import { onMounted, reactive, ref } from 'vue'
@@ -225,7 +226,7 @@ const loadCodes = async () => {
     pagination.total = result.data.total
   } catch (error: any) {
     codes.value = []
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -250,7 +251,7 @@ const handleCreate = async () => {
     pagination.page = 1
     loadCodes()
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.createFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.createFailed'))
   } finally {
     creating.value = false
   }
@@ -262,7 +263,7 @@ const handleDelete = async (row: any) => {
     ElMessage.success(i18ns.t('redemption.deleteSuccess'))
     loadCodes()
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('redemption.deleteFailed'))
+    showRequestErrorNotice(error, i18ns.t('redemption.deleteFailed'))
   }
 }
 

@@ -41,7 +41,7 @@ export class ArticleService {
 
   async createArticle(dto: CreateArticleDto, authorId: string, request: Request): Promise<ArticleDto> {
     const existing = await this.repository.findBySlug(dto.slug);
-    if (existing) throw new BadRequestError("Slug already exists");
+    if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
 
     this.validatePublicAccess(dto.isPublic ?? false, dto.requirePermission);
 
@@ -69,13 +69,16 @@ export class ArticleService {
 
   async updateArticle(id: string, dto: UpdateArticleDto, userId: string, request: Request): Promise<ArticleDto> {
     const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
-    if (article.authorId !== userId) throw new ForbiddenError("You can only update your own articles");
+    if (article.authorId !== userId)
+      throw new ForbiddenError("You can only update your own articles", undefined, {
+        messageKey: "article.updateOwnOnly",
+      });
 
     if (dto.slug && dto.slug !== article.slug) {
       const existing = await this.repository.findBySlug(dto.slug);
-      if (existing) throw new BadRequestError("Slug already exists");
+      if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
     }
 
     this.validatePublicAccess(
@@ -104,9 +107,12 @@ export class ArticleService {
 
   async deleteArticle(id: string, userId: string, request: Request): Promise<void> {
     const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
-    if (article.authorId !== userId) throw new ForbiddenError("You can only delete your own articles");
+    if (article.authorId !== userId)
+      throw new ForbiddenError("You can only delete your own articles", undefined, {
+        messageKey: "article.deleteOwnOnly",
+      });
 
     await this.repository.delete(id);
 
@@ -126,9 +132,10 @@ export class ArticleService {
 
   async publishArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
     const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
-    if (article.publishStatus === "published") throw new BadRequestError("Article is already published");
+    if (article.publishStatus === "published")
+      throw new BadRequestError("Article is already published", undefined, { messageKey: "article.alreadyPublished" });
 
     const updated = await this.repository.update(id, {
       publishStatus: "published",
@@ -153,9 +160,10 @@ export class ArticleService {
 
   async unpublishArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
     const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
-    if (article.publishStatus === "draft") throw new BadRequestError("Article is already a draft");
+    if (article.publishStatus === "draft")
+      throw new BadRequestError("Article is already a draft", undefined, { messageKey: "article.alreadyDraft" });
 
     const updated = await this.repository.update(id, {
       publishStatus: "draft",
@@ -179,7 +187,7 @@ export class ArticleService {
 
   async getArticle(id: string, userId: string): Promise<ArticleDto> {
     const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
     // Check permissions
     await this.checkArticleAccess(article, userId);
@@ -194,7 +202,7 @@ export class ArticleService {
 
   async getPublicArticle(id: string): Promise<ArticleDto> {
     const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
     await this.checkPublicArticleAccess(article);
 
@@ -207,7 +215,7 @@ export class ArticleService {
 
   async getArticleBySlug(slug: string, userId: string): Promise<ArticleDto> {
     const article = await this.repository.findBySlug(slug);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
     // Check permissions
     await this.checkArticleAccess(article, userId);
@@ -222,7 +230,7 @@ export class ArticleService {
 
   async getPublicArticleBySlug(slug: string): Promise<ArticleDto> {
     const article = await this.repository.findBySlug(slug);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
 
     await this.checkPublicArticleAccess(article);
 
@@ -303,26 +311,38 @@ export class ArticleService {
   }
 
   private validatePublicAccess(isPublic: boolean, requirePermission?: string): void {
-    if (isPublic && requirePermission?.trim()) throw new BadRequestError("Public articles cannot require permissions");
+    if (isPublic && requirePermission?.trim())
+      throw new BadRequestError("Public articles cannot require permissions", undefined, {
+        messageKey: "article.publicCannotRequirePermissions",
+      });
   }
 
   private async checkArticleAccess(article: any, userId: string): Promise<void> {
     // If article is draft, only author can access
     if (article.publishStatus === "draft" && article.authorId !== userId)
-      throw new ForbiddenError("You cannot access draft articles");
+      throw new ForbiddenError("You cannot access draft articles", undefined, {
+        messageKey: "article.draftAccessDenied",
+      });
 
     if (article.isPublic) return;
 
     // Check if article requires specific permission
     if (article.requirePermission) {
       const hasPermission = await this.permissionService.hasPermission(userId, article.requirePermission as Permission);
-      if (!hasPermission) throw new ForbiddenError("You do not have permission to access this article");
+      if (!hasPermission)
+        throw new ForbiddenError("You do not have permission to access this article", undefined, {
+          messageKey: "article.accessDenied",
+        });
     }
   }
 
   private async checkPublicArticleAccess(article: any): Promise<void> {
-    if (article.publishStatus !== "published") throw new ForbiddenError("You cannot access draft articles");
-    if (!article.isPublic) throw new ForbiddenError("This article is not public");
+    if (article.publishStatus !== "published")
+      throw new ForbiddenError("You cannot access draft articles", undefined, {
+        messageKey: "article.draftAccessDenied",
+      });
+    if (!article.isPublic)
+      throw new ForbiddenError("This article is not public", undefined, { messageKey: "article.notPublic" });
   }
 
   private async toArticleDto(article: any): Promise<ArticleDto> {
@@ -386,9 +406,11 @@ export class ArticleService {
 
   async setDefaultArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
     const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found");
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
     if (article.publishStatus !== "published")
-      throw new BadRequestError("Only published articles can be set as default");
+      throw new BadRequestError("Only published articles can be set as default", undefined, {
+        messageKey: "article.defaultRequiresPublished",
+      });
 
     await this.repository.setDefault(id);
 

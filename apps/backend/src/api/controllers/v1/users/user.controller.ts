@@ -128,7 +128,8 @@ export class UserController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(replayProtectionMiddleware)
   public async clearTwoFactorTrustedWindow(@Request() request: TypedRequest): Promise<TwoFactorTrustClearResponse> {
-    if (!env.runtime.isDevelopment) throw new NotFoundError("接口不存在");
+    if (!env.runtime.isDevelopment)
+      throw new NotFoundError("接口不存在", undefined, { messageKey: "errors.endpointNotFound" });
 
     const userId = request.user?.userId;
     if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
@@ -493,7 +494,7 @@ export class UserController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RegenerateTwoFactorRecoveryCodesResponse> {
     const userId = request.user?.userId;
-    if (!userId) throw new NotFoundError("用户信息不存在");
+    if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
 
     const response = await this.twoFactorService.regenerateRecoveryCodes(userId, {
       code: body.code,
@@ -531,7 +532,7 @@ export class UserController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<UpdateTwoFactorPasskeyPolicyResponse> {
     const userId = request.user?.userId;
-    if (!userId) throw new NotFoundError("用户信息不存在");
+    if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
 
     const response = await this.twoFactorService.updatePasskeyPolicy(userId, body.passkeyRequired);
 
@@ -695,14 +696,17 @@ export class UserController extends Controller {
 
     // 获取用户的有效权限
     const userPermissions = await this.permissionService.getUserFullPermissions(currentUserId!);
-    if (!userPermissions) throw new ForbiddenError("权限不足");
+    if (!userPermissions)
+      throw new ForbiddenError("权限不足", undefined, { messageKey: "permission.insufficientPermission" });
 
     const effectivePermissionsSet = new Set(userPermissions.effectivePermissions);
     const hasChangeOthersPermission = effectivePermissionsSet.has(Permission.USER_CHANGE_OTHERS_PASSWORD);
     const hasChangeSelfPermission = effectivePermissionsSet.has(Permission.USER_CHANGE_SELF_PASSWORD);
 
-    if (isChangeSelf && !hasChangeSelfPermission) throw new ForbiddenError("权限不足");
-    if (!isChangeSelf && !hasChangeOthersPermission) throw new ForbiddenError("权限不足");
+    if (isChangeSelf && !hasChangeSelfPermission)
+      throw new ForbiddenError("权限不足", undefined, { messageKey: "permission.insufficientPermission" });
+    if (!isChangeSelf && !hasChangeOthersPermission)
+      throw new ForbiddenError("权限不足", undefined, { messageKey: "permission.insufficientPermission" });
     if ((await this.userService.getUserById(tarUserId)) === null)
       throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 

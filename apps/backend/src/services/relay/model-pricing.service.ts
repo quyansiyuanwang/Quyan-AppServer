@@ -151,7 +151,8 @@ export class ModelPricingService {
   ): Promise<ModelPricingDto> {
     const existing = await this.modelPricingRepository.findActiveById(id);
 
-    if (!existing) throw new NotFoundError("Model pricing not found");
+    if (!existing)
+      throw new NotFoundError("Model pricing not found", undefined, { messageKey: "relay.modelPricingNotFound" });
 
     // Validate model name if provided
     if (data.model !== undefined && (!data.model || !data.model.trim())) throw new Error("model cannot be empty");
@@ -227,7 +228,8 @@ export class ModelPricingService {
   async deleteModelPricing(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.modelPricingRepository.findActiveById(id);
 
-    if (!existing) throw new NotFoundError("Model pricing not found");
+    if (!existing)
+      throw new NotFoundError("Model pricing not found", undefined, { messageKey: "relay.modelPricingNotFound" });
 
     await this.modelPricingRepository.softDeleteById(id);
 

@@ -184,6 +184,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Plus, Check, Close } from '@element-plus/icons-vue'
@@ -261,7 +262,7 @@ async function loadSystemClients() {
     const response = await oauthClientService.listSystemClients()
     systemClients.value = response.data || []
   } catch (error: any) {
-    ElMessage.error(error.message || t('systemOAuth.messages.loadFailed'))
+    showRequestErrorNotice(error, t('systemOAuth.messages.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -294,7 +295,7 @@ async function handleSubmit() {
     showCreateDialog.value = false
     await loadSystemClients()
   } catch (error: any) {
-    ElMessage.error(error.message || t('systemOAuth.messages.operationFailed'))
+    showRequestErrorNotice(error, t('systemOAuth.messages.operationFailed'))
   } finally {
     submitting.value = false
   }

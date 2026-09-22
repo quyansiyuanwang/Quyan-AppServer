@@ -1,3 +1,5 @@
+import { localeHeaders } from '@/utils/public-request'
+import { getBackendLocale } from '@/locales'
 import { useRequestStore } from '@/stores/request'
 import { createAgentControllerApi } from '@/client/services/agent-controller.gen'
 import { createAgentRunControllerApi } from '@/client/services/agent-run-controller.gen'
@@ -81,7 +83,10 @@ export class AgentService {
       url: path,
       init: {
         method: 'GET',
-        headers: { ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}) },
+        headers: {
+          ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}),
+          ...localeHeaders(getBackendLocale()),
+        },
         credentials: 'include',
       },
       context: undefined,

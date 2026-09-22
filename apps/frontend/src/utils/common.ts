@@ -1,4 +1,5 @@
 import type { StrictObj } from '@/types/common'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { copyTextWithFallback } from '@/utils/clipboard'
@@ -54,7 +55,7 @@ export const copyToClipboard = async (text: string, showMsg: boolean = true) => 
     if (showMsg) ElMessage.success(i18ns.t('message.information.copiedToClipboard'))
   } catch (error) {
     console.error('复制失败:', error)
-    if (showMsg) ElMessage.error(i18ns.t('message.error.copyFailed'))
+    if (showMsg) ElMessage.error(getErrorMessage(error, i18ns.t('message.error.copyFailed')))
   }
 }
 

@@ -75,7 +75,7 @@ export class CaptchaService {
       return;
     }
 
-    if (!token) throw new BadRequestError("缺少人机验证 token");
+    if (!token) throw new BadRequestError("缺少人机验证 token", undefined, { messageKey: "auth.missingCaptchaToken" });
 
     const providers = this.buildProviderChain(config);
     const unavailableErrors: Array<{ provider: CaptchaProvider; message: string }> = [];
@@ -125,7 +125,9 @@ export class CaptchaService {
       fallbackProvider: config.fallbackProvider,
       errors: unavailableErrors,
     });
-    throw new BadRequestError("人机验证服务暂时不可用，请稍后重试");
+    throw new BadRequestError("人机验证服务暂时不可用，请稍后重试", undefined, {
+      messageKey: "auth.captchaServiceUnavailable",
+    });
   }
 
   async verifyTokenWithProvider(
@@ -136,7 +138,7 @@ export class CaptchaService {
   ): Promise<void> {
     const config = await this.configService.getCaptchaConfig();
     if (!config.enabled) return;
-    if (!token) throw new BadRequestError("缺少人机验证 token");
+    if (!token) throw new BadRequestError("缺少人机验证 token", undefined, { messageKey: "auth.missingCaptchaToken" });
 
     await this.verifyWithProvider(provider, token, expectedAction, config);
     if (request && !this.isProgrammaticRequest(request) && config.trustWindowMinutes > 0)
@@ -205,7 +207,7 @@ export class CaptchaService {
         logger.warn("reCAPTCHA verification failed", {
           errors: result["error-codes"],
         });
-        throw new BadRequestError("人机验证失败，请刷新页面重试");
+        throw new BadRequestError("人机验证失败，请刷新页面重试", undefined, { messageKey: "auth.captchaFailedRetry" });
       }
 
       if (result.score !== undefined && result.score < minScore) {
@@ -213,7 +215,7 @@ export class CaptchaService {
           score: result.score,
           minScore,
         });
-        throw new BadRequestError("人机验证未通过，请稍后重试");
+        throw new BadRequestError("人机验证未通过，请稍后重试", undefined, { messageKey: "auth.captchaNotPassed" });
       }
 
       if (expectedAction && result.action !== expectedAction) {
@@ -221,7 +223,7 @@ export class CaptchaService {
           expected: expectedAction,
           actual: result.action,
         });
-        throw new BadRequestError("人机验证失败");
+        throw new BadRequestError("人机验证失败", undefined, { messageKey: "auth.captchaFailed" });
       }
 
       logger.debug("reCAPTCHA verification successful", {
@@ -264,7 +266,7 @@ export class CaptchaService {
         logger.warn("Turnstile verification failed", {
           errors: result["error-codes"],
         });
-        throw new BadRequestError("人机验证失败，请刷新页面重试");
+        throw new BadRequestError("人机验证失败，请刷新页面重试", undefined, { messageKey: "auth.captchaFailedRetry" });
       }
 
       if (expectedAction && result.action !== expectedAction) {
@@ -272,7 +274,7 @@ export class CaptchaService {
           expected: expectedAction,
           actual: result.action,
         });
-        throw new BadRequestError("人机验证失败");
+        throw new BadRequestError("人机验证失败", undefined, { messageKey: "auth.captchaFailed" });
       }
 
       logger.debug("Turnstile verification successful", {

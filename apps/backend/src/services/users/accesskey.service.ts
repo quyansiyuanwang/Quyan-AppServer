@@ -24,7 +24,8 @@ export class AccessKeyService {
 
   async generateKeyForUser(userId: string, data: CreateAccessKeyDto, request?: Request): Promise<AccessKeyDto> {
     const user = await this.userRepository.findById(userId);
-    if (!user || !user.email) throw new NotFoundError("用户邮箱不存在");
+    if (!user || !user.email)
+      throw new NotFoundError("用户邮箱不存在", undefined, { messageKey: "user.emailNotFound" });
 
     return this.generateKey(userId, user.email, data, user.twoFactorEnabled === true, request);
   }
@@ -38,10 +39,16 @@ export class AccessKeyService {
   ): Promise<AccessKeyDto> {
     if (!skipEmailVerification) {
       const verificationCode = data.verificationCode?.trim();
-      if (!verificationCode) throw new BadRequestError("验证码无效或已过期", CustomCode.VERIFICATION_CODE_INVALID);
+      if (!verificationCode)
+        throw new BadRequestError("验证码无效或已过期", CustomCode.VERIFICATION_CODE_INVALID, {
+          messageKey: "errors.verificationCodeInvalid",
+        });
 
       const codeValid = await this.emailService.verifyCode(userEmail, verificationCode);
-      if (!codeValid) throw new BadRequestError("验证码无效或已过期", CustomCode.VERIFICATION_CODE_INVALID);
+      if (!codeValid)
+        throw new BadRequestError("验证码无效或已过期", CustomCode.VERIFICATION_CODE_INVALID, {
+          messageKey: "errors.verificationCodeInvalid",
+        });
     }
 
     const key = "ak_" + randomBytes(32).toString("hex");
@@ -73,9 +80,11 @@ export class AccessKeyService {
 
   async validateKey(key: string): Promise<AccessKeyDto> {
     const accessKey = await this.repository.findByKey(key);
-    if (!accessKey || accessKey.status !== MANAGED_STATUS.ENABLED) throw new UnauthorizedError("Invalid AccessKey");
+    if (!accessKey || accessKey.status !== MANAGED_STATUS.ENABLED)
+      throw new UnauthorizedError("Invalid AccessKey", undefined, { messageKey: "accessKey.invalid" });
 
-    if (accessKey.expiresAt && accessKey.expiresAt < new Date()) throw new UnauthorizedError("AccessKey expired");
+    if (accessKey.expiresAt && accessKey.expiresAt < new Date())
+      throw new UnauthorizedError("AccessKey expired", undefined, { messageKey: "accessKey.expired" });
 
     return this.toDto(accessKey);
   }
@@ -94,7 +103,8 @@ export class AccessKeyService {
 
   async revokeKey(keyId: string, userId: string, request?: Request): Promise<void> {
     const accessKey = await this.repository.findById(keyId);
-    if (!accessKey || accessKey.userId !== userId) throw new NotFoundError("AccessKey not found");
+    if (!accessKey || accessKey.userId !== userId)
+      throw new NotFoundError("AccessKey not found", undefined, { messageKey: "accessKey.notFound" });
 
     await this.repository.delete(keyId);
 
@@ -117,7 +127,8 @@ export class AccessKeyService {
 
   async sendAccessKeyCreationVerificationCodeForUser(userId: string): Promise<boolean> {
     const user = await this.userRepository.findById(userId);
-    if (!user || !user.email) throw new NotFoundError("用户邮箱不存在");
+    if (!user || !user.email)
+      throw new NotFoundError("用户邮箱不存在", undefined, { messageKey: "user.emailNotFound" });
 
     if (user.twoFactorEnabled) return false;
 

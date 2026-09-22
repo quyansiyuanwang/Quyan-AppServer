@@ -196,10 +196,10 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
-import { ElMessage } from '@/utils/elementPlusRuntime'
 import { User, Calendar, View, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { articleService } from '@/service/articleService'
@@ -245,7 +245,7 @@ async function selectArticle(item: ArticleListItemDto) {
       ? await articleService.getArticle(item.id)
       : await articleService.getPublicArticle(item.id)
   } catch (e: any) {
-    ElMessage.error(e.message || 'Failed to load article')
+    showRequestErrorNotice(e)
   }
 }
 
@@ -264,7 +264,7 @@ onMounted(async () => {
     selectedArticle.value = data.selectedArticle
   } catch (e: any) {
     if (version === loadVersion.value) {
-      ElMessage.error(e.message || 'Failed to load articles')
+      showRequestErrorNotice(e)
     }
   } finally {
     if (version === loadVersion.value) loading.value = false

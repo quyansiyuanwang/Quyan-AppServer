@@ -71,6 +71,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { UserDto, UserFullPermissionsDto, Permission } from '@/client/types.gen'
 import { ALL_PERMISSIONS } from '@/constant/permission'
@@ -173,7 +174,7 @@ const handleClearCustomPermissions = async () => {
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(i18ns.t('PermissionManagement.clearCustomFailed'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('PermissionManagement.clearCustomFailed')))
       console.error(error)
     }
   }
@@ -216,7 +217,7 @@ const handleSave = async () => {
     }
   } catch (error) {
     console.error('保存权限失败:', error)
-    ElMessage.error(i18ns.t('message.information.saveFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('message.information.saveFailed')))
   } finally {
     saving.value = false
   }

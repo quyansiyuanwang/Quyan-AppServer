@@ -160,6 +160,7 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -227,7 +228,7 @@ const loadReviewItems = async () => {
     items.value = res.data.items
     total.value = res.data.total
   } catch (error) {
-    ElMessage.error(t('oauthClient.loadReviewFailed'))
+    ElMessage.error(getErrorMessage(error, t('oauthClient.loadReviewFailed')))
     throw error
   } finally {
     loading.value = false
@@ -269,7 +270,7 @@ const submitReviewDecision = async () => {
     reviewComment.value = ''
     await loadReviewItems()
   } catch (error) {
-    ElMessage.error(t('oauthClient.reviewFailed'))
+    ElMessage.error(getErrorMessage(error, t('oauthClient.reviewFailed')))
     console.error(error)
   } finally {
     submitting.value = false
@@ -288,7 +289,7 @@ const handleDelete = async (row: OAuthClientReviewListItemDto) => {
     await loadReviewItems()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('oauthClient.deleteFailed'))
+      ElMessage.error(getErrorMessage(error, t('oauthClient.deleteFailed')))
     }
   }
 }

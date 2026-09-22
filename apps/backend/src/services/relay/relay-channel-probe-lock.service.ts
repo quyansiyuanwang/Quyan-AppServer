@@ -58,7 +58,9 @@ export class RelayChannelProbeLockService {
 
   private async acquire(channelId: string, mode: LockMode, timeoutMs: number): Promise<ProbeChannelLock> {
     if (!this.redis.isRedisAvailable())
-      throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable");
+      throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable", undefined, {
+        messageKey: "relayChannelProbe.coordinationBackendUnavailable",
+      });
 
     const baseKey = `${LOCK_PREFIX}:${channelId}`;
     const owner = randomUUID();
@@ -68,7 +70,9 @@ export class RelayChannelProbeLockService {
     if (mode === "write") {
       const queued = await this.redis.reserveFairWriteLock(baseKey, owner, Math.max(LOCK_TTL_MS, timeoutMs + 5_000));
       if (queued === null)
-        throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable");
+        throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable", undefined, {
+          messageKey: "relayChannelProbe.coordinationBackendUnavailable",
+        });
       writeQueued = true;
     }
 
@@ -79,7 +83,9 @@ export class RelayChannelProbeLockService {
             ? await this.redis.tryAcquireFairReadLock(baseKey, owner, LOCK_TTL_MS)
             : await this.redis.tryAcquireFairWriteLock(baseKey, owner, LOCK_TTL_MS);
         if (acquired === null)
-          throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable");
+          throw new LockBackendUnavailableError("Relay channel probe coordination backend unavailable", undefined, {
+            messageKey: "relayChannelProbe.coordinationBackendUnavailable",
+          });
         if (acquired === true || acquired === "acquired") return this.createLease(baseKey, owner, mode);
         if (acquired === "stale") break;
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -90,7 +96,12 @@ export class RelayChannelProbeLockService {
     }
 
     if (writeQueued) await this.redis.releaseFairWriteLock(baseKey, owner).catch(() => null);
-    throw new TooManyRequestsError("Relay channel is busy with a calibration probe; please retry shortly");
+    throw new TooManyRequestsError(
+      "Relay channel is busy with a calibration probe; please retry shortly",
+      undefined,
+      undefined,
+      { messageKey: "relayChannelProbe.calibrationBusy" },
+    );
   }
 
   private createLease(baseKey: string, owner: string, mode: LockMode): ProbeChannelLock {

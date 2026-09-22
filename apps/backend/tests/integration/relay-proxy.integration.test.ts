@@ -611,7 +611,10 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         });
 
       expect(rejectedByDifferentId.status).toBe(400);
-      expect(String(rejectedByDifferentId.body?.message || "")).toContain("Relay token does not allow model");
+      // 有意变更：不再回显具体模型名
+      expect(String(rejectedByDifferentId.body?.message || "")).toContain(
+        "Relay token does not allow the requested model",
+      );
     } finally {
       await prisma.relayToken.update({
         where: { id: openaiRelayTokenId },
@@ -677,7 +680,10 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         });
 
       expect(rejectedByDifferentId.status).toBe(400);
-      expect(String(rejectedByDifferentId.body?.message || "")).toContain("does not support model");
+      // 有意变更：不再回显具体模型名
+      expect(String(rejectedByDifferentId.body?.message || "")).toContain(
+        "Channel does not support the requested model",
+      );
     } finally {
       await prisma.relayChannel.update({
         where: { id: openaiRelayChannelId },
@@ -963,14 +969,16 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       .set("Authorization", `Bearer ${anthropicRelayTokenValue}`);
 
     expect(anthropicResponse.status).toBe(400);
-    expect(String(anthropicResponse.body?.message || "")).toContain("Channel does not support openai format requests");
+    // 有意变更：不再回显格式名
+    expect(String(anthropicResponse.body?.message || "")).toContain("Channel does not support the requested format");
 
     const geminiResponse = await request(app)
       .get("/relay/proxy/v1/models")
       .set("Authorization", `Bearer ${geminiRelayTokenValue}`);
 
     expect(geminiResponse.status).toBe(400);
-    expect(String(geminiResponse.body?.message || "")).toContain("Channel does not support openai format requests");
+    // 有意变更：不再回显格式名
+    expect(String(geminiResponse.body?.message || "")).toContain("Channel does not support the requested format");
   });
 
   it(

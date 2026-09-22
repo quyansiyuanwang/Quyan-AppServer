@@ -147,12 +147,19 @@ export class CarpoolService {
   }
 
   private owner(order: { ownerUserId: string }, userId: string) {
-    if (order.ownerUserId !== userId) throw new ForbiddenError("Only the carpool initiator can perform this action");
+    if (order.ownerUserId !== userId)
+      throw new ForbiddenError("Only the carpool initiator can perform this action", undefined, {
+        messageKey: "carpool.initiatorOnly",
+      });
   }
   private ensureOpen(order: { state: string; formationDeadlineAt?: Date | null; inviteExpiresAt?: Date | null }) {
-    if (order.state !== "open") throw new BadRequestError("Carpool is no longer open");
+    if (order.state !== "open")
+      throw new BadRequestError("Carpool is no longer open", undefined, { messageKey: "carpool.notOpen" });
     const deadline = order.formationDeadlineAt ?? order.inviteExpiresAt;
-    if (deadline && deadline <= new Date()) throw new BadRequestError("Carpool formation deadline has passed");
+    if (deadline && deadline <= new Date())
+      throw new BadRequestError("Carpool formation deadline has passed", undefined, {
+        messageKey: "carpool.formationDeadlinePassed",
+      });
   }
   private async event(
     tx: Prisma.TransactionClient,
@@ -229,7 +236,10 @@ export class CarpoolService {
   }
   private async templateData(data: CreateCarpoolPackageTemplateRequest | UpdateCarpoolPackageTemplateRequest) {
     const monthly = await this.repository.findActiveMonthlyPassTemplate(data.monthlyPassTemplateId);
-    if (!monthly) throw new NotFoundError("Monthly pass template not found");
+    if (!monthly)
+      throw new NotFoundError("Monthly pass template not found", undefined, {
+        messageKey: "monthlyPass.templateNotFound",
+      });
     return {
       ...data,
       formationDeadlineHours: data.formationDeadlineHours ?? 72,
@@ -247,12 +257,18 @@ export class CarpoolService {
     return this.packageDto(await this.repository.createTemplate(await this.templateData(data)), true);
   }
   async updateTemplate(id: string, data: UpdateCarpoolPackageTemplateRequest) {
-    if (!(await this.repository.findTemplate(id))) throw new NotFoundError("Carpool package template not found");
+    if (!(await this.repository.findTemplate(id)))
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
     return this.packageDto(await this.repository.updateTemplate(id, await this.templateData(data)), true);
   }
   async duplicateTemplate(id: string) {
     const template = await this.repository.findTemplate(id);
-    if (!template) throw new NotFoundError("Carpool package template not found");
+    if (!template)
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
     return this.packageDto(
       await this.repository.createTemplate({
         ...template,
@@ -268,17 +284,26 @@ export class CarpoolService {
     );
   }
   async archiveTemplate(id: string) {
-    if (!(await this.repository.findTemplate(id))) throw new NotFoundError("Carpool package template not found");
+    if (!(await this.repository.findTemplate(id)))
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
     await this.repository.archiveTemplate(id);
   }
   async publishTemplate(id: string, published: boolean) {
-    if (!(await this.repository.findTemplate(id))) throw new NotFoundError("Carpool package template not found");
+    if (!(await this.repository.findTemplate(id)))
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
     return this.packageDto(await this.repository.updateTemplatePublication(id, published), true);
   }
 
   async createOrder(data: CreateCarpoolOrderRequest, userId: string) {
     const template = await this.repository.findPublishedTemplate(data.packageTemplateId);
-    if (!template) throw new NotFoundError("Carpool package template not found");
+    if (!template)
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
     const deadline = new Date(Date.now() + (template.formationDeadlineHours ?? 72) * 3600000);
     const order = await this.repository.withTransaction(async (tx) => {
       const created = await tx.carpoolOrder.create({
@@ -309,7 +334,7 @@ export class CarpoolService {
   }
   async getOrder(id: string, userId: string, admin = false) {
     const order = await this.repository.findOrder(id);
-    if (!order) throw new NotFoundError("Carpool order not found");
+    if (!order) throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
     if (!admin && !order.members.some((member) => member.userId === userId)) throw new ForbiddenError();
     return this.dto(order, admin ? undefined : userId, admin);
   }
@@ -338,7 +363,7 @@ export class CarpoolService {
 
   async invite(orderId: string, userId: string, hours = 72) {
     const order = await this.repository.findOrder(orderId);
-    if (!order) throw new NotFoundError("Carpool order not found");
+    if (!order) throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
     this.owner(order, userId);
     this.ensureOpen(order);
     const deadline = order.formationDeadlineAt ?? order.inviteExpiresAt;
@@ -359,12 +384,18 @@ export class CarpoolService {
         include: { order: { include: { members: true } } },
       });
       if (!invite || invite.revokedAt || invite.usedAt || invite.expiresAt <= new Date())
-        throw new BadRequestError("Carpool invitation is invalid or expired");
+        throw new BadRequestError("Carpool invitation is invalid or expired", undefined, {
+          messageKey: "carpool.invitationInvalid",
+        });
       this.ensureOpen(invite.order);
       const current = invite.order.members.find((member) => member.userId === userId);
       const activeCount = invite.order.members.filter(active).length;
-      if (!current && activeCount >= invite.order.maxMembers) throw new BadRequestError("Carpool is already full");
-      if (current && current.state !== "left") throw new BadRequestError("You have already joined this carpool");
+      if (!current && activeCount >= invite.order.maxMembers)
+        throw new BadRequestError("Carpool is already full", undefined, { messageKey: "carpool.full" });
+      if (current && current.state !== "left")
+        throw new BadRequestError("You have already joined this carpool", undefined, {
+          messageKey: "carpool.alreadyJoined",
+        });
       await tx.carpoolInvite.update({ where: { id: invite.id }, data: { usedByUserId: userId, usedAt: new Date() } });
       if (current) {
         await tx.carpoolMember.update({
@@ -406,11 +437,15 @@ export class CarpoolService {
       const members = order.members.filter(active);
       const provided = new Map((data.members ?? []).map((member) => [member.memberId, member]));
       if (provided.size !== members.length || members.some((member) => !provided.has(member.id)))
-        throw new BadRequestError("All active members must be assigned exactly once");
+        throw new BadRequestError("All active members must be assigned exactly once", undefined, {
+          messageKey: "carpool.membersMustBeAssignedOnce",
+        });
       const paymentTotal = members.reduce((sum, member) => sum.plus(provided.get(member.id)!.paymentRatio), ZERO);
       const quotaTotal = members.reduce((sum, member) => sum.plus(provided.get(member.id)!.quotaRatio), ZERO);
       if (!paymentTotal.equals(HUNDRED) || !quotaTotal.equals(HUNDRED))
-        throw new BadRequestError("Payment and quota ratios must each total 100");
+        throw new BadRequestError("Payment and quota ratios must each total 100", undefined, {
+          messageKey: "carpool.ratiosMustTotal100",
+        });
       await this.resetConfirmations(tx, orderId);
       for (const member of members) {
         const ratio = provided.get(member.id)!;
@@ -438,13 +473,19 @@ export class CarpoolService {
         where: { orderId_userId: { orderId, userId } },
         include: { order: true, reservation: true },
       });
-      if (!member || member.state === "left") throw new NotFoundError("Carpool member not found");
+      if (!member || member.state === "left")
+        throw new NotFoundError("Carpool member not found", undefined, { messageKey: "carpool.memberNotFound" });
       this.ensureOpen(member.order);
-      if (member.state !== "pending") throw new BadRequestError("Carpool share is already confirmed");
+      if (member.state !== "pending")
+        throw new BadRequestError("Carpool share is already confirmed", undefined, {
+          messageKey: "carpool.shareAlreadyConfirmed",
+        });
       await lockBalanceAccount(tx, userId, true);
       const balance = await tx.balanceAccount.findUnique({ where: { userId } });
       if (!balance || balance.balance.lessThan(member.payableAmount))
-        throw new BadRequestError("Insufficient balance for your carpool share");
+        throw new BadRequestError("Insufficient balance for your carpool share", undefined, {
+          messageKey: "carpool.insufficientBalanceForShare",
+        });
       await tx.balanceReservation.upsert({
         where: { memberId: member.id },
         create: { memberId: member.id, orderId, userId, amount: member.payableAmount, state: "reserved" },
@@ -467,11 +508,19 @@ export class CarpoolService {
         where: { orderId_userId: { orderId, userId } },
         include: { order: true, reservation: true },
       });
-      if (!member || member.state === "left") throw new NotFoundError("Carpool member not found");
+      if (!member || member.state === "left")
+        throw new NotFoundError("Carpool member not found", undefined, { messageKey: "carpool.memberNotFound" });
       this.ensureOpen(member.order);
-      if (member.role === "owner") throw new BadRequestError("Initiator must cancel the carpool instead");
+      if (member.role === "owner")
+        throw new BadRequestError("Initiator must cancel the carpool instead", undefined, {
+          messageKey: "carpool.initiatorMustCancel",
+        });
       if (member.state === "confirmed")
-        throw new BadRequestError("Confirmed members cannot leave; ask the initiator to change the allocation first");
+        throw new BadRequestError(
+          "Confirmed members cannot leave; ask the initiator to change the allocation first",
+          undefined,
+          { messageKey: "carpool.confirmedMemberCannotLeave" },
+        );
       if (member.reservation?.state === "reserved")
         await tx.balanceReservation.update({ where: { id: member.reservation.id }, data: { state: "released" } });
       await tx.carpoolMember.update({
@@ -514,12 +563,16 @@ export class CarpoolService {
         !members.length ||
         !members.every((member) => member.state === "confirmed" && member.reservation?.state === "reserved")
       )
-        throw new BadRequestError("All active members must confirm and reserve their own share");
+        throw new BadRequestError("All active members must confirm and reserve their own share", undefined, {
+          messageKey: "carpool.membersMustConfirmOwnShare",
+        });
       if (
         !members.reduce((sum, member) => sum.plus(member.paymentRatio), ZERO).equals(HUNDRED) ||
         !members.reduce((sum, member) => sum.plus(member.quotaRatio), ZERO).equals(HUNDRED)
       )
-        throw new BadRequestError("Payment and quota ratios must each total 100");
+        throw new BadRequestError("Payment and quota ratios must each total 100", undefined, {
+          messageKey: "carpool.ratiosMustTotal100",
+        });
       await lockBalanceAccounts(
         tx,
         members.map((member) => ({ userId: member.userId, createIfMissing: true })),
@@ -532,7 +585,10 @@ export class CarpoolService {
           totalUsedDelta: reservation.amount,
           minimumBalance: 0,
         });
-        if (!mutation) throw new BadRequestError("Balance changed; member needs to reconfirm");
+        if (!mutation)
+          throw new BadRequestError("Balance changed; member needs to reconfirm", undefined, {
+            messageKey: "carpool.balanceChangedReconfirm",
+          });
         await tx.balanceTransaction.create({
           data: {
             userId: member.userId,
@@ -558,7 +614,8 @@ export class CarpoolService {
   async accept(orderId: string, actorUserId?: string) {
     return this.repository.withTransaction(async (tx) => {
       const order = await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId } });
-      if (order.state !== "submitted") throw new BadRequestError("Carpool has not been submitted");
+      if (order.state !== "submitted")
+        throw new BadRequestError("Carpool has not been submitted", undefined, { messageKey: "carpool.notSubmitted" });
       await tx.carpoolOrder.update({ where: { id: orderId }, data: { state: "accepted", acceptedAt: new Date() } });
       await this.event(tx, orderId, "accepted", actorUserId);
       return this.dto(
@@ -577,9 +634,12 @@ export class CarpoolService {
     let allowedChannelIds: string[] | undefined;
     if (orderId) {
       const order = await this.repository.findOrderSummary(orderId);
-      if (!order) throw new NotFoundError("Carpool order not found");
+      if (!order)
+        throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
       if (order.state !== "accepted")
-        throw new BadRequestError("Carpool must be accepted before selecting a delivery channel");
+        throw new BadRequestError("Carpool must be accepted before selecting a delivery channel", undefined, {
+          messageKey: "carpool.acceptBeforeChannel",
+        });
       allowedChannelIds = parseAllowedChannels(order.allowedChannels) ?? undefined;
     }
     const [total, records] = await this.repository.listEligibleDeliveryChannels(
@@ -596,20 +656,31 @@ export class CarpoolService {
         where: { id: orderId },
         include: { members: true, packageTemplate: true },
       });
-      if (order.state !== "accepted") throw new BadRequestError("Carpool must be accepted before fulfillment");
+      if (order.state !== "accepted")
+        throw new BadRequestError("Carpool must be accepted before fulfillment", undefined, {
+          messageKey: "carpool.acceptBeforeFulfillment",
+        });
       const allowedChannelIds = parseAllowedChannels(order.allowedChannels);
       if (allowedChannelIds?.length && !allowedChannelIds.includes(relayChannelId))
-        throw new BadRequestError("Relay channel is not allowed by the carpool package snapshot");
+        throw new BadRequestError("Relay channel is not allowed by the carpool package snapshot", undefined, {
+          messageKey: "carpool.channelNotAllowedBySnapshot",
+        });
       // Revalidate all delivery eligibility inside the serializable fulfillment transaction.
       const channel = await tx.relayChannel.findFirst({
         where: { id: relayChannelId, status: 1, providerServiceEnabled: true, submissionStatus: "approved" },
       });
-      if (!channel) throw new NotFoundError("Eligible relay channel not found");
+      if (!channel)
+        throw new NotFoundError("Eligible relay channel not found", undefined, {
+          messageKey: "carpool.eligibleChannelNotFound",
+        });
       const templateId = order.monthlyPassTemplateId ?? order.packageTemplate.monthlyPassTemplateId;
       const template = await tx.monthlyPassTemplate.findUnique({ where: { id: templateId } });
       // The order's quota, validity, model and channel constraints are immutable snapshots.
       // A later template unpublish/disable must not make an already accepted order undeliverable.
-      if (!template) throw new BadRequestError("Carpool monthly pass template no longer exists");
+      if (!template)
+        throw new BadRequestError("Carpool monthly pass template no longer exists", undefined, {
+          messageKey: "carpool.monthlyPassTemplateGone",
+        });
       const now = new Date();
       const endAt = new Date(now.getTime() + order.validityDays * 86400000);
       for (const member of order.members.filter(active)) {
@@ -662,7 +733,9 @@ export class CarpoolService {
         include: { members: { include: { reservation: true } } },
       });
       if (!(["submitted", "accepted"] as string[]).includes(order.state))
-        throw new BadRequestError("Carpool cannot be refunded in its current state");
+        throw new BadRequestError("Carpool cannot be refunded in its current state", undefined, {
+          messageKey: "carpool.refundNotAllowed",
+        });
       const members = order.members.filter(active);
       await lockBalanceAccounts(
         tx,
@@ -676,7 +749,10 @@ export class CarpoolService {
           totalUsedDelta: member.reservation.amount.negated(),
           createIfMissing: true,
         });
-        if (!mutation) throw new BadRequestError("Balance account unavailable");
+        if (!mutation)
+          throw new BadRequestError("Balance account unavailable", undefined, {
+            messageKey: "carpool.balanceAccountUnavailable",
+          });
         await tx.balanceTransaction.create({
           data: {
             userId: member.userId,

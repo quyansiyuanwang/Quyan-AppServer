@@ -10,6 +10,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import ServerConfigCollapseContent from './server-config/components/ServerConfigCollapseContent.vue'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { computed, onMounted, provide, ref, watch, type Ref } from 'vue'
@@ -236,7 +237,7 @@ const loadRegistrationConfig = async () => {
     groups.value = Array.isArray(groupData) ? groupData : groupData.groups
     registrationLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 
@@ -252,7 +253,7 @@ const loadBillingConfig = async () => {
     giftCodeCancelFeeRefundPercent.value = billingConfig.giftCodeCancelFeeRefundPercent
     billingLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 
@@ -264,7 +265,7 @@ const loadHeartbeatConfig = async () => {
     heartbeatTimeoutSeconds.value = heartbeatConfig.timeoutSeconds
     heartbeatLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.loadFailed'))
   }
 }
 
@@ -277,7 +278,7 @@ const loadRemoteTerminalUnbindConfig = async () => {
     remoteTerminalRebindCooldownMinutes.value = remoteTerminalUnbindConfig.rebindCooldownMinutes
     remoteTerminalUnbindLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.loadFailed'))
   }
 }
 
@@ -306,7 +307,7 @@ const loadNotificationConfig = async () => {
       : []
     notificationLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.loadFailed'))
   }
 }
 
@@ -320,7 +321,7 @@ const loadCaptchaConfig = async () => {
     captchaTrustWindowMinutes.value = captchaConfig.trustWindowMinutes
     captchaLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.loadFailed'))
   }
 }
 
@@ -337,7 +338,7 @@ const loadSmtpConfig = async () => {
     smtpSenderEmail.value = smtpConfig.senderEmail
     smtpLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 
@@ -348,7 +349,7 @@ const loadSiteConfig = async () => {
     siteBackendPublicUrl.value = siteConfig.backendPublicUrl
     siteLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 
@@ -367,7 +368,7 @@ const loadErrorDecayConfig = async () => {
     errorDecayInterval.value = parseInt(configs['ipBan.errorDecayInterval'] || '1', 10)
     errorDecayLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 
@@ -393,7 +394,7 @@ const loadErrorWeightsConfig = async () => {
     }
     errorWeightsLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 
@@ -417,7 +418,7 @@ const loadSocialAuthConfig = async () => {
     socAuthWechatWebAppSecret.value = config.wechatWeb?.appSecret ?? ''
     socialAuthLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 
@@ -434,7 +435,7 @@ const loadIpBanConfig = async () => {
     level3Duration.value = ipBanConfig.level3Duration
     ipBanLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 
@@ -446,7 +447,7 @@ const loadRelayProxyConfig = async () => {
     relayProxyUrl.value = config.url
     relayProxyLoaded.value = true
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.loadFailed'))
   }
 }
 
@@ -459,7 +460,7 @@ const saveRelayProxy = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingRelayProxy.value = false
   }
@@ -476,7 +477,7 @@ const saveRegistration = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingReg.value = false
   }
@@ -495,7 +496,7 @@ const saveBilling = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingBilling.value = false
   }
@@ -510,7 +511,7 @@ const saveHeartbeat = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingHeartbeat.value = false
   }
@@ -526,7 +527,7 @@ const saveRemoteTerminalUnbind = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingRemoteTerminalUnbind.value = false
   }
@@ -542,7 +543,7 @@ const saveNotification = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingNotification.value = false
   }
@@ -569,7 +570,7 @@ const saveCaptcha = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingCaptcha.value = false
   }
@@ -600,7 +601,7 @@ const saveSmtp = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingSmtp.value = false
   }
@@ -614,7 +615,7 @@ const saveSite = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingSite.value = false
   }
@@ -631,7 +632,7 @@ const saveErrorDecay = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingErrorDecay.value = false
   }
@@ -653,7 +654,7 @@ const saveErrorWeights = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingErrorWeights.value = false
   }
@@ -690,7 +691,7 @@ const saveSocialAuth = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingSocialAuth.value = false
   }
@@ -710,7 +711,7 @@ const saveIpBan = async () => {
     })
     ElMessage.success(i18ns.t('ServerConfigView.saveSuccess'))
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ServerConfigView.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('ServerConfigView.saveFailed'))
   } finally {
     savingIpBan.value = false
   }

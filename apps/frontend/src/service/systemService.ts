@@ -95,7 +95,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch system statistics')
+    throw toServiceError(result)
   }
 
   public async getConsumptionStats(filters?: ConsumptionStatsFilters, silent = false) {
@@ -108,7 +108,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch consumption statistics')
+    throw toServiceError(result)
   }
 
   /**
@@ -144,7 +144,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch system logs')
+    throw toServiceError(result)
   }
 
   public async getSystemLogStats(filters?: SystemLogStatsFilters, silent = false) {
@@ -163,7 +163,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch system log statistics')
+    throw toServiceError(result)
   }
 
   /**
@@ -194,7 +194,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch business logs')
+    throw toServiceError(result)
   }
 
   public async getBusinessLogStats(filters?: BusinessLogFilters, signal?: AbortSignal) {
@@ -211,7 +211,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch business log statistics')
+    throw toServiceError(result)
   }
 
   public async getBusinessLogFilterOptions(): Promise<BusinessLogFilterOptionsResponse> {
@@ -221,7 +221,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch business log filter options')
+    throw toServiceError(result)
   }
 
   public async getUserOnlineMonitorOverview(
@@ -250,7 +250,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch user online monitor overview')
+    throw toServiceError(result)
   }
 
   public async getUserOnlineMonitorDetail(userId: string): Promise<UserOnlineMonitorDetailDto> {
@@ -262,7 +262,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch user online monitor detail')
+    throw toServiceError(result)
   }
 
   public async getUserOnlineMonitorTimeline(
@@ -293,7 +293,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch user online monitor timeline')
+    throw toServiceError(result)
   }
 
   public async forceOfflineSession(sessionId: string): Promise<ForceOfflineSessionResponse> {
@@ -305,7 +305,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to force offline session')
+    throw toServiceError(result)
   }
 
   public async forceOfflineUser(userId: string): Promise<ForceOfflineUserResponse> {
@@ -317,7 +317,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to force offline user')
+    throw toServiceError(result)
   }
 
   public async getClientIp(): Promise<string> {
@@ -333,7 +333,7 @@ class SystemService {
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data
     }
-    throw toServiceError(result, 'Failed to fetch build info')
+    throw toServiceError(result)
   }
 
   /**
@@ -350,7 +350,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch log detail')
+    throw toServiceError(result)
   }
 
   public async getServerLogFiles(type?: ServerLogType) {
@@ -364,7 +364,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch server log files')
+    throw toServiceError(result)
   }
 
   public async getServerLogContent(fileName: string, lines = 200, search?: string) {
@@ -380,7 +380,7 @@ class SystemService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to fetch server log content')
+    throw toServiceError(result)
   }
 }
 

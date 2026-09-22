@@ -28,7 +28,9 @@ const modelMeta = new Map(
 
 function assertDataset(value: string): asserts value is DataMaintenanceDataset {
   if (!(DATA_MAINTENANCE_DATASETS as readonly string[]).includes(value))
-    throw new BadRequestError(`Unsupported maintenance dataset: ${value}`);
+    throw new BadRequestError(`Unsupported maintenance dataset: ${value}`, undefined, {
+      messageKey: "dataMaintenance.unsupportedDataset",
+    });
 }
 
 interface ParsedArchive {
@@ -37,24 +39,40 @@ interface ParsedArchive {
 }
 
 function parseArchive(buffer: Buffer): ParsedArchive {
-  if (!Buffer.isBuffer(buffer) || buffer.length === 0) throw new BadRequestError("A gzip NDJSON file is required");
+  if (!Buffer.isBuffer(buffer) || buffer.length === 0)
+    throw new BadRequestError("A gzip NDJSON file is required", undefined, {
+      messageKey: "dataMaintenance.gzipNdjsonRequired",
+    });
   const maxCompressedBytes = env.runtime.requestSizeLimits.archiveImportBodyLimitMb * 1024 * 1024;
-  if (buffer.length > maxCompressedBytes) throw new BadRequestError("Archive file is too large");
+  if (buffer.length > maxCompressedBytes)
+    throw new BadRequestError("Archive file is too large", undefined, {
+      messageKey: "dataMaintenance.archiveTooLarge",
+    });
   let decompressed: Buffer;
   try {
     decompressed = gunzipSync(buffer, { maxOutputLength: MAX_DECOMPRESSED_BYTES });
   } catch {
-    throw new BadRequestError("Invalid gzip archive");
+    throw new BadRequestError("Invalid gzip archive", undefined, { messageKey: "dataMaintenance.invalidGzipArchive" });
   }
-  if (decompressed.length > MAX_DECOMPRESSED_BYTES) throw new BadRequestError("Decompressed archive is too large");
+  if (decompressed.length > MAX_DECOMPRESSED_BYTES)
+    throw new BadRequestError("Decompressed archive is too large", undefined, {
+      messageKey: "dataMaintenance.decompressedTooLarge",
+    });
   const lines = decompressed
     .toString("utf8")
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0);
-  if (lines.length > MAX_RECORDS) throw new BadRequestError("Archive contains too many records");
+  if (lines.length > MAX_RECORDS)
+    throw new BadRequestError("Archive contains too many records", undefined, {
+      messageKey: "dataMaintenance.tooManyRecords",
+    });
   const errors: string[] = [];
   const rows = lines.map((line, index) => {
-    if (Buffer.byteLength(line) > MAX_LINE_BYTES) throw new BadRequestError(`Archive line ${index + 1} is too large`);
+    if (Buffer.byteLength(line) > MAX_LINE_BYTES)
+      throw new BadRequestError(`Archive line ${index + 1} is too large`, undefined, {
+        messageKey: "dataMaintenance.archiveLineTooLarge",
+        messageParams: { line: index + 1 },
+      });
     let value: unknown;
     try {
       value = JSON.parse(line);
@@ -86,20 +104,26 @@ function normalizeValue(value: unknown, type: string): unknown {
   if (value === null || value === undefined) return value;
   if (type === "DateTime") {
     const date = new Date(String(value));
-    if (Number.isNaN(date.getTime())) throw new BadRequestError("Invalid DateTime value");
+    if (Number.isNaN(date.getTime()))
+      throw new BadRequestError("Invalid DateTime value", undefined, {
+        messageKey: "dataMaintenance.invalidDateTimeValue",
+      });
     return date;
   }
   if (type === "BigInt") return BigInt(String(value));
   if (type === "Int" || type === "Float") {
     const number = Number(value);
-    if (!Number.isFinite(number)) throw new BadRequestError("Invalid numeric value");
+    if (!Number.isFinite(number))
+      throw new BadRequestError("Invalid numeric value", undefined, {
+        messageKey: "dataMaintenance.invalidNumericValue",
+      });
     return number;
   }
   if (type === "Json" && typeof value === "string") {
     try {
       return JSON.parse(value);
     } catch {
-      throw new BadRequestError("Invalid JSON value");
+      throw new BadRequestError("Invalid JSON value", undefined, { messageKey: "dataMaintenance.invalidJsonValue" });
     }
   }
   return value;
@@ -160,7 +184,10 @@ export class DataMaintenanceService {
     const parsed = parseArchive(buffer);
     const rows = parsed.rows;
     const meta = modelMeta.get(DATA_MAINTENANCE_TABLES[dataset]);
-    if (!meta) throw new BadRequestError("Unsupported archive dataset");
+    if (!meta)
+      throw new BadRequestError("Unsupported archive dataset", undefined, {
+        messageKey: "dataMaintenance.unsupportedArchiveDataset",
+      });
 
     const allowedFields = new Map(
       meta.fields.filter((field) => field.kind === "scalar").map((field) => [field.name, field]),
@@ -212,7 +239,11 @@ export class DataMaintenanceService {
     assertDataset(dataset);
     const preview = await this.previewImport(dataset, buffer);
     if (!preview.executable)
-      throw new BadRequestError(`Archive preview failed: ${preview.errors.join("; ") || "missing foreign key"}`);
+      throw new BadRequestError(
+        `Archive preview failed: ${preview.errors.join("; ") || "missing foreign key"}`,
+        undefined,
+        { messageKey: "dataMaintenance.archivePreviewFailed" },
+      );
     const sha256 = createHash("sha256").update(buffer).digest("hex");
     const objectKey = `${env.integrations.objectStorage.staging.prefix}/maintenance/import/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${sha256}.ndjson.gz`;
     const client = this.getOssClient();
@@ -230,7 +261,9 @@ export class DataMaintenanceService {
       metadata["x-oss-storage-class"]?.toLowerCase() !== TEMPORARY_IMPORT_STORAGE_CLASS.toLowerCase()
     ) {
       await client.delete(objectKey).catch(() => undefined);
-      throw new BadRequestError("Uploaded archive verification failed");
+      throw new BadRequestError("Uploaded archive verification failed", undefined, {
+        messageKey: "dataMaintenance.archiveVerificationFailed",
+      });
     }
     try {
       return await this.repository.createMaintenanceRun({
@@ -263,7 +296,8 @@ export class DataMaintenanceService {
 
   public async getRun(id: string) {
     const run = await this.repository.getMaintenanceRun(id);
-    if (!run) throw new NotFoundError("Maintenance run not found");
+    if (!run)
+      throw new NotFoundError("Maintenance run not found", undefined, { messageKey: "dataMaintenance.runNotFound" });
     return run;
   }
 
@@ -284,7 +318,10 @@ export class DataMaintenanceService {
           const dataset = (Object.keys(DATA_MAINTENANCE_TABLES) as DataMaintenanceDataset[]).find(
             (key) => DATA_MAINTENANCE_TABLES[key] === table,
           );
-          if (!dataset) throw new BadRequestError("Invalid optimize table");
+          if (!dataset)
+            throw new BadRequestError("Invalid optimize table", undefined, {
+              messageKey: "dataMaintenance.invalidOptimizeTable",
+            });
           await this.repository.optimizeTable(dataset);
           completed += 1;
           await this.repository.updateMaintenanceRun(id, {
@@ -307,7 +344,9 @@ export class DataMaintenanceService {
           result,
         });
       } else {
-        throw new BadRequestError("Invalid maintenance task");
+        throw new BadRequestError("Invalid maintenance task", undefined, {
+          messageKey: "dataMaintenance.invalidMaintenanceTask",
+        });
       }
     } catch (error) {
       await this.repository.updateMaintenanceRun(id, {
@@ -335,9 +374,15 @@ export class DataMaintenanceService {
     const result = await this.getOssClient().get(objectKey);
     const buffer = Buffer.isBuffer(result.content) ? result.content : Buffer.from(result.content as Uint8Array);
     const preview = await this.previewImport(dataset, buffer);
-    if (!preview.executable) throw new BadRequestError("Archive is no longer valid");
+    if (!preview.executable)
+      throw new BadRequestError("Archive is no longer valid", undefined, {
+        messageKey: "dataMaintenance.archiveNoLongerValid",
+      });
     const delegate = (this.repository as any).getDatasetDelegate(dataset);
-    if (!delegate) throw new BadRequestError("Unsupported archive dataset");
+    if (!delegate)
+      throw new BadRequestError("Unsupported archive dataset", undefined, {
+        messageKey: "dataMaintenance.unsupportedArchiveDataset",
+      });
     let insertedCount = 0;
     for (let offset = 0; offset < preview.rows.length; offset += IMPORT_BATCH_SIZE) {
       const batch = preview.rows.slice(offset, offset + IMPORT_BATCH_SIZE);

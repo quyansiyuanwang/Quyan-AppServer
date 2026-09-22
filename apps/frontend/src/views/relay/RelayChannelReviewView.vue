@@ -193,6 +193,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Check, Close, Refresh, Setting, View } from '@element-plus/icons-vue'
@@ -275,7 +276,7 @@ const loadChannels = async (page = channelPage.page) => {
     channels.value = data.items
     Object.assign(channelPage, { page: data.page, total: data.total })
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   } finally {
     channelsLoading.value = false
   }
@@ -289,7 +290,7 @@ const loadChanges = async () => {
     })
     changeRequests.value = data.items
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 const refresh = () => {
@@ -321,7 +322,7 @@ const reviewSubmission = async (id: string, action: 'approve' | 'reject' | 'offb
     ElMessage.success(i18ns.t('relay.reviewSuccess'))
     await Promise.all([loadChannels(channelPage.page), loadChanges()])
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   }
 }
 const reviewChange = async (id: string, action: 'approve' | 'reject') => {
@@ -332,7 +333,7 @@ const reviewChange = async (id: string, action: 'approve' | 'reject') => {
     ElMessage.success(i18ns.t('relay.reviewSuccess'))
     await Promise.all([loadChannels(channelPage.page), loadChanges()])
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   }
 }
 const openConfig = async (id: string) => {
@@ -348,7 +349,7 @@ const openConfig = async (id: string) => {
     }))
     configVisible.value = true
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('relay.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('relay.loadFailed'))
   }
 }
 const saveConfig = async () => {
@@ -362,7 +363,7 @@ const saveConfig = async () => {
     configVisible.value = false
     await loadChannels(channelPage.page)
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   }
 }
 const showChange = (request: RelayChannelChangeRequestDto) => {

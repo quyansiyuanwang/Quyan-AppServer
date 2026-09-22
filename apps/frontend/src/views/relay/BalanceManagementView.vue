@@ -245,6 +245,7 @@
 
 <script setup lang="ts">
 import { usePageDevice } from '@/composables/usePageDevice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { i18ns } from '@/locales'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -393,7 +394,7 @@ const loadHistoryByRange = async (rangeKey: HistoryRangeKey) => {
       lastHistoryLoadTime = ''
     }
   } catch (_error) {
-    ElMessage.error(i18ns.t('balance.loadFailed'))
+    ElMessage.error(getErrorMessage(_error, i18ns.t('balance.loadFailed')))
   } finally {
     loadingHistory.value = false
   }
@@ -471,7 +472,7 @@ const loadUsers = async () => {
       }
     })
   } catch (error) {
-    ElMessage.error(i18ns.t('balance.loadFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('balance.loadFailed')))
     throw error
   } finally {
     loading.value = false
@@ -522,7 +523,7 @@ const handleAdjust = async () => {
     showAdjustDialog.value = false
     loadUsers()
   } catch (error) {
-    ElMessage.error(i18ns.t('balance.adjustFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('balance.adjustFailed')))
     throw error
   } finally {
     adjusting.value = false

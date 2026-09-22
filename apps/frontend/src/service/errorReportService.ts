@@ -1,6 +1,6 @@
 import { createErrorReportControllerApi } from '@/client/services/error-report-controller.gen'
 import { useRequestStore } from '@/stores/request'
-import { isRequestCanceled } from '@/utils/error-utils'
+import { isRequestCanceled, getOriginalErrorMessage } from '@/utils/error-utils'
 import { i18ns } from '@/locales'
 import {
   isTwoFactorRedirectError,
@@ -226,20 +226,9 @@ const isBenignResizeObserverError = (reason: unknown): boolean => {
   return BENIGN_RESIZE_OBSERVER_MESSAGES.has(normalized)
 }
 
-const getGlobalErrorMessage = (reason: unknown): string => {
-  const rawMessage =
-    reason instanceof Error
-      ? reason.message
-      : reason && typeof reason === 'object' && 'message' in reason
-        ? String((reason as { message?: unknown }).message || '')
-        : String(reason || '')
-
-  return rawMessage.replace(/\s+/g, ' ').trim().slice(0, 300) || i18ns.t('unknownError')
-}
-
 export const showGlobalErrorNotice = (reason: unknown): void => {
   if (shouldSkipGlobalErrorNotice(reason)) return
-  showRequestErrorNotice(getGlobalErrorMessage(reason))
+  showRequestErrorNotice(reason, i18ns.t('unknownError'))
 }
 
 const fingerprint = (payload: ClientErrorPayload) =>
@@ -280,7 +269,10 @@ export const installErrorReporter = () => {
     showGlobalErrorNotice(error || event.message)
     void reportClientError({
       errorType: error?.name || 'WindowError',
-      message: error?.message || event.message || 'Unknown browser error',
+      message:
+        error instanceof Error
+          ? getOriginalErrorMessage(error)
+          : event.message || 'Unknown browser error',
       route: window.location.pathname,
       severity: 'error',
       stack: error?.stack,
@@ -292,7 +284,10 @@ export const installErrorReporter = () => {
     showGlobalErrorNotice(event.reason || reason)
     void reportClientError({
       errorType: reason?.name || 'UnhandledRejection',
-      message: reason?.message || String(event.reason || 'Unhandled promise rejection'),
+      message:
+        reason instanceof Error
+          ? getOriginalErrorMessage(reason)
+          : String(event.reason || 'Unhandled promise rejection'),
       route: window.location.pathname,
       severity: 'error',
       stack: reason?.stack,

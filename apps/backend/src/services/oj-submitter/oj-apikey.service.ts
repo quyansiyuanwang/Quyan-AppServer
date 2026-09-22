@@ -38,7 +38,7 @@ export class OJAPIKeyService {
    */
   async createAPIKey(userId: string, name?: string, expiresAt?: Date, channelId?: string, request?: Request) {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("User not found");
+    if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
     if (channelId) await this.relayChannelService.assertChannelBusinessSelectableById(channelId, userId);
 
     const key = this.generateAPIKey();
@@ -84,7 +84,7 @@ export class OJAPIKeyService {
   async getAPIKey(id: string, userId: string) {
     const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
 
-    if (!key) throw new NotFoundError("API key not found");
+    if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
 
     return key;
   }
@@ -95,7 +95,7 @@ export class OJAPIKeyService {
   async deleteAPIKey(id: string, userId: string, request?: Request) {
     const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
 
-    if (!key) throw new NotFoundError("API key not found");
+    if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
 
     await this.ojApiKeyRepository.softDeleteById(id);
 
@@ -125,7 +125,7 @@ export class OJAPIKeyService {
   ) {
     const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
 
-    if (!key) throw new NotFoundError("API key not found");
+    if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
     if (data.channelId) await this.relayChannelService.assertChannelBusinessSelectableById(data.channelId, userId);
 
     const updated = await this.ojApiKeyRepository.updateById(id, data);

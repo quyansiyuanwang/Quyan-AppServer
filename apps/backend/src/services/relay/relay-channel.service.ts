@@ -283,7 +283,9 @@ export class RelayChannelService {
 
     if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
     if (query.channelType && query.channelTypes?.length)
-      throw new BadRequestError("channelType and channelTypes cannot be used together");
+      throw new BadRequestError("channelType and channelTypes cannot be used together", undefined, {
+        messageKey: "relayChannel.channelTypeConflict",
+      });
     if (query.channelTypes?.length) where.channelType = { in: query.channelTypes };
     else if (query.channelType) where.channelType = query.channelType;
     if (query.submissionStatus === "pending") {
@@ -856,14 +858,18 @@ export class RelayChannelService {
       actorUserId,
       Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
     );
-    if (!canManageOthers) throw new NotFoundError("Relay channel options not found");
+    if (!canManageOthers)
+      throw new NotFoundError("Relay channel options not found", undefined, {
+        messageKey: "relayChannel.optionsNotFound",
+      });
 
     return normalizedTargetUserId;
   }
 
   async getChannel(id: string, actorUserId: string): Promise<RelayChannelDto> {
     const channel = await this.relayChannelRepository.findVisibleById(id);
-    if (!channel) throw new NotFoundError("Relay channel not found");
+    if (!channel)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     await this.assertChannelAccessible(channel, actorUserId);
     return this.toDto(channel);
   }
@@ -879,7 +885,8 @@ export class RelayChannelService {
         actorUserId,
         Permission.RELAY_CHANNEL_POOL_METADATA_READ,
       );
-      if (!canViewPoolMetadata) throw new NotFoundError("Relay channel not found");
+      if (!canViewPoolMetadata)
+        throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     }
     if (channelType !== "automatic-proxy-pool") {
       const snapshot = await this.relayChannelHealthService.getHealth(channel.id);
@@ -984,7 +991,10 @@ export class RelayChannelService {
       actorUserId,
       Permission.RELAY_CHANNEL_POOL_METADATA_READ,
     );
-    if (!canViewPoolMetadata) throw new ForbiddenError("Relay pool metadata access is required");
+    if (!canViewPoolMetadata)
+      throw new ForbiddenError("Relay pool metadata access is required", undefined, {
+        messageKey: "relayChannel.poolMetadataAccessRequired",
+      });
 
     const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listVisible(), actorUserId);
     const pools = channels.filter(
@@ -1003,7 +1013,9 @@ export class RelayChannelService {
   ): Promise<RelayChannelHealthDto> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
     if (channel.channelType !== "standalone")
-      throw new BadRequestError("Health tracking can only be configured for standalone channels");
+      throw new BadRequestError("Health tracking can only be configured for standalone channels", undefined, {
+        messageKey: "relayChannel.healthTrackingStandaloneOnly",
+      });
 
     const routingConfig = (channel.routingConfig as RelayChannelRoutingConfigDto | null | undefined) ?? {};
     const nextConfig: RelayChannelRoutingConfigDto = {
@@ -1036,7 +1048,9 @@ export class RelayChannelService {
   ): Promise<BatchRelayChannelsResultDto> {
     const channels = await Promise.all(data.ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)));
     if (channels.some((channel) => channel.channelType !== "standalone"))
-      throw new BadRequestError("Health tracking can only be configured for standalone channels");
+      throw new BadRequestError("Health tracking can only be configured for standalone channels", undefined, {
+        messageKey: "relayChannel.healthTrackingStandaloneOnly",
+      });
 
     const updated = await this.relayChannelRepository.withTransaction((tx) =>
       Promise.all(
@@ -1076,9 +1090,14 @@ export class RelayChannelService {
   async clearChannelHealth(id: string, actorUserId: string, request?: Request): Promise<void> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
     if (channel.channelType !== "standalone")
-      throw new BadRequestError("Health statistics only exist for standalone channels");
+      throw new BadRequestError("Health statistics only exist for standalone channels", undefined, {
+        messageKey: "relayChannel.healthStatsStandaloneOnly",
+      });
     const cleared = await this.relayChannelHealthService.clearHealth(channel.id);
-    if (!cleared) throw new BadRequestError("Channel health storage is temporarily unavailable");
+    if (!cleared)
+      throw new BadRequestError("Channel health storage is temporarily unavailable", undefined, {
+        messageKey: "relayChannel.healthStorageUnavailable",
+      });
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_UPDATE,
       operationCategory: OperationCategory.RELAY,
@@ -1098,12 +1117,16 @@ export class RelayChannelService {
   ): Promise<BatchRelayChannelsResultDto> {
     const channels = await Promise.all(ids.map((id) => this.assertChannelAccessibleById(id, actorUserId)));
     if (channels.some((channel) => channel.channelType !== "standalone"))
-      throw new BadRequestError("Health statistics only exist for standalone channels");
+      throw new BadRequestError("Health statistics only exist for standalone channels", undefined, {
+        messageKey: "relayChannel.healthStatsStandaloneOnly",
+      });
     const results = await Promise.all(
       channels.map((channel) => this.relayChannelHealthService.clearHealth(channel.id)),
     );
     if (results.some((cleared) => !cleared))
-      throw new BadRequestError("Channel health storage is temporarily unavailable");
+      throw new BadRequestError("Channel health storage is temporarily unavailable", undefined, {
+        messageKey: "relayChannel.healthStorageUnavailable",
+      });
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_UPDATE,
@@ -1120,7 +1143,8 @@ export class RelayChannelService {
 
   async assertChannelAccessibleById(id: string, actorUserId: string): Promise<RelayChannel> {
     const channel = await this.relayChannelRepository.findVisibleById(id);
-    if (!channel) throw new NotFoundError("Relay channel not found");
+    if (!channel)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
 
     await this.assertChannelAccessible(channel, actorUserId);
     return channel;
@@ -1133,7 +1157,11 @@ export class RelayChannelService {
         messageKey: "relay.hiddenChannelPoolOnly",
       });
     if (channel.channelType === "automatic-proxy-pool")
-      throw new BadRequestError("Automatic proxy pools can only be selected through token automatic routing mode");
+      throw new BadRequestError(
+        "Automatic proxy pools can only be selected through token automatic routing mode",
+        undefined,
+        { messageKey: "relayChannel.automaticPoolTokenModeOnly" },
+      );
 
     return channel;
   }
@@ -1241,13 +1269,18 @@ export class RelayChannelService {
       const duplicateInfo = duplicates.map((d) => `"${d.modelName}" (ID: ${d.modelId})`).join(", ");
       throw new BadRequestError(
         `allowedModels contains models with duplicate model IDs: ${duplicateInfo}. Each model ID should only appear once.`,
+        undefined,
+        { messageKey: "relayChannel.allowedModelsDuplicate" },
       );
     }
   }
 
   private async assertVisibleNameAvailable(name: string, excludeId?: string): Promise<void> {
     const existing = await this.relayChannelRepository.findVisibleByName(name);
-    if (existing && existing.id !== excludeId) throw new ConflictError(`Relay channel name '${name}' already exists`);
+    if (existing && existing.id !== excludeId)
+      throw new ConflictError(`Relay channel name '${name}' already exists`, undefined, {
+        messageKey: "relayChannel.nameExists",
+      });
   }
 
   private buildCopyName(baseName: string, reservedNames: Set<string>): string {
@@ -1262,7 +1295,9 @@ export class RelayChannelService {
       }
     }
 
-    throw new BadRequestError("Unable to generate a unique relay channel name");
+    throw new BadRequestError("Unable to generate a unique relay channel name", undefined, {
+      messageKey: "relayChannel.nameGenerationFailed",
+    });
   }
 
   private async getVisibleNameSet(tx?: Parameters<RelayChannelStore["listVisible"]>[0]): Promise<Set<string>> {
@@ -1379,7 +1414,8 @@ export class RelayChannelService {
 
   private async assertChannelAccessible(channel: RelayChannel, actorUserId: string): Promise<void> {
     const canAccess = await this.canUserAccessChannel(channel, actorUserId);
-    if (!canAccess) throw new NotFoundError("Relay channel not found");
+    if (!canAccess)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
   }
 
   private async getOrderedChannelsByIds(ids: string[], includeDisabled: boolean): Promise<RelayChannel[]> {
@@ -1388,14 +1424,20 @@ export class RelayChannelService {
       ? await this.relayChannelRepository.listVisibleByIds(uniqueIds)
       : await this.relayChannelRepository.listActiveByIds(uniqueIds);
 
-    if (channels.length !== uniqueIds.length) throw new NotFoundError("One or more relay channels were not found");
+    if (channels.length !== uniqueIds.length)
+      throw new NotFoundError("One or more relay channels were not found", undefined, {
+        messageKey: "relayChannel.batchNotFound",
+      });
 
     const channelMap = new Map(channels.map((channel) => [channel.id, channel]));
     return uniqueIds.map((id) => channelMap.get(id)!).filter(Boolean);
   }
 
   private normalizeAllowedFormats(value: string): { normalized: string; formats: string[] } {
-    if (value === "both" || value === "all") throw new BadRequestError("allowedFormats must list explicit formats");
+    if (value === "both" || value === "all")
+      throw new BadRequestError("allowedFormats must list explicit formats", undefined, {
+        messageKey: "relayChannel.formatsExplicitRequired",
+      });
 
     const formats = value
       .split(",")
@@ -1403,13 +1445,18 @@ export class RelayChannelService {
       .map((format) => (format === "openai" ? "openai-chat-completions" : format))
       .filter(Boolean);
 
-    if (formats.length === 0) throw new BadRequestError("allowedFormats cannot be empty");
+    if (formats.length === 0)
+      throw new BadRequestError("allowedFormats cannot be empty", undefined, {
+        messageKey: "relayChannel.formatsRequired",
+      });
 
     const validFormats = new Set<string>(RELAY_REQUEST_FORMATS);
     for (const format of formats)
       if (!validFormats.has(format))
         throw new BadRequestError(
           `Invalid format '${format}' in allowedFormats. Must be 'openai-chat-completions', 'openai-responses', 'anthropic', or 'gemini'`,
+          undefined,
+          { messageKey: "relayChannel.formatInvalid" },
         );
 
     return { normalized: [...new Set(formats)].join(","), formats: [...new Set(formats)] };
@@ -1462,15 +1509,23 @@ export class RelayChannelService {
     if (channelType === "standalone") {
       const mode = normalized.healthTrackingMode ?? "automatic";
       if (mode !== "automatic" && mode !== "manual" && mode !== "disabled")
-        throw new BadRequestError(`Invalid healthTrackingMode '${String(mode)}'`);
+        throw new BadRequestError(`Invalid healthTrackingMode '${String(mode)}'`, undefined, {
+          messageKey: "relayChannel.healthTrackingModeInvalid",
+        });
       normalized.healthTrackingMode = mode;
       if (mode === "manual") {
         const availability = Number(normalized.manualAvailability);
         const latencyMs = Number(normalized.manualLatencyMs);
         if (!Number.isFinite(availability) || availability < 0 || availability > 1)
-          throw new BadRequestError("manualAvailability must be between 0 and 1 for manual health tracking");
+          throw new BadRequestError(
+            "manualAvailability must be between 0 and 1 for manual health tracking",
+            undefined,
+            { messageKey: "relayChannel.manualAvailabilityRange" },
+          );
         if (!Number.isFinite(latencyMs) || latencyMs < 0)
-          throw new BadRequestError("manualLatencyMs must be >= 0 for manual health tracking");
+          throw new BadRequestError("manualLatencyMs must be >= 0 for manual health tracking", undefined, {
+            messageKey: "relayChannel.manualLatencyNonNegative",
+          });
         normalized.manualAvailability = availability;
         normalized.manualLatencyMs = Math.floor(latencyMs);
       } else {
@@ -1500,7 +1555,9 @@ export class RelayChannelService {
     const rawAllowedModelsMode =
       typeof normalized.allowedModelsMode === "string" ? normalized.allowedModelsMode.trim() : undefined;
     if (rawAllowedModelsMode && !POOLED_ALLOWED_MODE_VALUES.has(rawAllowedModelsMode as "all" | "manual" | "auto"))
-      throw new BadRequestError(`Invalid allowedModelsMode '${rawAllowedModelsMode}'`);
+      throw new BadRequestError(`Invalid allowedModelsMode '${rawAllowedModelsMode}'`, undefined, {
+        messageKey: "relayChannel.allowedModelsModeInvalid",
+      });
 
     if (channelType !== "automatic-proxy-pool") delete normalized.rankingMode;
     else normalized.rankingMode = normalized.rankingMode ?? DEFAULT_AUTOMATIC_POOL_RANKING_MODE;
@@ -1747,7 +1804,10 @@ export class RelayChannelService {
     existing?: RelayChannel,
   ): Promise<ValidatedRelayChannelData> {
     const name = (data.name !== undefined ? data.name : existing?.name)?.trim();
-    if (!name) throw new BadRequestError(existing ? "Channel name cannot be empty" : "Channel name is required");
+    if (!name)
+      throw new BadRequestError(existing ? "Channel name cannot be empty" : "Channel name is required", undefined, {
+        messageKey: existing ? "relayChannel.nameCannotBeEmpty" : "relayChannel.nameRequired",
+      });
 
     const channelType = (data.channelType ??
       (existing?.channelType as RelayChannelType | undefined) ??
@@ -1755,7 +1815,10 @@ export class RelayChannelService {
     // A logical pooled channel owns the customer-facing price. Its physical members only provide
     // upstream execution and balance signals.
     const multiplier = data.multiplier !== undefined ? data.multiplier : Number(existing?.multiplier ?? 1);
-    if (multiplier < 0) throw new BadRequestError("multiplier must be >= 0");
+    if (multiplier < 0)
+      throw new BadRequestError("multiplier must be >= 0", undefined, {
+        messageKey: "relayChannel.multiplierNonNegative",
+      });
     const routingStrategy = (data.routingStrategy ??
       (existing?.routingStrategy as RelayChannelRoutingStrategy | undefined) ??
       DEFAULT_ROUTING_STRATEGY) as RelayChannelRoutingStrategy;
@@ -1787,7 +1850,9 @@ export class RelayChannelService {
     const pooledMemberEnabled =
       data.pooledMemberEnabled !== undefined ? data.pooledMemberEnabled : existing?.pooledMemberEnabled !== false;
     if (!Number.isFinite(pooledWeight) || pooledWeight <= 0)
-      throw new BadRequestError("pooledWeight must be greater than zero");
+      throw new BadRequestError("pooledWeight must be greater than zero", undefined, {
+        messageKey: "relayChannel.pooledWeightPositive",
+      });
     if (channelType === "pooled-member" && !pooledParentId)
       throw new BadRequestError("pooled-member channels require a pooled parent", undefined, {
         messageKey: "relay.pooledParentRequired",
@@ -1804,7 +1869,11 @@ export class RelayChannelService {
       (data.routingConfig?.rankingMode ||
         Object.prototype.hasOwnProperty.call(data.routingConfig ?? {}, "dynamicMemberRankingEnabled"))
     )
-      throw new BadRequestError("automatic pool ranking settings can only be configured for automatic proxy pools");
+      throw new BadRequestError(
+        "automatic pool ranking settings can only be configured for automatic proxy pools",
+        undefined,
+        { messageKey: "relayChannel.automaticPoolRankingOnly" },
+      );
 
     const openaiUpstreamUrl =
       data.openaiUpstreamUrl !== undefined ? data.openaiUpstreamUrl : existing?.openaiUpstreamUrl || undefined;
@@ -1822,7 +1891,9 @@ export class RelayChannelService {
       data.geminiUpstreamApiKey !== undefined ? data.geminiUpstreamApiKey : existing?.geminiUpstreamApiKey || undefined;
     const useProxy = data.useProxy !== undefined ? data.useProxy : existing?.useProxy === true;
     if (data.allowedFormats === null || data.allowedFormats === "all" || data.allowedFormats === "both")
-      throw new BadRequestError("allowedFormats must list explicit formats");
+      throw new BadRequestError("allowedFormats must list explicit formats", undefined, {
+        messageKey: "relayChannel.formatsExplicitRequired",
+      });
     const allowedFormatsInput = isPoolType(channelType)
       ? "openai-chat-completions,anthropic,gemini"
       : data.allowedFormats !== undefined
@@ -1857,34 +1928,65 @@ export class RelayChannelService {
       try {
         parsedAllowedModels = JSON.parse(allowedModels);
       } catch {
-        throw new BadRequestError("allowedModels must be a valid JSON array");
+        throw new BadRequestError("allowedModels must be a valid JSON array", undefined, {
+          messageKey: "relayChannel.allowedModelsInvalidJson",
+        });
       }
 
-      if (!Array.isArray(parsedAllowedModels)) throw new BadRequestError("allowedModels must be a valid JSON array");
+      if (!Array.isArray(parsedAllowedModels))
+        throw new BadRequestError("allowedModels must be a valid JSON array", undefined, {
+          messageKey: "relayChannel.allowedModelsInvalidJson",
+        });
       await this.validateNoDuplicateModelIds(parsedAllowedModels);
     }
 
     if (isUpstreamChannelType(channelType)) {
       if (!openaiUpstreamUrl && !anthropicUpstreamUrl && !geminiUpstreamUrl)
-        throw new BadRequestError("At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured");
+        throw new BadRequestError(
+          "At least one upstream URL (OpenAI, Anthropic, or Gemini) must be configured",
+          undefined,
+          { messageKey: "relayChannel.upstreamRequired" },
+        );
 
       if (formats.some((format) => format.startsWith("openai-"))) {
         if (!openaiUpstreamUrl)
-          throw new BadRequestError("OpenAI upstream URL is required when allowedFormats includes an OpenAI format");
+          throw new BadRequestError(
+            "OpenAI upstream URL is required when allowedFormats includes an OpenAI format",
+            undefined,
+            { messageKey: "relayChannel.openaiUpstreamUrlRequired" },
+          );
         if (!openaiUpstreamApiKey)
-          throw new BadRequestError("OpenAI API key is required when allowedFormats includes an OpenAI format");
+          throw new BadRequestError(
+            "OpenAI API key is required when allowedFormats includes an OpenAI format",
+            undefined,
+            { messageKey: "relayChannel.openaiApiKeyRequired" },
+          );
       }
       if (formats.includes("anthropic")) {
         if (!anthropicUpstreamUrl)
-          throw new BadRequestError("Anthropic upstream URL is required when allowedFormats includes 'anthropic'");
+          throw new BadRequestError(
+            "Anthropic upstream URL is required when allowedFormats includes 'anthropic'",
+            undefined,
+            { messageKey: "relayChannel.anthropicUpstreamUrlRequired" },
+          );
         if (!anthropicUpstreamApiKey)
-          throw new BadRequestError("Anthropic API key is required when allowedFormats includes 'anthropic'");
+          throw new BadRequestError(
+            "Anthropic API key is required when allowedFormats includes 'anthropic'",
+            undefined,
+            { messageKey: "relayChannel.anthropicApiKeyRequired" },
+          );
       }
       if (formats.includes("gemini")) {
         if (!geminiUpstreamUrl)
-          throw new BadRequestError("Gemini upstream URL is required when allowedFormats includes 'gemini'");
+          throw new BadRequestError(
+            "Gemini upstream URL is required when allowedFormats includes 'gemini'",
+            undefined,
+            { messageKey: "relayChannel.geminiUpstreamUrlRequired" },
+          );
         if (!geminiUpstreamApiKey)
-          throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'");
+          throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'", undefined, {
+            messageKey: "relayChannel.geminiApiKeyRequired",
+          });
       }
     }
 
@@ -1966,12 +2068,21 @@ export class RelayChannelService {
       providers.map(async (provider) => {
         const username = provider.username?.trim();
         const legacyUserId = provider.userId?.trim();
-        if (!username && !legacyUserId) throw new BadRequestError("Channel provider username is required");
+        if (!username && !legacyUserId)
+          throw new BadRequestError("Channel provider username is required", undefined, {
+            messageKey: "relayChannel.providerUsernameRequired",
+          });
         const user = username
           ? await this.userRepository.findByUsername(username)
           : await this.userRepository.findById(legacyUserId!);
-        if (!user) throw new BadRequestError("Channel provider username is unavailable");
-        if (user.status !== 1) throw new BadRequestError("Channel provider username is unavailable");
+        if (!user)
+          throw new BadRequestError("Channel provider username is unavailable", undefined, {
+            messageKey: "relayChannel.providerUsernameUnavailable",
+          });
+        if (user.status !== 1)
+          throw new BadRequestError("Channel provider username is unavailable", undefined, {
+            messageKey: "relayChannel.providerUsernameUnavailable",
+          });
         const nextSettlementAt =
           provider.settlementMode === "interval"
             ? new Date(now.getTime() + Number(provider.settlementIntervalDays) * 24 * 60 * 60 * 1000)
@@ -1983,7 +2094,9 @@ export class RelayChannelService {
       }),
     );
     if (new Set(rows.map((provider) => provider.userId)).size !== rows.length)
-      throw new BadRequestError("Channel providers must be unique");
+      throw new BadRequestError("Channel providers must be unique", undefined, {
+        messageKey: "relayChannel.providersUnique",
+      });
     return rows;
   }
 
@@ -2179,7 +2292,8 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     if (existing.submittedByUserId !== actorUserId)
       throw new ForbiddenError("Only the original submitter may update this channel service", undefined, {
         messageKey: "relay.providerServiceOwnershipRequired",
@@ -2224,10 +2338,16 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
-    if (!existing.submittedByUserId) throw new BadRequestError("Only submitted channels may be reviewed");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
+    if (!existing.submittedByUserId)
+      throw new BadRequestError("Only submitted channels may be reviewed", undefined, {
+        messageKey: "relayChannel.reviewSubmittedOnly",
+      });
     if (await this.changeRequestRepository.findPendingByChannelId(id))
-      throw new ConflictError("A pending change request must be reviewed before the channel submission");
+      throw new ConflictError("A pending change request must be reviewed before the channel submission", undefined, {
+        messageKey: "relayChannel.pendingChangeRequestBlocksReview",
+      });
     const reason = body.reason?.trim();
     if (body.action === "reject" && !reason) {
       throw new BadRequestError("审核说明不能为空", undefined, { messageKey: "relay.reviewReasonRequired" });
@@ -2295,7 +2415,8 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     const channel = await this.relayChannelRepository.withTransaction(async (tx) => {
       const updated = await this.relayChannelRepository.updateById(
         id,
@@ -2334,11 +2455,14 @@ export class RelayChannelService {
     let channelUseProxy = false;
     if (data.channelId) {
       const channel = await this.relayChannelRepository.findVisibleById(data.channelId);
-      if (!channel) throw new NotFoundError("Relay channel not found");
+      if (!channel)
+        throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
       const canReview = await this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_REVIEW);
       const canUpdate = await this.permissionService.hasPermission(actorUserId, Permission.RELAY_CHANNEL_UPDATE);
       if (!canReview && !canUpdate && channel.submittedByUserId !== actorUserId) {
-        throw new ForbiddenError("无权探测此渠道的上游模型");
+        throw new ForbiddenError("无权探测此渠道的上游模型", undefined, {
+          messageKey: "relayChannel.probeUpstreamModelsForbidden",
+        });
       }
       if (data.format === "openai") {
         upstreamUrl = channel.openaiUpstreamUrl || undefined;
@@ -2352,7 +2476,10 @@ export class RelayChannelService {
       }
       channelUseProxy = channel.useProxy === true;
     }
-    if (!upstreamUrl || !apiKey) throw new BadRequestError("渠道缺少对应格式的上游配置");
+    if (!upstreamUrl || !apiKey)
+      throw new BadRequestError("渠道缺少对应格式的上游配置", undefined, {
+        messageKey: "relayChannel.upstreamConfigMissingForFormat",
+      });
     const safe = await assertSafeOutboundUrl(upstreamUrl);
     const relayProxyConfig = await this.configService.getRelayProxyConfig();
     const probeAgent =
@@ -2409,15 +2536,22 @@ export class RelayChannelService {
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
-        throw new BadRequestError(`上游模型列表请求失败${status ? `（HTTP ${status}）` : ""}`);
+        throw new BadRequestError(`上游模型列表请求失败${status ? `（HTTP ${status}）` : ""}`, undefined, {
+          messageKey: "relayChannel.upstreamModelListFailed",
+        });
       }
-      throw new BadRequestError("上游模型列表请求失败");
+      throw new BadRequestError("上游模型列表请求失败", undefined, {
+        messageKey: "relayChannel.upstreamModelListFailed",
+      });
     }
   }
 
   private getChangeRequestEncryptionKey(): Buffer {
     const secret = env.relay.channelChangeRequest.masterKey;
-    if (secret.length < 64) throw new BadRequestError("渠道修改申请加密密钥未配置");
+    if (secret.length < 64)
+      throw new BadRequestError("渠道修改申请加密密钥未配置", undefined, {
+        messageKey: "relayChannel.changeRequestKeyNotConfigured",
+      });
     return createHash("sha256").update(secret).digest();
   }
 
@@ -2458,7 +2592,9 @@ export class RelayChannelService {
         // Older change requests were encrypted with the channel-probe key.
       }
     }
-    throw new BadRequestError("渠道修改申请凭据无法解密");
+    throw new BadRequestError("渠道修改申请凭据无法解密", undefined, {
+      messageKey: "relayChannel.changeRequestCredentialDecryptFailed",
+    });
   }
 
   private toChangeRequestDto(row: any): RelayChannelChangeRequestDto {
@@ -2498,12 +2634,17 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<RelayChannelChangeRequestDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     if (existing.submittedByUserId !== actorUserId)
-      throw new ForbiddenError("Only the original submitter may request changes");
+      throw new ForbiddenError("Only the original submitter may request changes", undefined, {
+        messageKey: "relayChannel.changeRequestSubmitterOnly",
+      });
     const submissionStatus = existing.submissionStatus as RelayChannelSubmissionStatus;
     if (!(["pending", "approved", "rejected"] as RelayChannelSubmissionStatus[]).includes(submissionStatus))
-      throw new BadRequestError("Only pending, approved, or rejected channels may accept change requests");
+      throw new BadRequestError("Only pending, approved, or rejected channels may accept change requests", undefined, {
+        messageKey: "relayChannel.changeRequestStateInvalid",
+      });
     const pendingChangeRequest = await this.changeRequestRepository.findPendingByChannelId(id);
     // A newer submission replaces the previous pending snapshot atomically.
 
@@ -2602,14 +2743,18 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<RelayChannelChangeRequestDto> {
     const row = await this.changeRequestRepository.findById(changeRequestId);
-    if (!row || row.status !== 1) throw new NotFoundError("Relay channel change request not found");
+    if (!row || row.status !== 1)
+      throw new NotFoundError("Relay channel change request not found", undefined, {
+        messageKey: "relayChannel.changeRequestNotFound",
+      });
     if (row.reviewStatus !== "pending") return this.toChangeRequestDto(row);
     const reason = body.reason?.trim();
     if (body.action === "reject" && !reason) {
       throw new BadRequestError("审核说明不能为空", undefined, { messageKey: "relay.reviewReasonRequired" });
     }
     const channel = await this.relayChannelRepository.findVisibleById(row.relayChannelId);
-    if (!channel) throw new NotFoundError("Relay channel not found");
+    if (!channel)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     const snapshot = row.configSnapshot as unknown as RelayChannelChangeRequestSnapshot;
     const previousSubmissionStatus =
       snapshot.previousSubmissionStatus ?? (channel.submissionStatus as RelayChannelSubmissionStatus);
@@ -2694,7 +2839,8 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     const validated = await this.buildValidatedChannelData(data, existing);
     await this.assertVisibleNameAvailable(validated.name, existing.id);
 
@@ -2706,6 +2852,8 @@ export class RelayChannelService {
       if (referenceCount > 0)
         throw new BadRequestError(
           "Cannot hide a relay channel while it is directly assigned to relay tokens, OJ API keys, or monthly passes",
+          undefined,
+          { messageKey: "relayChannel.hideBlockedByAssignments" },
         );
     }
 
@@ -2791,7 +2939,9 @@ export class RelayChannelService {
     for (const channel of channels) {
       try {
         if (migration && !this.channelAllowsModelId(channel, sourceModelId!, sourceModelNames)) {
-          throw new BadRequestError(`Channel does not allow request model '${sourceModelId}'`);
+          throw new BadRequestError(`Channel does not allow request model '${sourceModelId}'`, undefined, {
+            messageKey: "relayChannel.requestModelNotAllowed",
+          });
         }
 
         const patch: UpdateRelayChannelRequest = { ...body.patch };
@@ -2811,6 +2961,8 @@ export class RelayChannelService {
           if (referenceCount > 0) {
             throw new BadRequestError(
               "Cannot hide a relay channel while it is directly assigned to relay tokens, OJ API keys, or monthly passes",
+              undefined,
+              { messageKey: "relayChannel.hideBlockedByAssignments" },
             );
           }
         }
@@ -2881,7 +3033,8 @@ export class RelayChannelService {
     request?: Request,
   ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
 
     const reservedNames = await this.getVisibleNameSet();
     const duplicatedName = data.name?.trim() || this.buildCopyName(existing.name, reservedNames);
@@ -3030,10 +3183,16 @@ export class RelayChannelService {
       const sourceIds = body.channels.map((item) => item.id).filter((id): id is string => Boolean(id));
       const hasSourceIds = sourceIds.length > 0;
       if (hasSourceIds && sourceIds.length !== body.channels.length) {
-        throw new BadRequestError("Imported relay channels must either all include source IDs or all omit them");
+        throw new BadRequestError(
+          "Imported relay channels must either all include source IDs or all omit them",
+          undefined,
+          { messageKey: "relayChannel.importSourceIdsConsistent" },
+        );
       }
       if (new Set(sourceIds).size !== sourceIds.length) {
-        throw new BadRequestError("Imported relay channel source IDs must be unique");
+        throw new BadRequestError("Imported relay channel source IDs must be unique", undefined, {
+          messageKey: "relayChannel.importSourceIdsUnique",
+        });
       }
 
       const reservedNames = await this.getVisibleNameSet(tx);
@@ -3123,9 +3282,11 @@ export class RelayChannelService {
 
   async toggleChannelStatus(id: string, actorUserId: string, request?: Request): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     const currentStatus = existing.status as RelayChannelStatus;
-    if (!VISIBLE_RELAY_CHANNEL_STATUSES.includes(currentStatus)) throw new NotFoundError("Relay channel not found");
+    if (!VISIBLE_RELAY_CHANNEL_STATUSES.includes(currentStatus))
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
 
     const nextStatus =
       currentStatus === RELAY_CHANNEL_STATUS.ENABLED ? RELAY_CHANNEL_STATUS.DISABLED : RELAY_CHANNEL_STATUS.ENABLED;
@@ -3154,7 +3315,8 @@ export class RelayChannelService {
 
   async deleteChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
 
     await this.relayChannelRepository.softDeleteAndUnassignTokens(id);
 
@@ -3172,13 +3334,18 @@ export class RelayChannelService {
 
   async deleteSubmittedChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
-    if (!existing) throw new NotFoundError("Relay channel not found");
+    if (!existing)
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
     if (existing.submittedByUserId !== actorUserId)
-      throw new ForbiddenError("Only the original submitter may delete this channel");
+      throw new ForbiddenError("Only the original submitter may delete this channel", undefined, {
+        messageKey: "relayChannel.deleteSubmitterOnly",
+      });
 
     const submissionStatus = existing.submissionStatus as RelayChannelSubmissionStatus;
     if (!(["pending", "rejected", "offboarded"] as RelayChannelSubmissionStatus[]).includes(submissionStatus))
-      throw new BadRequestError("Only pending, rejected, or offboarded submitted channels may be deleted");
+      throw new BadRequestError("Only pending, rejected, or offboarded submitted channels may be deleted", undefined, {
+        messageKey: "relayChannel.deleteStateInvalid",
+      });
 
     await this.relayChannelRepository.softDeleteAndUnassignTokens(id);
 

@@ -3,7 +3,8 @@ import { JWTAccessIns, JWTPayload } from "../../util/auth";
 import { createHash } from "crypto";
 import { Response, NextFunction } from "express";
 import { CustomCode } from "@/constant/custom-code";
-import { UnauthorizedError, ForbiddenError } from "@/util/errors";
+import { ApiError, UnauthorizedError, ForbiddenError } from "@/util/errors";
+import { sendApplicationError } from "@/util/response-renderer";
 import type { TypedRequest } from "@/types/express";
 import { isLocalRequest } from "./local_auth";
 import { ReURLService } from "@/services/system/reurl.service";
@@ -17,7 +18,6 @@ import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { extractRelayToken } from "@/util/relay";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { buildForceOfflineAuthSessionKey, extractAuthSessionId } from "@/util/auth-session";
-import { DEFAULT_BACKEND_LOCALE, translateKnownMessage } from "@/locales";
 import { OAuthAuthorizationRepository } from "@/store/oauth/oauth-authorization.repository";
 import { Permission } from "@/constant/permission";
 import { getOAuthScopeAliases } from "@quyan/shared";
@@ -29,9 +29,6 @@ const redisService = RedisService.getInstance();
 const oauthAuthorizationRepository = OAuthAuthorizationRepository.getInstance();
 
 const getForceOfflineUserKey = (userId: string) => `user:force_offline:${userId}`;
-
-const localize = (req: TypedRequest, message: string) =>
-  translateKnownMessage(message, req.locale ?? DEFAULT_BACKEND_LOCALE);
 
 const hashOpaqueToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -57,9 +54,14 @@ async function attachAuthContext(
 
   if (payload.roleSessionId) {
     const session = await ramRoleRepository.findActiveRoleSession(payload.roleSessionId);
-    if (!session) throw new UnauthorizedError("角色会话不存在或已过期", CustomCode.AUTH_FAILED);
+    if (!session)
+      throw new UnauthorizedError("角色会话不存在或已过期", CustomCode.AUTH_FAILED, {
+        messageKey: "ram.roleSessionNotFound",
+      });
     if (session.subjectUserId !== principalUserId || session.roleId !== payload.assumedRoleId)
-      throw new UnauthorizedError("角色会话与令牌不匹配", CustomCode.AUTH_FAILED);
+      throw new UnauthorizedError("角色会话与令牌不匹配", CustomCode.AUTH_FAILED, {
+        messageKey: "auth.roleSessionMismatch",
+      });
   }
 
   const enrichedPayload: JWTPayload = {
@@ -92,31 +94,43 @@ async function authenticateOAuthAccessToken(
     logger.warn(
       `OAuth access token is not allowed on unscoped endpoint: ${request.method} ${request.path} from ${request.ip}`,
     );
-    throw new UnauthorizedError("OAuth access token is not allowed for this endpoint");
+    throw new UnauthorizedError("OAuth access token is not allowed for this endpoint", undefined, {
+      messageKey: "auth.oauthTokenNotAllowed",
+    });
   }
 
   const accessToken = await oauthAuthorizationRepository.findAccessTokenByHash(hashOpaqueToken(token));
   if (!accessToken) {
     logger.warn(`OAuth access token not found: ${request.method} ${request.path} from ${request.ip}`);
-    throw new UnauthorizedError("Unauthorized: Invalid OAuth access token");
+    throw new UnauthorizedError("Unauthorized: Invalid OAuth access token", undefined, {
+      messageKey: "auth.oauthTokenInvalid",
+    });
   }
 
-  if (accessToken.revokedAt) throw new UnauthorizedError("OAuth access token has been revoked");
-  if (accessToken.expiresAt.getTime() <= Date.now()) throw new UnauthorizedError("OAuth access token has expired");
+  if (accessToken.revokedAt)
+    throw new UnauthorizedError("OAuth access token has been revoked", undefined, {
+      messageKey: "auth.oauthTokenRevoked",
+    });
+  if (accessToken.expiresAt.getTime() <= Date.now())
+    throw new UnauthorizedError("OAuth access token has expired", undefined, { messageKey: "auth.oauthTokenExpired" });
 
   const tokenScopes = readJsonStringArray(accessToken.scopes);
   const tokenScopeSet = new Set(tokenScopes);
   const missingScopes = requiredScopes.filter(
     (scope) => !getOAuthScopeAliases(scope).some((alias) => tokenScopeSet.has(alias)),
   );
-  if (missingScopes.length > 0) throw new ForbiddenError(`Insufficient OAuth scope: ${missingScopes.join(", ")}`);
+  if (missingScopes.length > 0)
+    throw new ForbiddenError(`Insufficient OAuth scope: ${missingScopes.join(", ")}`, undefined, {
+      messageKey: "auth.insufficientOAuthScope",
+      messageParams: { scopes: missingScopes.join(", ") },
+    });
 
   const user = await userRepository.findById(accessToken.userId);
   if (!user) {
     logger.warn(
       `User not found for OAuth access token: userId=${accessToken.userId}, ${request.method} ${request.path} from ${request.ip}`,
     );
-    throw new UnauthorizedError("用户不存在");
+    throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
   }
 
   validateAccountStatus(user.status, accessToken.userId, `OAuth ${request.method} ${request.path}`);
@@ -168,9 +182,16 @@ export async function authMiddleware(req: TypedRequest, res: Response, next: Nex
     const realToken = await ReURLService.getInstance().getToken(reurlId);
     if (!realToken) {
       logger.warn(`ReURL expired or invalid: ${req.method} ${req.path} from ${req.ip}`);
-      return res
-        .status(HttpStatusCode.Unauthorized)
-        .json({ code: CustomCode.AUTH_FAILED, message: localize(req, "ReURL 已过期或无效") });
+      sendApplicationError(
+        res,
+        {
+          statusCode: HttpStatusCode.Unauthorized,
+          code: CustomCode.AUTH_FAILED,
+          descriptor: { key: "auth.reurlExpired" },
+        },
+        req,
+      );
+      return;
     }
 
     token = realToken;
@@ -178,27 +199,48 @@ export async function authMiddleware(req: TypedRequest, res: Response, next: Nex
 
   if (!token) {
     logger.warn(`No token provided: ${req.method} ${req.path} from ${req.ip}`);
-    return res
-      .status(HttpStatusCode.Unauthorized)
-      .json({ code: CustomCode.AUTH_FAILED, message: localize(req, "Unauthorized: No token provided") });
+    sendApplicationError(
+      res,
+      {
+        statusCode: HttpStatusCode.Unauthorized,
+        code: CustomCode.AUTH_FAILED,
+        descriptor: { key: "auth.missingToken" },
+      },
+      req,
+    );
+    return;
   }
 
   try {
     const payload = await JWTAccessIns.verifyToken(token);
     if (!payload) {
       logger.warn(`Invalid token: ${req.method} ${req.path} from ${req.ip}`);
-      return res
-        .status(HttpStatusCode.Unauthorized)
-        .json({ code: CustomCode.AUTH_FAILED, message: localize(req, "Unauthorized: Invalid token") });
+      sendApplicationError(
+        res,
+        {
+          statusCode: HttpStatusCode.Unauthorized,
+          code: CustomCode.AUTH_FAILED,
+          descriptor: { key: "errors.invalidToken" },
+        },
+        req,
+      );
+      return;
     }
 
     // 验证用户的updatedAt是否与token中的一致
     const user = await userRepository.findById(payload.userId);
     if (!user) {
       logger.warn(`User not found: userId=${payload.userId}, ${req.method} ${req.path} from ${req.ip}`);
-      return res
-        .status(HttpStatusCode.Unauthorized)
-        .json({ code: CustomCode.AUTH_FAILED, message: localize(req, "用户不存在") });
+      sendApplicationError(
+        res,
+        {
+          statusCode: HttpStatusCode.Unauthorized,
+          code: CustomCode.AUTH_FAILED,
+          descriptor: { key: "user.notFound" },
+        },
+        req,
+      );
+      return;
     }
 
     // 检查账号状态（从 token 中的 status 字段，如果没有则从数据库查询）
@@ -206,31 +248,64 @@ export async function authMiddleware(req: TypedRequest, res: Response, next: Nex
     try {
       validateAccountStatus(userStatus, payload.userId, `${req.method} ${req.path}`);
     } catch (error) {
-      if (error instanceof ForbiddenError)
-        return res
-          .status(HttpStatusCode.Forbidden)
-          .json({ code: error.code || CustomCode.ACCOUNT_DISABLED, message: localize(req, error.message) });
+      // 账户状态错误在 `validateAccountStatus` 内部已携带描述符；此处只按状态码分流，不再自行翻译
+      const descriptor =
+        error instanceof ApiError && error.messageKey
+          ? { key: error.messageKey, params: error.messageParams }
+          : undefined;
+      const message = error instanceof Error ? error.message : undefined;
 
-      return res
-        .status(HttpStatusCode.Unauthorized)
-        .json({ code: CustomCode.AUTH_FAILED, message: localize(req, error.message) });
+      if (error instanceof ForbiddenError) {
+        sendApplicationError(
+          res,
+          {
+            statusCode: HttpStatusCode.Forbidden,
+            code: error.code || CustomCode.ACCOUNT_DISABLED,
+            descriptor,
+            message,
+          },
+          req,
+        );
+        return;
+      }
+
+      sendApplicationError(
+        res,
+        { statusCode: HttpStatusCode.Unauthorized, code: CustomCode.AUTH_FAILED, descriptor, message },
+        req,
+      );
+      return;
     }
 
     // 检查token中是否包含updatedAt字段（兼容旧token）
     if (!payload.updatedAt) {
       logger.warn(`Old token version: userId=${payload.userId}, ${req.method} ${req.path} from ${req.ip}`);
-      return res
-        .status(HttpStatusCode.Unauthorized)
-        .json({ code: CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, message: localize(req, "Token版本过旧，请重新登录") });
+      sendApplicationError(
+        res,
+        {
+          statusCode: HttpStatusCode.Unauthorized,
+          code: CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE,
+          descriptor: { key: "auth.oldTokenVersion" },
+        },
+        req,
+      );
+      return;
     }
 
     const currentUpdatedAt = user.updateTime.toISOString();
     const forcedOffline = await redisService.get(getForceOfflineUserKey(payload.userId));
     if (forcedOffline) {
       logger.warn(`User force-offlined: userId=${payload.userId}, ${req.method} ${req.path} from ${req.ip}`);
-      return res
-        .status(HttpStatusCode.Unauthorized)
-        .json({ code: CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, message: localize(req, "用户已被强制下线，请重新登录") });
+      sendApplicationError(
+        res,
+        {
+          statusCode: HttpStatusCode.Unauthorized,
+          code: CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE,
+          descriptor: { key: "auth.forcedOffline" },
+        },
+        req,
+      );
+      return;
     }
 
     const authSessionId = extractAuthSessionId(req);
@@ -240,18 +315,31 @@ export async function authMiddleware(req: TypedRequest, res: Response, next: Nex
         logger.warn(
           `Session force-offlined: userId=${payload.userId}, session=${authSessionId}, ${req.method} ${req.path} from ${req.ip}`,
         );
-        return res.status(HttpStatusCode.Unauthorized).json({
-          code: CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE,
-          message: localize(req, "当前会话已被强制结束，请重新登录"),
-        });
+        sendApplicationError(
+          res,
+          {
+            statusCode: HttpStatusCode.Unauthorized,
+            code: CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE,
+            descriptor: { key: "auth.sessionForcedEnded" },
+          },
+          req,
+        );
+        return;
       }
     }
 
     if (payload.updatedAt !== currentUpdatedAt) {
       logger.warn(`User info updated: userId=${payload.userId}, ${req.method} ${req.path} from ${req.ip}`);
-      return res
-        .status(HttpStatusCode.Unauthorized)
-        .json({ code: CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, message: localize(req, "用户信息已更新，请重新登录") });
+      sendApplicationError(
+        res,
+        {
+          statusCode: HttpStatusCode.Unauthorized,
+          code: CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE,
+          descriptor: { key: "errors.tokenExpiredDueToUpdate" },
+        },
+        req,
+      );
+      return;
     }
 
     await attachAuthContext(req, payload, user);
@@ -259,9 +347,16 @@ export async function authMiddleware(req: TypedRequest, res: Response, next: Nex
   } catch (err) {
     const message = err instanceof Error ? err.message : "Invalid token";
     logger.warn(`Token verification failed: ${message}, ${req.method} ${req.path} from ${req.ip}`);
-    return res
-      .status(HttpStatusCode.Unauthorized)
-      .json({ code: CustomCode.AUTH_FAILED, message: localize(req, `Unauthorized: ${message}`) });
+    // 底层校验器的原文只进日志：对用户返回安全的通用登录态提示
+    sendApplicationError(
+      res,
+      {
+        statusCode: HttpStatusCode.Unauthorized,
+        code: CustomCode.AUTH_FAILED,
+        descriptor: { key: "auth.tokenVerificationFailed" },
+      },
+      req,
+    );
   }
 }
 
@@ -296,7 +391,9 @@ export async function expressAuthentication(
 
     if (!token) {
       logger.warn(`No relay token provided: ${request.method} ${request.path} from ${request.ip}`);
-      throw new UnauthorizedError("Unauthorized: No relay token provided");
+      throw new UnauthorizedError("Unauthorized: No relay token provided", undefined, {
+        messageKey: "auth.missingRelayToken",
+      });
     }
 
     const relayTokenService = new RelayTokenService();
@@ -307,7 +404,7 @@ export async function expressAuthentication(
       logger.warn(
         `User not found for RelayToken: userId=${relayToken.userId}, ${request.method} ${request.path} from ${request.ip}`,
       );
-      throw new UnauthorizedError("用户不存在");
+      throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     }
 
     validateAccountStatus(user.status, relayToken.userId, `RelayToken ${request.method} ${request.path}`);
@@ -323,8 +420,11 @@ export async function expressAuthentication(
       throw new ForbiddenError(
         "旧 DeveloperProject API 已停用，请创建产品 API Key",
         CustomCode.DEVELOPER_PRODUCT_LEGACY_DISABLED,
+        { messageKey: "auth.legacyDeveloperProjectDisabled" },
       );
-    throw new UnauthorizedError("Unauthorized: No product API key provided");
+    throw new UnauthorizedError("Unauthorized: No product API key provided", undefined, {
+      messageKey: "auth.missingProductApiKey",
+    });
   }
 
   if (securityName === "product-key") {
@@ -339,7 +439,7 @@ export async function expressAuthentication(
       requiredPermissions,
     );
     const user = await userRepository.findById(productKey.subjectUserId);
-    if (!user) throw new UnauthorizedError("用户不存在");
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     validateAccountStatus(user.status, user.id, `ProductKey ${request.method} ${request.path}`);
     request.productApiKey = productKey;
     const payload: JWTPayload = { userId: user.id, updatedAt: user.updateTime.toISOString(), status: user.status };
@@ -352,7 +452,7 @@ export async function expressAuthentication(
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       logger.warn(`No token provided: ${request.method} ${request.path} from ${request.ip}`);
-      throw new UnauthorizedError("Unauthorized: No token provided");
+      throw new UnauthorizedError("Unauthorized: No token provided", undefined, { messageKey: "auth.missingToken" });
     }
 
     let token = authHeader.replace("Bearer ", "").trim();
@@ -368,7 +468,7 @@ export async function expressAuthentication(
         logger.warn(
           `User not found for RelayToken: userId=${relayToken.userId}, ${request.method} ${request.path} from ${request.ip}`,
         );
-        throw new UnauthorizedError("用户不存在");
+        throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
       }
 
       // 检查账号状态
@@ -401,7 +501,7 @@ export async function expressAuthentication(
         logger.warn(
           `User not found for AccessKey: userId=${accessKey.userId}, ${request.method} ${request.path} from ${request.ip}`,
         );
-        throw new UnauthorizedError("用户不存在");
+        throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
       }
 
       // 检查账号状态
@@ -423,7 +523,7 @@ export async function expressAuthentication(
       const realToken = await ReURLService.getInstance().getToken(reurlId);
       if (!realToken) {
         logger.warn(`ReURL expired or invalid: ${request.method} ${request.path} from ${request.ip}`);
-        throw new UnauthorizedError("ReURL 已过期或无效");
+        throw new UnauthorizedError("ReURL 已过期或无效", undefined, { messageKey: "auth.reurlExpired" });
       }
 
       token = realToken;
@@ -435,14 +535,14 @@ export async function expressAuthentication(
 
     if (!payload) {
       logger.warn(`Invalid token: ${request.method} ${request.path} from ${request.ip}`);
-      throw new UnauthorizedError("Unauthorized: Invalid token");
+      throw new UnauthorizedError("Unauthorized: Invalid token", undefined, { messageKey: "errors.invalidToken" });
     }
 
     // 验证用户的updatedAt是否与token中的一致
     const user = await userRepository.findById(payload.userId);
     if (!user) {
       logger.warn(`User not found: userId=${payload.userId}, ${request.method} ${request.path} from ${request.ip}`);
-      throw new UnauthorizedError("用户不存在");
+      throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
     }
 
     // 检查账号状态（从 token 中的 status 字段，如果没有则从数据库查询）
@@ -452,7 +552,9 @@ export async function expressAuthentication(
     // 检查token中是否包含updatedAt字段（兼容旧token）
     if (!payload.updatedAt) {
       logger.warn(`Old token version: userId=${payload.userId}, ${request.method} ${request.path} from ${request.ip}`);
-      throw new UnauthorizedError("Token版本过旧，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("Token版本过旧，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "auth.oldTokenVersion",
+      });
     }
 
     const currentUpdatedAt = user.updateTime.toISOString();
@@ -461,7 +563,9 @@ export async function expressAuthentication(
       logger.warn(
         `User force-offlined: userId=${payload.userId}, ${request.method} ${request.path} from ${request.ip}`,
       );
-      throw new UnauthorizedError("用户已被强制下线，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("用户已被强制下线，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "auth.forcedOffline",
+      });
     }
 
     const authSessionId = extractAuthSessionId(request);
@@ -471,13 +575,17 @@ export async function expressAuthentication(
         logger.warn(
           `Session force-offlined: userId=${payload.userId}, session=${authSessionId}, ${request.method} ${request.path} from ${request.ip}`,
         );
-        throw new UnauthorizedError("当前会话已被强制结束，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+        throw new UnauthorizedError("当前会话已被强制结束，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+          messageKey: "auth.sessionForcedEnded",
+        });
       }
     }
 
     if (payload.updatedAt !== currentUpdatedAt) {
       logger.warn(`User info updated: userId=${payload.userId}, ${request.method} ${request.path} from ${request.ip}`);
-      throw new UnauthorizedError("用户信息已更新，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("用户信息已更新，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "errors.tokenExpiredDueToUpdate",
+      });
     }
 
     // 将 payload 附加到 request 对象，使 controller 可以访问
@@ -487,7 +595,9 @@ export async function expressAuthentication(
     if (enrichedPayload.impersonatorId && enrichedPayload.impersonationMode === "view") {
       const mutationMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
       if (mutationMethods.has(request.method))
-        throw new ForbiddenError("只读模拟模式下不允许执行写操作", CustomCode.IMPERSONATION_READONLY_VIOLATION);
+        throw new ForbiddenError("只读模拟模式下不允许执行写操作", CustomCode.IMPERSONATION_READONLY_VIOLATION, {
+          messageKey: "errors.impersonationReadonlyViolation",
+        });
     }
 
     return enrichedPayload;

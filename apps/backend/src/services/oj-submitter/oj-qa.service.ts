@@ -35,9 +35,10 @@ export class OJQAService {
   async validateAPIKey(apiKey: string): Promise<{ userId: string; keyId: string; channel: RelayChannel | null }> {
     const key = await this.ojApiKeyRepository.findActiveByKey(apiKey);
 
-    if (!key) throw new UnauthorizedError("Invalid API key");
+    if (!key) throw new UnauthorizedError("Invalid API key", undefined, { messageKey: "ojSubmitter.invalidApiKey" });
 
-    if (key.expiresAt && key.expiresAt < new Date()) throw new UnauthorizedError("API key has expired");
+    if (key.expiresAt && key.expiresAt < new Date())
+      throw new UnauthorizedError("API key has expired", undefined, { messageKey: "ojSubmitter.apiKeyExpired" });
 
     return { userId: key.userId, keyId: key.id, channel: key.channel };
   }
@@ -48,7 +49,11 @@ export class OJQAService {
   async getModelPricing(model: string) {
     const pricing = await this.ojModelPricingRepository.findActiveByModel(model);
 
-    if (!pricing) throw new NotFoundError(`Pricing not found for model: ${model}`);
+    if (!pricing)
+      throw new NotFoundError(`Pricing not found for model: ${model}`, undefined, {
+        messageKey: "ojSubmitter.pricingNotFound",
+        messageParams: { model },
+      });
 
     return pricing;
   }
@@ -102,7 +107,8 @@ export class OJQAService {
 
     // 2. 检查余额
     const balanceAccount = await this.balanceService.getBalance(userId);
-    if (Number(balanceAccount.balance) <= 0) throw new BadRequestError("Insufficient balance");
+    if (Number(balanceAccount.balance) <= 0)
+      throw new BadRequestError("Insufficient balance", undefined, { messageKey: "billing.insufficientBalance" });
 
     // 3. 获取定价（使用客户端指定的模型，默认claude-3-haiku）
     const pricing = await this.getModelPricing(model);
@@ -116,7 +122,9 @@ export class OJQAService {
       return allowedModels === null || allowedModels.includes(model);
     });
     if (eligibleLeaves.length === 0)
-      throw new BadRequestError(`Model '${model}' is not available on the assigned channel`);
+      throw new BadRequestError(`Model '${model}' is not available on the assigned channel`, undefined, {
+        messageKey: "ojSubmitter.modelNotAvailableOnChannel",
+      });
 
     let answer = "";
     let inputTokens = 0;
@@ -143,7 +151,13 @@ export class OJQAService {
           lastError = error;
         }
       }
-      if (!data) throw lastError ?? new BadRequestError("No Anthropic upstream is available");
+      if (!data)
+        throw (
+          lastError ??
+          new BadRequestError("No Anthropic upstream is available", undefined, {
+            messageKey: "ojSubmitter.noAnthropicUpstream",
+          })
+        );
 
       // 提取回答
       const content = data.content?.[0];
@@ -156,7 +170,9 @@ export class OJQAService {
       cacheReadTokens = data.usage?.cache_read_input_tokens || 0;
     } catch (error: any) {
       if (error instanceof BadRequestError) throw error;
-      throw new BadRequestError(`AI service error: ${error.message}`);
+      throw new BadRequestError(`AI service error: ${error.message}`, undefined, {
+        messageKey: "errors.aiServiceUnavailable",
+      });
     }
 
     const totalTokens = inputTokens + outputTokens;
@@ -187,7 +203,10 @@ export class OJQAService {
       cacheReadMultiplier: pricing.cacheReadMultiplier,
     });
 
-    if (!charged) throw new BadRequestError("Insufficient balance for this request");
+    if (!charged)
+      throw new BadRequestError("Insufficient balance for this request", undefined, {
+        messageKey: "relayProxy.insufficientBalanceForRequest",
+      });
 
     return {
       answer,

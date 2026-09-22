@@ -14,7 +14,12 @@ description: 实现或审查 AppServerMonorepo 后端改动。涉及 Express、T
 3. 复用单例 `getInstance()` 的 Service/Repository、既有错误类、权限装饰器、日志、重放保护和 2FA 守卫。
 4. 保持 Relay 模型/能力身份与池路由在同一根到叶路径上关联；不得重新组合来自不同路径的能力集合。
 5. Relay 混池同时存在 legacy 成员表与 strict 父子关系时，先形成唯一的有效成员投影，再用于 DTO、列表计数和路由；按成员 ID 去重，strict 配置覆盖冲突的 legacy 配置。
-6. 用户可见的业务校验错误使用后端 locale `messageKey`，并为 `zh-CN` 和 `en` 添加回归断言；不得直接暴露未本地化的源码错误。
+6. 用户可见的业务错误必须携带消息描述符，形如
+   `throw new NotFoundError("内部诊断原文", undefined, { messageKey, messageParams })`，
+   其中 `messageKey` 取自 `src/locales` 的消息目录。
+   - `messageParams` 只放安全领域标量（数字、上限常量、权限名、枚举/闭集标识）；不回显请求体、凭据、数据库记录或任意 `Error.message`。
+   - 新增 key 要同时改 `src/locales/en.ts` 与 `zh-CN.ts` 的**同一业务域**，并确认 `tests/unit/locales` 与 ESLint 门禁通过；错误原文反查与前缀猜测已删除，原文不再被翻译。
+   - 认证挑战类（`TwoFactorRequiredError`、`PolicyConsentRequiredError`）第二参是 `data`，不要塞 options；`TooManyRequestsError`/`ResourceLockedError` 的 options 在更后的位置。
 7. Prisma schema 改动必须生成迁移；禁止手写、复制或编辑 migration SQL。
 8. Controller、DTO、schema 或安全契约变更后执行 `pnpm run openapi:gen:all`，再执行精确测试和 `pnpm --filter @quyan/backend run type-check`。
 9. 交付时列出已执行的检查与刻意未执行的高成本检查。

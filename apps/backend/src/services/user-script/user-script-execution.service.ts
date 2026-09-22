@@ -49,8 +49,9 @@ export class UserScriptExecutionService {
 
   public async listExecutionsByScript(scriptId: string, userId: string): Promise<UserScriptExecutionDto[]> {
     const script = await this.scriptRepository.findById(scriptId);
-    if (!script) throw new NotFoundError("脚本不存在");
-    if (script.userId !== userId) throw new ForbiddenError("无权查看此脚本的历史");
+    if (!script) throw new NotFoundError("脚本不存在", undefined, { messageKey: "userScript.notFound" });
+    if (script.userId !== userId)
+      throw new ForbiddenError("无权查看此脚本的历史", undefined, { messageKey: "userScript.historyDenied" });
 
     const executions = await this.repository.findByScriptId(scriptId, userId);
     return executions.map((e) => this.mapToDto(e));

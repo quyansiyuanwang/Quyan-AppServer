@@ -28,7 +28,7 @@ export class IPBlacklistService {
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data
     }
-    throw toServiceError(result, 'Failed to get IP blacklists')
+    throw toServiceError(result)
   }
 
   async getById(id: string) {
@@ -38,7 +38,7 @@ export class IPBlacklistService {
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data
     }
-    throw toServiceError(result, 'Failed to get IP blacklist')
+    throw toServiceError(result)
   }
 
   async create(data: CreateIpBlacklistDto) {
@@ -48,7 +48,7 @@ export class IPBlacklistService {
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data
     }
-    throw toServiceError(result, 'Failed to create IP blacklist')
+    throw toServiceError(result)
   }
 
   async update(ipAddress: string, data: UpdateIpBlacklistDto) {
@@ -59,7 +59,7 @@ export class IPBlacklistService {
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data
     }
-    throw toServiceError(result, 'Failed to update IP blacklist')
+    throw toServiceError(result)
   }
 
   async delete(ipAddress: string) {
@@ -70,7 +70,7 @@ export class IPBlacklistService {
     if (result && result.code === CustomCode.OK) {
       return true
     }
-    throw toServiceError(result, 'Failed to delete IP blacklist')
+    throw toServiceError(result)
   }
 
   async checkIp(ip: string) {
@@ -80,7 +80,7 @@ export class IPBlacklistService {
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data
     }
-    throw toServiceError(result, 'Failed to check IP blacklist')
+    throw toServiceError(result)
   }
 }
 

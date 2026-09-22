@@ -534,6 +534,9 @@
 </template>
 
 <script setup lang="ts">
+import { createUserFacingError } from '@/utils/error-utils'
+
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import HolidayRuleFields from '@/components/relay/HolidayRuleFields.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -678,7 +681,7 @@ const addContextRule = () =>
   form.contextRules.push({ key: ++ruleKey, name: '', minTokens: 0, multiplier: 1, enabled: true })
 const assertRuleNames = () => {
   if (enabled.formats && form.allowedFormats.length === 0)
-    throw new Error(i18ns.t('relay.batchEditFormatsRequired'))
+    throw createUserFacingError(i18ns.t('relay.batchEditFormatsRequired'))
   if (
     enabled.visibility &&
     form.visibilityMode === 'whitelist' &&
@@ -686,20 +689,20 @@ const assertRuleNames = () => {
     !form.visibilityConfig.groupIds.length &&
     !form.visibilityConfig.roleIds.length
   )
-    throw new Error(i18ns.t('relay.batchEditWhitelistRequired'))
+    throw createUserFacingError(i18ns.t('relay.batchEditWhitelistRequired'))
   if (
     enabled.timeRules &&
     form.timeRules.some(
       (rule) => !rule.name.trim() || (!rule.allDay && (!rule.range || rule.range.length !== 2)),
     )
   )
-    throw new Error(i18ns.t('relay.batchEditRulesInvalid'))
+    throw createUserFacingError(i18ns.t('relay.batchEditRulesInvalid'))
   if (
     enabled.contextRules &&
     (form.contextRules.some((rule) => !rule.name.trim()) ||
       new Set(form.contextRules.map((rule) => rule.minTokens)).size !== form.contextRules.length)
   )
-    throw new Error(i18ns.t('relay.batchEditRulesInvalid'))
+    throw createUserFacingError(i18ns.t('relay.batchEditRulesInvalid'))
 }
 const submit = async () => {
   try {
@@ -796,7 +799,7 @@ const submit = async () => {
       )
     if (result.rejected.length === 0) showChannelBatchEditDialog.value = false
   } catch (error: unknown) {
-    ElMessage.error(error instanceof Error ? error.message : i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   } finally {
     saving.value = false
   }

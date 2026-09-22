@@ -189,6 +189,8 @@
 </template>
 
 <script setup lang="ts">
+import { createUserFacingError, getErrorMessage } from '@/utils/error-utils'
+
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
@@ -229,14 +231,6 @@ const monthlyPassCollapseDescriptionText = computed(() =>
 const monthlyPassChannelNamesLoadingLabel = computed(() =>
   i18ns.refer.value === 'zh-CN' ? '渠道名称加载中' : 'Loading channel names',
 )
-
-const toErrorMessage = (error: unknown, fallback: string) => {
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message
-    if (typeof message === 'string' && message.trim()) return message
-  }
-  return fallback
-}
 
 const isIntegerMonthlyPassQuotaUnit = (value?: string) => {
   return value === 'request' || value === 'token'
@@ -432,7 +426,7 @@ const claimMonthlyPassTemplate = async (template: MonthlyPassTemplateDto) => {
     )
   } catch (error) {
     if (error === 'cancel' || error === 'close') return
-    ElMessage.error(toErrorMessage(error, i18ns.t('apiDoc.balanceRedeemFailed')))
+    ElMessage.error(getErrorMessage(error, i18ns.t('apiDoc.balanceRedeemFailed')))
     return
   }
 
@@ -441,7 +435,7 @@ const claimMonthlyPassTemplate = async (template: MonthlyPassTemplateDto) => {
   try {
     const result = await monthlyPassService.claimPublishedTemplate({ templateId: template.id })
     if (!result || typeof result.purchaseAmount !== 'number') {
-      throw new Error(i18ns.t('apiDoc.balanceRedeemFailed'))
+      throw createUserFacingError(i18ns.t('apiDoc.balanceRedeemFailed'))
     }
     ElMessage.success(
       i18ns.t('apiDoc.balanceRedeemSuccess', {
@@ -450,7 +444,7 @@ const claimMonthlyPassTemplate = async (template: MonthlyPassTemplateDto) => {
     )
     await loadPublishedMonthlyPasses()
   } catch (error) {
-    ElMessage.error(toErrorMessage(error, i18ns.t('apiDoc.balanceRedeemFailed')))
+    ElMessage.error(getErrorMessage(error, i18ns.t('apiDoc.balanceRedeemFailed')))
   } finally {
     claimingMonthlyPassId.value = ''
   }
@@ -487,7 +481,7 @@ const loadPublishedMonthlyPasses = async () => {
     }
   } catch (error) {
     publishedMonthlyPasses.value = []
-    monthlyPassLoadError.value = toErrorMessage(error, i18ns.t('apiDoc.monthlyPassesLoadFailed'))
+    monthlyPassLoadError.value = getErrorMessage(error, i18ns.t('apiDoc.monthlyPassesLoadFailed'))
   } finally {
     loadingPublishedMonthlyPasses.value = false
   }

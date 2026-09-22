@@ -138,6 +138,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Refresh } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
@@ -311,8 +312,8 @@ const copy = async (value: string) => {
   try {
     if (!(await copyTextWithFallback(value))) throw new Error('copy failed')
     ElMessage.success(t('copySuccess'))
-  } catch {
-    ElMessage.error(t('copyFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, t('copyFailed')))
   }
 }
 const load = async () => {
