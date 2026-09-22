@@ -32,11 +32,11 @@ const printResults = (reporter, results) => {
 const printNextSteps = (reporter, { seeded }) => {
   reporter.log()
   reporter.log('下一步：')
-  reporter.log('  pnpm run dev          # 免特权本地开发：http://localhost:5173（无需 hosts/mkcert/管理员）')
-  reporter.log('  pnpm run dev:domains  # 多域名 HTTPS：https://www.qysyw.test:5173（需要 mkcert 与管理员权限）')
-  reporter.log('  pnpm run doctor       # 只读诊断')
+  reporter.log('  pnpm run dev            # 多域名 HTTPS：https://<站点前缀>.qysyw.test:5173（需要 mkcert 与管理员权限）')
+  reporter.log('  pnpm run dev:localhost  # 免特权单站点：http://localhost:5173（无需 hosts/mkcert/管理员）')
+  reporter.log('  pnpm run doctor         # 只读诊断')
   reporter.log()
-  reporter.log(`  管理面板  http://localhost:5173     API  http://localhost:10001/docs     文档  http://localhost:4173`)
+  reporter.log(`  API  http://localhost:10001/docs     文档  http://localhost:4173`)
   if (seeded)
     reporter.log('  种子账号  见上方 db:seed 输出（清单定义在 apps/backend/prisma/seed.ts）')
 }

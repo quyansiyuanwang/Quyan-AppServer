@@ -2,13 +2,15 @@
 // certificate. Requires mkcert and (on first run) permission to edit the hosts
 // file; repeated runs reuse the existing configuration without prompting.
 //
-// The privilege-free alternative is `pnpm run dev`.
+// This is the default `pnpm run dev` target. The privilege-free single-site
+// alternative is `pnpm run dev:localhost`.
 
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { findBusyPorts, resolvePnpmInvocation, spawnForeground } from './lib/platform.mjs'
 import { LOCAL_DEV_PORTS } from './lib/dev-provision.mjs'
+import { resolveLocalRootDomain } from './lib/dev-env.mjs'
 
 const DEFAULT_PORTS = Object.values(LOCAL_DEV_PORTS)
 
@@ -45,7 +47,11 @@ const main = async () => {
   console.log(
     '[local-lifecycle] 退出后 hosts 记录与证书会保留，需要清理时执行 pnpm run local:teardown。',
   )
-  console.log('[local-lifecycle] 免特权模式（无需 mkcert/管理员）请改用 pnpm run dev。')
+  console.log(
+    `[local-lifecycle] 多域名入口：https://<站点前缀>.${resolveLocalRootDomain()}:${LOCAL_DEV_PORTS.frontend}/` +
+      '（按 hostname 区分站点，清单见 docs/development/16-local-development.md）',
+  )
+  console.log('[local-lifecycle] 免特权单站点模式（无需 mkcert/管理员）请改用 pnpm run dev:localhost。')
 
   const exitCode = await spawnForeground(
     process.execPath,

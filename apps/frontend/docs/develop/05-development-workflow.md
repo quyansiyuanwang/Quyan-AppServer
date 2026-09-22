@@ -39,7 +39,8 @@ pnpm install
 ### 开发
 
 ```bash
-pnpm run dev              # 启动开发服务器（Vite + HMR）
+pnpm run dev              # 启动多域名开发服务器（Vite + HMR）
+pnpm run dev:localhost    # 启动免特权单站点开发服务器（http://localhost:5173）
 pnpm run preview          # 预览生产构建
 ```
 
