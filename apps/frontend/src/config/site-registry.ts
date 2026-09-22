@@ -1,7 +1,8 @@
 import { createSiteRegistry } from './site-resolver'
 import { deploymentTopologies } from './deployment-topology'
+import { createDevSingleSiteRegistry, readDevSingleSiteOptions } from './dev-single-site'
 import type { SiteProfileId } from './site-catalog'
-import type { ResolvedSiteProfile, SiteProfile } from './site-resolver'
+import type { ResolvedSiteProfile, SiteProfile, SiteRegistry } from './site-resolver'
 import { hasSiteNavigationAccess } from './navigation-site-access'
 
 export {
@@ -23,6 +24,11 @@ export {
   type SiteRegistry,
 } from './site-resolver'
 export {
+  createDevSingleSiteRegistry,
+  readDevSingleSiteOptions,
+  type DevSingleSiteOptions,
+} from './dev-single-site'
+export {
   deploymentTopologies,
   localTopology,
   releaseTopology,
@@ -32,7 +38,29 @@ export {
 } from './deployment-topology'
 
 /** The singleton used by browser routing, navigation, and layout code. */
-export const siteRegistry = createSiteRegistry(deploymentTopologies)
+const baseSiteRegistry = createSiteRegistry(deploymentTopologies)
+
+const devSingleSiteOptions = readDevSingleSiteOptions({
+  dev: import.meta.env.DEV === true,
+  flag: import.meta.env.VITE_DEV_SINGLE_SITE,
+  requestedProfile: import.meta.env.VITE_DEV_SITE_PROFILE,
+  warn: (message) => console.warn(`[dev-single-site] ${message}`),
+})
+
+/**
+ * True only for the privilege-free localhost development server. Production
+ * builds always read `import.meta.env.DEV === false`, and the SSR/node path has
+ * no browser origin to alias.
+ */
+export const devSingleSiteMode: boolean =
+  devSingleSiteOptions.enabled && typeof window !== 'undefined'
+
+export const isDevSingleSiteMode = (): boolean => devSingleSiteMode
+
+export const siteRegistry: SiteRegistry = devSingleSiteMode
+  ? createDevSingleSiteRegistry(baseSiteRegistry, devSingleSiteOptions, window.location.origin)
+  : baseSiteRegistry
+
 export const siteProfiles = siteRegistry.profiles
 
 export const resolveSiteProfile = (hostname: string) => siteRegistry.resolveHost(hostname)

@@ -103,6 +103,7 @@
 
 <script setup lang="ts">
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
+import { getErrorMessage } from '@/utils/error-utils'
 import { usePageDevice } from '@/composables/usePageDevice'
 import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import { computed, ref } from 'vue'
@@ -456,8 +457,8 @@ const handleClearSelected = async () => {
     } else {
       ElMessage.success(i18ns.t('SettingsView.clearCacheSuccess'))
     }
-  } catch {
-    ElMessage.error(i18ns.t('unknownError'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('unknownError')))
   } finally {
     clearing.value = false
   }

@@ -159,6 +159,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Refresh } from '@element-plus/icons-vue'
 import type { UserDto, UserFullPermissionsDto } from '@/client/types.gen'
@@ -240,7 +241,7 @@ const loadUserList = async () => {
     userList.value = response.users
     pagination.value.total = response.total
   } catch (error) {
-    ElMessage.error(i18ns.t('PermissionManagement.loadUserListFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('PermissionManagement.loadUserListFailed')))
     console.error(error)
   } finally {
     loading.value = false
@@ -265,7 +266,7 @@ const loadUserPermissions = async (user: UserDto) => {
     selectedUserPermissions.value = response?.data ?? null
     return selectedUserPermissions.value !== null
   } catch (error) {
-    ElMessage.error(i18ns.t('PermissionManagement.loadPermissionFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('PermissionManagement.loadPermissionFailed')))
     console.error(error)
     return false
   } finally {

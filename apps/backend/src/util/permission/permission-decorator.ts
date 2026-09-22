@@ -57,7 +57,8 @@ export function CheckPermission(
       }
 
       if (securityScheme === "jwt" || securityScheme === "local-or-jwt") {
-        if (!request || !request.user || !request.user.userId) throw new ForbiddenError("未授权访问，请先登录");
+        if (!request || !request.user || !request.user.userId)
+          throw new ForbiddenError("未授权访问，请先登录", undefined, { messageKey: "permission.loginRequired" });
 
         const userId = request.user.userId;
 
@@ -78,7 +79,10 @@ export function CheckPermission(
               logger.warn(
                 `用户 ${userId} 调用方法 ${String(propertyKey)} 失败: 缺少权限 ${result.missingPermissions?.join(", ")}`,
               );
-              throw new ForbiddenError(`缺少必要权限: ${result.missingPermissions?.join(", ")}`);
+              throw new ForbiddenError(`缺少必要权限: ${result.missingPermissions?.join(", ")}`, undefined, {
+                messageKey: "permission.missingRequiredPermissions",
+                messageParams: { permissions: (result.missingPermissions ?? []).join(", ") },
+              });
             }
           } else if (mode === PermissionCheckMode.ANY) {
             // 需要任一权限
@@ -90,7 +94,10 @@ export function CheckPermission(
               logger.warn(
                 `用户 ${userId} 调用方法 ${String(propertyKey)} 失败: 不具备任何所需权限 ${permissionList.join(", ")}`,
               );
-              throw new ForbiddenError(`需要以下权限之一: ${permissionList.join(", ")}`);
+              throw new ForbiddenError(`需要以下权限之一: ${permissionList.join(", ")}`, undefined, {
+                messageKey: "permission.requiresAnyPermission",
+                messageParams: { permissions: permissionList.join(", ") },
+              });
             }
           } else {
             logger.error(`未知的权限检查模式: ${mode}`);

@@ -70,7 +70,7 @@ describe('error report service lifecycle queue', () => {
 
     await vi.waitFor(() => {
       expect(notifyMock).toHaveBeenCalledTimes(1)
-      expect(notifyMock).toHaveBeenCalledWith(expect.any(String), 'Unexpected failure')
+      expect(notifyMock).not.toHaveBeenCalledWith(expect.any(String), 'Unexpected failure')
     })
 
     window.dispatchEvent(new Event('pagehide'))

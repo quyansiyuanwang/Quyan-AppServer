@@ -28,11 +28,16 @@ export function captchaMiddleware(options: CaptchaMiddlewareOptions) {
       if (!(await captchaService.isEnabled())) return next();
       if (!options.requireExplicitToken && (await captchaService.shouldBypassForTrustedRequest(req))) return next();
 
-      if (options.trustOnly) throw new BadRequestError("需要先完成人机验证", CustomCode.CAPTCHA_TRUST_REQUIRED);
+      if (options.trustOnly)
+        throw new BadRequestError("需要先完成人机验证", CustomCode.CAPTCHA_TRUST_REQUIRED, {
+          messageKey: "errors.captchaTrustRequired",
+        });
 
       const token = getCaptchaTokenFromBody(req, tokenField);
       if (options.requireExplicitToken && !token)
-        throw new BadRequestError("缺少 captcha token", CustomCode.VALIDATION_FAILED);
+        throw new BadRequestError("缺少 captcha token", CustomCode.VALIDATION_FAILED, {
+          messageKey: "auth.missingCaptchaToken",
+        });
 
       await captchaService.verifyToken(token, options.action, req);
       next();

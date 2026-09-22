@@ -1,4 +1,5 @@
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
+import { getErrorMessage } from '@/utils/error-utils'
 import {
   type ChannelMatchMode,
   type ChannelPriceMode,
@@ -220,14 +221,6 @@ export function useApiDocumentation() {
     { field: i18ns.t('apiDoc.fieldExtra'), description: i18ns.t('apiDoc.fieldExtraDesc') },
   ])
 
-  const toErrorMessage = (error: unknown, fallback: string) => {
-    if (error && typeof error === 'object' && 'message' in error) {
-      const message = (error as { message?: unknown }).message
-      if (typeof message === 'string' && message.trim()) return message
-    }
-    return fallback
-  }
-
   const ensurePricingTabReady = async () => {
     if (pricingTabActivated.value) return
     pricingTabActivated.value = true
@@ -325,7 +318,7 @@ export function useApiDocumentation() {
       assignDocument(targetUrl)
     } catch (error) {
       previewWindow?.close()
-      ElMessage.error(toErrorMessage(error, i18ns.t('apiDoc.openSwaggerDocsFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('apiDoc.openSwaggerDocsFailed')))
     } finally {
       openingSwaggerDocs.value = false
     }

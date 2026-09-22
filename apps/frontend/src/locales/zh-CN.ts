@@ -110,6 +110,19 @@ const ticket = {
 }
 
 const zhCN: DeepStringify<typeof en> = {
+  requestErrors: {
+    failed: '操作失败，请重试。',
+    timeout: '请求超时，请稍后重试。',
+    offline: '当前处于离线状态，请检查网络。',
+    network: '连接失败，请检查网络后重试。',
+    unauthorized: '登录状态已失效，请重新登录。',
+    forbidden: '你没有执行此操作的权限。',
+    notFound: '请求的资源不存在或已不可用。',
+    rateLimited: '操作过于频繁，请稍后重试。',
+    server: '服务暂时不可用，请稍后重试。',
+    repair: '无法登录？检查与修复',
+  },
+
   login: '登录',
   register: '注册',
   logout: '登出',
@@ -3939,6 +3952,13 @@ const zhCN: DeepStringify<typeof en> = {
     now: '现在',
 
     // Time Period Multiplier Rules (per-channel)
+    holidayMode: '中国节假日条件',
+    holidayMode_ignore: '不区分节假日',
+    holidayMode_exclude: '排除节假日',
+    holidayMode_only: '仅节假日',
+    timeRuleAllDay: '全天',
+    holidayModeHelp:
+      '节假日规则按北京时间判断，含公布的连休放假日期；仅节假日忽略星期选择。补班不改变星期。日历不可用时跳过相关规则并告警；多条命中规则相乘。不区分节假日保留服务器时区。',
     timeRules: '时段倍率规则',
     timeRuleName: '规则名称',
     timeRuleDays: '适用星期',

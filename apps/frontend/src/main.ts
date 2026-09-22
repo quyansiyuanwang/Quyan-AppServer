@@ -14,6 +14,7 @@ if (import.meta.env.MODE !== 'test') {
     }
 
     await bootstrapApp()
+    document.getElementById('boot-repair')?.remove()
   }
 
   void startApp()

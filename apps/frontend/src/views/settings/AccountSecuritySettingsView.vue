@@ -395,6 +395,8 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { usePageDevice } from '@/composables/usePageDevice'
 import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
 import { onMounted, ref } from 'vue'
@@ -483,7 +485,7 @@ const openCentralPasskeyManagement = async () => {
   try {
     await redirectToCentralPasskeyManagement()
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('unknownError'))
+    showRequestErrorNotice(error, i18ns.t('unknownError'))
   }
 }
 
@@ -491,7 +493,7 @@ const loadExternalIdentities = async () => {
   try {
     externalIdentities.value = await socialAuthService.listExternalIdentities()
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsLoadFailed'))
+    showRequestErrorNotice(error, i18ns.t('SettingsView.externalAccountsLoadFailed'))
   }
 }
 
@@ -522,7 +524,7 @@ const consumePendingExternalBinding = async () => {
     ElMessage.success(i18ns.t('message.information.editSuccess'))
     await loadExternalIdentities()
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsBindFailed'))
+    showRequestErrorNotice(error, i18ns.t('SettingsView.externalAccountsBindFailed'))
   } finally {
     externalBindingProvider.value = null
     await clearBindQuery()
@@ -534,7 +536,7 @@ const handleBindExternalIdentity = async (provider: 'github' | 'wechat-open' | '
   try {
     await redirectToCentralExternalBinding(provider)
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsBindFailed'))
+    showRequestErrorNotice(error, i18ns.t('SettingsView.externalAccountsBindFailed'))
   } finally {
     externalBindingProvider.value = null
   }
@@ -547,7 +549,7 @@ const handleUnbindExternalIdentity = async (provider: string) => {
     ElMessage.success(i18ns.t('SettingsView.externalAccountsUnbindSuccess'))
     await loadExternalIdentities()
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('SettingsView.externalAccountsUnbindFailed'))
+    showRequestErrorNotice(error, i18ns.t('SettingsView.externalAccountsUnbindFailed'))
   } finally {
     externalBindingProvider.value = null
   }
@@ -586,7 +588,7 @@ const changePassword = async () => {
   } catch (err) {
     if ((err as any)?.code === CustomCode.TWO_FACTOR_REQUIRED) return
     console.error(err)
-    ElMessage.error(i18ns.t('message.error.modifyFailed'))
+    ElMessage.error(getErrorMessage(err, i18ns.t('message.error.modifyFailed')))
   }
 }
 
@@ -600,7 +602,7 @@ const loadTwoFactorStatus = async () => {
       hasRecoveryCodes: status.hasRecoveryCodes,
     }
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('twoFactor.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('twoFactor.loadFailed'))
   } finally {
     twoFactorLoading.value = false
   }
@@ -633,7 +635,7 @@ const handleBeginTwoFactorSetup = async () => {
     twoFactorSetupCode.value = ''
   } catch (error: any) {
     showTwoFactorSetupDialog.value = false
-    ElMessage.error(error?.message || i18ns.t('twoFactor.setupFailed'))
+    showRequestErrorNotice(error, i18ns.t('twoFactor.setupFailed'))
   } finally {
     twoFactorSetupLoading.value = false
   }
@@ -669,7 +671,7 @@ const handleConfirmTwoFactorSetup = async () => {
     showTwoFactorRecoveryDialog.value = true
     ElMessage.success(i18ns.t('twoFactor.setupSuccess'))
   } catch (error: any) {
-    ElMessage.error(error?.message || i18ns.t('twoFactor.setupFailed'))
+    showRequestErrorNotice(error, i18ns.t('twoFactor.setupFailed'))
   } finally {
     twoFactorConfirming.value = false
   }
@@ -686,7 +688,7 @@ const handleTogglePasskeyTwoFactorPolicy = async (nextValue: string | number | b
     await promptReloginAfterTwoFactorChange()
   } catch (error: any) {
     twoFactorState.value.passkeyRequired = prevPolicy
-    ElMessage.error(error?.message || i18ns.t('twoFactor.saveFailed'))
+    showRequestErrorNotice(error, i18ns.t('twoFactor.saveFailed'))
   } finally {
     twoFactorPolicySaving.value = false
   }
@@ -716,8 +718,8 @@ const handleCopyTwoFactorSecret = async () => {
   try {
     await navigator.clipboard.writeText(secret)
     ElMessage.success(i18ns.t('copySuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('copyFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
   }
 }
 
@@ -726,8 +728,8 @@ const handleCopyRecoveryCodes = async () => {
     const text = twoFactorRecoveryCodes.value.join('\n')
     await navigator.clipboard.writeText(text)
     ElMessage.success(i18ns.t('copySuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('copyFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
   }
 }
 

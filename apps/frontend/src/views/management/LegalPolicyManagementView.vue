@@ -328,6 +328,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules, InputInstance } from 'element-plus'
@@ -339,7 +340,6 @@ import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import MarkdownRenderer from '@/components/common/MarkdownRenderer.vue'
 import { legalPolicyService } from '@/service/legalPolicyService'
 import type { LegalPolicyListItemDto, LegalPolicyType } from '@/client/types.gen'
-import { getErrorMessage } from '@/utils/error-utils'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -444,7 +444,7 @@ async function loadPolicies() {
   try {
     policyList.value = await legalPolicyService.listPolicies()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('legalPolicy.listLoadFailed')))
+    showRequestErrorNotice(error, i18ns.t('legalPolicy.listLoadFailed'))
   } finally {
     loading.value = false
   }
@@ -475,7 +475,7 @@ async function handleEdit(row: LegalPolicyListItemDto) {
     formData.summary = detail.summary || ''
     formData.content = detail.content
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('legalPolicy.detailLoadFailed')))
+    showRequestErrorNotice(error, i18ns.t('legalPolicy.detailLoadFailed'))
   }
 }
 
@@ -507,7 +507,7 @@ async function handleSubmit() {
     dialogVisible.value = false
     await loadPolicies()
   } catch (error) {
-    ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -523,7 +523,7 @@ async function handlePublish(row: LegalPolicyListItemDto) {
     await loadPolicies()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 }
@@ -538,7 +538,7 @@ async function handleUnpublish(row: LegalPolicyListItemDto) {
     await loadPolicies()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 }
@@ -553,7 +553,7 @@ async function handleDelete(row: LegalPolicyListItemDto) {
     await loadPolicies()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(getErrorMessage(error, i18ns.t('operationFailed')))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 }

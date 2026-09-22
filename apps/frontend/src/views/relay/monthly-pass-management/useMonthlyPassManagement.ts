@@ -1,3 +1,5 @@
+import { createUserFacingError } from '@/utils/error-utils'
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
@@ -64,14 +66,6 @@ const MAX_QUOTA_WINDOW_DAYS = Math.floor(MAX_QUOTA_WINDOW_HOURS / 24)
 const MAX_QUOTA_WINDOW_HOUR_PART = 23
 const USER_OPTIONS_PAGE_SIZE = 50
 const DAY_MS = 24 * 60 * 60 * 1000
-
-const toErrorMessage = (error: unknown, fallback: string) => {
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message
-    if (typeof message === 'string' && message.trim()) return message
-  }
-  return fallback
-}
 
 const round4 = (value: number) => Math.round(value * 10000) / 10000
 const round2 = (value: number) => Math.round(value * 100) / 100
@@ -603,20 +597,20 @@ export const useMonthlyPassManagement = () => {
         !Number.isFinite(window.quotaLimit) ||
         window.quotaLimit <= 0
       ) {
-        throw new Error(i18ns.t('monthlyPass.quotaWindowQuotaInvalid'))
+        throw createUserFacingError(i18ns.t('monthlyPass.quotaWindowQuotaInvalid'))
       }
       if (!window.quotaWindowHours) {
-        throw new Error(i18ns.t('monthlyPass.quotaWindowHoursRequired'))
+        throw createUserFacingError(i18ns.t('monthlyPass.quotaWindowHoursRequired'))
       }
       if (isIntegerQuotaUnit(window.quotaUnit) && !Number.isInteger(window.quotaLimit)) {
-        throw new Error(i18ns.t('monthlyPass.integerQuotaRequired'))
+        throw createUserFacingError(i18ns.t('monthlyPass.integerQuotaRequired'))
       }
       if (window.quotaLimit > getQuotaMax(window.quotaUnit)) {
-        throw new Error(i18ns.t('monthlyPass.quotaExceededMax'))
+        throw createUserFacingError(i18ns.t('monthlyPass.quotaExceededMax'))
       }
       const key = `${window.quotaUnit}:${window.quotaWindowHours}`
       if (uniqueKeys.has(key)) {
-        throw new Error(i18ns.t('monthlyPass.quotaWindowDuplicate'))
+        throw createUserFacingError(i18ns.t('monthlyPass.quotaWindowDuplicate'))
       }
       uniqueKeys.add(key)
     }
@@ -844,7 +838,7 @@ export const useMonthlyPassManagement = () => {
       batchUserOptions.value.forEach((user) => ensureUserOption(user.id, user.username))
     } catch (error) {
       batchUserOptions.value = []
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.loadFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.loadFailed'))
     } finally {
       batchUserOptionsLoading.value = false
     }
@@ -922,7 +916,7 @@ export const useMonthlyPassManagement = () => {
       templates.value = result.records || []
       templatePagination.total = result.total || 0
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.loadFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.loadFailed'))
     } finally {
       loadingTemplates.value = false
     }
@@ -944,7 +938,7 @@ export const useMonthlyPassManagement = () => {
       userPasses.value = result.records || []
       assignmentPagination.total = result.total || 0
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.loadFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.loadFailed'))
     } finally {
       loadingAssignments.value = false
     }
@@ -968,7 +962,7 @@ export const useMonthlyPassManagement = () => {
       usageRecords.value = result.records || []
       usagePagination.total = result.total || 0
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.loadFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.loadFailed'))
     } finally {
       loadingUsages.value = false
     }
@@ -1230,7 +1224,7 @@ export const useMonthlyPassManagement = () => {
       showTemplateDialog.value = false
       await Promise.all([loadTemplates(), loadTemplateOptions()])
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.saveFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.saveFailed'))
     } finally {
       savingTemplate.value = false
     }
@@ -1247,7 +1241,7 @@ export const useMonthlyPassManagement = () => {
       await Promise.all([loadTemplates(), loadTemplateOptions()])
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.deleteFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.deleteFailed'))
     }
   }
 
@@ -1257,7 +1251,7 @@ export const useMonthlyPassManagement = () => {
       ElMessage.success(i18ns.t('monthlyPass.publishSuccess'))
       await Promise.all([loadTemplates(), loadTemplateOptions()])
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.publishFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.publishFailed'))
     }
   }
 
@@ -1267,7 +1261,7 @@ export const useMonthlyPassManagement = () => {
       ElMessage.success(i18ns.t('monthlyPass.unpublishSuccess'))
       await Promise.all([loadTemplates(), loadTemplateOptions()])
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.unpublishFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.unpublishFailed'))
     }
   }
 
@@ -1450,11 +1444,7 @@ export const useMonthlyPassManagement = () => {
         showAssignmentDialog.value = false
       }
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : toErrorMessage(error, i18ns.t('monthlyPass.saveFailed'))
-      ElMessage.error(message)
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.saveFailed'))
     } finally {
       savingAssignment.value = false
     }
@@ -1471,7 +1461,7 @@ export const useMonthlyPassManagement = () => {
       await loadAssignments()
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
-      ElMessage.error(toErrorMessage(error, i18ns.t('monthlyPass.deleteFailed')))
+      showRequestErrorNotice(error, i18ns.t('monthlyPass.deleteFailed'))
     }
   }
 

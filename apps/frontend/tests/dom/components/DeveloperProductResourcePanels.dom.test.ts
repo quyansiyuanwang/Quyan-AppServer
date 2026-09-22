@@ -34,7 +34,12 @@ vi.mock('@/utils/elementPlusRuntime', () => ({
 }))
 
 vi.mock('@/locales', () => ({ i18ns: { t: (key: string) => key } }))
-vi.mock('@/utils/error-utils', () => ({ getErrorMessage: () => 'request failed' }))
+// 只替换消息文案，其余导出（isRequestCanceled / isSilentError / normalizeRequestError …）保持真实实现——
+// 否则同模块消费者 `requestErrorNotice` 会拿到 undefined，在异步观察者里抛出未被处理的 rejection。
+vi.mock('@/utils/error-utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/error-utils')>()
+  return { ...actual, getErrorMessage: () => 'request failed' }
+})
 
 const mountOptions = {
   global: {

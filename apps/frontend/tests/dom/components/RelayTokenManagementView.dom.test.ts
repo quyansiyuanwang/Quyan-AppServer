@@ -3,6 +3,7 @@ import { computed, defineComponent, inject, provide, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MANAGED_STATUS } from '@/constant/status'
+import { configureRequestErrorNotifier } from '@/utils/requestErrorNotice'
 
 const {
   getRelayTokensMock,
@@ -388,6 +389,9 @@ const createRelayTokenFixture = (overrides: Record<string, any> = {}) => ({
   ...relayToken,
   ...overrides,
 })
+
+// 组件通过 showRequestErrorNotice 报错，其输出经通知器；镜像生产的接线方式（见 requestErrorNoticeInstaller）
+configureRequestErrorNotifier((_title, message) => messageErrorMock(message))
 
 describe('RelayTokenManagementView', () => {
   beforeEach(() => {

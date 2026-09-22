@@ -138,6 +138,8 @@ export class ChatService {
     if (candidateChannels.length === 0)
       throw new BadRequestError(
         "No relay channel assigned to this relay token. Please assign a channel before using chat.",
+        undefined,
+        { messageKey: "chat.noChannelAssigned" },
       );
 
     const candidates: ChatRouteCandidate[] = [];
@@ -176,6 +178,8 @@ export class ChatService {
       `Model ${modelPricing.model.trim()} has no compatible upstream configuration. Supported formats: ${
         modelPricing.supportedFormats || "openai-chat-completions,anthropic,gemini"
       }`,
+      undefined,
+      { messageKey: "chat.modelNoCompatibleUpstream" },
     );
   }
 
@@ -235,7 +239,8 @@ export class ChatService {
   async createConversation(userId: string, title?: string, relayTokenId?: string) {
     if (relayTokenId) {
       const token = await this.relayTokenRepository.findById(relayTokenId);
-      if (!token || token.userId !== userId) throw new ForbiddenError("Invalid relay token");
+      if (!token || token.userId !== userId)
+        throw new ForbiddenError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
     }
     return this.conversationRepo.create(userId, title, relayTokenId);
   }
@@ -246,8 +251,10 @@ export class ChatService {
 
   async getConversation(conversationId: string, userId: string) {
     const conversation = await this.conversationRepo.findById(conversationId);
-    if (!conversation) throw new NotFoundError("Conversation not found");
-    if (conversation.userId !== userId) throw new ForbiddenError("Access denied");
+    if (!conversation)
+      throw new NotFoundError("Conversation not found", undefined, { messageKey: "agent.conversationNotFound" });
+    if (conversation.userId !== userId)
+      throw new ForbiddenError("Access denied", undefined, { messageKey: "chat.accessDenied" });
     return conversation;
   }
 
@@ -255,7 +262,8 @@ export class ChatService {
     await this.getConversation(conversationId, userId);
     if (data.relayTokenId) {
       const token = await this.relayTokenRepository.findById(data.relayTokenId);
-      if (!token || token.userId !== userId) throw new ForbiddenError("Invalid relay token");
+      if (!token || token.userId !== userId)
+        throw new ForbiddenError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
     }
     return this.conversationRepo.update(conversationId, data);
   }
@@ -272,9 +280,10 @@ export class ChatService {
 
   async deleteMessage(messageId: string, userId: string) {
     const message = await this.messageRepo.findById(messageId);
-    if (!message) throw new NotFoundError("Message not found");
+    if (!message) throw new NotFoundError("Message not found", undefined, { messageKey: "chat.messageNotFound" });
     const conversation = await this.conversationRepo.findById(message.conversationId);
-    if (!conversation || conversation.userId !== userId) throw new ForbiddenError("Access denied");
+    if (!conversation || conversation.userId !== userId)
+      throw new ForbiddenError("Access denied", undefined, { messageKey: "chat.accessDenied" });
     await this.messageRepo.deleteFrom(messageId);
   }
 
@@ -290,13 +299,15 @@ export class ChatService {
     const conversation = await this.getConversation(conversationId, userId);
 
     const tokenId = relayTokenId || conversation.relayTokenId;
-    if (!tokenId) throw new BadRequestError("No relay token specified");
+    if (!tokenId) throw new BadRequestError("No relay token specified", undefined, { messageKey: "chat.noRelayToken" });
 
     const token = await this.relayTokenRepository.findByIdWithChannel(tokenId);
-    if (!token || token.userId !== userId) throw new ForbiddenError("Invalid relay token");
+    if (!token || token.userId !== userId)
+      throw new ForbiddenError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
 
     const requestedModel = model.trim();
-    if (!requestedModel) throw new BadRequestError("Model is required");
+    if (!requestedModel)
+      throw new BadRequestError("Model is required", undefined, { messageKey: "chat.modelRequired" });
 
     const requestSafety = await this.contentSafetyService.evaluate("request", content, {
       userId,
@@ -328,7 +339,10 @@ export class ChatService {
     const configuredModels = await this.modelPricingRepository.listActiveOrderedByModel();
 
     const resolvedPricing = this.resolveRequestedPricing(configuredModels, requestedModel);
-    if (!resolvedPricing) throw new BadRequestError(`Model '${requestedModel}' is not configured`);
+    if (!resolvedPricing)
+      throw new BadRequestError(`Model '${requestedModel}' is not configured`, undefined, {
+        messageKey: "chat.modelNotConfigured",
+      });
 
     const selectedModelName = resolvedPricing.model.trim();
     const selectedModelId = resolveModelId(resolvedPricing);
@@ -336,12 +350,16 @@ export class ChatService {
 
     const tokenAllowedModelIds = parseRelayTokenAllowedModelIds(token.allowedModels);
     if (tokenAllowedModelIds.length > 0 && !isModelIdAllowed(tokenAllowedModelIds, resolvedPricing))
-      throw new BadRequestError(`Relay token does not allow model ${requestedModel}`);
+      throw new BadRequestError(`Relay token does not allow model ${requestedModel}`, undefined, {
+        messageKey: "relayProxy.tokenModelNotAllowed",
+      });
 
     if (replaceMessageId) {
       const message = await this.messageRepo.findById(replaceMessageId);
       if (!message || message.conversationId !== conversationId || message.role !== "user")
-        throw new BadRequestError("The message to replace must be a user message in this conversation");
+        throw new BadRequestError("The message to replace must be a user message in this conversation", undefined, {
+          messageKey: "chat.replaceTargetInvalid",
+        });
       await this.messageRepo.replaceFrom(replaceMessageId, content);
     } else await this.messageRepo.create({ conversationId, role: "user", content });
 
@@ -387,7 +405,9 @@ export class ChatService {
         at: monthlyPassCoverageAt,
       });
       if (!hasChargeCoverage) {
-        lastError = new BadRequestError("Insufficient balance");
+        lastError = new BadRequestError("Insufficient balance", undefined, {
+          messageKey: "billing.insufficientBalance",
+        });
         continue;
       }
 
@@ -446,7 +466,9 @@ export class ChatService {
           }
         }
         if (!firstChunkAt) {
-          lastError = new BadRequestError("Upstream completed without a visible response");
+          lastError = new BadRequestError("Upstream completed without a visible response", undefined, {
+            messageKey: "chat.upstreamNoVisibleResponse",
+          });
           await this.recordChannelAttempt(token.id, candidate, false, usageRequestId);
           effectiveCandidate = attemptIndex === attemptCandidates.length - 1 ? candidate : null;
           failed = attemptIndex === attemptCandidates.length - 1;
@@ -505,7 +527,11 @@ export class ChatService {
     }
 
     if (!effectiveCandidate && !stopped) {
-      const error = lastError || new BadRequestError("No compatible relay channel is currently available");
+      const error =
+        lastError ||
+        new BadRequestError("No compatible relay channel is currently available", undefined, {
+          messageKey: "chat.noCompatibleChannel",
+        });
       const fallbackTotalOutputTime = Math.max(0, Date.now() - streamStartAt);
       const fallbackTimeToFirstByte = Math.max(0, (firstChunkAt || Date.now()) - streamStartAt);
       const errorStatusCode =
@@ -538,7 +564,10 @@ export class ChatService {
     }
 
     if (!effectiveCandidate && stopped) effectiveCandidate = attemptCandidates[0] || null;
-    if (!effectiveCandidate) throw new BadRequestError("No compatible relay channel is currently available");
+    if (!effectiveCandidate)
+      throw new BadRequestError("No compatible relay channel is currently available", undefined, {
+        messageKey: "chat.noCompatibleChannel",
+      });
     const effectiveChannel = effectiveCandidate.channel;
     const displayChannel = effectiveCandidate.displayChannel;
 
@@ -631,7 +660,8 @@ export class ChatService {
       auditDurationMs,
     });
 
-    if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance");
+    if (!finalizeResult.applied)
+      throw new BadRequestError("Insufficient balance", undefined, { messageKey: "billing.insufficientBalance" });
     if (stopped) return;
     if (failed) {
       if (lastError instanceof Error) throw lastError;

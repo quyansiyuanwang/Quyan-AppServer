@@ -202,7 +202,9 @@ export class SupportAiService {
 
   private requireSessionRetentionDays(value: number) {
     if (!Number.isInteger(value) || value < MIN_SESSION_RETENTION_DAYS || value > MAX_SESSION_RETENTION_DAYS)
-      throw new BadRequestError("Support session retention must be between 1 and 7 days");
+      throw new BadRequestError("Support session retention must be between 1 and 7 days", undefined, {
+        messageKey: "supportAi.sessionRetentionRange",
+      });
     return value;
   }
 
@@ -213,7 +215,11 @@ export class SupportAiService {
 
   private requireAgentRounds(value: number) {
     if (!Number.isInteger(value) || value < MIN_AGENT_ROUNDS || value > MAX_AGENT_ROUNDS)
-      throw new BadRequestError(`Support agent rounds must be between ${MIN_AGENT_ROUNDS} and ${MAX_AGENT_ROUNDS}`);
+      throw new BadRequestError(
+        `Support agent rounds must be between ${MIN_AGENT_ROUNDS} and ${MAX_AGENT_ROUNDS}`,
+        undefined,
+        { messageKey: "supportAi.agentRoundsRange", messageParams: { min: MIN_AGENT_ROUNDS, max: MAX_AGENT_ROUNDS } },
+      );
     return value;
   }
 
@@ -227,6 +233,11 @@ export class SupportAiService {
     if (!Number.isInteger(value) || value < MIN_MAX_OUTPUT_TOKENS || value > MAX_MAX_OUTPUT_TOKENS)
       throw new BadRequestError(
         `Support maximum output tokens must be between ${MIN_MAX_OUTPUT_TOKENS} and ${MAX_MAX_OUTPUT_TOKENS}`,
+        undefined,
+        {
+          messageKey: "supportAi.maxOutputTokensRange",
+          messageParams: { min: MIN_MAX_OUTPUT_TOKENS, max: MAX_MAX_OUTPUT_TOKENS },
+        },
       );
     return value;
   }
@@ -273,7 +284,10 @@ export class SupportAiService {
 
   private encryptionKey() {
     const secret = env.security.supportAiConfig.masterSecret;
-    if (secret.length < 64) throw new BadRequestError("AI support encryption key is not configured");
+    if (secret.length < 64)
+      throw new BadRequestError("AI support encryption key is not configured", undefined, {
+        messageKey: "supportAi.encryptionKeyNotConfigured",
+      });
     return createHash("sha256").update(secret).digest();
   }
 
@@ -286,7 +300,8 @@ export class SupportAiService {
 
   private decrypt(value: string) {
     const [iv, tag, ciphertext] = value.split(".");
-    if (!iv || !tag || !ciphertext) throw new BadRequestError("AI support API key is invalid");
+    if (!iv || !tag || !ciphertext)
+      throw new BadRequestError("AI support API key is invalid", undefined, { messageKey: "supportAi.apiKeyInvalid" });
     const decipher = createDecipheriv("aes-256-gcm", this.encryptionKey(), Buffer.from(iv, "base64"));
     decipher.setAuthTag(Buffer.from(tag, "base64"));
     return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64")), decipher.final()]).toString("utf8");
@@ -408,7 +423,9 @@ export class SupportAiService {
 
   private normalizeKnowledge(payload: unknown): readonly SupportKnowledgeChunk[] {
     if (!Array.isArray(payload) || !payload.every((item) => this.isKnowledgeChunk(item)))
-      throw new BadRequestError("Support knowledge payload is invalid");
+      throw new BadRequestError("Support knowledge payload is invalid", undefined, {
+        messageKey: "supportAi.knowledgePayloadInvalid",
+      });
     return payload.map((chunk, index) => ({
       ...chunk,
       id: chunk.id?.trim() || `${chunk.locale}:${chunk.slug}:${index}`,
@@ -422,25 +439,35 @@ export class SupportAiService {
   private validateKnowledgeUrl(value: string) {
     const endpoint = new URL(value);
     if (!["http:", "https:"].includes(endpoint.protocol) || endpoint.username || endpoint.password)
-      throw new BadRequestError("Support knowledge URL is invalid");
+      throw new BadRequestError("Support knowledge URL is invalid", undefined, {
+        messageKey: "supportAi.knowledgeUrlInvalid",
+      });
     return endpoint;
   }
 
   private resolveChunksUrl(manifestEndpoint: URL, chunksUrl: string) {
     const endpoint = this.validateKnowledgeUrl(new URL(chunksUrl, manifestEndpoint).toString());
     if (endpoint.origin !== manifestEndpoint.origin)
-      throw new BadRequestError("Support knowledge chunks URL must use the manifest origin");
+      throw new BadRequestError("Support knowledge chunks URL must use the manifest origin", undefined, {
+        messageKey: "supportAi.chunksUrlOriginMismatch",
+      });
     return endpoint;
   }
 
   private assertPayloadHash(value: unknown, expectedHash: string) {
     const actualHash = `sha256-${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
-    if (actualHash !== expectedHash) throw new BadRequestError("Support knowledge hash is invalid");
+    if (actualHash !== expectedHash)
+      throw new BadRequestError("Support knowledge hash is invalid", undefined, {
+        messageKey: "supportAi.knowledgeHashInvalid",
+      });
   }
 
   private async fetchKnowledgePayload(endpoint: URL) {
     const response = await fetch(endpoint, { signal: AbortSignal.timeout(5000) });
-    if (!response.ok) throw new BadRequestError("Support knowledge is unavailable");
+    if (!response.ok)
+      throw new BadRequestError("Support knowledge is unavailable", undefined, {
+        messageKey: "supportAi.knowledgeUnavailable",
+      });
     return (await response.json()) as unknown;
   }
 
@@ -448,11 +475,17 @@ export class SupportAiService {
     const headers = this.knowledgeManifestEtag ? { "If-None-Match": this.knowledgeManifestEtag } : undefined;
     const response = await fetch(endpoint, { headers, signal: AbortSignal.timeout(5000) });
     if (response.status === 304) {
-      if (!this.knowledgeCache.length) throw new BadRequestError("Support knowledge cache is unavailable");
+      if (!this.knowledgeCache.length)
+        throw new BadRequestError("Support knowledge cache is unavailable", undefined, {
+          messageKey: "supportAi.knowledgeCacheUnavailable",
+        });
       this.knowledgeCacheExpiresAt = this.knowledgeExpiry();
       return { notModified: true as const };
     }
-    if (!response.ok) throw new BadRequestError("Support knowledge is unavailable");
+    if (!response.ok)
+      throw new BadRequestError("Support knowledge is unavailable", undefined, {
+        messageKey: "supportAi.knowledgeUnavailable",
+      });
     this.knowledgeManifestEtag = response.headers.get("etag");
     return { notModified: false as const, payload: (await response.json()) as unknown };
   }
@@ -486,7 +519,9 @@ export class SupportAiService {
             const reference = payload.locales[locale];
             const index = await this.fetchKnowledgePayload(this.resolveChunksUrl(endpoint, reference.indexUrl));
             if (!this.isKnowledgeLocaleIndex(index) || index.locale !== locale)
-              throw new BadRequestError("Support knowledge index is invalid");
+              throw new BadRequestError("Support knowledge index is invalid", undefined, {
+                messageKey: "supportAi.knowledgeIndexInvalid",
+              });
             this.assertPayloadHash(index, reference.indexHash);
             return index;
           }),
@@ -506,7 +541,10 @@ export class SupportAiService {
         this.knowledgeCacheExpiresAt = this.knowledgeExpiry();
         return this.knowledgeCache;
       }
-      if (!this.isKnowledgeManifest(payload)) throw new BadRequestError("Support knowledge manifest is invalid");
+      if (!this.isKnowledgeManifest(payload))
+        throw new BadRequestError("Support knowledge manifest is invalid", undefined, {
+          messageKey: "supportAi.knowledgeManifestInvalid",
+        });
       if (payload.version === this.knowledgeVersion && this.knowledgeCache.length) {
         this.knowledgeCacheExpiresAt = this.knowledgeExpiry();
         return this.knowledgeCache;
@@ -514,10 +552,16 @@ export class SupportAiService {
       const chunksResponse = await fetch(this.resolveChunksUrl(endpoint, payload.chunksUrl), {
         signal: AbortSignal.timeout(5000),
       });
-      if (!chunksResponse.ok) throw new BadRequestError("Support knowledge is unavailable");
+      if (!chunksResponse.ok)
+        throw new BadRequestError("Support knowledge is unavailable", undefined, {
+          messageKey: "supportAi.knowledgeUnavailable",
+        });
       const chunks = this.normalizeKnowledge(await chunksResponse.json());
       const contentHash = createHash("sha256").update(JSON.stringify(chunks)).digest("hex");
-      if (payload.version !== `sha256-${contentHash}`) throw new BadRequestError("Support knowledge hash is invalid");
+      if (payload.version !== `sha256-${contentHash}`)
+        throw new BadRequestError("Support knowledge hash is invalid", undefined, {
+          messageKey: "supportAi.knowledgeHashInvalid",
+        });
       this.knowledgeCache = chunks;
       this.knowledgeDocuments.clear();
       this.knowledgeSections.clear();
@@ -539,10 +583,15 @@ export class SupportAiService {
       this.resolveChunksUrl(this.validateKnowledgeUrl(manifestUrl), document.documentUrl),
     );
     if (!this.isKnowledgeDocumentPayload(payload) || payload.id !== document.id)
-      throw new BadRequestError("Support knowledge document is invalid");
+      throw new BadRequestError("Support knowledge document is invalid", undefined, {
+        messageKey: "supportAi.knowledgeDocumentInvalid",
+      });
     this.assertPayloadHash(payload, document.documentHash);
     const sections = payload.sections.filter((section) => section.id.startsWith(`${document.id}:`));
-    if (!sections.length) throw new BadRequestError("Support knowledge document is invalid");
+    if (!sections.length)
+      throw new BadRequestError("Support knowledge document is invalid", undefined, {
+        messageKey: "supportAi.knowledgeDocumentInvalid",
+      });
     this.knowledgeSections.set(document.id, sections);
     return sections;
   }
@@ -734,7 +783,9 @@ export class SupportAiService {
     try {
       endpoint = new URL(value);
     } catch {
-      throw new BadRequestError("User Relay Base URL is invalid");
+      throw new BadRequestError("User Relay Base URL is invalid", undefined, {
+        messageKey: "supportAi.userRelayBaseUrlInvalid",
+      });
     }
     if (
       !["http:", "https:"].includes(endpoint.protocol) ||
@@ -744,11 +795,16 @@ export class SupportAiService {
       endpoint.hash ||
       !["", "/"].includes(endpoint.pathname)
     )
-      throw new BadRequestError("User Relay Base URL is invalid");
+      throw new BadRequestError("User Relay Base URL is invalid", undefined, {
+        messageKey: "supportAi.userRelayBaseUrlInvalid",
+      });
     const isFirstParty = env.runtime.trustedRootDomains.some(
       (rootDomain) => endpoint.hostname === rootDomain || endpoint.hostname.endsWith(`.${rootDomain}`),
     );
-    if (!isFirstParty) throw new ForbiddenError("User Relay Base URL must be a first-party Relay endpoint");
+    if (!isFirstParty)
+      throw new ForbiddenError("User Relay Base URL must be a first-party Relay endpoint", undefined, {
+        messageKey: "supportAi.userRelayBaseUrlNotFirstParty",
+      });
     return endpoint.origin;
   }
 
@@ -767,14 +823,25 @@ export class SupportAiService {
       };
     }
     if (!config.allowUserBalance || !config.allowUserRelayToken)
-      throw new ForbiddenError("User-funded AI support is disabled");
+      throw new ForbiddenError("User-funded AI support is disabled", undefined, {
+        messageKey: "supportAi.userFundedDisabled",
+      });
     const relayToken = body.relayToken?.trim();
     const relayModel = body.relayModel?.trim();
     const relayBaseUrl = body.relayBaseUrl?.trim();
-    if (!relayToken || !relayModel || !relayBaseUrl) throw new BadRequestError("User Relay settings are incomplete");
+    if (!relayToken || !relayModel || !relayBaseUrl)
+      throw new BadRequestError("User Relay settings are incomplete", undefined, {
+        messageKey: "supportAi.userRelaySettingsIncomplete",
+      });
     const validatedToken = await this.relayTokenService.validateToken(relayToken, request);
-    if (validatedToken.userId !== userId) throw new ForbiddenError("User Relay Token must belong to the current user");
-    if (!request) throw new BadRequestError("User Relay requests require request context");
+    if (validatedToken.userId !== userId)
+      throw new ForbiddenError("User Relay Token must belong to the current user", undefined, {
+        messageKey: "supportAi.userRelayTokenNotOwned",
+      });
+    if (!request)
+      throw new BadRequestError("User Relay requests require request context", undefined, {
+        messageKey: "supportAi.userRelayContextRequired",
+      });
     return {
       model: relayModel.slice(0, 160),
       apiKey: relayToken,
@@ -789,7 +856,9 @@ export class SupportAiService {
     const key = `support-ai:${userId}:${bucket}`;
     const current = Number((await this.redisService.get(key)) || 0);
     if (current >= config.maxRequests)
-      throw new TooManyRequestsError("Support request limit reached", config.windowSeconds);
+      throw new TooManyRequestsError("Support request limit reached", config.windowSeconds, undefined, {
+        messageKey: "supportAi.requestLimitReached",
+      });
     await this.redisService.set(key, current + 1, config.windowSeconds);
   }
 
@@ -878,14 +947,16 @@ export class SupportAiService {
     signal?: AbortSignal,
   ): AsyncGenerator<SupportStreamEvent> {
     const config = await this.getConfig();
-    if (!config.enabled) throw new BadRequestError("AI support is unavailable");
+    if (!config.enabled)
+      throw new BadRequestError("AI support is unavailable", undefined, { messageKey: "supportAi.aiUnavailable" });
     if (
       (body.fundingMode ?? "platform") !== "user-relay" &&
       (!config.upstreamUrl || !config.model || !config.apiKeyConfigured)
     )
-      throw new BadRequestError("AI support is unavailable");
+      throw new BadRequestError("AI support is unavailable", undefined, { messageKey: "supportAi.aiUnavailable" });
     const content = body.content.trim();
-    if (!content || content.length > 4000) throw new BadRequestError("Support message is invalid");
+    if (!content || content.length > 4000)
+      throw new BadRequestError("Support message is invalid", undefined, { messageKey: "supportAi.messageInvalid" });
     await this.assertRateLimit(userId, config);
     const locale = body.locale === "en" ? "en" : "zh-CN";
     const storedConversation = await this.readConversation(userId);
@@ -1001,7 +1072,8 @@ export class SupportAiService {
   async handoff(userId: string, body: SupportHandoffDto, request?: Request) {
     const title = body.title.trim().slice(0, 160);
     const description = body.description.trim().slice(0, 12000);
-    if (!title || !description) throw new BadRequestError("Support handoff is invalid");
+    if (!title || !description)
+      throw new BadRequestError("Support handoff is invalid", undefined, { messageKey: "supportAi.handoffInvalid" });
     const ticket = await this.ticketService.createTicket(
       userId,
       { type: "other", title, description, sourcePage: body.sourcePage },

@@ -3,6 +3,7 @@ import { defineComponent, nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { i18ns } from '@/locales'
+import { configureRequestErrorNotifier } from '@/utils/requestErrorNotice'
 
 const {
   listTrustedDevicesMock,
@@ -47,7 +48,9 @@ vi.mock('@/composables/usePagination', async () => {
       let latestRequestId = 0
       let activeController: AbortController | null = null
 
-      const maxPage = computed(() => Math.max(1, Math.ceil(total.value / Math.max(1, pageSize.value))))
+      const maxPage = computed(() =>
+        Math.max(1, Math.ceil(total.value / Math.max(1, pageSize.value))),
+      )
 
       const setPage = (nextPage: number) => {
         const normalized = Number.isFinite(nextPage) ? Math.floor(nextPage) : 1
@@ -55,7 +58,9 @@ vi.mock('@/composables/usePagination', async () => {
       }
 
       const setPageSize = (nextPageSize: number) => {
-        const normalized = Number.isFinite(nextPageSize) ? Math.floor(nextPageSize) : initialPageSize
+        const normalized = Number.isFinite(nextPageSize)
+          ? Math.floor(nextPageSize)
+          : initialPageSize
         pageSize.value = Math.max(1, normalized)
       }
 
@@ -256,6 +261,9 @@ const createPage = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 })
 
+// 组件通过 showRequestErrorNotice 报错，其输出经通知器；镜像生产的接线方式（见 requestErrorNoticeInstaller）
+configureRequestErrorNotifier((_title, message) => messageErrorMock(message))
+
 describe('TrustedDeviceManagementView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -290,7 +298,8 @@ describe('TrustedDeviceManagementView', () => {
     await flushPromises()
 
     expect(wrapper.find('.trusted-error-retry').exists()).toBe(true)
-    expect(messageErrorMock).toHaveBeenCalledWith('load failed')
+    // 原始 Error 不含后端信封：按设计回退到本地化兜底
+    expect(messageErrorMock).toHaveBeenCalledWith(i18ns.t('twoFactor.trustedDevicesLoadFailed'))
 
     await wrapper.find('.trusted-error-retry').trigger('click')
     await flushPromises()
@@ -369,7 +378,9 @@ describe('TrustedDeviceManagementView', () => {
     expect(wrapper.text()).toContain(i18ns.t('twoFactor.trustedDeviceUnknown'))
     expect(wrapper.text()).toContain(i18ns.t('twoFactor.trustedDeviceExpiresSoon'))
     expect(wrapper.text()).toContain(i18ns.t('twoFactor.trustedDeviceDurationHours', { count: 1 }))
-    expect(wrapper.text()).toContain(i18ns.t('twoFactor.trustedDeviceDurationMinutes', { count: 1 }))
+    expect(wrapper.text()).toContain(
+      i18ns.t('twoFactor.trustedDeviceDurationMinutes', { count: 1 }),
+    )
   })
 
   it('aborts active trusted-device request on unmount', async () => {

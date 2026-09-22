@@ -30,18 +30,20 @@ export function validateAccountStatus(status: number, userId?: string, context?:
 
   if (status === AccountStatus.DISABLED) {
     logger.warn(`Account disabled${userInfo}${logContext}`);
-    throw new ForbiddenError("账号已被禁用，请联系管理员", CustomCode.ACCOUNT_DISABLED);
+    throw new ForbiddenError("账号已被禁用，请联系管理员", CustomCode.ACCOUNT_DISABLED, {
+      messageKey: "errors.accountDisabled",
+    });
   }
 
   if (status === AccountStatus.DELETED) {
     logger.warn(`Account deleted${userInfo}${logContext}`);
-    throw new UnauthorizedError("账号已被删除");
+    throw new UnauthorizedError("账号已被删除", undefined, { messageKey: "errors.accountDeleted" });
   }
 
   // 只有 AccountStatus.ACTIVE 才是正常状态
   if (status !== AccountStatus.ACTIVE) {
     logger.warn(`Invalid account status: ${status}${userInfo}${logContext}`);
-    throw new UnauthorizedError("账号状态异常");
+    throw new UnauthorizedError("账号状态异常", undefined, { messageKey: "errors.accountStatusAbnormal" });
   }
 }
 

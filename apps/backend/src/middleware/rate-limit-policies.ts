@@ -109,3 +109,8 @@ export const trustedDeviceRateLimitMiddleware = rateLimitMiddleware({
   consumeWhen: "before-handler",
   createError: (result) => createTooManyRequestsError(result.reason, result.retryAfter),
 });
+
+export const browserStateResetRateLimitMiddleware = rateLimitMiddleware({
+  check: (request) => rateLimiterService.consumeBrowserStateResetRateLimit(extractClientIp(request)),
+  createError: (result) => new TooManyRequestsError(undefined, result.retryAfter),
+});

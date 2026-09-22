@@ -193,3 +193,54 @@ describe("computeMultiplierForTime", () => {
     expect(computeMultiplierForTime(rules, dateFrom(6, 10, 0))).toBe(1.0);
   });
 });
+
+describe("holiday multiplier filters", () => {
+  const holiday = (date: string) => ["2026-10-01", "2026-10-04"].includes(date);
+  const at = (date: string) => new Date(date);
+  it("excludes weekday holidays but still charges busy hours on ordinary weekdays", () => {
+    const rule = makeRule({ holidayMode: "exclude" });
+    expect(computeMultiplierForTime([rule], at("2026-10-01T10:00:00+08:00"), holiday)).toBe(1);
+    expect(computeMultiplierForTime([rule], at("2026-09-30T10:00:00+08:00"), holiday)).toBe(2);
+    expect(computeMultiplierForTime([rule], at("2026-09-30T18:00:00+08:00"), holiday)).toBe(1);
+  });
+  it("never reclassifies a makeup-working weekend as a weekday", () => {
+    const rule = makeRule({ holidayMode: "exclude", allDay: true });
+    expect(computeMultiplierForTime([rule], at("2026-10-10T10:00:00+08:00"), holiday)).toBe(1);
+  });
+  it("holidays only ignores selected weekdays but retains time filtering", () => {
+    const rule = makeRule({ holidayMode: "only" });
+    expect(computeMultiplierForTime([rule], at("2026-10-04T10:00:00+08:00"), holiday)).toBe(2);
+    expect(computeMultiplierForTime([rule], at("2026-10-04T18:00:00+08:00"), holiday)).toBe(1);
+    expect(computeMultiplierForTime([rule], at("2026-09-30T10:00:00+08:00"), holiday)).toBe(1);
+  });
+  it("covers the last minute and midnight with all-day rules", () => {
+    const rule = makeRule({ holidayMode: "only", allDay: true });
+    for (const time of ["00:00:00", "23:59:59"]) {
+      expect(computeMultiplierForTime([rule], at(`2026-10-01T${time}+08:00`), holiday)).toBe(2);
+    }
+    expect(computeMultiplierForTime([rule], at("2026-09-30T15:59:59Z"), holiday)).toBe(1);
+    expect(computeMultiplierForTime([rule], at("2026-09-30T16:00:00Z"), holiday)).toBe(2);
+  });
+  it("skips both dependent modes on unknown calendar without changing legacy rules", () => {
+    const unknown = () => undefined;
+    const now = dateFrom(1, 10);
+    expect(
+      computeMultiplierForTime(
+        [makeRule({ holidayMode: "only" }), makeRule({ holidayMode: "exclude" }), makeRule()],
+        now,
+        unknown,
+      ),
+    ).toBe(2);
+    expect(
+      computeMultiplierForTime([makeRule({ holidayMode: "ignore" })], now, () => {
+        throw new Error("must not access calendar");
+      }),
+    ).toBe(2);
+  });
+  it("preserves cross-midnight, disabled and multiplicative behavior", () => {
+    const rule = makeRule({ holidayMode: "only", startTime: "22:00", endTime: "02:00" });
+    const now = at("2026-10-01T01:00:00+08:00");
+    expect(computeMultiplierForTime([rule, { ...rule, multiplier: 3 }], now, holiday)).toBe(6);
+    expect(computeMultiplierForTime([{ ...rule, enabled: false }], now, holiday)).toBe(1);
+  });
+});

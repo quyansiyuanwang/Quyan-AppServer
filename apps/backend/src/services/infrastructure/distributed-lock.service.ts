@@ -62,7 +62,10 @@ export class DistributedLockService {
     const resolved = this.resolveOptions(options);
 
     if (!this.redisService.isRedisAvailable()) {
-      if (resolved.failClosed) throw new LockBackendUnavailableError("Distributed lock backend is unavailable");
+      if (resolved.failClosed)
+        throw new LockBackendUnavailableError("Distributed lock backend is unavailable", undefined, {
+          messageKey: "errors.lockBackendUnavailable",
+        });
 
       const now = Date.now();
 
@@ -92,7 +95,10 @@ export class DistributedLockService {
       }
 
       if (acquired === null) {
-        if (resolved.failClosed) throw new LockBackendUnavailableError("Distributed lock backend is unavailable");
+        if (resolved.failClosed)
+          throw new LockBackendUnavailableError("Distributed lock backend is unavailable", undefined, {
+            messageKey: "errors.lockBackendUnavailable",
+          });
 
         const now = Date.now();
 
@@ -109,6 +115,8 @@ export class DistributedLockService {
         throw new ResourceLockedError(
           `Resource is locked: ${normalizedKey}`,
           Math.max(1, Math.ceil(resolved.retryIntervalMs / 1000)),
+          undefined,
+          { messageKey: "errors.lockConflict" },
         );
 
       await sleep(resolved.retryIntervalMs);

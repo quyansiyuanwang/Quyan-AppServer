@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@/utils/error-utils'
 import type {
   Permission,
   AllPermissionsDto,
@@ -120,7 +121,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
         allPermissions.value = data.data.permissions
       }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '加载权限列表失败'
+      error.value = getErrorMessage(err)
       console.error('加载权限列表失败:', err)
     } finally {
       loading.value = false
@@ -169,7 +170,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
 
       return data
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '加载用户权限失败'
+      error.value = getErrorMessage(err)
       console.error('加载用户权限失败:', err)
       throw err
     } finally {
@@ -206,7 +207,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
 
       return success
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '设置用户权限失败'
+      error.value = getErrorMessage(err)
       console.error('设置用户权限失败:', err)
       throw err
     } finally {
@@ -229,7 +230,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
 
       return success
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '添加用户权限失败'
+      error.value = getErrorMessage(err)
       console.error('添加用户权限失败:', err)
       throw err
     } finally {
@@ -252,7 +253,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
 
       return success
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '移除用户权限失败'
+      error.value = getErrorMessage(err)
       console.error('移除用户权限失败:', err)
       throw err
     } finally {
@@ -275,7 +276,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
 
       return success
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '清空用户权限失败'
+      error.value = getErrorMessage(err)
       console.error('清空用户权限失败:', err)
       throw err
     } finally {
@@ -330,7 +331,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
       const data = await permissionService.getGroupPermissions(groupId)
       return data?.data.permissions || []
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '加载用户组权限失败'
+      error.value = getErrorMessage(err)
       console.error('加载用户组权限失败:', err)
       throw err
     } finally {
@@ -348,7 +349,7 @@ export const usePermissionStore = defineStore('permissionStore', () => {
       const success = await permissionService.setGroupPermissions(groupId, { permissions })
       return success
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '设置用户组权限失败'
+      error.value = getErrorMessage(err)
       console.error('设置用户组权限失败:', err)
       throw err
     } finally {

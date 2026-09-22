@@ -320,7 +320,8 @@ describe("Relay Channel API Integration", () => {
       const createRes = await postWithReplay("/v1/relay-channels", createBody);
       expect(createRes.status).toBe(400);
       expect(createRes.body.message).toContain("duplicate model IDs");
-      expect(createRes.body.message).toContain(modelId);
+      // 有意变更：重复模型 ID 只报事实，不回显具体 ID（§3.1：不把请求值当插值参数）
+      expect(createRes.body.message).toContain("each model ID should only appear once");
     } finally {
       await prisma.modelPricing.deleteMany({ where: { id: { in: [model1.id, model2.id] } } });
     }
@@ -368,7 +369,8 @@ describe("Relay Channel API Integration", () => {
       const updateRes = await putWithReplay(`/v1/relay-channels/${channelId}`, updateBody);
       expect(updateRes.status).toBe(400);
       expect(updateRes.body.message).toContain("duplicate model IDs");
-      expect(updateRes.body.message).toContain(modelId);
+      // 有意变更：同上
+      expect(updateRes.body.message).toContain("each model ID should only appear once");
     } finally {
       await prisma.modelPricing.deleteMany({ where: { id: { in: [model1.id, model2.id] } } });
       await deleteWithReplay(`/v1/relay-channels/${channelId}`);

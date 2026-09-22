@@ -61,7 +61,8 @@ export class LegalPolicyService {
 
   public async getPolicy(id: string): Promise<LegalPolicyDto> {
     const policy = await this.repository.findById(id);
-    if (!policy) throw new NotFoundError("法律协议版本不存在");
+    if (!policy)
+      throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
 
     return this.toLegalPolicyDto(policy);
   }
@@ -73,9 +74,12 @@ export class LegalPolicyService {
     request: Request,
   ): Promise<LegalPolicyDto> {
     const existing = await this.repository.findById(id);
-    if (!existing) throw new NotFoundError("法律协议版本不存在");
+    if (!existing)
+      throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
     if (existing.publishStatus !== LegalPolicyPublishStatus.DRAFT)
-      throw new BadRequestError("已发布的协议版本不允许修改，请新建版本");
+      throw new BadRequestError("已发布的协议版本不允许修改，请新建版本", undefined, {
+        messageKey: "legalPolicy.publishedVersionImmutable",
+      });
 
     const updated = await this.repository.update(id, {
       ...dto,
@@ -101,9 +105,12 @@ export class LegalPolicyService {
 
   public async deletePolicy(id: string, actorUserId: string, request: Request): Promise<void> {
     const existing = await this.repository.findById(id);
-    if (!existing) throw new NotFoundError("法律协议版本不存在");
+    if (!existing)
+      throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
     if (existing.publishStatus !== LegalPolicyPublishStatus.DRAFT)
-      throw new BadRequestError("已发布的协议版本不允许删除");
+      throw new BadRequestError("已发布的协议版本不允许删除", undefined, {
+        messageKey: "legalPolicy.publishedVersionNotDeletable",
+      });
 
     await this.repository.delete(id);
 
@@ -123,8 +130,10 @@ export class LegalPolicyService {
 
   public async publishPolicy(id: string, actorUserId: string, request: Request): Promise<LegalPolicyDto> {
     const existing = await this.repository.findById(id);
-    if (!existing) throw new NotFoundError("法律协议版本不存在");
-    if (existing.publishStatus === LegalPolicyPublishStatus.PUBLISHED) throw new BadRequestError("该协议版本已发布");
+    if (!existing)
+      throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
+    if (existing.publishStatus === LegalPolicyPublishStatus.PUBLISHED)
+      throw new BadRequestError("该协议版本已发布", undefined, { messageKey: "legalPolicy.versionAlreadyPublished" });
 
     const policyType = existing.policyType as LegalPolicyType;
 
@@ -152,16 +161,22 @@ export class LegalPolicyService {
 
   public async unpublishPolicy(id: string, actorUserId: string, request: Request): Promise<LegalPolicyDto> {
     const existing = await this.repository.findById(id);
-    if (!existing) throw new NotFoundError("法律协议版本不存在");
+    if (!existing)
+      throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
     if (existing.publishStatus !== LegalPolicyPublishStatus.PUBLISHED)
-      throw new BadRequestError("该协议版本尚未发布，无需撤销发布");
+      throw new BadRequestError("该协议版本尚未发布，无需撤销发布", undefined, {
+        messageKey: "legalPolicy.versionNotPublished",
+      });
 
     const policyType = existing.policyType as LegalPolicyType;
 
     let fallbackCurrentId: string | undefined;
     if (existing.isCurrent) {
       const fallback = await this.repository.findLatestPublishedVersionByPolicyType(policyType, existing.id);
-      if (!fallback) throw new BadRequestError("撤销后将导致当前协议类型无有效协议，无法执行撤销发布");
+      if (!fallback)
+        throw new BadRequestError("撤销后将导致当前协议类型无有效协议，无法执行撤销发布", undefined, {
+          messageKey: "legalPolicy.unpublishWouldLeaveNoVersion",
+        });
       fallbackCurrentId = fallback.id;
     }
 
@@ -196,11 +211,15 @@ export class LegalPolicyService {
     const policies = await this.repository.findCurrentPublishedByPolicyTypes(requestedTypes);
 
     if (policyType) {
-      if (policies.length === 0) throw new NotFoundError("当前已发布协议不存在");
+      if (policies.length === 0)
+        throw new NotFoundError("当前已发布协议不存在", undefined, { messageKey: "legalPolicy.currentPolicyNotFound" });
     } else {
       const foundTypes = new Set(policies.map((item) => item.policyType as LegalPolicyType));
       const missingTypes = LEGAL_POLICY_TYPES.filter((type) => !foundTypes.has(type));
-      if (missingTypes.length > 0) throw new NotFoundError("当前服务协议或隐私政策尚未完整发布");
+      if (missingTypes.length > 0)
+        throw new NotFoundError("当前服务协议或隐私政策尚未完整发布", undefined, {
+          messageKey: "legalPolicy.policiesNotFullyPublished",
+        });
     }
 
     return {
@@ -212,7 +231,10 @@ export class LegalPolicyService {
     const policies = await this.repository.findCurrentPublishedByPolicyTypes(LEGAL_POLICY_TYPES);
     const foundTypes = new Set(policies.map((item) => item.policyType as LegalPolicyType));
     const missingTypes = LEGAL_POLICY_TYPES.filter((type) => !foundTypes.has(type));
-    if (missingTypes.length > 0) throw new NotFoundError("当前服务协议或隐私政策尚未完整发布");
+    if (missingTypes.length > 0)
+      throw new NotFoundError("当前服务协议或隐私政策尚未完整发布", undefined, {
+        messageKey: "legalPolicy.policiesNotFullyPublished",
+      });
 
     return policies;
   }
@@ -282,7 +304,10 @@ export class LegalPolicyService {
   private async createDraftPolicy(dto: CreateLegalPolicyDto, actorUserId: string): Promise<LegalPolicyVersion> {
     for (let attempt = 0; attempt < 3; attempt++) {
       const existingDraft = await this.repository.findDraftByPolicyType(dto.policyType);
-      if (existingDraft) throw new BadRequestError("当前协议类型已有未发布草稿，请先更新或发布现有草稿");
+      if (existingDraft)
+        throw new BadRequestError("当前协议类型已有未发布草稿，请先更新或发布现有草稿", undefined, {
+          messageKey: "legalPolicy.unpublishedDraftExists",
+        });
 
       const latest = await this.repository.findLatestVersionByPolicyType(dto.policyType);
       const nextVersion = (latest?.version ?? 0) + 1;
@@ -306,7 +331,9 @@ export class LegalPolicyService {
       }
     }
 
-    throw new ConflictError("创建协议版本冲突，请刷新后重试", CustomCode.LEGAL_POLICY_VERSION_CONFLICT);
+    throw new ConflictError("创建协议版本冲突，请刷新后重试", CustomCode.LEGAL_POLICY_VERSION_CONFLICT, {
+      messageKey: "errors.legalPolicyVersionConflict",
+    });
   }
 
   private isPolicyVersionUniqueConflict(error: unknown): boolean {

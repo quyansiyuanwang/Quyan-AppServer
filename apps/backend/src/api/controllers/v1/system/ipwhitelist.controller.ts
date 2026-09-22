@@ -95,7 +95,8 @@ export class IPWhitelistController extends Controller {
     @Body() body: CreateIPWhitelistDto,
     @Request() request: TypedRequest,
   ): Promise<CreateIPWhitelistResponse> {
-    if (!body.ipAddress) throw new BadRequestError("IP 地址不能为空");
+    if (!body.ipAddress)
+      throw new BadRequestError("IP 地址不能为空", undefined, { messageKey: "ipWhitelist.ipRequired" });
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : undefined;
     const record = await this.service.add(body.ipAddress, body.reason ?? "", request.user!.userId, expiresAt, request);
     this.setStatus(HttpStatusCode.Created);
@@ -114,7 +115,11 @@ export class IPWhitelistController extends Controller {
   )
   public async removeWhiteIp(@Path() ip: string, @Request() request: TypedRequest): Promise<DeleteIPWhitelistResponse> {
     const success = await this.service.remove(ip, request.user!.userId, request);
-    if (!success) throw new NotFoundError(`IP ${ip} 不在白名单中`);
+    if (!success)
+      throw new NotFoundError(`IP ${ip} 不在白名单中`, undefined, {
+        messageKey: "ipWhitelist.notFoundByIp",
+        messageParams: { ip },
+      });
     return { success };
   }
 }

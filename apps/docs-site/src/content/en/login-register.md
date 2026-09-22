@@ -45,3 +45,19 @@ Sign-in, registration, password recovery, social-login callbacks, two-factor ver
 - `forgot-password`
 - `auth-verification`
 - `account-settings`
+
+## Trouble signing in: check and repair
+
+Use **Unable to sign in? Check and repair** on the sign-in page. If the main application cannot open, use the recovery link beneath its loading screen or visit `/repair.html` on the current site.
+
+1. Start with **Check browser environment**. It checks storage access, known sign-in data formats, databases and backend connectivity without uploading local contents. Normal results cannot rule out every issue; the page cannot inspect HttpOnly cookies.
+2. Prefer **Reset sign-in state**. After confirmation, it removes local authentication remnants while keeping language, theme and business caches. CAPTCHA and trusted-device cookies are reset, so verification may be required again. Account Passkeys and two-factor configuration are not deleted.
+3. If necessary, choose **Clear this app’s local data**. Two confirmations are required before removing recognized application storage, preferences and databases on this origin. Save unsynced drafts first. Server-side accounts and business data are unaffected.
+4. Review each result and select **Return to sign in**. Retry incomplete operations. Local cleanup continues even when the backend is unreachable; this does not mean authentication cookies were cleared.
+
+**Limits and troubleshooting:**
+
+- Only recognized data on the current origin is handled. Visit other subdomains separately to clear their LocalStorage and IndexedDB. Shared cookies may affect other sites in the same deployment.
+- Close other tabs for this site if database deletion is blocked. Unsupported database enumeration is reported as incomplete coverage.
+- If storage is restricted or automatic cleanup fails, search browser settings for “site data,” select only this site, clear its data and reopen sign-in. Do not accidentally clear data for every website.
+- Resetting does not fix incorrect passwords, account permissions, network outages or server faults. Follow the corresponding sign-in error instructions instead.

@@ -220,6 +220,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { ref, onMounted, onActivated } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 
@@ -283,7 +284,7 @@ const loadAPIKeys = async () => {
   try {
     apiKeys.value = await ojAPIKeyService.listAPIKeys()
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ojSubmitter.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ojSubmitter.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -293,7 +294,7 @@ const loadChannels = async () => {
   try {
     channels.value = await relayChannelService.listChannelOptions()
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ojSubmitter.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ojSubmitter.loadFailed'))
   }
 }
 
@@ -311,7 +312,7 @@ const handleCreate = async () => {
     resetCreateForm()
     await loadAPIKeys()
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ojSubmitter.createFailed'))
+    showRequestErrorNotice(error, i18ns.t('ojSubmitter.createFailed'))
   } finally {
     creating.value = false
   }
@@ -342,7 +343,7 @@ const handleUpdate = async () => {
     resetEditForm()
     await loadAPIKeys()
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ojSubmitter.updateFailed'))
+    showRequestErrorNotice(error, i18ns.t('ojSubmitter.updateFailed'))
   } finally {
     updating.value = false
   }
@@ -360,7 +361,7 @@ const handleDelete = async (row: OjapiKeyDto) => {
     await loadAPIKeys()
   } catch (error: any) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || i18ns.t('ojSubmitter.deleteFailed'))
+      showRequestErrorNotice(error, i18ns.t('ojSubmitter.deleteFailed'))
     }
   }
 }

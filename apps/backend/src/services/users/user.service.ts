@@ -206,13 +206,14 @@ export class UserService {
   ): Promise<UserDto> {
     // Check username uniqueness
     const existing = await this.userRepository.findByUsername(data.username);
-    if (existing) throw new BadRequestError("用户名已存在");
+    if (existing) throw new BadRequestError("用户名已存在", undefined, { messageKey: "user.usernameExists" });
 
     // If no groupId, use default group (username: "user")
     let groupId = data.groupId;
     if (!groupId) {
       const defaultGroup = await this.groupRepository.findDefaultUserGroup();
-      if (!defaultGroup) throw new InternalServerError("默认用户组不存在");
+      if (!defaultGroup)
+        throw new InternalServerError("默认用户组不存在", undefined, { messageKey: "auth.defaultGroupNotFound" });
       groupId = defaultGroup.id;
     }
 
@@ -245,7 +246,7 @@ export class UserService {
 
   async updateUser(userId: string, data: UpdateUserDto, actorUserId: string, request?: Request): Promise<UserDto> {
     const existingUser = await this.userRepository.findById(userId);
-    if (!existingUser) throw new NotFoundError("用户不存在");
+    if (!existingUser) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
     const updateData: Record<string, any> = {};
     if (data.email !== undefined) updateData.email = data.email;
@@ -290,7 +291,7 @@ export class UserService {
 
   async deleteUser(userId: string, actorUserId: string, request?: Request): Promise<void> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在");
+    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
     // Soft delete: mark the account as deleted via AccountStatus.DELETED.
     await this.userRepository.softDelete(userId);
@@ -372,7 +373,7 @@ export class UserService {
    */
   async updateProfile(userId: string, data: UpdateProfileDto, request?: Request): Promise<UserDto> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在");
+    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
     const updateData: Record<string, any> = {};
     if (data.name !== undefined) updateData.name = data.name;
@@ -401,15 +402,15 @@ export class UserService {
    */
   async sendEmailChangeCode(userId: string, newEmail: string, _request?: Request): Promise<void> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在");
+    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
     // 不允许设为当前邮箱
     if (user.email && user.email.toLowerCase() === newEmail.toLowerCase())
-      throw new BadRequestError("新邮箱不能与当前邮箱相同");
+      throw new BadRequestError("新邮箱不能与当前邮箱相同", undefined, { messageKey: "user.emailUnchanged" });
 
     // 检查邮箱唯一性
     const emailExists = await this.userRepository.findByEmailInNonDeleted(newEmail);
-    if (emailExists) throw new BadRequestError("该邮箱已被其他用户使用");
+    if (emailExists) throw new BadRequestError("该邮箱已被其他用户使用", undefined, { messageKey: "user.emailTaken" });
 
     // 检查一天内是否已经更换过邮箱（通过业务日志检查）
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -418,7 +419,10 @@ export class UserService {
       OperationType.USER_EMAIL_CHANGE,
       oneDayAgo,
     );
-    if (recentEmailChange) throw new BadRequestError("每天只能修改一次邮箱，请明天再试");
+    if (recentEmailChange)
+      throw new BadRequestError("每天只能修改一次邮箱，请明天再试", undefined, {
+        messageKey: "user.emailChangeTooFrequent",
+      });
 
     // 发送验证码到新邮箱
     const emailService = EmailService.getInstance();
@@ -430,15 +434,15 @@ export class UserService {
    */
   async changeEmail(userId: string, data: ChangeEmailDto, request?: Request): Promise<void> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在");
+    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
     // 不允许设为当前邮箱
     if (user.email && user.email.toLowerCase() === data.newEmail.toLowerCase())
-      throw new BadRequestError("新邮箱不能与当前邮箱相同");
+      throw new BadRequestError("新邮箱不能与当前邮箱相同", undefined, { messageKey: "user.emailUnchanged" });
 
     // 检查邮箱唯一性
     const emailExists = await this.userRepository.findByEmailInNonDeleted(data.newEmail);
-    if (emailExists) throw new BadRequestError("该邮箱已被其他用户使用");
+    if (emailExists) throw new BadRequestError("该邮箱已被其他用户使用", undefined, { messageKey: "user.emailTaken" });
 
     // 检查一天内是否已经更换过邮箱
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -447,12 +451,16 @@ export class UserService {
       OperationType.USER_EMAIL_CHANGE,
       oneDayAgo,
     );
-    if (recentEmailChange) throw new BadRequestError("每天只能修改一次邮箱，请明天再试");
+    if (recentEmailChange)
+      throw new BadRequestError("每天只能修改一次邮箱，请明天再试", undefined, {
+        messageKey: "user.emailChangeTooFrequent",
+      });
 
     // 验证验证码
     const emailService = EmailService.getInstance();
     const isValid = await emailService.verifyCode(data.newEmail, data.verificationCode);
-    if (!isValid) throw new BadRequestError("验证码无效或已过期");
+    if (!isValid)
+      throw new BadRequestError("验证码无效或已过期", undefined, { messageKey: "errors.verificationCodeInvalid" });
 
     const oldEmail = user.email;
 

@@ -1,3 +1,5 @@
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -422,7 +424,7 @@ export function useRamManagement(section: RamManagementSection) {
       if (section === 'authorization') await loadUsers()
       if (section === 'sessions') await loadSessions()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('loadFailed'))
     }
   }
 
@@ -528,7 +530,7 @@ export function useRamManagement(section: RamManagementSection) {
       userDialogVisible.value = false
       await loadUsers()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       submitting.value = false
     }
@@ -538,8 +540,8 @@ export function useRamManagement(section: RamManagementSection) {
     try {
       await navigator.clipboard.writeText(createdAccessKeySecret.value)
       ElMessage.success(i18ns.t('RamManagement.secretCopied'))
-    } catch {
-      ElMessage.error(i18ns.t('copyFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
     }
   }
 
@@ -547,8 +549,8 @@ export function useRamManagement(section: RamManagementSection) {
     try {
       await navigator.clipboard.writeText(createdPasswordValue.value)
       ElMessage.success(i18ns.t('RamManagement.secretCopied'))
-    } catch {
-      ElMessage.error(i18ns.t('copyFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
     }
   }
 
@@ -581,7 +583,7 @@ export function useRamManagement(section: RamManagementSection) {
       selectedUsers.value = []
       await loadUsers()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -623,7 +625,7 @@ export function useRamManagement(section: RamManagementSection) {
       await loadRoles()
       await loadBindings()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       submitting.value = false
     }
@@ -660,7 +662,7 @@ export function useRamManagement(section: RamManagementSection) {
       await loadRoles()
       await loadBindings()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -696,7 +698,7 @@ export function useRamManagement(section: RamManagementSection) {
       selectedRoleId.value = bindRole.value.id
       await loadBindings()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       submitting.value = false
     }
@@ -788,7 +790,7 @@ export function useRamManagement(section: RamManagementSection) {
       policyDialogVisible.value = false
       await loadPolicies()
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       submitting.value = false
     }
@@ -836,7 +838,7 @@ export function useRamManagement(section: RamManagementSection) {
       attachForm.targetId = ''
       await loadPolicyAttachments(selectedPolicy.value.id)
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     } finally {
       submitting.value = false
     }
@@ -862,7 +864,7 @@ export function useRamManagement(section: RamManagementSection) {
         await loadPolicyAttachments(selectedPolicy.value.id)
       }
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('operationFailed'))
     }
   }
 
@@ -871,7 +873,7 @@ export function useRamManagement(section: RamManagementSection) {
     try {
       effectivePerms.value = await ramService.getUserEffectivePermissions(authUserId.value)
     } catch (error: any) {
-      ElMessage.error(error.message || i18ns.t('loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('loadFailed'))
     }
   }
 

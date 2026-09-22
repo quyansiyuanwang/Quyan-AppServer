@@ -141,6 +141,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -150,7 +151,7 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import { usePagination } from '@/composables/usePagination'
 import { trustedDeviceService } from '@/service/twoFactor/trustedDeviceService'
 import type { TwoFactorTrustedDevice } from '@/types/trusted-device'
-import { isRequestCanceled, isValidationFieldError } from '@/utils/error-utils'
+import { isRequestCanceled, isValidationFieldError, getErrorMessage } from '@/utils/error-utils'
 
 const { isDesktop } = usePageDevice()
 
@@ -249,7 +250,7 @@ const loadTrustedDevices = async (silent = false) => {
 
     errorMessage.value = error?.message || i18ns.t('twoFactor.trustedDevicesLoadFailed')
     if (!silent) {
-      ElMessage.error(error?.message || i18ns.t('twoFactor.trustedDevicesLoadFailed'))
+      showRequestErrorNotice(error, i18ns.t('twoFactor.trustedDevicesLoadFailed'))
     }
   } finally {
     if (isUnmounted.value || !isRequestCurrent(requestContext.requestId)) return
@@ -305,11 +306,11 @@ const handleRemoveTrustedDevice = async (device: TwoFactorTrustedDevice) => {
     if (isUnmounted.value) return
 
     if (isValidationFieldError(error, 'deviceId')) {
-      ElMessage.error(i18ns.t('twoFactor.trustedDeviceInvalidId'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('twoFactor.trustedDeviceInvalidId')))
       return
     }
 
-    ElMessage.error(error?.message || i18ns.t('twoFactor.trustedDeviceDeleteFailed'))
+    showRequestErrorNotice(error, i18ns.t('twoFactor.trustedDeviceDeleteFailed'))
   } finally {
     if (isUnmounted.value) return
     removingDeviceId.value = null

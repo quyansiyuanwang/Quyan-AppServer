@@ -163,13 +163,16 @@ export class AuthorizationService {
       const result = await this.withCaptchaFallback(
         'login',
         async (_captchaToken) =>
-          await getAuthControllerApi().login({
-            body: {
-              username,
-              passwordCredential,
-              agreedToLegalPolicies: true,
+          await getAuthControllerApi().login(
+            {
+              body: {
+                username,
+                passwordCredential,
+                agreedToLegalPolicies: true,
+              },
             },
-          }),
+            { errorPresentation: 'local' },
+          ),
         onCaptchaStart,
         onCaptchaEnd,
       )
@@ -329,7 +332,7 @@ export class AuthorizationService {
       if (refreshResult?.access_token) {
         return refreshResult.access_token
       } else {
-        throw toServiceError(undefined, 'Unable to refresh access token')
+        throw toServiceError(undefined)
       }
     }
   }
@@ -343,9 +346,15 @@ export class AuthorizationService {
     // Business profiles do not register a local /login route. Continue to
     // the central identity app after local cleanup; the auth app owns the
     // login UI for every non-identity hostname.
-    const { isKnownSiteProfile, resolveCurrentSiteProfile } = await import('@/config/site-registry')
+    const { devSingleSiteMode, isKnownSiteProfile, resolveCurrentSiteProfile } = await import(
+      '@/config/site-registry'
+    )
     const currentProfile = resolveCurrentSiteProfile()
-    if (isKnownSiteProfile(currentProfile) && currentProfile.id !== 'identity') {
+    if (
+      isKnownSiteProfile(currentProfile) &&
+      currentProfile.id !== 'identity' &&
+      !devSingleSiteMode
+    ) {
       const { getCentralLoginFallbackUrl, redirectToCentralLogin } = await import(
         '@/service/centralLoginService'
       )
@@ -358,7 +367,8 @@ export class AuthorizationService {
       return
     }
 
-    // Identity profile keeps the in-app login route and its relative return.
+    // The identity profile, and the single-origin development mode that grafts
+    // the identity routes onto one host, keep the in-app login route.
     await router.push(getLoginRoute(redirectPath))
   }
 
@@ -460,16 +470,19 @@ export class AuthorizationService {
       return this.withCaptchaFallback(
         'register',
         async (_captchaToken) =>
-          await getAuthControllerApi().register({
-            body: {
-              username: data.username,
-              nickname: data.nickname,
-              email: data.email,
-              verificationCode: data.verificationCode,
-              passwordCredential,
-              agreedToLegalPolicies: true,
+          await getAuthControllerApi().register(
+            {
+              body: {
+                username: data.username,
+                nickname: data.nickname,
+                email: data.email,
+                verificationCode: data.verificationCode,
+                passwordCredential,
+                agreedToLegalPolicies: true,
+              },
             },
-          }),
+            { errorPresentation: 'local' },
+          ),
         onCaptchaStart,
         onCaptchaEnd,
       )
@@ -489,7 +502,7 @@ export class AuthorizationService {
       return result.data as AuthData
     }
 
-    throw toServiceError(result, 'Failed to accept legal policies')
+    throw toServiceError(result)
   }
 }
 

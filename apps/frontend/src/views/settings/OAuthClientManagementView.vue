@@ -211,6 +211,7 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
@@ -293,7 +294,7 @@ const loadClients = async () => {
     const res = await oauthClientService.getOAuthClients()
     clients.value = res.data
   } catch (error) {
-    ElMessage.error(t('oauthClient.loadFailed'))
+    ElMessage.error(getErrorMessage(error, t('oauthClient.loadFailed')))
     throw error
   } finally {
     loading.value = false
@@ -401,7 +402,12 @@ const handleSubmit = async () => {
     await loadClients()
   } catch (error: any) {
     if (error?.code === CustomCode.TWO_FACTOR_REQUIRED) return
-    ElMessage.error(t(isEditing.value ? 'oauthClient.updateFailed' : 'oauthClient.createFailed'))
+    ElMessage.error(
+      getErrorMessage(
+        error,
+        t(isEditing.value ? 'oauthClient.updateFailed' : 'oauthClient.createFailed'),
+      ),
+    )
     throw error
   } finally {
     submitting.value = false
@@ -422,7 +428,7 @@ const handleRegenerateSecret = async (row: OAuthClientDto) => {
     await loadClients()
   } catch (error: any) {
     if (error === 'cancel' || error?.code === CustomCode.TWO_FACTOR_REQUIRED) return
-    ElMessage.error(t('oauthClient.regenerateSecretFailed'))
+    ElMessage.error(getErrorMessage(error, t('oauthClient.regenerateSecretFailed')))
   }
 }
 
@@ -438,7 +444,7 @@ const handleDelete = async (row: OAuthClientDto) => {
     await loadClients()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(t('oauthClient.deleteFailed'))
+      ElMessage.error(getErrorMessage(error, t('oauthClient.deleteFailed')))
     }
   }
 }
@@ -455,7 +461,7 @@ const handleSubmitReview = async (row: OAuthClientDto) => {
     await loadClients()
   } catch (error: any) {
     if (error === 'cancel' || error?.code === CustomCode.TWO_FACTOR_REQUIRED) return
-    ElMessage.error(t('oauthClient.submitReviewFailed'))
+    ElMessage.error(getErrorMessage(error, t('oauthClient.submitReviewFailed')))
   }
 }
 
@@ -463,8 +469,8 @@ const copyCreatedSecret = async () => {
   try {
     await navigator.clipboard.writeText(createdSecret.value)
     ElMessage.success(t('copySuccess'))
-  } catch {
-    ElMessage.error(t('copyFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, t('copyFailed')))
   }
 }
 

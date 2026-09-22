@@ -1,4 +1,5 @@
 import { computed, onMounted, ref, watch } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { useI18n } from 'vue-i18n'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -169,7 +170,7 @@ export const useAuthCenterClientManagement = () => {
       const res = await authCenterClientService.getAuthCenterClients()
       clients.value = res.data
     } catch (error) {
-      ElMessage.error(t('authCenterClient.loadFailed'))
+      ElMessage.error(getErrorMessage(error, t('authCenterClient.loadFailed')))
       throw error
     } finally {
       loading.value = false
@@ -321,7 +322,10 @@ export const useAuthCenterClientManagement = () => {
     } catch (error: any) {
       if (error?.code === CustomCode.TWO_FACTOR_REQUIRED) return
       ElMessage.error(
-        t(isEditing.value ? 'authCenterClient.updateFailed' : 'authCenterClient.createFailed'),
+        getErrorMessage(
+          error,
+          t(isEditing.value ? 'authCenterClient.updateFailed' : 'authCenterClient.createFailed'),
+        ),
       )
       throw error
     } finally {
@@ -343,7 +347,7 @@ export const useAuthCenterClientManagement = () => {
       await loadClients()
     } catch (error: any) {
       if (error === 'cancel' || error?.code === CustomCode.TWO_FACTOR_REQUIRED) return
-      ElMessage.error(t('authCenterClient.regenerateSecretFailed'))
+      ElMessage.error(getErrorMessage(error, t('authCenterClient.regenerateSecretFailed')))
     }
   }
 
@@ -359,7 +363,7 @@ export const useAuthCenterClientManagement = () => {
       await loadClients()
     } catch (error) {
       if (error !== 'cancel') {
-        ElMessage.error(t('authCenterClient.deleteFailed'))
+        ElMessage.error(getErrorMessage(error, t('authCenterClient.deleteFailed')))
       }
     }
   }
@@ -376,7 +380,7 @@ export const useAuthCenterClientManagement = () => {
       await loadClients()
     } catch (error: any) {
       if (error === 'cancel' || error?.code === CustomCode.TWO_FACTOR_REQUIRED) return
-      ElMessage.error(t('authCenterClient.submitReviewFailed'))
+      ElMessage.error(getErrorMessage(error, t('authCenterClient.submitReviewFailed')))
     }
   }
 
@@ -384,8 +388,8 @@ export const useAuthCenterClientManagement = () => {
     try {
       await navigator.clipboard.writeText(createdSecret.value)
       ElMessage.success(t('copySuccess'))
-    } catch {
-      ElMessage.error(t('copyFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, t('copyFailed')))
     }
   }
 

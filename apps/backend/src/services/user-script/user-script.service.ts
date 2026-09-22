@@ -42,8 +42,9 @@ export class UserScriptService {
 
   public async updateScript(id: string, data: UpdateUserScriptDto, userId: string): Promise<UserScriptDto> {
     const script = await this.repository.findById(id);
-    if (!script) throw new NotFoundError("脚本不存在");
-    if (script.userId !== userId) throw new ForbiddenError("无权修改此脚本");
+    if (!script) throw new NotFoundError("脚本不存在", undefined, { messageKey: "userScript.notFound" });
+    if (script.userId !== userId)
+      throw new ForbiddenError("无权修改此脚本", undefined, { messageKey: "userScript.updateDenied" });
 
     const updated = await this.repository.update(id, {
       name: data.name,
@@ -55,8 +56,9 @@ export class UserScriptService {
 
   public async deleteScript(id: string, userId: string): Promise<void> {
     const script = await this.repository.findById(id);
-    if (!script) throw new NotFoundError("脚本不存在");
-    if (script.userId !== userId) throw new ForbiddenError("无权删除此脚本");
+    if (!script) throw new NotFoundError("脚本不存在", undefined, { messageKey: "userScript.notFound" });
+    if (script.userId !== userId)
+      throw new ForbiddenError("无权删除此脚本", undefined, { messageKey: "userScript.deleteDenied" });
 
     await this.repository.delete(id);
   }

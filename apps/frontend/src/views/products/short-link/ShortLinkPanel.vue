@@ -84,6 +84,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { useRouter } from 'vue-router'
@@ -186,7 +187,7 @@ const toggle = async (row: DeveloperShortLinkDto) => {
     await load()
     ElMessage.success(t('updateSuccess'))
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -202,8 +203,7 @@ const remove = async (row: DeveloperShortLinkDto) => {
     await load()
     ElMessage.success(t('deleteSuccess'))
   } catch (cause) {
-    if (cause !== 'cancel')
-      ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    if (cause !== 'cancel') showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   } finally {
     submitting.value = false
   }
@@ -213,7 +213,7 @@ const copy = async (value: string) => {
     await navigator.clipboard.writeText(value)
     ElMessage.success(t('copySuccess'))
   } catch (cause) {
-    ElMessage.error(getErrorMessage(cause, t('productFeedback.operationFailed')))
+    showRequestErrorNotice(cause, t('productFeedback.operationFailed'))
   }
 }
 

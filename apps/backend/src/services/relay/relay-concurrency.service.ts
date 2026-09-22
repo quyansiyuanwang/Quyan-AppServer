@@ -29,18 +29,29 @@ export class RelayConcurrencyService {
     const ownerToken = `${userId}:${randomUUID()}`;
     const ttlMs = slotTtlSeconds * 1000;
     if (!this.redis.isRedisAvailable())
-      throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
+      throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+        messageKey: "relayProxy.concurrencyBackendUnavailable",
+      });
 
     if (!enableQueue) {
       const slotKey = await this.redis.acquireSemaphoreSlot(baseKey, maxConcurrency, ownerToken, ttlMs);
-      if (slotKey === null) throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
-      if (slotKey === false) throw new TooManyRequestsError("Too many concurrent requests to upstream");
+      if (slotKey === null)
+        throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+          messageKey: "relayProxy.concurrencyBackendUnavailable",
+        });
+      if (slotKey === false)
+        throw new TooManyRequestsError("Too many concurrent requests to upstream", undefined, undefined, {
+          messageKey: "relayProxy.concurrencyLimitExceeded",
+        });
       return { key: baseKey, baseKey, slotKey, scope, source: "redis", ownerToken, ttlMs, ttlSeconds: slotTtlSeconds };
     }
 
     const waiterTtlMs = Math.max(queueTimeout + 1000, ttlMs);
     const ticket = await this.redis.reserveSemaphoreQueueTicket(baseKey, ownerToken, waiterTtlMs);
-    if (ticket === null) throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
+    if (ticket === null)
+      throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+        messageKey: "relayProxy.concurrencyBackendUnavailable",
+      });
     const deadline = Date.now() + queueTimeout;
     const startWaitTime = Date.now();
     let waitLogged = false;
@@ -54,7 +65,9 @@ export class RelayConcurrencyService {
       );
       if (slotKey === null) {
         await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
-        throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
+        throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+          messageKey: "relayProxy.concurrencyBackendUnavailable",
+        });
       }
       if (slotKey !== "wait" && slotKey !== "stale") {
         const waitTime = Date.now() - startWaitTime;
@@ -79,7 +92,9 @@ export class RelayConcurrencyService {
       }
       if (slotKey === "stale") {
         await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
-        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot");
+        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot", undefined, undefined, {
+          messageKey: "relayProxy.queueTimeout",
+        });
       }
       if (!waitLogged) {
         logger.info("Request queued - waiting for concurrency slot", {
@@ -104,7 +119,9 @@ export class RelayConcurrencyService {
           baseKey,
           ticket,
         });
-        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot");
+        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot", undefined, undefined, {
+          messageKey: "relayProxy.queueTimeout",
+        });
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }

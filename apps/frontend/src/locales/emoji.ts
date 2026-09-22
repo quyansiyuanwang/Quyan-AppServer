@@ -109,6 +109,19 @@ const ticket = {
 }
 
 const emoji: DeepStringify<typeof en> = {
+  requestErrors: {
+    failed: '⚠️ 操作失败，请重试。',
+    timeout: '⏱️ 请求超时，请稍后重试。',
+    offline: '📡 当前离线，请检查网络。',
+    network: '📡 连接失败，请检查网络后重试。',
+    unauthorized: '🔐 请重新登录。',
+    forbidden: '🔒 没有执行此操作的权限。',
+    notFound: '🔎 资源不可用。',
+    rateLimited: '⏳ 操作频繁，请稍后重试。',
+    server: '🛠️ 服务暂时不可用，请稍后重试。',
+    repair: '🛠️ 无法登录？检查与修复',
+  },
+
   login: '🔐',
   register: '📝',
   logout: '👋',
@@ -4032,6 +4045,13 @@ const emoji: DeepStringify<typeof en> = {
     anthropicUrlNoKey: '🚷 🌊 🩺 😛 😉 🔌 🗝️ 👹',
     geminiUrlNoKey: '😦 🌊 🩺 😛 😉 🔌 🗝️ 👹',
 
+    holidayMode: '中国节假日条件',
+    holidayMode_ignore: '不区分节假日',
+    holidayMode_exclude: '排除节假日',
+    holidayMode_only: '仅节假日',
+    timeRuleAllDay: '全天',
+    holidayModeHelp:
+      '节假日规则按北京时间判断，含公布的连休放假日期；仅节假日忽略星期选择。补班不改变星期。日历不可用时跳过相关规则并告警；多条命中规则相乘。不区分节假日保留服务器时区。',
     timeRules: '⌛ 💹 📡',
     timeRuleName: '🧾 🏷️',
     timeRuleDays: '📅 🔢',

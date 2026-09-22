@@ -1,6 +1,7 @@
 import { createAuthControllerApi } from '@/client/services/auth-controller.gen'
 import { CustomCode } from '@/constant/custom-code'
 import {
+  devSingleSiteMode,
   isKnownSiteProfile,
   getSiteProfileForEnvironment,
   resolveCurrentSiteProfile,
@@ -48,13 +49,17 @@ export const createCentralLoginFlow = async (
   const result = await getAuthControllerApi().createCentralLoginFlow({
     body: { returnTo: returnTo.toString() },
   })
-  if (!result.data?.flowId) throw toServiceError(result, 'Failed to create central login flow')
+  if (!result.data?.flowId) throw toServiceError(result)
   return result.data.flowId
 }
 
 export const redirectToCentralLogin = async (returnPath?: string): Promise<void> => {
   const profile = resolveCurrentSiteProfile()
   if (!isKnownSiteProfile(profile) || profile.id === 'identity') return
+  // Central login requires an HTTPS return-to origin and a cross-site session
+  // cookie. The privilege-free localhost mode keeps the browser on this origin
+  // and lets callers fall back to the same-origin login entry.
+  if (devSingleSiteMode) return
 
   const flowId = await createCentralLoginFlow(returnPath)
   assignDocument(getCentralLoginUrl(profile, flowId))
@@ -68,8 +73,7 @@ export const redirectToCentralPasskeyManagement = async (): Promise<void> => {
   const result = await getAuthControllerApi().createAuthenticatedCentralLoginFlow({
     body: { returnTo: new URL('/settings/security', profile.canonicalOrigin).toString() },
   })
-  if (!result.data?.flowId)
-    throw toServiceError(result, 'Failed to create passkey registration flow')
+  if (!result.data?.flowId) throw toServiceError(result)
   assignDocument(getCentralAuthUrl(profile, '/auth/passkeys', result.data.flowId))
 }
 
@@ -83,8 +87,7 @@ export const redirectToCentralExternalBinding = async (
   const result = await getAuthControllerApi().createAuthenticatedCentralLoginFlow({
     body: { returnTo: new URL('/settings/security', profile.canonicalOrigin).toString() },
   })
-  if (!result.data?.flowId)
-    throw toServiceError(result, 'Failed to create external account binding flow')
+  if (!result.data?.flowId) throw toServiceError(result)
 
   const target = new URL('/auth/external/bind', profile.authOrigin)
   target.searchParams.set('provider', provider)
@@ -94,7 +97,7 @@ export const redirectToCentralExternalBinding = async (
 
 export const consumeCentralLoginFlow = async (flowId: string): Promise<string> => {
   const result = await getAuthControllerApi().consumeCentralLoginFlow({ body: { flowId } })
-  if (!result.data?.returnTo) throw toServiceError(result, 'Failed to resume central login flow')
+  if (!result.data?.returnTo) throw toServiceError(result)
   return result.data.returnTo
 }
 
@@ -159,6 +162,11 @@ export const completeCentralLogin = async (flowId: unknown): Promise<boolean> =>
 export const getDefaultAccountDestination = (): string => {
   const currentProfile = resolveCurrentSiteProfile()
   if (!isKnownSiteProfile(currentProfile)) throw new Error('Current site profile is not registered')
+
+  // Single-origin development has no reachable account site: stay on the site
+  // that is actually served instead of navigating to another hostname.
+  if (devSingleSiteMode)
+    return new URL(currentProfile.defaultPath, currentProfile.canonicalOrigin).toString()
 
   const accountProfile = getSiteProfileForEnvironment('account', currentProfile)
   if (!accountProfile) throw new Error('Account profile is not registered')

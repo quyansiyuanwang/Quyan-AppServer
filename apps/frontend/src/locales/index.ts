@@ -37,7 +37,11 @@ const localeLoadPromises = new Map<Locale, Promise<void>>()
 
 const i18n = createI18n({
   legacy: false, // 使用 Composition API 模式
-  locale: defaultLocale,
+  // 启动时就使用已保存的偏好，而不是 defaultLocale：请求语言（`X-Locale`）取自
+  // `getBackendLocale()`，而 `app-runtime` 在 `initializeI18n()` 完成前就会发起
+  // 会话恢复与权限水合请求，此时消息 chunk 尚未载入。以 defaultLocale 起步会让
+  // en 用户冷启动期间的请求被后端按 zh-CN 渲染。
+  locale: savedLocale,
   fallbackLocale,
   messages: {},
   globalInjection: false,

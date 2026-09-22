@@ -193,6 +193,7 @@
 
 <script setup lang="ts">
 import { computed, provide } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { CopyDocument } from '@element-plus/icons-vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import BalanceScriptDialogV1 from '@/components/relay/BalanceScriptDialogV1.vue'
@@ -218,8 +219,8 @@ const copyRelayBaseUrl = async () => {
   try {
     await navigator.clipboard.writeText(relayBaseUrl.value)
     ElMessage.success(i18ns.t('copySuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('copyFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
   }
 }
 

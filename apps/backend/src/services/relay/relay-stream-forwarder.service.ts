@@ -467,7 +467,9 @@ export class RelayStreamForwarderService {
               else
                 destroyRelayUpstreamResponse(
                   proxyRes,
-                  new PayloadTooLargeError("Response exceeds content safety buffer limit"),
+                  new PayloadTooLargeError("Response exceeds content safety buffer limit", undefined, {
+                    messageKey: "relay.streamBufferTooLarge",
+                  }),
                 );
               const text = chunk.toString("utf8");
               for (const line of text.split(/\r?\n/)) consumeRelayStreamUsageLine(line, requestFormat, streamUsage);
@@ -529,7 +531,13 @@ export class RelayStreamForwarderService {
                 const normalized = streamUsage.normalized();
                 const rateConfig = selectedModelRate;
                 if (!rateConfig)
-                  throw new BadRequestError(`Model '${selectedModelName}' not found in pricing configuration`);
+                  throw new BadRequestError(
+                    `Model '${selectedModelName}' not found in pricing configuration`,
+                    undefined,
+                    {
+                      messageKey: "relay.modelNotInPricingConfig",
+                    },
+                  );
                 const modelMult = rateConfig.multiplier != null ? Number(rateConfig.multiplier) : 1;
                 const cacheCreationMult =
                   rateConfig.cacheCreationMultiplier != null
@@ -870,7 +878,10 @@ export class RelayStreamForwarderService {
 
             const modelName = selectedModelName;
             const rateConfig = selectedModelRate;
-            if (!rateConfig) throw new BadRequestError(`Model '${modelName}' not found in pricing configuration`);
+            if (!rateConfig)
+              throw new BadRequestError(`Model '${modelName}' not found in pricing configuration`, undefined, {
+                messageKey: "relay.modelNotInPricingConfig",
+              });
 
             const modelMult =
               rateConfig && typeof rateConfig === "object" && rateConfig.multiplier != null
@@ -992,7 +1003,9 @@ export class RelayStreamForwarderService {
           return;
         }
         timedOut = true;
-        const timeoutError = new GatewayTimeoutError("Upstream request timeout");
+        const timeoutError = new GatewayTimeoutError("Upstream request timeout", undefined, {
+          messageKey: "relay.upstreamRequestTimeout",
+        });
         proxyReq.destroy(timeoutError);
         if (allowRetryBeforeResponse && !res.headersSent) {
           resolve({

@@ -258,10 +258,10 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, onMounted } from 'vue'
 import { i18ns } from '@/locales'
-import { ElMessage } from '@/utils/elementPlusRuntime'
 import { OJUsageService } from '@/service/ojUsageService'
 import type { OjUsageRecordDto } from '@/client/types.gen'
 
@@ -318,7 +318,7 @@ const loadStats = async () => {
       avgCostPerRequest: result.avgCostPerRequest || 0,
     }
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('ojSubmitter.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('ojSubmitter.loadFailed'))
   } finally {
     loading.value = false
   }

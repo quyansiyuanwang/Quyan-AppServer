@@ -309,6 +309,23 @@ Guidance:
 - Name rules after their business meaning, such as `Weekday Peak Hours`.
 - Confirm timezone assumptions before rolling them into production.
 
+### Chinese holiday conditions and all-day multipliers
+
+Time-period rules offer three holiday conditions:
+
+- **Ignore holidays** preserves existing weekday filters and the server local timezone.
+- **Exclude holidays** requires the selected weekday and time range to match, and the date must not be a Chinese holiday.
+- **Holidays only** ignores weekday selection but still applies the configured time range.
+- **All day** bypasses the time range, covering the entire date including 23:59.
+
+Holiday-dependent rules use Asia/Shanghai for dates, weekdays and time ranges. Holidays include extended breaks in the published annual calendar. Makeup working days never turn Saturday or Sunday into a weekday. Overnight ranges use the request's current calendar date.
+
+**DeepSeek peak/off-peak example:** set the base channel multiplier to the off-peak multiplier. Add a peak rule for Monday–Friday, the applicable peak hours, and **Exclude holidays**, with a rule multiplier equal to peak price divided by off-peak price. Weekends, including makeup-working weekends, and holidays then retain the base multiplier all day. Enter applicable prices and hours yourself; existing channels are not changed automatically.
+
+Matching rules multiply together rather than override each other. Avoid overlapping holiday discounts. Management, provider channel editing and batch editing support these fields.
+
+The backend obtains annual calendars from an external service, normally refreshes daily, caches validated data in Redis and memory, and prefetches the next year. Billing never waits for an external request. Refresh failures retain the last valid calendar. If no valid calendar exists for a year, holiday-dependent rules are skipped and a warning is logged; ordinary rules and base channel pricing remain active. This also applies during initial startup before the cache is ready. Unpublished years are not guessed. Operators should monitor backend holiday-calendar warnings.
+
 ## Operating guidance
 
 ## Channel supply and revenue sharing

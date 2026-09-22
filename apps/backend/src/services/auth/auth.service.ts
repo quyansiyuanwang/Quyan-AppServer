@@ -105,11 +105,14 @@ export class AuthService {
 
   private async issueAuthData(userId: string, status: number): Promise<AuthData> {
     const user = await this.userRepository.findById(userId);
-    if (!user) throw new UnauthorizedError("用户不存在", CustomCode.LOGIN_AUTH_FAILED);
+    if (!user) throw new UnauthorizedError("用户不存在", CustomCode.LOGIN_AUTH_FAILED, { messageKey: "user.notFound" });
 
     const updatedAt = user.updateTime.toISOString();
     const userDto = await this.userService.getUserById(user.id);
-    if (!userDto) throw new UnauthorizedError("用户信息获取失败", CustomCode.LOGIN_AUTH_FAILED);
+    if (!userDto)
+      throw new UnauthorizedError("用户信息获取失败", CustomCode.LOGIN_AUTH_FAILED, {
+        messageKey: "auth.userInfoFetchFailed",
+      });
 
     return {
       access_token: JWTAccessIns.generateToken({ userId: user.id, updatedAt, status }),
@@ -176,7 +179,9 @@ export class AuthService {
       if (error instanceof NotFoundError) {
         if (!required) return [];
 
-        throw new BadRequestError("服务协议或隐私政策尚未发布，暂时无法完成当前操作");
+        throw new BadRequestError("服务协议或隐私政策尚未发布，暂时无法完成当前操作", undefined, {
+          messageKey: "auth.legalPolicyNotPublished",
+        });
       }
 
       throw error;
@@ -204,14 +209,19 @@ export class AuthService {
   private async consumePolicyConsentChallenge(challengeToken: string): Promise<PolicyConsentChallengePayload> {
     const key = this.policyConsentChallengeKey(challengeToken);
     const raw = await this.redisService.get(key);
-    if (!raw) throw new UnauthorizedError("协议确认会话已过期，请重新登录", CustomCode.AUTH_FAILED);
+    if (!raw)
+      throw new UnauthorizedError("协议确认会话已过期，请重新登录", CustomCode.AUTH_FAILED, {
+        messageKey: "auth.policyConsentSessionExpired",
+      });
 
     await this.redisService.delete(key);
 
     try {
       return JSON.parse(raw) as PolicyConsentChallengePayload;
     } catch {
-      throw new UnauthorizedError("协议确认会话无效，请重新登录", CustomCode.AUTH_FAILED);
+      throw new UnauthorizedError("协议确认会话无效，请重新登录", CustomCode.AUTH_FAILED, {
+        messageKey: "auth.policyConsentSessionInvalid",
+      });
     }
   }
 
@@ -532,6 +542,9 @@ export class AuthService {
         throw new TooManyRequestsError(
           isUserScoped ? "该账号登录尝试过于频繁，请稍后再试" : "登录尝试过于频繁，请稍后再试",
           rateLimitCheck.retryAfter || 60,
+          undefined,
+          // 账号维度与 IP 维度是两种不同的限流原因，各自保留具体提示
+          { messageKey: isUserScoped ? "auth.loginRateLimitAccount" : "auth.loginRateLimit" },
         );
       }
 
@@ -540,10 +553,16 @@ export class AuthService {
 
     try {
       const user = await this.userRepository.findByUsername(username);
-      if (!user) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
+      if (!user)
+        throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED, {
+          messageKey: "errors.loginAuthFailed",
+        });
 
       const verification = verifyPasswordCompatibility(password, user.password);
-      if (!verification.valid) throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED);
+      if (!verification.valid)
+        throw new UnauthorizedError("用户名或密码错误", CustomCode.LOGIN_AUTH_FAILED, {
+          messageKey: "errors.loginAuthFailed",
+        });
 
       // Check whether the account can log in based on AccountStatus.
       validateAccountStatus(user.status, user.id, "login");
@@ -671,7 +690,8 @@ export class AuthService {
       });
 
       const user = await this.userRepository.findById(userId);
-      if (!user) throw new UnauthorizedError("用户不存在", CustomCode.LOGIN_AUTH_FAILED);
+      if (!user)
+        throw new UnauthorizedError("用户不存在", CustomCode.LOGIN_AUTH_FAILED, { messageKey: "user.notFound" });
 
       return this.completeAuthenticatedLogin(user, request, {
         twoFactorEnabled: true,
@@ -725,40 +745,50 @@ export class AuthService {
     const refreshToken =
       (request ? extractRefreshTokenCookie(request) : undefined) || refreshTokenFromArg || refreshTokenFromBody;
 
-    if (!refreshToken) throw new UnauthorizedError("缺少刷新令牌");
+    if (!refreshToken)
+      throw new UnauthorizedError("缺少刷新令牌", undefined, { messageKey: "auth.missingRefreshToken" });
 
     let payload;
     try {
       payload = await JWTRefreshIns.verifyToken(refreshToken);
     } catch (_error) {
-      throw new UnauthorizedError("无效的刷新令牌");
+      throw new UnauthorizedError("无效的刷新令牌", undefined, { messageKey: "auth.invalidRefreshToken" });
     }
-    if (!payload || !payload.userId) throw new UnauthorizedError("无效的刷新令牌");
+    if (!payload || !payload.userId)
+      throw new UnauthorizedError("无效的刷新令牌", undefined, { messageKey: "auth.invalidRefreshToken" });
 
     // 验证用户的updatedAt是否与token中的一致
     const user = await this.userRepository.findById(payload.userId);
-    if (!user) throw new UnauthorizedError("用户不存在");
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
 
     // 检查token中是否包含updatedAt字段（兼容旧token）
     if (!payload.updatedAt)
-      throw new UnauthorizedError("Token版本过旧，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("Token版本过旧，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "auth.oldTokenVersion",
+      });
 
     const currentUpdatedAt = user.updateTime.toISOString();
     if (payload.updatedAt !== currentUpdatedAt)
-      throw new UnauthorizedError("用户信息已更新，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("用户信息已更新，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "errors.tokenExpiredDueToUpdate",
+      });
 
     // 检查账号状态（refresh token 时必须检查数据库中的最新状态）
     validateAccountStatus(user.status, payload.userId, "refresh");
 
     const forcedOffline = await this.redisService.get(getForceOfflineUserKey(payload.userId));
     if (forcedOffline)
-      throw new UnauthorizedError("用户已被强制下线，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("用户已被强制下线，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "auth.forcedOffline",
+      });
 
     const authSessionId = request ? extractAuthSessionId(request) : undefined;
     if (authSessionId) {
       const forcedSession = await this.redisService.get(buildForceOfflineAuthSessionKey(authSessionId));
       if (forcedSession)
-        throw new UnauthorizedError("当前会话已被强制结束，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+        throw new UnauthorizedError("当前会话已被强制结束，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+          messageKey: "auth.sessionForcedEnded",
+        });
     }
 
     const newAccessToken = JWTAccessIns.generateToken({
@@ -776,32 +806,41 @@ export class AuthService {
     try {
       payload = await JWTAccessIns.verifyToken(accessToken);
     } catch (_error) {
-      throw new UnauthorizedError("无效的访问令牌");
+      throw new UnauthorizedError("无效的访问令牌", undefined, { messageKey: "errors.invalidToken" });
     }
-    if (!payload || !payload.userId) throw new UnauthorizedError("无效的访问令牌");
+    if (!payload || !payload.userId)
+      throw new UnauthorizedError("无效的访问令牌", undefined, { messageKey: "errors.invalidToken" });
 
     // 验证用户的updatedAt是否与token中的一致
     const user = await this.userRepository.findById(payload.userId);
-    if (!user) throw new UnauthorizedError("用户不存在");
+    if (!user) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
 
     // 检查token中是否包含updatedAt字段（兼容旧token）
     if (!payload.updatedAt)
-      throw new UnauthorizedError("Token版本过旧，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("Token版本过旧，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "auth.oldTokenVersion",
+      });
 
     const currentUpdatedAt = user.updateTime.toISOString();
     const forcedOffline = await this.redisService.get(getForceOfflineUserKey(payload.userId));
     if (forcedOffline)
-      throw new UnauthorizedError("用户已被强制下线，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("用户已被强制下线，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "auth.forcedOffline",
+      });
 
     const authSessionId = request ? extractAuthSessionId(request) : undefined;
     if (authSessionId) {
       const forcedSession = await this.redisService.get(buildForceOfflineAuthSessionKey(authSessionId));
       if (forcedSession)
-        throw new UnauthorizedError("当前会话已被强制结束，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+        throw new UnauthorizedError("当前会话已被强制结束，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+          messageKey: "auth.sessionForcedEnded",
+        });
     }
 
     if (payload.updatedAt !== currentUpdatedAt)
-      throw new UnauthorizedError("用户信息已更新，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE);
+      throw new UnauthorizedError("用户信息已更新，请重新登录", CustomCode.TOKEN_EXPIRED_DUE_TO_UPDATE, {
+        messageKey: "errors.tokenExpiredDueToUpdate",
+      });
 
     return {
       userId: payload.userId,
@@ -814,30 +853,41 @@ export class AuthService {
     const requestId = request?.headers["x-request-id"] as string | undefined;
 
     if (!data.agreedToLegalPolicies)
-      throw new BadRequestError("请先同意服务协议和隐私政策", CustomCode.VALIDATION_FAILED);
+      throw new BadRequestError("请先同意服务协议和隐私政策", CustomCode.VALIDATION_FAILED, {
+        messageKey: "errors.policyConsentRequired",
+      });
 
     const currentPolicies = await this.getCurrentPoliciesForConsent();
 
     // 1. Check registration enabled
     const regConfig = await this.configService.getRegistrationConfig();
-    if (!regConfig.enabled) throw new BadRequestError("注册功能未开启", CustomCode.REGISTRATION_DISABLED);
+    if (!regConfig.enabled)
+      throw new BadRequestError("注册功能未开启", CustomCode.REGISTRATION_DISABLED, {
+        messageKey: "errors.registrationDisabled",
+      });
 
     // 2. Verify email code
     const codeValid = await this.emailService.verifyCode(data.email, data.verificationCode);
-    if (!codeValid) throw new BadRequestError("验证码无效或已过期", CustomCode.VERIFICATION_CODE_INVALID);
+    if (!codeValid)
+      throw new BadRequestError("验证码无效或已过期", CustomCode.VERIFICATION_CODE_INVALID, {
+        messageKey: "errors.verificationCodeInvalid",
+      });
 
     // 3. Check email account limit
     const emailAccountCount = await this.userRepository.countActiveByEmail(data.email);
     if (emailAccountCount >= regConfig.maxAccountsPerEmail)
-      throw new BadRequestError("该邮箱已达注册上限", CustomCode.EMAIL_LIMIT_REACHED);
+      throw new BadRequestError("该邮箱已达注册上限", CustomCode.EMAIL_LIMIT_REACHED, {
+        messageKey: "errors.emailLimitReached",
+      });
 
     // 4. Check username uniqueness
     const existing = await this.userRepository.findByUsername(data.username);
-    if (existing) throw new BadRequestError("用户名已存在");
+    if (existing) throw new BadRequestError("用户名已存在", undefined, { messageKey: "user.usernameExists" });
 
     // 5. Get default group
     const defaultGroup = await this.groupRepository.findActiveByUsername(regConfig.defaultGroupUsername);
-    if (!defaultGroup) throw new InternalServerError("默认用户组不存在");
+    if (!defaultGroup)
+      throw new InternalServerError("默认用户组不存在", undefined, { messageKey: "auth.defaultGroupNotFound" });
 
     // 6. Create user (password already hashed by client)
     const user = await this.userRepository.create({
@@ -871,11 +921,13 @@ export class AuthService {
 
   async acceptPolicyConsent(data: AcceptPolicyConsentDto, request?: Request): Promise<AuthData> {
     if (!data.agreedToLegalPolicies)
-      throw new BadRequestError("请先同意服务协议和隐私政策", CustomCode.VALIDATION_FAILED);
+      throw new BadRequestError("请先同意服务协议和隐私政策", CustomCode.VALIDATION_FAILED, {
+        messageKey: "errors.policyConsentRequired",
+      });
 
     const challenge = await this.consumePolicyConsentChallenge(data.challengeToken);
     const user = await this.userRepository.findById(challenge.userId);
-    if (!user) throw new UnauthorizedError("用户不存在", CustomCode.LOGIN_AUTH_FAILED);
+    if (!user) throw new UnauthorizedError("用户不存在", CustomCode.LOGIN_AUTH_FAILED, { messageKey: "user.notFound" });
 
     validateAccountStatus(user.status, user.id, "login");
 
@@ -893,7 +945,7 @@ export class AuthService {
 
   async sendPasswordResetCode(username: string, email: string): Promise<void> {
     const user = await this.userRepository.findActiveByUsernameAndEmail(username, email);
-    if (!user) throw new BadRequestError("用户名与邮箱不匹配");
+    if (!user) throw new BadRequestError("用户名与邮箱不匹配", undefined, { messageKey: "auth.usernameEmailMismatch" });
 
     validateAccountStatus(user.status, user.id, "password_reset_send_code");
 
@@ -905,12 +957,15 @@ export class AuthService {
     request?: Request,
   ): Promise<{ message: string }> {
     const user = await this.userRepository.findActiveByUsernameAndEmail(data.username, data.email);
-    if (!user) throw new BadRequestError("用户名与邮箱不匹配");
+    if (!user) throw new BadRequestError("用户名与邮箱不匹配", undefined, { messageKey: "auth.usernameEmailMismatch" });
 
     validateAccountStatus(user.status, user.id, "password_reset");
 
     const codeValid = await this.emailService.verifyCode(data.email, data.verificationCode);
-    if (!codeValid) throw new BadRequestError("验证码无效或已过期", CustomCode.VERIFICATION_CODE_INVALID);
+    if (!codeValid)
+      throw new BadRequestError("验证码无效或已过期", CustomCode.VERIFICATION_CODE_INVALID, {
+        messageKey: "errors.verificationCodeInvalid",
+      });
 
     await this.userService.changeUserPassword(user.id, hashPassword(data.newPassword), user.id, request);
 

@@ -35,6 +35,9 @@
 </template>
 
 <script setup lang="ts">
+import { createUserFacingError } from '@/utils/error-utils'
+
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import router from '@/router'
@@ -73,12 +76,12 @@ const handleConfirm = async () => {
   errorMessage.value = ''
   try {
     const token = await getCaptchaToken(action.value, 'turnstile')
-    if (!token) throw new Error(i18ns.t('loginOrRegisterPage.captchaUnavailable'))
+    if (!token) throw createUserFacingError(i18ns.t('loginOrRegisterPage.captchaUnavailable'))
 
     await captchaTrustService.verifyAndTrust(token, action.value, 'turnstile')
     void router.replace(redirect.value)
   } catch (error) {
-    const message = error instanceof Error ? error.message : i18ns.t('operationFailed')
+    const message = getErrorMessage(error, i18ns.t('operationFailed'))
     errorMessage.value = `${message} ${i18ns.t('tryAgainLater')}`
     Notification.notify(i18ns.t('error'), message, 'error')
   } finally {
@@ -96,7 +99,7 @@ onMounted(async () => {
     })
     await mountVisibleTurnstile(captchaMountRef.value, action.value)
   } catch (error) {
-    const message = error instanceof Error ? error.message : i18ns.t('operationFailed')
+    const message = getErrorMessage(error, i18ns.t('operationFailed'))
     errorMessage.value = `${message} ${i18ns.t('tryAgainLater')}`
   } finally {
     widgetLoading.value = false

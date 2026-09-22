@@ -140,6 +140,8 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/utils/error-utils'
+
 import SegmentedCodeInput from '@/components/auth/SegmentedCodeInput.vue'
 import { USERNAME_PATTERN } from '@/constant/pattern'
 import { CustomCode } from '@/constant/custom-code'
@@ -329,7 +331,8 @@ const isUsernameEmailMismatch = (message?: string) =>
     message.toLowerCase().includes('email'))
 
 const notifyRequestError = (error: unknown, fallbackMessage: string) => {
-  const { code, message, retryAfter } = getErrorMeta(error)
+  const { code, retryAfter } = getErrorMeta(error)
+  const message = getErrorMessage(error, fallbackMessage)
 
   if (code === CustomCode.TOO_MANY_REQUESTS) {
     const minutes = retryAfter ? Math.ceil(retryAfter / 60) : undefined

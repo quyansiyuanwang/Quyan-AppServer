@@ -76,7 +76,7 @@ export class RamService {
 
   private async getActor(actorUserId: string): Promise<AccountScopedUser> {
     const actor = await this.userRepository.findById(actorUserId);
-    if (!actor) throw new NotFoundError("操作者用户不存在", undefined, { messageKey: "ram.actorNotFound" });
+    if (!actor) throw new NotFoundError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
     if (actor.status !== AccountStatus.ACTIVE)
       throw new ForbiddenError("操作者账户不可用", undefined, { messageKey: "ram.actorUnavailable" });
     return actor as AccountScopedUser;
@@ -99,7 +99,7 @@ export class RamService {
     const invalidPermissions = permissions.filter((permission) => !isValidPermission(permission));
     if (invalidPermissions.length > 0)
       throw new BadRequestError(`无效的权限: ${invalidPermissions.join(", ")}`, undefined, {
-        messageKey: "ram.invalidPermissions",
+        messageKey: "permission.invalidPermissions",
         messageParams: { permissions: invalidPermissions.join(", ") },
       });
     return [...new Set(permissions as Permission[])];
@@ -118,18 +118,18 @@ export class RamService {
   ): Promise<void> {
     if (targetType === "user") {
       const user = await this.userRepository.findById(targetId);
-      if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "ram.userNotFound" });
+      if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
       if (user.status !== AccountStatus.ACTIVE)
-        throw new NotFoundError("用户不存在", undefined, { messageKey: "ram.userNotFound" });
+        throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
       this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId || user.id);
       return;
     }
 
     if (targetType === "group") {
       const group = await this.groupRepository.findById(targetId);
-      if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "ram.groupNotFound" });
+      if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
       if (group.status !== AccountStatus.ACTIVE)
-        throw new NotFoundError("用户组不存在", undefined, { messageKey: "ram.groupNotFound" });
+        throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
       this.assertSameAccount(accountOwnerId, group.accountOwnerId);
       return;
     }
@@ -293,11 +293,11 @@ export class RamService {
       });
 
     const existing = await this.userRepository.findByUsername(data.username);
-    if (existing) throw new BadRequestError("用户名已存在", undefined, { messageKey: "ram.usernameExists" });
+    if (existing) throw new BadRequestError("用户名已存在", undefined, { messageKey: "user.usernameExists" });
 
     if (data.groupId) {
       const group = await this.groupRepository.findById(data.groupId);
-      if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "ram.groupNotFound" });
+      if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
       this.assertSameAccount(accountOwnerId, group.accountOwnerId);
     }
 
@@ -355,7 +355,7 @@ export class RamService {
 
     if (data.groupId) {
       const group = await this.groupRepository.findById(data.groupId);
-      if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "ram.groupNotFound" });
+      if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
       this.assertSameAccount(accountOwnerId, group.accountOwnerId);
     }
 
@@ -466,7 +466,7 @@ export class RamService {
       this.userRepository.findById(userId),
     ]);
     if (!role) throw new NotFoundError("角色不存在", undefined, { messageKey: "ram.roleNotFound" });
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "ram.userNotFound" });
+    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId);
     await this.ramRoleRepository.bindRoleToUser(accountOwnerId, roleId, userId);
@@ -499,7 +499,7 @@ export class RamService {
       this.groupRepository.findById(groupId),
     ]);
     if (!role) throw new NotFoundError("角色不存在", undefined, { messageKey: "ram.roleNotFound" });
-    if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "ram.groupNotFound" });
+    if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     this.assertSameAccount(accountOwnerId, group.accountOwnerId);
     await this.ramRoleRepository.bindRoleToGroup(accountOwnerId, roleId, groupId);
@@ -563,7 +563,7 @@ export class RamService {
     const targetUser = userId
       ? await this.userRepository.findById(userId)
       : await this.userRepository.findById(actorUserId);
-    if (!targetUser) throw new NotFoundError("用户不存在", undefined, { messageKey: "ram.userNotFound" });
+    if (!targetUser) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
     this.assertSameAccount(accountOwnerId, targetUser.accountOwnerId || targetUser.parentUserId || targetUser.id);
     const bindings = await this.ramRoleRepository.listRoleBindingsForUser(targetUser.id, targetUser.groupId);
     return bindings.filter((binding) => binding.roleId === roleId).map((binding) => this.mapBindingToDto(binding));
@@ -702,7 +702,10 @@ export class RamService {
     const policy = await this.ramPolicyRepository.findPolicyById(policyId);
     if (!policy) throw new NotFoundError("权限策略不存在", undefined, { messageKey: "ram.policyNotFound" });
     this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
-    if (policy.type === "managed_product_owner") throw new ForbiddenError("系统托管的产品所有者策略不可修改");
+    if (policy.type === "managed_product_owner")
+      throw new ForbiddenError("系统托管的产品所有者策略不可修改", undefined, {
+        messageKey: "ram.systemManagedPolicyNotModifiable",
+      });
 
     const updateData: Record<string, unknown> = {};
     if (data.description !== undefined) updateData.description = data.description;
@@ -719,7 +722,10 @@ export class RamService {
     const policy = await this.ramPolicyRepository.findPolicyById(policyId);
     if (!policy) throw new NotFoundError("权限策略不存在", undefined, { messageKey: "ram.policyNotFound" });
     this.assertSameAccount(accountOwnerId, policy.accountOwnerId);
-    if (policy.type === "managed_product_owner") throw new ForbiddenError("系统托管的产品所有者策略不可删除");
+    if (policy.type === "managed_product_owner")
+      throw new ForbiddenError("系统托管的产品所有者策略不可删除", undefined, {
+        messageKey: "ram.systemManagedPolicyNotDeletable",
+      });
     await this.ramPolicyRepository.softDeletePolicy(policyId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DELETED, {
       subject: "权限策略已删除",
@@ -731,7 +737,10 @@ export class RamService {
 
   async attachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
     const { accountOwnerId, policy } = await this.assertPolicyAttachmentScope(actorUserId, data);
-    if (policy.type === "managed_product_owner") throw new ForbiddenError("系统托管的产品所有者策略不可重新绑定");
+    if (policy.type === "managed_product_owner")
+      throw new ForbiddenError("系统托管的产品所有者策略不可重新绑定", undefined, {
+        messageKey: "ram.systemManagedPolicyNotRebindable",
+      });
     await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
 
     await this.ramPolicyRepository.attachPolicy(accountOwnerId, data.policyId, data.targetType, data.targetId);
@@ -746,7 +755,10 @@ export class RamService {
 
   async detachPolicy(actorUserId: string, data: AttachPolicyBodyDto): Promise<void> {
     const { policy } = await this.assertPolicyAttachmentScope(actorUserId, data);
-    if (policy.type === "managed_product_owner") throw new ForbiddenError("系统托管的产品所有者策略不可解绑");
+    if (policy.type === "managed_product_owner")
+      throw new ForbiddenError("系统托管的产品所有者策略不可解绑", undefined, {
+        messageKey: "ram.systemManagedPolicyNotUnbindable",
+      });
 
     await this.ramPolicyRepository.detachPolicy(data.policyId, data.targetType, data.targetId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DETACHED, {
@@ -782,7 +794,7 @@ export class RamService {
   async getUserEffectivePermissions(actorUserId: string, targetUserId: string): Promise<EffectivePermissionDto> {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const user = await this.userRepository.findById(targetUserId);
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "ram.userNotFound" });
+    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
     this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId || user.id);
 
     // 1. 用户直接权限

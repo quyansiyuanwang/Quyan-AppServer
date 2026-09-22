@@ -1,3 +1,4 @@
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { useMobileTableCardLabels } from '@/composables/useMobileTableCardLabels'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
@@ -137,7 +138,7 @@ export const useIpMonitoringDashboard = () => {
         }
       }
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipMonitoring.queryFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipMonitoring.queryFailed'))
     } finally {
       queryLoading.value = false
     }
@@ -151,7 +152,7 @@ export const useIpMonitoringDashboard = () => {
       message.success(i18ns.t('ipMonitoring.weightReset'))
       queryResult.value = await ipMonitoringService.getIpErrorStatus(queryResult.value.ipAddress)
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipMonitoring.operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipMonitoring.operationFailed'))
     } finally {
       actionLoading.value = false
     }
@@ -166,7 +167,7 @@ export const useIpMonitoringDashboard = () => {
       showAdjust.value = false
       queryResult.value = await ipMonitoringService.getIpErrorStatus(queryResult.value.ipAddress)
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipMonitoring.operationFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipMonitoring.operationFailed'))
     } finally {
       actionLoading.value = false
     }
@@ -284,7 +285,7 @@ export const useIpMonitoringDashboard = () => {
     try {
       dashboardData.value = await ipMonitoringService.getDashboard()
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipMonitoring.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipMonitoring.loadFailed'))
     } finally {
       loading.value = false
     }
@@ -300,7 +301,7 @@ export const useIpMonitoringDashboard = () => {
       blacklistData.value = result.blacklists
       pagination.total = result.total
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipBlacklist.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipBlacklist.loadFailed'))
     } finally {
       blLoading.value = false
     }
@@ -356,7 +357,7 @@ export const useIpMonitoringDashboard = () => {
       dialogVisible.value = false
       await loadBlacklist()
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipBlacklist.submitFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipBlacklist.submitFailed'))
     } finally {
       submitting.value = false
     }
@@ -399,7 +400,7 @@ export const useIpMonitoringDashboard = () => {
       wlData.value = result.whitelists
       wlPagination.total = result.total
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipWhitelist.loadFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipWhitelist.loadFailed'))
     } finally {
       wlLoading.value = false
     }
@@ -422,7 +423,7 @@ export const useIpMonitoringDashboard = () => {
       wlForm.expiresAt = null
       await loadWhitelist()
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipWhitelist.submitFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipWhitelist.submitFailed'))
     } finally {
       wlSubmitting.value = false
     }
@@ -443,7 +444,7 @@ export const useIpMonitoringDashboard = () => {
       message.success(i18ns.t('ipWhitelist.removeSuccess'))
       await loadWhitelist()
     } catch (error: any) {
-      message.error(error.message || i18ns.t('ipWhitelist.removeFailed'))
+      showRequestErrorNotice(error, i18ns.t('ipWhitelist.removeFailed'))
     }
   }
 

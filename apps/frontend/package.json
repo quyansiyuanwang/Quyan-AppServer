@@ -9,8 +9,10 @@
   },
   "scripts": {
     "domain-views:generate": "tsx scripts/generate-domain-view-manifests.ts",
+    "ensure:openapi-client": "node scripts/ensure-openapi-client.mjs",
     "--- a_dev ---------------------------": "",
-    "dev": "pnpm run domain-views:generate && vite",
+    "dev": "pnpm run ensure:openapi-client && pnpm run domain-views:generate && vite",
+    "dev:localhost": "pnpm run ensure:openapi-client && pnpm run domain-views:generate && vite --mode localhost",
     "production": "vite --mode production",
     "preview": "vite preview",
     "--- b_build_atomic ----------------": "",

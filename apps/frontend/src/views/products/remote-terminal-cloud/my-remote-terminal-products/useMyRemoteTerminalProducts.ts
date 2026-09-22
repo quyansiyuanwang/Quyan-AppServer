@@ -1,4 +1,5 @@
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
@@ -123,14 +124,6 @@ export const useMyRemoteTerminalProducts = () => {
     deviceCount: 0,
     terminalCount: 0,
   })
-
-  const toErrorMessage = (error: unknown, fallback: string) => {
-    if (error && typeof error === 'object' && 'message' in error) {
-      const message = (error as { message?: unknown }).message
-      if (typeof message === 'string' && message.trim()) return message
-    }
-    return fallback
-  }
 
   const supportsDevice = (item: { devicePrice?: number }) => item.devicePrice != null
   const supportsTerminal = (item: { terminalPrice?: number }) => item.terminalPrice != null
@@ -792,7 +785,7 @@ export const useMyRemoteTerminalProducts = () => {
       sessions.value = mySessions || []
       currentBalance.value = Number(myBalance.balance || 0)
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.refreshFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.refreshFailed')))
     } finally {
       loading.value = false
     }
@@ -837,7 +830,7 @@ export const useMyRemoteTerminalProducts = () => {
       )
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.claimFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.claimFailed')))
       return
     }
 
@@ -855,7 +848,7 @@ export const useMyRemoteTerminalProducts = () => {
       purchaseForms[item.id] = createDefaultPurchaseForm()
       await refreshAll()
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.claimFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.claimFailed')))
     } finally {
       claimingTemplateId.value = undefined
     }
@@ -890,7 +883,7 @@ export const useMyRemoteTerminalProducts = () => {
       await refreshAll()
     } catch (error) {
       if (error === 'cancel' || error === 'close') return
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.rotateTokenFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.rotateTokenFailed')))
     } finally {
       rotatingEntitlementId.value = undefined
     }
@@ -975,7 +968,7 @@ export const useMyRemoteTerminalProducts = () => {
       await copyToClipboard(command, false)
       ElMessage.success(i18ns.t('remoteTerminalProduct.commandCopied'))
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('copyFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
     }
   }
 
@@ -1001,7 +994,7 @@ export const useMyRemoteTerminalProducts = () => {
         installToken.value = result.token
       } catch (error) {
         ElMessage.error(
-          toErrorMessage(error, i18ns.t('remoteTerminalProduct.fetchInstallTokenFailed')),
+          getErrorMessage(error, i18ns.t('remoteTerminalProduct.fetchInstallTokenFailed')),
         )
       }
     }
@@ -1021,7 +1014,7 @@ export const useMyRemoteTerminalProducts = () => {
         installToken.value = result.token
       } catch (error) {
         ElMessage.error(
-          toErrorMessage(error, i18ns.t('remoteTerminalProduct.fetchInstallTokenFailed')),
+          getErrorMessage(error, i18ns.t('remoteTerminalProduct.fetchInstallTokenFailed')),
         )
       }
     }
@@ -1032,7 +1025,7 @@ export const useMyRemoteTerminalProducts = () => {
       await copyToClipboard(token, false)
       ElMessage.success(i18ns.t('remoteTerminalProduct.tokenCopied'))
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('copyFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('copyFailed')))
     }
   }
 
@@ -1063,7 +1056,7 @@ export const useMyRemoteTerminalProducts = () => {
       unbindDialogVisible.value = false
       unbindTargetDeviceId.value = undefined
       unbindReminder.value = undefined
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.revokeFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.revokeFailed')))
     } finally {
       unbindReminderLoading.value = false
     }
@@ -1080,7 +1073,7 @@ export const useMyRemoteTerminalProducts = () => {
       resetUnbindDialogState()
       await refreshAll()
     } catch (error) {
-      ElMessage.error(toErrorMessage(error, i18ns.t('remoteTerminalProduct.revokeFailed')))
+      ElMessage.error(getErrorMessage(error, i18ns.t('remoteTerminalProduct.revokeFailed')))
     } finally {
       revokingDeviceId.value = undefined
     }

@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 .env
+.env.bak
 *.local
 .DS_Store
 *.generated.*
@@ -11,6 +12,6 @@ apps/frontend/src/router/.gen/
 .eslintcache
 
 .claude/
-tmp/
+.tmp/
 
 *.log

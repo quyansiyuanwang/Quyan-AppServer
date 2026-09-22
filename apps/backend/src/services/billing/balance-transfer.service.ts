@@ -51,9 +51,10 @@ export class BalanceTransferService {
     request?: Request,
   ): Promise<BalanceGiftCodeDto> {
     if (body.expiresAt && (!Number.isFinite(body.expiresAt.getTime()) || body.expiresAt <= new Date()))
-      throw new BadRequestError("过期时间必须晚于当前时间");
+      throw new BadRequestError("过期时间必须晚于当前时间", undefined, { messageKey: "errors.expiryMustBeFuture" });
     const config = await this.getConfig();
-    if (!config.giftCodeEnabled) throw new BadRequestError("兑换码转出功能暂未启用");
+    if (!config.giftCodeEnabled)
+      throw new BadRequestError("兑换码转出功能暂未启用", undefined, { messageKey: "redemptionCode.transferDisabled" });
 
     const feeAmount = round4((body.amount * config.giftCodeFeePercent) / 100);
     const totalDebit = round4(body.amount + feeAmount);
@@ -142,11 +143,14 @@ export class BalanceTransferService {
   ): Promise<BalanceTransferResponse> {
     const recipientUsername = body.recipientUsername.trim();
     const recipient = await this.userRepository.findByUsername(recipientUsername);
-    if (!recipient) throw new BadRequestError("收款用户不存在或不可用");
-    if (recipient.id === senderId) throw new BadRequestError("不能向自己转账");
+    if (!recipient)
+      throw new BadRequestError("收款用户不存在或不可用", undefined, { messageKey: "billing.recipientUnavailable" });
+    if (recipient.id === senderId)
+      throw new BadRequestError("不能向自己转账", undefined, { messageKey: "billing.cannotTransferToSelf" });
 
     const config = await this.getConfig();
-    if (!config.directTransferEnabled) throw new BadRequestError("直接转账功能暂未启用");
+    if (!config.directTransferEnabled)
+      throw new BadRequestError("直接转账功能暂未启用", undefined, { messageKey: "billing.directTransferDisabled" });
     const feeAmount = round4((body.amount * config.directTransferFeePercent) / 100);
     const totalDebit = round4(body.amount + feeAmount);
     const { transfer, balance } = await this.repository.createTransfer({

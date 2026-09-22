@@ -70,12 +70,18 @@ export class AnthropicUpstreamClient {
       if (!apiKey)
         throw new BadRequestError(
           "Anthropic API key not configured. Please set the ANTHROPIC_API_KEY environment variable or configure a relay channel.",
+          undefined,
+          { messageKey: "errors.configNotConfigured", messageParams: { label: "Anthropic" } },
         );
     }
 
     if (!baseUrl) baseUrl = env.integrations.anthropic.baseUrl;
 
-    if (!baseUrl) throw new BadRequestError("Anthropic API base URL not configured.");
+    if (!baseUrl)
+      throw new BadRequestError("Anthropic API base URL not configured.", undefined, {
+        messageKey: "errors.configNotConfigured",
+        messageParams: { label: "Anthropic" },
+      });
 
     return {
       messagesUrl: `${baseUrl}/v1/messages`,
@@ -101,7 +107,9 @@ export class AnthropicUpstreamClient {
 
     if (response.status !== 200) {
       const errMsg = typeof response.data === "object" ? JSON.stringify(response.data) : String(response.data);
-      throw new BadRequestError(`AI service error: ${response.status} ${errMsg}`);
+      throw new BadRequestError(`AI service error: ${response.status} ${errMsg}`, undefined, {
+        messageKey: "errors.aiServiceUnavailable",
+      });
     }
 
     return response.data;

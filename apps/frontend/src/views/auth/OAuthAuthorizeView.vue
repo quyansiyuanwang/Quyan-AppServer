@@ -198,6 +198,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
@@ -274,7 +275,7 @@ const loadPreview = async () => {
       })
       return
     }
-    ElMessage.error(i18ns.t('oauthAuthorize.loadFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('oauthAuthorize.loadFailed')))
     throw error
   } finally {
     loading.value = false
@@ -290,7 +291,7 @@ const handleDecision = async (approve: boolean) => {
     const { assignDocument } = await import('@/service/navigationService')
     assignDocument(redirectTo)
   } catch (error) {
-    ElMessage.error(i18ns.t('oauthAuthorize.submitFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('oauthAuthorize.submitFailed')))
     throw error
   } finally {
     submitting.value = false

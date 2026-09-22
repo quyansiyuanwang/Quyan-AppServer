@@ -8,22 +8,31 @@ Node.js backend API built with Express, TypeScript, and Prisma ORM. Uses TSOA fo
 
 ## First-Time Setup
 
-For initial project setup:
+For initial project setup, run the repository-level bootstrap from the monorepo root (it writes
+`apps/backend/.env` from `.env.example` with generated development secrets, generates the Prisma
+client, applies committed migrations, and seeds data):
 
-1. **Install dependencies**: `pnpm install`
-2. **Configure environment**: `cp .env.sample .env` and edit database credentials
-3. **Initialize database**:
+```bash
+pnpm install
+pnpm run setup     # idempotent; use --skip-db / --skip-seed to narrow it
+pnpm run doctor    # read-only diagnostics when something is missing
+```
 
-   ```bash
-   pnpm run db:generate  # Generate Prisma client
-   pnpm run db:push      # Push schema to database
-   pnpm run db:seed      # Seed initial data (creates admin user)
-   ```
+Backend-only equivalents once `.env` exists:
 
-4. **Start development**: `pnpm run dev`
-5. **Access Swagger UI**: `http://localhost:10001/docs`
+```bash
+pnpm run db:generate        # Generate Prisma client
+pnpm run db:migrate:deploy  # Apply committed migrations (do not use db:push as a substitute)
+pnpm run db:seed            # Seed demo data (idempotent)
+```
 
-Default admin credentials after seeding: Check `prisma/seed.ts` for details.
+Start development with `pnpm run dev:backend` (or `pnpm run dev` from the root for the full
+stack). Swagger UI: `http://localhost:10001/docs`.
+
+Seeded demo accounts (see `prisma/seed.ts`): `admin / admin123`, plus `sysadmin`, `useradmin`,
+`editor1`, `viewer1`, `user1` and their documented passwords. The seed stores bcrypt hashes and
+repairs legacy `md5(md5(password))` rows so a re-seeded database can sign in with the current
+raw-password login flow.
 
 ## Common Commands
 
@@ -214,9 +223,16 @@ All permissions are defined in the `Permission` enum with format `resource:actio
 **Usage:**
 
 ```typescript
-throw new NotFoundError("User not found");
-throw new UnauthorizedError("Invalid token");
+// 用户可见消息必须来自消息目录 key；第一参保留为内部诊断原文
+throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
+throw new UnauthorizedError("Invalid token", undefined, { messageKey: "auth.tokenVerificationFailed" });
 ```
+
+`messageParams` 只接受安全领域标量（数字、上限常量、权限名、枚举/闭集标识），
+不回显请求体、凭据、数据库记录或任意 `Error.message`。
+原文反查与前缀猜测已删除：**原文不再被翻译**，也不再有原文写法入口 `setResponseMessage`。
+ESLint 规则 `backend-i18n/no-raw-error-message` 与 `backend-i18n/no-legacy-i18n-api` 会拦截新增旧用法；
+完整契约见 `docs/development/02-backend.md` 的「错误处理与本地化」。
 
 All errors are caught by `exceptionMiddleware` and formatted consistently with custom codes.
 

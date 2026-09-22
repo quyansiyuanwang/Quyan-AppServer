@@ -21,6 +21,7 @@
 | [13-docs-site.md](./13-docs-site.md)                       | docs-site 文档同步、写作规范与验证                            |
 | [14-domain-deployment.md](./14-domain-deployment.md)       | 多域名、反代、Cookie 与 CORS 运维部署                         |
 | [15-cli.md](./15-cli.md)                                   | Quyan CLI 架构、凭证边界与验证                                |
+| [16-local-development.md](./16-local-development.md)       | 本地启动模式、免特权 localhost、setup/doctor 与故障排查       |
 
 ## 专题审计
 
@@ -45,6 +46,7 @@
 - **如何同步和编写 docs-site 文档** → [13-docs-site.md](./13-docs-site.md)
 - **如何配置多域名与认证 Cookie** → [14-domain-deployment.md](./14-domain-deployment.md)
 - **如何开发和验证 CLI** → [15-cli.md](./15-cli.md)
+- **如何本地启动与排查** → [16-local-development.md](./16-local-development.md)
 - **开源前如何检查安全配置** → [SECURITY.md](../../SECURITY.md)
 
 ### 常用命令速查
@@ -52,8 +54,12 @@
 ```bash
 cd AppServerMonorepo
 
-# 开发
-pnpm run dev                     # 并行启动 backend + frontend + docs-site（CLI 单独启动）
+# 本地初始化与启动
+pnpm run setup                   # 幂等：工具链检查 + .env + 生成物 + 迁移 + 种子数据
+pnpm run doctor                  # 只读诊断本地环境
+pnpm run dev                     # 多域名：backend + frontend + docs-site（https://<站点前缀>.qysyw.test:5173）
+pnpm run dev:domains             # 同上的语义化别名
+pnpm run dev:localhost           # 免特权单站点：backend + frontend + docs-site（http://localhost:5173）
 pnpm run dev:backend             # 只启动后端 (port 10001)
 pnpm run dev:frontend            # 只启动前端 (port 5173)
 pnpm run dev:docs                # 只启动文档站点 (port 4173)
@@ -62,7 +68,7 @@ pnpm run dev:cli                 # 启动 Quyan CLI
 # OpenAPI
 pnpm run openapi:gen:all         # 完整流水线（后端 spec → 前端客户端；Rust CLI 在 Cargo 构建时生成）
 
-# 测试：根级命令并行运行 backend、frontend 和 CLI
+# 测试：根级命令并行运行 backend 与 frontend
 pnpm run test
 
 # 后端：按测试层级选择

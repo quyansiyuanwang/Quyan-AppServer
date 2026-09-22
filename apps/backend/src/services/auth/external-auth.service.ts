@@ -174,14 +174,18 @@ export class ExternalAuthService {
       case "wechat-web":
         return config.wechatWeb;
       default:
-        throw new BadRequestError("不支持的外部登录提供方", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
+        throw new BadRequestError("不支持的外部登录提供方", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID, {
+          messageKey: "auth.unsupportedExternalProvider",
+        });
     }
   }
 
   private assertProviderEnabled(provider: ExternalAuthProvider, config: SocialAuthConfig): void {
     const providerConfig = this.getProviderConfig(provider, config);
     if (!providerConfig.enabled)
-      throw new BadRequestError("当前外部登录方式未启用", CustomCode.EXTERNAL_AUTH_PROVIDER_DISABLED);
+      throw new BadRequestError("当前外部登录方式未启用", CustomCode.EXTERNAL_AUTH_PROVIDER_DISABLED, {
+        messageKey: "auth.externalProviderDisabled",
+      });
   }
 
   private getBackendOrigin(request?: Request): string {
@@ -239,7 +243,9 @@ export class ExternalAuthService {
       const authOrigin = this.getFrontendOrigin(config, request);
       const callbackUrl = new URL(normalizedRedirect, authOrigin);
       if (callbackUrl.origin !== new URL(authOrigin).origin)
-        throw new BadRequestError("External account binding callback must use the central auth origin");
+        throw new BadRequestError("External account binding callback must use the central auth origin", undefined, {
+          messageKey: "auth.bindingCallbackOriginInvalid",
+        });
       return callbackUrl.toString();
     }
 
@@ -276,12 +282,17 @@ export class ExternalAuthService {
   private async readExternalState(state: string): Promise<ExternalAuthStatePayload> {
     const key = this.externalStateKey(state);
     const raw = await this.redisService.get(key);
-    if (!raw) throw new UnauthorizedError("外部登录状态已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+    if (!raw)
+      throw new UnauthorizedError("外部登录状态已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID, {
+        messageKey: "auth.externalStateExpired",
+      });
 
     try {
       return JSON.parse(raw) as ExternalAuthStatePayload;
     } catch {
-      throw new UnauthorizedError("外部登录状态无效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+      throw new UnauthorizedError("外部登录状态无效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID, {
+        messageKey: "auth.externalStateInvalid",
+      });
     }
   }
 
@@ -348,14 +359,23 @@ export class ExternalAuthService {
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       if (status === 504 || status === 408 || error.code === "ECONNABORTED") {
-        throw new GatewayTimeoutError(`${label} 请求超时，请稍后重试`);
+        throw new GatewayTimeoutError(`${label} 请求超时，请稍后重试`, undefined, {
+          messageKey: "auth.externalProviderTimeout",
+          messageParams: { provider: label },
+        });
       }
       if (status && status >= 500) {
-        throw new GatewayTimeoutError(`${label} 上游暂时不可用，请稍后重试`);
+        throw new GatewayTimeoutError(`${label} 上游暂时不可用，请稍后重试`, undefined, {
+          messageKey: "auth.externalProviderUnavailable",
+          messageParams: { provider: label },
+        });
       }
     }
 
-    throw new GatewayTimeoutError(`${label} 暂时不可用，请稍后重试`);
+    throw new GatewayTimeoutError(`${label} 暂时不可用，请稍后重试`, undefined, {
+      messageKey: "auth.externalProviderTemporarilyUnavailable",
+      messageParams: { provider: label },
+    });
   }
 
   private async createBindingToken(payload: ExternalBindingPayload): Promise<{ token: string; expiresIn: number }> {
@@ -369,14 +389,19 @@ export class ExternalAuthService {
   private async consumeBindingToken(token: string): Promise<ExternalBindingPayload> {
     const key = this.bindingTokenKey(token);
     const raw = await this.redisService.get(key);
-    if (!raw) throw new UnauthorizedError("外部绑定会话已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+    if (!raw)
+      throw new UnauthorizedError("外部绑定会话已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID, {
+        messageKey: "auth.externalBindingSessionExpired",
+      });
 
     await this.redisService.delete(key);
 
     try {
       return JSON.parse(raw) as ExternalBindingPayload;
     } catch {
-      throw new UnauthorizedError("外部绑定会话无效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+      throw new UnauthorizedError("外部绑定会话无效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID, {
+        messageKey: "auth.externalBindingSessionInvalid",
+      });
     }
   }
 
@@ -438,7 +463,10 @@ export class ExternalAuthService {
     );
 
     const accessToken = String(tokenResponse.data?.access_token || "").trim();
-    if (!accessToken) throw new UnauthorizedError("GitHub 登录令牌获取失败", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
+    if (!accessToken)
+      throw new UnauthorizedError("GitHub 登录令牌获取失败", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID, {
+        messageKey: "auth.githubTokenFetchFailed",
+      });
 
     const [profileResponse, emailResponse] = await Promise.all([
       this.withTimeoutAndRetry(
@@ -514,7 +542,9 @@ export class ExternalAuthService {
     const openId = String(tokenResponse.data?.openid || "").trim();
 
     if (!accessToken || !openId)
-      throw new UnauthorizedError("微信登录令牌获取失败", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
+      throw new UnauthorizedError("微信登录令牌获取失败", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID, {
+        messageKey: "auth.wechatTokenFetchFailed",
+      });
 
     const profileResponse = await axios.get(config.userUrl, {
       params: {
@@ -550,7 +580,9 @@ export class ExternalAuthService {
     if (provider === "github") return this.fetchGithubProfile(code, request, callbackUrl);
     if (provider === "wechat-open" || provider === "wechat-web")
       return this.fetchWechatProfile(provider, code, request, callbackUrl);
-    throw new BadRequestError("不支持的外部登录提供方", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID);
+    throw new BadRequestError("不支持的外部登录提供方", CustomCode.EXTERNAL_AUTH_CALLBACK_INVALID, {
+      messageKey: "auth.unsupportedExternalProvider",
+    });
   }
 
   private mapQrUser(user: Awaited<ReturnType<UserStore["findById"]>>): QrLoginSessionStatusResponse["user"] {
@@ -575,7 +607,8 @@ export class ExternalAuthService {
 
     if (payload.status === "approved" && payload.approvedByUserId) {
       const user = await this.userRepository.findById(payload.approvedByUserId);
-      if (!user) throw new NotFoundError("扫码登录用户不存在", CustomCode.NOT_FOUND);
+      if (!user)
+        throw new NotFoundError("扫码登录用户不存在", CustomCode.NOT_FOUND, { messageKey: "auth.qrLoginUserNotFound" });
 
       const authData = await this.authService.completeKnownUserLogin(user, request, {
         source: "qr_login",
@@ -641,7 +674,9 @@ export class ExternalAuthService {
 
     if (existing) {
       if (existing.userId !== userId)
-        throw new ConflictError("该外部账号已绑定其他用户", CustomCode.EXTERNAL_IDENTITY_ALREADY_BOUND);
+        throw new ConflictError("该外部账号已绑定其他用户", CustomCode.EXTERNAL_IDENTITY_ALREADY_BOUND, {
+          messageKey: "auth.externalIdentityAlreadyBound",
+        });
 
       return this.externalIdentityRepository.updateById(existing.id, {
         providerUnionId: profile.providerUnionId,
@@ -688,7 +723,8 @@ export class ExternalAuthService {
     const socialConfig = await this.configService.getSocialAuthConfig();
     this.assertProviderEnabled(provider, socialConfig);
     const resolvedUserId = userId || (await this.resolveAuthenticatedUserId(request));
-    if (action === "bind" && !resolvedUserId) throw new UnauthorizedError("绑定外部账号需要先登录");
+    if (action === "bind" && !resolvedUserId)
+      throw new UnauthorizedError("绑定外部账号需要先登录", undefined, { messageKey: "auth.bindingRequiresLogin" });
 
     const state = await this.persistExternalState({ provider, action, redirectUri, userId: resolvedUserId });
     const callbackUrl = this.buildCallbackUrl(provider, socialConfig, request, {
@@ -736,7 +772,9 @@ export class ExternalAuthService {
   ): Promise<ExternalAuthCallbackResponse> {
     const statePayload = await this.peekExternalState(state);
     if (statePayload.provider !== provider)
-      throw new UnauthorizedError("外部登录状态与提供方不匹配", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+      throw new UnauthorizedError("外部登录状态与提供方不匹配", CustomCode.EXTERNAL_AUTH_STATE_INVALID, {
+        messageKey: "auth.externalStateProviderMismatch",
+      });
 
     const socialConfig = await this.configService.getSocialAuthConfig();
     const callbackUrl = this.buildCallbackUrl(provider, socialConfig, request, {
@@ -748,10 +786,14 @@ export class ExternalAuthService {
 
     if (statePayload.action === "bind") {
       const userId = String(statePayload.userId || "").trim();
-      if (!userId) throw new UnauthorizedError("绑定态已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+      if (!userId)
+        throw new UnauthorizedError("绑定态已失效，请重试", CustomCode.EXTERNAL_AUTH_STATE_INVALID, {
+          messageKey: "auth.bindingStateExpired",
+        });
       await this.saveOrUpdateIdentity(userId, profile);
       const identity = await this.externalIdentityRepository.findByUserIdAndProvider(userId, provider);
-      if (!identity) throw new InternalServerError("外部账号绑定失败");
+      if (!identity)
+        throw new InternalServerError("外部账号绑定失败", undefined, { messageKey: "auth.externalBindingFailed" });
       return this.mapIdentityItem({
         id: identity.id,
         provider: identity.provider,
@@ -797,7 +839,10 @@ export class ExternalAuthService {
     }
 
     const user = await this.userRepository.findById(existingIdentity.userId);
-    if (!user) throw new NotFoundError("绑定的用户不存在", CustomCode.EXTERNAL_IDENTITY_NOT_BOUND);
+    if (!user)
+      throw new NotFoundError("绑定的用户不存在", CustomCode.EXTERNAL_IDENTITY_NOT_BOUND, {
+        messageKey: "auth.boundUserNotFound",
+      });
 
     await this.externalIdentityRepository.updateById(existingIdentity.id, {
       providerUnionId: profile.providerUnionId,
@@ -849,16 +894,21 @@ export class ExternalAuthService {
   ): Promise<BindExternalIdentityResponse> {
     const payload = await this.consumeBindingToken(bindingToken);
     if (payload.provider !== provider)
-      throw new UnauthorizedError("绑定提供方不匹配", CustomCode.EXTERNAL_AUTH_STATE_INVALID);
+      throw new UnauthorizedError("绑定提供方不匹配", CustomCode.EXTERNAL_AUTH_STATE_INVALID, {
+        messageKey: "auth.bindingProviderMismatch",
+      });
 
     const existingSameProvider = await this.externalIdentityRepository.findByUserIdAndProvider(userId, provider);
     if (existingSameProvider && !existingSameProvider.revokedAt)
-      throw new ConflictError("当前账号已绑定该提供方", CustomCode.EXTERNAL_IDENTITY_ALREADY_BOUND);
+      throw new ConflictError("当前账号已绑定该提供方", CustomCode.EXTERNAL_IDENTITY_ALREADY_BOUND, {
+        messageKey: "auth.identityAlreadyBoundToAccount",
+      });
 
     await this.saveOrUpdateIdentity(userId, this.normalizeIdentityForBinding(payload.profile));
 
     const identity = await this.externalIdentityRepository.findByUserIdAndProvider(userId, provider);
-    if (!identity) throw new InternalServerError("绑定外部账号失败");
+    if (!identity)
+      throw new InternalServerError("绑定外部账号失败", undefined, { messageKey: "auth.externalBindingFailed" });
 
     await this.businessLogService.logOperation({
       operationType: OperationType.EXTERNAL_AUTH_BIND,
@@ -895,7 +945,10 @@ export class ExternalAuthService {
     request?: Request,
   ): Promise<UnbindExternalIdentityResponse> {
     const identity = await this.externalIdentityRepository.findByUserIdAndProvider(userId, provider);
-    if (!identity) throw new NotFoundError("当前账号未绑定该外部账号", CustomCode.EXTERNAL_IDENTITY_NOT_BOUND);
+    if (!identity)
+      throw new NotFoundError("当前账号未绑定该外部账号", CustomCode.EXTERNAL_IDENTITY_NOT_BOUND, {
+        messageKey: "auth.identityNotBoundToAccount",
+      });
 
     await this.externalIdentityRepository.updateById(identity.id, {
       revokedAt: new Date(),
@@ -923,7 +976,9 @@ export class ExternalAuthService {
   public async createQrLoginSession(request?: Request): Promise<CreateQrLoginSessionResponse> {
     const socialConfig = await this.configService.getSocialAuthConfig();
     if (!socialConfig.qrLoginEnabled)
-      throw new BadRequestError("站内扫码登录未启用", CustomCode.EXTERNAL_AUTH_PROVIDER_DISABLED);
+      throw new BadRequestError("站内扫码登录未启用", CustomCode.EXTERNAL_AUTH_PROVIDER_DISABLED, {
+        messageKey: "auth.qrLoginDisabled",
+      });
 
     const sessionId = randomUUID();
     const expiresIn = socialConfig.qrLoginTtlSeconds;
@@ -996,9 +1051,13 @@ export class ExternalAuthService {
   ): Promise<QrLoginSessionStatusResponse> {
     const { payload, expiresIn } = await this.readQrSession(sessionId);
     if (payload.status === "expired")
-      throw new NotFoundError("扫码登录会话已过期", CustomCode.QR_LOGIN_SESSION_EXPIRED);
+      throw new NotFoundError("扫码登录会话已过期", CustomCode.QR_LOGIN_SESSION_EXPIRED, {
+        messageKey: "auth.qrLoginSessionExpired",
+      });
     if (payload.status !== "pending" && payload.status !== "scanned")
-      throw new ConflictError("扫码登录会话已处理", CustomCode.QR_LOGIN_SESSION_CONSUMED);
+      throw new ConflictError("扫码登录会话已处理", CustomCode.QR_LOGIN_SESSION_CONSUMED, {
+        messageKey: "auth.qrLoginSessionConsumed",
+      });
 
     const nextPayload: QrLoginSessionPayload = {
       ...payload,
@@ -1036,11 +1095,17 @@ export class ExternalAuthService {
   ): Promise<QrLoginSessionStatusResponse> {
     const { payload, expiresIn } = await this.readQrSession(sessionId);
     if (payload.status === "expired")
-      throw new NotFoundError("扫码登录会话已过期", CustomCode.QR_LOGIN_SESSION_EXPIRED);
+      throw new NotFoundError("扫码登录会话已过期", CustomCode.QR_LOGIN_SESSION_EXPIRED, {
+        messageKey: "auth.qrLoginSessionExpired",
+      });
     if (payload.status !== "scanned")
-      throw new ConflictError("扫码登录会话尚未进入确认状态", CustomCode.QR_LOGIN_SESSION_PENDING);
+      throw new ConflictError("扫码登录会话尚未进入确认状态", CustomCode.QR_LOGIN_SESSION_PENDING, {
+        messageKey: "auth.qrLoginSessionPending",
+      });
     if (payload.approvedByUserId !== userId)
-      throw new ForbiddenError("无权确认该扫码登录", CustomCode.PERMISSION_DENIED);
+      throw new ForbiddenError("无权确认该扫码登录", CustomCode.PERMISSION_DENIED, {
+        messageKey: "auth.qrLoginConfirmForbidden",
+      });
 
     const nextPayload: QrLoginSessionPayload = {
       ...payload,

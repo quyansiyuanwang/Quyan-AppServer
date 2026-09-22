@@ -81,7 +81,8 @@ export class RemoteTerminalProductRepository implements RemoteTerminalProductSto
       totalUsedDelta: new Decimal(data.purchaseAmount),
       minimumBalance: 0,
     });
-    if (!mutation) throw new BadRequestError("Insufficient balance");
+    if (!mutation)
+      throw new BadRequestError("Insufficient balance", undefined, { messageKey: "billing.insufficientBalance" });
 
     await tx.balanceTransaction.create({
       data: {

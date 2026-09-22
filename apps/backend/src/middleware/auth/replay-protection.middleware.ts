@@ -38,18 +38,25 @@ export async function replayProtectionMiddleware(req: TypedRequest, res: Respons
 
   if (!nonce || !timestamp || !sign || !sessionId) {
     logger.warn(`Missing replay protection headers: ${req.method} ${req.path} from ${req.ip}`);
-    throw new BadRequestError("缺少防重放请求头", CustomCode.REQUIRE_REPLAY_PROTECTION);
+    throw new BadRequestError("缺少防重放请求头", CustomCode.REQUIRE_REPLAY_PROTECTION, {
+      messageKey: "errors.requireReplayProtection",
+    });
   }
 
   // 验证时间戳
   const now = Math.floor(Date.now() / 1000);
   const reqTime = parseInt(timestamp, 10);
 
-  if (isNaN(reqTime)) throw new BadRequestError("无效的时间戳", CustomCode.REPLAY_PROTECTION_FAILED);
+  if (isNaN(reqTime))
+    throw new BadRequestError("无效的时间戳", CustomCode.REPLAY_PROTECTION_FAILED, {
+      messageKey: "auth.invalidTimestamp",
+    });
 
   if (Math.abs(now - reqTime) > TIMESTAMP_TOLERANCE) {
     logger.warn(`Timestamp out of range: ${req.method} ${req.path} from ${req.ip}`);
-    throw new UnauthorizedError("请求已过期", CustomCode.REPLAY_PROTECTION_FAILED);
+    throw new UnauthorizedError("请求已过期", CustomCode.REPLAY_PROTECTION_FAILED, {
+      messageKey: "auth.requestExpired",
+    });
   }
 
   const redis = RedisService.getInstance();
@@ -72,7 +79,9 @@ export async function replayProtectionMiddleware(req: TypedRequest, res: Respons
     const material = createTestReplaySigningMaterial(requestFingerprint);
     if (material.sessionId !== sessionId) {
       logger.warn(`Replay signing test session mismatch: ${req.method} ${req.path} from ${req.ip}`);
-      throw new UnauthorizedError("签名会话无效，请重试", CustomCode.REPLAY_PROTECTION_FAILED);
+      throw new UnauthorizedError("签名会话无效，请重试", CustomCode.REPLAY_PROTECTION_FAILED, {
+        messageKey: "auth.signingSessionInvalid",
+      });
     }
 
     signingSession = {
@@ -85,20 +94,26 @@ export async function replayProtectionMiddleware(req: TypedRequest, res: Respons
     const rawSession = await redis.get(buildReplaySigningSessionKey(sessionId));
     if (!rawSession) {
       logger.warn(`Replay signing session missing or expired: ${req.method} ${req.path} from ${req.ip}`);
-      throw new UnauthorizedError("签名会话已过期，请重试", CustomCode.REPLAY_PROTECTION_FAILED);
+      throw new UnauthorizedError("签名会话已过期，请重试", CustomCode.REPLAY_PROTECTION_FAILED, {
+        messageKey: "auth.signingSessionExpired",
+      });
     }
 
     try {
       signingSession = JSON.parse(rawSession) as ReplaySigningSessionRecord;
     } catch {
       logger.warn(`Replay signing session corrupted: ${req.method} ${req.path} from ${req.ip}`);
-      throw new UnauthorizedError("签名会话无效，请重试", CustomCode.REPLAY_PROTECTION_FAILED);
+      throw new UnauthorizedError("签名会话无效，请重试", CustomCode.REPLAY_PROTECTION_FAILED, {
+        messageKey: "auth.signingSessionInvalid",
+      });
     }
   }
 
   if (signingSession.fingerprint && requestFingerprint !== signingSession.fingerprint) {
     logger.warn(`Replay signing fingerprint mismatch: ${req.method} ${req.path} from ${req.ip}`);
-    throw new UnauthorizedError("签名会话校验失败", CustomCode.REPLAY_PROTECTION_FAILED);
+    throw new UnauthorizedError("签名会话校验失败", CustomCode.REPLAY_PROTECTION_FAILED, {
+      messageKey: "auth.signingSessionMismatch",
+    });
   }
 
   const nonceKey = buildReplayNonceKey(sessionId, nonce);
@@ -113,14 +128,18 @@ export async function replayProtectionMiddleware(req: TypedRequest, res: Respons
 
   if (!verifyReplaySign(sign, expectedSign)) {
     logger.warn(`Invalid signature: ${req.method} ${req.path} from ${req.ip}`);
-    throw new UnauthorizedError("签名验证失败", CustomCode.REPLAY_PROTECTION_FAILED);
+    throw new UnauthorizedError("签名验证失败", CustomCode.REPLAY_PROTECTION_FAILED, {
+      messageKey: "auth.signatureInvalid",
+    });
   }
 
   // 原子占用 nonce，避免并发请求绕过 exists + set 的竞态窗口
   const reserved = await redis.setIfNotExists(nonceKey, "1", NONCE_TTL * 1000);
   if (reserved === false) {
     logger.warn(`Nonce reused or reservation failed: ${nonce}, ${req.method} ${req.path} from ${req.ip}`);
-    throw new UnauthorizedError("请求已被使用", CustomCode.REPLAY_PROTECTION_FAILED);
+    throw new UnauthorizedError("请求已被使用", CustomCode.REPLAY_PROTECTION_FAILED, {
+      messageKey: "auth.requestAlreadyUsed",
+    });
   }
 
   if (reserved === null) {

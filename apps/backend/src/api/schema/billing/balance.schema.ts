@@ -26,6 +26,10 @@ const validateBalanceTransactionQueryRange = (
     code: z.ZodIssueCode.custom,
     path: value.endTime ? ["endTime"] : ["startTime"],
     message: `query time range must not exceed ${BALANCE_TRANSACTION_MAX_QUERY_RANGE_DAYS} days`,
+    params: {
+      messageKey: "billing.transactionQueryRangeTooWide",
+      messageParams: { maxDays: BALANCE_TRANSACTION_MAX_QUERY_RANGE_DAYS },
+    },
   });
 };
 

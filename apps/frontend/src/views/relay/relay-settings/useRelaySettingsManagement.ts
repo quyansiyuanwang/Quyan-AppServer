@@ -1,3 +1,5 @@
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { Permission } from '@/constant/permission'
 import { i18ns } from '@/locales'
@@ -93,11 +95,7 @@ const showRequestError = (error: unknown, fallback: string) => {
   // interceptor. Do not overwrite that flow with an ordinary operation error.
   if (isTwoFactorRequiredResponse(error)) return
 
-  const message =
-    error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
-      ? error.message
-      : undefined
-  ElMessage.error(message || fallback)
+  showRequestErrorNotice(error, fallback)
 }
 
 const resolveModelId = (source: ModelIdentitySource): string => {
@@ -746,8 +744,8 @@ export const useRelaySettingsManagement = () => {
       showImportDialog.value = false
       importText.value = ''
       ElMessage.success(i18ns.t('ServerConfigView.importSuccess'))
-    } catch {
-      ElMessage.error(i18ns.t('ServerConfigView.importFormatError'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('ServerConfigView.importFormatError')))
     }
   }
 
@@ -1096,6 +1094,8 @@ export const useRelaySettingsManagement = () => {
   const timeRuleDays = ref<number[]>([])
   const timeRuleRange = ref<string[]>([])
   const timeRuleForm = ref({
+    holidayMode: 'ignore' as TimePeriodMultiplierRule['holidayMode'],
+    allDay: false,
     name: '',
     multiplier: 1,
     enabled: true,
@@ -1106,6 +1106,10 @@ export const useRelaySettingsManagement = () => {
     timeRange: [
       {
         validator: (_rule: unknown, _value: unknown, callback: (error?: Error) => void) => {
+          if (timeRuleForm.value.allDay) {
+            callback()
+            return
+          }
           if (
             !timeRuleRange.value ||
             timeRuleRange.value.length !== 2 ||
@@ -1131,6 +1135,10 @@ export const useRelaySettingsManagement = () => {
     { value: 7, label: i18ns.t('relay.daySun') },
   ]
 
+  function formatTimeRuleHolidayMode(mode?: TimePeriodMultiplierRule['holidayMode']): string {
+    return i18ns.t(`relay.holidayMode_${mode ?? 'ignore'}`)
+  }
+
   function formatTimeRuleDays(dayOfWeek: string): string {
     if (!dayOfWeek || dayOfWeek.trim() === '') return i18ns.t('relay.allWeek')
     const days = dayOfWeek.split(',').map(Number)
@@ -1147,7 +1155,13 @@ export const useRelaySettingsManagement = () => {
   }
 
   function resetTimeRuleForm() {
-    timeRuleForm.value = { name: '', multiplier: 1, enabled: true }
+    timeRuleForm.value = {
+      name: '',
+      multiplier: 1,
+      enabled: true,
+      holidayMode: 'ignore',
+      allDay: false,
+    }
     timeRuleDays.value = []
     timeRuleRange.value = []
     editingTimeRuleIndex.value = -1
@@ -1163,6 +1177,8 @@ export const useRelaySettingsManagement = () => {
     if (!rule) return
     editingTimeRuleIndex.value = index
     timeRuleForm.value = {
+      holidayMode: rule.holidayMode ?? 'ignore',
+      allDay: rule.allDay ?? false,
       name: rule.name,
       multiplier: rule.multiplier,
       enabled: rule.enabled,
@@ -1176,10 +1192,12 @@ export const useRelaySettingsManagement = () => {
     const valid = await timeRuleFormRef.value?.validate().catch(() => false)
     if (!valid) return
     const rule: TimePeriodMultiplierRule = {
+      holidayMode: timeRuleForm.value.holidayMode,
+      allDay: timeRuleForm.value.allDay,
       name: timeRuleForm.value.name,
       dayOfWeek: timeRuleDays.value.join(','),
-      startTime: timeRuleRange.value[0]!,
-      endTime: timeRuleRange.value[1]!,
+      startTime: timeRuleRange.value[0] || '00:00',
+      endTime: timeRuleRange.value[1] || '00:00',
       multiplier: timeRuleForm.value.multiplier,
       enabled: timeRuleForm.value.enabled,
     }
@@ -1892,8 +1910,8 @@ export const useRelaySettingsManagement = () => {
         ElMessage.error(i18ns.t('relay.channelImportFormatError'))
         return
       }
-    } catch {
-      ElMessage.error(i18ns.t('relay.channelImportFormatError'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('relay.channelImportFormatError')))
       return
     }
 
@@ -2684,6 +2702,7 @@ export const useRelaySettingsManagement = () => {
     timeRuleFormRules,
     timeRuleDayOptions,
     formatTimeRuleDays,
+    formatTimeRuleHolidayMode,
     openAddTimeRule,
     openEditTimeRule,
     saveTimeRule,

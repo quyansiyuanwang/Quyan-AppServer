@@ -72,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, ref } from 'vue'
 import { ElMessageBox } from '@/utils/elementPlusRuntime'
 import { Loading } from '@element-plus/icons-vue'
@@ -255,7 +256,7 @@ const send = async () => {
     if (!messages.value.find((message) => message.id === assistantId)?.content) messages.value.pop()
   } catch (cause) {
     messages.value.pop()
-    error.value = cause instanceof Error ? cause.message : i18ns.t('support.unavailable')
+    error.value = getErrorMessage(cause, i18ns.t('support.unavailable'))
   } finally {
     sending.value = false
     streamStatus.value = null

@@ -114,6 +114,19 @@ const ticket = {
 }
 
 export default {
+  requestErrors: {
+    failed: 'Request failed. Please try again.',
+    timeout: 'The request timed out. Please try again.',
+    offline: 'You are offline. Check your connection.',
+    network: 'Unable to connect. Check your network and try again.',
+    unauthorized: 'Please sign in again.',
+    forbidden: 'You do not have permission for this action.',
+    notFound: 'The requested resource is unavailable.',
+    rateLimited: 'Too many requests. Please try again later.',
+    server: 'The service is temporarily unavailable. Please try again later.',
+    repair: 'Unable to sign in? Check and repair',
+  },
+
   login: 'Login',
   register: 'Register',
   logout: 'Logout',
@@ -4125,6 +4138,13 @@ export default {
     geminiUrlNoKey: 'Gemini upstream URL configured but API Key missing',
 
     // Time Period Multiplier Rules (per-channel)
+    holidayMode: 'Chinese holidays',
+    holidayMode_ignore: 'Ignore holidays',
+    holidayMode_exclude: 'Exclude holidays',
+    holidayMode_only: 'Holidays only',
+    timeRuleAllDay: 'All day',
+    holidayModeHelp:
+      'Holiday filters use Asia/Shanghai and include official extended breaks. Holidays only ignores weekdays. Makeup workdays never change weekdays. Missing calendars skip dependent rules with a warning; matching multipliers stack. Ignore holidays keeps the server timezone.',
     timeRules: 'Time Period Multiplier Rules',
     timeRuleName: 'Rule Name',
     timeRuleDays: 'Days of Week',

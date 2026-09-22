@@ -520,3 +520,14 @@ export type CreateCentralLoginFlowResponse = CentralLoginFlowContextDto;
 export type CreateAuthenticatedCentralLoginFlowResponse = CentralLoginFlowContextDto;
 export type GetCentralLoginFlowContextResponse = CentralLoginFlowContextDto;
 export type ConsumeCentralLoginFlowResponse = ConsumedCentralLoginFlowDto;
+
+/** Explicit confirmation; this endpoint never accepts cookie names or account identifiers. */
+export interface BrowserStateResetDto {
+  confirm: true;
+}
+export interface BrowserStateResetResponse {
+  /** Set-Cookie expiration instructions emitted, not proof of browser acceptance. */
+  cookiesCleared: boolean;
+  /** Current refresh credential revoked, or no refresh credential was present. */
+  sessionRevoked: boolean;
+}

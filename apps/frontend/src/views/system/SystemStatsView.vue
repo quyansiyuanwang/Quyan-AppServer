@@ -522,6 +522,7 @@
 
 <script setup lang="ts">
 import { usePageDevice } from '@/composables/usePageDevice'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import {
@@ -708,7 +709,7 @@ const loadStats = async (silent = false) => {
     stats.value = data as SystemStats
   } catch (error) {
     if (!silent) {
-      ElMessage.error(i18ns.t('SystemStats.loadFailed'))
+      ElMessage.error(getErrorMessage(error, i18ns.t('SystemStats.loadFailed')))
     }
     console.error('Failed to load system stats:', error)
   } finally {

@@ -447,7 +447,7 @@ import { usePageDevice } from '@/composables/usePageDevice'
 import { usePagination } from '@/composables/usePagination'
 import { i18ns } from '@/locales'
 import { formatDateTime, formatDuration } from '@/utils/timeUtils'
-import { isRequestCanceled } from '@/utils/error-utils'
+import { isRequestCanceled, getErrorMessage } from '@/utils/error-utils'
 import type {
   UserOnlineMonitorDetailDto,
   UserOnlineMonitorOverviewItemDto,
@@ -527,7 +527,7 @@ const loadOverview = async () => {
   } catch (error) {
     if (!isRequestCurrent(requestContext.requestId) || isRequestCanceled(error)) return
 
-    ElMessage.error(i18ns.t('UserOnlineMonitor.loadFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('UserOnlineMonitor.loadFailed')))
     console.error('Failed to load online monitor overview:', error)
   } finally {
     if (!isRequestCurrent(requestContext.requestId)) return
@@ -585,7 +585,7 @@ const openDetail = async (userId: string) => {
     timelineItems.value = timeline.items
     timelineTotal.value = timeline.total
   } catch (error) {
-    ElMessage.error(i18ns.t('UserOnlineMonitor.loadDetailFailed'))
+    ElMessage.error(getErrorMessage(error, i18ns.t('UserOnlineMonitor.loadDetailFailed')))
     console.error('Failed to load online monitor detail:', error)
   } finally {
     detailLoading.value = false
@@ -599,7 +599,7 @@ const handleDetailDateRangeChange = async () => {
   try {
     await loadTimeline(selectedDetail.value.userId)
   } catch (_err) {
-    ElMessage.error(i18ns.t('UserOnlineMonitor.loadDetailFailed'))
+    ElMessage.error(getErrorMessage(_err, i18ns.t('UserOnlineMonitor.loadDetailFailed')))
   } finally {
     detailLoading.value = false
   }

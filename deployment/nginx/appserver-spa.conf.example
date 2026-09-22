@@ -11,6 +11,12 @@ server {
     add_header Cache-Control "no-cache";
   }
 
+  # Independent recovery entry must never fall back to the normal application.
+  location = /repair.html {
+    try_files $uri =404;
+    add_header Cache-Control "no-store";
+  }
+
   location = /404.html {
     add_header Cache-Control "no-cache";
   }

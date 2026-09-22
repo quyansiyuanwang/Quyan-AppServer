@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { onMounted, ref } from 'vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { configService } from '@/service/configService'
@@ -103,7 +104,7 @@ const load = async () => {
     form.value.smsSender = configs[CONFIG_KEYS.smsSender] ?? ''
     smsTokenConfigured.value = Boolean(configs[CONFIG_KEYS.smsToken])
   } catch (error: any) {
-    ElMessage.error(error?.message || '开发者服务配置加载失败')
+    showRequestErrorNotice(error)
   } finally {
     loading.value = false
   }
@@ -125,7 +126,7 @@ const save = async () => {
     smsTokenConfigured.value = smsTokenConfigured.value || Boolean(configs[CONFIG_KEYS.smsToken])
     ElMessage.success('开发者服务配置已保存')
   } catch (error: any) {
-    ElMessage.error(error?.message || '开发者服务配置保存失败')
+    showRequestErrorNotice(error)
   } finally {
     saving.value = false
   }

@@ -411,6 +411,7 @@
                 >
                   <el-input v-model="rule.name" :placeholder="i18ns.t('relay.timeRuleName')" />
                   <el-select
+                    :disabled="rule.holidayMode === 'only'"
                     v-model="rule.dayOfWeek"
                     multiple
                     collapse-tags
@@ -423,6 +424,7 @@
                       :value="day.value"
                   /></el-select>
                   <el-time-picker
+                    :disabled="rule.allDay"
                     v-model="rule.range"
                     is-range
                     value-format="HH:mm"
@@ -439,6 +441,10 @@
                   <el-button text type="danger" @click="form.timeRules.splice(index, 1)">{{
                     i18ns.t('delete')
                   }}</el-button>
+                  <HolidayRuleFields
+                    v-model:holiday-mode="rule.holidayMode"
+                    v-model:all-day="rule.allDay"
+                  />
                 </div>
                 <el-empty
                   v-if="form.timeRules.length === 0"
@@ -528,6 +534,10 @@
 </template>
 
 <script setup lang="ts">
+import { createUserFacingError } from '@/utils/error-utils'
+
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import HolidayRuleFields from '@/components/relay/HolidayRuleFields.vue'
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
@@ -538,8 +548,10 @@ import { useRelaySettingsManagementContext } from '../context'
 type TimeRuleDraft = {
   key: number
   name: string
+  holidayMode?: import('@/client/types.gen').TimePeriodMultiplierRule['holidayMode']
+  allDay?: boolean
   dayOfWeek: string[]
-  range: [string, string]
+  range: [string, string] | null
   multiplier: number
   enabled: boolean
 }
@@ -658,6 +670,8 @@ const addTimeRule = () =>
   form.timeRules.push({
     key: ++ruleKey,
     name: '',
+    holidayMode: 'ignore',
+    allDay: false,
     dayOfWeek: [],
     range: ['00:00', '23:59'],
     multiplier: 1,
@@ -667,7 +681,7 @@ const addContextRule = () =>
   form.contextRules.push({ key: ++ruleKey, name: '', minTokens: 0, multiplier: 1, enabled: true })
 const assertRuleNames = () => {
   if (enabled.formats && form.allowedFormats.length === 0)
-    throw new Error(i18ns.t('relay.batchEditFormatsRequired'))
+    throw createUserFacingError(i18ns.t('relay.batchEditFormatsRequired'))
   if (
     enabled.visibility &&
     form.visibilityMode === 'whitelist' &&
@@ -675,18 +689,20 @@ const assertRuleNames = () => {
     !form.visibilityConfig.groupIds.length &&
     !form.visibilityConfig.roleIds.length
   )
-    throw new Error(i18ns.t('relay.batchEditWhitelistRequired'))
+    throw createUserFacingError(i18ns.t('relay.batchEditWhitelistRequired'))
   if (
     enabled.timeRules &&
-    form.timeRules.some((rule) => !rule.name.trim() || rule.range.length !== 2)
+    form.timeRules.some(
+      (rule) => !rule.name.trim() || (!rule.allDay && (!rule.range || rule.range.length !== 2)),
+    )
   )
-    throw new Error(i18ns.t('relay.batchEditRulesInvalid'))
+    throw createUserFacingError(i18ns.t('relay.batchEditRulesInvalid'))
   if (
     enabled.contextRules &&
     (form.contextRules.some((rule) => !rule.name.trim()) ||
       new Set(form.contextRules.map((rule) => rule.minTokens)).size !== form.contextRules.length)
   )
-    throw new Error(i18ns.t('relay.batchEditRulesInvalid'))
+    throw createUserFacingError(i18ns.t('relay.batchEditRulesInvalid'))
 }
 const submit = async () => {
   try {
@@ -750,10 +766,12 @@ const submit = async () => {
     }
     if (enabled.timeRules)
       patch.timePeriodMultipliers = form.timeRules.map((rule) => ({
+        holidayMode: rule.holidayMode,
+        allDay: rule.allDay,
         name: rule.name.trim(),
         dayOfWeek: rule.dayOfWeek.join(','),
-        startTime: rule.range[0],
-        endTime: rule.range[1],
+        startTime: rule.range?.[0] || '00:00',
+        endTime: rule.range?.[1] || '00:00',
         multiplier: rule.multiplier,
         enabled: rule.enabled,
       }))
@@ -781,7 +799,7 @@ const submit = async () => {
       )
     if (result.rejected.length === 0) showChannelBatchEditDialog.value = false
   } catch (error: unknown) {
-    ElMessage.error(error instanceof Error ? error.message : i18ns.t('operationFailed'))
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
   } finally {
     saving.value = false
   }

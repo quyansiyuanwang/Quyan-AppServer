@@ -24,7 +24,7 @@ export class BalanceTransferRepository implements BalanceTransferStore {
         balanceDelta: -params.totalDebit,
         minimumBalance: 0,
       });
-      if (!mutation) throw new BadRequestError("余额不足");
+      if (!mutation) throw new BadRequestError("余额不足", undefined, { messageKey: "billing.insufficientBalance" });
       const giftCode = await tx.balanceGiftCode.create({
         data: {
           code: params.code,
@@ -70,16 +70,22 @@ export class BalanceTransferRepository implements BalanceTransferStore {
   async redeemGiftCode(code: string, userId: string) {
     return prisma.$transaction(async (tx) => {
       const giftCode = await tx.balanceGiftCode.findUnique({ where: { code } });
-      if (!giftCode) throw new NotFoundError("兑换码不存在");
-      if (giftCode.createdBy === userId) throw new BadRequestError("不能兑换自己创建的兑换码");
-      if (giftCode.state !== "active") throw new ConflictError("兑换码不可用");
-      if (giftCode.expiresAt && giftCode.expiresAt <= new Date()) throw new BadRequestError("兑换码已过期");
+      if (!giftCode) throw new NotFoundError("兑换码不存在", undefined, { messageKey: "redemptionCode.notFound" });
+      if (giftCode.createdBy === userId)
+        throw new BadRequestError("不能兑换自己创建的兑换码", undefined, {
+          messageKey: "redemptionCode.cannotRedeemOwn",
+        });
+      if (giftCode.state !== "active")
+        throw new ConflictError("兑换码不可用", undefined, { messageKey: "redemptionCode.unavailable" });
+      if (giftCode.expiresAt && giftCode.expiresAt <= new Date())
+        throw new BadRequestError("兑换码已过期", undefined, { messageKey: "redemptionCode.expired" });
 
       const claimed = await tx.balanceGiftCode.updateMany({
         where: { id: giftCode.id, state: "active", redeemedBy: null, cancelledAt: null },
         data: { state: "redeemed", redeemedBy: userId, redeemedAt: new Date() },
       });
-      if (claimed.count !== 1) throw new ConflictError("兑换码已被使用");
+      if (claimed.count !== 1)
+        throw new ConflictError("兑换码已被使用", undefined, { messageKey: "redemptionCode.alreadyUsed" });
 
       const mutation = await applyBalanceAccountMutation(tx, {
         userId,
@@ -87,7 +93,8 @@ export class BalanceTransferRepository implements BalanceTransferStore {
         totalRechargedDelta: giftCode.amount,
         createIfMissing: true,
       });
-      if (!mutation) throw new ConflictError("余额账户更新失败");
+      if (!mutation)
+        throw new ConflictError("余额账户更新失败", undefined, { messageKey: "billing.balanceAccountUpdateFailed" });
       const amount = Number(giftCode.amount);
       await tx.balanceTransaction.create({
         data: {
@@ -107,15 +114,18 @@ export class BalanceTransferRepository implements BalanceTransferStore {
   async cancelGiftCode(id: string, senderId: string) {
     return prisma.$transaction(async (tx) => {
       const giftCode = await tx.balanceGiftCode.findUnique({ where: { id } });
-      if (!giftCode) throw new NotFoundError("兑换码不存在");
-      if (giftCode.createdBy !== senderId) throw new NotFoundError("兑换码不存在");
-      if (giftCode.state !== "active") throw new ConflictError("兑换码不可取消");
+      if (!giftCode) throw new NotFoundError("兑换码不存在", undefined, { messageKey: "redemptionCode.notFound" });
+      if (giftCode.createdBy !== senderId)
+        throw new NotFoundError("兑换码不存在", undefined, { messageKey: "redemptionCode.notFound" });
+      if (giftCode.state !== "active")
+        throw new ConflictError("兑换码不可取消", undefined, { messageKey: "redemptionCode.notCancellable" });
 
       const cancelled = await tx.balanceGiftCode.updateMany({
         where: { id, createdBy: senderId, state: "active", redeemedBy: null, cancelledAt: null },
         data: { state: "cancelled", cancelledAt: new Date() },
       });
-      if (cancelled.count !== 1) throw new ConflictError("兑换码不可取消");
+      if (cancelled.count !== 1)
+        throw new ConflictError("兑换码不可取消", undefined, { messageKey: "redemptionCode.notCancellable" });
 
       const refund = round4(
         Number(giftCode.amount) + (Number(giftCode.feeAmount) * Number(giftCode.cancelFeeRefundPercent)) / 100,
@@ -125,7 +135,8 @@ export class BalanceTransferRepository implements BalanceTransferStore {
         balanceDelta: refund,
         createIfMissing: true,
       });
-      if (!mutation) throw new ConflictError("余额账户更新失败");
+      if (!mutation)
+        throw new ConflictError("余额账户更新失败", undefined, { messageKey: "billing.balanceAccountUpdateFailed" });
       await tx.balanceGiftCode.update({ where: { id }, data: { refundedAmount: refund } });
       await tx.balanceTransaction.create({
         data: {
@@ -181,14 +192,16 @@ export class BalanceTransferRepository implements BalanceTransferStore {
         balanceDelta: -params.totalDebit,
         minimumBalance: 0,
       });
-      if (!senderMutation) throw new BadRequestError("余额不足");
+      if (!senderMutation)
+        throw new BadRequestError("余额不足", undefined, { messageKey: "billing.insufficientBalance" });
       const recipientMutation = await applyBalanceAccountMutation(tx, {
         userId: params.recipientId,
         balanceDelta: params.amount,
         totalRechargedDelta: params.amount,
         createIfMissing: true,
       });
-      if (!recipientMutation) throw new ConflictError("余额账户更新失败");
+      if (!recipientMutation)
+        throw new ConflictError("余额账户更新失败", undefined, { messageKey: "billing.balanceAccountUpdateFailed" });
 
       const [sender, recipient] = await Promise.all([
         tx.user.findUniqueOrThrow({ where: { id: params.senderId }, select: { username: true } }),

@@ -25,17 +25,19 @@
 
 ```bash
 pnpm install
-pnpm run dev
+pnpm run dev            # 多域名模式：https://<站点前缀>.qysyw.test:5173
+pnpm run dev:localhost  # 免特权单站点：http://localhost:5173
 ```
 
-默认地址：`http://localhost:5173`
+多域名模式首次需要 mkcert 与写入 hosts 的权限；免特权模式不需要，只服务一个注册站点。
 
 ## 常用命令
 
 ### 开发与构建
 
 ```bash
-pnpm run dev
+pnpm run dev            # 多域名开发服务器（默认）
+pnpm run dev:localhost  # 免特权单站点开发服务器
 pnpm run production
 pnpm run preview
 pnpm run build

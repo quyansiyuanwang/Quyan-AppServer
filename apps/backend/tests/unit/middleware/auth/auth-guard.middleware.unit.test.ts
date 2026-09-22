@@ -80,6 +80,9 @@ function createResponse() {
   return {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
+    // P05 起响应统一走 `sendApplicationError`：需要 locals 承载已渲染消息标记，并可能写 Retry-After
+    setHeader: vi.fn().mockReturnThis(),
+    locals: {},
   } as any;
 }
 
@@ -120,7 +123,8 @@ describe("auth_guard middleware", () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         code: CustomCode.AUTH_FAILED,
-        message: "Unauthorized: No token provided",
+        // P07：消息改由描述符 `auth.missingToken` 渲染（默认 en），不再走原文反查
+        message: "No access token provided; please log in first",
       }),
     );
     expect(next).not.toHaveBeenCalled();
@@ -159,7 +163,8 @@ describe("auth_guard middleware", () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         code: CustomCode.AUTH_FAILED,
-        message: "Unauthorized: jwt malformed",
+        // P07：底层校验器原文（"jwt malformed"）只进日志，不再外发给用户
+        message: "Login state verification failed, please log in again",
       }),
     );
   });

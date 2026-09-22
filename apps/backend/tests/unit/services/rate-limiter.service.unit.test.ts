@@ -15,6 +15,7 @@ describe("RateLimiterService Redis fallback", () => {
       get: vi.fn().mockResolvedValue("0"),
       ttl: vi.fn().mockResolvedValue(0),
       increment: vi.fn().mockResolvedValue(1),
+      tryIncrementWithinLimit: vi.fn().mockResolvedValue(1),
     };
 
     const repoMock = {
@@ -35,6 +36,16 @@ describe("RateLimiterService Redis fallback", () => {
       },
     };
   };
+
+  it("consumes browser resets atomically and fails closed on unavailable Redis", async () => {
+    const { service, mocks } = createService(true);
+    mocks.redisMock.tryIncrementWithinLimit.mockResolvedValueOnce(null as never);
+    expect((await service.consumeBrowserStateResetRateLimit("127.0.0.1")).allowed).toBe(false);
+    mocks.redisMock.tryIncrementWithinLimit.mockResolvedValueOnce(-1);
+    expect((await service.consumeBrowserStateResetRateLimit("127.0.0.1")).allowed).toBe(false);
+    expect((await service.consumeBrowserStateResetRateLimit("127.0.0.1")).allowed).toBe(true);
+    expect(mocks.redisMock.increment).not.toHaveBeenCalled();
+  });
 
   it("fails open when Redis is unavailable", async () => {
     const { service, mocks } = createService(false);

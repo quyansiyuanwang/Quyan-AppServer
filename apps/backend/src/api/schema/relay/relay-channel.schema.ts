@@ -25,6 +25,8 @@ const dayOfWeekRegex = /^([1-7](,[1-7])*)?$/;
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const timePeriodRuleSchema = z.object({
+  holidayMode: z.enum(["ignore", "exclude", "only"]).optional(),
+  allDay: z.boolean().optional(),
   name: z.string().trim().min(1).max(100),
   enabled: z.boolean(),
   dayOfWeek: z.string().regex(dayOfWeekRegex, "dayOfWeek must be comma-separated 1-7 or empty"),
@@ -71,12 +73,14 @@ const providerConfigSchema = z
         code: z.ZodIssueCode.custom,
         path: ["settlementIntervalDays"],
         message: "Required for interval settlement",
+        params: { messageKey: "relayChannel.providerConfigRequiredForInterval" },
       });
     if (value.settlementMode === "daily" && !value.settlementTime)
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["settlementTime"],
         message: "Required for daily settlement",
+        params: { messageKey: "relayChannel.providerConfigRequiredForDaily" },
       });
   });
 
@@ -212,6 +216,7 @@ export const updateRelayChannelHealthConfigBodySchema = z
         code: z.ZodIssueCode.custom,
         path: ["manualAvailability"],
         message: "Required for manual tracking",
+        params: { messageKey: "relayChannel.manualTrackingRequired" },
       });
     }
     if (value.manualLatencyMs === undefined || value.manualLatencyMs === null) {
@@ -219,6 +224,7 @@ export const updateRelayChannelHealthConfigBodySchema = z
         code: z.ZodIssueCode.custom,
         path: ["manualLatencyMs"],
         message: "Required for manual tracking",
+        params: { messageKey: "relayChannel.manualTrackingRequired" },
       });
     }
   });
@@ -237,6 +243,7 @@ export const batchUpdateRelayChannelHealthConfigBodySchema = z
         code: z.ZodIssueCode.custom,
         path: ["manualAvailability"],
         message: "Required for manual tracking",
+        params: { messageKey: "relayChannel.manualTrackingRequired" },
       });
     }
     if (value.manualLatencyMs === undefined || value.manualLatencyMs === null) {
@@ -244,6 +251,7 @@ export const batchUpdateRelayChannelHealthConfigBodySchema = z
         code: z.ZodIssueCode.custom,
         path: ["manualLatencyMs"],
         message: "Required for manual tracking",
+        params: { messageKey: "relayChannel.manualTrackingRequired" },
       });
     }
   });
@@ -307,6 +315,7 @@ export const batchUpdateRelayChannelsBodySchema = z
       code: z.ZodIssueCode.custom,
       path: ["patch"],
       message: "At least one patch field or modelPricingMigration is required",
+      params: { messageKey: "relayChannel.patchRequired" },
     });
   });
 
@@ -380,6 +389,7 @@ export const relayChannelUpstreamModelsBodySchema = z
         code: z.ZodIssueCode.custom,
         path: ["channelId"],
         message: "channelId or upstream credentials are required",
+        params: { messageKey: "relayChannel.channelOrCredentialsRequired" },
       });
     }
   });

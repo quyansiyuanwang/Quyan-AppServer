@@ -1,4 +1,5 @@
 import { computed, onMounted, reactive, ref } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { CircleCheck, CircleClose, Plus, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type {
@@ -292,8 +293,8 @@ export const useNotificationSettings = () => {
       } else {
         ElMessage.error(res.data?.error || i18ns.t('NotificationSettingsView.webhookTestFailed'))
       }
-    } catch {
-      ElMessage.error(i18ns.t('NotificationSettingsView.webhookTestFailed'))
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, i18ns.t('NotificationSettingsView.webhookTestFailed')))
     }
   }
 

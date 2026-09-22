@@ -18,7 +18,15 @@
       <el-form-item :label="i18ns.t('relay.timeRuleName')" prop="name">
         <el-input v-model="timeRuleForm.name" />
       </el-form-item>
-      <el-form-item :label="i18ns.t('relay.timeRuleDays')" prop="dayOfWeek">
+      <HolidayRuleFields
+        v-model:holiday-mode="timeRuleForm.holidayMode"
+        v-model:all-day="timeRuleForm.allDay"
+      />
+      <el-form-item
+        v-if="timeRuleForm.holidayMode !== 'only'"
+        :label="i18ns.t('relay.timeRuleDays')"
+        prop="dayOfWeek"
+      >
         <el-checkbox-group v-model="timeRuleDays">
           <el-checkbox v-for="day in timeRuleDayOptions" :key="day.value" :label="day.value" border>
             {{ day.label }}
@@ -33,7 +41,11 @@
           </el-button>
         </div>
       </el-form-item>
-      <el-form-item :label="i18ns.t('relay.timeRuleTimeRange')" prop="timeRange">
+      <el-form-item
+        v-if="!timeRuleForm.allDay"
+        :label="i18ns.t('relay.timeRuleTimeRange')"
+        prop="timeRange"
+      >
         <el-time-picker
           v-model="timeRuleRange"
           is-range
@@ -65,6 +77,7 @@
 </template>
 
 <script setup lang="ts">
+import HolidayRuleFields from '@/components/relay/HolidayRuleFields.vue'
 import { i18ns } from '@/locales'
 import { useRelaySettingsManagementContext } from '../context'
 

@@ -59,6 +59,8 @@ import {
   LockBackendUnavailableError,
   PayloadTooLargeError,
   TooManyRequestsError,
+  ApiError,
+  type ApiErrorOptions,
 } from "@/util/errors";
 import { RelayConfigService } from "./relay-config.service";
 import { ModelPricingService } from "./model-pricing.service";
@@ -206,8 +208,9 @@ class RelayChannelSkipError extends BadRequestError {
   constructor(
     message: string,
     public readonly reason: RelayChannelSkipReason,
+    options?: ApiErrorOptions,
   ) {
-    super(message);
+    super(message, undefined, options);
   }
 }
 
@@ -632,6 +635,7 @@ export class RelayProxyService {
       throw new RelayChannelSkipError(
         `Channel does not support model ${requestedModelId}. Allowed models: ${allowedModelsStr}`,
         "channel-model-not-allowed",
+        { messageKey: "relayProxy.channelModelUnsupported" },
       );
     }
   }
@@ -656,9 +660,17 @@ export class RelayProxyService {
 
     if (this.isOpenAIRequestFormat(requestFormat)) {
       if (!effectiveConfig.openaiUpstreamUrl)
-        throw new RelayChannelSkipError("Channel does not have OpenAI upstream configured", "channel-upstream-missing");
+        throw new RelayChannelSkipError(
+          "Channel does not have OpenAI upstream configured",
+          "channel-upstream-missing",
+          {
+            messageKey: "relayProxy.channelMissingOpenaiUpstream",
+          },
+        );
       if (!effectiveConfig.openaiUpstreamApiKey)
-        throw new RelayChannelSkipError("Channel does not have OpenAI API key configured", "channel-upstream-missing");
+        throw new RelayChannelSkipError("Channel does not have OpenAI API key configured", "channel-upstream-missing", {
+          messageKey: "relayProxy.channelMissingOpenaiKey",
+        });
 
       return {
         upstreamUrl: effectiveConfig.openaiUpstreamUrl,
@@ -672,11 +684,13 @@ export class RelayProxyService {
         throw new RelayChannelSkipError(
           "Channel does not have Anthropic upstream configured",
           "channel-upstream-missing",
+          { messageKey: "relayProxy.channelMissingAnthropicUpstream" },
         );
       if (!effectiveConfig.anthropicUpstreamApiKey)
         throw new RelayChannelSkipError(
           "Channel does not have Anthropic API key configured",
           "channel-upstream-missing",
+          { messageKey: "relayProxy.channelMissingAnthropicKey" },
         );
 
       return {
@@ -687,9 +701,13 @@ export class RelayProxyService {
     }
 
     if (!effectiveConfig.geminiUpstreamUrl)
-      throw new RelayChannelSkipError("Channel does not have Gemini upstream configured", "channel-upstream-missing");
+      throw new RelayChannelSkipError("Channel does not have Gemini upstream configured", "channel-upstream-missing", {
+        messageKey: "relayProxy.channelMissingGeminiUpstream",
+      });
     if (!effectiveConfig.geminiUpstreamApiKey)
-      throw new RelayChannelSkipError("Channel does not have Gemini API key configured", "channel-upstream-missing");
+      throw new RelayChannelSkipError("Channel does not have Gemini API key configured", "channel-upstream-missing", {
+        messageKey: "relayProxy.channelMissingGeminiKey",
+      });
 
     return {
       upstreamUrl: effectiveConfig.geminiUpstreamUrl,
@@ -730,7 +748,20 @@ export class RelayProxyService {
     const fallbackMessage = lastError instanceof Error ? lastError.message : "No available relay channel";
     const detail = issueSummary ? ` Attempt summary: ${issueSummary}` : ` Last error: ${fallbackMessage}`;
 
-    return new BadRequestError(`Model ${requestedModel} could not be routed within maxRetries=${maxRetries}.${detail}`);
+    // 具体原因优先：最后一次失败若已带描述符（例如「余额不足」「渠道不支持该模型」），
+    // 直接沿用它的 key/params。否则退回通用路由失败文案。
+    // 逐次尝试的汇总（含渠道名与内部错误原文）只保留在**内部诊断** `message` 里，不进用户可见消息，
+    // 避免用「路由失败」覆盖明确业务原因，也避免把内部诊断回显给用户。
+    const options: ApiErrorOptions =
+      lastError instanceof ApiError && lastError.messageKey
+        ? { messageKey: lastError.messageKey, messageParams: lastError.messageParams }
+        : { messageKey: "relayProxy.modelRoutingFailed", messageParams: { retries: maxRetries } };
+
+    return new BadRequestError(
+      `Model ${requestedModel} could not be routed within maxRetries=${maxRetries}.${detail}`,
+      undefined,
+      options,
+    );
   }
 
   private normalizeRelayTokenQuotaUnit(value?: string | null): "amount" | "request" | "token" {
@@ -795,6 +826,9 @@ export class RelayProxyService {
     if (lifetimeQuotaLimit != null && usedQuota + RELAY_TOKEN_QUOTA_COMPARE_EPSILON >= lifetimeQuotaLimit)
       throw new TooManyRequestsError(
         `Relay token lifetime quota exceeded (${this.formatRelayTokenQuotaValue(usedQuota, "amount")}/${this.formatRelayTokenQuotaValue(lifetimeQuotaLimit, "amount")})`,
+        undefined,
+        undefined,
+        { messageKey: "relayProxy.tokenLifetimeQuotaExceeded" },
       );
 
     const quotaWindows = relayToken.quotaWindows || [];
@@ -828,6 +862,9 @@ export class RelayProxyService {
 
       throw new TooManyRequestsError(
         `Relay token ${quotaUnit} quota exceeded in ${this.formatRelayTokenQuotaWindowHours(quotaWindowHours)} window (${this.formatRelayTokenQuotaValue(consumed, quotaUnit)}/${this.formatRelayTokenQuotaValue(quotaLimit, quotaUnit)})`,
+        undefined,
+        undefined,
+        { messageKey: "relayProxy.tokenQuotaExceeded" },
       );
     }
   }
@@ -856,6 +893,8 @@ export class RelayProxyService {
           : `${requestFormat} format requests`;
       throw new BadRequestError(
         `Channel does not support ${formatLabel}. Allowed formats: ${allowedFormats || "none"}`,
+        undefined,
+        { messageKey: "relayProxy.channelFormatUnsupported" },
       );
     }
 
@@ -1004,7 +1043,9 @@ export class RelayProxyService {
     const boundary = this.getMultipartBoundary(contentType);
     if (upstreamModelId) {
       if (!boundary || /[\r\n]/.test(upstreamModelId))
-        throw new BadRequestError("Unable to safely rewrite multipart model field");
+        throw new BadRequestError("Unable to safely rewrite multipart model field", undefined, {
+          messageKey: "relayProxy.multipartModelRewriteFailed",
+        });
       const marker = Buffer.from(`--${boundary}`, "ascii");
       const headerSeparator = Buffer.from("\r\n\r\n", "ascii");
       const replacements: Array<{ start: number; end: number; value: Buffer }> = [];
@@ -1019,35 +1060,50 @@ export class RelayProxyService {
           break;
         }
         if (normalizedBody[boundaryEnd] !== 13 || normalizedBody[boundaryEnd + 1] !== 10)
-          throw new BadRequestError("Unable to safely rewrite multipart model field");
+          throw new BadRequestError("Unable to safely rewrite multipart model field", undefined, {
+            messageKey: "relayProxy.multipartModelRewriteFailed",
+          });
 
         const headerStart = boundaryEnd + 2;
         const headerEnd = normalizedBody.indexOf(headerSeparator, headerStart);
-        if (headerEnd === -1) throw new BadRequestError("Unable to safely rewrite multipart model field");
+        if (headerEnd === -1)
+          throw new BadRequestError("Unable to safely rewrite multipart model field", undefined, {
+            messageKey: "relayProxy.multipartModelRewriteFailed",
+          });
         const headerText = normalizedBody.subarray(headerStart, headerEnd).toString("latin1");
         const dispositionMatch = /(?:^|\r\n)content-disposition\s*:\s*form-data[^\r\n]*/i.exec(headerText);
         const nameMatch = dispositionMatch?.[0].match(/\bname\s*=\s*(?:"([^"]*)"|([^;\s]*))/i);
         const fieldName = nameMatch?.[1] ?? nameMatch?.[2];
         const nextBoundary = this.findMultipartBoundary(normalizedBody, marker, headerEnd + headerSeparator.length);
-        if (nextBoundary === -1) throw new BadRequestError("Unable to safely rewrite multipart model field");
+        if (nextBoundary === -1)
+          throw new BadRequestError("Unable to safely rewrite multipart model field", undefined, {
+            messageKey: "relayProxy.multipartModelRewriteFailed",
+          });
 
         if (fieldName === "model") {
           modelFieldCount += 1;
           if (modelFieldCount > 1 || !dispositionMatch || /\bfilename\s*=/i.test(dispositionMatch[0]))
-            throw new BadRequestError("Unable to safely rewrite multipart model field");
+            throw new BadRequestError("Unable to safely rewrite multipart model field", undefined, {
+              messageKey: "relayProxy.multipartModelRewriteFailed",
+            });
           const valueStart = headerEnd + headerSeparator.length;
           const valueEnd =
             nextBoundary >= 2 && normalizedBody[nextBoundary - 2] === 13 && normalizedBody[nextBoundary - 1] === 10
               ? nextBoundary - 2
               : nextBoundary;
-          if (valueEnd < valueStart) throw new BadRequestError("Unable to safely rewrite multipart model field");
+          if (valueEnd < valueStart)
+            throw new BadRequestError("Unable to safely rewrite multipart model field", undefined, {
+              messageKey: "relayProxy.multipartModelRewriteFailed",
+            });
           replacements.push({ start: valueStart, end: valueEnd, value: Buffer.from(upstreamModelId, "utf8") });
         }
         boundaryOffset = nextBoundary;
       }
 
       if (modelFieldCount !== 1 || !sawClosingBoundary)
-        throw new BadRequestError("Unable to safely rewrite multipart model field");
+        throw new BadRequestError("Unable to safely rewrite multipart model field", undefined, {
+          messageKey: "relayProxy.multipartModelRewriteFailed",
+        });
       const chunks: Buffer[] = [];
       let offset = 0;
       for (const replacement of replacements) {
@@ -1345,12 +1401,20 @@ export class RelayProxyService {
     const ttlMs = slotTtlSeconds * 1000;
 
     if (!this.redis.isRedisAvailable())
-      throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
+      throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+        messageKey: "relayProxy.concurrencyBackendUnavailable",
+      });
 
     if (!enableQueue) {
       const slotKey = await this.redis.acquireSemaphoreSlot(baseKey, maxConcurrency, ownerToken, ttlMs);
-      if (slotKey === null) throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
-      if (slotKey === false) throw new TooManyRequestsError("Too many concurrent requests to upstream");
+      if (slotKey === null)
+        throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+          messageKey: "relayProxy.concurrencyBackendUnavailable",
+        });
+      if (slotKey === false)
+        throw new TooManyRequestsError("Too many concurrent requests to upstream", undefined, undefined, {
+          messageKey: "relayProxy.concurrencyLimitExceeded",
+        });
 
       return {
         key: baseKey,
@@ -1366,7 +1430,10 @@ export class RelayProxyService {
 
     const waiterTtlMs = Math.max(queueTimeout + 1000, ttlMs);
     const ticket = await this.redis.reserveSemaphoreQueueTicket(baseKey, ownerToken, waiterTtlMs);
-    if (ticket === null) throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
+    if (ticket === null)
+      throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+        messageKey: "relayProxy.concurrencyBackendUnavailable",
+      });
 
     const deadline = Date.now() + queueTimeout;
     const startWaitTime = Date.now();
@@ -1380,7 +1447,10 @@ export class RelayProxyService {
         ttlMs,
         ticket,
       );
-      if (slotKey === null) throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable");
+      if (slotKey === null)
+        throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+          messageKey: "relayProxy.concurrencyBackendUnavailable",
+        });
 
       if (slotKey !== "wait" && slotKey !== "stale") {
         const waitTime = Date.now() - startWaitTime;
@@ -1405,7 +1475,10 @@ export class RelayProxyService {
         };
       }
 
-      if (slotKey === "stale") throw new TooManyRequestsError("Request queue timeout waiting for upstream slot");
+      if (slotKey === "stale")
+        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot", undefined, undefined, {
+          messageKey: "relayProxy.queueTimeout",
+        });
 
       // Log when request starts waiting (only once)
       if (!waitLogged) {
@@ -1432,7 +1505,9 @@ export class RelayProxyService {
           baseKey,
           ticket,
         });
-        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot");
+        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot", undefined, undefined, {
+          messageKey: "relayProxy.queueTimeout",
+        });
       }
 
       await new Promise((r) => setTimeout(r, CONCURRENCY_QUEUE_POLL_INTERVAL_MS));
@@ -1737,6 +1812,8 @@ export class RelayProxyService {
 
     throw new BadRequestError(
       `Automatic proxy pool channel '${channel.name || channel.id}' has multiplier ${multiplier}, exceeding the token limit ${maximum}`,
+      undefined,
+      { messageKey: "relayProxy.poolChannelMultiplierInvalid" },
     );
   }
 
@@ -2538,7 +2615,10 @@ export class RelayProxyService {
       originalModel,
     });
 
-    if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance for this request");
+    if (!finalizeResult.applied)
+      throw new BadRequestError("Insufficient balance for this request", undefined, {
+        messageKey: "relayProxy.insufficientBalanceForRequest",
+      });
   }
 
   private async forwardImageRequest(
@@ -2598,7 +2678,7 @@ export class RelayProxyService {
       try {
         req.body = JSON.parse(rawJsonBody.toString("utf8"));
       } catch {
-        throw new BadRequestError("Invalid JSON request body");
+        throw new BadRequestError("Invalid JSON request body", undefined, { messageKey: "relayProxy.invalidJsonBody" });
       }
     }
     const clientRequestFormat = this.getRequestFormat(req);
@@ -2612,10 +2692,16 @@ export class RelayProxyService {
     const relayConfig = await this.relayConfigService.getRelayConfig();
     const resourceGuard = env.relay.resourceGuard;
     const requestedModel = this.extractRequestedModel(req, clientRequestFormat);
-    if (!requestedModel) throw new BadRequestError("Model is required in request body or URL path");
+    if (!requestedModel)
+      throw new BadRequestError("Model is required in request body or URL path", undefined, {
+        messageKey: "relayProxy.modelRequired",
+      });
 
     const normalizedRequestedModel = String(requestedModel).trim();
-    if (!normalizedRequestedModel) throw new BadRequestError("Model is required in request body or URL path");
+    if (!normalizedRequestedModel)
+      throw new BadRequestError("Model is required in request body or URL path", undefined, {
+        messageKey: "relayProxy.modelRequired",
+      });
 
     // Calculate request size for logging
     const getRequestSize = () => {
@@ -2662,7 +2748,9 @@ export class RelayProxyService {
     );
 
     if (eligibleChannels.length === 0)
-      throw new ForbiddenError(`No enabled relay channel supports ${requestFormat} format requests`);
+      throw new ForbiddenError(`No enabled relay channel supports ${requestFormat} format requests`, undefined, {
+        messageKey: "relayProxy.noChannelSupportsFormat",
+      });
 
     // Apply token-level model mapping for pricing resolution.
     // The requested model (e.g. "gpt-5-codex") may not exist in model_pricing,
@@ -2694,7 +2782,9 @@ export class RelayProxyService {
         (name) => name !== pricingModelName && this.resolveRequestedModelConfigs(modelPricing, name).length > 0,
       )
     )
-      throw new BadRequestError(`Model ${normalizedRequestedModel} is not configured`);
+      throw new BadRequestError(`Model ${normalizedRequestedModel} is not configured`, undefined, {
+        messageKey: "relayProxy.modelNotConfigured",
+      });
 
     // Use the first candidate for format check (pricing model)
     const firstModelConfig = candidateModelConfigs[0];
@@ -2719,6 +2809,8 @@ export class RelayProxyService {
       if (!tokenAllowsAny)
         throw new BadRequestError(
           `Relay token does not allow model ${normalizedRequestedModel}. Allowed models: ${tokenAllowedModelIds.join(", ")}`,
+          undefined,
+          { messageKey: "relayProxy.tokenModelNotAllowed" },
         );
     }
 
@@ -2727,6 +2819,8 @@ export class RelayProxyService {
         `Model ${normalizedRequestedModel} does not support ${requestFormat} format. Supported formats: ${
           firstModelConfig.supportedFormats || "openai-chat-completions,anthropic,gemini"
         }`,
+        undefined,
+        { messageKey: "relayProxy.modelFormatUnsupported" },
       );
 
     const orderedEligibleChannels = await this.prioritizeStickyPreferredChannel({
@@ -2775,7 +2869,9 @@ export class RelayProxyService {
       : () => {};
 
     try {
-      let lastError: unknown = new BadRequestError("No available relay channel");
+      let lastError: unknown = new BadRequestError("No available relay channel", undefined, {
+        messageKey: "relayProxy.noAvailableChannel",
+      });
       const attemptIssues: RelayAttemptIssue[] = [];
       let auditInputTokens = 0;
       let auditOutputTokens = 0;
@@ -2897,6 +2993,7 @@ export class RelayProxyService {
               throw new RelayChannelSkipError(
                 `Channel does not support model ${effectiveModelName}. Allowed models: ${allowedModelsStr}`,
                 "channel-model-not-allowed",
+                { messageKey: "relayProxy.channelModelUnsupported" },
               );
             }
 
@@ -2907,6 +3004,8 @@ export class RelayProxyService {
             )
               throw new BadRequestError(
                 `Invalid pricingType '${channelModelConfig.pricingType}' for model ${channelModelConfig.model}`,
+                undefined,
+                { messageKey: "relayProxy.invalidPricingType" },
               );
 
             selectedRateConfig = {
@@ -2923,6 +3022,8 @@ export class RelayProxyService {
             if (!selectedModelId)
               throw new BadRequestError(
                 `Model configuration is invalid: no upstream modelId found for '${channelModelConfig.model || "unknown"}'`,
+                undefined,
+                { messageKey: "relayProxy.modelConfigMissingUpstreamId" },
               );
 
             selectedModelName = channelModelConfig.model.trim() || normalizedRequestedModel;
@@ -2976,7 +3077,10 @@ export class RelayProxyService {
               at: monthlyPassCoverageAt,
             });
 
-            if (!hasChargeCoverage) throw new RelayChannelSkipError("Insufficient balance", "insufficient-balance");
+            if (!hasChargeCoverage)
+              throw new RelayChannelSkipError("Insufficient balance", "insufficient-balance", {
+                messageKey: "billing.insufficientBalance",
+              });
 
             relayGlobalMultiplier = relayConfig.globalMultiplier;
             timeMultiplier = computeMultiplierForTime(
@@ -3368,6 +3472,11 @@ export class RelayProxyService {
             if (streamedResponse.truncated)
               throw new PayloadTooLargeError(
                 `Upstream response body exceeds ${resourceGuard.maxUpstreamResponseBodyMb}MB`,
+                undefined,
+                {
+                  messageKey: "relayProxy.upstreamResponseTooLarge",
+                  messageParams: { limitMb: resourceGuard.maxUpstreamResponseBodyMb },
+                },
               );
             response.data = this.parseBufferedUpstreamBody(streamedResponse.buffer, response.headers || {});
             if (typeof response.data === "string" || (response.data && typeof response.data === "object")) {
@@ -3680,7 +3789,10 @@ export class RelayProxyService {
               auditDurationMs,
             });
 
-            if (!finalizeResult.applied) throw new BadRequestError("Insufficient balance for this request");
+            if (!finalizeResult.applied)
+              throw new BadRequestError("Insufficient balance for this request", undefined, {
+                messageKey: "relayProxy.insufficientBalanceForRequest",
+              });
 
             await this.recordChannelAttempt(relayToken.id, channel.id, true, {
               channel,
@@ -4210,6 +4322,9 @@ export class RelayProxyService {
       auditDurationMs: data.auditDurationMs,
     });
 
-    if (!finalizeResult.applied) throw new BadRequestError("Unable to finalize relay usage");
+    if (!finalizeResult.applied)
+      throw new BadRequestError("Unable to finalize relay usage", undefined, {
+        messageKey: "relayProxy.finalizeUsageFailed",
+      });
   }
 }

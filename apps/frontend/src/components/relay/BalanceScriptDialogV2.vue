@@ -403,6 +403,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { ArrowRight, QuestionFilled } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import type { I18nENAvailableKeys } from '@/locales'
@@ -922,8 +923,8 @@ const copyConfiguredBalanceScript = async () => {
     await copyTextWithFallback(script)
     TypedLocalStorage.set(BALANCE_SCRIPT_STORAGE_KEY, balanceScriptSettings.value)
     ElMessage.success(i18ns.t('relay.exportToCcswitchSuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('relay.exportToCcswitchFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('relay.exportToCcswitchFailed')))
   }
 }
 

@@ -53,7 +53,7 @@ export class LegalPolicyService {
       return result.data.policies ?? []
     }
 
-    throw toServiceError(result, 'Failed to load legal policies')
+    throw toServiceError(result)
   }
 
   async listPolicies(): Promise<LegalPolicyListItemDto[]> {
@@ -63,7 +63,7 @@ export class LegalPolicyService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to load legal policy list')
+    throw toServiceError(result)
   }
 
   async getPolicy(id: string): Promise<LegalPolicyDto> {
@@ -75,7 +75,7 @@ export class LegalPolicyService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to load legal policy details')
+    throw toServiceError(result)
   }
 
   async createPolicy(data: CreateLegalPolicyDto): Promise<LegalPolicyDto> {
@@ -87,7 +87,7 @@ export class LegalPolicyService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to create legal policy')
+    throw toServiceError(result)
   }
 
   async updatePolicy(id: string, data: UpdateLegalPolicyDto): Promise<LegalPolicyDto> {
@@ -100,7 +100,7 @@ export class LegalPolicyService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to update legal policy')
+    throw toServiceError(result)
   }
 
   async deletePolicy(id: string): Promise<boolean> {
@@ -112,7 +112,7 @@ export class LegalPolicyService {
       return true
     }
 
-    throw toServiceError(result, 'Failed to delete legal policy')
+    throw toServiceError(result)
   }
 
   async publishPolicy(id: string): Promise<LegalPolicyDto> {
@@ -124,7 +124,7 @@ export class LegalPolicyService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to publish legal policy')
+    throw toServiceError(result)
   }
 
   async unpublishPolicy(id: string): Promise<LegalPolicyDto> {
@@ -136,7 +136,7 @@ export class LegalPolicyService {
       return result.data
     }
 
-    throw toServiceError(result, 'Failed to unpublish legal policy')
+    throw toServiceError(result)
   }
 }
 

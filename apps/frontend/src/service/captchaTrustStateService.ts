@@ -17,13 +17,16 @@ export class CaptchaTrustStateService {
   }
 
   async getTrustStatus(): Promise<{ trusted: boolean; expiresInSeconds: number }> {
-    const result = await getAuthControllerApi().getCaptchaTrustStatus({})
+    const result = await getAuthControllerApi().getCaptchaTrustStatus(
+      {},
+      { errorPresentation: 'silent' },
+    )
 
     if (result && result.code === CustomCode.OK && result.data) {
       return result.data as { trusted: boolean; expiresInSeconds: number }
     }
 
-    throw toServiceError(result, 'Failed to get captcha trust status')
+    throw toServiceError(result)
   }
 }
 

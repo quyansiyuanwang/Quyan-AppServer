@@ -1,3 +1,4 @@
+import { i18ns } from '@/locales'
 import { CustomCode } from '@/constant/custom-code'
 
 export interface ServiceResultLike {
@@ -51,9 +52,9 @@ const isServiceError = (value: unknown): value is ServiceError => {
 
 export const toServiceError = (
   source?: unknown,
-  fallbackMessage: string = 'Unknown error',
+  fallbackMessage: string = i18ns.t('requestErrors.failed'),
 ): ServiceError => {
-  if (isServiceError(source)) return source
+  if (isServiceError(source)) return normalizeRequestError(source)
 
   if (source instanceof Error) {
     const error = source as ServiceError
@@ -62,12 +63,13 @@ export const toServiceError = (
         data: undefined,
       }
     }
-    return error
+    return normalizeRequestError(error)
   }
 
   const result = isServiceResultLike(source) ? source : undefined
 
-  const error = new Error(result?.message || fallbackMessage) as ServiceError
+  const error = new Error(getErrorMessage(result, fallbackMessage)) as ServiceError
+  userMessages.set(error, error.message)
   error.code = result?.code
   error.data = result?.data
   error.response = {
@@ -76,12 +78,71 @@ export const toServiceError = (
   return error
 }
 
-export const getErrorMessage = (source: unknown, fallbackMessage: string): string => {
-  if (source instanceof Error && source.message) return source.message
-  if (isObjectLike(source) && typeof source.message === 'string' && source.message.length > 0)
-    return source.message
+const presentations = new WeakMap<object, 'global' | 'local' | 'silent'>()
+export const setErrorPresentation = (
+  error: object,
+  presentation: 'global' | 'local' | 'silent',
+): void => {
+  presentations.set(error, presentation)
+}
+export const isSilentError = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && presentations.get(error) === 'silent'
+const userMessages = new WeakMap<object, string>()
+const originalMessages = new WeakMap<object, string>()
+
+/** Explicitly authored client-side business messages, never arbitrary runtime errors. */
+export const createUserFacingError = (message: string): ServiceError => {
+  const error = new Error(message)
+  userMessages.set(error, message)
+  return error
+}
+
+export const getErrorMessage = (
+  source: unknown,
+  fallbackMessage: string = i18ns.t('requestErrors.failed'),
+): string => {
+  if (!isObjectLike(source)) return fallbackMessage
+  const response = isObjectLike(source.response) ? source.response : undefined
+  const envelope = response?.data ?? (!(source instanceof Error) ? source : undefined)
+  if (
+    isObjectLike(envelope) &&
+    typeof envelope.code === 'number' &&
+    envelope.code !== CustomCode.OK &&
+    typeof envelope.message === 'string' &&
+    envelope.message.trim()
+  ) {
+    return envelope.message.trim()
+  }
+  const explicit = userMessages.get(source)
+  if (explicit) return explicit
+  if (source.code === 'ECONNABORTED' || source.code === 'ETIMEDOUT')
+    return i18ns.t('requestErrors.timeout')
+  if (source.code === 'ERR_NETWORK') {
+    return i18ns.t(
+      typeof navigator !== 'undefined' && navigator.onLine === false
+        ? 'requestErrors.offline'
+        : 'requestErrors.network',
+    )
+  }
+  const status = response?.status ?? source.status
+  if (status === 401) return i18ns.t('requestErrors.unauthorized')
+  if (status === 403) return i18ns.t('requestErrors.forbidden')
+  if (status === 404) return i18ns.t('requestErrors.notFound')
+  if (status === 429) return i18ns.t('requestErrors.rateLimited')
+  if (typeof status === 'number' && status >= 500) return i18ns.t('requestErrors.server')
   return fallbackMessage
 }
+
+/** Keep Axios identity, config, response and string network codes intact. */
+export const normalizeRequestError = <T extends Error>(error: T): T => {
+  if (isRequestCanceled(error)) return error
+  if (!originalMessages.has(error)) originalMessages.set(error, error.message)
+  error.message = getErrorMessage(error)
+  return error
+}
+
+export const getOriginalErrorMessage = (error: Error): string =>
+  originalMessages.get(error) ?? error.message
 
 export const isRequestCanceled = (error: unknown): boolean => {
   if (!isObjectLike(error)) return false

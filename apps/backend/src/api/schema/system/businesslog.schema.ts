@@ -45,6 +45,7 @@ export const businessLogsQuerySchema = z
         code: z.ZodIssueCode.custom,
         path: ["endDate"],
         message: "startDate must be less than or equal to endDate",
+        params: { messageKey: "validation.dateRangeOrder" },
       });
       return;
     }
@@ -55,6 +56,7 @@ export const businessLogsQuerySchema = z
       code: z.ZodIssueCode.custom,
       path: ["endDate"],
       message: `date range cannot exceed ${BUSINESS_LOG_MAX_RANGE_DAYS} days`,
+      params: { messageKey: "validation.dateRangeTooWide", messageParams: { maxDays: BUSINESS_LOG_MAX_RANGE_DAYS } },
     });
   });
 
@@ -92,6 +94,7 @@ export const businessLogStatsQuerySchema = z
         code: z.ZodIssueCode.custom,
         path: ["endDate"],
         message: "startDate must be less than or equal to endDate",
+        params: { messageKey: "validation.dateRangeOrder" },
       });
       return;
     }
@@ -102,5 +105,6 @@ export const businessLogStatsQuerySchema = z
       code: z.ZodIssueCode.custom,
       path: ["endDate"],
       message: `date range cannot exceed ${BUSINESS_LOG_MAX_RANGE_DAYS} days`,
+      params: { messageKey: "validation.dateRangeTooWide", messageParams: { maxDays: BUSINESS_LOG_MAX_RANGE_DAYS } },
     });
   });

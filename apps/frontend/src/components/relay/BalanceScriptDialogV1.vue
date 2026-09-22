@@ -135,6 +135,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { getErrorMessage } from '@/utils/error-utils'
 import { i18ns } from '@/locales'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -212,8 +213,8 @@ const copyScript = async () => {
     await navigator.clipboard.writeText(scriptPreview.value)
     emit('update:modelValue', false)
     ElMessage.success(i18ns.t('relay.exportToCcswitchSuccess'))
-  } catch {
-    ElMessage.error(i18ns.t('relay.exportToCcswitchFailed'))
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, i18ns.t('relay.exportToCcswitchFailed')))
   }
 }
 </script>

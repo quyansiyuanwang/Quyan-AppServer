@@ -68,7 +68,12 @@ export function createRequestSizeGuard(options: {
           limit,
           ip: req.ip,
         });
-        next(new PayloadTooLargeError(buildMessage(limit)));
+        next(
+          new PayloadTooLargeError(buildMessage(limit), undefined, {
+            messageKey: "errors.payloadTooLargeLimit",
+            messageParams: { limitMb: Math.round(limit / (1024 * 1024)) },
+          }),
+        );
         return;
       }
     }

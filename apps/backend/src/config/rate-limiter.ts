@@ -16,6 +16,7 @@ export interface RateLimitRule {
 }
 
 export interface RateLimiterConfig {
+  browserStateReset: RateLimitRule;
   login: {
     perIp: RateLimitRule;
     perUser: RateLimitRule;
@@ -44,6 +45,7 @@ export interface RateLimiterConfig {
  * 可通过环境变量覆盖
  */
 export const RATE_LIMITER_CONFIG: RateLimiterConfig = {
+  browserStateReset: { maxRequests: 10, windowMinutes: 10 },
   login: {
     perIp: {
       maxRequests: toSafePositiveInt(env.rateLimit.login.perIp.maxRequests, 10),

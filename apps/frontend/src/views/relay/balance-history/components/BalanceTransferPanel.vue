@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { computed, onMounted, ref } from 'vue'
 import { Plus, Refresh, Switch } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
@@ -63,7 +64,7 @@ async function load(page = giftCodePagination.value.page) {
     giftCodePagination.value.page = list.page
     giftCodePagination.value.pageSize = list.pageSize
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('balance.loadFailed'))
+    showRequestErrorNotice(error, i18ns.t('balance.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -94,7 +95,7 @@ async function createGiftCode() {
     ElMessage.success(i18ns.t('balance.giftCodeCreated'))
     emit('changed')
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('balance.transferFailed'))
+    showRequestErrorNotice(error, i18ns.t('balance.transferFailed'))
   } finally {
     submitting.value = false
   }
@@ -130,7 +131,7 @@ async function createTransfer() {
     ElMessage.success(i18ns.t('balance.transferSuccess'))
     emit('changed')
   } catch (error: any) {
-    ElMessage.error(error.message || i18ns.t('balance.transferFailed'))
+    showRequestErrorNotice(error, i18ns.t('balance.transferFailed'))
   } finally {
     submitting.value = false
   }
@@ -156,7 +157,7 @@ async function cancelGiftCode(code: BalanceGiftCodeDto) {
     emit('changed')
   } catch (error: any) {
     if (error === 'cancel') return
-    ElMessage.error(error.message || i18ns.t('balance.transferFailed'))
+    showRequestErrorNotice(error, i18ns.t('balance.transferFailed'))
   }
 }
 
