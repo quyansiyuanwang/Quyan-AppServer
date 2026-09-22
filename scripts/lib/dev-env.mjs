@@ -45,6 +45,24 @@ export const resolveLocalRootDomain = (value = process.env.LOCAL_ROOT_DOMAIN) =>
     .trim()
     .toLowerCase() || DEFAULT_LOCAL_ROOT_DOMAIN
 
+/**
+ * The Windows DNS client silently ignores every hostname after the ninth one on
+ * a hosts line, so a single long line leaves most local sites unresolvable while
+ * the file still looks correct. The managed block is therefore emitted in groups.
+ */
+export const MAX_HOSTS_PER_LINE = 9
+
+export const buildManagedHostsLines = (hostnames, address = '127.0.0.1') => {
+  const names = [...hostnames]
+  const lines = []
+
+  for (let index = 0; index < names.length; index += MAX_HOSTS_PER_LINE) {
+    lines.push(`${address} ${names.slice(index, index + MAX_HOSTS_PER_LINE).join(' ')}`)
+  }
+
+  return lines
+}
+
 export function parseEnvContent(content) {
   const values = new Map()
   for (const rawLine of String(content).split(/\r?\n/)) {

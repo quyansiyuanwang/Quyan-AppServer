@@ -1,7 +1,18 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
+
+/**
+ * The repository scripts live outside this package, so they are loaded by
+ * absolute file URL: the Vite resolver refuses the relative specifier.
+ */
+const loadDevEnv = async () =>
+  (await import(pathToFileURL(resolve(repositoryRoot, 'scripts/lib/dev-env.mjs')).href)) as {
+    MAX_HOSTS_PER_LINE: number
+    buildManagedHostsLines: (hostnames: readonly string[], address?: string) => string[]
+  }
 
 /**
  * `pnpm run dev` is the multi-domain HTTPS entry point and `pnpm run dev:localhost`
@@ -72,5 +83,35 @@ describe('local development commands', () => {
     // copies of the qysyw.test default.
     expect(readSource('scripts/setup-local-domains.mjs')).toContain('resolveLocalRootDomain')
     expect(readSource('scripts/lib/dev-env.mjs')).toContain('export const resolveLocalRootDomain')
+  })
+})
+
+/**
+ * The Windows DNS client ignores every hostname after the ninth one on a hosts
+ * line. A single long line therefore resolves only the first sites while the
+ * file looks correct, so the block layout is asserted rather than assumed.
+ */
+describe('managed hosts block layout', () => {
+  const hostnames = Array.from({ length: 22 }, (_, index) => `site-${index}.qysyw.test`)
+
+  it('keeps the block within the per-line hostname limit', async () => {
+    const { buildManagedHostsLines, MAX_HOSTS_PER_LINE } = await loadDevEnv()
+
+    expect(MAX_HOSTS_PER_LINE).toBeLessThanOrEqual(9)
+
+    for (const line of buildManagedHostsLines(hostnames)) {
+      const names = line.split(/\s+/).slice(1)
+      expect(names.length).toBeLessThanOrEqual(MAX_HOSTS_PER_LINE)
+      expect(names.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('preserves every hostname in order across the wrapped lines', async () => {
+    const { buildManagedHostsLines } = await loadDevEnv()
+    const lines = buildManagedHostsLines(hostnames)
+
+    expect(lines.length).toBeGreaterThan(1)
+    expect(lines.flatMap((line) => line.split(/\s+/).slice(1))).toEqual(hostnames)
+    for (const line of lines) expect(line.startsWith('127.0.0.1 ')).toBe(true)
   })
 })

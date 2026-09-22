@@ -3,7 +3,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolveLocalRootDomain } from './lib/dev-env.mjs'
+import { buildManagedHostsLines, resolveLocalRootDomain } from './lib/dev-env.mjs'
 
 const scriptPath = fileURLToPath(import.meta.url)
 const projectRoot = dirname(dirname(scriptPath))
@@ -70,7 +70,8 @@ const writeHostsOnly = arguments_.has('--write-hosts-only')
 const elevated = arguments_.has('--elevated')
 const force = arguments_.has('--force')
 
-const expectedHostsLine = `127.0.0.1 ${localHosts.join(' ')}`
+const hostsLines = buildManagedHostsLines(localHosts)
+const expectedHostsBlock = hostsLines.join('\n')
 
 function getHostsPath() {
   if (process.platform === 'win32') {
@@ -108,7 +109,8 @@ function extractManagedHostsBlock(content) {
 async function isManagedHostsBlockCurrent() {
   try {
     const content = await readFile(getHostsPath(), 'utf8')
-    return extractManagedHostsBlock(content) === expectedHostsLine
+    const block = extractManagedHostsBlock(content)
+    return block !== null && block.replace(/\r\n/g, '\n') === expectedHostsBlock
   } catch {
     return false
   }
@@ -129,9 +131,7 @@ async function updateHosts(addMappings) {
       updatedContent += endOfLine
     }
 
-    updatedContent += [beginMarker, `127.0.0.1 ${localHosts.join(' ')}`, endMarker, ''].join(
-      endOfLine,
-    )
+    updatedContent += [beginMarker, ...hostsLines, endMarker, ''].join(endOfLine)
   }
 
   if (updatedContent === originalContent) {

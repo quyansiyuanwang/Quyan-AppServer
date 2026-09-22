@@ -64,6 +64,8 @@ pnpm run dev:localhost  # 或者：免特权单站点，只服务 http://localho
 
 `pnpm run dev`（别名 `pnpm run dev:domains`）会调用 `scripts/setup-local-domains.mjs`：该脚本只在 hosts 区块与证书**需要变化**时请求提权与重签证书，已配置时直接跳过，重复执行不会再次弹出 UAC/`sudo`。退出运行后 hosts 记录与证书会保留，需要清理时执行 `pnpm run local:teardown`；`--force` 可强制重写 hosts 并重签证书。
 
+Windows 的 DNS 客户端**会静默忽略一行中第 10 个及之后的主机名**，因此管理区块按每行最多 9 个主机名分组写入（`scripts/lib/dev-env.mjs` 的 `MAX_HOSTS_PER_LINE`）；手工把这一行合并成长行会让后面十几个站点无法解析，而 hosts 文件看起来仍然正确。
+
 ## 常见问题
 
 | 现象                                                        | 原因与处理                                                                                                            |
@@ -74,9 +76,10 @@ pnpm run dev:localhost  # 或者：免特权单站点，只服务 http://localho
 | Redis 连接失败（WARN）                                      | 缓存、限流与强制下线能力降级；启动本机 Redis 7 后重启。                                                                |
 | `端口被占用：5173/10001/4173`                               | `netstat -ano \| findstr :5173` 找到 PID 后 `taskkill /T /F /PID <PID>`；macOS/Linux 用 `lsof -i :5173`。               |
 | 访问 `http://localhost:5173` 被拒绝                         | 默认的 `pnpm run dev` 是多域名模式，必须用 `https://<前缀>.qysyw.test:5173` 访问；要单站点请改用 `pnpm run dev:localhost`。 |
-| 只在 `https://www.qysyw.test:5173/` 能打开，其它站点打不开  | 确认 hosts 区块包含该前缀（`pnpm run local:setup`），并核对前缀拼写；未注册 hostname 按设计显示拒绝页面。               |
+| 浏览器提示某站点“关闭了连接”（`ERR_CONNECTION_CLOSED`）    | URL 少了 `https://`：把明文 HTTP 发给 TLS 端口时服务端只能直接断开。补全 `https://<前缀>.qysyw.test:5173/`。           |
+| 部分站点“找不到服务器 / 无法解析”（前面几个却正常）        | hosts 区块被合并成了单行，Windows 只取前 9 个主机名；执行 `pnpm run local:setup` 重新分行写入。                        |
 | 多域名模式下浏览器提示证书错误                              | 重新执行 `pnpm run local:setup --force`，并确认 `apps/frontend/.certs/` 下证书存在；`localhost` 不是多域名模式的入口。  |
-| HTTPS 页面提示 `HTTP/0.9` 或协议错误                        | 用 `http://` 访问了 HTTPS 端口；改用 `https://`。                                                                      |
+| HTTPS 页面提示 `HTTP/0.9` 或协议错误                        | 用 `http://` 访问了 HTTPS 端口；改用 `https://`（同上一条的不同浏览器措辞）。                                          |
 | 本机配置了代理导致本地站点无法访问                          | 将 `localhost,127.0.0.1,.qysyw.test` 加入 `NO_PROXY`；脚本会在检测到代理时给出提示。                                   |
 | 登录 `admin / admin123` 失败（旧数据库）                    | 旧版种子写入 `md5(md5(password))`，当前登录协议无法校验；重新执行 `pnpm run db:seed`，脚本会把遗留哈希修复为 bcrypt（不会覆盖开发者自行修改的密码）。 |
 | 前端首次启动很慢                                            | 首次需要生成 `src/client`（数百个文件），仅在客户端缺失或落后于 `swagger.json` 时发生；之后启动会跳过。                |
