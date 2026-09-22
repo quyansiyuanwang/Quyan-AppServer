@@ -34,8 +34,9 @@ AppServerMonorepo/
 ```bash
 pnpm run setup                   # 幂等初始化：工具链检查 + .env + 生成物 + 迁移 + 种子数据
 pnpm run doctor                  # 只读诊断本地环境
-pnpm run dev                     # 免特权启动 backend + frontend + docs-site（http://localhost:5173）
-pnpm run dev:domains             # 多域名 *.qysyw.test + HTTPS（需要 mkcert/管理员权限）
+pnpm run dev                     # 多域名 HTTPS：backend + frontend + docs-site（https://<站点前缀>.qysyw.test:5173）
+pnpm run dev:domains             # 同上的语义化别名
+pnpm run dev:localhost           # 免特权单站点 localhost（http://localhost:5173，唯一入口）
 pnpm run dev:frontend            # 只启动前端
 pnpm run dev:backend             # 只启动后端
 pnpm run dev:docs                # 启动文档站点

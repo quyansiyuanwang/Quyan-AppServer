@@ -5,7 +5,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 ## Common Commands
 
 ```bash
-pnpm run dev              # Start dev server (Vite, multi-domain *.qysyw.test)
+pnpm run dev              # Start dev server (Vite, multi-domain *.qysyw.test — the default)
 pnpm run dev:localhost    # Single-site plain-HTTP localhost mode (VITE_DEV_SINGLE_SITE, .env.localhost)
 pnpm run prod             # Start dev server in production mode
 pnpm run preview          # Preview production build locally
@@ -29,9 +29,11 @@ pnpm run client:generate   # Generate API constants and type mappings only
 pnpm run validate:permissions # Validate permission constants against backend
 ```
 
-`src/client` is generated and git-ignored, and `pnpm run dev` therefore runs
-`ensure:openapi-client` first. Root-level equivalents: `pnpm run setup`, `pnpm run doctor`,
-`pnpm run dev`, `pnpm run dev:domains` (see `docs/development/16-local-development.md`).
+`src/client` is generated and git-ignored, and the frontend `dev` scripts therefore run
+`ensure:openapi-client` first. The Vite `dev` server is the multi-domain topology
+(`https://<prefix>.qysyw.test:5173`); `dev:localhost` is the privilege-free single-site mode.
+Root-level equivalents: `pnpm run setup`, `pnpm run doctor`, `pnpm run dev`, `pnpm run dev:localhost`
+(see `docs/development/16-local-development.md`).
 
 ## Environment Requirements
 
@@ -145,13 +147,14 @@ VITE_BACKEND_URL=http://localhost:10001
 
 `pnpm run setup` (repo root) generates it with random development secrets; never commit `.env`.
 
-`apps/frontend/.env.localhost` (committed) drives the single-origin dev server: it sets
-`VITE_DEV_SINGLE_SITE=true`, `VITE_DEV_SITE_PROFILE=management-core` and
-`VITE_HTTPS_ENABLED=false`. `src/config/dev-single-site.ts` aliases that one site profile onto
-the browser origin and adds the `identity` route group so login stays on the same origin. The
-mode is unreachable in production builds (gated on `import.meta.env.DEV` plus the explicit
-flag), and every other hostname stays rejected. Passkey, social OAuth callbacks, QR login and
-site switching require the multi-domain mode (`pnpm run dev:domains`).
+`apps/frontend/.env.localhost` (committed) drives the privilege-free single-site dev server
+(`pnpm run dev:localhost`): it sets `VITE_DEV_SINGLE_SITE=true`,
+`VITE_DEV_SITE_PROFILE=management-core` and `VITE_HTTPS_ENABLED=false`. `src/config/dev-single-site.ts`
+aliases that one site profile onto the browser origin and adds the `identity` route group so login
+stays on the same origin. The mode is unreachable in production builds (gated on
+`import.meta.env.DEV` plus the explicit flag), and every other hostname stays rejected. The default
+`pnpm run dev` keeps the closed multi-domain registry, which Passkey, social OAuth callbacks, QR
+login and site switching require.
 
 ### Development Server
 

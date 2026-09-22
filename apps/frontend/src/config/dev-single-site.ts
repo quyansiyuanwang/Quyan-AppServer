@@ -16,8 +16,9 @@ import {
  * `localhost`, so no hosts edit, certificate or elevation is required.
  *
  * The mode is unreachable in production builds: every branch is gated on
- * `import.meta.env.DEV` plus the explicit `VITE_DEV_SINGLE_SITE` flag, and the
- * multi-domain HTTPS topology stays available through `pnpm run dev:domains`.
+ * `import.meta.env.DEV` plus the explicit `VITE_DEV_SINGLE_SITE` flag. It is the
+ * `pnpm run dev:localhost` target; the default `pnpm run dev` keeps the
+ * multi-domain HTTPS topology.
  */
 export const devSingleSiteHostnames = ['localhost', '127.0.0.1', '::1'] as const
 

@@ -57,8 +57,9 @@ cd AppServerMonorepo
 # 本地初始化与启动
 pnpm run setup                   # 幂等：工具链检查 + .env + 生成物 + 迁移 + 种子数据
 pnpm run doctor                  # 只读诊断本地环境
-pnpm run dev                     # 免特权：backend + frontend + docs-site（http://localhost:5173）
-pnpm run dev:domains             # 多域名 *.qysyw.test + HTTPS（需要 mkcert/管理员权限）
+pnpm run dev                     # 多域名：backend + frontend + docs-site（https://<站点前缀>.qysyw.test:5173）
+pnpm run dev:domains             # 同上的语义化别名
+pnpm run dev:localhost           # 免特权单站点：backend + frontend + docs-site（http://localhost:5173）
 pnpm run dev:backend             # 只启动后端 (port 10001)
 pnpm run dev:frontend            # 只启动前端 (port 5173)
 pnpm run dev:docs                # 只启动文档站点 (port 4173)
