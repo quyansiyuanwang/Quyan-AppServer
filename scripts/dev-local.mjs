@@ -1,6 +1,7 @@
 // Privilege-free local development: backend + frontend + docs-site on
 // plain HTTP localhost. No hosts edit, no certificate, no elevation.
-// The multi-domain HTTPS mode stays available through `pnpm run dev:domains`.
+// This is the explicit `pnpm run dev:localhost` target; the default
+// `pnpm run dev` starts the multi-domain HTTPS topology instead.
 
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -50,7 +51,9 @@ const readDevSiteProfile = async () => {
 }
 
 const main = async () => {
-  const reporter = createReporter({ title: 'AppServerMonorepo 本地开发（免特权 localhost 模式）' })
+  const reporter = createReporter({
+    title: 'AppServerMonorepo 本地开发（免特权单站点 localhost 模式）',
+  })
 
   for (const result of await provisionEnvFiles({ write: true })) {
     if (result.status === 'pass') reporter.pass(result.message, result.detail)
@@ -88,7 +91,9 @@ const main = async () => {
   reporter.log(`  后端 API / Swagger          ${apiOrigin}/docs`)
   reporter.log(`  文档站点                    ${docsOrigin}`)
   reporter.log('  种子账号与启动模式说明见 docs/development/16-local-development.md')
-  reporter.log('  能力边界：Passkey、社交 OAuth 回跳、扫码登录、站点切换需要 pnpm run dev:domains。')
+  reporter.log(
+    '  能力边界：Passkey、社交 OAuth 回跳、扫码登录、站点切换需要多域名模式 pnpm run dev（或 dev:domains）。',
+  )
   reporter.log()
 
   const concurrentlyCli = resolveConcurrentlyCli()

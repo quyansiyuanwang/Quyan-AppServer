@@ -1,6 +1,6 @@
 // Starts the backend with the process-level overrides required by the
-// privilege-free localhost development mode. The committed .env keeps the
-// multi-domain values so `pnpm run dev:domains` stays unchanged.
+// privilege-free single-site mode (`pnpm run dev:localhost`). The committed .env
+// keeps the multi-domain values so the default `pnpm run dev` stays unchanged.
 //
 // This file is an entry point only and runs at import time; the shared values
 // live in `scripts/lib/dev-local-env.mjs`.

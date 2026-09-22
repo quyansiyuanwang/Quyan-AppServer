@@ -3,12 +3,13 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveLocalRootDomain } from './lib/dev-env.mjs'
 
 const scriptPath = fileURLToPath(import.meta.url)
 const projectRoot = dirname(dirname(scriptPath))
 const frontendRoot = join(projectRoot, 'apps', 'frontend')
 const certificateDirectory = join(frontendRoot, '.certs')
-const localRootDomain = (process.env.LOCAL_ROOT_DOMAIN || 'qysyw.test').trim().toLowerCase()
+const localRootDomain = resolveLocalRootDomain()
 const certificatePath = join(certificateDirectory, `${localRootDomain}.pem`)
 const keyPath = join(certificateDirectory, `${localRootDomain}-key.pem`)
 const beginMarker = '# BEGIN APPSERVER LOCAL DOMAINS'
@@ -287,7 +288,7 @@ async function main() {
 
   if (!uninstall) {
     const hostsCurrent = await isManagedHostsBlockCurrent()
-    const certificatesPresent = existsSync(keyPath) && existsSync(certPath)
+    const certificatesPresent = existsSync(keyPath) && existsSync(certificatePath)
 
     // Repeated runs must not prompt for elevation or re-issue certificates.
     if (!force && hostsCurrent && certificatesPresent) {

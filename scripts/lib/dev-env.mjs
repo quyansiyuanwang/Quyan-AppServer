@@ -33,7 +33,17 @@ export const requiredBackendKeys = [
 ]
 
 const LOCAL_ROOT_DOMAIN_KEY = 'ROOT_DOMAIN'
-const DEFAULT_LOCAL_ROOT_DOMAIN = 'qysyw.test'
+export const DEFAULT_LOCAL_ROOT_DOMAIN = 'qysyw.test'
+
+/**
+ * The local `.test` root domain used by the multi-domain HTTPS mode. Both the
+ * hosts/certificate setup and the startup hints resolve it here, so the default
+ * lives in exactly one place.
+ */
+export const resolveLocalRootDomain = (value = process.env.LOCAL_ROOT_DOMAIN) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase() || DEFAULT_LOCAL_ROOT_DOMAIN
 
 export function parseEnvContent(content) {
   const values = new Map()

@@ -68,12 +68,12 @@ export async function checkToolchain() {
 
   const mkcertVersion = commandVersion('mkcert')
   if (mkcertVersion) {
-    results.push({ status: 'pass', message: `mkcert ${mkcertVersion} 可用（dev:domains 需要）` })
+    results.push({ status: 'pass', message: `mkcert ${mkcertVersion} 可用（dev 需要）` })
   } else {
     results.push({
       status: 'warn',
-      message: '未找到 mkcert（仅 pnpm run dev:domains 需要）',
-      hint: `${mkcertInstallHint}；免特权模式 pnpm run dev 不需要它。`,
+      message: '未找到 mkcert（默认的 pnpm run dev 多域名 HTTPS 需要）',
+      hint: `${mkcertInstallHint}；免特权单站点模式 pnpm run dev:localhost 不需要它。`,
     })
   }
 
