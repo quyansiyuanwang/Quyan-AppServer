@@ -137,4 +137,22 @@ describe('LoginOrRegisterView Turnstile UX', () => {
 
     expect(Notification.notify).toHaveBeenCalledWith('error', '参数验证失败', 'error')
   })
+
+  it('keeps the repair entry in the card footer instead of the title slot', async () => {
+    const wrapper = mount(LoginOrRegisterView)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const card = wrapper.find('.login-card')
+    const entry = card.find('.repair-entry')
+    expect(entry.exists()).toBe(true)
+
+    // The top slot of the card is the title/brand, not a troubleshooting link.
+    const body = card.element.querySelector('.el-card__body') ?? card.element
+    expect(body.firstElementChild?.classList.contains('login-title')).toBe(true)
+
+    // It belongs with the small print, below the form and its notices.
+    const html = card.html()
+    expect(html.indexOf('repair-entry')).toBeGreaterThan(html.indexOf('captcha-notice'))
+    expect(entry.find('a').attributes('href')).toBe('/repair.html?locale=zh-CN')
+  })
 })

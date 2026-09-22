@@ -53,9 +53,6 @@ const sendCodeDisabled = computed(() => {
     :class="['login-card', 'surface-card', state.isDesktop.value ? 'page-card' : 'mobile-card']"
     shadow="hover"
   >
-    <a :href="`${BROWSER_REPAIR_PATH}?locale=${getLocale()}`" class="repair-entry">{{
-      i18ns.t('requestErrors.repair')
-    }}</a>
     <h1 class="login-title">
       {{ isLogin ? i18ns.t('login') : i18ns.t('register') }}
     </h1>
@@ -337,16 +334,37 @@ const sendCodeDisabled = computed(() => {
       </a>
       {{ i18ns.t('loginOrRegisterPage.apply') }}
     </div>
+    <!-- Troubleshooting entry. It stays in the card's small print at the bottom:
+         the top slot belongs to the title/brand, and a repair link there reads as
+         the primary action on the sign-in page. -->
+    <p class="repair-entry">
+      <a :href="`${BROWSER_REPAIR_PATH}?locale=${getLocale()}`" rel="noopener">
+        {{ i18ns.t('requestErrors.repair') }}
+      </a>
+    </p>
   </el-card>
 </template>
 
 <style scoped lang="scss">
 .repair-entry {
   display: block;
+  margin: 12px 0 0;
   text-align: center;
-  margin-bottom: 1rem;
-  color: var(--el-color-primary);
+  font-size: 12px;
+  line-height: 1.6;
 }
+
+.repair-entry a {
+  color: var(--el-text-color-secondary);
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.repair-entry a:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
 .social-auth-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
