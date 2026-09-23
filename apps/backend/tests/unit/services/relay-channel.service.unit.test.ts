@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
+vi.mock("../../../src/util/developer-outbound-url", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../src/util/developer-outbound-url")>()),
+  assertSafeOutboundUrl: vi.fn(async (rawUrl: string) => ({
+    url: new URL(rawUrl),
+    httpAgent: {} as any,
+    httpsAgent: {} as any,
+  })),
+}));
+
 import { RelayChannelService } from "../../../src/services/relay/relay-channel.service";
 import { RelayTokenRepository } from "../../../src/store/relay/relay-token.repository";
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
