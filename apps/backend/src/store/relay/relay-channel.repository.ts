@@ -8,6 +8,26 @@ import type {
   RelayChannelTransactionClient,
 } from "./relay-channel.store";
 
+const relayChannelManagementSelect = {
+  id: true,
+  name: true,
+  submittedByUserId: true,
+  submittedBy: { select: { username: true } },
+  status: true,
+  providerServiceEnabled: true,
+  channelType: true,
+  routingStrategy: true,
+  visibilityMode: true,
+  multiplier: true,
+  updateTime: true,
+  pooledParentId: true,
+  pooledParent: { select: { name: true } },
+  poolMembers: { select: { memberChannelId: true } },
+  pooledChildren: { select: { id: true } },
+  submissionStatus: true,
+  providers: { where: { status: 1 }, select: { commissionPercent: true } },
+} satisfies Prisma.RelayChannelSelect;
+
 const relayChannelInclude = {
   poolMembers: {
     include: { memberChannel: true },
@@ -169,30 +189,20 @@ export class RelayChannelRepository implements RelayChannelStore {
         orderBy: { createTime: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        select: {
-          id: true,
-          name: true,
-          submittedByUserId: true,
-          submittedBy: { select: { username: true } },
-          status: true,
-          providerServiceEnabled: true,
-          channelType: true,
-          routingStrategy: true,
-          visibilityMode: true,
-          multiplier: true,
-          updateTime: true,
-          pooledParentId: true,
-          pooledParent: { select: { name: true } },
-          poolMembers: { select: { memberChannelId: true } },
-          pooledChildren: { select: { id: true } },
-          submissionStatus: true,
-          providers: { where: { status: 1 }, select: { commissionPercent: true } },
-        },
+        select: relayChannelManagementSelect,
       }),
       prisma.relayChannel.count({ where }),
     ]);
 
     return { records, total };
+  }
+
+  async listManagementRecords(where: Prisma.RelayChannelWhereInput) {
+    return prisma.relayChannel.findMany({
+      where,
+      orderBy: { createTime: "desc" },
+      select: relayChannelManagementSelect,
+    });
   }
 
   async listSubmittedByUser(

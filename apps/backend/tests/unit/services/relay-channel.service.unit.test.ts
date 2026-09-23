@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import axios from "axios";
 import { RelayChannelService } from "../../../src/services/relay/relay-channel.service";
 import { RelayTokenRepository } from "../../../src/store/relay/relay-token.repository";
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
@@ -13,6 +14,7 @@ describe("RelayChannelService", () => {
     listVisible: vi.fn(),
     listVisibleByIds: vi.fn(),
     listManagementPage: vi.fn(),
+    listManagementRecords: vi.fn(),
     listActiveDirectPooledParentsByMemberChannelId: vi.fn(),
     findVisibleByName: vi.fn(),
     findActiveById: vi.fn(),
@@ -110,6 +112,7 @@ describe("RelayChannelService", () => {
     );
     relayChannelRepository.listActiveDirectPooledParentsByMemberChannelId.mockResolvedValue([]);
     relayChannelRepository.listManagementPage.mockResolvedValue({ records: [], total: 0 });
+    relayChannelRepository.listManagementRecords.mockResolvedValue([]);
     relayChannelRepository.findVisibleByName.mockResolvedValue(null);
     permissionService.hasAnyPermission.mockResolvedValue(false);
     permissionService.hasPermission.mockImplementation(
@@ -220,6 +223,58 @@ describe("RelayChannelService", () => {
     expect(relayChannelRepository.listManagementPage).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ channelType: "pooled" }) }),
     );
+  });
+
+  it("filters management candidates by all requested effective models before pagination", async () => {
+    relayChannelRepository.listManagementRecords.mockResolvedValue([
+      {
+        id: "channel-match",
+        name: "Match",
+        status: RELAY_CHANNEL_STATUS.ENABLED,
+        channelType: "standalone",
+        routingStrategy: "priority",
+        visibilityMode: "public",
+        multiplier: 1,
+        updateTime: now,
+        pooledParentId: null,
+        pooledParent: null,
+        poolMembers: [],
+        pooledChildren: [],
+      },
+      {
+        id: "channel-partial",
+        name: "Partial",
+        status: RELAY_CHANNEL_STATUS.ENABLED,
+        channelType: "standalone",
+        routingStrategy: "priority",
+        visibilityMode: "public",
+        multiplier: 1,
+        updateTime: now,
+        pooledParentId: null,
+        pooledParent: null,
+        poolMembers: [],
+        pooledChildren: [],
+      },
+    ]);
+    relayPoolResolver.resolveChannelCapabilities.mockImplementation(async (channelId: string) =>
+      channelId === "channel-match"
+        ? [
+            { catalogModelName: "model-a", supportedRequestFormats: ["openai-chat-completions"] },
+            { catalogModelName: "model-b", supportedRequestFormats: ["openai-chat-completions"] },
+          ]
+        : [{ catalogModelName: "model-a", supportedRequestFormats: ["openai-chat-completions"] }],
+    );
+
+    const result = await service.listManagementChannels("actor-user", {
+      page: 1,
+      pageSize: 25,
+      models: ["model-a", "model-b"],
+      modelMatchMode: "all",
+    });
+
+    expect(result.total).toBe(1);
+    expect(result.items.map((item) => item.id)).toEqual(["channel-match"]);
+    expect(relayChannelRepository.listManagementPage).not.toHaveBeenCalled();
   });
 
   it("merges a model pricing migration without changing the upstream request model", async () => {
@@ -346,6 +401,142 @@ describe("RelayChannelService", () => {
     expect(result.rejected).toEqual([
       expect.objectContaining({ id: sampleChannel.id, reason: expect.stringContaining("expected 'gpt-5.6-luna'") }),
     ]);
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it("batch probes upstream models while preserving per-channel failures and skipping missing credentials", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([
+      {
+        ...sampleChannel,
+        id: "success-channel",
+        openaiUpstreamUrl: "https://1.1.1.1/success",
+      },
+      {
+        ...sampleChannel,
+        id: "skip-channel",
+        openaiUpstreamUrl: null,
+        openaiUpstreamApiKey: null,
+      },
+      {
+        ...sampleChannel,
+        id: "failed-channel",
+        openaiUpstreamUrl: "https://1.1.1.1/failure",
+      },
+    ]);
+    modelPricingService.getModelPricing.mockResolvedValue([
+      { model: "gpt-5", modelId: "gpt-5", supportedFormats: "openai" },
+    ]);
+    vi.spyOn(axios, "get").mockImplementation(async (url: string | URL) => {
+      if (String(url).includes("/failure")) throw new Error("upstream unavailable");
+      return {
+        data: {
+          data: [{ id: "gpt-5" }, { id: "unpriced-model" }],
+        },
+      } as any;
+    });
+
+    const result = await service.batchListUpstreamModels({
+      ids: ["success-channel", "skip-channel", "failed-channel"],
+      format: "openai",
+    });
+
+    expect(result.items.map((item) => [item.channelId, item.status])).toEqual([
+      ["success-channel", "success"],
+      ["skip-channel", "skipped"],
+      ["failed-channel", "failed"],
+    ]);
+    expect(result.items[0].models).toEqual([
+      { id: "gpt-5", matched: true, pricingModel: "gpt-5", pricingModelId: "gpt-5" },
+      { id: "unpriced-model", matched: false, pricingModel: undefined, pricingModelId: undefined },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("openai-key");
+  });
+
+  it("merges applied models for standalone channels without removing existing restrictions", async () => {
+    const channel = {
+      ...sampleChannel,
+      id: "standalone-model-channel",
+      allowedModels: JSON.stringify(["existing-model"]),
+    };
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([channel]);
+    modelPricingService.getModelPricing.mockResolvedValue([
+      { model: "existing-model", modelId: "existing-model", supportedFormats: "openai" },
+      { model: "gpt-5", modelId: "gpt-5", supportedFormats: "openai" },
+    ]);
+
+    const result = await service.applyModelRestrictions(
+      {
+        targets: [{ channelId: channel.id, addModels: ["gpt-5"] }],
+      },
+      "actor-user",
+    );
+
+    expect(result.rejected).toEqual([]);
+    expect(result.updated).toHaveLength(1);
+    expect(relayChannelRepository.updateById).toHaveBeenCalledWith(
+      channel.id,
+      expect.objectContaining({ allowedModels: JSON.stringify(["existing-model", "gpt-5"]) }),
+      transactionClient,
+    );
+  });
+
+  it("switches automatic pools to manual mode when applying model restrictions", async () => {
+    const channel = {
+      ...sampleChannel,
+      id: "automatic-pool",
+      channelType: "automatic-proxy-pool",
+      allowedModels: JSON.stringify(["stale-model"]),
+      routingConfig: { allowedModelsMode: "auto" },
+    };
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([channel]);
+    modelPricingService.getModelPricing.mockResolvedValue([
+      { model: "gpt-5", modelId: "gpt-5", supportedFormats: "openai" },
+    ]);
+
+    const result = await service.applyModelRestrictions(
+      {
+        targets: [{ channelId: channel.id, addModels: ["gpt-5"] }],
+      },
+      "actor-user",
+    );
+
+    expect(result.rejected).toEqual([]);
+    expect(relayChannelRepository.updateById).toHaveBeenCalledWith(
+      channel.id,
+      expect.objectContaining({
+        allowedModels: JSON.stringify(["gpt-5"]),
+        routingConfig: expect.objectContaining({ allowedModelsMode: "manual" }),
+      }),
+      transactionClient,
+    );
+  });
+
+  it("rejects duplicate model IDs when applying restrictions", async () => {
+    relayChannelRepository.listVisibleByIds.mockResolvedValue([sampleChannel]);
+    modelPricingService.getModelPricing.mockResolvedValue([
+      {
+        model: "model-primary",
+        modelId: "shared-upstream-id",
+        provider: "shared-upstream-id",
+        supportedFormats: "openai",
+      },
+      {
+        model: "model-alias",
+        modelId: "shared-upstream-id",
+        provider: "shared-upstream-id",
+        supportedFormats: "openai",
+      },
+    ]);
+
+    const result = await service.applyModelRestrictions(
+      {
+        targets: [{ channelId: sampleChannel.id, addModels: ["model-primary", "model-alias"] }],
+      },
+      "actor-user",
+    );
+
+    expect(result.updated).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
     expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
   });
 

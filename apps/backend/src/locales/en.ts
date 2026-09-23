@@ -594,6 +594,7 @@ const en = {
     healthStatsStandaloneOnly: "Health statistics only exist for standalone channels",
     healthStorageUnavailable: "Channel health storage is temporarily unavailable",
     automaticPoolTokenModeOnly: "Automatic proxy pools can only be selected through token automatic routing mode",
+    modelRestrictionUnknown: "Model has no global pricing configuration",
     allowedModelsDuplicate: "allowedModels contains duplicate model IDs; each model ID should only appear once",
     nameExists: "Relay channel name already exists",
     nameGenerationFailed: "Unable to generate a unique relay channel name",

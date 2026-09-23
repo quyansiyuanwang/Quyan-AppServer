@@ -52,6 +52,7 @@ const routingStrategySchema = z.enum([
   "latency-priority",
 ]);
 const allowedModelsModeSchema = z.enum(["all", "manual", "auto"]);
+const relayChannelModelMatchModeSchema = z.enum(["any", "all"]);
 const automaticPoolRankingModeSchema = z.enum(["price-first", "stability-first"]);
 const healthTrackingModeSchema = z.enum(["automatic", "manual", "disabled"]);
 const visibilityModeSchema = z.enum(["public", "private", "whitelist", "hidden"]);
@@ -193,6 +194,17 @@ export const relayChannelManagementQuerySchema = z
       z.boolean().optional(),
     ),
     submissionStatus: z.enum(["pending", "approved", "rejected", "offboarded"]).optional(),
+    models: z
+      .preprocess(
+        (value) => (Array.isArray(value) ? value : value === undefined ? undefined : [value]),
+        z
+          .array(z.string().trim().min(1).max(200))
+          .min(1)
+          .max(100)
+          .refine((models) => new Set(models).size === models.length, "models must not contain duplicates"),
+      )
+      .optional(),
+    modelMatchMode: relayChannelModelMatchModeSchema.default("any"),
   })
   .refine((query) => !(query.channelType && query.channelTypes?.length), {
     message: "channelType and channelTypes cannot be used together",
@@ -375,6 +387,33 @@ export const updateRelayChannelProviderConfigBodySchema = z.object({
 export const updateRelayChannelServiceStatusBodySchema = z.object({
   enabled: z.preprocess((value) => (value === "true" ? true : value === "false" ? false : value), z.boolean()),
 });
+
+export const batchRelayChannelUpstreamModelsBodySchema = z.object({
+  ids: relayChannelIdsSchema,
+  format: z.enum(RELAY_UPSTREAM_FORMATS),
+});
+
+const applyRelayChannelModelRestrictionsTargetSchema = z.object({
+  channelId: z.string().trim().min(1),
+  addModels: z
+    .array(z.string().trim().min(1).max(200))
+    .min(1)
+    .max(100)
+    .refine((models) => new Set(models).size === models.length, "addModels must not contain duplicates"),
+});
+
+export const applyRelayChannelModelRestrictionsBodySchema = z
+  .object({
+    targets: z
+      .array(applyRelayChannelModelRestrictionsTargetSchema)
+      .min(1)
+      .max(200)
+      .refine(
+        (targets) => new Set(targets.map((target) => target.channelId)).size === targets.length,
+        "targets must not contain duplicate channelId values",
+      ),
+  })
+  .strict();
 
 export const relayChannelUpstreamModelsBodySchema = z
   .object({

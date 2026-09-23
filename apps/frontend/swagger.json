@@ -18147,6 +18147,25 @@
 						"schema": {
 							"$ref": "#/components/schemas/RelayChannelSubmissionStatus"
 						}
+					},
+					{
+						"in": "query",
+						"name": "models",
+						"required": false,
+						"schema": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					},
+					{
+						"in": "query",
+						"name": "modelMatchMode",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/RelayChannelModelMatchMode"
+						}
 					}
 				]
 			}
@@ -19159,6 +19178,84 @@
 							}
 						}
 					}
+				}
+			}
+		},
+		"/v1/relay-channels/batch/upstream-models": {
+			"post": {
+				"operationId": "RelayChannelControllerBatchListUpstreamModels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/BatchRelayChannelUpstreamModelsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BatchRelayChannelUpstreamModelsRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/relay-channels/batch/model-restrictions": {
+			"post": {
+				"operationId": "RelayChannelControllerApplyModelRestrictions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ApplyRelayChannelModelRestrictionsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channels"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ApplyRelayChannelModelRestrictionsRequest"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
 				}
 			}
 		},
@@ -48367,6 +48464,13 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelModelMatchMode": {
+				"type": "string",
+				"enum": [
+					"any",
+					"all"
+				]
+			},
 			"RelayChannelTopologyMode": {
 				"type": "string",
 				"enum": [
@@ -49855,6 +49959,164 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"BatchRelayChannelUpstreamModelStatus": {
+				"type": "string",
+				"enum": [
+					"success",
+					"skipped",
+					"failed"
+				]
+			},
+			"BatchRelayChannelUpstreamModelsItemDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"status": {
+						"$ref": "#/components/schemas/BatchRelayChannelUpstreamModelStatus"
+					},
+					"models": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelUpstreamModelDto"
+						},
+						"type": "array"
+					},
+					"reasonKey": {
+						"type": "string",
+						"description": "Localized reason used for skipped or failed channels."
+					},
+					"upstreamStatus": {
+						"type": "number",
+						"format": "double",
+						"description": "Safe upstream HTTP status when available."
+					}
+				},
+				"required": [
+					"channelId",
+					"channelName",
+					"status",
+					"models"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchRelayChannelUpstreamModelsResponse": {
+				"properties": {
+					"format": {
+						"$ref": "#/components/schemas/RelayUpstreamFormat"
+					},
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/BatchRelayChannelUpstreamModelsItemDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"format",
+					"items"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchRelayChannelUpstreamModelsRequest": {
+				"properties": {
+					"ids": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"format": {
+						"$ref": "#/components/schemas/RelayUpstreamFormat"
+					}
+				},
+				"required": [
+					"ids",
+					"format"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelRejectedDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"reason"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BatchUpdateRelayChannelsResponse": {
+				"properties": {
+					"updated": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelDto"
+						},
+						"type": "array"
+					},
+					"rejected": {
+						"items": {
+							"$ref": "#/components/schemas/BatchUpdateRelayChannelRejectedDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"updated",
+					"rejected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApplyRelayChannelModelRestrictionsResponse": {
+				"$ref": "#/components/schemas/BatchUpdateRelayChannelsResponse"
+			},
+			"ApplyRelayChannelModelRestrictionsTargetDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"addModels": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Global pricing model names that the selected upstream actually supports."
+					}
+				},
+				"required": [
+					"channelId",
+					"addModels"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ApplyRelayChannelModelRestrictionsRequest": {
+				"properties": {
+					"targets": {
+						"items": {
+							"$ref": "#/components/schemas/ApplyRelayChannelModelRestrictionsTargetDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelProviderEarningDto": {
 				"properties": {
 					"id": {
@@ -50649,44 +50911,6 @@
 						"description": "Admin-configured providers for revenue sharing."
 					}
 				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"BatchUpdateRelayChannelRejectedDto": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"reason": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"id",
-					"reason"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"BatchUpdateRelayChannelsResponse": {
-				"properties": {
-					"updated": {
-						"items": {
-							"$ref": "#/components/schemas/RelayChannelDto"
-						},
-						"type": "array"
-					},
-					"rejected": {
-						"items": {
-							"$ref": "#/components/schemas/BatchUpdateRelayChannelRejectedDto"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"updated",
-					"rejected"
-				],
 				"type": "object",
 				"additionalProperties": false
 			},

@@ -774,6 +774,8 @@ export const useRelaySettingsManagement = () => {
   const poolMemberPickerRows = ref<RelayChannelManagementListItemDto[]>([])
   const poolMemberPickerPagination = ref({ page: 1, pageSize: 25, total: 0 })
   const poolMemberPickerKeyword = ref('')
+  const poolMemberPickerModels = ref<string[]>([])
+  const poolMemberPickerModelMatchMode = ref<'any' | 'all'>('any')
   const selectedPoolMemberCandidateIds = ref<string[]>([])
   const poolMemberCandidateCache = ref<Record<string, RelayChannelManagementListItemDto>>({})
   const pooledParentOptions = ref<RelayChannelManagementListItemDto[]>([])
@@ -790,6 +792,7 @@ export const useRelaySettingsManagement = () => {
   const showChannelDetailDialog = ref(false)
   const showChannelBatchEditDialog = ref(false)
   const channelBatchEditMode = ref<'settings' | 'model-pricing-migration'>('settings')
+  const showChannelModelBatchDialog = ref(false)
   const currentChannelDetail = ref<RelayChannelDto | null>(null)
   const channelHealth = ref<RelayChannelHealthDto | RelayAutomaticPoolHealthDto | null>(null)
   const channelHealthLoading = ref(false)
@@ -1379,6 +1382,15 @@ export const useRelaySettingsManagement = () => {
         channelForm.value.channelType === 'automatic-proxy-pool'
           ? ['pooled', 'standalone']
           : undefined,
+      models:
+        channelForm.value.channelType === 'automatic-proxy-pool' &&
+        poolMemberPickerModels.value.length > 0
+          ? poolMemberPickerModels.value
+          : undefined,
+      modelMatchMode:
+        channelForm.value.channelType === 'automatic-proxy-pool'
+          ? poolMemberPickerModelMatchMode.value
+          : undefined,
     })
     poolMemberPickerRows.value = response.items.filter(isPoolMemberCandidateEligible)
     poolMemberPickerPagination.value.total = response.total
@@ -1388,9 +1400,25 @@ export const useRelaySettingsManagement = () => {
   const openPoolMemberPicker = async () => {
     selectedPoolMemberCandidateIds.value = []
     poolMemberPickerKeyword.value = ''
+    poolMemberPickerModels.value = []
+    poolMemberPickerModelMatchMode.value = 'any'
     poolMemberPickerPagination.value.page = 1
     poolMemberInsertPosition.value = 'bottom'
     showPoolMemberPicker.value = true
+    await loadPoolMemberCandidates()
+  }
+
+  const updatePoolMemberModelFilter = async (models: string[]) => {
+    poolMemberPickerModels.value = [...models]
+    poolMemberPickerPagination.value.page = 1
+    selectedPoolMemberCandidateIds.value = []
+    await loadPoolMemberCandidates()
+  }
+
+  const updatePoolMemberModelMatchMode = async (mode: 'any' | 'all') => {
+    poolMemberPickerModelMatchMode.value = mode
+    poolMemberPickerPagination.value.page = 1
+    selectedPoolMemberCandidateIds.value = []
     await loadPoolMemberCandidates()
   }
 
@@ -1471,6 +1499,21 @@ export const useRelaySettingsManagement = () => {
         ? [...additions, ...channelForm.value.poolMembers]
         : [...channelForm.value.poolMembers, ...additions]
     reindexPoolMembers()
+
+    if (
+      channelForm.value.channelType === 'automatic-proxy-pool' &&
+      poolMemberPickerModels.value.length > 0
+    ) {
+      const restrictedModels =
+        channelForm.value.pooledAllowedModelsMode === 'manual'
+          ? channelForm.value.allowedModelsArray
+          : []
+      channelForm.value.pooledAllowedModelsMode = 'manual'
+      channelForm.value.allowedModelsArray = [
+        ...new Set([...restrictedModels, ...poolMemberPickerModels.value]),
+      ]
+    }
+
     showPoolMemberPicker.value = false
   }
 
@@ -2034,6 +2077,17 @@ export const useRelaySettingsManagement = () => {
     if (!ensureChannelsSelected()) return
     channelBatchEditMode.value = 'model-pricing-migration'
     showChannelBatchEditDialog.value = true
+  }
+
+  const openChannelModelBatchDialog = () => {
+    if (!ensureChannelsSelected()) return
+    showChannelModelBatchDialog.value = true
+  }
+
+  const handleModelRestrictionsApplied = async (updatedIds: string[]) => {
+    const updatedIdSet = new Set(updatedIds)
+    selectedChannelIds.value = selectedChannelIds.value.filter((id) => !updatedIdSet.has(id))
+    await loadChannels()
   }
 
   const handleBatchUpdateChannels = async (
@@ -2670,6 +2724,7 @@ export const useRelaySettingsManagement = () => {
     showChannelDetailDialog,
     showChannelBatchEditDialog,
     channelBatchEditMode,
+    showChannelModelBatchDialog,
     showChannelImportDialog,
     channelImportText,
     isEditingChannel,
@@ -2680,6 +2735,7 @@ export const useRelaySettingsManagement = () => {
     canReviewChannelSubmission,
     submissionStatusLabel,
     canViewPoolMetadata,
+    selectedChannelIds,
     selectedChannelCount,
     selectedChannels: legacySelectedChannels,
     hasChannelSelection,
@@ -2707,6 +2763,7 @@ export const useRelaySettingsManagement = () => {
     openEditTimeRule,
     saveTimeRule,
     removeTimeRule,
+    availableModels,
     filteredModels,
     formatModelOptionLabel,
     isModelDisabled,
@@ -2724,10 +2781,14 @@ export const useRelaySettingsManagement = () => {
     poolMemberPickerRows,
     poolMemberPickerPagination,
     poolMemberPickerKeyword,
+    poolMemberPickerModels,
+    poolMemberPickerModelMatchMode,
     pooledParentOptions,
     selectedPoolMemberCandidateIds,
     poolMemberInsertPosition,
     openPoolMemberPicker,
+    updatePoolMemberModelFilter,
+    updatePoolMemberModelMatchMode,
     loadPoolMemberCandidates,
     loadPooledParentOptions,
     loadPoolMemberTooltip,
@@ -2784,6 +2845,8 @@ export const useRelaySettingsManagement = () => {
     handleBatchSetChannelStatus,
     openChannelBatchEditDialog,
     openChannelModelPricingMigrationDialog,
+    openChannelModelBatchDialog,
+    handleModelRestrictionsApplied,
     handleBatchUpdateChannels,
     handleBatchDeleteChannels,
     openCreateChannelDialog,
