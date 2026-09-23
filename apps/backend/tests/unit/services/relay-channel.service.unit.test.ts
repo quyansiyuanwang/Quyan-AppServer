@@ -68,6 +68,9 @@ describe("RelayChannelService", () => {
     findManagedPoolsByOwnerUserId: vi.fn(),
     findManagedPoolByRelayChannelId: vi.fn(),
   };
+  const configService = {
+    getRelayProxyConfig: vi.fn(),
+  };
   const changeRequestRepository = {
     findPendingByChannelId: vi.fn(),
     create: vi.fn(),
@@ -90,6 +93,7 @@ describe("RelayChannelService", () => {
     relayChannelHealthService,
     relayConfigService,
     changeRequestRepository,
+    configService,
   );
 
   const now = new Date("2026-01-01T00:00:00.000Z");
@@ -134,6 +138,7 @@ describe("RelayChannelService", () => {
     relayPoolResolver.preloadContext.mockResolvedValue({ graph: new Map(), modelCatalog: [] });
     relayPoolResolver.resolveChannelCapabilities.mockResolvedValue([]);
     relayConfigService.getRelayConfig.mockResolvedValue({ apiCatalogPoolVisibility: "anonymous-range" });
+    configService.getRelayProxyConfig.mockResolvedValue({ enabled: false, url: "" });
     changeRequestRepository.findPendingByChannelId.mockResolvedValue(null);
     changeRequestRepository.create.mockResolvedValue({
       id: "change-1",
