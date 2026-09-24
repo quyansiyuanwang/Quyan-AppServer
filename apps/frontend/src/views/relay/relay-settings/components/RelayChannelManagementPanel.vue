@@ -98,6 +98,9 @@
                 <el-dropdown-item command="edit">{{
                   i18ns.t('relay.batchEditChannels')
                 }}</el-dropdown-item>
+                <el-dropdown-item command="models">{{
+                  i18ns.t('relay.batchModelProbe')
+                }}</el-dropdown-item>
                 <el-dropdown-item command="pricing-migration">{{
                   i18ns.t('relay.batchModelPricingMigration')
                 }}</el-dropdown-item>
@@ -401,6 +404,7 @@ const {
   handleBatchSetChannelStatus,
   openChannelBatchEditDialog,
   openChannelModelPricingMigrationDialog,
+  openChannelModelBatchDialog,
   handleBatchDeleteChannels,
 } = state
 
@@ -436,6 +440,7 @@ const handleBatchCommand = (command: string) => {
   if (command === 'copy') void copyChannelsAsJson()
   if (command === 'duplicate') void handleBatchDuplicateChannels()
   if (command === 'edit') openChannelBatchEditDialog()
+  if (command === 'models') openChannelModelBatchDialog()
   if (command === 'pricing-migration') openChannelModelPricingMigrationDialog()
   if (command === 'enable') void handleBatchSetChannelStatus(true)
   if (command === 'disable') void handleBatchSetChannelStatus(false)

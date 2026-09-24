@@ -36,6 +36,7 @@ export type RelayChannelRoutingStrategy =
 export type RelayChannelVisibilityMode = "public" | "private" | "whitelist" | "hidden";
 
 export type RelayChannelAllowedModelsMode = "all" | "manual" | "auto";
+export type RelayChannelModelMatchMode = "any" | "all";
 export type RelayAutomaticPoolRankingMode = "price-first" | "stability-first";
 /** Controls whether a standalone channel contributes health samples to automatic proxy pools. */
 export type RelayChannelHealthTrackingMode = "automatic" | "manual" | "disabled";
@@ -470,6 +471,18 @@ export interface BatchUpdateRelayChannelsResponse {
   rejected: BatchUpdateRelayChannelRejectedDto[];
 }
 
+export interface ApplyRelayChannelModelRestrictionsTargetDto {
+  channelId: string;
+  /** Global pricing model names that the selected upstream actually supports. */
+  addModels: string[];
+}
+
+export interface ApplyRelayChannelModelRestrictionsRequest {
+  targets: ApplyRelayChannelModelRestrictionsTargetDto[];
+}
+
+export type ApplyRelayChannelModelRestrictionsResponse = BatchUpdateRelayChannelsResponse;
+
 export interface BatchRelayChannelsResultDto {
   total: number;
   affected: number;
@@ -678,6 +691,29 @@ export interface RelayChannelUpstreamModelDto {
 export interface RelayChannelUpstreamModelsResponse {
   format: RelayUpstreamFormat;
   models: RelayChannelUpstreamModelDto[];
+}
+
+export type BatchRelayChannelUpstreamModelStatus = "success" | "skipped" | "failed";
+
+export interface BatchRelayChannelUpstreamModelsRequest {
+  ids: string[];
+  format: RelayUpstreamFormat;
+}
+
+export interface BatchRelayChannelUpstreamModelsItemDto {
+  channelId: string;
+  channelName: string;
+  status: BatchRelayChannelUpstreamModelStatus;
+  models: RelayChannelUpstreamModelDto[];
+  /** Localized reason used for skipped or failed channels. */
+  reasonKey?: string;
+  /** Safe upstream HTTP status when available. */
+  upstreamStatus?: number;
+}
+
+export interface BatchRelayChannelUpstreamModelsResponse {
+  format: RelayUpstreamFormat;
+  items: BatchRelayChannelUpstreamModelsItemDto[];
 }
 
 export interface RelayChannelProviderEarningDto {

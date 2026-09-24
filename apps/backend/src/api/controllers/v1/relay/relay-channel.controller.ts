@@ -50,6 +50,11 @@ import type {
   RelayChannelChangeRequestStatus,
   RelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
+  RelayChannelModelMatchMode,
+  BatchRelayChannelUpstreamModelsRequest,
+  BatchRelayChannelUpstreamModelsResponse,
+  ApplyRelayChannelModelRestrictionsRequest,
+  ApplyRelayChannelModelRestrictionsResponse,
   RelayChannelProviderEarningsResponse,
   ClaimRelayChannelProviderEarningsResponse,
   RelayChannelSubmissionStatus,
@@ -79,6 +84,8 @@ import {
   createRelayChannelChangeRequestBodySchema,
   reviewRelayChannelChangeRequestBodySchema,
   relayChannelUpstreamModelsBodySchema,
+  batchRelayChannelUpstreamModelsBodySchema,
+  applyRelayChannelModelRestrictionsBodySchema,
   providerEarningsQuerySchema,
 } from "@/api/schema/relay/relay-channel.schema";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
@@ -116,6 +123,8 @@ export class RelayChannelController extends Controller {
     @Query() channelTypes?: RelayChannelManagementListItemDto["channelType"][],
     @Query() enabled?: boolean,
     @Query() submissionStatus?: RelayChannelSubmissionStatus,
+    @Query() models?: string[],
+    @Query() modelMatchMode?: RelayChannelModelMatchMode,
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
     return this.channelService.listManagementChannels(request.user!.userId, {
       page,
@@ -125,6 +134,8 @@ export class RelayChannelController extends Controller {
       channelTypes,
       enabled,
       submissionStatus,
+      models,
+      modelMatchMode,
     });
   }
 
@@ -451,6 +462,32 @@ export class RelayChannelController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RelayChannelUpstreamModelsResponse> {
     return this.channelService.listUpstreamModels(body, request.user!.userId);
+  }
+
+  @Post("batch/upstream-models")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @Middlewares(validateBody(batchRelayChannelUpstreamModelsBodySchema))
+  public async batchListUpstreamModels(
+    @Body() body: BatchRelayChannelUpstreamModelsRequest,
+  ): Promise<BatchRelayChannelUpstreamModelsResponse> {
+    return this.channelService.batchListUpstreamModels(body);
+  }
+
+  @Post("batch/model-restrictions")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(applyRelayChannelModelRestrictionsBodySchema),
+  )
+  public async applyModelRestrictions(
+    @Body() body: ApplyRelayChannelModelRestrictionsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ApplyRelayChannelModelRestrictionsResponse> {
+    return this.channelService.applyModelRestrictions(body, request.user!.userId, request);
   }
 
   @Get("provider/earnings")

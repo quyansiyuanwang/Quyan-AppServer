@@ -52,6 +52,7 @@ export interface RelayChannelQueryStore {
     records: RelayChannelManagementRecord[];
     total: number;
   }>;
+  listManagementRecords(where: Prisma.RelayChannelWhereInput): Promise<RelayChannelManagementRecord[]>;
   listSubmittedByUser(
     userId: string,
     page: number,

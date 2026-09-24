@@ -56,6 +56,11 @@ import type {
   RelayChannelChangeRequestStatus,
   RelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
+  BatchRelayChannelUpstreamModelsRequest,
+  BatchRelayChannelUpstreamModelsResponse,
+  BatchRelayChannelUpstreamModelsItemDto,
+  ApplyRelayChannelModelRestrictionsRequest,
+  ApplyRelayChannelModelRestrictionsResponse,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import type { ModelPricingDto } from "@/api/dto/relay/model-pricing.dto";
@@ -67,7 +72,7 @@ import {
   type RelayChannelStatus,
 } from "@/constant/relay-channel";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
-import type { RelayChannelStore } from "@/store/relay/relay-channel.store";
+import type { RelayChannelManagementRecord, RelayChannelStore } from "@/store/relay/relay-channel.store";
 import { UserRepository } from "@/store/users/user.repository";
 import type { UserStore } from "@/store/users/user.store";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
@@ -78,9 +83,9 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { resolveModelId } from "@/util/model-resolution.util";
-import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
+import { assertSafeOutboundUrl, type SafeOutboundUrl } from "@/util/developer-outbound-url";
 import { Prisma, type RelayChannel } from "@prisma/client";
-import { formatRelayRequestFormats, RELAY_REQUEST_FORMATS } from "@quyan/shared";
+import { formatRelayRequestFormats, parseAllowedModelsJson, RELAY_REQUEST_FORMATS } from "@quyan/shared";
 import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
@@ -91,12 +96,21 @@ import { resolveEffectiveRelayPoolMembers } from "./utils/relay-pool-members.uti
 import { RelayChannelChangeRequestRepository } from "@/store/relay/relay-channel-change-request.repository";
 import { env } from "@/config/env";
 import { ConfigService } from "@/services/system/config.service";
+import { getRelayChannelAllowedModelsMode } from "@/util/relay/relay-model-availability.util";
 
 const COPY_SUFFIX = "（副本）";
 const MAX_CHANNEL_NAME_LENGTH = 100;
 const POOLED_ALLOWED_MODE_VALUES = new Set(["all", "manual", "auto"] as const);
 const isPoolType = (type: RelayChannelType): boolean => type === "pooled" || type === "automatic-proxy-pool";
 const isUpstreamChannelType = (type: RelayChannelType): boolean => type === "standalone" || type === "pooled-member";
+
+interface PreparedUpstreamModelsRequest {
+  format: RelayChannelUpstreamModelsRequest["format"];
+  endpointUrl: string;
+  headers: Record<string, string>;
+  httpAgent: SafeOutboundUrl["httpAgent"];
+  httpsAgent: SafeOutboundUrl["httpsAgent"];
+}
 
 interface ValidatedRelayChannelData {
   name: string;
@@ -151,6 +165,7 @@ const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
 const DEFAULT_AUTOMATIC_POOL_RANKING_MODE = "price-first" as const;
 const UPSTREAM_MODELS_TIMEOUT_MS = 15_000;
 const UPSTREAM_MODELS_MAX_BYTES = 2 * 1024 * 1024;
+const UPSTREAM_MODELS_BATCH_CONCURRENCY = 4;
 
 const isProviderServiceEnabled = (channel: Pick<RelayChannel, "providerServiceEnabled">): boolean =>
   channel.providerServiceEnabled !== false;
@@ -268,10 +283,14 @@ export class RelayChannelService {
       channelTypes?: RelayChannelType[];
       enabled?: boolean;
       submissionStatus?: RelayChannelSubmissionStatus;
+      models?: string[];
+      modelMatchMode?: "any" | "all";
     },
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 25;
+    const modelFilters = [...new Set((query.models ?? []).map((model) => model.trim()).filter(Boolean))];
+    const modelMatchMode = query.modelMatchMode ?? "any";
     const where: Prisma.RelayChannelWhereInput = {
       status:
         query.enabled === undefined
@@ -300,11 +319,35 @@ export class RelayChannelService {
     const visibilityWhere = await this.buildManagementVisibilityWhere(actorUserId);
     if (visibilityWhere) where.AND = [visibilityWhere];
 
-    const { records, total } = await this.relayChannelRepository.listManagementPage({
-      where,
-      page,
-      pageSize,
-    });
+    let records;
+    let total;
+    if (modelFilters.length > 0) {
+      const candidates = await this.relayChannelRepository.listManagementRecords(where);
+      const modelCatalog = await this.modelPricingService.getModelPricing();
+      const resolverContext = await this.relayPoolResolver.preloadContext(modelCatalog, {
+        includeDisabled: true,
+      });
+      const matchingRecords: RelayChannelManagementRecord[] = [];
+      for (const candidate of candidates) {
+        const capabilities = await this.relayPoolResolver.resolveChannelCapabilities(candidate.id, resolverContext);
+        const availableModels = new Set(capabilities.map((capability) => capability.catalogModelName));
+        const matches =
+          modelMatchMode === "all"
+            ? modelFilters.every((model) => availableModels.has(model))
+            : modelFilters.some((model) => availableModels.has(model));
+        if (matches) matchingRecords.push(candidate);
+      }
+      total = matchingRecords.length;
+      records = matchingRecords.slice((page - 1) * pageSize, page * pageSize);
+    } else {
+      const result = await this.relayChannelRepository.listManagementPage({
+        where,
+        page,
+        pageSize,
+      });
+      records = result.records;
+      total = result.total;
+    }
 
     return {
       items: records.map((channel) => {
@@ -2464,22 +2507,115 @@ export class RelayChannelService {
           messageKey: "relayChannel.probeUpstreamModelsForbidden",
         });
       }
-      if (data.format === "openai") {
-        upstreamUrl = channel.openaiUpstreamUrl || undefined;
-        apiKey = channel.openaiUpstreamApiKey || undefined;
-      } else if (data.format === "anthropic") {
-        upstreamUrl = channel.anthropicUpstreamUrl || undefined;
-        apiKey = channel.anthropicUpstreamApiKey || undefined;
-      } else {
-        upstreamUrl = channel.geminiUpstreamUrl || undefined;
-        apiKey = channel.geminiUpstreamApiKey || undefined;
-      }
-      channelUseProxy = channel.useProxy === true;
+      const configuration = this.getUpstreamProbeConfiguration(channel, data.format);
+      upstreamUrl = configuration.upstreamUrl;
+      apiKey = configuration.apiKey;
+      channelUseProxy = configuration.useProxy;
     }
     if (!upstreamUrl || !apiKey)
       throw new BadRequestError("渠道缺少对应格式的上游配置", undefined, {
         messageKey: "relayChannel.upstreamConfigMissingForFormat",
       });
+
+    const prepared = await this.prepareUpstreamModelsRequest(data.format, upstreamUrl, apiKey, channelUseProxy);
+    try {
+      return await this.executeUpstreamModelsRequest(prepared);
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+      throw new BadRequestError(`上游模型列表请求失败${status ? `（HTTP ${status}）` : ""}`, undefined, {
+        messageKey: "relayChannel.upstreamModelListFailed",
+      });
+    }
+  }
+
+  async batchListUpstreamModels(
+    data: BatchRelayChannelUpstreamModelsRequest,
+  ): Promise<BatchRelayChannelUpstreamModelsResponse> {
+    const channels = await this.getOrderedChannelsByIds(data.ids, true);
+    const items = new Array<BatchRelayChannelUpstreamModelsItemDto>(channels.length);
+    let cursor = 0;
+
+    const worker = async (): Promise<void> => {
+      while (cursor < channels.length) {
+        const index = cursor++;
+        const channel = channels[index];
+        const configuration = this.getUpstreamProbeConfiguration(channel, data.format);
+        if (!configuration.upstreamUrl || !configuration.apiKey) {
+          items[index] = {
+            channelId: channel.id,
+            channelName: channel.name,
+            status: "skipped",
+            models: [],
+            reasonKey: "relayChannel.upstreamConfigMissingForFormat",
+          };
+          continue;
+        }
+
+        try {
+          const prepared = await this.prepareUpstreamModelsRequest(
+            data.format,
+            configuration.upstreamUrl,
+            configuration.apiKey,
+            configuration.useProxy,
+          );
+          const response = await this.executeUpstreamModelsRequest(prepared);
+          items[index] = {
+            channelId: channel.id,
+            channelName: channel.name,
+            status: "success",
+            models: response.models,
+          };
+        } catch (error) {
+          items[index] = {
+            channelId: channel.id,
+            channelName: channel.name,
+            status: "failed",
+            models: [],
+            reasonKey: "relayChannel.upstreamModelListFailed",
+            upstreamStatus: axios.isAxiosError(error) ? error.response?.status : undefined,
+          };
+        }
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(UPSTREAM_MODELS_BATCH_CONCURRENCY, Math.max(channels.length, 1)) }, () => worker()),
+    );
+
+    return { format: data.format, items };
+  }
+
+  private getUpstreamProbeConfiguration(
+    channel: RelayChannel,
+    format: RelayChannelUpstreamModelsRequest["format"],
+  ): { upstreamUrl?: string; apiKey?: string; useProxy: boolean } {
+    if (format === "openai") {
+      return {
+        upstreamUrl: channel.openaiUpstreamUrl || undefined,
+        apiKey: channel.openaiUpstreamApiKey || undefined,
+        useProxy: channel.useProxy === true,
+      };
+    }
+    if (format === "anthropic") {
+      return {
+        upstreamUrl: channel.anthropicUpstreamUrl || undefined,
+        apiKey: channel.anthropicUpstreamApiKey || undefined,
+        useProxy: channel.useProxy === true,
+      };
+    }
+    return {
+      upstreamUrl: channel.geminiUpstreamUrl || undefined,
+      apiKey: channel.geminiUpstreamApiKey || undefined,
+      useProxy: channel.useProxy === true,
+    };
+  }
+
+  private async prepareUpstreamModelsRequest(
+    format: RelayChannelUpstreamModelsRequest["format"],
+    upstreamUrl: string,
+    apiKey: string,
+    channelUseProxy: boolean,
+  ): Promise<PreparedUpstreamModelsRequest> {
     const safe = await assertSafeOutboundUrl(upstreamUrl);
     const relayProxyConfig = await this.configService.getRelayProxyConfig();
     const probeAgent =
@@ -2490,60 +2626,61 @@ export class RelayChannelService {
     const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
     endpoint.pathname = normalizedPath.endsWith("/v1") ? `${normalizedPath}/models` : `${normalizedPath}/v1/models`;
     const headers: Record<string, string> =
-      data.format === "anthropic"
+      format === "anthropic"
         ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
-        : data.format === "gemini"
+        : format === "gemini"
           ? { "x-goog-api-key": apiKey }
           : { Authorization: `Bearer ${apiKey}` };
-    try {
-      const response = await axios.get(endpoint.toString(), {
-        headers,
-        httpAgent: probeAgent || safe.httpAgent,
-        httpsAgent: probeAgent || safe.httpsAgent,
-        proxy: false,
-        timeout: UPSTREAM_MODELS_TIMEOUT_MS,
-        maxRedirects: 0,
-        maxContentLength: UPSTREAM_MODELS_MAX_BYTES,
-        validateStatus: (status) => status >= 200 && status < 300,
-      });
-      const payload = response.data as Record<string, unknown>;
-      const source = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
-      const ids = source
-        .map((item) => {
-          if (typeof item === "string") return item;
-          if (!item || typeof item !== "object") return "";
-          const record = item as Record<string, unknown>;
-          return String(record.id || record.name || record.model || "");
-        })
-        .map((id) => id.trim())
-        .filter(Boolean);
-      const catalog = await this.modelPricingService.getModelPricing();
-      const seen = new Set<string>();
-      return {
-        format: data.format,
-        models: ids
-          .filter((id) => !seen.has(id) && seen.add(id))
-          .map((id) => {
-            const matched = catalog.find((model) => resolveModelId(model).trim() === id);
-            return {
-              id,
-              matched: Boolean(matched),
-              pricingModel: matched?.model,
-              pricingModelId: matched ? resolveModelId(matched) : undefined,
-            };
-          }),
-      };
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        throw new BadRequestError(`上游模型列表请求失败${status ? `（HTTP ${status}）` : ""}`, undefined, {
-          messageKey: "relayChannel.upstreamModelListFailed",
-        });
-      }
-      throw new BadRequestError("上游模型列表请求失败", undefined, {
-        messageKey: "relayChannel.upstreamModelListFailed",
-      });
-    }
+
+    return {
+      format,
+      endpointUrl: endpoint.toString(),
+      headers,
+      httpAgent: probeAgent || safe.httpAgent,
+      httpsAgent: probeAgent || safe.httpsAgent,
+    };
+  }
+
+  private async executeUpstreamModelsRequest(
+    prepared: PreparedUpstreamModelsRequest,
+  ): Promise<RelayChannelUpstreamModelsResponse> {
+    const response = await axios.get(prepared.endpointUrl, {
+      headers: prepared.headers,
+      httpAgent: prepared.httpAgent,
+      httpsAgent: prepared.httpsAgent,
+      proxy: false,
+      timeout: UPSTREAM_MODELS_TIMEOUT_MS,
+      maxRedirects: 0,
+      maxContentLength: UPSTREAM_MODELS_MAX_BYTES,
+      validateStatus: (status) => status >= 200 && status < 300,
+    });
+    const payload = response.data as Record<string, unknown>;
+    const source = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
+    const ids = source
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (!item || typeof item !== "object") return "";
+        const record = item as Record<string, unknown>;
+        return String(record.id || record.name || record.model || "");
+      })
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const catalog = await this.modelPricingService.getModelPricing();
+    const seen = new Set<string>();
+    return {
+      format: prepared.format,
+      models: ids
+        .filter((id) => !seen.has(id) && seen.add(id))
+        .map((id) => {
+          const matched = catalog.find((model) => resolveModelId(model).trim() === id);
+          return {
+            id,
+            matched: Boolean(matched),
+            pricingModel: matched?.model,
+            pricingModelId: matched ? resolveModelId(matched) : undefined,
+          };
+        }),
+    };
   }
 
   private getChangeRequestEncryptionKey(): Buffer {
@@ -2980,6 +3117,83 @@ export class RelayChannelService {
     }
 
     await this.logBatchChannelUpdate(body, actorUserId, request, updated.length, rejected.length);
+
+    return { updated, rejected };
+  }
+
+  async applyModelRestrictions(
+    body: ApplyRelayChannelModelRestrictionsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<ApplyRelayChannelModelRestrictionsResponse> {
+    const channels = await this.getOrderedChannelsByIds(
+      body.targets.map((target) => target.channelId),
+      true,
+    );
+    const channelsById = new Map(channels.map((channel) => [channel.id, channel]));
+    const modelCatalog = await this.modelPricingService.getModelPricing();
+    const knownModelNames = new Set(
+      modelCatalog.map((model) => model.model?.trim()).filter((model): model is string => Boolean(model)),
+    );
+    const updated: RelayChannelDto[] = [];
+    const rejected: BatchUpdateRelayChannelsResponse["rejected"] = [];
+
+    for (const target of body.targets) {
+      const channel = channelsById.get(target.channelId)!;
+      try {
+        const unknownModel = target.addModels.find((model) => !knownModelNames.has(model.trim()));
+        if (unknownModel) {
+          throw new BadRequestError(`Unknown global pricing model '${unknownModel}'`, undefined, {
+            messageKey: "relayChannel.modelRestrictionUnknown",
+          });
+        }
+
+        const currentModels =
+          getRelayChannelAllowedModelsMode(channel) === "manual"
+            ? (parseAllowedModelsJson(channel.allowedModels) ?? [])
+            : [];
+        const mergedModels = [...new Set([...currentModels, ...target.addModels.map((model) => model.trim())])];
+        const patch: UpdateRelayChannelRequest = {
+          allowedModels: JSON.stringify(mergedModels),
+        };
+        if (isPoolType(channel.channelType as RelayChannelType)) {
+          const routingConfig =
+            channel.routingConfig && typeof channel.routingConfig === "object" && !Array.isArray(channel.routingConfig)
+              ? (channel.routingConfig as Record<string, unknown>)
+              : {};
+          patch.routingConfig = {
+            ...routingConfig,
+            allowedModelsMode: "manual",
+          } as RelayChannelRoutingConfigDto;
+        }
+
+        const validated = await this.buildValidatedChannelData(patch, channel);
+        const saved = await this.relayChannelRepository.withTransaction((tx) =>
+          this.relayChannelRepository.updateById(channel.id, this.toPersistenceInput(validated), tx),
+        );
+        updated.push(await this.toDto(saved));
+      } catch (error) {
+        rejected.push({
+          id: channel.id,
+          reason: error instanceof Error ? error.message : "Channel model restriction update failed",
+        });
+      }
+    }
+
+    await this.businessLogService.logOperation({
+      operationType: OperationType.RELAY_CHANNEL_BATCH_UPDATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetResourceType: "RELAY_CHANNEL",
+      description: `批量应用了 ${updated.length} 个中转渠道的模型限制${rejected.length ? `，${rejected.length} 个未更新` : ""}`,
+      metadata: {
+        ids: body.targets.map((target) => target.channelId),
+        updated: updated.length,
+        rejected: rejected.length,
+      },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
 
     return { updated, rejected };
   }

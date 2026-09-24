@@ -260,6 +260,21 @@ Note: the page tries to load users, groups, and roles for selection, but admins 
   - in pooled setups, this directly changes which members are eligible
 - Guidance: enable this when an upstream supports only certain models or when you need cost control.
 
+### Batch probe and apply models
+
+The channel management batch actions include **Batch probe models**. After selecting channels, you can probe the OpenAI, Anthropic, and Gemini upstream `/v1/models` endpoints separately:
+
+- Only models with global pricing can be selected or applied. Unmatched models remain visible but cannot be selected.
+- Applying merges by channel: only selected models actually discovered on that channel are added to its existing restriction. Existing models are not removed, and unsupported models are not written.
+- Channels without the upstream URL or credential for a format are skipped. A failure on one channel does not stop the others.
+- Probe results are kept only in the current dialog and are not persisted.
+
+The automatic proxy pool member picker can filter candidates by each channel's currently effective model restrictions:
+
+- Choose either **Any match** or **All match**; the default is any match.
+- After selecting channels and confirming, the filter models are merged into the pool-level manual restriction. Member channel restrictions are not modified.
+- Channels configured as all models or inferred from pool members match every configured pricing model and may not reflect actual upstream support. To filter accurately, first use batch probing to apply the models each channel actually supports.
+
 ## Upstream configuration
 
 ### OpenAI / Anthropic / Gemini upstream URL

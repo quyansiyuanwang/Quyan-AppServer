@@ -597,6 +597,7 @@ const zhCN = {
     healthStatsStandaloneOnly: "只有独立渠道才有健康统计数据",
     healthStorageUnavailable: "渠道健康数据存储暂时不可用",
     automaticPoolTokenModeOnly: "自动代理池只能通过令牌的自动路由模式选择",
+    modelRestrictionUnknown: "模型未配置全局定价",
     allowedModelsDuplicate: "allowedModels 中存在重复的模型 ID，每个模型 ID 只能出现一次",
     nameExists: "中转渠道名称已存在",
     nameGenerationFailed: "无法生成唯一的中转渠道名称",
