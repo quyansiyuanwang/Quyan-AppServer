@@ -63,6 +63,7 @@ Each token can control the `/v1` prefix forwarded upstream. This setting is inde
 - Ordered channel list.
 - Failover summary (automatic fallback when the primary channel is unavailable).
 - Quota-window detail panel.
+- When failover is enabled and the max channel switches value is below the recommendation, saving asks whether to adopt the recommended value. You can also keep the current value and continue saving; closing the dialog cancels the save.
 
 ### Routing mode
 

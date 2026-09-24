@@ -950,6 +950,7 @@ export const useRelayTokenManagement = () => {
 
   const showMaxRetriesRiskWarning = computed(
     () =>
+      editForm.value.routingMode === 'ordered' &&
       editForm.value.failoverConfig.enabled &&
       editForm.value.channelConfigs.length > 1 &&
       editForm.value.failoverConfig.maxRetries < requiredRetrySlots.value,
@@ -962,6 +963,35 @@ export const useRelayTokenManagement = () => {
       totalChannels: editForm.value.channelConfigs.length,
     }),
   )
+
+  const confirmRecommendedMaxRetries = async (): Promise<'adopt' | 'keep' | 'abort'> => {
+    if (!showMaxRetriesRiskWarning.value) return 'keep'
+
+    const configured = editForm.value.failoverConfig.maxRetries
+    const recommended = requiredRetrySlots.value
+
+    try {
+      await ElMessageBox.confirm(
+        i18ns.t('relay.maxRetriesSaveConfirmMessage', {
+          configured,
+          recommended,
+          totalChannels: editForm.value.channelConfigs.length,
+        }),
+        i18ns.t('relay.maxRetriesSaveConfirmTitle'),
+        {
+          type: 'warning',
+          confirmButtonText: i18ns.t('relay.maxRetriesSaveAdoptAndConfirm', { recommended }),
+          cancelButtonText: i18ns.t('relay.maxRetriesSaveKeepCurrent', { configured }),
+          distinguishCancelAndClose: true,
+        },
+      )
+      return 'adopt'
+    } catch (error) {
+      if (error === 'cancel') return 'keep'
+      if (error === 'close') return 'abort'
+      throw error
+    }
+  }
 
   const getModelIdDisplayLabel = (modelId: string): string => {
     return modelId
@@ -2144,6 +2174,12 @@ export const useRelayTokenManagement = () => {
       editForm.value.ipWhitelist = normalizeIpWhitelistEntries(editForm.value.ipWhitelist)
       const ipWhitelist = normalizeIpWhitelistInput(editForm.value.ipWhitelist)
       const normalizedExpiresAt = normalizeOptionalDateForSubmit(editForm.value.expiresAt)
+
+      const maxRetriesDecision = await confirmRecommendedMaxRetries()
+      if (maxRetriesDecision === 'abort') return
+      if (maxRetriesDecision === 'adopt') {
+        editForm.value.failoverConfig.maxRetries = requiredRetrySlots.value
+      }
 
       const failoverConfig = {
         enabled: editForm.value.failoverConfig.enabled,

@@ -3841,6 +3841,11 @@ const zhCN: DeepStringify<typeof en> = {
     retryStatusCodesHelpMobile: '默认用 4xx / 5xx 覆盖大多数错误；也支持手动输入特殊规则。',
     maxRetriesRiskWarning:
       '当前共配置了 {totalChannels} 个有序渠道，但最大重试次数仅为 {configured}，靠后的渠道可能永远不会被尝试。若希望覆盖全部后续渠道，建议至少设置为 {recommended}。',
+    maxRetriesSaveConfirmTitle: '最大渠道切换次数低于建议值',
+    maxRetriesSaveConfirmMessage:
+      '当前配置了 {totalChannels} 个有序渠道，但最大渠道切换次数为 {configured}。是否采用建议值 {recommended} 并保存？',
+    maxRetriesSaveAdoptAndConfirm: '采用建议值（{recommended}）并保存',
+    maxRetriesSaveKeepCurrent: '保持当前值（{configured}）并保存',
     invalidRetryStatusRule: '无效的切换规则：{rule}',
     retryStatusCodeLabel4xx: '4xx - 所有 4xx 上游错误',
     retryStatusCodeLabel5xx: '5xx - 所有 5xx 上游错误',
