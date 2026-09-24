@@ -999,6 +999,44 @@
         }}</el-radio-button>
       </el-radio-group>
     </div>
+    <div
+      v-if="channelForm.channelType === 'automatic-proxy-pool'"
+      class="relay-pool-member-picker__model-filter"
+    >
+      <el-select
+        :model-value="poolMemberPickerModels"
+        multiple
+        filterable
+        clearable
+        :placeholder="i18ns.t('relay.poolMemberModelFilterPlaceholder')"
+        @update:model-value="updatePoolMemberModelFilter"
+      >
+        <el-option
+          v-for="model in availableModels"
+          :key="model.model"
+          :label="formatModelOptionLabel(model)"
+          :value="model.model"
+        />
+      </el-select>
+      <div class="relay-pool-member-picker__model-match">
+        <span>{{ i18ns.t('relay.poolMemberModelMatchMode') }}</span>
+        <el-radio-group
+          :model-value="poolMemberPickerModelMatchMode"
+          size="small"
+          @update:model-value="updatePoolMemberModelMatchMode"
+        >
+          <el-radio-button value="any">{{
+            i18ns.t('relay.poolMemberModelMatchAny')
+          }}</el-radio-button>
+          <el-radio-button value="all">{{
+            i18ns.t('relay.poolMemberModelMatchAll')
+          }}</el-radio-button>
+        </el-radio-group>
+      </div>
+      <p class="relay-pool-member-picker__model-help">
+        {{ i18ns.t('relay.poolMemberModelFilterHelp') }}
+      </p>
+    </div>
     <el-table :data="poolMemberPickerRows" max-height="360" size="small">
       <el-table-column width="48"
         ><template #default="{ row }"
@@ -1662,6 +1700,7 @@ const {
   visibilityUserOptionsLoading,
   visibilityGroupOptionsLoading,
   visibilityRoleOptionsLoading,
+  availableModels,
   filteredModels,
   formatModelOptionLabel,
   isModelDisabled,
@@ -1676,6 +1715,10 @@ const {
   poolMemberPickerRows,
   poolMemberPickerPagination,
   poolMemberPickerKeyword,
+  poolMemberPickerModels,
+  poolMemberPickerModelMatchMode,
+  updatePoolMemberModelFilter,
+  updatePoolMemberModelMatchMode,
   pooledParentOptions,
   channelTopologyMode,
   selectedPoolMemberCandidateIds,
@@ -1909,6 +1952,31 @@ const getModelMappingEntries = (value: unknown): Array<[string, string]> => {
   gap: 8px;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.relay-pool-member-picker__model-filter {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.relay-pool-member-picker__model-match {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.relay-pool-member-picker__model-help {
+  margin: 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 @media (max-width: 767px) {

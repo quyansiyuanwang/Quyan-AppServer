@@ -35,6 +35,10 @@ import type {
   ReviewRelayChannelChangeRequest,
   RelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
+  BatchRelayChannelUpstreamModelsRequest,
+  BatchRelayChannelUpstreamModelsResponse,
+  ApplyRelayChannelModelRestrictionsRequest,
+  ApplyRelayChannelModelRestrictionsResponse,
   UpdateRelayChannelProviderConfigRequest,
   UpdateRelayChannelServiceStatusRequest,
 } from '@/client/types.gen'
@@ -73,6 +77,8 @@ class RelayChannelService {
     channelTypes?: RelayChannelManagementListItemDto['channelType'][]
     enabled?: boolean
     submissionStatus?: RelayChannelSubmissionStatus
+    models?: string[]
+    modelMatchMode?: 'any' | 'all'
   }): Promise<PaginatedResponseRelayChannelManagementListItemDto> {
     const result = await relayChannelApi.listManagementChannels({
       params: {
@@ -83,6 +89,8 @@ class RelayChannelService {
         channelTypes: options.channelTypes,
         enabled: options.enabled,
         submissionStatus: options.submissionStatus,
+        models: options.models?.length ? options.models : undefined,
+        modelMatchMode: options.models?.length ? (options.modelMatchMode ?? 'any') : undefined,
       },
     })
     return checkApiResult<any>(result, true).data
@@ -323,6 +331,16 @@ class RelayChannelService {
   async listUpstreamModels(data: RelayChannelUpstreamModelsRequest) {
     const result = await relayChannelApi.listUpstreamModels({ body: data })
     return checkApiResult<any>(result, true).data as RelayChannelUpstreamModelsResponse
+  }
+
+  async batchListUpstreamModels(data: BatchRelayChannelUpstreamModelsRequest) {
+    const result = await relayChannelApi.batchListUpstreamModels({ body: data })
+    return checkApiResult<any>(result, true).data as BatchRelayChannelUpstreamModelsResponse
+  }
+
+  async applyModelRestrictions(data: ApplyRelayChannelModelRestrictionsRequest) {
+    const result = await relayChannelApi.applyModelRestrictions({ body: data })
+    return checkApiResult<any>(result, true).data as ApplyRelayChannelModelRestrictionsResponse
   }
 
   async getMyProviderEarnings(options: {

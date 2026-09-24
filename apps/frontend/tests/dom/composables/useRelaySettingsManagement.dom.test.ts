@@ -920,4 +920,71 @@ describe('useRelaySettingsManagement', () => {
 
     wrapper.unmount()
   })
+  it('opens the independent batch model dialog for selected channels', async () => {
+    const { api, wrapper } = await mountComposable()
+    api.selectedChannelIds.value = ['channel-1']
+
+    api.openChannelModelBatchDialog()
+
+    expect(api.showChannelModelBatchDialog.value).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('filters automatic pool candidates by effective models and applies a manual pool restriction', async () => {
+    const { api, wrapper } = await mountComposable()
+    const candidate = {
+      id: 'candidate-1',
+      name: 'Candidate Pool',
+      enabled: true,
+      providerServiceEnabled: true,
+      serviceEnabled: true,
+      channelType: 'pooled',
+      routingStrategy: 'priority',
+      visibilityMode: 'public',
+      poolMemberCount: 0,
+      multiplier: 1,
+      submissionStatus: 'approved',
+      providerCount: 0,
+      providerCommissionPercent: 0,
+      updateTime: new Date().toISOString(),
+    }
+    listManagementChannelsMock.mockResolvedValue({
+      items: [candidate],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    })
+    api.channelForm.value = {
+      ...api.channelForm.value,
+      channelType: 'automatic-proxy-pool',
+      pooledAllowedModelsMode: 'manual',
+      allowedModelsArray: ['existing-model'],
+    }
+
+    await api.openPoolMemberPicker()
+    await api.updatePoolMemberModelFilter(['gpt-4o-mini', 'new-model'])
+    await api.updatePoolMemberModelMatchMode('all')
+
+    expect(listManagementChannelsMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        channelTypes: ['pooled', 'standalone'],
+        models: ['gpt-4o-mini', 'new-model'],
+        modelMatchMode: 'all',
+      }),
+    )
+
+    api.selectedPoolMemberCandidateIds.value = [candidate.id]
+    api.addSelectedPoolMembers()
+
+    expect(api.channelForm.value.poolMembers.map((member) => member.memberChannelId)).toEqual([
+      candidate.id,
+    ])
+    expect(api.channelForm.value.pooledAllowedModelsMode).toBe('manual')
+    expect(api.channelForm.value.allowedModelsArray).toEqual([
+      'existing-model',
+      'gpt-4o-mini',
+      'new-model',
+    ])
+    wrapper.unmount()
+  })
 })

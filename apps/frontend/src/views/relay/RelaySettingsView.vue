@@ -4,6 +4,7 @@
     <RelaySettingsPageMobile v-else />
     <RelaySettingsChannelDialogs />
     <RelayChannelBatchEditDialog />
+    <RelayChannelModelBatchDialog />
     <RelaySettingsTimeRuleDialog />
   </div>
 </template>
@@ -12,6 +13,7 @@
 import { provide } from 'vue'
 import RelaySettingsChannelDialogs from './relay-settings/components/RelaySettingsChannelDialogs.vue'
 import RelayChannelBatchEditDialog from './relay-settings/components/RelayChannelBatchEditDialog.vue'
+import RelayChannelModelBatchDialog from './relay-settings/components/RelayChannelModelBatchDialog.vue'
 import RelaySettingsPageDesktop from './relay-settings/components/RelaySettingsPageDesktop.vue'
 import RelaySettingsPageMobile from './relay-settings/components/RelaySettingsPageMobile.vue'
 import RelaySettingsTimeRuleDialog from './relay-settings/components/RelaySettingsTimeRuleDialog.vue'
