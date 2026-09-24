@@ -717,6 +717,165 @@ describe('RelayTokenManagementView', () => {
     })
   })
 
+  it('adopts the recommended max retries before creating a token', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    vm.editForm.channelConfigs = [
+      { channelId: 'channel-primary', priority: 0 },
+      { channelId: 'channel-secondary', priority: 1 },
+      { channelId: 'channel-tertiary', priority: 2 },
+    ]
+    vm.editForm.failoverConfig.enabled = true
+    vm.editForm.failoverConfig.maxRetries = 0
+
+    await vm.handleSave()
+    await flushPromises()
+
+    expect(confirmMock).toHaveBeenCalledWith(
+      expect.stringContaining('当前配置了 3 个有序渠道'),
+      '最大渠道切换次数低于建议值',
+      expect.objectContaining({
+        type: 'warning',
+        confirmButtonText: '采用建议值（2）并保存',
+        cancelButtonText: '保持当前值（0）并保存',
+        distinguishCancelAndClose: true,
+      }),
+    )
+    expect(vm.editForm.failoverConfig.maxRetries).toBe(2)
+    expect(createRelayTokenMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        failoverConfig: expect.objectContaining({ maxRetries: 2 }),
+      }),
+    )
+  })
+
+  it('keeps the current max retries when saving an edited token', async () => {
+    confirmMock.mockRejectedValueOnce('cancel')
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openEditDialog(
+      createRelayTokenFixture({
+        channelConfigs: [
+          { channelId: 'channel-primary', priority: 0 },
+          { channelId: 'channel-secondary', priority: 1 },
+          { channelId: 'channel-tertiary', priority: 2 },
+        ],
+        failoverConfig: {
+          ...relayToken.failoverConfig,
+          enabled: true,
+          maxRetries: 0,
+        },
+      }),
+    )
+
+    await vm.handleSave()
+    await flushPromises()
+
+    expect(confirmMock).toHaveBeenCalledTimes(1)
+    expect(vm.editForm.failoverConfig.maxRetries).toBe(0)
+    expect(updateTokenMock).toHaveBeenCalledWith(
+      relayToken.id,
+      expect.objectContaining({
+        failoverConfig: expect.objectContaining({ maxRetries: 0 }),
+      }),
+    )
+    expect(messageErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('cancels the save when the max retries recommendation dialog is closed', async () => {
+    confirmMock.mockRejectedValueOnce('close')
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    vm.editForm.channelConfigs = [
+      { channelId: 'channel-primary', priority: 0 },
+      { channelId: 'channel-secondary', priority: 1 },
+      { channelId: 'channel-tertiary', priority: 2 },
+    ]
+    vm.editForm.failoverConfig.enabled = true
+    vm.editForm.failoverConfig.maxRetries = 1
+
+    await vm.handleSave()
+    await flushPromises()
+
+    expect(confirmMock).toHaveBeenCalledTimes(1)
+    expect(createRelayTokenMock).not.toHaveBeenCalled()
+    expect(messageSuccessMock).not.toHaveBeenCalled()
+    expect(messageErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('does not prompt for recommended max retries when failover is disabled', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    vm.editForm.channelConfigs = [
+      { channelId: 'channel-primary', priority: 0 },
+      { channelId: 'channel-secondary', priority: 1 },
+      { channelId: 'channel-tertiary', priority: 2 },
+    ]
+    vm.editForm.failoverConfig.enabled = false
+    vm.editForm.failoverConfig.maxRetries = 0
+
+    await vm.handleSave()
+    await flushPromises()
+
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(createRelayTokenMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not prompt for recommended max retries in automatic pool mode', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    vm.editForm.routingMode = 'automatic-pool'
+    vm.editForm.automaticProxyPoolChannelId = automaticProxyPool.id
+    vm.editForm.channelConfigs = [
+      { channelId: 'channel-primary', priority: 0 },
+      { channelId: 'channel-secondary', priority: 1 },
+      { channelId: 'channel-tertiary', priority: 2 },
+    ]
+    vm.editForm.failoverConfig.enabled = true
+    vm.editForm.failoverConfig.maxRetries = 0
+
+    await vm.handleSave()
+    await flushPromises()
+
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(createRelayTokenMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not prompt when max retries already covers every ordered channel', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreateDialog()
+    vm.editForm.channelConfigs = [
+      { channelId: 'channel-primary', priority: 0 },
+      { channelId: 'channel-secondary', priority: 1 },
+      { channelId: 'channel-tertiary', priority: 2 },
+    ]
+    vm.editForm.failoverConfig.enabled = true
+    vm.editForm.failoverConfig.maxRetries = 2
+
+    await vm.handleSave()
+    await flushPromises()
+
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(createRelayTokenMock).toHaveBeenCalledTimes(1)
+  })
+
   it('shows and saves blocked channels only for automatic proxy pools', async () => {
     const wrapper = mountView()
     await flushPromises()

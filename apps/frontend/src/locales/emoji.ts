@@ -3944,6 +3944,11 @@ const emoji: DeepStringify<typeof en> = {
     retryStatusCodesHelpMobile: '📜 4📜 / 5📜；📜 401、40📜、📜*、/^5(02\\|03)$/.',
     maxRetriesRiskWarning:
       '⚠️ {totalChannels} 📡, 🔁 {configured} 🧮. ⚠️ 📡 ⚠️. ⚠️ 📡, ⚠️ {recommended}.',
+    maxRetriesSaveConfirmTitle: '⚠️ 🔁 🔢 📉 ✅',
+    maxRetriesSaveConfirmMessage:
+      '⚠️ {totalChannels} 📡，🔁 {configured}。✅ ✅ {recommended} ➕ 💾？',
+    maxRetriesSaveAdoptAndConfirm: '✅ {recommended} ➕ 💾',
+    maxRetriesSaveKeepCurrent: '↔️ {configured} ➕ 💾',
     invalidRetryStatusRule: '❌ 🔁 📏: {rule}',
     retryStatusCodeLabel4xx: '4📜 - 4️⃣❌❌',
     retryStatusCodeLabel5xx: '5📜 - 5️⃣❌❌',
