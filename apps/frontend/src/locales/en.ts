@@ -4020,6 +4020,11 @@ export default {
       'Use 4xx / 5xx by default for broad coverage, and enter custom rules when you need something specific.',
     maxRetriesRiskWarning:
       'You configured {configured} retries for {totalChannels} ordered channels. Later channels may never be tried. To cover all remaining channels, set max retries to at least {recommended}.',
+    maxRetriesSaveConfirmTitle: 'Max channel switches is below the recommendation',
+    maxRetriesSaveConfirmMessage:
+      'You configured {totalChannels} ordered channels but only {configured} max channel switches. Adopt the recommended value of {recommended} and save?',
+    maxRetriesSaveAdoptAndConfirm: 'Adopt {recommended} and save',
+    maxRetriesSaveKeepCurrent: 'Keep {configured} and save',
     invalidRetryStatusRule: 'Invalid failover rule: {rule}',
     retryStatusCodeLabel4xx: '4xx - all upstream 4xx responses',
     retryStatusCodeLabel5xx: '5xx - all upstream 5xx responses',
