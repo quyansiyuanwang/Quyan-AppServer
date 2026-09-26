@@ -10,7 +10,7 @@ The data lifecycle page manages hot-data retention for large tables and lists OS
 
 ## Default Policies
 
-API and notification logs are retained for 90 days. Business logs, relay usage, and monthly-pass usage are retained for 180 days. Tracking and heatmap data are retained for 30 days. Archive files are retained for one year.
+API logs, notification logs, and AI request logs default to 90 days. Business logs, relay usage, and monthly-pass usage are retained for 180 days. Tracking and heatmap data are retained for 30 days. AI request log archives are permanent; other archive files default to one year.
 
 Balance transactions are never automatically archived or deleted.
 
@@ -28,6 +28,6 @@ The default schedule runs enabled policies daily at 03:20 (Asia/Shanghai). Admin
 
 Archive details are available as administrator downloads in the first release, not as in-app full-text search. The archive bucket is private by default, so a normal object URL copied from the OSS console has no signature and returns AccessDenied; use the page download button to generate a temporary signed URL. If OSS has transitioned an object to Archive or cold storage, the first download click requests a restore; download it again after OSS finishes restoring the object. Expired archive objects are removed automatically.
 
-Downloads are gzip-compressed NDJSON containing the original rows. The Dangerous Maintenance page can preview and import supported datasets. Imports use a separate, immediately readable OSS staging bucket, and delete the temporary object after either success or failure. An archive bucket may use Archive or cold storage, but it cannot also be the import staging bucket. `relay_usages` and `monthly_pass_usages` depend on token/pass rows that must still exist; missing dependencies block the import. Balance transactions are outside the import scope.
+Downloads are gzip-compressed NDJSON containing the original rows. The Dangerous Maintenance page can preview and import supported datasets. Imports use a separate, immediately readable OSS staging bucket, and delete the temporary object after either success or failure. An archive bucket may use Archive or cold storage, but it cannot also be the import staging bucket. `relay_usages` and `monthly_pass_usages` depend on token/pass rows that must still exist; missing dependencies block the import. Balance transactions and AI request logs are outside the import scope; AI request log archives are download-only for auditing.
 
 After database rows are deleted, InnoDB normally marks the pages reusable but does not immediately shrink the `.ibd` file. Reclaiming operating-system disk space requires a separate table rebuild or `OPTIMIZE TABLE` during a low-traffic window; archival runs do not do this automatically. Server log files are removed from local disk after the OSS upload is verified.

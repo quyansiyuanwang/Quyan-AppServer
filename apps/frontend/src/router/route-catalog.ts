@@ -97,6 +97,7 @@ const legacyRoutePathByName: Record<string, string> = {
   relayContentSafetySystem: '/relay/content-safety/system',
   relayChannelHealth: '/relay/channel-health',
   relayRequestDiagnostics: '/relay/request-diagnostics',
+  relayAIRequestLogs: '/relay/ai-request-logs',
   relayChannelProbes: '/relay/channel-probes',
   upstreamStatus: '/relay/upstream-status',
   developerServiceManagement: '/developer/management',
@@ -669,6 +670,13 @@ export const routeCatalog = attachLegacyPaths([
     path: '/diagnostics/requests',
     overviewCategory: 'console-ai',
     legacyPaths: ['/relay/request-diagnostics'],
+  },
+  {
+    name: 'relayAIRequestLogs',
+    group: 'management-ai',
+    path: '/diagnostics/ai-request-logs',
+    overviewCategory: 'console-ai',
+    legacyPaths: ['/relay/ai-request-logs'],
   },
   {
     name: 'relayChannelProbes',

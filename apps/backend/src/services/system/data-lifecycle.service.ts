@@ -230,7 +230,10 @@ export class DataLifecycleService {
           sha256,
           recordCount: ids.length,
           byteSize: BigInt(compressed.byteLength),
-          expiresAt: new Date(Date.now() + policy.archiveRetentionDays * 24 * 60 * 60 * 1000),
+          expiresAt:
+            policy.archiveRetentionDays == null
+              ? null
+              : new Date(Date.now() + policy.archiveRetentionDays * 24 * 60 * 60 * 1000),
         });
         const batchDeletedCount = await this.repository.deleteDatasetIds(dataset, ids);
         archivedCount += ids.length;
@@ -427,6 +430,8 @@ export class DataLifecycleService {
         return `${candidateSummaryValue(record.eventType)} · ${candidateSummaryValue(record.name)} · ${candidateSummaryValue(record.page)}`;
       case "heatmap_points":
         return `${candidateSummaryValue(record.pointType)} · ${candidateSummaryValue(record.page)} · ${candidateSummaryValue(record.sessionId)}`;
+      case "ai_request_logs":
+        return `${candidateSummaryValue(record.model)} · ${candidateSummaryValue(record.username)} · ${candidateSummaryValue(record.statusCode)} · ${candidateSummaryValue(record.requestId)}`;
       case "relay_usages":
         return `${candidateSummaryValue(record.method)} ${candidateSummaryValue(record.path)} · ${candidateSummaryValue(record.statusCode)} · ${candidateSummaryValue(record.totalTokens)}`;
       case "monthly_pass_usages":
@@ -465,7 +470,7 @@ export class DataLifecycleService {
   }
 
   private async archiveServerLogs(input: {
-    policy: { id: string; archiveRetentionDays: number; enabled: boolean; hotRetentionDays: number };
+    policy: { id: string; archiveRetentionDays: number | null; enabled: boolean; hotRetentionDays: number };
     run: { id: string };
     candidateCount: number;
     cutoffAt: Date;
@@ -506,7 +511,10 @@ export class DataLifecycleService {
           sha256,
           recordCount: 1,
           byteSize: BigInt(compressed.byteLength),
-          expiresAt: new Date(Date.now() + input.policy.archiveRetentionDays * 24 * 60 * 60 * 1000),
+          expiresAt:
+            input.policy.archiveRetentionDays == null
+              ? null
+              : new Date(Date.now() + input.policy.archiveRetentionDays * 24 * 60 * 60 * 1000),
         });
         // The local file is removed only after OSS upload, checksum, and length verification.
         await fs.unlink(candidate.path);

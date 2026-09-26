@@ -109,6 +109,7 @@ export enum Permission {
   RELAY_CHANNEL_REVIEW = 'relay:channel:review',
   RELAY_CHANNEL_PROVIDER_READ = 'relay:channel:provider:read',
   RELAY_CHANNEL_PROVIDER_SETTLE = 'relay:channel:provider:settle',
+  RELAY_AI_REQUEST_LOG_READ = 'relay:ai_request_log:read',
   RELAY_REQUEST_DIAGNOSTICS_READ = 'relay:request_diagnostics:read',
   RELAY_REQUEST_ROUTE_TRACE_READ = 'relay:request_route_trace:read',
 

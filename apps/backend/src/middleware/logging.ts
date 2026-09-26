@@ -3,6 +3,8 @@ import { env } from "../config/env";
 import chalk from "chalk";
 import { getLogger, LogCategory } from "@/util/logger";
 import { LogService } from "@/services/system/log.service";
+import { AIRequestLogService } from "@/services/relay/ai-request-log.service";
+import { AI_REQUEST_LOG_LIMITS, AI_REQUEST_LOG_PREFIX } from "@/constant/ai-request-log";
 
 type ResponseChunkEncoding =
   | "ascii"
@@ -21,13 +23,14 @@ type ResponseChunkEncoding =
 const isDev = env.runtime.isDevelopment;
 const logger = getLogger("LoggingMiddleware", LogCategory.MIDDLEWARE);
 const logService = new LogService();
+const aiRequestLogService = AIRequestLogService.getInstance();
 
 export function disposeRequestLogService(): Promise<void> {
   return logService.dispose();
 }
 
 // Maximum response body size to capture (1MB)
-const MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
+const DEFAULT_MAX_RESPONSE_BODY_SIZE = 1024 * 1024;
 const TEXT_RESPONSE_CONTENT_TYPE_KEYWORDS = [
   "application/json",
   "application/problem+json",
@@ -172,9 +175,11 @@ function captureWriteHeadHeaders(res: Response, headersArg: unknown): void {
   if (Object.keys(snapshot).length > 0) res.locals.responseHeadersSnapshot = snapshot;
 }
 
-function shouldSkipResponseBodyCapture(req: Request): boolean {
+function getResponseBodyCaptureLimit(req: Request): number {
   const requestPath = getRequestPath(req);
-  return requestPath.startsWith("/relay/proxy");
+  return requestPath.startsWith(AI_REQUEST_LOG_PREFIX)
+    ? AI_REQUEST_LOG_LIMITS.responseBodyBytes
+    : DEFAULT_MAX_RESPONSE_BODY_SIZE;
 }
 
 function toBuffer(chunk: any, encoding?: ResponseChunkEncoding): Buffer | null {
@@ -208,12 +213,12 @@ function appendResponseChunk(res: Response, chunk: any, encoding?: ResponseChunk
 
   if (!isTextLikeResponse(res, chunk)) {
     state.isBinary = true;
-    if (state.totalBytes > MAX_RESPONSE_BODY_SIZE) state.truncated = true;
+    if (state.totalBytes > (res.locals.responseCaptureLimit || DEFAULT_MAX_RESPONSE_BODY_SIZE)) state.truncated = true;
     return;
   }
 
   const capturedBytes = state.chunks.reduce((sum: number, item: Buffer) => sum + item.length, 0);
-  const remaining = MAX_RESPONSE_BODY_SIZE - capturedBytes;
+  const remaining = (res.locals.responseCaptureLimit || DEFAULT_MAX_RESPONSE_BODY_SIZE) - capturedBytes;
   if (remaining <= 0) {
     state.truncated = true;
     return;
@@ -313,7 +318,8 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
   const originalWrite = res.write.bind(res);
   const originalEnd = res.end.bind(res);
   const originalWriteHead = res.writeHead.bind(res);
-  res.locals.skipResponseBodyCapture = shouldSkipResponseBodyCapture(req);
+  res.locals.responseCaptureLimit = getResponseBodyCaptureLimit(req);
+  res.locals.skipResponseBodyCapture = res.locals.responseCaptureLimit <= 0;
 
   res.write = function (chunk: any, ...args: any[]) {
     const encoding = typeof args[0] === "string" ? (args[0] as ResponseChunkEncoding) : undefined;
@@ -355,6 +361,7 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
     delete res.locals.responseClosedEarly;
     delete res.locals.responseHeadersSnapshot;
     delete res.locals.skipResponseBodyCapture;
+    delete res.locals.responseCaptureLimit;
     delete res.locals.requestSize;
   };
 
@@ -364,8 +371,12 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
 
     finalizeCapturedResponse(res);
 
-    logService.logRequest(req, res, res.locals.responseBody).catch((error) => {
+    const responseBody = res.locals.responseBody;
+    logService.logRequest(req, res, responseBody).catch((error) => {
       logger.error("Failed to log request to database", { error });
+    });
+    aiRequestLogService.logRequest(req, res, responseBody, Date.now() - start).catch((error) => {
+      logger.error("Failed to persist AI request audit log", { error });
     });
   };
 

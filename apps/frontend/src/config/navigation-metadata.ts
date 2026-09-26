@@ -66,6 +66,9 @@ const relayMenu = group(
     item('relayRequestDiagnostics', 'nav.relayRequestDiagnostics', 'DataAnalysis', [
       Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
     ]),
+    item('relayAIRequestLogs', 'nav.relayAIRequestLogs', 'Document', [
+      Permission.RELAY_AI_REQUEST_LOG_READ,
+    ]),
     item('relayChannelProbes', 'nav.relayChannelProbes', 'Monitor', [
       Permission.RELAY_CHANNEL_PROBE_READ,
     ]),

@@ -27,6 +27,7 @@ vi.mock("@/store/system/observability.repository", () => ({
     "notification_logs",
     "track_events",
     "heatmap_points",
+    "ai_request_logs",
     "relay_usages",
     "monthly_pass_usages",
   ],
@@ -107,5 +108,37 @@ describe("DataLifecycleService archive batching", () => {
       expect.stringMatching(/run-1-1\.ndjson\.gz$/),
     ]);
     expect(result).toMatchObject({ candidateCount: 3, archivedCount: 3, deletedCount: 3 });
+  });
+
+  it("creates permanent AI request log archives without an expiry", async () => {
+    repository.getLifecyclePolicy.mockResolvedValue({
+      id: "policy-ai",
+      dataset: "ai_request_logs",
+      enabled: true,
+      hotRetentionDays: 90,
+      archiveRetentionDays: null,
+    });
+    let checksum = "";
+    const ossClient = {
+      put: vi.fn(async (_key: string, _body: Buffer, options: { headers: Record<string, string> }) => {
+        checksum = options.headers["x-oss-meta-sha256"];
+      }),
+      head: vi.fn(async () => ({
+        res: {
+          headers: {
+            "x-oss-meta-sha256": checksum,
+            "content-length": String((ossClient.put.mock.calls.at(-1)?.[1] as Buffer).byteLength),
+          },
+        },
+      })),
+    };
+    const service = new ServiceCtor(repository);
+    (service as any).ossClient = ossClient;
+
+    await service.runPolicy("ai_request_logs", "manual", "admin-1");
+
+    expect(repository.createArchiveArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({ dataset: "ai_request_logs", expiresAt: null }),
+    );
   });
 });

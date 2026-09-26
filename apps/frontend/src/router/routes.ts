@@ -1101,6 +1101,12 @@ export const routes = [
             meta: { permission: Permission.RELAY_REQUEST_DIAGNOSTICS_READ },
           },
           {
+            path: 'diagnostics/ai-request-logs',
+            name: 'relayAIRequestLogs',
+            component: lazyFeatureView('relay', 'AIRequestLogsView.vue'),
+            meta: { permission: Permission.RELAY_AI_REQUEST_LOG_READ },
+          },
+          {
             path: 'channels/probes',
             name: 'relayChannelProbes',
             component: lazyFeatureView('relay', 'RelayChannelProbeView.vue'),

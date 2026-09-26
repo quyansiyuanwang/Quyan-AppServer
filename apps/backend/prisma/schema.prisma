@@ -859,6 +859,39 @@ model APILog {
   @@map("api_logs")
 }
 
+model AIRequestLog {
+  id                String   @id @default(cuid())
+  status            Int      @default(1)
+  createTime        DateTime @default(now())
+  updateTime        DateTime @updatedAt
+  requestId         String   @unique @db.VarChar(64)
+  userId            String?
+  username          String?  @db.VarChar(191)
+  relayTokenId      String?
+  relayTokenName    String?  @db.VarChar(100)
+  model             String?  @db.VarChar(160)
+  requestFormat     String?  @db.VarChar(40)
+  path              String   @db.VarChar(1024)
+  method            String   @db.VarChar(12)
+  statusCode        Int
+  ipAddress         String   @db.VarChar(128)
+  userAgent         String?  @db.Text
+  durationMs        Int      @default(0)
+  requestSizeBytes  Int?
+  responseSizeBytes Int?
+  requestTruncated  Boolean  @default(false)
+  responseTruncated Boolean  @default(false)
+  requestBody       Json?
+  responseBody      Json?
+
+  @@index([createTime])
+  @@index([userId, createTime])
+  @@index([relayTokenId, createTime])
+  @@index([model, createTime])
+  @@index([statusCode, createTime])
+  @@map("ai_request_logs")
+}
+
 model BusinessLog {
   id                 String   @id @default(cuid())
   status             Int      @default(1)
@@ -3097,7 +3130,7 @@ model DataLifecyclePolicy {
   dataset              String             @unique @db.VarChar(80)
   enabled              Boolean            @default(true)
   hotRetentionDays     Int
-  archiveRetentionDays Int                @default(365)
+  archiveRetentionDays Int?               @default(365)
   lastRunAt            DateTime?
   runs                 DataLifecycleRun[]
 
@@ -3140,7 +3173,7 @@ model ArchiveArtifact {
   sha256         String           @db.VarChar(64)
   recordCount    Int
   byteSize       BigInt
-  expiresAt      DateTime
+  expiresAt      DateTime?
   deletedAt      DateTime?
   lifecycleRun   DataLifecycleRun @relation(fields: [lifecycleRunId], references: [id], onDelete: Cascade)
 
