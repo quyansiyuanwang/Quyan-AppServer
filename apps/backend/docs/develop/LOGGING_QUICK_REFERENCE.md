@@ -211,4 +211,3 @@ LOG_TRUNCATE_CONFIG.enabled = true;
 
 - [详细使用文档](./logging-enhancements.md)
 - [完整代码示例](./logging-examples.ts)
-- [实现总结](./LOGGING_ENHANCEMENTS_README.md)
