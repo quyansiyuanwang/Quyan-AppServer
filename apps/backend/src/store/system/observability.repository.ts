@@ -7,6 +7,7 @@ export const DATA_LIFECYCLE_DATASETS = [
   "notification_logs",
   "track_events",
   "heatmap_points",
+  "ai_request_logs",
   "relay_usages",
   "monthly_pass_usages",
   "server_logs",
@@ -15,8 +16,9 @@ export const DATA_LIFECYCLE_DATASETS = [
 export type DataLifecycleDataset = (typeof DATA_LIFECYCLE_DATASETS)[number];
 
 export const DATA_MAINTENANCE_DATASETS = DATA_LIFECYCLE_DATASETS.filter(
-  (dataset): dataset is Exclude<DataLifecycleDataset, "server_logs"> => dataset !== "server_logs",
-) as readonly Exclude<DataLifecycleDataset, "server_logs">[];
+  (dataset): dataset is Exclude<DataLifecycleDataset, "server_logs" | "ai_request_logs"> =>
+    dataset !== "server_logs" && dataset !== "ai_request_logs",
+) as readonly Exclude<DataLifecycleDataset, "server_logs" | "ai_request_logs">[];
 export type DataMaintenanceDataset = (typeof DATA_MAINTENANCE_DATASETS)[number];
 
 export const DATA_LIFECYCLE_DEFAULTS: Record<DataLifecycleDataset, number> = {
@@ -25,9 +27,22 @@ export const DATA_LIFECYCLE_DEFAULTS: Record<DataLifecycleDataset, number> = {
   notification_logs: 90,
   track_events: 30,
   heatmap_points: 30,
+  ai_request_logs: 90,
   relay_usages: 180,
   monthly_pass_usages: 180,
   server_logs: 14,
+};
+
+export const DATA_LIFECYCLE_ARCHIVE_DEFAULTS: Record<DataLifecycleDataset, number | null> = {
+  api_logs: 365,
+  business_logs: 365,
+  notification_logs: 365,
+  track_events: 365,
+  heatmap_points: 365,
+  ai_request_logs: null,
+  relay_usages: 365,
+  monthly_pass_usages: 365,
+  server_logs: 365,
 };
 
 type DatabaseLifecycleDataset = Exclude<DataLifecycleDataset, "server_logs">;
@@ -38,6 +53,7 @@ const dataSetDelegates: Record<DatabaseLifecycleDataset, string> = {
   notification_logs: "notificationLog",
   track_events: "trackEvent",
   heatmap_points: "heatmapPoint",
+  ai_request_logs: "aIRequestLog",
   relay_usages: "relayUsage",
   monthly_pass_usages: "monthlyPassUsage",
 };
@@ -197,7 +213,11 @@ export class ObservabilityRepository {
       DATA_LIFECYCLE_DATASETS.map((dataset) =>
         prisma.dataLifecyclePolicy.upsert({
           where: { dataset },
-          create: { dataset, hotRetentionDays: DATA_LIFECYCLE_DEFAULTS[dataset] },
+          create: {
+            dataset,
+            hotRetentionDays: DATA_LIFECYCLE_DEFAULTS[dataset],
+            archiveRetentionDays: DATA_LIFECYCLE_ARCHIVE_DEFAULTS[dataset],
+          },
           update: {},
         }),
       ),
@@ -274,7 +294,7 @@ export class ObservabilityRepository {
     sha256: string;
     recordCount: number;
     byteSize: bigint;
-    expiresAt: Date;
+    expiresAt: Date | null;
   }) {
     return prisma.archiveArtifact.create({ data: input });
   }
@@ -309,7 +329,9 @@ export class ObservabilityRepository {
   }
 
   public listExpiredArchiveArtifacts(now: Date) {
-    return prisma.archiveArtifact.findMany({ where: { expiresAt: { lt: now }, deletedAt: null } });
+    return prisma.archiveArtifact.findMany({
+      where: { expiresAt: { not: null, lt: now }, deletedAt: null },
+    });
   }
 
   public markArchiveArtifactDeleted(id: string) {

@@ -39,6 +39,7 @@ vi.mock("@/store/system/observability.repository", () => ({
     "notification_logs",
     "track_events",
     "heatmap_points",
+    "ai_request_logs",
     "relay_usages",
     "monthly_pass_usages",
     "server_logs",

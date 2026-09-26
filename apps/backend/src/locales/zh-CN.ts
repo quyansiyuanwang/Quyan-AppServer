@@ -329,6 +329,7 @@ const zhCN = {
     notFoundByIp: "IP {{ip}} 不在黑名单中",
   },
   relay: {
+    aiRequestLogNotFound: "AI 请求日志不存在",
     channelDeleted: "渠道删除成功",
     providerServiceOwnershipRequired: "只有原提交者可以调整该渠道服务状态",
     providerServiceStandaloneRequired: "只有独立提交渠道可以调整服务状态",

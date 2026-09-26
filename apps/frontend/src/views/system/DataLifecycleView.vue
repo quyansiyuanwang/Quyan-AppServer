@@ -40,6 +40,7 @@ const defaultHotRetentionDays: Record<string, number> = {
   notification_logs: 90,
   track_events: 30,
   heatmap_points: 30,
+  ai_request_logs: 90,
   relay_usages: 180,
   monthly_pass_usages: 180,
   server_logs: 14,
@@ -47,10 +48,13 @@ const defaultHotRetentionDays: Record<string, number> = {
 
 const datasetLabel = (dataset: string) => {
   if (dataset === 'server_logs') return i18ns.t('dataLifecycle.serverLogs')
+  if (dataset === 'ai_request_logs') return i18ns.t('dataLifecycle.aiRequestLogs')
   return dataset
 }
 
 const formatDate = (value: string | null) => (value ? new Date(value).toLocaleString() : '-')
+const formatExpiry = (value: string | null) =>
+  value ? new Date(value).toLocaleString() : i18ns.t('dataLifecycle.forever')
 
 const formatBytes = (value: string) => {
   const bytes = Number(value)
@@ -324,6 +328,15 @@ onMounted(load)
           </div></template
         ></el-table-column
       >
+      <el-table-column :label="i18ns.t('dataLifecycle.archiveRetention')" width="150">
+        <template #default="{ row }">
+          {{
+            row.archiveRetentionDays == null
+              ? i18ns.t('dataLifecycle.forever')
+              : i18ns.t('dataLifecycle.days', { days: row.archiveRetentionDays })
+          }}
+        </template>
+      </el-table-column>
       <el-table-column
         prop="candidateCount"
         :label="i18ns.t('dataLifecycle.toArchive')"
@@ -522,7 +535,7 @@ onMounted(load)
               <template #default="{ row }">{{ formatDate(row.createTime) }}</template>
             </el-table-column>
             <el-table-column :label="i18ns.t('dataLifecycle.expiresAt')" width="180">
-              <template #default="{ row }">{{ formatDate(row.expiresAt) }}</template>
+              <template #default="{ row }">{{ formatExpiry(row.expiresAt) }}</template>
             </el-table-column>
             <el-table-column :label="i18ns.t('dataLifecycle.deletedAt')" width="180">
               <template #default="{ row }">{{ formatDate(row.deletedAt) }}</template>

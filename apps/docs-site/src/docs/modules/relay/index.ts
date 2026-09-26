@@ -12,6 +12,7 @@ const orderedModulePaths = [
   './relay-settings.doc.ts',
   './relay-channel-probes.doc.ts',
   './content-safety.doc.ts',
+  './ai-request-logs.doc.ts',
   './upstream-status.doc.ts',
   './remote-terminal.doc.ts',
   './remote-terminal-management.doc.ts',
