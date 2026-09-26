@@ -9,6 +9,7 @@ import type { Request as ExpressRequest } from "express";
 import { skipResponseWrapper } from "@/util/response-wrapper";
 import type { RelayTokenCurrentQuotaDto, RelayTokenCurrentQuotaQueryDto } from "@/api/dto/relay/relay.dto";
 import { deprecated } from "@/middleware/api-version";
+import { setAIRequestLogContext } from "@/util/ai-request-log-context";
 
 @Route("relay/proxy")
 @Tags("Relay Proxy")
@@ -25,6 +26,13 @@ export class RelayProxyController extends Controller {
       request,
       resolveSupportRelayClientIp(request.headers, token),
     );
+
+    setAIRequestLogContext(request.res, {
+      userId: relayToken.userId,
+      username: relayToken.user?.username ?? null,
+      relayTokenId: relayToken.id,
+      relayTokenName: relayToken.name ?? null,
+    });
 
     skipResponseWrapper(request as any);
 

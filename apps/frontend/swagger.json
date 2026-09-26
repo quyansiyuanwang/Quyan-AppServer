@@ -20537,6 +20537,169 @@
 				}
 			}
 		},
+		"/v1/relay/ai-request-logs": {
+			"get": {
+				"operationId": "AIRequestLogControllerList",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AIRequestLogListResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay AI Request Logs"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "user",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "relayToken",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "model",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "requestFormat",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "statusCode",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "requestId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "truncated",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"in": "query",
+						"name": "startDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "endDate",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay/ai-request-logs/{id}": {
+			"get": {
+				"operationId": "AIRequestLogControllerDetail",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AIRequestLogDetailDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay AI Request Logs"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/products/oj-submitter/ask": {
 			"post": {
 				"operationId": "OJQAControllerAskQuestion",
@@ -35488,6 +35651,7 @@
 					"relay:channel:review",
 					"relay:channel:provider:read",
 					"relay:channel:provider:settle",
+					"relay:ai_request_log:read",
 					"relay:request_diagnostics:read",
 					"relay:request_route_trace:read",
 					"accesskey:create",
@@ -40837,7 +41001,8 @@
 					},
 					"archiveRetentionDays": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"nullable": true
 					},
 					"lastRunAt": {
 						"type": "string",
@@ -41233,7 +41398,8 @@
 					},
 					"expiresAt": {
 						"type": "string",
-						"format": "date-time"
+						"format": "date-time",
+						"nullable": true
 					},
 					"deletedAt": {
 						"type": "string",
@@ -52539,6 +52705,240 @@
 				"required": [
 					"code",
 					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogListItemDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string",
+						"nullable": true
+					},
+					"username": {
+						"type": "string",
+						"nullable": true
+					},
+					"relayTokenId": {
+						"type": "string",
+						"nullable": true
+					},
+					"relayTokenName": {
+						"type": "string",
+						"nullable": true
+					},
+					"model": {
+						"type": "string",
+						"nullable": true
+					},
+					"requestFormat": {
+						"type": "string",
+						"nullable": true
+					},
+					"path": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"ipAddress": {
+						"type": "string"
+					},
+					"userAgent": {
+						"type": "string",
+						"nullable": true
+					},
+					"durationMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"requestSizeBytes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"responseSizeBytes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"requestTruncated": {
+						"type": "boolean"
+					},
+					"responseTruncated": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"id",
+					"createTime",
+					"requestId",
+					"userId",
+					"username",
+					"relayTokenId",
+					"relayTokenName",
+					"model",
+					"requestFormat",
+					"path",
+					"method",
+					"statusCode",
+					"ipAddress",
+					"userAgent",
+					"durationMs",
+					"requestSizeBytes",
+					"responseSizeBytes",
+					"requestTruncated",
+					"responseTruncated"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogListResponse": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/AIRequestLogListItemDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogDetailDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string",
+						"nullable": true
+					},
+					"username": {
+						"type": "string",
+						"nullable": true
+					},
+					"relayTokenId": {
+						"type": "string",
+						"nullable": true
+					},
+					"relayTokenName": {
+						"type": "string",
+						"nullable": true
+					},
+					"model": {
+						"type": "string",
+						"nullable": true
+					},
+					"requestFormat": {
+						"type": "string",
+						"nullable": true
+					},
+					"path": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"ipAddress": {
+						"type": "string"
+					},
+					"userAgent": {
+						"type": "string",
+						"nullable": true
+					},
+					"durationMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"requestSizeBytes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"responseSizeBytes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"requestTruncated": {
+						"type": "boolean"
+					},
+					"responseTruncated": {
+						"type": "boolean"
+					},
+					"requestBody": {
+						"$ref": "#/components/schemas/JsonValue"
+					},
+					"responseBody": {
+						"$ref": "#/components/schemas/JsonValue"
+					}
+				},
+				"required": [
+					"id",
+					"createTime",
+					"requestId",
+					"userId",
+					"username",
+					"relayTokenId",
+					"relayTokenName",
+					"model",
+					"requestFormat",
+					"path",
+					"method",
+					"statusCode",
+					"ipAddress",
+					"userAgent",
+					"durationMs",
+					"requestSizeBytes",
+					"responseSizeBytes",
+					"requestTruncated",
+					"responseTruncated",
+					"requestBody",
+					"responseBody"
 				],
 				"type": "object",
 				"additionalProperties": false

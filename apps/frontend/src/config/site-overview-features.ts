@@ -130,6 +130,7 @@ export const siteOverviewFeatures: readonly SiteOverviewFeature[] = [
     'healthy-channels',
   ),
   feature('relayRequestDiagnostics', 'nav.relayRequestDiagnostics', DataAnalysis, managementAi),
+  feature('relayAIRequestLogs', 'nav.relayAIRequestLogs', Document, managementAi),
   feature('relayChannelProbes', 'nav.relayChannelProbes', Monitor, managementAi),
   feature('upstreamStatus', 'nav.upstreamStatus', Connection, managementAi),
 

@@ -112,6 +112,7 @@ model Example {
 |------|------|------|
 | ServerConfig | `server_configs` | 键值配置存储 |
 | APILog | `api_logs` | HTTP 请求日志 |
+| AIRequestLog | `ai_request_logs` | AI 请求与响应审计日志 |
 | BusinessLog | `business_logs` | 业务审计日志 |
 | UserOnlineSession | `user_online_sessions` | 在线会话追踪 |
 | NotificationPreference | `notification_preferences` | 用户通知设置 |

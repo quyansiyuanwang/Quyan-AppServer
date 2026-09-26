@@ -2,8 +2,9 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { logRequestMock, loggerMock } = vi.hoisted(() => ({
+const { logRequestMock, aiLogRequestMock, loggerMock } = vi.hoisted(() => ({
   logRequestMock: vi.fn(),
+  aiLogRequestMock: vi.fn(),
   loggerMock: {
     debug: vi.fn(),
     error: vi.fn(),
@@ -21,12 +22,19 @@ vi.mock("@/services/system/log.service", () => ({
   }),
 }));
 
+vi.mock("@/services/relay/ai-request-log.service", () => ({
+  AIRequestLogService: {
+    getInstance: () => ({ logRequest: aiLogRequestMock }),
+  },
+}));
+
 vi.mock("@/util/logger", () => ({
   LogCategory: { MIDDLEWARE: "MIDDLEWARE" },
   getLogger: () => loggerMock,
 }));
 
 import { loggingMiddleware } from "@/middleware/logging";
+import { setAIRequestLogContext } from "@/util/ai-request-log-context";
 
 function createTestApp() {
   const app = express();
@@ -34,6 +42,11 @@ function createTestApp() {
 
   app.get("/relay/proxy/test", (_req, res) => {
     res.status(500).json({ payload: "x".repeat(2 * 1024 * 1024) });
+  });
+
+  app.get("/relay/proxy/audited", (_req, res) => {
+    setAIRequestLogContext(res, { requestId: "relay-audit-1", userId: "user-1" });
+    res.status(200).json({ ok: true });
   });
 
   app.get("/normal/test", (_req, res) => {
@@ -64,10 +77,12 @@ describe("loggingMiddleware response capture", () => {
   beforeEach(() => {
     logRequestMock.mockReset();
     logRequestMock.mockResolvedValue(undefined);
+    aiLogRequestMock.mockReset();
+    aiLogRequestMock.mockResolvedValue(undefined);
     Object.values(loggerMock).forEach((loggerMethod) => loggerMethod.mockReset());
   });
 
-  it("does not capture large relay proxy response bodies", async () => {
+  it("captures relay proxy response bodies up to the AI audit limit", async () => {
     const app = createTestApp();
 
     await request(app).get("/relay/proxy/test").expect(500);
@@ -76,13 +91,23 @@ describe("loggingMiddleware response capture", () => {
     const responseBody = logRequestMock.mock.calls[0][2];
 
     expect(responseBody).toMatchObject({
-      _notCaptured: true,
-      _reason: "Response body capture skipped for high-frequency relay proxy path",
+      _truncated: true,
       _contentType: expect.stringContaining("application/json"),
       _statusCode: 500,
       _closedEarly: false,
     });
-    expect(JSON.stringify(responseBody).length).toBeLessThan(512);
+    expect(responseBody._size).toBeGreaterThan(2 * 1024 * 1024);
+    expect(responseBody._preview.length).toBeGreaterThan(1024 * 1024);
+  });
+
+  it("persists a dedicated AI audit log when relay context is present", async () => {
+    const app = createTestApp();
+
+    await request(app).get("/relay/proxy/audited").expect(200);
+
+    expect(aiLogRequestMock).toHaveBeenCalledTimes(1);
+    expect(aiLogRequestMock.mock.calls[0][2]).toEqual({ ok: true });
+    expect(aiLogRequestMock.mock.calls[0][3]).toBeGreaterThanOrEqual(0);
   });
 
   it("still captures small non-relay response bodies", async () => {

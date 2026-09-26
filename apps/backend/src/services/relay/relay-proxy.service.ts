@@ -104,6 +104,7 @@ import logger from "@/util/logger";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
+import { setAIRequestLogContext } from "@/util/ai-request-log-context";
 import { RelayChannelHealthService } from "./relay-channel-health.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
 import { RelayChannelService } from "./relay-channel.service";
@@ -2410,6 +2411,9 @@ export class RelayProxyService {
 
     const logicalRequestId = randomUUID();
     this.logicalRequestIds.set(requestObject, logicalRequestId);
+    setAIRequestLogContext((req as { res?: Parameters<typeof setAIRequestLogContext>[0] }).res, {
+      requestId: logicalRequestId,
+    });
     return logicalRequestId;
   }
 
@@ -2702,6 +2706,12 @@ export class RelayProxyService {
       throw new BadRequestError("Model is required in request body or URL path", undefined, {
         messageKey: "relayProxy.modelRequired",
       });
+
+    setAIRequestLogContext(req.res ?? res, {
+      requestId: this.getLogicalRequestId(req),
+      model: normalizedRequestedModel,
+      requestFormat: clientRequestFormat,
+    });
 
     // Calculate request size for logging
     const getRequestSize = () => {

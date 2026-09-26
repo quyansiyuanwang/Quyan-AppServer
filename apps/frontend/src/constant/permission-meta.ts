@@ -620,6 +620,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows applying channel price multipliers calculated by probes',
     category: 'relay',
   },
+  [Permission.RELAY_AI_REQUEST_LOG_READ]: {
+    label: '查看 AI 请求日志',
+    labelEn: 'View AI Request Logs',
+    tooltip: '允许查看完整 AI 请求与响应审计内容',
+    tooltipEn: 'Allows viewing complete AI request and response audit content',
+    category: 'relay',
+  },
   [Permission.RELAY_REQUEST_DIAGNOSTICS_READ]: {
     label: '查看请求诊断',
     labelEn: 'View Request Diagnostics',

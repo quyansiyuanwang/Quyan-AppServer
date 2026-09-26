@@ -8,7 +8,7 @@ export interface DataLifecyclePolicyDTO {
   dataset: string;
   enabled: boolean;
   hotRetentionDays: number;
-  archiveRetentionDays: number;
+  archiveRetentionDays: number | null;
   lastRunAt: Date | null;
   candidateCount: number;
 }
@@ -82,7 +82,7 @@ export interface ArchiveArtifactDTO {
   recordCount: number;
   byteSize: string;
   createTime: Date;
-  expiresAt: Date;
+  expiresAt: Date | null;
   deletedAt: Date | null;
 }
 
