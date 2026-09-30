@@ -3365,7 +3365,8 @@ const zhCN: DeepStringify<typeof en> = {
     requestStatusCode: '状态码',
     requestPath: '路径',
     probeAccounts: '号池',
-    probeAccountHelp: '号池仅在服务端登录并缓存会话。同一账号可供多个渠道和混池成员共用；登录受到账号冷却限制，令牌和凭据不会回显。',
+    probeAccountHelp:
+      '号池仅在服务端登录并缓存会话。同一账号可供多个渠道和混池成员共用；登录受到账号冷却限制，令牌和凭据不会回显。',
     probeAccountAdd: '新增或更新号池账号',
     probeAccountSession: '会话可用',
     probeAccountNextLogin: '下次允许登录',
@@ -3387,10 +3388,13 @@ const zhCN: DeepStringify<typeof en> = {
     probeAccountDeleteConfirm: '删除此号池账号？仍有渠道绑定时无法删除。',
     probeAccountBinding: '绑定号池账号',
     probeAccountNoBinding: '使用渠道原有凭据',
-    probeAccountBindingHelp: '余额工作流可通过 {{accountToken}} 引用号池会话；绑定和刷新需要号池管理权限。',
+    probeAccountBindingHelp:
+      '余额工作流可通过 {{accountToken}} 引用号池会话；绑定和刷新需要号池管理权限。',
     probeAccountLegacyWarning: '请手动删除旧登录步骤，否则每次读取余额仍会执行旧登录。',
-    probeBatchCredentialNotice: '仅复制共享工作流与计费参数，不复制来源凭据或号池绑定；逐项选择支持的格式、模型和账号。',
-    probeMemberOverrideHelp: '当前编辑物理成员；格式、模型、请求体及串行组仅对此成员生效，余额工作流及计费参数仍由逻辑混池共享。',
+    probeBatchCredentialNotice:
+      '仅复制共享工作流与计费参数，不复制来源凭据或号池绑定；逐项选择支持的格式、模型和账号。',
+    probeMemberOverrideHelp:
+      '当前编辑物理成员；格式、模型、请求体及串行组仅对此成员生效，余额工作流及计费参数仍由逻辑混池共享。',
     probeGroupFilter: '筛选探针串行组',
     channelProbeTitle: '独立渠道余额探针',
     channelProbeChangeAnalysis: '倍率变化',

@@ -75,15 +75,27 @@ class RelayChannelProbeService {
   }
 
   async listAccounts(): Promise<RelayChannelProbeAccountDto[]> {
-    return checkApiResult<{ data: RelayChannelProbeAccountDto[] }>(await api.listAccounts(), true).data
+    return checkApiResult<{ data: RelayChannelProbeAccountDto[] }>(await api.listAccounts(), true)
+      .data
   }
 
-  async createAccount(body: SaveRelayChannelProbeAccountRequest): Promise<RelayChannelProbeAccountDto> {
-    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(await api.createAccount({ body }), true).data
+  async createAccount(
+    body: SaveRelayChannelProbeAccountRequest,
+  ): Promise<RelayChannelProbeAccountDto> {
+    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(
+      await api.createAccount({ body }),
+      true,
+    ).data
   }
 
-  async updateAccount(accountId: string, body: SaveRelayChannelProbeAccountRequest): Promise<RelayChannelProbeAccountDto> {
-    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(await api.updateAccount({ path: { accountId }, body }), true).data
+  async updateAccount(
+    accountId: string,
+    body: SaveRelayChannelProbeAccountRequest,
+  ): Promise<RelayChannelProbeAccountDto> {
+    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(
+      await api.updateAccount({ path: { accountId }, body }),
+      true,
+    ).data
   }
 
   async deleteAccount(accountId: string): Promise<void> {
@@ -91,7 +103,10 @@ class RelayChannelProbeService {
   }
 
   async refreshAccount(accountId: string): Promise<RelayChannelProbeAccountDto> {
-    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(await api.refreshAccount({ path: { accountId } }), true).data
+    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(
+      await api.refreshAccount({ path: { accountId } }),
+      true,
+    ).data
   }
 
   async configureTargets(body: ConfigureRelayChannelProbeTargetsRequest) {

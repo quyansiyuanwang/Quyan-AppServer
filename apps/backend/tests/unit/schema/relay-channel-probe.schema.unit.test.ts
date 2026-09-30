@@ -178,25 +178,47 @@ describe("relay channel probe schemas", () => {
   });
 });
 
-
 describe("probe account and per-member configuration schemas", () => {
   const account = {
-    name: "shared account", loginWorkflow: {
-      method: "POST", url: "https://example.com/session", body: { password: "{{password}}" },
-    }, tokenPath: "data.token", expiresPath: "data.expires_in", expiresMode: "seconds",
-    fallbackTtlSeconds: 1800, minLoginIntervalSeconds: 300,
+    name: "shared account",
+    loginWorkflow: {
+      method: "POST",
+      url: "https://example.com/session",
+      body: { password: "{{password}}" },
+    },
+    tokenPath: "data.token",
+    expiresPath: "data.expires_in",
+    expiresMode: "seconds",
+    fallbackTtlSeconds: 1800,
+    minLoginIntervalSeconds: 300,
     credentials: { password: "private" },
   };
   it("accepts session expiry and bounded per-account login cooldown", () => {
     expect(saveRelayChannelProbeAccountBodySchema.safeParse(account).success).toBe(true);
-    expect(saveRelayChannelProbeAccountBodySchema.safeParse({ ...account, minLoginIntervalSeconds: 0 }).success).toBe(false);
-    expect(saveRelayChannelProbeAccountBodySchema.safeParse({ ...account, expiresMode: undefined }).success).toBe(false);
+    expect(saveRelayChannelProbeAccountBodySchema.safeParse({ ...account, minLoginIntervalSeconds: 0 }).success).toBe(
+      false,
+    );
+    expect(saveRelayChannelProbeAccountBodySchema.safeParse({ ...account, expiresMode: undefined }).success).toBe(
+      false,
+    );
   });
   it("allows per-target formats, models and groups but rejects duplicate members", () => {
-    const target = { channelId: "pool", memberChannelId: "member", probeFormat: "anthropic", probeModel: "claude",
-      probePayload: { messages: [] }, probeGroup: "shared-login" };
-    expect(configureRelayChannelProbeTargetsBodySchema.safeParse({ sourceChannelId: "source", targets: [target] }).success).toBe(true);
+    const target = {
+      channelId: "pool",
+      memberChannelId: "member",
+      probeFormat: "anthropic",
+      probeModel: "claude",
+      probePayload: { messages: [] },
+      probeGroup: "shared-login",
+    };
+    expect(
+      configureRelayChannelProbeTargetsBodySchema.safeParse({ sourceChannelId: "source", targets: [target] }).success,
+    ).toBe(true);
     expect(configureRelayChannelProbeTargetsBodySchema.safeParse({ targets: [target, target] }).success).toBe(false);
-    expect(bindRelayChannelProbeAccountsBodySchema.safeParse({ targets: [{ channelId: "pool", memberChannelId: "member", accountId: null }] }).success).toBe(true);
+    expect(
+      bindRelayChannelProbeAccountsBodySchema.safeParse({
+        targets: [{ channelId: "pool", memberChannelId: "member", accountId: null }],
+      }).success,
+    ).toBe(true);
   });
 });

@@ -24,23 +24,26 @@ const channelMultiplierSchema = z.coerce
 const dayOfWeekRegex = /^([1-7](,[1-7])*)?$/;
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-const timePeriodRuleSchema = z.object({
-  holidayMode: z.enum(["ignore", "exclude", "only"]).optional(),
-  allDay: z.boolean().optional(),
-  name: z.string().trim().min(1).max(100),
-  enabled: z.boolean(),
-  dayOfWeek: z.string().regex(dayOfWeekRegex, "dayOfWeek must be comma-separated 1-7 or empty"),
-  startTime: z.string().regex(timeRegex, "startTime must be HH:mm"),
-  endTime: z.string().regex(timeRegex, "endTime must be HH:mm"),
-  multiplier: z.number().min(0.01).max(100),
-}).superRefine((rule, ctx) => {
-  if (!rule.allDay && rule.startTime === rule.endTime) ctx.addIssue({
-    code: z.ZodIssueCode.custom,
-    path: ["endTime"],
-    message: "A timed rule must have different start and end times",
-    params: { messageKey: "relayChannel.timeRuleSameStartEnd" },
+const timePeriodRuleSchema = z
+  .object({
+    holidayMode: z.enum(["ignore", "exclude", "only"]).optional(),
+    allDay: z.boolean().optional(),
+    name: z.string().trim().min(1).max(100),
+    enabled: z.boolean(),
+    dayOfWeek: z.string().regex(dayOfWeekRegex, "dayOfWeek must be comma-separated 1-7 or empty"),
+    startTime: z.string().regex(timeRegex, "startTime must be HH:mm"),
+    endTime: z.string().regex(timeRegex, "endTime must be HH:mm"),
+    multiplier: z.number().min(0.01).max(100),
+  })
+  .superRefine((rule, ctx) => {
+    if (!rule.allDay && rule.startTime === rule.endTime)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endTime"],
+        message: "A timed rule must have different start and end times",
+        params: { messageKey: "relayChannel.timeRuleSameStartEnd" },
+      });
   });
-});
 
 const contextLengthRuleSchema = z.object({
   name: z.string().trim().min(1).max(100),

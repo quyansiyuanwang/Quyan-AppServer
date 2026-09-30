@@ -36,7 +36,12 @@
       clearable
       :placeholder="i18ns.t('relay.channelProbeSearchPlaceholder')"
     />
-    <el-select v-model="groupFilter" clearable filterable :placeholder="i18ns.t('relay.probeGroupFilter')">
+    <el-select
+      v-model="groupFilter"
+      clearable
+      filterable
+      :placeholder="i18ns.t('relay.probeGroupFilter')"
+    >
       <el-option v-for="group in availableGroups" :key="group" :label="group" :value="group" />
     </el-select>
     <el-select v-model="profileFilter">

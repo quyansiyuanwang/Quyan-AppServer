@@ -660,7 +660,8 @@ const en = {
     accountLoginCooldown: "Login is cooling down; retry later",
     accountLoginInProgress: "Account login is in progress; retry later",
     accountLoginFailed: "Account login or token extraction failed",
-    pooledProfileCopyUnsupported: "Pool member credentials cannot be copied to another pool; configure members individually",
+    pooledProfileCopyUnsupported:
+      "Pool member credentials cannot be copied to another pool; configure members individually",
     apiFormatIncompatible: "探针接口与请求格式不兼容",
     modelNoLocalPricing: "探针模型没有本地定价配置",
     modelMissingUpstreamId: "探针模型缺少上游模型标识",

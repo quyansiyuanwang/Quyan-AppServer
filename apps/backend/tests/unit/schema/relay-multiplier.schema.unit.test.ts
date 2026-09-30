@@ -109,12 +109,27 @@ describe("holiday multiplier schema", () => {
   });
   it("rejects zero-length timed rules on all write paths without changing all-day rules", () => {
     const timed = { ...rule, allDay: false };
-    expect(createRelayChannelBodySchema.safeParse({ name: "channel", timePeriodMultipliers: [timed] }).success).toBe(false);
+    expect(createRelayChannelBodySchema.safeParse({ name: "channel", timePeriodMultipliers: [timed] }).success).toBe(
+      false,
+    );
     expect(updateRelayChannelBodySchema.safeParse({ timePeriodMultipliers: [timed] }).success).toBe(false);
-    expect(batchUpdateRelayChannelsBodySchema.safeParse({ ids: ["channel-1"], patch: { timePeriodMultipliers: [timed] } }).success).toBe(false);
-    expect(submitRelayChannelBodySchema.safeParse({ name: "channel", timePeriodMultipliers: [timed] }).success).toBe(false);
-    expect(importRelayChannelsBodySchema.safeParse({ channels: [{ name: "channel", timePeriodMultipliers: [timed] }] }).success).toBe(false);
-    expect(createRelayChannelBodySchema.safeParse({ name: "channel", timePeriodMultipliers: [{ ...timed, endTime: "01:00" }] }).success).toBe(true);
+    expect(
+      batchUpdateRelayChannelsBodySchema.safeParse({ ids: ["channel-1"], patch: { timePeriodMultipliers: [timed] } })
+        .success,
+    ).toBe(false);
+    expect(submitRelayChannelBodySchema.safeParse({ name: "channel", timePeriodMultipliers: [timed] }).success).toBe(
+      false,
+    );
+    expect(
+      importRelayChannelsBodySchema.safeParse({ channels: [{ name: "channel", timePeriodMultipliers: [timed] }] })
+        .success,
+    ).toBe(false);
+    expect(
+      createRelayChannelBodySchema.safeParse({
+        name: "channel",
+        timePeriodMultipliers: [{ ...timed, endTime: "01:00" }],
+      }).success,
+    ).toBe(true);
   });
   it("keeps legacy fields valid without inserting new conditions", () => {
     const legacy = { ...rule, endTime: "01:00" };

@@ -74,11 +74,13 @@ export class RelayChannelProbeRepository {
       probeGroup: source.probeGroup,
       distributionMultiplier: source.distributionMultiplier,
       workflow: source.workflow as Prisma.InputJsonValue,
-      ...(copyCredentials ? {
-        encryptedCredentials: source.encryptedCredentials,
-        credentialIv: source.credentialIv,
-        credentialAuthTag: source.credentialAuthTag,
-      } : {}),
+      ...(copyCredentials
+        ? {
+            encryptedCredentials: source.encryptedCredentials,
+            credentialIv: source.credentialIv,
+            credentialAuthTag: source.credentialAuthTag,
+          }
+        : {}),
     };
     return prisma.relayChannelProbeProfile.upsert({
       where: { relayChannelId: targetChannelId },

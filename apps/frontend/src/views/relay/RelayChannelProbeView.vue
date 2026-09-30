@@ -4,7 +4,12 @@
       <el-tab-pane :label="i18ns.t('relay.channelProbeTitle')" name="probes">
         <RelayChannelProbeOverview />
       </el-tab-pane>
-      <el-tab-pane v-if="state.canManageAccounts.value" :label="i18ns.t('relay.probeAccounts')" name="accounts" lazy>
+      <el-tab-pane
+        v-if="state.canManageAccounts.value"
+        :label="i18ns.t('relay.probeAccounts')"
+        name="accounts"
+        lazy
+      >
         <RelayChannelProbeAccountsTab />
       </el-tab-pane>
     </el-tabs>

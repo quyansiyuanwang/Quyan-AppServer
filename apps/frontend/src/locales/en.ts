@@ -3505,12 +3505,14 @@ export default {
     channelHealthManagementDescription:
       'Review live health statistics and choose automatic tracking, manual scoring, or no health ranking.',
     probeAccounts: 'Account pool',
-    probeAccountHelp: 'Login and cached sessions are server-side only. Channels and pool members may share an account; login cooldown is enforced, and tokens and credentials are never returned.',
+    probeAccountHelp:
+      'Login and cached sessions are server-side only. Channels and pool members may share an account; login cooldown is enforced, and tokens and credentials are never returned.',
     probeAccountAdd: 'Add or update account',
     probeAccountSession: 'Session ready',
     probeAccountNextLogin: 'Next allowed login',
     probeAccountRefresh: 'Log in again',
-    probeAccountReenterWorkflow: 'Saved login requests are not returned. Re-enter the full login workflow to update this account.',
+    probeAccountReenterWorkflow:
+      'Saved login requests are not returned. Re-enter the full login workflow to update this account.',
     probeAccountMethod: 'Login method',
     probeAccountUrl: 'Login URL',
     probeAccountHeaders: 'Login headers (JSON)',
@@ -3523,14 +3525,19 @@ export default {
     probeAccountFallbackTtl: 'Fallback session TTL (seconds)',
     probeAccountLoginInterval: 'Minimum login interval (seconds)',
     probeAccountInvalidJson: 'Login request configuration must be a JSON object',
-    probeAccountRefreshConfirm: 'This may send a new upstream login request, subject to cooldown. Continue?',
+    probeAccountRefreshConfirm:
+      'This may send a new upstream login request, subject to cooldown. Continue?',
     probeAccountDeleteConfirm: 'Delete this account? Bound targets prevent deletion.',
     probeAccountBinding: 'Shared account binding',
     probeAccountNoBinding: 'Use existing channel credentials',
-    probeAccountBindingHelp: 'Use {{accountToken}} in the balance workflow; binding and refreshing require account pool management permission.',
-    probeAccountLegacyWarning: 'Remove the legacy login steps manually; otherwise they still run on every balance read.',
-    probeBatchCredentialNotice: 'Copies only workflow and pricing configuration, not source credentials or account bindings. Select a supported format, model, and account for each target.',
-    probeMemberOverrideHelp: 'Editing a physical member: format, model, payload and serial group apply only here; balance workflow and pricing settings remain shared.',
+    probeAccountBindingHelp:
+      'Use {{accountToken}} in the balance workflow; binding and refreshing require account pool management permission.',
+    probeAccountLegacyWarning:
+      'Remove the legacy login steps manually; otherwise they still run on every balance read.',
+    probeBatchCredentialNotice:
+      'Copies only workflow and pricing configuration, not source credentials or account bindings. Select a supported format, model, and account for each target.',
+    probeMemberOverrideHelp:
+      'Editing a physical member: format, model, payload and serial group apply only here; balance workflow and pricing settings remain shared.',
     probeGroupFilter: 'Filter by probe serial group',
     channelProbeTitle: 'Standalone Channel Balance Probes',
     channelProbeChangeAnalysis: 'Multiplier changes',
@@ -3671,7 +3678,8 @@ export default {
     channelProbeBatchConfigureHelp:
       'Copy shared configuration from a source profile; choose a compatible format, model, payload and group per target. Credentials and account bindings are never copied.',
     channelProbeBatchSource: 'Source profile',
-    channelProbeBatchOverwrite: 'Replace existing shared configuration (keep credentials and account bindings)',
+    channelProbeBatchOverwrite:
+      'Replace existing shared configuration (keep credentials and account bindings)',
     channelProbeBatchWillCreate: 'Create profile',
     channelProbeBatchWillOverwrite: 'Existing profile',
     channelProbeBatchConfigured: 'Configured {count} probe profiles',
