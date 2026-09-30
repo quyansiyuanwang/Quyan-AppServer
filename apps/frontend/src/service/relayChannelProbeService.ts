@@ -9,6 +9,10 @@ import type {
   RelayChannelProbeOverviewItemDto,
   RelayChannelProbeLatestRunRequest,
   UpsertRelayChannelProbeProfileRequest,
+  SaveRelayChannelProbeAccountRequest,
+  ConfigureRelayChannelProbeTargetsRequest,
+  BindRelayChannelProbeAccountsRequest,
+  RelayChannelProbeAccountDto,
 } from '@/client/types.gen'
 
 const api = cacheObject(() => createRelayChannelProbeControllerApi(useRequestStore().getAxios()))
@@ -68,6 +72,34 @@ class RelayChannelProbeService {
 
   async listLatestRuns(body: RelayChannelProbeLatestRunRequest) {
     return checkApiResult<any>(await api.listLatestRuns({ body }), true).data
+  }
+
+  async listAccounts(): Promise<RelayChannelProbeAccountDto[]> {
+    return checkApiResult<{ data: RelayChannelProbeAccountDto[] }>(await api.listAccounts(), true).data
+  }
+
+  async createAccount(body: SaveRelayChannelProbeAccountRequest): Promise<RelayChannelProbeAccountDto> {
+    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(await api.createAccount({ body }), true).data
+  }
+
+  async updateAccount(accountId: string, body: SaveRelayChannelProbeAccountRequest): Promise<RelayChannelProbeAccountDto> {
+    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(await api.updateAccount({ path: { accountId }, body }), true).data
+  }
+
+  async deleteAccount(accountId: string): Promise<void> {
+    checkApiResult(await api.deleteAccount({ path: { accountId } }), false)
+  }
+
+  async refreshAccount(accountId: string): Promise<RelayChannelProbeAccountDto> {
+    return checkApiResult<{ data: RelayChannelProbeAccountDto }>(await api.refreshAccount({ path: { accountId } }), true).data
+  }
+
+  async configureTargets(body: ConfigureRelayChannelProbeTargetsRequest) {
+    return checkApiResult<any>(await api.configureTargets({ body }), true).data
+  }
+
+  async bindAccounts(body: BindRelayChannelProbeAccountsRequest) {
+    return checkApiResult<any>(await api.bindAccounts({ body }), true).data
   }
 
   async copyProfile(body: {

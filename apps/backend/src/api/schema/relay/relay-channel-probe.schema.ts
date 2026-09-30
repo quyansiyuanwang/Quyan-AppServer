@@ -218,3 +218,44 @@ export const applyRelayChannelProbeRunsBodySchema = z
       seen.add(override.runId);
     }
   });
+
+const targetConfigurationSchema = probeTargetSchema.extend({
+  probeFormat: z.enum(RELAY_PROBE_FORMATS).optional(),
+  probeModel: z.string().trim().min(1).max(200).optional(),
+  probePayload: z.record(z.string(), z.unknown()).optional(),
+  probeGroup: z.string().trim().max(80).optional(),
+});
+export const configureRelayChannelProbeTargetsBodySchema = z
+  .object({
+    sourceChannelId: z.string().trim().min(1).optional(),
+    overwriteExisting: z.boolean().optional(),
+    targets: z.array(targetConfigurationSchema).min(1).max(100),
+  })
+  .refine(
+    (value) =>
+      new Set(value.targets.map((target) => `${target.channelId}:${target.memberChannelId ?? ""}`)).size ===
+      value.targets.length,
+    "Duplicate probe targets are not allowed",
+  );
+export const bindRelayChannelProbeAccountsBodySchema = z.object({
+  targets: z
+    .array(probeTargetSchema.extend({ accountId: z.string().trim().min(1).nullable() }))
+    .min(1)
+    .max(100),
+});
+export const saveRelayChannelProbeAccountBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    loginWorkflow: workflowStepSchema.pick({ method: true, url: true, headers: true, query: true, body: true }),
+    tokenPath: variablePathSchema,
+    expiresPath: variablePathSchema.optional(),
+    expiresMode: z.enum(["seconds", "iso"]).optional(),
+    fallbackTtlSeconds: z.number().int().min(60).max(86400),
+    minLoginIntervalSeconds: z.number().int().min(1).max(86400),
+    credentials: credentialMapSchema.optional(),
+  })
+  .refine(
+    (value) => Boolean(value.expiresPath) === Boolean(value.expiresMode),
+    "expiresPath and expiresMode must be configured together",
+  );
+export const relayChannelProbeAccountParamsSchema = z.object({ accountId: z.string().trim().min(1) });

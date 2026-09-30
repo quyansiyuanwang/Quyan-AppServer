@@ -1120,6 +1120,8 @@ export const useRelaySettingsManagement = () => {
             !timeRuleRange.value[1]
           ) {
             callback(new Error(i18ns.t('required')))
+          } else if (timeRuleRange.value[0] === timeRuleRange.value[1]) {
+            callback(new Error(i18ns.t('relay.timeRuleSameStartEnd')))
           } else {
             callback()
           }

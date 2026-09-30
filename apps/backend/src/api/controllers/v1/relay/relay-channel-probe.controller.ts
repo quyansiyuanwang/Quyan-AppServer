@@ -13,6 +13,7 @@ import {
   Security,
   Tags,
 } from "@tsoa/runtime";
+import { RelayChannelProbeAccountService } from "@/services/relay/relay-channel-probe-account.service";
 import { RelayChannelProbeService } from "@/services/relay/relay-channel-probe.service";
 import { Permission } from "@/constant/permission";
 import { RequirePermission } from "@/util/permission/permission-decorator";
@@ -32,6 +33,10 @@ import {
   relayChannelProbeMemberBodySchema,
   relayChannelProbeRunsQuerySchema,
   upsertRelayChannelProbeProfileBodySchema,
+  configureRelayChannelProbeTargetsBodySchema,
+  bindRelayChannelProbeAccountsBodySchema,
+  saveRelayChannelProbeAccountBodySchema,
+  relayChannelProbeAccountParamsSchema,
 } from "@/api/schema/relay/relay-channel-probe.schema";
 import type {
   ApplyRelayChannelProbeRunsRequest,
@@ -51,12 +56,18 @@ import type {
   RelayChannelProbeLatestRunDto,
   RelayChannelProbeLatestRunRequest,
   UpsertRelayChannelProbeProfileRequest,
+  SaveRelayChannelProbeAccountRequest,
+  RelayChannelProbeAccountDto,
+  ConfigureRelayChannelProbeTargetsRequest,
+  ConfigureRelayChannelProbeTargetsResponse,
+  BindRelayChannelProbeAccountsRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
 
 @Route("v1/relay-channel-probes")
 @Tags("Relay Channel Probes")
 export class RelayChannelProbeController extends Controller {
   private readonly service = RelayChannelProbeService.getInstance();
+  private readonly accountService = RelayChannelProbeAccountService.getInstance();
 
   @Get()
   @Security("jwt")
@@ -242,5 +253,107 @@ export class RelayChannelProbeController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<ApplyRelayChannelProbeRunsResponse> {
     return this.service.applyRuns(body, request.user!.userId);
+  }
+
+  @Get("accounts")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  public listAccounts(): Promise<RelayChannelProbeAccountDto[]> {
+    return this.accountService.list();
+  }
+
+  @Post("accounts")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(saveRelayChannelProbeAccountBodySchema),
+  )
+  public createAccount(@Body() body: SaveRelayChannelProbeAccountRequest): Promise<RelayChannelProbeAccountDto> {
+    return this.accountService.save(body);
+  }
+
+  @Put("accounts/{accountId}")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeAccountParamsSchema),
+    replayProtectionMiddleware,
+    validateBody(saveRelayChannelProbeAccountBodySchema),
+  )
+  public updateAccount(
+    @Path() accountId: string,
+    @Body() body: SaveRelayChannelProbeAccountRequest,
+  ): Promise<RelayChannelProbeAccountDto> {
+    return this.accountService.save(body, accountId);
+  }
+
+  @Delete("accounts/{accountId}")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeAccountParamsSchema),
+    replayProtectionMiddleware,
+  )
+  public async deleteAccount(@Path() accountId: string): Promise<void> {
+    await this.accountService.remove(accountId);
+    this.setStatus(204);
+  }
+
+  @Post("accounts/{accountId}/refresh")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    validateParams(relayChannelProbeAccountParamsSchema),
+    replayProtectionMiddleware,
+  )
+  public refreshAccount(@Path() accountId: string): Promise<RelayChannelProbeAccountDto> {
+    return this.accountService.refresh(accountId);
+  }
+
+  @Post("targets/configure")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(configureRelayChannelProbeTargetsBodySchema),
+  )
+  public configureTargets(
+    @Body() body: ConfigureRelayChannelProbeTargetsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
+    return this.service.configureTargets(body, request.user!.userId);
+  }
+
+  @Post("accounts/bindings")
+  @Security("jwt")
+  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @ReplayProtected()
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(bindRelayChannelProbeAccountsBodySchema),
+  )
+  public bindAccounts(
+    @Body() body: BindRelayChannelProbeAccountsRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
+    return this.service.bindAccounts(body, request.user!.userId);
   }
 }

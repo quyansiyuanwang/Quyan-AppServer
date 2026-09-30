@@ -8,8 +8,9 @@ import {
   type RelayChannelProbeManagementState,
 } from '@/views/relay/relay-channel-probe/useRelayChannelProbeManagement'
 
-const { createRunsMock, listLatestRunsMock, listOverviewMock, listChannelsMock } = vi.hoisted(() => ({
+const { createRunsMock, listLatestRunsMock, listOverviewMock, listChannelsMock, configureTargetsMock } = vi.hoisted(() => ({
   createRunsMock: vi.fn(),
+  configureTargetsMock: vi.fn(),
   listLatestRunsMock: vi.fn(),
   listOverviewMock: vi.fn(),
   listChannelsMock: vi.fn(),
@@ -26,6 +27,9 @@ vi.mock('@/service/relayChannelProbeService', () => ({
     createRuns: createRunsMock,
     listLatestRuns: listLatestRunsMock,
     copyProfile: vi.fn(),
+    listAccounts: vi.fn().mockResolvedValue([]),
+    configureTargets: configureTargetsMock,
+    bindAccounts: vi.fn().mockResolvedValue({ configured: [], rejected: [] }),
     listRuns: vi.fn(),
     clearRunHistory: vi.fn(),
     applyRuns: vi.fn(),
@@ -179,6 +183,35 @@ describe('useRelayChannelProbeManagement', () => {
     expect(listLatestRunsMock).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(1)
     expect(listLatestRunsMock).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('adapts unsupported formats and models per batch target without copying secrets', async () => {
+    const source = createItem({
+      profile: { enabled: true, probeFormat: 'openai-chat-completions', probeModel: 'gpt-test',
+        probePayload: { messages: [] }, probeGroup: 'source-group' },
+      allowedProbeFormats: ['openai-chat-completions'],
+    })
+    const target = createItem({
+      channelId: 'channel-2', channelName: 'Anthropic channel', allowedProbeFormats: ['anthropic'],
+      allowedProbeModels: ['claude-test'],
+    })
+    listOverviewMock.mockResolvedValue({ hasCustomerFacingTargets: true, items: [source, target] })
+    configureTargetsMock.mockResolvedValue({
+      configured: [{ channelId: 'channel-2' }], rejected: [],
+    })
+    const { state, wrapper } = await mountComposable()
+    state.selectedRows.value = [...state.items.value]
+    state.openBatchProfileDialog()
+    expect(state.batchProfileTargets.value[0]).toMatchObject({
+      channelId: 'channel-2', probeFormat: 'anthropic', probeModel: 'claude-test',
+    })
+    await state.submitBatchProfileCopy()
+    expect(configureTargetsMock).toHaveBeenCalledWith(expect.objectContaining({
+      sourceChannelId: 'channel-1', targets: [expect.objectContaining({
+        channelId: 'channel-2', probeFormat: 'anthropic', probeModel: 'claude-test',
+      })],
+    }))
     wrapper.unmount()
   })
 

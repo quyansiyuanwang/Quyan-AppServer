@@ -53,7 +53,7 @@ export class RelayChannelProbeRepository {
   }
 
   /** Copies an already encrypted profile without ever decrypting its credentials for a caller. */
-  public copyProfile(source: RelayChannelProbeProfileRecord, targetChannelId: string) {
+  public copyProfile(source: RelayChannelProbeProfileRecord, targetChannelId: string, copyCredentials = true) {
     const data = {
       enabled: source.enabled,
       probeFormat: source.probeFormat,
@@ -74,9 +74,11 @@ export class RelayChannelProbeRepository {
       probeGroup: source.probeGroup,
       distributionMultiplier: source.distributionMultiplier,
       workflow: source.workflow as Prisma.InputJsonValue,
-      encryptedCredentials: source.encryptedCredentials,
-      credentialIv: source.credentialIv,
-      credentialAuthTag: source.credentialAuthTag,
+      ...(copyCredentials ? {
+        encryptedCredentials: source.encryptedCredentials,
+        credentialIv: source.credentialIv,
+        credentialAuthTag: source.credentialAuthTag,
+      } : {}),
     };
     return prisma.relayChannelProbeProfile.upsert({
       where: { relayChannelId: targetChannelId },

@@ -33,6 +33,13 @@ const timePeriodRuleSchema = z.object({
   startTime: z.string().regex(timeRegex, "startTime must be HH:mm"),
   endTime: z.string().regex(timeRegex, "endTime must be HH:mm"),
   multiplier: z.number().min(0.01).max(100),
+}).superRefine((rule, ctx) => {
+  if (!rule.allDay && rule.startTime === rule.endTime) ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ["endTime"],
+    message: "A timed rule must have different start and end times",
+    params: { messageKey: "relayChannel.timeRuleSameStartEnd" },
+  });
 });
 
 const contextLengthRuleSchema = z.object({

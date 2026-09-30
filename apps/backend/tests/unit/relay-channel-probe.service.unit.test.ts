@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { RelayChannelProbeAccountRepository } from "@/store/relay/relay-channel-probe-account.repository";
+import { PermissionService } from "@/services/users/permission.service";
+import { RelayChannelProbeService } from "@/services/relay/relay-channel-probe.service";
 import {
   assertProbeUsage,
   buildProbeUpstreamEndpoint,
@@ -9,6 +12,7 @@ import {
   findProbeOutlierIndexes,
   formatProbeUpstreamError,
   getProbeSchedulingScope,
+  resolveProbeLockScopes,
   getProbeWorkflowHeaders,
   getProbeWorkflowRequestBody,
   injectProbeCacheBuster,
@@ -28,7 +32,41 @@ import {
 import type { RelayChannelProbeTopologyItem } from "../../src/services/relay/relay-channel-probe.service";
 import type { RelayChannelProbeSampleDto } from "../../src/api/dto/relay/relay-channel-probe.dto";
 
+describe("bound account authorization", () => {
+  it("requires the dedicated management permission to edit a bound profile", async () => {
+    const count = vi.spyOn(RelayChannelProbeAccountRepository.getInstance(), "countBoundTargets").mockResolvedValue(1);
+    const authorized = vi.spyOn(PermissionService.getInstance(), "hasPermission").mockResolvedValue(false);
+    const service = RelayChannelProbeService.getInstance() as unknown as {
+      assertCanModifyBoundProfile(profileId: string, userId: string): Promise<void>;
+    };
+    try {
+      await expect(service.assertCanModifyBoundProfile("profile-1", "executor-only")).rejects.toMatchObject({
+        messageKey: "relayChannelProbe.accountManagementRequired",
+      });
+      authorized.mockResolvedValue(true);
+      await expect(service.assertCanModifyBoundProfile("profile-1", "account-manager")).resolves.toBeUndefined();
+      count.mockResolvedValue(0);
+      authorized.mockClear();
+      await expect(service.assertCanModifyBoundProfile("profile-2", "executor-only")).resolves.toBeUndefined();
+      expect(authorized).not.toHaveBeenCalled();
+    } finally {
+      count.mockRestore();
+      authorized.mockRestore();
+    }
+  });
+});
+
 describe("relay channel probe helpers", () => {
+  it("serializes runs on a shared account independently of the operator group", () => {
+    const a = resolveProbeLockScopes("group-a", "account-shared");
+    const b = resolveProbeLockScopes("group-b", "account-shared");
+    expect(a).toContain("probe-account:account-shared");
+    expect(b).toContain("probe-account:account-shared");
+    expect(a).toEqual([...a].sort());
+    expect(resolveProbeLockScopes("GROUP-A", "account-shared")).toEqual(a);
+    expect(resolveProbeLockScopes(undefined, "account-shared")).toEqual(["probe-account:account-shared"]);
+  });
+
   it("subtracts cache reads and writes from cache-inclusive probe input", () => {
     expect(resolveProbeBillableInputTokens(1000, 300, 200, true)).toBe(500);
     expect(resolveProbeBillableInputTokens(1000, 300, 200, false)).toBe(1000);
