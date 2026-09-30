@@ -104,6 +104,7 @@ export enum Permission {
   RELAY_CHANNEL_POOL_METADATA_READ = 'relay:channel:pool_metadata:read',
   RELAY_CHANNEL_PROBE_READ = 'relay:channel:probe:read',
   RELAY_CHANNEL_PROBE_EXECUTE = 'relay:channel:probe:execute',
+  RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE = 'relay:channel:probe:account:manage',
   RELAY_CHANNEL_MULTIPLIER_ADJUST = 'relay:channel:multiplier:adjust',
   RELAY_CHANNEL_SUBMIT = 'relay:channel:submit',
   RELAY_CHANNEL_REVIEW = 'relay:channel:review',

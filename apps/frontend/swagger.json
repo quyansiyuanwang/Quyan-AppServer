@@ -20317,6 +20317,253 @@
 				}
 			}
 		},
+		"/v1/relay-channel-probes/accounts": {
+			"get": {
+				"operationId": "RelayChannelProbeControllerListAccounts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RelayChannelProbeAccountDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			},
+			"post": {
+				"operationId": "RelayChannelProbeControllerCreateAccount",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeAccountDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaveRelayChannelProbeAccountRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/relay-channel-probes/accounts/{accountId}": {
+			"put": {
+				"operationId": "RelayChannelProbeControllerUpdateAccount",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeAccountDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "accountId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaveRelayChannelProbeAccountRequest"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "RelayChannelProbeControllerDeleteAccount",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "accountId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/relay-channel-probes/accounts/{accountId}/refresh": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerRefreshAccount",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayChannelProbeAccountDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "accountId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay-channel-probes/targets/configure": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerConfigureTargets",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ConfigureRelayChannelProbeTargetsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ConfigureRelayChannelProbeTargetsRequest"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/relay-channel-probes/accounts/bindings": {
+			"post": {
+				"operationId": "RelayChannelProbeControllerBindAccounts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ConfigureRelayChannelProbeTargetsResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay Channel Probes"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/BindRelayChannelProbeAccountsRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/model-pricing": {
 			"get": {
 				"operationId": "ModelPricingControllerGetModelPricing",
@@ -35646,6 +35893,7 @@
 					"relay:channel:pool_metadata:read",
 					"relay:channel:probe:read",
 					"relay:channel:probe:execute",
+					"relay:channel:probe:account:manage",
 					"relay:channel:multiplier:adjust",
 					"relay:channel:submit",
 					"relay:channel:review",
@@ -51888,6 +52136,36 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayChannelProbeTargetConfigDto": {
+				"properties": {
+					"channelId": {
+						"type": "string"
+					},
+					"memberChannelId": {
+						"type": "string"
+					},
+					"probeFormat": {
+						"$ref": "#/components/schemas/RelayChannelProbeFormat"
+					},
+					"probeModel": {
+						"type": "string"
+					},
+					"probePayload": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					},
+					"probeGroup": {
+						"type": "string"
+					},
+					"accountId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"channelId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayChannelProbeMemberDto": {
 				"properties": {
 					"channelId": {
@@ -51902,11 +52180,26 @@
 					"hasCredentials": {
 						"type": "boolean"
 					},
+					"allowedProbeFormats": {
+						"items": {
+							"$ref": "#/components/schemas/RelayConfiguredRequestFormat"
+						},
+						"type": "array"
+					},
+					"allowedProbeModels": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
 					"compatible": {
 						"type": "boolean"
 					},
 					"incompatibilityReason": {
 						"type": "string"
+					},
+					"targetConfig": {
+						"$ref": "#/components/schemas/RelayChannelProbeTargetConfigDto"
 					},
 					"latestRun": {
 						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
@@ -51917,6 +52210,8 @@
 					"channelName",
 					"enabled",
 					"hasCredentials",
+					"allowedProbeFormats",
+					"allowedProbeModels",
 					"compatible"
 				],
 				"type": "object",
@@ -51945,7 +52240,7 @@
 							"$ref": "#/components/schemas/RelayChannelProbeCustomerFacingTargetDto"
 						},
 						"type": "array",
-						"description": "Pooled entries that resolve to this standalone channel. When present,\ncustomer notices must use these names instead of the upstream account name."
+						"description": "Pooled entries that resolve to this standalone channel. When present,\r\ncustomer notices must use these names instead of the upstream account name."
 					},
 					"multiplier": {
 						"type": "number",
@@ -51970,6 +52265,9 @@
 					},
 					"latestRun": {
 						"$ref": "#/components/schemas/RelayChannelProbeRunDto"
+					},
+					"targetConfig": {
+						"$ref": "#/components/schemas/RelayChannelProbeTargetConfigDto"
 					},
 					"members": {
 						"items": {
@@ -52414,6 +52712,224 @@
 				},
 				"required": [
 					"runIds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeAccountDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"tokenPath": {
+						"type": "string"
+					},
+					"expiresPath": {
+						"type": "string"
+					},
+					"expiresMode": {
+						"type": "string",
+						"enum": [
+							"seconds",
+							"iso"
+						]
+					},
+					"fallbackTtlSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"minLoginIntervalSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastLoginAttemptAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"nextLoginAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"cached": {
+						"type": "boolean"
+					},
+					"hasCredentials": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"tokenPath",
+					"fallbackTtlSeconds",
+					"minLoginIntervalSeconds",
+					"cached",
+					"hasCredentials"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayChannelProbeLoginDto": {
+				"description": "Login response and credentials are never exposed to clients.",
+				"properties": {
+					"method": {
+						"type": "string",
+						"enum": [
+							"GET",
+							"POST"
+						]
+					},
+					"url": {
+						"type": "string"
+					},
+					"headers": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"query": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"body": {
+						"$ref": "#/components/schemas/Record_string.unknown_"
+					}
+				},
+				"required": [
+					"method",
+					"url"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SaveRelayChannelProbeAccountRequest": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"loginWorkflow": {
+						"$ref": "#/components/schemas/RelayChannelProbeLoginDto"
+					},
+					"tokenPath": {
+						"type": "string"
+					},
+					"expiresPath": {
+						"type": "string"
+					},
+					"expiresMode": {
+						"type": "string",
+						"enum": [
+							"seconds",
+							"iso"
+						]
+					},
+					"fallbackTtlSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"minLoginIntervalSeconds": {
+						"type": "number",
+						"format": "double"
+					},
+					"credentials": {
+						"$ref": "#/components/schemas/Record_string.string_"
+					}
+				},
+				"required": [
+					"name",
+					"loginWorkflow",
+					"tokenPath",
+					"fallbackTtlSeconds",
+					"minLoginIntervalSeconds"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ConfigureRelayChannelProbeTargetsResponse": {
+				"properties": {
+					"configured": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeTargetConfigDto"
+						},
+						"type": "array"
+					},
+					"rejected": {
+						"items": {
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"memberChannelId": {
+									"type": "string"
+								},
+								"channelId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"reason",
+								"channelId"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"configured",
+					"rejected"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ConfigureRelayChannelProbeTargetsRequest": {
+				"properties": {
+					"sourceChannelId": {
+						"type": "string"
+					},
+					"overwriteExisting": {
+						"type": "boolean"
+					},
+					"targets": {
+						"items": {
+							"$ref": "#/components/schemas/RelayChannelProbeTargetConfigDto"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"BindRelayChannelProbeAccountsRequest": {
+				"properties": {
+					"targets": {
+						"items": {
+							"properties": {
+								"accountId": {
+									"type": "string",
+									"nullable": true
+								},
+								"memberChannelId": {
+									"type": "string"
+								},
+								"channelId": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"accountId",
+								"channelId"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"targets"
 				],
 				"type": "object",
 				"additionalProperties": false
