@@ -6,6 +6,7 @@ import { ElMessage } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { socialAuthService } from '@/service/socialAuthService'
 import { authorizationService } from '@/service/authorizationService'
+import { twoFactorOverlayService } from '@/service/twoFactorOverlayService'
 import { getLoginRoute, getSafeAuthRedirect } from '@/utils/auth-routes'
 import { completeCentralLogin, getDefaultAccountDestination } from '@/service/centralLoginService'
 import { replaceDocument } from '@/service/navigationService'
@@ -20,6 +21,13 @@ const provider = String((route.params as Record<string, unknown>).provider || ''
   | 'wechat-web'
 
 onMounted(async () => {
+  // OAuth authorization codes are one-use. A refresh during the 2FA challenge
+  // must resume verification, not exchange the same code a second time.
+  if (twoFactorOverlayService.restore()) {
+    loading.value = false
+    return
+  }
+
   const code = typeof route.query.code === 'string' ? route.query.code : ''
   const state = typeof route.query.state === 'string' ? route.query.state : ''
   const redirect = getSafeAuthRedirect(route.query.redirect, {
@@ -46,13 +54,13 @@ onMounted(async () => {
 
     if (authorizationService.isTwoFactorChallengePayload(result)) {
       authorizationService.setPendingTwoFactorChallenge(result.challengeToken, redirect, 'login')
-      await router.replace({
-        name: 'authVerification',
-        query: {
-          method: 'code',
-          authEntry: 'login',
-          ...(redirect ? { redirect } : {}),
-        },
+      twoFactorOverlayService.open({
+        challengeToken: result.challengeToken,
+        purpose: 'login',
+        method: 'code',
+        authEntry: 'login',
+        redirect,
+        flowId: typeof route.query.flowId === 'string' ? route.query.flowId : undefined,
       })
       return
     }

@@ -1,6 +1,7 @@
 import { CustomCode } from '@/constant/custom-code'
 import StorageKey from '@/constant/storagekey'
 import { TypedSessionStorage } from '@/utils/typedSessionStorage'
+import { twoFactorOverlayService } from '@/service/twoFactorOverlayService'
 
 export class TwoFactorRedirectError extends Error {
   readonly code = CustomCode.TWO_FACTOR_REQUIRED
@@ -90,10 +91,9 @@ const getCurrentAuthEntry = (): 'login' | 'register' => {
 let navigationPromise: Promise<boolean> | null = null
 
 /**
- * Persist the challenge and finish routing to the verification view before the
- * intercepted request is handed back to its caller.  Returning the navigation
- * promise is important: callers must not surface the 2FA response as an
- * ordinary request error while the application is still on the protected page.
+ * Persist a challenge and open the global verification overlay without
+ * changing the current route. The original page remains mounted so local
+ * form state, filters and unsaved edits survive the verification flow.
  */
 export const navigateToTwoFactorVerification = (response: unknown): Promise<boolean> => {
   const data = getTwoFactorResponseData(response)
@@ -105,6 +105,7 @@ export const navigateToTwoFactorVerification = (response: unknown): Promise<bool
   }
 
   if (navigationPromise) return navigationPromise
+  if (twoFactorOverlayService.state.visible) return Promise.resolve(true)
 
   const redirect = typeof data.redirect === 'string' ? data.redirect : getRedirect()
   const authEntry = getCurrentAuthEntry()
@@ -114,33 +115,25 @@ export const navigateToTwoFactorVerification = (response: unknown): Promise<bool
   )
 
   const purpose = ['login', 'disable2fa', 'stepup'].includes(String(data.purpose))
-    ? String(data.purpose)
+    ? (String(data.purpose) as 'login' | 'disable2fa' | 'stepup')
     : 'stepup'
   const method = ['code', 'email', 'passkey'].includes(String(data.method))
-    ? String(data.method)
+    ? (String(data.method) as 'code' | 'email' | 'passkey')
     : 'code'
+  const flowId = purpose === 'login' ? getCurrentQueryValue('flowId') : undefined
 
-  const navigation = import('@/router')
-    .then(async ({ default: router }) => {
-      const flowId = purpose === 'login' ? getCurrentQueryValue('flowId') : undefined
-      await router.push({
-        name: 'authVerification',
-        query: {
-          purpose,
-          method,
-          ...(flowId ? { flowId } : {}),
-          ...(authEntry === 'register' ? { authEntry } : {}),
-        },
-      })
-      return true
-    })
-    .catch((error) => {
-      console.warn('[2FA] Failed to navigate to verification page:', error)
-      return false
-    })
-
-  navigationPromise = navigation.finally(() => {
+  navigationPromise = Promise.resolve(
+    twoFactorOverlayService.open({
+      challengeToken,
+      purpose,
+      method,
+      redirect,
+      authEntry,
+      ...(flowId ? { flowId } : {}),
+    }),
+  ).finally(() => {
     navigationPromise = null
   })
+
   return navigationPromise
 }
