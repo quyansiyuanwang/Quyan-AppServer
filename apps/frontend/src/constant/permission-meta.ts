@@ -613,6 +613,13 @@ export const PERMISSION_META: PermissionMetaMap = {
     tooltipEn: 'Allows configuring credentials and executing standalone channel probes',
     category: 'relay',
   },
+  [Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE]: {
+    label: '管理探针号池',
+    labelEn: 'Manage Probe Account Pool',
+    tooltip: '允许管理共享的上游登录账号、会话和探针绑定',
+    tooltipEn: 'Allows managing shared upstream accounts, sessions and probe bindings',
+    category: 'relay',
+  },
   [Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST]: {
     label: '调整渠道倍率',
     labelEn: 'Adjust Channel Multipliers',

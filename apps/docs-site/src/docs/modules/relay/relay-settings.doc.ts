@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'relay-settings',
-  updatedAt: '2026-09-23',
+  updatedAt: '2026-09-30',
   category: {
     en: 'Relay',
     'zh-CN': '转发',

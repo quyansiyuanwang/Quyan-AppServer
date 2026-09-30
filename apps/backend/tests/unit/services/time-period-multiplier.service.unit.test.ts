@@ -23,6 +23,19 @@ function dateFrom(dayOfWeek: number, hours: number, minutes = 0): Date {
 }
 
 describe("computeMultiplierForTime", () => {
+  it("keeps historical zero-length timed rules inactive without affecting all-day rules", () => {
+    const timed = makeRule({ startTime: "10:00", endTime: "10:00" });
+    expect(computeMultiplierForTime([timed], dateFrom(1, 10))).toBe(1);
+    expect(computeMultiplierForTime([{ ...timed, allDay: true }], dateFrom(1, 23, 59))).toBe(2);
+  });
+
+  it("uses the request weekday for an overnight interval and multiplies matching rules", () => {
+    const fridayNight = makeRule({ dayOfWeek: "5", startTime: "22:00", endTime: "02:00", multiplier: 1.5 });
+    const overlapping = makeRule({ dayOfWeek: "5", startTime: "23:00", endTime: "01:00", multiplier: 2 });
+    expect(computeMultiplierForTime([fridayNight, overlapping], dateFrom(5, 23, 30))).toBe(3);
+    expect(computeMultiplierForTime([fridayNight, overlapping], dateFrom(6, 0, 30))).toBe(1);
+  });
+
   it("returns 1.0 when no rules provided", () => {
     expect(computeMultiplierForTime([], dateFrom(1, 10, 0))).toBe(1.0);
   });

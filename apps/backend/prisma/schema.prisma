@@ -1243,10 +1243,50 @@ model RelayChannelProbeProfile {
 
   relayChannel RelayChannel           @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
   runs         RelayChannelProbeRun[]
+  targetConfigs RelayChannelProbeTargetConfig[]
 
   @@index([enabled])
   @@index([relayChannelId])
   @@map("relay_channel_probe_profiles")
+}
+
+model RelayChannelProbeAccount {
+  id                       String   @id @default(cuid())
+  name                     String   @unique @db.VarChar(100)
+  tokenPath                String   @db.VarChar(200)
+  expiresPath              String?  @db.VarChar(200)
+  expiresMode              String?  @db.VarChar(12)
+  fallbackTtlSeconds       Int
+  minLoginIntervalSeconds  Int
+  encryptedCredentials     String   @db.LongText
+  credentialIv             String   @db.VarChar(128)
+  credentialAuthTag        String   @db.VarChar(128)
+  lastLoginAttemptAt       DateTime?
+  createTime               DateTime @default(now())
+  updateTime               DateTime @updatedAt
+  targets                  RelayChannelProbeTargetConfig[]
+
+  @@map("relay_channel_probe_accounts")
+}
+
+model RelayChannelProbeTargetConfig {
+  id              String   @id @default(cuid())
+  profileId       String
+  targetChannelId String   @db.VarChar(191)
+  accountId       String?
+  probeFormat     String?  @db.VarChar(32)
+  probeModel      String?  @db.VarChar(200)
+  probePayload    Json?
+  probeGroup      String?  @db.VarChar(80)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+
+  profile RelayChannelProbeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  account RelayChannelProbeAccount? @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([profileId, targetChannelId])
+  @@index([accountId])
+  @@map("relay_channel_probe_target_configs")
 }
 
 model RelayChannelProbeRun {

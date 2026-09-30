@@ -36,6 +36,14 @@
       clearable
       :placeholder="i18ns.t('relay.channelProbeSearchPlaceholder')"
     />
+    <el-select
+      v-model="groupFilter"
+      clearable
+      filterable
+      :placeholder="i18ns.t('relay.probeGroupFilter')"
+    >
+      <el-option v-for="group in availableGroups" :key="group" :label="group" :value="group" />
+    </el-select>
     <el-select v-model="profileFilter">
       <el-option value="all" :label="i18ns.t('relay.channelProbeFilterAllProfiles')" />
       <el-option value="configured" :label="i18ns.t('relay.channelProbeFilterConfigured')" />
@@ -270,6 +278,8 @@ const {
   confirmResetRunState,
   enabledFilter,
   filteredItems,
+  groupFilter,
+  availableGroups,
   forceWithoutCacheBuster,
   isApplicable,
   keyword,

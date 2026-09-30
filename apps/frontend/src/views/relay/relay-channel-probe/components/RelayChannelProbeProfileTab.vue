@@ -14,6 +14,43 @@
               :active-text="i18ns.t('productConsole.enabled')"
             />
           </header>
+          <el-alert
+            v-if="selectedMemberChannelId"
+            type="info"
+            :closable="false"
+            class="my-2"
+            :title="i18ns.t('relay.probeMemberOverrideHelp')"
+          />
+          <el-form-item
+            v-if="
+              canManageAccounts && (selected?.channelType !== 'pooled' || selectedMemberChannelId)
+            "
+            :label="i18ns.t('relay.probeAccountBinding')"
+          >
+            <el-select
+              v-model="selectedAccountId"
+              clearable
+              filterable
+              :disabled="!canExecute"
+              class="w-full"
+              :placeholder="i18ns.t('relay.probeAccountNoBinding')"
+            >
+              <el-option
+                v-for="account in accounts"
+                :key="account.id"
+                :label="account.name"
+                :value="account.id"
+              />
+            </el-select>
+            <span class="probe-form-help">{{ i18ns.t('relay.probeAccountBindingHelp') }}</span>
+          </el-form-item>
+          <el-alert
+            v-if="selectedAccountId && workflowSteps.length > 1"
+            type="warning"
+            :closable="false"
+            class="my-2"
+            :title="i18ns.t('relay.probeAccountLegacyWarning')"
+          />
           <div class="request-config-grid">
             <el-form-item :label="i18ns.t('relay.channelProbeFormat')"
               ><el-select v-model="form.probeFormat" :disabled="!canExecute"
@@ -335,7 +372,10 @@
             ><span>{{ i18ns.t('relay.channelProbeCredentialsHelp') }}</span>
           </div>
           <section
-            v-for="member in memberCredentials"
+            v-for="member in memberCredentials.filter(
+              (item) =>
+                !selectedMemberChannelId || item.memberChannelId === selectedMemberChannelId,
+            )"
             :key="member.memberChannelId"
             class="workflow-step"
           >
@@ -596,7 +636,7 @@ const {
   availableVariables,
   balancePathCount,
   cacheModeHelp,
-  canExecute,
+  canConfigureSelected: canExecute,
   clearingProfile,
   confirmClearProfile,
   copyConfiguration,
@@ -604,6 +644,10 @@ const {
   credentialNames,
   credentials,
   memberCredentials,
+  accounts,
+  canManageAccounts,
+  selectedAccountId,
+  selectedMemberChannelId,
   currenciesMatch,
   downloadConfiguration,
   form,

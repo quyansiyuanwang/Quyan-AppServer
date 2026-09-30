@@ -282,6 +282,7 @@ export interface RelayChannelProbeOverviewItemDto {
   allowedProbeModels: string[];
   profile?: RelayChannelProbeProfileDto;
   latestRun?: RelayChannelProbeRunDto;
+  targetConfig?: RelayChannelProbeTargetConfigDto;
   /** Physical accounts that can be independently probed from this logical pool. */
   members?: RelayChannelProbeMemberDto[];
 }
@@ -291,8 +292,11 @@ export interface RelayChannelProbeMemberDto {
   channelName: string;
   enabled: boolean;
   hasCredentials: boolean;
+  allowedProbeFormats: RelayConfiguredRequestFormat[];
+  allowedProbeModels: string[];
   compatible: boolean;
   incompatibilityReason?: string;
+  targetConfig?: RelayChannelProbeTargetConfigDto;
   latestRun?: RelayChannelProbeRunDto;
 }
 
@@ -307,4 +311,57 @@ export interface ApplyRelayChannelProbeRunsRequest {
 export interface ApplyRelayChannelProbeRunsResponse {
   applied: number;
   rejected: Array<{ runId: string; reason: string }>;
+}
+
+/** Login response and credentials are never exposed to clients. */
+export interface RelayChannelProbeLoginDto {
+  method: "GET" | "POST";
+  url: string;
+  headers?: Record<string, string>;
+  query?: Record<string, string>;
+  body?: Record<string, unknown>;
+}
+export interface SaveRelayChannelProbeAccountRequest {
+  name: string;
+  loginWorkflow: RelayChannelProbeLoginDto;
+  tokenPath: string;
+  expiresPath?: string;
+  expiresMode?: "seconds" | "iso";
+  fallbackTtlSeconds: number;
+  minLoginIntervalSeconds: number;
+  credentials?: Record<string, string>;
+}
+export interface RelayChannelProbeAccountDto {
+  id: string;
+  name: string;
+  tokenPath: string;
+  expiresPath?: string;
+  expiresMode?: "seconds" | "iso";
+  fallbackTtlSeconds: number;
+  minLoginIntervalSeconds: number;
+  lastLoginAttemptAt?: Date;
+  nextLoginAt?: Date;
+  cached: boolean;
+  hasCredentials: boolean;
+}
+export interface RelayChannelProbeTargetConfigDto {
+  channelId: string;
+  memberChannelId?: string;
+  probeFormat?: RelayChannelProbeFormat;
+  probeModel?: string;
+  probePayload?: Record<string, unknown>;
+  probeGroup?: string;
+  accountId?: string;
+}
+export interface ConfigureRelayChannelProbeTargetsRequest {
+  sourceChannelId?: string;
+  overwriteExisting?: boolean;
+  targets: RelayChannelProbeTargetConfigDto[];
+}
+export interface ConfigureRelayChannelProbeTargetsResponse {
+  configured: RelayChannelProbeTargetConfigDto[];
+  rejected: Array<{ channelId: string; memberChannelId?: string; reason: string }>;
+}
+export interface BindRelayChannelProbeAccountsRequest {
+  targets: Array<{ channelId: string; memberChannelId?: string; accountId: string | null }>;
 }
