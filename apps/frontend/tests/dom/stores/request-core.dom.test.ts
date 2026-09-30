@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AxiosHeaders, CanceledError, HttpStatusCode } from 'axios'
 import { createPinia, setActivePinia } from 'pinia'
 import StorageKey from '@/constant/storagekey'
+import { twoFactorOverlayService } from '@/service/twoFactorOverlayService'
 import { clearAccessToken, clearLegacyAuthStorage, MyAxios, setAccessToken } from '@/stores/request'
 import { getBackendLocale, setLocale } from '@/locales'
 import { checkApiResult } from '@/utils/service-utils'
@@ -31,6 +32,7 @@ describe('MyAxios session transport', () => {
     window.history.replaceState({}, '', '/')
     clearAccessToken()
     MyAxios.clearPendingTwoFactorRequests()
+    twoFactorOverlayService.close()
     refreshMock.mockReset()
     waitForPendingRestoreMock.mockReset()
     waitForPendingRestoreMock.mockResolvedValue(null)
@@ -42,6 +44,7 @@ describe('MyAxios session transport', () => {
 
   afterEach(() => {
     MyAxios.clearPendingTwoFactorRequests()
+    twoFactorOverlayService.close()
     clearAccessToken()
     localStorage.clear()
     sessionStorage.clear()
@@ -248,7 +251,7 @@ describe('MyAxios session transport', () => {
     expect(notifyMock).toHaveBeenCalledWith(expect.any(String), 'upstream failed')
   })
 
-  it('redirects two-factor-required responses before business success handlers run', async () => {
+  it('opens an overlay before business success handlers run', async () => {
     const client = new MyAxios('https://backend.example.test', 1000)
     const axiosInstance: any = client.getAxios()
     const fulfilledHandler = axiosInstance.interceptors.response.handlers[0]?.fulfilled
@@ -263,14 +266,6 @@ describe('MyAxios session transport', () => {
       },
     }
 
-    let completeNavigation: (() => void) | undefined
-    routerPush.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          completeNavigation = resolve
-        }),
-    )
-
     const handledResponse = fulfilledHandler({
       data: responseData,
       config: { url: '/v1/redemption-codes', method: 'post', headers: new AxiosHeaders() },
@@ -279,14 +274,12 @@ describe('MyAxios session transport', () => {
     expect(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)).toContain(
       'challenge-token',
     )
-    await vi.waitFor(() =>
-      expect(routerPush).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'authVerification',
-          query: { purpose: 'stepup', method: 'code' },
-        }),
-      ),
-    )
+    expect(twoFactorOverlayService.state.context).toMatchObject({
+      challengeToken: 'challenge-token',
+      purpose: 'stepup',
+      method: 'code',
+    })
+    expect(routerPush).not.toHaveBeenCalled()
 
     // The original promise stays pending and is settled by the retry result,
     // so callers never render the 2FA challenge as an ordinary error.
@@ -294,7 +287,6 @@ describe('MyAxios session transport', () => {
     void handledResponse.finally(() => {
       requestSettled = true
     })
-    completeNavigation?.()
     await Promise.resolve()
     expect(requestSettled).toBe(false)
 
@@ -303,7 +295,37 @@ describe('MyAxios session transport', () => {
     await expect(handledResponse).resolves.toEqual({ code: 0, retried: true })
   })
 
-  it('redirects nested Axios error responses and preserves the challenge details', async () => {
+  it('holds concurrent step-up requests behind one challenge and retries each once', async () => {
+    const client = new MyAxios('https://backend.example.test', 1000)
+    const axiosInstance: any = client.getAxios()
+    const fulfilled = axiosInstance.interceptors.response.handlers[0]?.fulfilled
+    const challenge = {
+      code: 1018,
+      data: { challengeToken: 'shared-challenge', purpose: 'stepup', method: 'code' },
+    }
+    const first = fulfilled({
+      data: challenge,
+      config: { url: '/v1/first', method: 'post', headers: new AxiosHeaders() },
+    })
+    const second = fulfilled({
+      data: { ...challenge, data: { ...challenge.data, challengeToken: 'other-challenge' } },
+      config: { url: '/v1/second', method: 'post', headers: new AxiosHeaders() },
+    })
+
+    await Promise.resolve()
+    expect(twoFactorOverlayService.state.context?.challengeToken).toBe('shared-challenge')
+    expect(routerPush).not.toHaveBeenCalled()
+
+    axiosInstance.request = vi.fn((request: { url: string }) =>
+      Promise.resolve({ url: request.url }),
+    )
+    await client.retryPendingTwoFactorRequests()
+    await expect(first).resolves.toEqual({ url: '/v1/first' })
+    await expect(second).resolves.toEqual({ url: '/v1/second' })
+    expect(axiosInstance.request).toHaveBeenCalledTimes(2)
+  })
+
+  it('opens an overlay for nested Axios error responses and preserves challenge details', async () => {
     const client = new MyAxios('https://backend.example.test', 1000)
     const axiosInstance: any = client.getAxios()
     const errorHandler = axiosInstance.interceptors.response.handlers[0]?.rejected
@@ -319,37 +341,26 @@ describe('MyAxios session transport', () => {
       config: { url: '/v1/auth/login', method: 'post', headers: new AxiosHeaders() },
     }
 
-    let completeNavigation: (() => void) | undefined
-    routerPush.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          completeNavigation = resolve
-        }),
-    )
-
     const handledError = errorHandler(errorResponse)
     expect(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)).toContain(
       'error-challenge',
     )
-    await vi.waitFor(() =>
-      expect(routerPush).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'authVerification',
-          query: { purpose: 'login', method: 'passkey' },
-        }),
-      ),
-    )
+    expect(twoFactorOverlayService.state.context).toMatchObject({
+      challengeToken: 'error-challenge',
+      purpose: 'login',
+      method: 'passkey',
+    })
+    expect(routerPush).not.toHaveBeenCalled()
 
     // Login challenges are control flow, not a queued retry: the verification
     // endpoint establishes the session and the login page consumes this error.
-    completeNavigation?.()
     await expect(handledError).rejects.toMatchObject({
       name: 'TwoFactorRedirectError',
       code: 1018,
     })
   })
 
-  it('preserves the central-login flow id when navigating to login verification', async () => {
+  it('preserves the central-login flow id when opening login verification', async () => {
     window.history.replaceState({}, '', '/login?flowId=flow-123')
     const client = new MyAxios('https://backend.example.test', 1000)
     const axiosInstance: any = client.getAxios()
@@ -365,20 +376,18 @@ describe('MyAxios session transport', () => {
       config: { url: '/v1/auth/login', method: 'post', headers: new AxiosHeaders() },
     }
 
-    routerPush.mockResolvedValueOnce(undefined)
     await expect(errorHandler(errorResponse)).rejects.toMatchObject({
       name: 'TwoFactorRedirectError',
       code: 1018,
     })
 
-    expect(routerPush).toHaveBeenCalledWith({
-      name: 'authVerification',
-      query: {
-        purpose: 'login',
-        method: 'code',
-        flowId: 'flow-123',
-      },
+    expect(twoFactorOverlayService.state.context).toMatchObject({
+      challengeToken: 'flow-challenge',
+      purpose: 'login',
+      method: 'code',
+      flowId: 'flow-123',
     })
+    expect(routerPush).not.toHaveBeenCalled()
     expect(
       JSON.parse(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE) || '{}'),
     ).toMatchObject({
@@ -402,7 +411,7 @@ describe('MyAxios session transport', () => {
     expect(sessionStorage.getItem(StorageKey.Auth.PENDING_TWO_FACTOR_CHALLENGE)).toBeNull()
     expect(routerPush).not.toHaveBeenCalled()
   })
-  it('opens the verification page when a service checks a non-Axios 2FA result', async () => {
+  it('opens the overlay when a service checks a non-Axios 2FA result', async () => {
     const result = {
       code: '1018',
       message: '当前操作需要二次验证',
@@ -411,12 +420,12 @@ describe('MyAxios session transport', () => {
 
     expect(checkApiResult(result)).toBe(result)
     await vi.waitFor(() =>
-      expect(routerPush).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'authVerification',
-          query: { purpose: 'stepup', method: 'email' },
-        }),
-      ),
+      expect(twoFactorOverlayService.state.context).toMatchObject({
+        challengeToken: 'service-challenge',
+        purpose: 'stepup',
+        method: 'email',
+      }),
     )
+    expect(routerPush).not.toHaveBeenCalled()
   })
 })

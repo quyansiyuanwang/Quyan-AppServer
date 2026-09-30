@@ -100,6 +100,8 @@ import LoginOrRegisterView from '@/views/auth/LoginOrRegisterView.vue'
 import { useLoginOrRegister } from '@/views/auth/login-or-register/useLoginOrRegister'
 import { authorizationService } from '@/service/authorizationService'
 import { Notification } from '@/utils/notification'
+import { twoFactorOverlayService } from '@/service/twoFactorOverlayService'
+import router from '@/router'
 
 const LoginHarness = defineComponent({
   setup: () => ({ state: useLoginOrRegister() }),
@@ -136,6 +138,37 @@ describe('LoginOrRegisterView Turnstile UX', () => {
     await state.handleSubmit()
 
     expect(Notification.notify).toHaveBeenCalledWith('error', '参数验证失败', 'error')
+  })
+
+  it('opens 2FA over the registration form without navigating or losing its values', async () => {
+    const openSpy = vi.spyOn(twoFactorOverlayService, 'open').mockReturnValue(true)
+    const registerSpy = vi.spyOn(authorizationService, 'register').mockResolvedValue({
+      code: 0,
+      data: { requiresTwoFactor: true, challengeToken: 'registration-challenge' },
+    } as any)
+    const wrapper = mount(LoginHarness)
+    const state = (wrapper.vm as any).state
+    state.mode.value = 'register'
+    state.formRef.value = { validate: vi.fn(async () => true) }
+    state.registerForm.username = 'my-username'
+    state.registerForm.password = 'not-submitted-again'
+    state.registerForm.agreedToLegalPolicies = true
+
+    await state.handleSubmit()
+
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        challengeToken: 'registration-challenge',
+        authEntry: 'register',
+        purpose: 'login',
+      }),
+    )
+    expect(router.push).not.toHaveBeenCalled()
+    expect(state.registerForm.username).toBe('my-username')
+    expect(state.registerForm.password).toBe('not-submitted-again')
+    wrapper.unmount()
+    registerSpy.mockRestore()
+    openSpy.mockRestore()
   })
 
   it('keeps the repair entry in the card footer instead of the title slot', async () => {

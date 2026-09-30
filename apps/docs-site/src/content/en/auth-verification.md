@@ -1,6 +1,6 @@
 # Verification
 
-This page handles extra verification steps used during login, security changes, or high-risk actions. It covers two related routes: the 2FA/recovery-code verification screen (`/auth/verify`) and the standalone captcha challenge screen (`/auth/captcha`), which share the same purpose of clearing a pending verification requirement before the original action continues.
+When login, registration, security changes, or high-risk actions require 2FA, a full-screen verification overlay appears over the current page, preserving unsaved edits. The standalone `/auth/verify` screen remains available for direct access. Captcha uses its separate `/auth/captcha` page.
 
 ## Page purpose
 
@@ -40,7 +40,7 @@ Exceeding a limit returns a `429 Too Many Requests` error with a suggested retry
 ### Action area
 
 - Submit button.
-- Back or cancel button.
+- The standalone verification page provides a back button; the full-screen overlay cannot be dismissed with the backdrop, Escape, or a back button.
 - Context-specific hints that explain why verification is required.
 
 ## Common actions
@@ -52,7 +52,8 @@ Exceeding a limit returns a `429 Too Many Requests` error with a suggested retry
 
 ## Notes
 
-- This page may appear during login, while disabling 2FA, during email changes, or during step-up security checks.
+- The overlay can appear during login, registration, disabling 2FA, email changes, or step-up security checks. After step-up verification, pending requests resume on the same page without remounting it.
+- After a refresh, the overlay reappears if a verification challenge is still pending; unsaved page data and pending original requests do not survive the refresh. Restart the original action after verification or if the challenge has expired.
 - Recovery codes should be stored offline; each code can only be used once.
 - If policy consent is shown here, finish reading it before continuing.
 - Replay protection is enabled on all sensitive forms — refresh the page to obtain a fresh signing session if a submission fails with a replay error.

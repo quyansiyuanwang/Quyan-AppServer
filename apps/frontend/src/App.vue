@@ -1,10 +1,12 @@
 <template>
   <RouterView></RouterView>
+  <TwoFactorOverlayHost />
   <AsyncAprilFoolsController v-if="mountAprilFools && !isPublicStatus" />
 </template>
 
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import TwoFactorOverlayHost from '@/components/auth/TwoFactorOverlayHost.vue'
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 

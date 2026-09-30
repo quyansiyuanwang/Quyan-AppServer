@@ -7,6 +7,7 @@ import router from '@/router'
 import { preloadRouteLocation } from '@/router/preload'
 import { useWaterMarkTextStore } from '@/stores/waterMarkTextStore'
 import { isTwoFactorRedirectError } from '@/service/twoFactorNavigationService'
+import { twoFactorOverlayService } from '@/service/twoFactorOverlayService'
 
 import { Notification } from '@/utils/notification'
 import { TypedLocalStorage } from '@/utils/typedLocalStorage'
@@ -534,14 +535,13 @@ export function useLoginOrRegister() {
     if (authorizationService.isTwoFactorChallengePayload(auth)) {
       const redirect = getChallengeRedirect()
       authorizationService.setPendingTwoFactorChallenge(auth.challengeToken, redirect, 'login')
-      await router.replace({
-        name: 'authVerification',
-        query: {
-          method: 'code',
-          authEntry: 'login',
-          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
-          ...(redirect ? { redirect } : {}),
-        },
+      twoFactorOverlayService.open({
+        challengeToken: auth.challengeToken,
+        purpose: 'login',
+        method: 'code',
+        authEntry: 'login',
+        redirect,
+        flowId: getCentralFlowId(),
       })
       return
     }
@@ -885,14 +885,13 @@ export function useLoginOrRegister() {
         redirect,
         'register',
       )
-      void router.push({
-        name: 'authVerification',
-        query: {
-          method: 'code',
-          authEntry: 'register',
-          ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
-          ...(redirect ? { redirect } : {}),
-        },
+      twoFactorOverlayService.open({
+        challengeToken: result.data.challengeToken,
+        purpose: 'login',
+        method: 'code',
+        authEntry: 'register',
+        redirect,
+        flowId: getCentralFlowId(),
       })
     } else if (result.code === CustomCode.OK) {
       persistLegalPolicyConsentCache(registerForm.username)
@@ -1154,14 +1153,13 @@ export function useLoginOrRegister() {
           'warning',
         )
 
-        await router.push({
-          name: 'authVerification',
-          query: {
-            method: 'code',
-            authEntry: 'login',
-            ...(getCentralFlowId() ? { flowId: getCentralFlowId() } : {}),
-            ...(redirect ? { redirect } : {}),
-          },
+        twoFactorOverlayService.open({
+          challengeToken: result.challengeToken,
+          purpose: 'login',
+          method: 'code',
+          authEntry: 'login',
+          redirect,
+          flowId: getCentralFlowId(),
         })
         return
       }

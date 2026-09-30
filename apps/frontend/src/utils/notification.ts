@@ -136,6 +136,6 @@ export class Notification {
     return this
   }
 
-  static notify = (title: string, message: string, type: NT) =>
-    new Notification({ title, message, type }).show()
+  static notify = (title: string, message: string, type: NT, zIndex?: number) =>
+    new Notification({ title, message, type, ...(zIndex ? { zIndex } : {}) }).show()
 }
