@@ -54,6 +54,7 @@ export interface RelayAttemptPlan {
 
 export interface RelayTokenAvailabilityInput {
   id?: string;
+  requestFormatTransforms?: unknown;
   allowedModels?: string | null;
   modelMapping?: Prisma.JsonValue | Record<string, string> | null;
   channel?: RelayChannel | null;

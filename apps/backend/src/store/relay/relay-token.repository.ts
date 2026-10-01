@@ -1,5 +1,5 @@
 import { RelayCompositionRepository } from "./relay-composition.repository";
-import { compositionError } from "@/util/relay/relay-composition.util";
+import { RELAY_COMPOSITION_POLICY, compositionError } from "@/util/relay/relay-composition.util";
 import { RelayToken, Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 import type {
@@ -211,6 +211,35 @@ export class RelayTokenRepository implements RelayTokenStore {
             : undefined,
       },
       include: relayTokenInclude,
+    });
+  }
+
+  async loadCompositionSnapshot(rootId: string): Promise<Map<string, RelayTokenWithRelations>> {
+    return prisma.$transaction(async (tx) => {
+      const snapshot = new Map<string, RelayTokenWithRelations>();
+      let pending = [rootId];
+      for (let depth = 0; pending.length; depth++) {
+        if (depth > RELAY_COMPOSITION_POLICY.maxDepth) throw compositionError("depth");
+        const tokens = await tx.relayToken.findMany({ where: { id: { in: pending } }, include: relayTokenInclude });
+        pending = [];
+        for (const token of tokens) {
+          snapshot.set(token.id, token);
+          if (
+            token.routingMode === "composite" &&
+            token.status === 1 &&
+            (!token.expiresAt || token.expiresAt >= new Date())
+          )
+            for (const member of token.memberTokenConfigs)
+              if (member.enabled && !snapshot.has(member.tokenId)) pending.push(member.tokenId);
+        }
+        pending = [...new Set(pending)];
+        if (
+          snapshot.size + pending.length >
+          1 + RELAY_COMPOSITION_POLICY.maxDepth * RELAY_COMPOSITION_POLICY.maxLeafPaths
+        )
+          throw compositionError("size");
+      }
+      return snapshot;
     });
   }
 

@@ -186,6 +186,7 @@ export interface RelayTokenStore {
   create(data: RelayTokenCreateInput, tx?: RelayTokenTransactionClient): Promise<RelayTokenWithRelations>;
   withTransaction<T>(callback: (tx: RelayTokenTransactionClient) => Promise<T>): Promise<T>;
   withSerializableTransaction<T>(callback: (tx: RelayTokenTransactionClient) => Promise<T>): Promise<T>;
+  loadCompositionSnapshot(rootId: string): Promise<Map<string, RelayTokenWithRelations>>;
   findByToken(token: string): Promise<RelayTokenWithRelations | null>;
   findById(id: string): Promise<RelayToken | null>;
   findByIdWithRelations(id: string): Promise<RelayTokenWithRelations | null>;

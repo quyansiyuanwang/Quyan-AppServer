@@ -1597,6 +1597,7 @@ export class RelayTokenService {
       ipWhitelist: token.ipWhitelist || undefined,
       modelMapping: token.modelMapping as Record<string, string> | undefined,
       requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
+      streamConfig: token.streamConfig ?? undefined,
       normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
       contentSafetyConfig: (token.contentSafetyConfig as any) ?? null,
       channelConfigs,

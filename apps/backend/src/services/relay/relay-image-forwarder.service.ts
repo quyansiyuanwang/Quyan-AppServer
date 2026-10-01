@@ -1,3 +1,4 @@
+import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-executor.service";
 import axios from "axios";
 import http from "http";
 import https from "https";
@@ -123,6 +124,7 @@ export class RelayImageForwarderService {
     let responseBytes = 0;
     let clientDisconnected = false;
 
+    consumeCompositeAttempt(req);
     const response = await axios({
       method: req.method,
       url: upstreamUrl,
@@ -138,6 +140,7 @@ export class RelayImageForwarderService {
       httpAgent: requestAgents.httpAgent,
       httpsAgent: requestAgents.httpsAgent,
     });
+    if (getCompositeContext(req)) getCompositeContext(req)!.lastUpstreamStatus = response.status;
 
     const statusCode = response.status || 200;
     const upstreamHeaders = response.headers || {};

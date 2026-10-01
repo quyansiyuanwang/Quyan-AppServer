@@ -1,3 +1,4 @@
+import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-executor.service";
 import { beginAIRequestAttempt, recordAIRequestAttempt, recordAIRequestFailure } from "@/util/ai-request-log-context";
 import http from "http";
 import https from "https";
@@ -182,6 +183,7 @@ export class RelayStreamForwarderService {
       let timedOut = false;
       let proxyReq: http.ClientRequest;
 
+      consumeCompositeAttempt(req);
       proxyReq = httpModule.request(
         {
           hostname: url.hostname,
@@ -193,6 +195,7 @@ export class RelayStreamForwarderService {
           agent: isHttps ? requestAgents.httpsAgent : requestAgents.httpAgent,
         },
         (proxyRes) => {
+          if (getCompositeContext(req)) getCompositeContext(req)!.lastUpstreamStatus = proxyRes.statusCode;
           const streamStatusCode = proxyRes.statusCode || 200;
           const isStreamErrorResponse = streamStatusCode >= 400;
 
