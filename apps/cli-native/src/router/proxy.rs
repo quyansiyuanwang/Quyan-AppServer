@@ -59,6 +59,8 @@ struct ProfileHealth {
     last_status: u16,
     #[serde(skip)]
     last_failure: Option<std::time::Instant>,
+    #[serde(skip)]
+    half_open_in_flight: bool,
 }
 fn health_key(profile: &str, protocol: Protocol, model: &str) -> String {
     format!("{profile}|{}|{model}", protocol.as_str())
@@ -143,6 +145,27 @@ impl Runtime {
         let snapshot = self.snapshot.read().await;
         json!({"running":true,"instanceId":self.instance_id,"pid":std::process::id(),"baseUrl":snapshot.config.base_url(),"uptimeSeconds":self.started.elapsed().as_secs(),"activeRequests":self.active.load(Ordering::Relaxed),"statistics":*self.stats.lock().await,"profiles":snapshot.config.profiles,"routes":snapshot.config.routes})
     }
+    async fn allow_candidate(&self, profile: &str, protocol: Protocol, model: &str) -> bool {
+        let mut stats = self.stats.lock().await;
+        let health = stats
+            .health
+            .entry(health_key(profile, protocol, model))
+            .or_default();
+        if health.consecutive_failures < policy::HEALTH_FAILURE_THRESHOLD {
+            return true;
+        }
+        if health
+            .last_failure
+            .is_some_and(|time| time.elapsed() < policy::HEALTH_COOLDOWN)
+        {
+            return false;
+        }
+        if health.half_open_in_flight {
+            return false;
+        }
+        health.half_open_in_flight = true;
+        true
+    }
     async fn attempt(&self, profile: &str, protocol: Protocol, model: &str, status: u16) {
         let mut stats = self.stats.lock().await;
         let health = stats
@@ -150,6 +173,7 @@ impl Runtime {
             .entry(health_key(profile, protocol, model))
             .or_default();
         health.last_status = status;
+        health.half_open_in_flight = false;
         if policy::RETRY_STATUSES.contains(&status) {
             health.consecutive_failures = health.consecutive_failures.saturating_add(1);
             health.last_failure = Some(std::time::Instant::now());
@@ -375,31 +399,6 @@ async fn dispatch(State(runtime): State<Arc<Runtime>>, request: Request<Body>) -
         return error(StatusCode::BAD_REQUEST, "A valid model ID is required");
     };
     let mut candidates = routing::candidates(&snapshot.config, protocol, &model);
-    let stats = runtime.stats.lock().await;
-    let healthy: Vec<_> = candidates
-        .iter()
-        .filter(|candidate| {
-            stats
-                .health
-                .get(&health_key(
-                    &candidate.profile_id,
-                    protocol,
-                    &candidate.model,
-                ))
-                .is_none_or(|h| {
-                    h.consecutive_failures < policy::HEALTH_FAILURE_THRESHOLD
-                        || h.last_failure
-                            .is_none_or(|t| t.elapsed() >= policy::HEALTH_COOLDOWN)
-                })
-        })
-        .cloned()
-        .collect();
-    drop(stats);
-    // Keep at least one probe path when all routes are temporarily degraded.
-    if !healthy.is_empty() {
-        candidates = healthy;
-    }
-
     if candidates.is_empty() {
         return error(
             StatusCode::BAD_REQUEST,
@@ -408,6 +407,23 @@ async fn dispatch(State(runtime): State<Arc<Runtime>>, request: Request<Body>) -
                 protocol.as_str(),
                 routing::aggregate_models(&snapshot.config, protocol).len()
             ),
+        );
+    }
+    let mut healthy = Vec::new();
+    for candidate in &candidates {
+        if runtime
+            .allow_candidate(&candidate.profile_id, protocol, &candidate.model)
+            .await
+        {
+            healthy.push(candidate.clone());
+        }
+    }
+    candidates = healthy;
+
+    if candidates.is_empty() {
+        return error(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "All matching Router profiles are temporarily circuit-open",
         );
     }
     for (index, candidate) in candidates.iter().enumerate() {
