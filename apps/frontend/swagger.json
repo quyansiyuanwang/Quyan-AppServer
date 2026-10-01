@@ -16795,6 +16795,85 @@
 				}
 			}
 		},
+		"/v1/relay/tokens/composition-candidates": {
+			"get": {
+				"operationId": "RelayControllerCompositionCandidates",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayCompositionCandidatesDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": [
+							"relay:token:read"
+						]
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "search",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "editingTokenId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "selectedIds",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "targetUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/relay/tokens/usage-summaries": {
 			"get": {
 				"operationId": "RelayControllerGetUsageSummaries",
@@ -46338,6 +46417,48 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayTokenMemberConfigDto": {
+				"properties": {
+					"tokenId": {
+						"type": "string"
+					},
+					"priority": {
+						"type": "number",
+						"format": "double"
+					},
+					"enabled": {
+						"type": "boolean"
+					},
+					"name": {
+						"type": "string"
+					},
+					"routingMode": {
+						"type": "string",
+						"enum": [
+							"ordered",
+							"automatic-pool",
+							"composite"
+						]
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"tokenId",
+					"priority",
+					"enabled",
+					"routingMode",
+					"status"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenNormalizerConfig": {
 				"properties": {
 					"enabled": {
@@ -46614,8 +46735,15 @@
 						"type": "string",
 						"enum": [
 							"ordered",
-							"automatic-pool"
+							"automatic-pool",
+							"composite"
 						]
+					},
+					"memberTokenConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenMemberConfigDto"
+						},
+						"type": "array"
 					},
 					"automaticProxyPoolChannelId": {
 						"type": "string"
@@ -46711,6 +46839,27 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayTokenMemberConfigInputDto": {
+				"properties": {
+					"tokenId": {
+						"type": "string"
+					},
+					"priority": {
+						"type": "number",
+						"format": "double"
+					},
+					"enabled": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"tokenId",
+					"priority",
+					"enabled"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenChannelConfigInputDto": {
 				"properties": {
 					"channelId": {
@@ -46761,8 +46910,15 @@
 						"type": "string",
 						"enum": [
 							"ordered",
-							"automatic-pool"
+							"automatic-pool",
+							"composite"
 						]
+					},
+					"memberTokenConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenMemberConfigInputDto"
+						},
+						"type": "array"
 					},
 					"automaticProxyPoolChannelId": {
 						"type": "string"
@@ -46866,8 +47022,15 @@
 						"type": "string",
 						"enum": [
 							"ordered",
-							"automatic-pool"
+							"automatic-pool",
+							"composite"
 						]
+					},
+					"memberTokenConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenMemberConfigInputDto"
+						},
+						"type": "array"
 					},
 					"automaticProxyPoolChannelId": {
 						"type": "string"
@@ -47060,8 +47223,15 @@
 						"type": "string",
 						"enum": [
 							"ordered",
-							"automatic-pool"
+							"automatic-pool",
+							"composite"
 						]
+					},
+					"memberTokenConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenMemberConfigInputDto"
+						},
+						"type": "array"
 					},
 					"automaticProxyPoolChannelId": {
 						"type": "string"
@@ -47211,6 +47381,86 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayCompositionCandidateDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"routingMode": {
+						"type": "string",
+						"enum": [
+							"ordered",
+							"automatic-pool",
+							"composite"
+						]
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"expiresAt": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"memberCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"selectable": {
+						"type": "boolean"
+					},
+					"unavailableReason": {
+						"type": "string",
+						"enum": [
+							"self",
+							"cycle",
+							"deleted"
+						]
+					}
+				},
+				"required": [
+					"id",
+					"routingMode",
+					"status",
+					"memberCount",
+					"selectable"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayCompositionCandidatesDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RelayCompositionCandidateDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenUsageSummaryBatchDto": {
 				"properties": {
 					"summaries": {
@@ -47248,8 +47498,15 @@
 						"type": "string",
 						"enum": [
 							"ordered",
-							"automatic-pool"
+							"automatic-pool",
+							"composite"
 						]
+					},
+					"memberTokenConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenMemberConfigInputDto"
+						},
+						"type": "array"
 					},
 					"automaticProxyPoolChannelId": {
 						"type": "string",

@@ -93,7 +93,8 @@ export interface BatchRelayTokenContentSafetyRequest {
 }
 
 export interface CreateRelayTokenDto {
-  routingMode?: "ordered" | "automatic-pool";
+  routingMode?: "ordered" | "automatic-pool" | "composite";
+  memberTokenConfigs?: RelayTokenMemberConfigInputDto[];
   automaticProxyPoolChannelId?: string;
   /** 自动代理池中不参与该令牌路由的成员渠道 ID */
   blockedAutomaticProxyPoolChannelIds?: string[];
@@ -148,7 +149,8 @@ export interface CreateRelayTokenDto {
 }
 
 export interface UpdateRelayTokenDto {
-  routingMode?: "ordered" | "automatic-pool";
+  routingMode?: "ordered" | "automatic-pool" | "composite";
+  memberTokenConfigs?: RelayTokenMemberConfigInputDto[];
   automaticProxyPoolChannelId?: string | null;
   /** 自动代理池中不参与该令牌路由的成员渠道 ID */
   blockedAutomaticProxyPoolChannelIds?: string[];
@@ -269,7 +271,8 @@ export interface RelayTokenDto {
   usedQuota: number;
   channelId?: string;
   channelName?: string;
-  routingMode?: "ordered" | "automatic-pool";
+  routingMode?: "ordered" | "automatic-pool" | "composite";
+  memberTokenConfigs?: RelayTokenMemberConfigDto[];
   automaticProxyPoolChannelId?: string;
   blockedAutomaticProxyPoolChannelIds?: string[];
   expiresAt?: Date;
@@ -442,4 +445,32 @@ export interface RelayTokenAvailableModelsDto {
   anthropic: string[];
   /** Gemini 格式可用模型列表 */
   gemini: string[];
+}
+
+export interface RelayTokenMemberConfigInputDto {
+  tokenId: string;
+  priority: number;
+  enabled: boolean;
+}
+export interface RelayTokenMemberConfigDto extends RelayTokenMemberConfigInputDto {
+  name?: string;
+  routingMode: "ordered" | "automatic-pool" | "composite";
+  status: number;
+  expiresAt?: Date;
+}
+export interface RelayCompositionCandidateDto {
+  id: string;
+  name?: string;
+  routingMode: "ordered" | "automatic-pool" | "composite";
+  status: number;
+  expiresAt?: Date;
+  memberCount: number;
+  selectable: boolean;
+  unavailableReason?: "self" | "cycle" | "deleted";
+}
+export interface RelayCompositionCandidatesDto {
+  items: RelayCompositionCandidateDto[];
+  total: number;
+  page: number;
+  pageSize: number;
 }

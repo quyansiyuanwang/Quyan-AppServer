@@ -716,6 +716,14 @@ const en = {
     duplicateRunId: "Duplicate runId",
   },
   relayToken: {
+    compositionInvalidMember: "Members must be unique relay tokens owned by the same user.",
+    compositionCycle: "A relay token composition cannot contain a cycle.",
+    compositionDepth: "Compositions support at most four composite levels.",
+    compositionSize: "A composition requires 1–20 members and at most 100 leaf paths.",
+    compositionMode: "Composite routing cannot include direct channels or an automatic pool.",
+    compositionBudget: "The composite request exhausted its upstream attempt budget.",
+    compositionUnavailable: "No composite member can serve this request.",
+
     notFound: "Relay token not found",
     formatTransformsMustBeArray: "requestFormatTransforms must be an array",
     formatTransformsMaxRules: "requestFormatTransforms supports at most 3 rules",

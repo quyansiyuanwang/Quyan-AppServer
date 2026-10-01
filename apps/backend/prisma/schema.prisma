@@ -1251,8 +1251,8 @@ model RelayChannelProbeProfile {
   createTime                  DateTime @default(now())
   updateTime                  DateTime @updatedAt
 
-  relayChannel RelayChannel           @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
-  runs         RelayChannelProbeRun[]
+  relayChannel  RelayChannel                    @relation(fields: [relayChannelId], references: [id], onDelete: Cascade)
+  runs          RelayChannelProbeRun[]
   targetConfigs RelayChannelProbeTargetConfig[]
 
   @@index([enabled])
@@ -1261,20 +1261,20 @@ model RelayChannelProbeProfile {
 }
 
 model RelayChannelProbeAccount {
-  id                       String   @id @default(cuid())
-  name                     String   @unique @db.VarChar(100)
-  tokenPath                String   @db.VarChar(200)
-  expiresPath              String?  @db.VarChar(200)
-  expiresMode              String?  @db.VarChar(12)
-  fallbackTtlSeconds       Int
-  minLoginIntervalSeconds  Int
-  encryptedCredentials     String   @db.LongText
-  credentialIv             String   @db.VarChar(128)
-  credentialAuthTag        String   @db.VarChar(128)
-  lastLoginAttemptAt       DateTime?
-  createTime               DateTime @default(now())
-  updateTime               DateTime @updatedAt
-  targets                  RelayChannelProbeTargetConfig[]
+  id                      String                          @id @default(cuid())
+  name                    String                          @unique @db.VarChar(100)
+  tokenPath               String                          @db.VarChar(200)
+  expiresPath             String?                         @db.VarChar(200)
+  expiresMode             String?                         @db.VarChar(12)
+  fallbackTtlSeconds      Int
+  minLoginIntervalSeconds Int
+  encryptedCredentials    String                          @db.LongText
+  credentialIv            String                          @db.VarChar(128)
+  credentialAuthTag       String                          @db.VarChar(128)
+  lastLoginAttemptAt      DateTime?
+  createTime              DateTime                        @default(now())
+  updateTime              DateTime                        @updatedAt
+  targets                 RelayChannelProbeTargetConfig[]
 
   @@map("relay_channel_probe_accounts")
 }
@@ -1291,7 +1291,7 @@ model RelayChannelProbeTargetConfig {
   createTime      DateTime @default(now())
   updateTime      DateTime @updatedAt
 
-  profile RelayChannelProbeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile RelayChannelProbeProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   account RelayChannelProbeAccount? @relation(fields: [accountId], references: [id], onDelete: Restrict)
 
   @@unique([profileId, targetChannelId])
@@ -1420,9 +1420,9 @@ model RelayToken {
   isCustomKey                         Boolean   @default(false)
   carpoolMemberId                     String?   @unique
 
-  user                      User                      @relation(fields: [userId], references: [id])
-  channel                   RelayChannel?             @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
-  automaticProxyPoolChannel RelayChannel?             @relation("RelayTokenAutomaticProxyPool", fields: [automaticProxyPoolChannelId], references: [id])
+  user                      User                         @relation(fields: [userId], references: [id])
+  channel                   RelayChannel?                @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
+  automaticProxyPoolChannel RelayChannel?                @relation("RelayTokenAutomaticProxyPool", fields: [automaticProxyPoolChannelId], references: [id])
   failoverConfig            RelayTokenFailoverConfig?
   channelConfigs            RelayTokenChannelConfig[]
   quotaWindows              RelayTokenQuotaWindow[]
@@ -1431,7 +1431,10 @@ model RelayToken {
   logicalRequests           RelayLogicalRequest[]
   conversations             Conversation[]
   agentTasks                AgentTask[]
-  carpoolMember             CarpoolMember?            @relation(fields: [carpoolMemberId], references: [id], onDelete: SetNull)
+  memberTokenConfigs        RelayTokenMemberConfig[]     @relation("CompositeParent")
+  memberOfTokenConfigs      RelayTokenMemberConfig[]     @relation("CompositeMember")
+  usageAttributions         RelayUsageTokenAttribution[]
+  carpoolMember             CarpoolMember?               @relation(fields: [carpoolMemberId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([token])
@@ -1440,6 +1443,43 @@ model RelayToken {
   @@index([carpoolMemberId])
   @@index([status, expiresAt])
   @@map("relay_tokens")
+}
+
+model RelayTokenMemberConfig {
+  id            String     @id @default(cuid())
+  status        Int        @default(1)
+  createTime    DateTime   @default(now())
+  updateTime    DateTime   @updatedAt
+  parentTokenId String
+  tokenId       String
+  priority      Int
+  enabled       Boolean    @default(true)
+  parentToken   RelayToken @relation("CompositeParent", fields: [parentTokenId], references: [id], onDelete: Cascade)
+  memberToken   RelayToken @relation("CompositeMember", fields: [tokenId], references: [id], onDelete: Restrict)
+
+  @@unique([parentTokenId, tokenId])
+  @@index([tokenId])
+  @@index([parentTokenId, priority])
+  @@map("relay_token_member_configs")
+}
+
+model RelayUsageTokenAttribution {
+  id               String              @id @default(cuid())
+  status           Int                 @default(1)
+  createTime       DateTime            @default(now())
+  updateTime       DateTime            @updatedAt
+  relayUsageId     String
+  relayTokenId     String
+  logicalRequestId String
+  depth            Int
+  relayUsage       RelayUsage          @relation(fields: [relayUsageId], references: [id], onDelete: Cascade)
+  relayToken       RelayToken          @relation(fields: [relayTokenId], references: [id], onDelete: Restrict)
+  logicalRequest   RelayLogicalRequest @relation(fields: [logicalRequestId], references: [id], onDelete: Restrict)
+
+  @@unique([relayUsageId, relayTokenId])
+  @@index([relayTokenId, createTime])
+  @@index([logicalRequestId])
+  @@map("relay_usage_token_attributions")
 }
 
 model CarpoolPackageTemplate {
@@ -1470,42 +1510,42 @@ model CarpoolPackageTemplate {
 }
 
 model CarpoolOrder {
-  id                String                 @id @default(cuid())
-  status            Int                    @default(1)
-  createTime        DateTime               @default(now())
-  updateTime        DateTime               @updatedAt
-  ownerUserId       String
-  packageTemplateId String
+  id                    String                 @id @default(cuid())
+  status                Int                    @default(1)
+  createTime            DateTime               @default(now())
+  updateTime            DateTime               @updatedAt
+  ownerUserId           String
+  packageTemplateId     String
   monthlyPassTemplateId String?
-  state             String                 @default("open") @db.VarChar(20)
-  packageName       String
-  salePrice         Decimal                @db.Decimal(10, 4)
-  upstreamCost      Decimal                @db.Decimal(10, 4)
-  maxMembers        Int
-  totalQuota        Decimal                @db.Decimal(10, 4)
-  validityDays      Int
-  quotaUnit         String                 @default("amount") @db.VarChar(20)
-  quotaWindowHours  Int?
-  allowedModels     String?                @db.Text
-  allowedChannels   String?                @db.Text
-  allocationMode    String                 @default("equal") @db.VarChar(20)
-  formationDeadlineAt DateTime?
-  inviteExpiresAt   DateTime?
-  relayChannelId    String?
-  submittedAt       DateTime?
-  acceptedAt        DateTime?
-  fulfilledAt       DateTime?
-  failedAt          DateTime?
-  cancelledAt       DateTime?
-  expiredAt         DateTime?
-  failureReason     String?                @db.Text
-  owner             User                   @relation("CarpoolOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  packageTemplate   CarpoolPackageTemplate @relation(fields: [packageTemplateId], references: [id], onDelete: Restrict)
-  relayChannel      RelayChannel?          @relation(fields: [relayChannelId], references: [id], onDelete: SetNull)
-  members           CarpoolMember[]
-  invites           CarpoolInvite[]
-  reservations      BalanceReservation[]
-  events            CarpoolOrderEvent[]
+  state                 String                 @default("open") @db.VarChar(20)
+  packageName           String
+  salePrice             Decimal                @db.Decimal(10, 4)
+  upstreamCost          Decimal                @db.Decimal(10, 4)
+  maxMembers            Int
+  totalQuota            Decimal                @db.Decimal(10, 4)
+  validityDays          Int
+  quotaUnit             String                 @default("amount") @db.VarChar(20)
+  quotaWindowHours      Int?
+  allowedModels         String?                @db.Text
+  allowedChannels       String?                @db.Text
+  allocationMode        String                 @default("equal") @db.VarChar(20)
+  formationDeadlineAt   DateTime?
+  inviteExpiresAt       DateTime?
+  relayChannelId        String?
+  submittedAt           DateTime?
+  acceptedAt            DateTime?
+  fulfilledAt           DateTime?
+  failedAt              DateTime?
+  cancelledAt           DateTime?
+  expiredAt             DateTime?
+  failureReason         String?                @db.Text
+  owner                 User                   @relation("CarpoolOrderOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  packageTemplate       CarpoolPackageTemplate @relation(fields: [packageTemplateId], references: [id], onDelete: Restrict)
+  relayChannel          RelayChannel?          @relation(fields: [relayChannelId], references: [id], onDelete: SetNull)
+  members               CarpoolMember[]
+  invites               CarpoolInvite[]
+  reservations          BalanceReservation[]
+  events                CarpoolOrderEvent[]
 
   @@index([ownerUserId, state])
   @@index([state, createTime])
@@ -1514,26 +1554,26 @@ model CarpoolOrder {
 }
 
 model CarpoolMember {
-  id            String              @id @default(cuid())
-  status        Int                 @default(1)
-  createTime    DateTime            @default(now())
-  updateTime    DateTime            @updatedAt
-  orderId       String
-  userId        String
-  role          String              @default("member") @db.VarChar(20)
-  state         String              @default("pending") @db.VarChar(20)
-  paymentRatio  Decimal             @default(0) @db.Decimal(9, 6)
-  quotaRatio    Decimal             @default(0) @db.Decimal(9, 6)
-  payableAmount Decimal             @default(0) @db.Decimal(10, 4)
-  finalQuota    Decimal             @default(0) @db.Decimal(10, 4)
-  confirmedAt   DateTime?
-  leftAt        DateTime?
-  userMonthlyPassId String?         @unique
-  user          User                @relation(fields: [userId], references: [id], onDelete: Restrict)
-  order         CarpoolOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  reservation   BalanceReservation?
-  relayToken    RelayToken?
-  userMonthlyPass UserMonthlyPass?  @relation(fields: [userMonthlyPassId], references: [id], onDelete: SetNull)
+  id                String              @id @default(cuid())
+  status            Int                 @default(1)
+  createTime        DateTime            @default(now())
+  updateTime        DateTime            @updatedAt
+  orderId           String
+  userId            String
+  role              String              @default("member") @db.VarChar(20)
+  state             String              @default("pending") @db.VarChar(20)
+  paymentRatio      Decimal             @default(0) @db.Decimal(9, 6)
+  quotaRatio        Decimal             @default(0) @db.Decimal(9, 6)
+  payableAmount     Decimal             @default(0) @db.Decimal(10, 4)
+  finalQuota        Decimal             @default(0) @db.Decimal(10, 4)
+  confirmedAt       DateTime?
+  leftAt            DateTime?
+  userMonthlyPassId String?             @unique
+  user              User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order             CarpoolOrder        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  reservation       BalanceReservation?
+  relayToken        RelayToken?
+  userMonthlyPass   UserMonthlyPass?    @relation(fields: [userMonthlyPassId], references: [id], onDelete: SetNull)
 
   @@unique([orderId, userId])
   @@index([userId, state])
@@ -1708,8 +1748,9 @@ model RelayUsage {
   auditCost           Decimal  @default(0) @db.Decimal(14, 6)
   auditDurationMs     Int      @default(0)
 
-  relayToken     RelayToken           @relation(fields: [relayTokenId], references: [id])
-  logicalRequest RelayLogicalRequest? @relation(fields: [logicalRequestId], references: [id], onDelete: SetNull)
+  tokenAttributions RelayUsageTokenAttribution[]
+  relayToken        RelayToken                   @relation(fields: [relayTokenId], references: [id])
+  logicalRequest    RelayLogicalRequest?         @relation(fields: [logicalRequestId], references: [id], onDelete: SetNull)
 
   @@index([relayTokenId])
   @@index([createTime])
@@ -1721,12 +1762,14 @@ model RelayUsage {
 }
 
 model RelayLogicalRequest {
-  id           String    @id @default(cuid())
-  createTime   DateTime  @default(now())
-  updateTime   DateTime  @updatedAt
-  relayTokenId String
-  requestId    String    @db.VarChar(64)
-  countedAt    DateTime?
+  id                String                       @id @default(cuid())
+  createTime        DateTime                     @default(now())
+  updateTime        DateTime                     @updatedAt
+  relayTokenId      String
+  requestId         String                       @db.VarChar(64)
+  settledAt         DateTime?
+  tokenAttributions RelayUsageTokenAttribution[]
+  countedAt         DateTime?
 
   relayToken  RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
   relayUsages RelayUsage[]
@@ -2365,10 +2408,10 @@ model UserMonthlyPass {
   assignedBy       String?
   note             String?  @db.Text
 
-  user         User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  template     MonthlyPassTemplate          @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  usages       MonthlyPassUsage[]
-  quotaWindows UserMonthlyPassQuotaWindow[]
+  user          User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template      MonthlyPassTemplate          @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  usages        MonthlyPassUsage[]
+  quotaWindows  UserMonthlyPassQuotaWindow[]
   carpoolMember CarpoolMember?
 
   @@index([userId])
@@ -2446,23 +2489,23 @@ model ModelPricing {
 }
 
 model RelayConfig {
-  id                         String   @id @default(cuid())
-  status                     Int      @default(1)
-  createTime                 DateTime @default(now())
-  updateTime                 DateTime @updatedAt
-  globalMultiplier           Decimal  @default(1.0) @db.Decimal(10, 6)
-  maxConcurrency             Int      @default(5)
-  queueTimeout               Int      @default(30000)
-  upstreamStreamTimeout      Int      @default(120000)
-  preflightBufferLimitBytes  Int?     @db.Int
-  enableQueue                Boolean  @default(true)
-  apiCatalogPoolVisibility   String   @default("anonymous-range") @db.VarChar(20)
-  channelTopologyMode        String   @default("legacy") @db.VarChar(30)
-  uptimeStatusUrl            String?  @db.Text
-  monitorNameMapping         Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
-  showOnlyConfigured         Boolean? // 是否仅展示已配置的监控项
-  uptimeTransformRules       Json? // 保留用于向后兼容
-  uptimeStaticData           Json?
+  id                        String   @id @default(cuid())
+  status                    Int      @default(1)
+  createTime                DateTime @default(now())
+  updateTime                DateTime @updatedAt
+  globalMultiplier          Decimal  @default(1.0) @db.Decimal(10, 6)
+  maxConcurrency            Int      @default(5)
+  queueTimeout              Int      @default(30000)
+  upstreamStreamTimeout     Int      @default(120000)
+  preflightBufferLimitBytes Int?     @db.Int
+  enableQueue               Boolean  @default(true)
+  apiCatalogPoolVisibility  String   @default("anonymous-range") @db.VarChar(20)
+  channelTopologyMode       String   @default("legacy") @db.VarChar(30)
+  uptimeStatusUrl           String?  @db.Text
+  monitorNameMapping        Json? // 简化的监控项名称映射 { "2": "中国主线路", "3": "国际线路" }
+  showOnlyConfigured        Boolean? // 是否仅展示已配置的监控项
+  uptimeTransformRules      Json? // 保留用于向后兼容
+  uptimeStaticData          Json?
 
   @@map("relay_configs")
 }
