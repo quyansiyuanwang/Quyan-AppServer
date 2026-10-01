@@ -125,6 +125,12 @@ importers:
       picomatch:
         specifier: ^4.0.2
         version: 4.0.5
+      pm2:
+        specifier: ^6.0.14
+        version: 6.0.14
+      prisma:
+        specifier: ^6.19.2
+        version: 6.19.3(typescript@5.9.3)
       proxy-agent:
         specifier: ^6.4.0
         version: 6.4.0
@@ -273,15 +279,9 @@ importers:
       openapi-typescript:
         specifier: ^7.10.1
         version: 7.13.0(typescript@5.9.3)
-      pm2:
-        specifier: ^6.0.14
-        version: 6.0.14
       prettier:
         specifier: ^3.3.3
         version: 3.6.2
-      prisma:
-        specifier: ^6.19.2
-        version: 6.19.3(typescript@5.9.3)
       rimraf:
         specifier: ^6.0.1
         version: 6.1.3
