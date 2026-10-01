@@ -409,11 +409,12 @@ describe('session coordinator', () => {
     const coordinator = new SessionCoordinator()
     const old = coordinator.refresh()
     const assertion = expect(old).rejects.toMatchObject({ name: 'AbortError' })
-    coordinator.completeLogin({ access_token: createAccessToken('user-2', 'v2') })
+    const loginToken = createAccessToken('user-2', 'v2')
+    coordinator.completeLogin({ access_token: loginToken })
     resolveRefresh({ code: 0, data: { access_token: createAccessToken('user-1', 'v1') } })
     await assertion
     const { getAccessToken } = await import('@/stores/request')
-    expect(getAccessToken()).toBe(createAccessToken('user-2', 'v2'))
+    expect(getAccessToken()).toBe(loginToken)
   })
 
   it('ignores profile and permission responses from an earlier identity', async () => {
