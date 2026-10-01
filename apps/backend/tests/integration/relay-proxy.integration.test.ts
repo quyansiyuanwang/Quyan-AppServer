@@ -3,6 +3,8 @@ import request from "supertest";
 import type { Express } from "express";
 import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
+import { JWTAccessIns } from "@/util/auth";
+import { Permission } from "@/constant/permission";
 import { createApp } from "../../src/app";
 import { prisma } from "../../src/config/database";
 import { hashPassword } from "../../src/util/crypto";
@@ -56,6 +58,22 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       if (count >= expectedCount) return;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
+  };
+
+  const getAudit = async (tokenId: string, bodyKeyword: string) => {
+    for (let i = 0; i < 50; i++) {
+      const logs = await prisma.aIRequestLog.findMany({
+        where: { relayTokenId: tokenId },
+        orderBy: { createTime: "desc" },
+        take: 20,
+      });
+      const row = logs.find(
+        (log) => JSON.stringify(log.requestBody).includes(bodyKeyword) && log.outcome !== "pending",
+      );
+      if (row) return row;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error("Controlled-upstream AI audit fixture was not persisted");
   };
 
   const getLatestUsage = async (tokenId: string, expectedCount: number) => {
@@ -1014,6 +1032,103 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     RELAY_LOG_PERSISTENCE_TEST_TIMEOUT_MS,
   );
 
+  it("AI audit metadata/content/search APIs enforce bounded reads and independent attempt permissions", async () => {
+    const reader = await prisma.user.create({
+      data: {
+        username: "audit_reader_" + shortSuffix,
+        password: hashPassword("fixture_password"),
+        groupId: testGroupId,
+        permissionAdds: [Permission.RELAY_AI_REQUEST_LOG_READ],
+        permissionRemoves: [],
+      },
+    });
+    const accessToken = JWTAccessIns.generateToken(
+      { userId: reader.id, updatedAt: reader.updateTime.toISOString(), status: reader.status },
+      3600,
+    );
+    const row = await prisma.aIRequestLog.create({
+      data: {
+        requestId: randomUUID(),
+        path: "/relay/proxy/v1/messages",
+        method: "POST",
+        statusCode: 200,
+        ipAddress: "127.0.0.1",
+        requestBody: {
+          messages: [{ role: "user", content: "nested fixture needle" }],
+          tools: Array.from({ length: 98 }, (_, i) => ({
+            name: "tool-" + i,
+            description: "fixture schema ".repeat(500),
+          })),
+        },
+        responseBody: "x".repeat(2 * 1024 * 1024),
+        attempts: [
+          {
+            sequence: 1,
+            stage: "upstream",
+            success: false,
+            statusCode: 503,
+            durationMs: 12,
+            errorExcerpt: "fixture error",
+            errorTruncated: false,
+          },
+        ],
+      },
+    });
+    const get = (suffix: string) =>
+      request(app)
+        .get("/v1/relay/ai-request-logs/" + row.id + suffix)
+        .set("Authorization", "Bearer " + accessToken);
+    try {
+      const meta = await get("/metadata");
+      expect(meta.status).toBe(200);
+      expect(meta.body.data).not.toHaveProperty("requestBody");
+      expect(meta.body.data).not.toHaveProperty("responseBody");
+      const parsed = await get("/content?view=parsed&side=request");
+      expect(parsed.status).toBe(200);
+      expect(parsed.body.data.items).toHaveLength(20);
+      expect(Buffer.byteLength(JSON.stringify(parsed.body.data))).toBeLessThan(32768);
+      const raw = await get("/content?view=raw&side=response");
+      expect(raw.status).toBe(200);
+      expect(Buffer.byteLength(raw.body.data.items[0].text)).toBe(32768);
+      expect(raw.body.data.hasMore).toBe(true);
+      const found = await get("/search?keyword=needle&scope=request");
+      expect(found.status).toBe(200);
+      expect(found.body.data.total).toBe(1);
+      expect((await get("/attempts")).status).toBe(403);
+      expect((await get("/search?keyword=error&scope=attempts")).status).toBe(403);
+      expect((await get("/content?pageSize=101")).status).toBeGreaterThanOrEqual(400);
+    } finally {
+      await prisma.aIRequestLog.delete({ where: { id: row.id } });
+      await prisma.user.delete({ where: { id: reader.id } });
+    }
+  });
+
+  it("AI audit captures authentication and malformed-body failures before forwarding", async () => {
+    const missing = await request(app)
+      .post("/relay/proxy/v1/messages")
+      .send({
+        model: anthropicRelayModelId,
+        metadata: { user_id: testUserId },
+        messages: [{ role: "user", content: "untrusted fixture" }],
+      });
+    expect(missing.status).toBeGreaterThanOrEqual(400);
+    const malformed = await request(app)
+      .post("/relay/proxy/v1/messages")
+      .set("Authorization", "Bearer " + anthropicRelayTokenValue)
+      .set("Content-Type", "application/json")
+      .send('{"model":');
+    expect(malformed.status).toBeGreaterThanOrEqual(400);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const rows = await prisma.aIRequestLog.findMany({
+      where: { path: "/relay/proxy/v1/messages", userId: null, statusCode: { gte: 400 } },
+    });
+    expect(
+      rows.some(
+        (row) => row.bodyOmissionReason === "unknown-identity" && row.requestBody === null && row.outcome === "failed",
+      ),
+    ).toBe(true);
+  });
+
   it("OpenAI Responses 流式 response.completed 记录 usage", async () => {
     const beforeCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
 
@@ -1025,6 +1140,13 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     expect(relayResponse.status).toBe(200);
     expect(String(relayResponse.headers["content-type"] || "")).toContain("text/event-stream");
     expect(relayResponse.text).toContain("response.completed");
+    const audit = await getAudit(openaiRelayTokenId, "请流式简短回复");
+    expect(audit).toMatchObject({
+      userId: testUserId,
+      relayTokenId: openaiRelayTokenId,
+      outcome: "success",
+      isStreaming: true,
+    });
 
     const usage = await getLatestUsage(openaiRelayTokenId, beforeCount + 1);
     expect(usage).toEqual(
@@ -1690,6 +1812,16 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     expect(relayResponse.status).toBe(200);
     expect(String(relayResponse.headers["content-type"] || "")).toContain("text/event-stream");
     expect(relayResponse.text).toContain("message_start");
+    const audit = await getAudit(anthropicRelayTokenId, "请流式回复");
+    expect(audit).toMatchObject({
+      userId: testUserId,
+      username: testUsername,
+      relayTokenId: anthropicRelayTokenId,
+      authenticationState: "authenticated",
+      outcome: "success",
+      isStreaming: true,
+    });
+    expect((audit.attempts as any[]).length).toBeGreaterThan(0);
     expect(relayResponse.text).toContain("data:[DONE]");
 
     const usage = await getLatestUsage(anthropicRelayTokenId, beforeCount + 1);

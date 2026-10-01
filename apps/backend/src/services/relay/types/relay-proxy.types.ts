@@ -6,6 +6,7 @@ import type { RelayConvertibleRequestFormat } from "@quyan/shared";
 import type { RelayResolvedChannelCandidate } from "../relay-pool-resolver.service";
 
 export interface RelayRequestLike {
+  res?: import("express").Response;
   method?: string;
   path?: string;
   originalUrl?: string;

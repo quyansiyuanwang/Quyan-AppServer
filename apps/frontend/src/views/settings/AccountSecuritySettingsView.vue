@@ -399,7 +399,7 @@ import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { getErrorMessage } from '@/utils/error-utils'
 import { usePageDevice } from '@/composables/usePageDevice'
 import AccountProfileLayout from '@/layouts/AccountProfileLayout.vue'
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { i18ns } from '@/locales'
 import AccessKeyManagementView from './AccessKeyManagementView.vue'
@@ -409,6 +409,10 @@ import TrustedDeviceEntryView from './TrustedDeviceEntryView.vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { authorizationService } from '@/service/authorizationService'
+import {
+  twoFactorOverlayService,
+  TWO_FACTOR_STATUS_CHANGED_EVENT,
+} from '@/service/twoFactorOverlayService'
 import { Notification } from '@/utils/notification'
 import { userService } from '@/service/userService'
 import { useUserInfoStore } from '@/stores/userInfoStore'
@@ -556,10 +560,15 @@ const handleUnbindExternalIdentity = async (provider: string) => {
 }
 
 onMounted(async () => {
+  window.addEventListener(TWO_FACTOR_STATUS_CHANGED_EVENT, loadTwoFactorStatus)
   await loadTwoFactorStatus()
   await loadExternalIdentities()
   await consumePendingExternalBinding()
   await loadPublicSocialAuthConfig()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener(TWO_FACTOR_STATUS_CHANGED_EVENT, loadTwoFactorStatus)
 })
 
 const changePassword = async () => {
@@ -695,12 +704,13 @@ const handleTogglePasskeyTwoFactorPolicy = async (nextValue: string | number | b
 }
 
 const handleGoDisableTwoFactor = () => {
-  router.push({
-    name: 'authVerification',
-    query: {
-      purpose: 'disable2fa',
-      method: 'code',
-      redirect: '/settings/security',
+  twoFactorOverlayService.open({
+    purpose: 'disable2fa',
+    method: 'code',
+    onCompleted: async () => {
+      twoFactorState.value.enabled = false
+      twoFactorState.value.passkeyRequired = false
+      twoFactorState.value.hasRecoveryCodes = false
     },
   })
 }

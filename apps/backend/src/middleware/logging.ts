@@ -5,6 +5,8 @@ import { getLogger, LogCategory } from "@/util/logger";
 import { LogService } from "@/services/system/log.service";
 import { AIRequestLogService } from "@/services/relay/ai-request-log.service";
 import { AI_REQUEST_LOG_LIMITS, AI_REQUEST_LOG_PREFIX } from "@/constant/ai-request-log";
+import { getAIRequestLogContext } from "@/util/ai-request-log-context";
+import { ApiRoutePathPrefix } from "@/build/route-paths";
 
 type ResponseChunkEncoding =
   | "ascii"
@@ -314,6 +316,10 @@ function finalizeCapturedResponse(res: Response): void {
 }
 
 export function loggingMiddleware(req: Request, res: Response, next: NextFunction) {
+  if (res.locals.requestLogInstalled) return next();
+  res.locals.requestLogInstalled = true;
+  const auditReader = getRequestPath(req).startsWith(ApiRoutePathPrefix.V1RelayAiRequestLogs);
+  const privateAudit = auditReader || Boolean(getAIRequestLogContext(res));
   const start = Date.now();
   const originalWrite = res.write.bind(res);
   const originalEnd = res.end.bind(res);
@@ -339,7 +345,7 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
   } as typeof res.writeHead;
 
   // 在开发模式下记录详细的请求信息
-  if (isDev) {
+  if (isDev && !privateAudit) {
     const maskedHeaders = { ...req.headers };
     if (maskedHeaders["x-api-key"]) maskedHeaders["x-api-key"] = "***FILTERED***";
     if (maskedHeaders["authorization"]) maskedHeaders["authorization"] = "***FILTERED***";
@@ -389,7 +395,7 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
     if (res.statusCode >= 400 && res.statusCode < 500) statusColor = chalk.yellow;
     else if (res.statusCode >= 500) statusColor = chalk.red;
 
-    const logMessage = `[${req.method}] ${req.originalUrl} - ${res.statusCode} (${duration}ms, req=${formatBytes(requestSize.displayBytes)})`;
+    const logMessage = `[${req.method}] ${privateAudit ? getRequestPath(req) : req.originalUrl} - ${res.statusCode} (${duration}ms, req=${formatBytes(requestSize.displayBytes)})`;
     logger.http(statusColor(logMessage), requestSize);
 
     persistLog();

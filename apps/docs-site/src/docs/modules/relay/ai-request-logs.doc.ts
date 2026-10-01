@@ -11,6 +11,6 @@ export default defineDocsPage({
     'zh-CN': '检索保留的 AI 请求原文和响应，用于安全事件调查。',
   },
   tags: ['relay', 'logs', 'audit', 'content safety'],
-  updatedAt: '2026-09-26',
+  updatedAt: '2026-09-30',
   content: { en: contentEn, 'zh-CN': contentZh },
 })
