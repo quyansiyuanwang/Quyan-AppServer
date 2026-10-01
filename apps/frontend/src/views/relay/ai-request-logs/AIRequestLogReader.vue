@@ -93,6 +93,7 @@ import type {
 } from '@/client/types.gen'
 import { i18ns } from '@/locales'
 import { ElMessage } from '@/utils/elementPlusRuntime'
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { useLogContent } from './useLogContent'
 import { formatBytes, omissionLabel, sectionLabel } from './logPresentation'
 const props = defineProps<{
@@ -135,8 +136,8 @@ const copyCurrent = async () => {
   try {
     await navigator.clipboard.writeText(items.value[items.value.length - 1]?.text ?? '')
     ElMessage.success(i18ns.t('aiRequestLogs.copied'))
-  } catch {
-    ElMessage.error(i18ns.t('aiRequestLogs.detailLoadFailed'))
+  } catch (error) {
+    showRequestErrorNotice(error, i18ns.t('aiRequestLogs.detailLoadFailed'))
   }
 }
 const copyAll = async () => {
@@ -150,8 +151,8 @@ const copyAll = async () => {
   try {
     await navigator.clipboard.writeText(text)
     ElMessage.success(i18ns.t('aiRequestLogs.copied'))
-  } catch {
-    ElMessage.error(i18ns.t('aiRequestLogs.detailLoadFailed'))
+  } catch (error) {
+    showRequestErrorNotice(error, i18ns.t('aiRequestLogs.detailLoadFailed'))
   }
 }
 defineExpose({ items, info, loadAll, allComplete })
