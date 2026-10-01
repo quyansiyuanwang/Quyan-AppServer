@@ -54,9 +54,7 @@ await esbuild.build({
 
         // schema 文件
         { from: ["./prisma/schema.prisma"], to: ["./dist/prisma"] },
-        // bcrypt remains an external production dependency. Do not copy it
-        // into dist: a standalone copy would lose pnpm's indirect dependency
-        // links (notably node-gyp-build).
+        // Native dependencies remain external production dependencies.
 
         // docs 目录
         { from: ["./docs/**/**"], to: ["./dist/docs"] },

@@ -100,38 +100,15 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm --filter @quyan/backend run db:generate
 
-      - name: Build
-        run: pnpm --filter @quyan/backend run build:full:prod
-
-      - name: Validate built Prisma runtime
-        run: pnpm --filter @quyan/backend exec node scripts/validate-prisma-runtime.mjs --target-runtime
-
-      - name: Validate built native runtime dependencies
-        run: |
-          node - <<'NODE'
-          const { createRequire } = require('node:module')
-          const runtimeRequire = createRequire(`${process.cwd()}/apps/backend/dist/index.cjs`)
-          runtimeRequire('bcrypt')
-          runtimeRequire('node-gyp-build')
-          console.log('[deploy] bcrypt native runtime validated')
-          NODE
-
-      - name: Prepare server dependency lockfile
+      - name: Build production deployment bundle
         run: |
           set -euo pipefail
-          temp_dir="$(mktemp -d)"
-          trap 'rm -rf "$temp_dir"' EXIT
-          cp apps/backend/package.json "$temp_dir/package.json"
-          node - "$temp_dir/package.json" <<'NODE'
-          const fs = require('node:fs')
-          const packagePath = process.argv[2]
-          const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'))
-          delete packageJson.dependencies?.['@quyan/shared']
-          fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`)
-          NODE
-          pnpm --dir "$temp_dir" install --lockfile-only --ignore-workspace --ignore-scripts
-          cp "$temp_dir/package.json" apps/backend/package.json
-          cp "$temp_dir/pnpm-lock.yaml" apps/backend/pnpm-lock.yaml
+          pnpm --filter @quyan/backend run build:full:prod
+          bundle_dir="apps/backend/.tmp/deploy"
+          rm -rf "$bundle_dir"
+          pnpm --filter @quyan/backend deploy --prod --legacy "$bundle_dir"
+          mkdir -p "$bundle_dir/dist"
+          cp -a apps/backend/dist/. "$bundle_dir/dist/"
 
       - name: Log generated build info
         run: |
@@ -196,44 +173,10 @@ jobs:
           rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT" \
             --exclude '.env' \
-            --exclude '/node_modules/' \
             --exclude 'dist/docs' \
             --exclude 'logs' \
-            apps/backend/ \
+            apps/backend/.tmp/deploy/ \
             "$SSH_USER@$SSH_HOST:$REMOTE_BACKEND_PATH/"
-
-      - name: Install production dependencies on server
-        env:
-          REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$REMOTE_BACKEND_PATH' && PRISMA_SKIP_POSTINSTALL_GENERATE=1 pnpm install --prod --frozen-lockfile --ignore-workspace --config.confirmModulesPurge=false"
-
-      - name: Validate runtime dependencies on server
-        env:
-          REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$REMOTE_BACKEND_PATH' && node -e 'const { createRequire } = require(\"node:module\"); const runtimeRequire = createRequire(process.cwd() + \"/dist/index.cjs\"); runtimeRequire(\"bcrypt\"); runtimeRequire(\"node-gyp-build\"); console.log(\"[deploy] bcrypt native runtime validated\")'"
-
-      - name: Validate Prisma runtime on server
-        env:
-          REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$REMOTE_BACKEND_PATH' && node scripts/validate-prisma-runtime.mjs --target-runtime"
 
       - name: Run database migrations
         env:
@@ -244,7 +187,7 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$REMOTE_BACKEND_PATH' && pnpm run db:migrate:deploy"
+            "cd '$REMOTE_BACKEND_PATH' && ./node_modules/.bin/prisma migrate deploy --schema ./prisma/schema.prisma"
 
       - name: Reload PM2
         env:

@@ -41,6 +41,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.78.0
         version: 0.78.0(zod@3.25.76)
+      '@prisma/client':
+        specifier: ^6.19.2
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       '@quyan/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -174,9 +177,6 @@ importers:
       '@hey-api/openapi-ts':
         specifier: ^0.91.1
         version: 0.91.1(typescript@5.9.3)
-      '@prisma/client':
-        specifier: ^6.19.2
-        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       '@rushstack/eslint-patch':
         specifier: ^1.8.0
         version: 1.16.1

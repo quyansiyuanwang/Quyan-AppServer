@@ -116,6 +116,7 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@prisma/client": "^6.19.2",
     "@quyan/shared": "workspace:*",
     "@simplewebauthn/server": "^13.2.3",
     "@types/node-cron": "^3.0.11",
@@ -162,7 +163,6 @@
     "@babel/preset-env": "^7.25.4",
     "@eslint/js": "^9.39.4",
     "@hey-api/openapi-ts": "^0.91.1",
-    "@prisma/client": "^6.19.2",
     "@rushstack/eslint-patch": "^1.8.0",
     "@swc/core": "^1.15.3",
     "@tsoa/runtime": "^7.0.0-alpha.0",
