@@ -209,5 +209,13 @@
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.15",
     "vitest-mock-extended": "^3.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "bcrypt",
+      "prisma",
+      "sharp"
+    ]
   }
 }
