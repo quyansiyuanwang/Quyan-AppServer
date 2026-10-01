@@ -434,6 +434,9 @@ async fn dispatch(State(runtime): State<Arc<Runtime>>, request: Request<Body>) -
             .find(|p| p.id == candidate.profile_id)
             .unwrap();
         let Some(secret) = snapshot.secrets.get(&profile.id) else {
+            runtime
+                .attempt(&profile.id, protocol, &candidate.model, 503)
+                .await;
             continue;
         };
         let mut forward_body = body.clone();
@@ -442,7 +445,12 @@ async fn dispatch(State(runtime): State<Arc<Runtime>>, request: Request<Body>) -
         }
         let root = match crate::features::integrations::endpoint(&profile.relay_base_url, false) {
             Ok(root) => root,
-            Err(_) => continue,
+            Err(_) => {
+                runtime
+                    .attempt(&profile.id, protocol, &candidate.model, 502)
+                    .await;
+                continue;
+            }
         };
         let url = if protocol == Protocol::Gemini {
             let mut url = url::Url::parse(&root).unwrap();
