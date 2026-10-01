@@ -250,7 +250,11 @@ async fn dispatch(State(runtime): State<Arc<Runtime>>, request: Request<Body>) -
             "Only non-browser loopback clients are supported",
         );
     }
-    let path = request.uri().path().to_string();
+    let raw_path = request.uri().path();
+    let path = raw_path
+        .strip_prefix("/claude-desktop")
+        .unwrap_or(raw_path)
+        .to_string();
     let method = request.method().clone();
     if path == "/health" && method == Method::GET {
         return json_response(

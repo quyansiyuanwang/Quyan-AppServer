@@ -176,6 +176,7 @@ async fn protocols_streams_authorization_and_response_redaction() {
         "/v1/chat/completions",
         "/v1/responses",
         "/v1/messages",
+        "/claude-desktop/v1/messages",
         "/v1beta/models/test-model:generateContent",
     ] {
         let response = request(&router, endpoint, "test-model").await;
