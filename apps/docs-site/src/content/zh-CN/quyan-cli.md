@@ -118,3 +118,7 @@ Claude Desktop 与 Claude Code 分开处理。Quyan 只管理 `Claude-3p/configL
 `408`、`429`、`500`、`502`、`503`、`504` 和连接失败可在响应头发给客户端前切换到其他匹配配置档；开始转发后不重放中断流。重复失败会暂时降低对应路由的选择顺序，健康状态按配置档、协议和模型区分。无效配置或新的密钥链项不可用时保留上一份有效快照。客户端超时/重试与上游不透明的会话 ID 仍由客户端和供应商负责，不保证在不同供应商之间迁移这些 ID。
 
 使用 `quyan config set routerListenPort <端口>` 或 `routerListenAddress <loopback-IP>` 调整监听入口，然后停止/启动 Router 并更新客户端地址。前台诊断可用 `quyan router serve --debug`。Router 不安装系统登录服务：登录系统后需自行启动，并在客户端使用本地入口时保持运行。
+
+### Stack 模型 ID
+
+使用 `quyan router stack enable --yes` 发布稳定的配置档模型 ID。OpenAI/Responses 使用 `qys-<配置档key>/<model>`，Anthropic 使用 `qys-claude-<配置档key>--<model>`，Gemini 使用 `qys-gemini-<配置档key>--<model>`。Stack ID 会精确绑定对应配置档；配置档不可用时直接失败，不静默回落到其他配置档。普通模型 ID 仍使用自动路由和故障转移。

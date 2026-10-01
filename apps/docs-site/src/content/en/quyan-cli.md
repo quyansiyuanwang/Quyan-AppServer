@@ -178,3 +178,7 @@ to change the listener, then stop/start the Router and update client endpoints.
 For foreground diagnostics use `quyan router serve --debug`. Router startup does
 not install an OS login service: start it after logging in, and keep it running
 while clients use the local endpoint.
+
+### Stack model IDs
+
+Enable `quyan router stack enable --yes` to publish stable profile-scoped model IDs. OpenAI/Responses models use `qys-<profile-key>/<model>`, Anthropic uses `qys-claude-<profile-key>--<model>`, and Gemini uses `qys-gemini-<profile-key>--<model>`. A Stack ID is pinned to its Profile and never silently falls back to another Profile. Plain model IDs continue to use automatic routing and failover.

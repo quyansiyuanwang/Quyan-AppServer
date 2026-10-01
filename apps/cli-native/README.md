@@ -77,6 +77,10 @@ explicit confirmation; command-line automation uses `--yes`.
 quyan router profile add --token-id <token-id> --yes
 quyan router models
 quyan router start --yes
+
+# Publish provider-scoped Stack model IDs (ccswitch-style exact binding)
+quyan router stack enable --yes
+quyan router stack status
 quyan router apply --client codex --model <responses-model-id> --dry-run
 quyan router apply --client codex --model <responses-model-id> --yes
 quyan launch --router --client codex

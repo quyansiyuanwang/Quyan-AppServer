@@ -91,3 +91,15 @@ Rust CLI 版本以 `apps/cli-native/Cargo.toml` 为准，GitHub 标签使用 `qu
 - Claude Desktop 使用自己的第三方 configLibrary 配置档，首次接管可能需要重启；ChatGPT Desktop 无经过验证的配置适配器，不做系统代理/MITM 接管。
 
 Rust 代理测试使用本地 mock upstream 与内存凭证 fixture，不访问真实 Relay、用户 keychain 或 agent 文件。命令级生命周期 smoke test 应使用独立 `QUYAN_CONFIG_DIR` 和空 Profile；服务启动生成的短期控制 keychain 项必须在结束时清理。
+
+### Stack 模型（ccswitch 风格）
+
+本地 Router 支持可选的 Stack 模式：
+
+```bash
+quyan router stack enable --yes
+quyan router stack status
+quyan router stack disable --yes
+```
+
+开启后，模型目录会为每个已启用 Relay Profile 发布稳定的配置档模型 ID：OpenAI/Responses 使用 `qys-<profile-key>/<model>`，Anthropic 使用 `qys-claude-<profile-key>--<model>`，Gemini 使用 `qys-gemini-<profile-key>--<model>`。请求这些带 `qys-` 前缀的模型时，Router 只允许对应 Profile 处理；配置档不存在、已禁用或模型目录不再包含该模型时直接失败，不回落到其他 Profile，避免意外使用错误渠道或额度。普通不带前缀的模型仍使用自动路由和故障转移。

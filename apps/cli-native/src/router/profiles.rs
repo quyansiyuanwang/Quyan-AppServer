@@ -69,10 +69,33 @@ pub async fn add(
         );
     }
     let id = uuid::Uuid::new_v4().to_string();
+    let display_name = name
+        .or(details["name"].as_str())
+        .unwrap_or(token_id)
+        .to_string();
+    let existing = config::load().unwrap_or_default();
+    let base_key = {
+        let value = config::slug_stack_key(&display_name);
+        if value.is_empty() {
+            format!("p{}", &id[..6])
+        } else {
+            value
+        }
+    };
+    let mut stack_key = base_key.clone();
+    let mut suffix = 2;
+    while existing.profiles.iter().any(|profile| {
+        profile.stack_key == stack_key
+            || (profile.stack_key.is_empty() && config::slug_stack_key(&profile.name) == stack_key)
+    }) {
+        stack_key = format!("{base_key}-{suffix}");
+        suffix += 1;
+    }
     let profile = RouterProfile {
         id: id.clone(),
-        name: name.or(details["name"].as_str()).unwrap_or(token_id).into(),
+        name: display_name,
         relay_token_id: token_id.into(),
+        stack_key,
         relay_base_url: api.relay_base_url.clone(),
         enabled: true,
         priority,

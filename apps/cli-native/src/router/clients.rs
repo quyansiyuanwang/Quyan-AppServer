@@ -292,6 +292,7 @@ mod tests {
                 id: "fixture".into(),
                 name: "Fixture".into(),
                 relay_token_id: "fixture".into(),
+                stack_key: String::new(),
                 relay_base_url: "https://relay.example.test".into(),
                 enabled: true,
                 priority: 0,

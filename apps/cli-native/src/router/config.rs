@@ -24,6 +24,8 @@ pub struct RouterConfig {
     pub listen_port: u16,
     pub active: bool,
     #[serde(default)]
+    pub stack_enabled: bool,
+    #[serde(default)]
     pub profiles: Vec<RouterProfile>,
     #[serde(default)]
     pub routes: Vec<RouterRoute>,
@@ -35,6 +37,9 @@ pub struct RouterProfile {
     pub id: String,
     pub name: String,
     pub relay_token_id: String,
+    /// Stable human-readable key used in Stack model IDs.
+    #[serde(default)]
+    pub stack_key: String,
     pub relay_base_url: String,
     pub enabled: bool,
     pub priority: i32,
@@ -76,12 +81,35 @@ impl Default for RouterConfig {
             listen_address: DEFAULT_LISTEN_ADDRESS.into(),
             listen_port: DEFAULT_LISTEN_PORT,
             active: true,
+            stack_enabled: false,
             profiles: Vec::new(),
             routes: Vec::new(),
         }
     }
 }
 
+pub fn valid_stack_key(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 32
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+pub fn slug_stack_key(value: &str) -> String {
+    let mut result = String::new();
+    for ch in value.chars() {
+        let ch = ch.to_ascii_lowercase();
+        if ch.is_ascii_lowercase() || ch.is_ascii_digit() {
+            result.push(ch);
+        } else if !result.is_empty() && !result.ends_with('-') {
+            result.push('-');
+        }
+        if result.len() >= 24 {
+            break;
+        }
+    }
+    result.trim_matches('-').to_string()
+}
 pub fn valid_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 100
@@ -125,6 +153,12 @@ impl RouterConfig {
                 "Invalid or duplicate router profile ID"
             );
             ensure!(valid_id(&profile.relay_token_id), "Invalid Relay Token ID");
+            if !profile.stack_key.is_empty() {
+                ensure!(
+                    valid_stack_key(&profile.stack_key),
+                    "Invalid router stack key"
+                );
+            }
             ensure!(
                 !profile.name.is_empty() && !profile.name.chars().any(char::is_control),
                 "Invalid router profile name"

@@ -38,6 +38,79 @@ impl Protocol {
         }
     }
 }
+
+pub fn stack_key(config: &RouterConfig, profile: &super::config::RouterProfile) -> String {
+    let base = if profile.stack_key.is_empty() {
+        super::config::slug_stack_key(&profile.name)
+    } else {
+        profile.stack_key.clone()
+    };
+    let mut key = if base.is_empty() {
+        format!("p{}", &profile.id[..profile.id.len().min(6)])
+    } else {
+        base.clone()
+    };
+    let mut suffix = 2;
+    let is_before = |other: &&super::config::RouterProfile| {
+        other.id != profile.id
+            && config
+                .profiles
+                .iter()
+                .position(|item| item.id == other.id)
+                .is_some_and(|index| {
+                    config
+                        .profiles
+                        .iter()
+                        .position(|item| item.id == profile.id)
+                        .is_some_and(|profile_index| index < profile_index)
+                })
+    };
+    while config
+        .profiles
+        .iter()
+        .filter(is_before)
+        .any(|other| stack_key_base(other) == key)
+    {
+        key = format!("{base}-{suffix}");
+        suffix += 1;
+    }
+    key
+}
+fn stack_key_base(profile: &super::config::RouterProfile) -> String {
+    if profile.stack_key.is_empty() {
+        let value = super::config::slug_stack_key(&profile.name);
+        if value.is_empty() {
+            format!("p{}", &profile.id[..profile.id.len().min(6)])
+        } else {
+            value
+        }
+    } else {
+        profile.stack_key.clone()
+    }
+}
+pub fn stack_model_id(protocol: Protocol, key: &str, model: &str) -> String {
+    match protocol {
+        Protocol::Openai | Protocol::OpenaiResponses => format!("qys-{key}/{model}"),
+        Protocol::Anthropic => format!("qys-claude-{key}--{model}"),
+        Protocol::Gemini => format!("qys-gemini-{key}--{model}"),
+    }
+}
+fn decode_stack_model(protocol: Protocol, model: &str) -> Option<(&str, &str)> {
+    match protocol {
+        Protocol::Openai | Protocol::OpenaiResponses => model
+            .strip_prefix("qys-")?
+            .split_once('/')
+            .filter(|(key, upstream)| !key.is_empty() && !upstream.is_empty()),
+        Protocol::Anthropic => model
+            .strip_prefix("qys-claude-")?
+            .split_once("--")
+            .filter(|(key, upstream)| !key.is_empty() && !upstream.is_empty()),
+        Protocol::Gemini => model
+            .strip_prefix("qys-gemini-")?
+            .split_once("--")
+            .filter(|(key, upstream)| !key.is_empty() && !upstream.is_empty()),
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Candidate {
     pub profile_id: String,
@@ -47,6 +120,27 @@ pub struct Candidate {
 pub fn candidates(config: &RouterConfig, protocol: Protocol, model: &str) -> Vec<Candidate> {
     if !config.active {
         return Vec::new();
+    }
+    if config.stack_enabled {
+        if let Some((key, upstream)) = decode_stack_model(protocol, model) {
+            for profile in config.profiles.iter().filter(|p| p.enabled) {
+                if stack_key(config, profile) == key
+                    && protocol
+                        .models(&profile.models)
+                        .iter()
+                        .any(|candidate| candidate == upstream)
+                {
+                    return vec![Candidate {
+                        profile_id: profile.id.clone(),
+                        model: upstream.to_string(),
+                    }];
+                }
+            }
+            // A reserved Stack ID must never silently fall back to another profile.
+            if model.starts_with("qys-") {
+                return Vec::new();
+            }
+        }
     }
     let mut found = Vec::new();
     for profile in config.profiles.iter().filter(|p| p.enabled) {
@@ -93,6 +187,14 @@ pub fn aggregate_models(config: &RouterConfig, protocol: Protocol) -> Vec<String
         .filter(|p| p.enabled)
         .flat_map(|p| protocol.models(&p.models).iter().cloned())
         .collect();
+    if config.stack_enabled {
+        for profile in config.profiles.iter().filter(|p| p.enabled) {
+            let key = stack_key(config, profile);
+            for model in protocol.models(&profile.models) {
+                values.insert(stack_model_id(protocol, &key, model));
+            }
+        }
+    }
     for route in config
         .routes
         .iter()
@@ -114,11 +216,13 @@ mod tests {
             id: id.into(),
             name: id.into(),
             relay_token_id: id.into(),
+            stack_key: String::new(),
             relay_base_url: "https://relay.example.test".into(),
             enabled: true,
             priority,
             models: RouterModels {
                 openai: models.iter().map(|m| (*m).into()).collect(),
+                openai_responses: models.iter().map(|m| (*m).into()).collect(),
                 ..Default::default()
             },
             last_models_refresh_at: None,
@@ -150,6 +254,10 @@ mod tests {
             ],
             ..Default::default()
         };
+        let mut config = config;
+        for profile in &mut config.profiles {
+            profile.models.openai_responses.clear();
+        }
         let found = candidates(&config, Protocol::Openai, "gpt-x");
         assert_eq!(
             found
@@ -177,5 +285,28 @@ mod tests {
         assert!(candidates(&config, Protocol::Openai, "unknown").is_empty());
         config.active = false;
         assert!(aggregate_models(&config, Protocol::Openai).is_empty());
+    }
+    #[test]
+    fn stack_models_bind_to_exact_profile_without_fallback() {
+        let mut config = RouterConfig {
+            stack_enabled: true,
+            profiles: vec![profile("one", 0, &["model"]), profile("two", 1, &["model"])],
+            ..Default::default()
+        };
+        config.profiles[0].stack_key = "primary".into();
+        config.profiles[1].stack_key = "backup".into();
+        let id = stack_model_id(Protocol::OpenaiResponses, "backup", "model");
+        let found = candidates(&config, Protocol::OpenaiResponses, &id);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].profile_id, "two");
+        assert_eq!(found[0].model, "model");
+        assert!(candidates(&config, Protocol::OpenaiResponses, "qys-primary--broken").is_empty());
+        assert!(aggregate_models(&config, Protocol::OpenaiResponses).contains(&id));
+        let keys = config
+            .profiles
+            .iter()
+            .map(|profile| stack_key(&config, profile))
+            .collect::<Vec<_>>();
+        assert_eq!(keys, ["primary", "backup"]);
     }
 }

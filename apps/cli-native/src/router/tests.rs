@@ -102,6 +102,7 @@ fn profile(id: &str, url: &str, priority: i32) -> RouterProfile {
         id: id.into(),
         name: id.into(),
         relay_token_id: id.into(),
+        stack_key: String::new(),
         relay_base_url: url.into(),
         enabled: true,
         priority,
