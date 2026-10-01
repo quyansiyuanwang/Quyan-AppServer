@@ -1,3 +1,4 @@
+import { cpSync, mkdirSync } from "node:fs";
 import esbuild from "esbuild";
 import { copy } from "esbuild-plugin-copy";
 import { createRequire } from "module";
@@ -9,6 +10,11 @@ const require = createRequire(import.meta.url);
 const isProduction = process.env.NODE_ENV === "production";
 
 // 使用 Node 模块解析找到 swagger-ui-dist（兼容 pnpm hoisting）
+// Resolve from the installed wrapper, not a guessed pnpm virtual-store path.
+const prismaClientDir = path.dirname(require.resolve("@prisma/client/package.json"));
+const prismaRequire = createRequire(path.join(prismaClientDir, "package.json"));
+const generatedPrismaClientDir = path.dirname(prismaRequire.resolve(".prisma/client/default"));
+
 const swaggerUiDistDir = path.dirname(require.resolve("swagger-ui-dist"));
 
 await esbuild.build({
@@ -48,10 +54,6 @@ await esbuild.build({
 
         // schema 文件
         { from: ["./prisma/schema.prisma"], to: ["./dist/prisma"] },
-        // Prisma 相关
-        { from: ["./node_modules/.prisma/client/**/*"], to: ["./dist/node_modules/.prisma/client"], ignore: ["**/*.tmp"] },
-        { from: ["./node_modules/@prisma/client/**/*"], to: ["./dist/node_modules/@prisma/client"] },
-
         // bcrypt 原生模块
         { from: ["./node_modules/bcrypt/**/*"], to: ["./dist/node_modules/bcrypt"] },
 
@@ -66,6 +68,17 @@ await esbuild.build({
   ],
   metafile: isProduction, // 生产环境生成元数据用于分析
 });
+
+// esbuild-plugin-copy resolves globs relative to its cwd. Prisma's generated
+// client lives in pnpm's virtual store, so copy it explicitly from the path
+// resolved by Node instead of guessing node_modules/.prisma.
+const deployedPrismaClientDir = path.resolve("./dist/node_modules/@prisma/client");
+const deployedGeneratedPrismaDir = path.resolve("./dist/node_modules/.prisma/client");
+mkdirSync(path.dirname(deployedPrismaClientDir), { recursive: true });
+mkdirSync(path.dirname(deployedGeneratedPrismaDir), { recursive: true });
+const prismaCopyFilter = (source) => !path.basename(source).includes(".tmp");
+cpSync(prismaClientDir, deployedPrismaClientDir, { recursive: true, filter: prismaCopyFilter });
+cpSync(generatedPrismaClientDir, deployedGeneratedPrismaDir, { recursive: true, filter: prismaCopyFilter });
 
 // 只在非生产环境输出构建完成信息
 if (!isProduction) {
