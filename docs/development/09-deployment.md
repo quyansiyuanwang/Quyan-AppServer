@@ -405,30 +405,20 @@ pnpm run precommit
 
 ### Prisma Client 的 CI 构建与服务器部署
 
-部署根目录保留兼容手工运维命令：
+GitHub CD 在 Runner 上生成 Prisma Client，并使用 `pnpm deploy --prod --legacy` 生成完整的后端生产运行包，再把构建产物复制到包内的 `dist`。运行包包含生产依赖、Prisma Client、Prisma Query Engine、bcrypt 及其间接依赖，不在服务器重新解析或编译依赖。
 
-```bash
-su appserver
-cd /home/appserver/Quyan-Backend
-pm2 start ecosystem.config.cjs --env production
-pm2 restart backend --update-env
+服务器固定使用部署根目录（例如 `/home/appserver/Quyan-Backend`），PM2 始终加载：
+
+```text
+./dist/index.cjs
 ```
 
-`ecosystem.config.cjs` 会优先读取 `current` release；没有 release 目录时继续读取根目录的 `dist`，因此旧的首次启动方式仍可用。CD 切换 release 时也从固定根目录执行 PM2，并使用 `--update-env`。
+服务器 CD 流程为：上传运行包、校验 Prisma 和原生依赖、执行包内 `./node_modules/.bin/prisma migrate deploy`，然后执行：
 
-生产 CD 在 GitHub Runner 上生成 Prisma Client，并将构建产物发布到服务器的独立 release 目录。每个 release 包含：
+```bash
+pm2 startOrReload ecosystem.config.cjs --env production --update-env
+```
 
-- `@prisma/client` 包；
-- 生成的 `.prisma/client`；
-- `debian-openssl-3.0.x` Query Engine；
-- CI 根据去除 workspace 依赖后的后端 `package.json` 生成的 `pnpm-lock.yaml`。
+服务器不执行 `pnpm install`，不执行 `prisma generate`，也不执行 bcrypt/sharp 的编译。`.env` 和 `logs` 保留在部署根目录，不随运行包覆盖。
 
-服务器端不再执行 `prisma generate`。服务器只安装生产依赖（其中包含迁移所需的 Prisma CLI 和 PM2），使用生成的锁文件和
-`PRISMA_SKIP_POSTINSTALL_GENERATE=1`，避免 `@prisma/client` 的 `postinstall` 重复生成；不要使用全局
-`--ignore-scripts`，以免影响其他原生依赖的安装脚本。服务器仍执行 `pnpm run db:migrate:deploy`。
-
-release 会先完成依赖安装、Prisma 校验和数据库迁移，成功后再通过 PM2 切换；`.env` 和日志目录通过软链接复用稳定部署根目录。
-PM2 reload 后会请求本机 `/docs/openapi.json` 做健康检查，失败时恢复上一个 release（数据库迁移本身不会自动回滚）。
-部署前运行 `scripts/validate-prisma-runtime.mjs --target-runtime`，该检查只读取部署包，验证 schema、Client 版本、x86_64 glibc Linux
-和 Query Engine 的共享库依赖，不连接数据库，也不会回退到服务器生成。当前构建目标适用于 x86_64 glibc Linux + OpenSSL 3.x；
-Alpine/musl、ARM 或旧 OpenSSL 环境必须先增加对应构建目标并在 CI 生成兼容产物。
+当前服务器环境为 x86_64 glibc Linux + OpenSSL 3.x，适用于 `debian-openssl-3.0.x` Prisma Query Engine。Alpine/musl、ARM 或旧 OpenSSL 环境必须先调整 CI 构建目标。
