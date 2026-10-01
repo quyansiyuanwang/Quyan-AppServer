@@ -3,21 +3,17 @@ const path = require("node:path");
 
 const deploymentRoot = process.env.BACKEND_DEPLOY_ROOT || __dirname;
 const currentReleasePath = path.join(deploymentRoot, "current");
-const hasCurrentRelease = fs.existsSync(currentReleasePath);
-const activeReleasePath = process.env.RELEASE_DIR || (hasCurrentRelease ? currentReleasePath : deploymentRoot);
-const applicationScript = process.env.RELEASE_DIR
-  ? path.join(activeReleasePath, "dist/index.cjs")
-  : hasCurrentRelease
-    ? "./current/dist/index.cjs"
-    : "./dist/index.cjs";
-const productionEnvFilePath = process.env.ENV_FILE_PATH || path.join(deploymentRoot, ".env");
-
+const activeReleasePath =
+  process.env.RELEASE_DIR || (fs.existsSync(currentReleasePath) ? currentReleasePath : deploymentRoot);
+const productionEnvFilePath =
+  process.env.ENV_FILE_PATH ||
+  (process.env.BACKEND_DEPLOY_ROOT ? path.join(deploymentRoot, ".env") : "/home/appserver/Quyan-Backend/.env");
 module.exports = {
   apps: [
     {
       name: "backend",
       cwd: activeReleasePath,
-      script: path.resolve(deploymentRoot, applicationScript),
+      script: "./dist/index.cjs",
       interpreter: "bun",
       instances: 1,
       exec_mode: "cluster",
