@@ -1,3 +1,4 @@
+import { beginAIRequestAttempt, recordAIRequestAttempt, recordAIRequestFailure } from "@/util/ai-request-log-context";
 import http from "http";
 import https from "https";
 import type { RelayToken } from "@prisma/client";
@@ -164,6 +165,14 @@ export class RelayStreamForwarderService {
     cleanHeaders["Content-Length"] = bodyData.length;
 
     const startTime = Date.now();
+    const auditResponse = req.res ?? (res as Parameters<typeof beginAIRequestAttempt>[0]);
+    beginAIRequestAttempt(auditResponse);
+    let auditRecorded = false;
+    const auditAttempt = (success: boolean, statusCode?: number, error?: unknown) => {
+      if (auditRecorded) return;
+      auditRecorded = true;
+      recordAIRequestAttempt(auditResponse, { success, statusCode, durationMs: Date.now() - startTime, error });
+    };
     const stats = auditStats || { inputTokens: 0, outputTokens: 0, cost: 0, durationMs: 0 };
     let firstByteTime: number | null = null;
     let streamCompleted = false; // 标记流是否正常完成
@@ -213,6 +222,7 @@ export class RelayStreamForwarderService {
             });
 
             proxyRes.on("end", async () => {
+              auditAttempt(false, streamStatusCode, Buffer.concat(rawChunks).toString("utf8"));
               streamCompleted = true;
 
               if (autoInjectedStreamUsageOption && !res.headersSent && [400, 422].includes(streamStatusCode)) {
@@ -272,6 +282,7 @@ export class RelayStreamForwarderService {
                 // not JSON – leave null
               }
 
+              auditAttempt(false, streamStatusCode, upstreamData ?? "Upstream request failed");
               const upstreamMessage =
                 upstreamData?.error?.message ||
                 upstreamData?.message ||
@@ -436,6 +447,7 @@ export class RelayStreamForwarderService {
             });
 
             proxyRes.on("error", (err) => {
+              auditAttempt(false, streamStatusCode, err);
               if (allowRetryBeforeResponse && !res.headersSent && host.shouldFailoverOnError(err)) {
                 resolve({
                   handled: false,
@@ -475,6 +487,7 @@ export class RelayStreamForwarderService {
               for (const line of text.split(/\r?\n/)) consumeRelayStreamUsageLine(line, requestFormat, streamUsage);
             });
             proxyRes.on("end", async () => {
+              auditAttempt(true, streamStatusCode);
               streamCompleted = true;
               try {
                 if (rawSize > maxAuditBytes) {
@@ -503,6 +516,7 @@ export class RelayStreamForwarderService {
                     request: req,
                   });
                   if (safety.action === "unreachable") {
+                    recordAIRequestFailure(auditResponse, { name: "ContentSafetyBlockedError" }, "content-safety");
                     blockedBySafety = true;
                     throw new ContentSafetyBlockedError();
                   }
@@ -752,6 +766,7 @@ export class RelayStreamForwarderService {
                     request: req,
                   });
                   if (safety.action === "unreachable") {
+                    recordAIRequestFailure(auditResponse, { name: "ContentSafetyBlockedError" }, "content-safety");
                     destroyRelayUpstreamResponse(proxyRes);
                     if (!res.writableEnded) res.end();
                     return;
@@ -803,6 +818,7 @@ export class RelayStreamForwarderService {
           });
 
           proxyRes.on("end", async () => {
+            auditAttempt(true, streamStatusCode);
             streamCompleted = true;
 
             try {
@@ -840,6 +856,7 @@ export class RelayStreamForwarderService {
                     request: req,
                   });
                   if (tailSafety.action === "unreachable") {
+                    recordAIRequestFailure(auditResponse, { name: "ContentSafetyBlockedError" }, "content-safety");
                     destroyRelayUpstreamResponse(proxyRes);
                     res.end();
                     return;
@@ -983,6 +1000,7 @@ export class RelayStreamForwarderService {
           });
 
           proxyRes.on("error", (err) => {
+            auditAttempt(false, streamStatusCode, err);
             streamCompleted = true;
             if (settled) return;
             if (clientDisconnected) {
@@ -998,6 +1016,7 @@ export class RelayStreamForwarderService {
       );
 
       proxyReq.on("timeout", () => {
+        auditAttempt(false, 504, "Upstream request timed out");
         if (clientDisconnected) {
           resolve({ handled: true, success: true, retryable: false, clientDisconnected: true });
           return;
@@ -1021,6 +1040,7 @@ export class RelayStreamForwarderService {
       });
 
       proxyReq.on("error", (err) => {
+        auditAttempt(false, undefined, err);
         if (timedOut) return;
 
         // If client already disconnected, don't send error response
@@ -1052,6 +1072,8 @@ export class RelayStreamForwarderService {
       const clientCloseHandler = () => {
         if (!streamCompleted && !timedOut) {
           clientDisconnected = true;
+          auditAttempt(false, undefined, "Client disconnected");
+          recordAIRequestFailure(auditResponse, { name: "AbortError" }, "client");
           logger.warn("[Relay] Client disconnected, aborting upstream request");
           proxyReq.destroy();
         }

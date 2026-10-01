@@ -1,136 +1,290 @@
 import type { Request, Response } from "express";
-import { randomUUID } from "crypto";
 import { Prisma } from "@prisma/client";
-import { SENSITIVE_FIELDS } from "@/config/logging";
-import { AI_REQUEST_LOG_LIMITS } from "@/constant/ai-request-log";
+import {
+  AI_REQUEST_LOG_LIMITS,
+  type AIRequestLogAuthState,
+  type AIRequestLogOmissionReason,
+  type AIRequestLogOutcome,
+  type AIRequestLogStage,
+} from "@/constant/ai-request-log";
 import { getLogger, LogCategory } from "@/util/logger";
 import { extractClientIp } from "@/util/ip-extractor";
-import { getAIRequestLogContext } from "@/util/ai-request-log-context";
+import {
+  ensureAIRequestLogId,
+  getAIRequestLogContext,
+  observeAIRequestLogContext,
+  type AIRequestLogAuditContext,
+} from "@/util/ai-request-log-context";
+import { auditCursor, contentPage, readAuditCursor, searchContent } from "@/util/ai-request-log-content";
+import { auditUtf8Slice, sanitizeAuditPayload } from "@/util/ai-request-log-payload";
 import { AIRequestLogRepository } from "@/store/system/ai-request-log.repository";
-import type { AIRequestLogDetailDto, AIRequestLogListItemDto } from "@/api/dto/relay/ai-request-log.dto";
+import type {
+  AIRequestLogAttemptDto,
+  AIRequestLogAttemptsPageDto,
+  AIRequestLogContentPageDto,
+  AIRequestLogContentSide,
+  AIRequestLogContentView,
+  AIRequestLogDetailDto,
+  AIRequestLogListItemDto,
+  AIRequestLogMetadataDto,
+  AIRequestLogSearchPageDto,
+} from "@/api/dto/relay/ai-request-log.dto";
 import type { AIRequestLogListItem, AIRequestLogQuery, AIRequestLogStore } from "@/store/system/ai-request-log.store";
+import { NotFoundError } from "@/util/errors";
 
 const logger = getLogger("AIRequestLogService", LogCategory.BUSINESS);
-const MAX_SANITIZE_DEPTH = 12;
-const IMAGE_LIKE_KEYS = new Set([
-  "image",
-  "imageurl",
-  "image_url",
-  "input_image",
-  "inputimage",
-  "inline_data",
-  "inlinedata",
-  "file_data",
-  "filedata",
-  "b64_json",
-  "b64json",
-  "base64",
-  "image_base64",
-  "imagebase64",
-]);
-
-type PreparedPayload = {
-  value?: Prisma.InputJsonValue;
-  byteSize: number | null;
-  truncated: boolean;
-};
-
-function isImageLikeKey(key: string): boolean {
-  return IMAGE_LIKE_KEYS.has(key) || IMAGE_LIKE_KEYS.has(key.toLowerCase());
+const writes = new WeakMap<Response, Promise<void>>();
+function notFound(): never {
+  throw new NotFoundError("AI request log not found", undefined, { messageKey: "relay.aiRequestLogNotFound" });
 }
-
-function normalizeSensitiveKey(key: string): string {
-  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
+function jsonInput(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
-
-function isSensitiveKey(key: string): boolean {
-  const normalized = normalizeSensitiveKey(key);
-  return SENSITIVE_FIELDS.some((field) => normalized === normalizeSensitiveKey(field));
-}
-
-function binaryPlaceholder(size?: number, contentType?: string): Prisma.InputJsonObject {
-  return {
-    _binary: true,
-    ...(size === undefined ? {} : { _size: size }),
-    ...(contentType ? { _contentType: contentType } : {}),
-  };
-}
-
-function stringByteSize(value: string): number {
-  return Buffer.byteLength(value, "utf8");
-}
-
-function truncateUtf8(value: string, maxBytes: number): string {
-  if (maxBytes <= 0) return "";
-  const buffer = Buffer.from(value, "utf8");
-  if (buffer.byteLength <= maxBytes) return value;
-  return buffer.subarray(0, maxBytes).toString("utf8");
-}
-
 export class AIRequestLogService {
   private static instance: AIRequestLogService;
-
   public static getInstance(): AIRequestLogService {
-    if (!this.instance) this.instance = new AIRequestLogService();
-    return this.instance;
+    return (this.instance ??= new AIRequestLogService());
   }
-
   private constructor(private readonly repository: AIRequestLogStore = AIRequestLogRepository.getInstance()) {}
-
   public async logRequest(req: Request, res: Response, responseBody?: unknown, durationMs = 0): Promise<void> {
-    const context = getAIRequestLogContext(res);
-    if (!context) return;
-
-    const requestId = context.requestId || String(req.headers["x-request-id"] || randomUUID());
-    const requestPayload = this.preparePayload(this.unwrapRequestBody(req), AI_REQUEST_LOG_LIMITS.requestBodyBytes);
-    const responsePayload = this.preparePayload(responseBody, AI_REQUEST_LOG_LIMITS.responseBodyBytes);
-    const requestBody = requestPayload.value;
-    const responseJsonBody = responsePayload.value;
-    const requestPath = String(req.originalUrl || req.url || req.path || "").split("?")[0] || "";
-
-    try {
-      await this.repository.create({
-        requestId,
-        userId: context.userId || undefined,
-        username: context.username || undefined,
-        relayTokenId: context.relayTokenId || undefined,
-        relayTokenName: context.relayTokenName || undefined,
-        model: context.model || undefined,
-        requestFormat: context.requestFormat || undefined,
-        path: requestPath,
-        method: req.method,
-        statusCode: res.statusCode,
-        ipAddress: extractClientIp(req),
-        userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : undefined,
-        durationMs: Math.max(0, Math.round(durationMs)),
-        requestSizeBytes: requestPayload.byteSize ?? undefined,
-        responseSizeBytes: responsePayload.byteSize ?? undefined,
-        requestTruncated: requestPayload.truncated,
-        responseTruncated: responsePayload.truncated || this.hasTruncationMarker(responseBody),
-        ...(requestBody === undefined || requestBody === null ? {} : { requestBody }),
-        ...(responseJsonBody === undefined || responseJsonBody === null ? {} : { responseBody: responseJsonBody }),
-      });
-    } catch (error) {
-      logger.error("Failed to persist AI request audit log", {
-        requestId,
-        userId: context.userId || undefined,
-        path: requestPath,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    const initialContext = getAIRequestLogContext(res);
+    if (!initialContext) return;
+    const currentContext = () => getAIRequestLogContext(res) ?? initialContext;
+    const existing = writes.get(res);
+    if (existing) return existing;
+    const requestId = ensureAIRequestLogId(res);
+    const path = String(req.originalUrl || req.url || req.path || "").split("?")[0] || "";
+    const context = currentContext();
+    let omission: AIRequestLogOmissionReason | null = context.bodyOmissionReason ?? null;
+    let body: unknown;
+    if (res.statusCode === 413) omission = "request-too-large";
+    else if (!omission && !context.userId) omission = "unknown-identity";
+    if (!omission) {
+      if (Buffer.isBuffer(req.body)) {
+        if (/json/i.test(String(req.headers["content-type"] || ""))) {
+          try {
+            body = JSON.parse(req.body.toString("utf8"));
+          } catch {
+            omission = "invalid-body";
+          }
+        } else body = { _binary: true, _size: req.body.byteLength, _contentType: req.headers["content-type"] ?? null };
+      } else body = req.body;
     }
+    const requestPayload = this.preparePayload(
+      omission ? undefined : body,
+      AI_REQUEST_LOG_LIMITS.requestBodyBytes,
+      Buffer.isBuffer(req.body) ? req.body.byteLength : undefined,
+    );
+    const responsePayload = this.preparePayload(
+      omission ? undefined : responseBody,
+      AI_REQUEST_LOG_LIMITS.responseBodyBytes,
+      res.locals.responseCaptureState?.totalBytes,
+    );
+    const headerSize = Number(req.headers["content-length"]);
+    const requestSize =
+      requestPayload.byteSize ??
+      (Number.isSafeInteger(headerSize) && headerSize >= 0 ? Math.min(headerSize, 2147483647) : null);
+    const closedEarly = res.locals.responseClosedEarly === true;
+    const diagnostics = () => this.diagnostics(currentContext(), res.statusCode, closedEarly);
+    const safeFailure = () => logger.error("Failed to persist AI request audit log", { requestId, path });
+    // Serialize creation and late updates. A context patch can arrive while the first insert is still pending;
+    // defer that patch until the row exists so identity/failure updates cannot race ahead of the insert.
+    let queue = Promise.resolve();
+    let created = false;
+    let updatePending = false;
+    observeAIRequestLogContext(res, () => {
+      if (!created) {
+        updatePending = true;
+        return;
+      }
+      queue = queue
+        .then(async () => {
+          await this.repository.updateByRequestId(requestId, diagnostics());
+        })
+        .catch(safeFailure);
+      writes.set(res, queue);
+    });
+    queue = queue
+      .then(async () => {
+        await this.repository.create({
+          requestId,
+          userId: context.userId ?? undefined,
+          username: context.username?.slice(0, 191),
+          relayTokenId: context.relayTokenId ?? undefined,
+          relayTokenName: context.relayTokenName?.slice(0, 100),
+          model: context.model?.slice(0, 160),
+          requestFormat: context.requestFormat?.slice(0, 40),
+          path: path.slice(0, 1024),
+          method: req.method,
+          statusCode: res.statusCode,
+          ipAddress: extractClientIp(req),
+          userAgent:
+            typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"].slice(0, 2048) : undefined,
+          durationMs: Math.max(0, Math.round(durationMs)),
+          requestSizeBytes: requestSize,
+          responseSizeBytes: responsePayload.byteSize,
+          requestTruncated: requestPayload.truncated,
+          responseTruncated: responsePayload.truncated || this.hasTruncationMarker(responseBody),
+          bodyOmissionReason: omission,
+          isStreaming:
+            context.isStreaming ??
+            (body && typeof body === "object" ? (body as { stream?: unknown }).stream === true : undefined),
+          ...diagnostics(),
+          ...(requestPayload.value === undefined ? {} : { requestBody: requestPayload.value }),
+          ...(responsePayload.value === undefined ? {} : { responseBody: responsePayload.value }),
+        });
+        created = true;
+        if (updatePending) {
+          updatePending = false;
+          await this.repository.updateByRequestId(requestId, diagnostics());
+        }
+      })
+      .catch(safeFailure);
+    writes.set(res, queue);
+    await queue;
   }
-
+  private diagnostics(
+    context: AIRequestLogAuditContext,
+    statusCode: number,
+    closedEarly: boolean,
+  ): Pick<
+    Prisma.AIRequestLogUncheckedCreateInput,
+    | "authenticationState"
+    | "outcome"
+    | "failureStage"
+    | "errorCode"
+    | "errorSummary"
+    | "attempts"
+    | "attemptsTruncated"
+    | "userId"
+    | "username"
+    | "relayTokenId"
+    | "relayTokenName"
+    | "model"
+    | "requestFormat"
+    | "isStreaming"
+  > {
+    const outcome =
+      context.outcome === "failed" || context.outcome === "interrupted"
+        ? context.outcome
+        : closedEarly
+          ? "interrupted"
+          : context.executionPending
+            ? "pending"
+            : statusCode >= 400
+              ? "failed"
+              : "success";
+    return {
+      userId: context.userId ?? undefined,
+      username: context.username?.slice(0, 191),
+      relayTokenId: context.relayTokenId ?? undefined,
+      relayTokenName: context.relayTokenName?.slice(0, 100),
+      model: context.model?.slice(0, 160),
+      requestFormat: context.requestFormat?.slice(0, 40),
+      isStreaming: context.isStreaming,
+      authenticationState: context.authenticationState ?? (context.userId ? "authenticated" : "unknown"),
+      outcome,
+      failureStage:
+        outcome === "success"
+          ? null
+          : (context.failureStage ?? (closedEarly ? "client" : context.userId ? "upstream" : "authentication")),
+      errorCode:
+        context.errorCode ?? (closedEarly ? "client_disconnected" : statusCode >= 400 ? "http_" + statusCode : null),
+      errorSummary:
+        context.errorSummary ??
+        (closedEarly ? "Client connection closed before completion" : statusCode >= 400 ? "Request failed" : null),
+      attempts: context.attempts ? jsonInput(context.attempts) : undefined,
+      attemptsTruncated: context.attemptsTruncated ?? false,
+    };
+  }
   public async query(query: AIRequestLogQuery): Promise<{ items: AIRequestLogListItemDto[]; total: number }> {
     const result = await this.repository.query(query);
     return { total: result.total, items: result.items.map((log) => this.toListItem(log)) };
   }
-
   public async findById(id: string): Promise<AIRequestLogDetailDto | null> {
     const log = await this.repository.findById(id);
-    if (!log) return null;
-    return { ...this.toListItem(log), requestBody: log.requestBody, responseBody: log.responseBody };
+    return log ? { ...this.toListItem(log), requestBody: log.requestBody, responseBody: log.responseBody } : null;
   }
-
+  public async metadata(id: string): Promise<AIRequestLogMetadataDto> {
+    const log = await this.repository.findMetadata(id);
+    if (!log) return notFound();
+    return {
+      ...this.toListItem(log),
+      availableSides: [
+        ...(log.hasRequestBody ? ["request" as const] : []),
+        ...(log.hasResponseBody ? ["response" as const] : []),
+      ],
+    };
+  }
+  public async content(
+    id: string,
+    side: AIRequestLogContentSide,
+    view: AIRequestLogContentView,
+    options: { cursor?: string; locator?: string; pageSize?: number; offset?: number },
+  ): Promise<AIRequestLogContentPageDto> {
+    const log = await this.repository.findPayload(id, side);
+    if (!log) return notFound();
+    return contentPage({
+      id,
+      side,
+      view,
+      value: sanitizeAuditPayload(side === "request" ? log.requestBody : log.responseBody),
+      ...options,
+      truncated: side === "request" ? log.requestTruncated : log.responseTruncated,
+      omissionReason: log.bodyOmissionReason as AIRequestLogOmissionReason | null,
+    });
+  }
+  public async search(
+    id: string,
+    scope: AIRequestLogContentSide | "attempts",
+    keyword: string,
+    options: { cursor?: string; pageSize?: number },
+  ): Promise<AIRequestLogSearchPageDto> {
+    if (scope === "attempts") {
+      const log = await this.repository.findAttempts(id);
+      if (!log) return notFound();
+      return searchContent({
+        id,
+        side: scope,
+        keyword,
+        value: log.attempts,
+        ...options,
+        truncated: Boolean(log.attemptsTruncated),
+        omissionReason: null,
+      });
+    }
+    const log = await this.repository.findPayload(id, scope);
+    if (!log) return notFound();
+    return searchContent({
+      id,
+      side: scope,
+      keyword,
+      value: sanitizeAuditPayload(scope === "request" ? log.requestBody : log.responseBody),
+      ...options,
+      truncated: scope === "request" ? log.requestTruncated : log.responseTruncated,
+      omissionReason: log.bodyOmissionReason as AIRequestLogOmissionReason | null,
+    });
+  }
+  public async attempts(
+    id: string,
+    options: { cursor?: string; pageSize?: number },
+  ): Promise<AIRequestLogAttemptsPageDto> {
+    const log = await this.repository.findAttempts(id);
+    if (!log) return notFound();
+    const rows = Array.isArray(log.attempts) ? (log.attempts as unknown as AIRequestLogAttemptDto[]) : [];
+    const scope = id + ":attempts";
+    const cursor = readAuditCursor(options.cursor, scope);
+    const items = rows.slice(cursor.index, cursor.index + (options.pageSize ?? AI_REQUEST_LOG_LIMITS.contentPageItems));
+    const nextCursor =
+      cursor.index + items.length < rows.length ? auditCursor(cursor.index + items.length, scope) : null;
+    return {
+      items,
+      nextCursor,
+      hasMore: Boolean(nextCursor),
+      total: rows.length,
+      truncated: Boolean(log.attemptsTruncated),
+    };
+  }
   private toListItem(log: AIRequestLogListItem): AIRequestLogListItemDto {
     return {
       id: log.id,
@@ -150,113 +304,51 @@ export class AIRequestLogService {
       durationMs: log.durationMs,
       requestSizeBytes: log.requestSizeBytes,
       responseSizeBytes: log.responseSizeBytes,
-      requestTruncated: log.requestTruncated,
-      responseTruncated: log.responseTruncated,
+      requestTruncated: Boolean(log.requestTruncated),
+      responseTruncated: Boolean(log.responseTruncated),
+      isStreaming: log.isStreaming == null ? null : Boolean(log.isStreaming),
+      authenticationState: log.authenticationState as AIRequestLogAuthState | null,
+      outcome: log.outcome as AIRequestLogOutcome | null,
+      failureStage: log.failureStage as AIRequestLogStage | null,
+      errorCode: log.errorCode,
+      errorSummary: log.errorSummary,
+      bodyOmissionReason: log.bodyOmissionReason as AIRequestLogOmissionReason | null,
+      attemptsTruncated: log.attemptsTruncated == null ? null : Boolean(log.attemptsTruncated),
     };
   }
-
-  private unwrapRequestBody(req: Request): unknown {
-    const body = req.body;
-    if (!Buffer.isBuffer(body)) return body;
-    const contentType = String(req.headers["content-type"] || "");
-    if (/json/i.test(contentType))
-      try {
-        return JSON.parse(body.toString("utf8"));
-      } catch {
-        return body.toString("utf8");
-      }
-    return binaryPlaceholder(body.byteLength, contentType || undefined);
+  private hasTruncationMarker(value: unknown): boolean {
+    return Boolean(value && typeof value === "object" && (value as { _truncated?: unknown })._truncated);
   }
-
-  private preparePayload(value: unknown, maxBytes: number): PreparedPayload {
-    const originalByteSize = this.estimatePayloadBytes(value);
-    const sanitized = this.sanitizeValue(value, new WeakSet(), 0);
-    let serialized: string;
+  private preparePayload(
+    value: unknown,
+    maxBytes: number,
+    measuredBytes?: number,
+  ): { value?: Prisma.InputJsonValue; byteSize: number | null; truncated: boolean } {
+    if (value === undefined || value === null) return { byteSize: null, truncated: false };
+    let originalSize: number;
     try {
-      serialized = JSON.stringify(sanitized) ?? "null";
+      originalSize =
+        measuredBytes ??
+        (Buffer.isBuffer(value)
+          ? value.byteLength
+          : Buffer.byteLength(typeof value === "string" ? value : JSON.stringify(value)));
+      originalSize = Math.min(2147483647, Math.max(0, Math.round(originalSize)));
     } catch {
-      const fallback = { _unserializable: true, _type: typeof sanitized };
-      serialized = JSON.stringify(fallback);
-      return { value: fallback, byteSize: stringByteSize(serialized), truncated: false };
+      originalSize = 0;
     }
-
-    const sanitizedByteSize = stringByteSize(serialized);
-    const byteSize = originalByteSize ?? sanitizedByteSize;
-    if (sanitizedByteSize <= maxBytes) return { value: sanitized as Prisma.InputJsonValue, byteSize, truncated: false };
-
+    const safe = sanitizeAuditPayload(value);
+    const serialized = JSON.stringify(safe) ?? "null";
+    if (Buffer.byteLength(serialized) <= maxBytes)
+      return { value: jsonInput(safe), byteSize: originalSize, truncated: this.hasTruncationMarker(value) };
     return {
       value: {
         _truncated: true,
-        _originalSize: byteSize,
-        _preview: truncateUtf8(serialized, Math.max(0, maxBytes - 256)),
+        _originalSize: originalSize,
+        _preview: auditUtf8Slice(serialized, 0, Math.max(0, maxBytes - 256)).text,
       },
-      byteSize,
+      byteSize: originalSize,
       truncated: true,
     };
   }
-
-  private sanitizeValue(value: unknown, seen: WeakSet<object>, depth: number): unknown {
-    if (value === null || value === undefined) return value;
-    if (typeof value === "bigint") return value.toString();
-    if (value instanceof Date) return value.toISOString();
-    if (Buffer.isBuffer(value)) return binaryPlaceholder(value.byteLength);
-    if (value instanceof Uint8Array) return binaryPlaceholder(value.byteLength);
-    if (typeof value === "string")
-      return /^data:[^;\s]+;base64,/i.test(value)
-        ? binaryPlaceholder(stringByteSize(value), value.slice(5, value.indexOf(";")))
-        : value;
-    if (typeof value !== "object") return value;
-    if (depth >= MAX_SANITIZE_DEPTH) return { _depthLimitReached: true };
-    if (seen.has(value)) return "[Circular Reference]";
-    seen.add(value);
-
-    if (Array.isArray(value)) return value.map((item) => this.sanitizeValue(item, seen, depth + 1));
-
-    const sanitized: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-      if (isSensitiveKey(key)) sanitized[key] = "***FILTERED***";
-      else if (isImageLikeKey(key) || this.isBase64Payload(item)) sanitized[key] = this.describeImageLikeValue(item);
-      else sanitized[key] = this.sanitizeValue(item, seen, depth + 1);
-    }
-    return sanitized;
-  }
-
-  private isBase64Payload(value: unknown): boolean {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-    const payload = value as { type?: unknown; data?: unknown };
-    return payload.type === "base64" && typeof payload.data === "string";
-  }
-
-  private describeImageLikeValue(value: unknown): Prisma.InputJsonObject {
-    if (Buffer.isBuffer(value) || value instanceof Uint8Array) return binaryPlaceholder(value.byteLength);
-    if (typeof value === "string") return binaryPlaceholder(stringByteSize(value), "image");
-    try {
-      return binaryPlaceholder(stringByteSize(JSON.stringify(value)), "image");
-    } catch {
-      return binaryPlaceholder(undefined, "image");
-    }
-  }
-
-  private estimatePayloadBytes(value: unknown): number | null {
-    if (value === null || value === undefined) return null;
-    if (Buffer.isBuffer(value)) return value.byteLength;
-    if (value instanceof Uint8Array) return value.byteLength;
-    if (typeof value === "string") return stringByteSize(value);
-    if (typeof value === "object" && value !== null) {
-      const metadataSize = (value as { _size?: unknown })._size;
-      if (typeof metadataSize === "number" && Number.isFinite(metadataSize)) return metadataSize;
-    }
-    try {
-      const serialized = JSON.stringify(value);
-      return serialized === undefined ? null : stringByteSize(serialized);
-    } catch {
-      return null;
-    }
-  }
-
-  private hasTruncationMarker(value: unknown): boolean {
-    return Boolean(value && typeof value === "object" && !Array.isArray(value) && (value as any)._truncated === true);
-  }
 }
-
 export default AIRequestLogService.getInstance();

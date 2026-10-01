@@ -20908,6 +20908,304 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "outcome",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/AIRequestLogOutcome"
+						}
+					},
+					{
+						"in": "query",
+						"name": "isStreaming",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"in": "query",
+						"name": "failureStage",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/AIRequestLogStage"
+						}
+					},
+					{
+						"in": "query",
+						"name": "ipAddress",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "minDurationMs",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "maxDurationMs",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "bodyOmissionReason",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/AIRequestLogOmissionReason"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay/ai-request-logs/{id}/metadata": {
+			"get": {
+				"operationId": "AIRequestLogControllerMetadata",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AIRequestLogMetadataDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay AI Request Logs"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay/ai-request-logs/{id}/content": {
+			"get": {
+				"operationId": "AIRequestLogControllerContent",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AIRequestLogContentPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay AI Request Logs"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "side",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/AIRequestLogContentSide"
+						}
+					},
+					{
+						"in": "query",
+						"name": "view",
+						"required": false,
+						"schema": {
+							"$ref": "#/components/schemas/AIRequestLogContentView"
+						}
+					},
+					{
+						"in": "query",
+						"name": "cursor",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "locator",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "offset",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay/ai-request-logs/{id}/search": {
+			"get": {
+				"operationId": "AIRequestLogControllerSearch",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AIRequestLogSearchPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay AI Request Logs"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "scope",
+						"required": false,
+						"schema": {
+							"default": "request"
+						}
+					},
+					{
+						"in": "query",
+						"name": "cursor",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/relay/ai-request-logs/{id}/attempts": {
+			"get": {
+				"operationId": "AIRequestLogControllerAttempts",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AIRequestLogAttemptsPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay AI Request Logs"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "cursor",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
 					}
 				]
 			}
@@ -20927,6 +21225,7 @@
 						}
 					}
 				},
+				"description": "Compatibility entry point. New UI uses metadata/content instead.",
 				"tags": [
 					"Relay AI Request Logs"
 				],
@@ -52240,7 +52539,7 @@
 							"$ref": "#/components/schemas/RelayChannelProbeCustomerFacingTargetDto"
 						},
 						"type": "array",
-						"description": "Pooled entries that resolve to this standalone channel. When present,\r\ncustomer notices must use these names instead of the upstream account name."
+						"description": "Pooled entries that resolve to this standalone channel. When present,\ncustomer notices must use these names instead of the upstream account name."
 					},
 					"multiplier": {
 						"type": "number",
@@ -53225,6 +53524,45 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"AIRequestLogAuthState": {
+				"type": "string",
+				"enum": [
+					"unknown",
+					"rejected",
+					"identified",
+					"authenticated"
+				]
+			},
+			"AIRequestLogOutcome": {
+				"type": "string",
+				"enum": [
+					"pending",
+					"success",
+					"failed",
+					"interrupted"
+				]
+			},
+			"AIRequestLogStage": {
+				"type": "string",
+				"enum": [
+					"request",
+					"authentication",
+					"routing",
+					"upstream",
+					"content-safety",
+					"settlement",
+					"client"
+				]
+			},
+			"AIRequestLogOmissionReason": {
+				"type": "string",
+				"enum": [
+					"unknown-identity",
+					"invalid-body",
+					"request-too-large",
+					"not-recorded"
+				]
+			},
 			"AIRequestLogListItemDto": {
 				"properties": {
 					"id": {
@@ -53297,6 +53635,54 @@
 					},
 					"responseTruncated": {
 						"type": "boolean"
+					},
+					"isStreaming": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"authenticationState": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogAuthState"
+							}
+						],
+						"nullable": true
+					},
+					"outcome": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogOutcome"
+							}
+						],
+						"nullable": true
+					},
+					"failureStage": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogStage"
+							}
+						],
+						"nullable": true
+					},
+					"errorCode": {
+						"type": "string",
+						"nullable": true
+					},
+					"errorSummary": {
+						"type": "string",
+						"nullable": true
+					},
+					"bodyOmissionReason": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogOmissionReason"
+							}
+						],
+						"nullable": true
+					},
+					"attemptsTruncated": {
+						"type": "boolean",
+						"nullable": true
 					}
 				},
 				"required": [
@@ -53349,6 +53735,440 @@
 					"total",
 					"page",
 					"pageSize"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogContentSide": {
+				"type": "string",
+				"enum": [
+					"request",
+					"response"
+				]
+			},
+			"AIRequestLogMetadataDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time"
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string",
+						"nullable": true
+					},
+					"username": {
+						"type": "string",
+						"nullable": true
+					},
+					"relayTokenId": {
+						"type": "string",
+						"nullable": true
+					},
+					"relayTokenName": {
+						"type": "string",
+						"nullable": true
+					},
+					"model": {
+						"type": "string",
+						"nullable": true
+					},
+					"requestFormat": {
+						"type": "string",
+						"nullable": true
+					},
+					"path": {
+						"type": "string"
+					},
+					"method": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"ipAddress": {
+						"type": "string"
+					},
+					"userAgent": {
+						"type": "string",
+						"nullable": true
+					},
+					"durationMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"requestSizeBytes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"responseSizeBytes": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"requestTruncated": {
+						"type": "boolean"
+					},
+					"responseTruncated": {
+						"type": "boolean"
+					},
+					"isStreaming": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"authenticationState": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogAuthState"
+							}
+						],
+						"nullable": true
+					},
+					"outcome": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogOutcome"
+							}
+						],
+						"nullable": true
+					},
+					"failureStage": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogStage"
+							}
+						],
+						"nullable": true
+					},
+					"errorCode": {
+						"type": "string",
+						"nullable": true
+					},
+					"errorSummary": {
+						"type": "string",
+						"nullable": true
+					},
+					"bodyOmissionReason": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogOmissionReason"
+							}
+						],
+						"nullable": true
+					},
+					"attemptsTruncated": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"availableSides": {
+						"items": {
+							"$ref": "#/components/schemas/AIRequestLogContentSide"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"createTime",
+					"requestId",
+					"userId",
+					"username",
+					"relayTokenId",
+					"relayTokenName",
+					"model",
+					"requestFormat",
+					"path",
+					"method",
+					"statusCode",
+					"ipAddress",
+					"userAgent",
+					"durationMs",
+					"requestSizeBytes",
+					"responseSizeBytes",
+					"requestTruncated",
+					"responseTruncated",
+					"availableSides"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogContentItemDto": {
+				"properties": {
+					"expandable": {
+						"type": "boolean"
+					},
+					"locator": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"section": {
+						"type": "string"
+					},
+					"label": {
+						"type": "string"
+					},
+					"text": {
+						"type": "string"
+					},
+					"offset": {
+						"type": "number",
+						"format": "double"
+					},
+					"totalBytes": {
+						"type": "number",
+						"format": "double"
+					},
+					"nextCursor": {
+						"type": "string",
+						"nullable": true
+					}
+				},
+				"required": [
+					"locator",
+					"path",
+					"section",
+					"label",
+					"text",
+					"offset",
+					"totalBytes",
+					"nextCursor"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogContentPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/AIRequestLogContentItemDto"
+						},
+						"type": "array"
+					},
+					"nextCursor": {
+						"type": "string",
+						"nullable": true
+					},
+					"hasMore": {
+						"type": "boolean"
+					},
+					"totalItems": {
+						"type": "number",
+						"format": "double"
+					},
+					"storedBytes": {
+						"type": "number",
+						"format": "double"
+					},
+					"truncated": {
+						"type": "boolean"
+					},
+					"omissionReason": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogOmissionReason"
+							}
+						],
+						"nullable": true
+					}
+				},
+				"required": [
+					"items",
+					"nextCursor",
+					"hasMore",
+					"totalItems",
+					"storedBytes",
+					"truncated",
+					"omissionReason"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogContentView": {
+				"type": "string",
+				"enum": [
+					"parsed",
+					"raw"
+				]
+			},
+			"AIRequestLogSearchHitDto": {
+				"properties": {
+					"side": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogContentSide"
+							},
+							{
+								"type": "string",
+								"enum": [
+									"attempts"
+								]
+							}
+						]
+					},
+					"locator": {
+						"type": "string"
+					},
+					"path": {
+						"type": "string"
+					},
+					"section": {
+						"type": "string"
+					},
+					"excerpt": {
+						"type": "string"
+					},
+					"matchText": {
+						"type": "string"
+					},
+					"matchStart": {
+						"type": "number",
+						"format": "double"
+					},
+					"matchEnd": {
+						"type": "number",
+						"format": "double"
+					},
+					"offset": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"side",
+					"locator",
+					"path",
+					"section",
+					"excerpt",
+					"matchText",
+					"matchStart",
+					"matchEnd",
+					"offset"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogSearchPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/AIRequestLogSearchHitDto"
+						},
+						"type": "array"
+					},
+					"nextCursor": {
+						"type": "string",
+						"nullable": true
+					},
+					"hasMore": {
+						"type": "boolean"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"truncated": {
+						"type": "boolean"
+					},
+					"omissionReason": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogOmissionReason"
+							}
+						],
+						"nullable": true
+					}
+				},
+				"required": [
+					"items",
+					"nextCursor",
+					"hasMore",
+					"total",
+					"truncated",
+					"omissionReason"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogAttemptDto": {
+				"properties": {
+					"sequence": {
+						"type": "number",
+						"format": "double"
+					},
+					"stage": {
+						"$ref": "#/components/schemas/AIRequestLogStage"
+					},
+					"success": {
+						"type": "boolean"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"durationMs": {
+						"type": "number",
+						"format": "double",
+						"nullable": true
+					},
+					"errorExcerpt": {
+						"type": "string",
+						"nullable": true
+					},
+					"errorTruncated": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"sequence",
+					"stage",
+					"success",
+					"statusCode",
+					"durationMs",
+					"errorExcerpt",
+					"errorTruncated"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIRequestLogAttemptsPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/AIRequestLogAttemptDto"
+						},
+						"type": "array"
+					},
+					"nextCursor": {
+						"type": "string",
+						"nullable": true
+					},
+					"hasMore": {
+						"type": "boolean"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"truncated": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"nextCursor",
+					"hasMore",
+					"total",
+					"truncated"
 				],
 				"type": "object",
 				"additionalProperties": false
@@ -53425,6 +54245,54 @@
 					},
 					"responseTruncated": {
 						"type": "boolean"
+					},
+					"isStreaming": {
+						"type": "boolean",
+						"nullable": true
+					},
+					"authenticationState": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogAuthState"
+							}
+						],
+						"nullable": true
+					},
+					"outcome": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogOutcome"
+							}
+						],
+						"nullable": true
+					},
+					"failureStage": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogStage"
+							}
+						],
+						"nullable": true
+					},
+					"errorCode": {
+						"type": "string",
+						"nullable": true
+					},
+					"errorSummary": {
+						"type": "string",
+						"nullable": true
+					},
+					"bodyOmissionReason": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/AIRequestLogOmissionReason"
+							}
+						],
+						"nullable": true
+					},
+					"attemptsTruncated": {
+						"type": "boolean",
+						"nullable": true
 					},
 					"requestBody": {
 						"$ref": "#/components/schemas/JsonValue"

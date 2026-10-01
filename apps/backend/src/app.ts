@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { loggingMiddleware } from "./middleware/logging";
+import { earlyAIRequestAuditMiddleware } from "./middleware/ai-request-audit";
 import { exceptionMiddleware } from "./middleware/exception";
 import { requestIdMiddleware } from "./middleware/request_id";
 import { urlTokenExtractor } from "./middleware/auth/url_token_extractor";
@@ -44,6 +45,9 @@ function parseContentLength(value: string | string[] | undefined): number | null
 export function createApp() {
   const app = express();
   const requestSizeLimitConfig = env.runtime.requestSizeLimits;
+  app.set("trust proxy", env.runtime.trustProxyHops);
+  app.use(requestIdMiddleware);
+  app.use(earlyAIRequestAuditMiddleware);
 
   // Keep Swagger's existing inline assets working; CSP can be introduced separately
   // after auditing the generated documentation page.
@@ -173,7 +177,6 @@ export function createApp() {
   // URL token 提取中间件 - 将 URL 参数中的 token 转换为 Authorization header
   app.use(urlTokenExtractor);
 
-  app.use(requestIdMiddleware);
   app.use(loggingMiddleware);
 
   // 响应包装中间件 - 将所有成功响应包装为 {code, message, data} 格式

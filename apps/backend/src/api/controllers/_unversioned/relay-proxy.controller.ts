@@ -18,6 +18,7 @@ export class RelayProxyController extends Controller {
   private relayProxyService = new RelayProxyService();
 
   private async handleRequest(request: ExpressRequest): Promise<any> {
+    setAIRequestLogContext(request.res, { failureStage: "authentication" });
     const token = extractRelayToken(request);
     if (!token) throw new UnauthorizedError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
 

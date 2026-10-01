@@ -1,3 +1,4 @@
+import { recordAIRequestFailure, getAIRequestLogContext } from "@/util/ai-request-log-context";
 import type { Request, Response, NextFunction } from "express";
 import chalk from "chalk";
 import { HttpStatusCode } from "axios";
@@ -80,20 +81,22 @@ function getPrismaErrorTarget(error: Prisma.PrismaClientKnownRequestError): stri
  * 支持多种错误类型: ApiError、ValidateError(tsoa)、标准 Error
  */
 export function exceptionMiddleware(err: Error, req: Request, res: Response, next: NextFunction) {
+  recordAIRequestFailure(res, err);
   // 如果响应已经发送，则不再处理
   if (res.headersSent) return next(err);
 
   // JWT 相关错误是正常的业务流程，不记录日志
+  const auditContext = getAIRequestLogContext(res);
   const isJwtError = err.name === "TokenExpiredError" || err.name === "JsonWebTokenError";
 
   // 只记录非 JWT 错误的日志
   if (!isJwtError) {
     const errorLog = {
-      message: err.message,
+      message: auditContext ? auditContext.errorSummary : err.message,
       name: err.name,
       path: req.path,
       method: req.method,
-      stack: env.runtime.isDevelopment ? err.stack : undefined,
+      stack: !auditContext && env.runtime.isDevelopment ? err.stack : undefined,
     };
 
     try {
@@ -105,7 +108,7 @@ export function exceptionMiddleware(err: Error, req: Request, res: Response, nex
           "\n" +
           JSON.stringify(
             {
-              message: String(err.message || "Unknown error"),
+              message: auditContext ? auditContext.errorSummary : String(err.message || "Unknown error"),
               name: String(err.name || "Error"),
               path: req.path,
               method: req.method,

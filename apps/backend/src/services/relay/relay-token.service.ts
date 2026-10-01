@@ -1,3 +1,4 @@
+import { setAIRequestLogContext, getAIRequestLogContext } from "@/util/ai-request-log-context";
 import { RelayTokenRepository } from "@/store/relay/relay-token.repository";
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
 import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
@@ -510,6 +511,14 @@ export class RelayTokenService {
 
   async validateToken(token: string, request?: Request, trustedClientIp?: string) {
     const relayToken = await this.relayTokenRepo.findByToken(token);
+    if (relayToken && getAIRequestLogContext(request?.res))
+      setAIRequestLogContext(request?.res, {
+        userId: relayToken.userId,
+        username: relayToken.user?.username ?? null,
+        relayTokenId: relayToken.id,
+        relayTokenName: relayToken.name ?? null,
+        authenticationState: "identified",
+      });
     if (!relayToken || relayToken.status !== MANAGED_STATUS.ENABLED)
       throw new NotFoundError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
 
@@ -529,6 +538,8 @@ export class RelayTokenService {
         });
     }
 
+    if (getAIRequestLogContext(request?.res))
+      setAIRequestLogContext(request?.res, { authenticationState: "authenticated" });
     return relayToken;
   }
 
