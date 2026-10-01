@@ -267,22 +267,40 @@ jobs:
           if [ -L "$root/current" ]; then
             previous_release="$(readlink -f "$root/current" || true)"
           fi
+          start_backend() {
+            cd "$root"
+            local pm_cwd=""
+            if pnpm exec pm2 describe backend >/dev/null 2>&1; then
+              pm_cwd="$(pnpm exec pm2 jlist | node -e 'let input=""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => { const app = JSON.parse(input).find(item => item.name === "backend"); process.stdout.write(app?.pm2_env?.pm_cwd || ""); })')"
+            fi
+
+            # PM2 does not reliably mutate cwd/exec_path for an existing app
+            # during startOrReload. Recreate only when it still points at an
+            # older root/release; otherwise keep the graceful restart path.
+            if [ -n "$pm_cwd" ] && [ "$pm_cwd" != "$root/current" ] && [ "$pm_cwd" != "$release" ]; then
+              pnpm exec pm2 delete backend >/dev/null 2>&1 || true
+            fi
+
+            if pnpm exec pm2 describe backend >/dev/null 2>&1; then
+              BACKEND_DEPLOY_ROOT="$root" pnpm exec pm2 restart backend --update-env
+            else
+              BACKEND_DEPLOY_ROOT="$root" pnpm exec pm2 start ./ecosystem.config.cjs --env production --update-env
+            fi
+          }
+
           rollback_release() {
             echo '[deploy] restoring the previous release' >&2
             if [ -n "$previous_release" ] && [ -f "$previous_release/ecosystem.config.cjs" ]; then
               ln -sfn -- "$previous_release" "$root/current"
-              cd "$root"
-              BACKEND_DEPLOY_ROOT="$root" pnpm exec pm2 startOrReload ./ecosystem.config.cjs --env production --update-env
+              start_backend
             elif [ -f "$root/ecosystem.config.cjs" ]; then
               rm -f "$root/current"
-              cd "$root"
-              pnpm exec pm2 startOrReload ./ecosystem.config.cjs --env production --update-env
+              start_backend
             fi
           }
 
           ln -sfn -- "$release" "$root/current"
-          cd "$root"
-          if ! BACKEND_DEPLOY_ROOT="$root" pnpm exec pm2 startOrReload ./ecosystem.config.cjs --env production --update-env; then
+          if ! start_backend; then
             rollback_release
             exit 1
           fi
