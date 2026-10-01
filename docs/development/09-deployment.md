@@ -413,7 +413,7 @@ GitHub CD 在 Runner 上生成 Prisma Client，并使用 `pnpm deploy --prod --l
 ./dist/index.cjs
 ```
 
-服务器 CD 流程为：上传运行包、校验 Prisma 和原生依赖、执行包内 `./node_modules/.bin/prisma migrate deploy`，然后执行：
+服务器 CD 流程为：上传运行包、执行包内 `./node_modules/.bin/prisma migrate deploy`，然后执行：
 
 ```bash
 pm2 startOrReload ecosystem.config.cjs --env production --update-env

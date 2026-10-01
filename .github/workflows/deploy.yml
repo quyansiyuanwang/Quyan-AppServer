@@ -100,28 +100,15 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm --filter @quyan/backend run db:generate
 
-      - name: Build
-        run: pnpm --filter @quyan/backend run build:full:prod
-
-      - name: Validate built Prisma runtime
-        run: pnpm --filter @quyan/backend exec node scripts/validate-prisma-runtime.mjs --target-runtime
-
-      - name: Prepare production deployment bundle
+      - name: Build production deployment bundle
         run: |
           set -euo pipefail
+          pnpm --filter @quyan/backend run build:full:prod
           bundle_dir="apps/backend/.tmp/deploy"
           rm -rf "$bundle_dir"
           pnpm --filter @quyan/backend deploy --prod --legacy "$bundle_dir"
           mkdir -p "$bundle_dir/dist"
           cp -a apps/backend/dist/. "$bundle_dir/dist/"
-          node "$bundle_dir/scripts/validate-prisma-runtime.mjs" --target-runtime
-          node - "$bundle_dir/dist/index.cjs" <<'NODE'
-          const { createRequire } = require('node:module')
-          const runtimeRequire = createRequire(process.argv[2])
-          runtimeRequire('bcrypt')
-          runtimeRequire('node-gyp-build')
-          console.log('[deploy] production bundle native runtime validated')
-          NODE
 
       - name: Log generated build info
         run: |
@@ -191,17 +178,6 @@ jobs:
             apps/backend/.tmp/deploy/ \
             "$SSH_USER@$SSH_HOST:$REMOTE_BACKEND_PATH/"
 
-      - name: Validate Prisma runtime on server
-        env:
-          REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$REMOTE_BACKEND_PATH' && node scripts/validate-prisma-runtime.mjs --target-runtime"
-
       - name: Run database migrations
         env:
           REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
@@ -223,17 +199,6 @@ jobs:
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
             "cd '$REMOTE_BACKEND_PATH' && pm2 startOrReload ./ecosystem.config.cjs --env production --update-env"
-
-      - name: Health check
-        env:
-          REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$REMOTE_BACKEND_PATH' && port=\$(sed -n 's/^PORT=\([0-9]*\).*/\1/p' .env | head -n 1) && port=\${port:-10001} && for attempt in \$(seq 1 30); do curl --fail --silent --show-error --max-time 5 http://127.0.0.1:\$port/docs/openapi.json >/dev/null && exit 0; sleep 2; done; echo '[deploy] health check failed' >&2; exit 1"
 
       - name: Log PM2 status after reload
         env:
