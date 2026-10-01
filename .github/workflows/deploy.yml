@@ -9,6 +9,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
       deploy-backend:
@@ -105,6 +106,16 @@ jobs:
       - name: Validate built Prisma runtime
         run: pnpm --filter @quyan/backend exec node scripts/validate-prisma-runtime.mjs --target-runtime
 
+      - name: Validate built native runtime dependencies
+        run: |
+          node - <<'NODE'
+          const { createRequire } = require('node:module')
+          const runtimeRequire = createRequire(`${process.cwd()}/apps/backend/dist/index.cjs`)
+          runtimeRequire('bcrypt')
+          runtimeRequire('node-gyp-build')
+          console.log('[deploy] bcrypt native runtime validated')
+          NODE
+
       - name: Prepare server dependency lockfile
         run: |
           set -euo pipefail
@@ -163,29 +174,25 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
 
-      - name: Prepare remote release directory
+      - name: Prepare remote directory
         env:
-          RELEASE_ID: ${{ github.sha }}
           REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          release_dir="$REMOTE_BACKEND_PATH/releases/$RELEASE_ID"
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "mkdir -p -- '$release_dir' '$REMOTE_BACKEND_PATH/releases' && test -f '$REMOTE_BACKEND_PATH/.env'"
+            "mkdir -p -- '$REMOTE_BACKEND_PATH'"
 
-      - name: Deploy release files
+      - name: Deploy backend
         env:
-          RELEASE_ID: ${{ github.sha }}
           REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          release_dir="$REMOTE_BACKEND_PATH/releases/$RELEASE_ID"
           rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -p $SSH_PORT" \
             --exclude '.env' \
@@ -193,65 +200,54 @@ jobs:
             --exclude 'dist/docs' \
             --exclude 'logs' \
             apps/backend/ \
-            "$SSH_USER@$SSH_HOST:$release_dir/"
-          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "ln -sfn -- '$REMOTE_BACKEND_PATH/.env' '$release_dir/.env' && mkdir -p -- '$REMOTE_BACKEND_PATH/logs' && ln -sfn -- '$REMOTE_BACKEND_PATH/logs' '$release_dir/logs' && cp -- '$release_dir/ecosystem.config.cjs' '$REMOTE_BACKEND_PATH/ecosystem.config.cjs'"
+            "$SSH_USER@$SSH_HOST:$REMOTE_BACKEND_PATH/"
 
-      - name: Install release dependencies on server
+      - name: Install production dependencies on server
         env:
-          RELEASE_ID: ${{ github.sha }}
           REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          release_dir="$REMOTE_BACKEND_PATH/releases/$RELEASE_ID"
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$release_dir' && PRISMA_SKIP_POSTINSTALL_GENERATE=1 pnpm install --prod --frozen-lockfile --ignore-workspace --config.confirmModulesPurge=false"
+            "cd '$REMOTE_BACKEND_PATH' && PRISMA_SKIP_POSTINSTALL_GENERATE=1 pnpm install --prod --frozen-lockfile --ignore-workspace --config.confirmModulesPurge=false"
 
-      - name: Log remote build info before reload
+      - name: Validate runtime dependencies on server
         env:
-          RELEASE_ID: ${{ github.sha }}
           REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          release_dir="$REMOTE_BACKEND_PATH/releases/$RELEASE_ID"
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$release_dir' && echo '[deploy] release=$RELEASE_ID' && sed -n '1,40p' src/generated/buildInfo.ts && stat dist/index.cjs"
+            "cd '$REMOTE_BACKEND_PATH' && node -e 'const { createRequire } = require(\"node:module\"); const runtimeRequire = createRequire(process.cwd() + \"/dist/index.cjs\"); runtimeRequire(\"bcrypt\"); runtimeRequire(\"node-gyp-build\"); console.log(\"[deploy] bcrypt native runtime validated\")'"
 
       - name: Validate Prisma runtime on server
         env:
-          RELEASE_ID: ${{ github.sha }}
           REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          release_dir="$REMOTE_BACKEND_PATH/releases/$RELEASE_ID"
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$release_dir' && node scripts/validate-prisma-runtime.mjs --target-runtime"
+            "cd '$REMOTE_BACKEND_PATH' && node scripts/validate-prisma-runtime.mjs --target-runtime"
 
       - name: Run database migrations
         env:
-          RELEASE_ID: ${{ github.sha }}
           REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          release_dir="$REMOTE_BACKEND_PATH/releases/$RELEASE_ID"
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$release_dir' && pnpm run db:migrate:deploy"
+            "cd '$REMOTE_BACKEND_PATH' && pnpm run db:migrate:deploy"
 
-      - name: Reload PM2 and verify health
+      - name: Reload PM2
         env:
-          RELEASE_ID: ${{ github.sha }}
           REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
@@ -259,86 +255,14 @@ jobs:
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "REMOTE_BACKEND_PATH='$REMOTE_BACKEND_PATH' RELEASE_ID='$RELEASE_ID' bash -s" <<'REMOTE_SCRIPT'
-          set -euo pipefail
-          root="$REMOTE_BACKEND_PATH"
-          release="$root/releases/$RELEASE_ID"
-          previous_release=""
-          if [ -L "$root/current" ]; then
-            previous_release="$(readlink -f "$root/current" || true)"
-          fi
-          start_backend() {
-            cd "$root"
-            local pm_cwd=""
-            if pnpm exec pm2 describe backend >/dev/null 2>&1; then
-              pm_cwd="$(pnpm exec pm2 jlist | node -e 'let input=""; process.stdin.on("data", chunk => input += chunk); process.stdin.on("end", () => { const app = JSON.parse(input).find(item => item.name === "backend"); process.stdout.write(app?.pm2_env?.pm_cwd || ""); })')"
-            fi
-
-            # PM2 does not reliably mutate cwd/exec_path for an existing app
-            # during startOrReload. Recreate only when it still points at an
-            # older root/release; otherwise keep the graceful restart path.
-            if [ -n "$pm_cwd" ] && [ "$pm_cwd" != "$root/current" ] && [ "$pm_cwd" != "$release" ]; then
-              pnpm exec pm2 delete backend >/dev/null 2>&1 || true
-            fi
-
-            if pnpm exec pm2 describe backend >/dev/null 2>&1; then
-              BACKEND_DEPLOY_ROOT="$root" pnpm exec pm2 restart backend --update-env
-            else
-              BACKEND_DEPLOY_ROOT="$root" pnpm exec pm2 start ./ecosystem.config.cjs --env production --update-env
-            fi
-          }
-
-          rollback_release() {
-            echo '[deploy] restoring the previous release' >&2
-            if [ -n "$previous_release" ] && [ -f "$previous_release/ecosystem.config.cjs" ]; then
-              ln -sfn -- "$previous_release" "$root/current"
-              start_backend
-            elif [ -f "$root/ecosystem.config.cjs" ]; then
-              rm -f "$root/current"
-              start_backend
-            fi
-          }
-
-          ln -sfn -- "$release" "$root/current"
-          if ! start_backend; then
-            rollback_release
-            exit 1
-          fi
-
-          port="$(grep -E '^PORT=' "$root/.env" | head -n 1 | cut -d= -f2 | tr -d '[:space:]\"' || true)"
-          port="${port:-10001}"
-          healthy=false
-          for attempt in $(seq 1 30); do
-            if node -e 'const http=require("node:http"); const port=Number(process.argv[1]); const request=http.get({host:"127.0.0.1",port,path:"/docs/openapi.json"},response=>{response.resume(); process.exitCode=response.statusCode===200?0:1}); request.setTimeout(5000,()=>{request.destroy(); process.exitCode=1}); request.on("error",()=>{process.exitCode=1})' "$port"; then
-              healthy=true
-              break
-            fi
-            sleep 2
-          done
-
-          if [ "$healthy" != true ]; then
-            echo '[deploy] release health check failed' >&2
-            rollback_release
-            exit 1
-          fi
-
-          echo "[deploy] release $RELEASE_ID is healthy"
-          find "$root/releases" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
-            | sort -nr | tail -n +4 | cut -d' ' -f2- \
-            | while IFS= read -r old_release; do
-                [ -n "$old_release" ] && [ "$old_release" != "$release" ] && rm -rf -- "$old_release"
-              done
-          REMOTE_SCRIPT
+            "cd '$REMOTE_BACKEND_PATH' && pm2 startOrReload ./ecosystem.config.cjs --env production --update-env"
 
       - name: Log PM2 status after reload
         env:
-          RELEASE_ID: ${{ github.sha }}
-          REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
           SSH_USER: ${{ secrets.SSH_USER }}
         run: |
           set -euo pipefail
-          release_dir="$REMOTE_BACKEND_PATH/releases/$RELEASE_ID"
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "cd '$release_dir' && pnpm exec pm2 status backend && pnpm exec pm2 logs backend --lines 80 --nostream"
+            "pm2 status backend && pm2 logs backend --lines 80 --nostream"
