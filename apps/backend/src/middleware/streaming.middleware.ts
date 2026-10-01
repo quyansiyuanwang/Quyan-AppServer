@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 import { extractRelayToken } from "@/util/relay";
+import { resolveSupportRelayClientIp } from "@/util/support-relay-authorization";
+import { setAIRequestLogContext } from "@/util/ai-request-log-context";
 
 export async function streamingMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.path.startsWith("/relay/proxy/")) return next();
@@ -21,7 +23,12 @@ export async function streamingMiddleware(req: Request, res: Response, next: Nex
     const relayTokenService = new RelayTokenService();
     const relayProxyService = new RelayProxyService();
 
-    const relayToken = await relayTokenService.validateToken(token, req);
+    setAIRequestLogContext(res, { isStreaming: true, failureStage: "authentication" });
+    const relayToken = await relayTokenService.validateToken(
+      token,
+      req,
+      resolveSupportRelayClientIp(req.headers, token),
+    );
     await relayProxyService.forwardRequest(relayToken, req, res);
   } catch (error) {
     next(error);

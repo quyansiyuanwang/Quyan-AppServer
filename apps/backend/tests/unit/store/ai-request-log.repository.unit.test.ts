@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
+  $queryRaw: vi.fn(),
   aIRequestLog: {
     create: vi.fn(),
     findMany: vi.fn(),
@@ -18,6 +19,7 @@ describe("AIRequestLogRepository", () => {
     vi.clearAllMocks();
     prismaMock.aIRequestLog.findMany.mockResolvedValue([]);
     prismaMock.aIRequestLog.count.mockResolvedValue(0);
+    prismaMock.$queryRaw.mockResolvedValue([]);
   });
 
   it("filters records that are not truncated when truncated=false", async () => {
@@ -39,16 +41,13 @@ describe("AIRequestLogRepository", () => {
 
     await repository.query({ page: 2, pageSize: 50, keyword: "violating content" });
 
-    const call = prismaMock.aIRequestLog.findMany.mock.calls[0][0];
-    expect(call.skip).toBe(50);
-    expect(call.take).toBe(50);
-    expect(call.select).not.toHaveProperty("requestBody");
-    expect(call.select).not.toHaveProperty("responseBody");
-    expect(call.where.AND[0].OR).toEqual(
-      expect.arrayContaining([
-        { requestBody: { string_contains: "violating content" } },
-        { responseBody: { string_contains: "violating content" } },
-      ]),
-    );
+    expect(prismaMock.aIRequestLog.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(2);
+    const sql = prismaMock.$queryRaw.mock.calls[0][0];
+    expect(sql.sql).toContain("JSON_SEARCH");
+    expect(sql.sql).toContain("LIMIT ? OFFSET ?");
+    expect(sql.sql).not.toContain("violating content");
+    expect(sql.values).toContain("%violating content%");
+    expect(sql.values).toContain(50);
   });
 });

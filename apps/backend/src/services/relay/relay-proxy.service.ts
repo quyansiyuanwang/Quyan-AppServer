@@ -104,7 +104,15 @@ import logger from "@/util/logger";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
-import { setAIRequestLogContext } from "@/util/ai-request-log-context";
+import {
+  setAIRequestLogContext,
+  getAIRequestLogContext,
+  ensureAIRequestLogId,
+  recordAIRequestFailure,
+  recordAIRequestAttempt,
+  beginAIRequestAttempt,
+  hasAIRequestAttempt,
+} from "@/util/ai-request-log-context";
 import { RelayChannelHealthService } from "./relay-channel-health.service";
 import { RelayChannelProbeLockService } from "./relay-channel-probe-lock.service";
 import { RelayChannelService } from "./relay-channel.service";
@@ -267,13 +275,20 @@ export class RelayProxyService {
     return RelayProxyService.instance;
   }
 
-  private async createStreamForwarderHost(): Promise<Omit<RelayStreamForwarderHost, "forwardStreamRequest">> {
+  private async createStreamForwarderHost(req?: any): Promise<Omit<RelayStreamForwarderHost, "forwardStreamRequest">> {
     const relayConfig = await this.relayConfigService.getRelayConfig();
     return {
       contentSafetyService: this.contentSafetyService,
       relayProxyRepository: this.relayProxyRepository,
       systemPreflightBufferLimitBytes: relayConfig.preflightBufferLimitBytes,
-      finalizeStreamUsage: this.finalizeStreamUsage.bind(this),
+      finalizeStreamUsage: async (token, data) => {
+        try {
+          return await this.finalizeStreamUsage(token, data);
+        } catch (error) {
+          recordAIRequestFailure(req?.res, error, "settlement");
+          throw error;
+        }
+      },
       calculateCost: this.calculateCost.bind(this),
       resolveContextMultiplier: this.resolveContextMultiplier.bind(this),
       getLogicalRequestId: this.getLogicalRequestId.bind(this),
@@ -2337,9 +2352,18 @@ export class RelayProxyService {
       latencyMs?: number;
       statusCode?: number;
       attemptedUpstream?: boolean;
+      error?: unknown;
       channel?: RelayChannel;
     },
   ): Promise<void> {
+    if (!hasAIRequestAttempt(health?.request?.res))
+      recordAIRequestAttempt(health?.request?.res, {
+        success,
+        statusCode: health?.statusCode,
+        durationMs: health?.latencyMs,
+        stage: health?.attemptedUpstream === false ? "routing" : "upstream",
+        error: health?.error,
+      });
     try {
       await this.relayTokenRepo.updateChannelConfigUsage({ relayTokenId, channelId, success });
     } catch (error) {
@@ -2409,7 +2433,7 @@ export class RelayProxyService {
     const existing = this.logicalRequestIds.get(requestObject);
     if (existing) return existing;
 
-    const logicalRequestId = randomUUID();
+    const logicalRequestId = ensureAIRequestLogId((req as { res?: any }).res);
     this.logicalRequestIds.set(requestObject, logicalRequestId);
     setAIRequestLogContext((req as { res?: Parameters<typeof setAIRequestLogContext>[0] }).res, {
       requestId: logicalRequestId,
@@ -2661,16 +2685,53 @@ export class RelayProxyService {
             requestFormat: this.getRequestFormat(legacyArgs[0]),
             requestAgents: legacyArgs[24] || directUpstreamAgents,
           };
+    setAIRequestLogContext(params.req.res ?? (params.res as Parameters<typeof setAIRequestLogContext>[0]), {
+      failureStage: "upstream",
+    });
     return this.relayChannelAttemptService.execute(
       {
         kind: "image",
         image: params,
       },
-      { stream: await this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
+      { stream: await this.createStreamForwarderHost(params.req), image: this.createImageForwarderHost() },
     );
   }
 
   async forwardRequest(
+    relayToken: RelayTokenWithChannel,
+    req: any,
+    res?: any,
+  ): Promise<{ status: number; headers: any; data: any }> {
+    const response = req.res ?? res;
+    setAIRequestLogContext(response, {
+      executionPending: true,
+      outcome: "pending",
+      failureStage: "request",
+      isStreaming: req.body?.stream === true,
+      userId: relayToken.userId,
+      username: relayToken.user?.username ?? null,
+      relayTokenId: relayToken.id,
+      relayTokenName: relayToken.name ?? null,
+      authenticationState: "authenticated",
+    });
+    try {
+      const result = await this.forwardRequestInternal(relayToken, req, res);
+      const audit = getAIRequestLogContext(response);
+      setAIRequestLogContext(response, {
+        executionPending: false,
+        outcome: result.status >= 400 ? "failed" : "success",
+        failureStage: result.status >= 400 ? (audit?.failureStage ?? "upstream") : null,
+        errorSummary: result.status >= 400 ? (audit?.errorSummary ?? "Upstream request failed") : null,
+      });
+      return result;
+    } catch (error) {
+      recordAIRequestFailure(response, error);
+      setAIRequestLogContext(response, { executionPending: false });
+      throw error;
+    }
+  }
+
+  private async forwardRequestInternal(
     relayToken: RelayTokenWithChannel,
     req: any,
     res?: any,
@@ -2731,6 +2792,7 @@ export class RelayProxyService {
 
     const requestSizeBytes = getRequestSize();
     const requestSizeMB = (requestSizeBytes / 1024 / 1024).toFixed(2);
+    setAIRequestLogContext(req.res ?? res, { failureStage: "routing" });
     const isImageRequest = this.isImageRequest(req, clientRequestFormat);
     const attemptPlan = await this.buildAttemptPlan(relayToken);
 
@@ -2753,6 +2815,7 @@ export class RelayProxyService {
     const failoverConfig = attemptPlan.failoverConfig;
     const stickyFailbackCooldownMinutes = attemptPlan.allowStickyFailover ? failoverConfig.failbackCooldownMinutes : 0;
     const isStreamRequested = this.isStreamRequest(req.body, req);
+    setAIRequestLogContext(req.res ?? res, { isStreaming: isStreamRequested });
     const eligibleChannels = attemptPlan.channels.filter((candidate) =>
       supportsRelayRequestFormat(candidate.resolvedChannel.allowedFormats, requestFormat),
     );
@@ -2969,6 +3032,7 @@ export class RelayProxyService {
           let timeMultiplier = 1;
           let upstreamResponseSucceeded = false;
           let upstreamRequestStarted = false;
+          beginAIRequestAttempt(req.res ?? res);
 
           try {
             // Resolve the model config for this specific channel. The requested
@@ -3449,6 +3513,7 @@ export class RelayProxyService {
               ? resourceGuard.multipartBodyLimitMb * 1024 * 1024
               : 5 * 1024 * 1024;
             upstreamRequestStarted = true;
+            setAIRequestLogContext(req.res ?? res, { failureStage: "upstream" });
             let firstPayloadTime: number | null = null;
             const maxResponseBytes = resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024;
             const upstreamBody = this.buildForwardBodyBuffer(convertedBody);
@@ -3489,6 +3554,12 @@ export class RelayProxyService {
                 },
               );
             response.data = this.parseBufferedUpstreamBody(streamedResponse.buffer, response.headers || {});
+            recordAIRequestAttempt(req.res ?? res, {
+              success: response.status < 400,
+              statusCode: response.status,
+              durationMs: Date.now() - startTime,
+              error: response.status >= 400 ? response.data : undefined,
+            });
             if (typeof response.data === "string" || (response.data && typeof response.data === "object")) {
               const responseSafetyText =
                 typeof response.data === "string" ? response.data : JSON.stringify(response.data);
@@ -3578,6 +3649,7 @@ export class RelayProxyService {
                 channel,
                 request: req,
                 statusCode: response.status,
+                error: response.status >= 400 ? response.data : undefined,
               });
 
               this.appendAttemptIssue(
@@ -3639,6 +3711,7 @@ export class RelayProxyService {
                 channel,
                 request: req,
                 statusCode: response.status,
+                error: response.status >= 400 ? response.data : undefined,
               });
               await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
                 userId: relayToken.userId,
@@ -3753,6 +3826,7 @@ export class RelayProxyService {
             const totalOutputTime = Math.max(0, Date.now() - startTime - auditDurationMs);
             const timeToFirstByte = Math.max(0, firstByteTime - startTime - auditDurationMs);
 
+            setAIRequestLogContext(req.res ?? res, { failureStage: "settlement" });
             const finalizeResult = await this.usageChargeService.chargeUsage({
               userId: relayToken.userId,
               relayTokenId: relayToken.id,
@@ -4249,12 +4323,15 @@ export class RelayProxyService {
             responseAiEnabled: legacyArgs[29] ?? false,
             auditStats: legacyArgs[30],
           };
+    setAIRequestLogContext(params.req.res ?? (params.res as Parameters<typeof setAIRequestLogContext>[0]), {
+      failureStage: "upstream",
+    });
     return this.relayChannelAttemptService.execute(
       {
         kind: "stream",
         stream: params,
       },
-      { stream: await this.createStreamForwarderHost(), image: this.createImageForwarderHost() },
+      { stream: await this.createStreamForwarderHost(params.req), image: this.createImageForwarderHost() },
     );
   }
 

@@ -323,6 +323,7 @@ const en = {
     notFoundByIp: "IP {{ip}} is not blacklisted",
   },
   relay: {
+    aiRequestLogInvalidCursor: "Invalid AI request log cursor or content location",
     aiRequestLogNotFound: "AI request log not found",
     channelDeleted: "Channel deleted successfully",
     providerServiceOwnershipRequired: "Only the original submitter may update this channel service",
