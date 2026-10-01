@@ -92,6 +92,9 @@ jobs:
       - name: Build
         run: pnpm --filter @quyan/backend run build:full:prod
 
+      - name: Validate built Prisma runtime
+        run: pnpm --filter @quyan/backend exec node scripts/validate-prisma-runtime.mjs --target-runtime
+
       - name: Log generated build info
         run: |
           echo "[deploy] apps/backend/src/generated/buildInfo.ts"
@@ -124,7 +127,7 @@ jobs:
           rsync -az --delete \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || '22' }}" \
             --exclude '.env' \
-            --exclude 'node_modules' \
+            --exclude '/node_modules/' \
             --exclude 'dist/docs' \
             --exclude 'logs' \
             apps/backend/ \
@@ -135,7 +138,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
             -p ${{ secrets.SSH_PORT || '22' }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.dependencies['@quyan/shared'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')\" && pnpm install --config.confirmModulesPurge=false"
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && node -e \"const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));delete p.dependencies['@quyan/shared'];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')\" && PRISMA_SKIP_POSTINSTALL_GENERATE=1 pnpm install --config.confirmModulesPurge=false"
 
       - name: Ensure remote logs directory is writable
         run: |
@@ -151,12 +154,12 @@ jobs:
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
             "cd ${{ secrets.REMOTE_BACKEND_PATH }} && echo '[deploy] remote buildInfo.ts' && sed -n '1,40p' src/generated/buildInfo.ts && echo '[deploy] remote dist/index.cjs timestamp' && stat dist/index.cjs"
 
-      - name: Generate Prisma Client on server
+      - name: Validate Prisma runtime on server
         run: |
           ssh -i ~/.ssh/deploy_key \
             -p ${{ secrets.SSH_PORT || '22' }} \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && npx prisma generate"
+            "cd ${{ secrets.REMOTE_BACKEND_PATH }} && node scripts/validate-prisma-runtime.mjs --target-runtime"
 
       - name: Run database migrations
         run: |

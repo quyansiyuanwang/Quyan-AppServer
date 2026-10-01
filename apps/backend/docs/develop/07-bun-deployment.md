@@ -298,3 +298,21 @@ pm2 logs backend --lines 200
 - [开发工作流文档](./05-development-workflow.md)
 - [测试指南](./06-testing-guide.md)
 - [根 README](../../README.md)
+
+### Prisma Client 的 CI 构建与服务器部署
+
+上文的 `deploy-bun-pm2.sh` 是“服务器从源码本地构建”的手动流程，因此仍需要先执行 `pnpm run db:generate`。
+GitHub CD 使用另一条路径：在 Runner 上生成 Prisma Client，并由生产构建将以下运行时文件放入 `dist/node_modules`：
+
+- `@prisma/client` 包；
+- 生成的 `.prisma/client`；
+- `debian-openssl-3.0.x` Query Engine。
+
+服务器端不再执行 `prisma generate`。服务器安装依赖时需要设置
+`PRISMA_SKIP_POSTINSTALL_GENERATE=1`，避免 `@prisma/client` 的 `postinstall` 重复生成；不要使用全局
+`--ignore-scripts`，以免影响其他原生依赖的安装脚本。服务器仍执行 `pnpm run db:migrate:deploy`。
+
+部署在迁移和 PM2 reload 前运行 `scripts/validate-prisma-runtime.mjs --target-runtime`。该检查只读取部署包，验证
+schema、Client 版本、x86_64 glibc Linux 和 Query Engine 的共享库依赖，不连接数据库，也不会回退到服务器生成。
+当前构建目标适用于 x86_64 glibc Linux + OpenSSL 3.x；Alpine/musl、ARM 或旧 OpenSSL 环境必须先增加对应构建目标并在
+CI 生成兼容产物。
