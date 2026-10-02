@@ -136,9 +136,9 @@ fn actions(locale: &str) -> Vec<TuiAction> {
             },
             command: "quyan login --browser",
             credential: if chinese {
-                "账户凭证: OAuth / ak_"
+                "账户凭证: OAuth / sk-ak-"
             } else {
-                "Account credential: OAuth / ak_"
+                "Account credential: OAuth / sk-ak-"
             },
         },
         TuiAction {
@@ -189,9 +189,9 @@ fn actions(locale: &str) -> Vec<TuiAction> {
             },
             command: "quyan apply",
             credential: if chinese {
-                "需要 rlt_ Relay Token"
+                "需要 sk-rlt- Relay Token"
             } else {
-                "Requires an rlt_ Relay Token"
+                "Requires an sk-rlt- Relay Token"
             },
         },
         TuiAction {
@@ -204,9 +204,9 @@ fn actions(locale: &str) -> Vec<TuiAction> {
             },
             command: "quyan product json-endpoints get",
             credential: if chinese {
-                "需要 dpk_ Product API Key"
+                "需要 sk-dpk- Product API Key"
             } else {
-                "Requires a dpk_ Product API Key"
+                "Requires a sk-dpk- Product API Key"
             },
         },
         TuiAction {

@@ -52,6 +52,7 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import crypto from "crypto";
 import type { Request } from "express";
+import { getCredentialPrefix, toCanonicalCredential } from "@quyan/shared";
 import type { RelayChannel } from "@prisma/client";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -452,7 +453,7 @@ export class RelayTokenService {
         await this.assertCustomKeyLimit(userId);
         await this.assertCustomKeySetRateLimit(userId);
       }
-      tokenValue = await this.resolveImportedTokenValue(data.token);
+      tokenValue = toCanonicalCredential(await this.resolveImportedTokenValue(data.token), "relayToken");
       isCustomKey = true;
     } else {
       tokenValue = this.generateRelayTokenValue();
@@ -851,14 +852,20 @@ export class RelayTokenService {
         if (!token.isCustomKey) await this.assertCustomKeyLimit(token.userId);
         await this.assertCustomKeySetRateLimit(token.userId);
       }
-      tokenValue = await this.resolveImportedTokenValue(data.token);
+      tokenValue = toCanonicalCredential(await this.resolveImportedTokenValue(data.token), "relayToken");
       isCustomKey = true;
     }
 
     await this.withGraphWrite(token.userId, token.routingMode === "composite" || hasCompositeMode, () =>
       this.relayTokenRepo.update(tokenId, {
         name: hasName ? data.name?.trim() || null : undefined,
-        ...(hasToken ? { token: tokenValue, isCustomKey } : {}),
+        ...(hasToken
+          ? {
+              token: tokenValue,
+              legacyToken: data.token && data.token !== tokenValue ? data.token : null,
+              isCustomKey,
+            }
+          : {}),
         expiresAt: hasExpiresAt ? (this.normalizeOptionalExpiresAt(data.expiresAt) ?? null) : undefined,
         quotaLimit: hasQuotaLimit ? (data.quotaLimit ?? null) : undefined,
         quotaWindows: hasQuotaWindows ? this.normalizeQuotaWindows(data.quotaWindows) : undefined,
@@ -1622,7 +1629,7 @@ export class RelayTokenService {
       username: token.user?.username || undefined,
       ownerName: token.user?.name || token.user?.username || undefined,
       name: token.name,
-      token: token.token,
+      token: toCanonicalCredential(token.token, "relayToken"),
       balance: Number(token.balance),
       totalTokens: token.totalTokens,
       requestCount: token.requestCount,
@@ -1689,7 +1696,7 @@ export class RelayTokenService {
   private toImportItemDto(token: RelayTokenWithRelations): RelayTokenImportItemDto {
     return {
       name: token.name || undefined,
-      token: token.token,
+      token: toCanonicalCredential(token.token, "relayToken"),
       expiresAt: token.expiresAt ? token.expiresAt.toISOString() : undefined,
       routingMode:
         token.routingMode === "composite"
@@ -1754,7 +1761,7 @@ export class RelayTokenService {
     return {
       ...this.toImportItemDto(token),
       id: token.id,
-      token: token.token,
+      token: toCanonicalCredential(token.token, "relayToken"),
       enabled: token.status === MANAGED_STATUS.ENABLED,
       createTime: token.createTime,
       updateTime: token.updateTime,
@@ -2122,14 +2129,16 @@ export class RelayTokenService {
     }
 
     const tokenValue = await this.resolveImportedTokenValue(data.token, reservedTokens);
-    const isCustomKey = hasCustomToken && tokenValue === data.token!.trim();
+    const isCustomKey = hasCustomToken;
+    const canonicalTokenValue = toCanonicalCredential(tokenValue, "relayToken");
 
     return this.relayTokenRepo.create(
       {
         userId,
         status: data.enabled === false ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED,
         name: data.name?.trim() || undefined,
-        token: tokenValue,
+        token: canonicalTokenValue,
+        legacyToken: tokenValue !== canonicalTokenValue ? tokenValue : undefined,
         isCustomKey,
         expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
         channelId: normalizedConfig.defaultChannelId,
@@ -2250,7 +2259,7 @@ export class RelayTokenService {
   }
 
   private generateRelayTokenValue(): string {
-    return "rlt_" + crypto.randomBytes(32).toString("hex");
+    return `${getCredentialPrefix("relayToken")}${crypto.randomBytes(32).toString("hex")}`;
   }
 
   private normalizeOptionalIpWhitelist(value?: string | null): string | null | undefined {

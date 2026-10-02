@@ -55,8 +55,8 @@ describe("OJAPIKeyService", () => {
     expect(createPayload.expiresAt).toBe(expiresAt);
     expect(createPayload.channelId).toBe("channel-1");
     expect(relayChannelService.assertChannelBusinessSelectableById).toHaveBeenCalledWith("channel-1", "user-1");
-    expect(createPayload.key).toMatch(/^ojqa_[0-9a-f]{64}$/);
-    expect(result.key).toMatch(/^ojqa_[0-9a-f]{64}$/);
+    expect(createPayload.key).toMatch(/^sk-ojqa-[0-9a-f]{64}$/);
+    expect(result.key).toMatch(/^sk-ojqa-[0-9a-f]{64}$/);
     expect(businessLogService.logOperation).toHaveBeenCalledWith(
       expect.objectContaining({
         operationType: "OJ_APIKEY_CREATE",

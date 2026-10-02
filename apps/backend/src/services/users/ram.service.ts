@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { getCredentialPrefix } from "@quyan/shared";
 import type { RamRole, User } from "@prisma/client";
 import { Permission } from "@/constant/permission";
 import { AccountStatus } from "@/util/auth/account-status";
@@ -323,7 +324,7 @@ export class RamService {
 
     // AccessKey 为该用户创建 AccessKey
     if (enableAccessKey) {
-      const key = "ak_" + randomBytes(32).toString("hex");
+      const key = `${getCredentialPrefix("accessKey")}${randomBytes(32).toString("hex")}`;
       const accessKey = await this.accessKeyRepository.create({
         userId: user.id,
         key,

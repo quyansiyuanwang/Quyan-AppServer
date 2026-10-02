@@ -9,7 +9,7 @@ quyan relay token list
 quyan product json-endpoints get
 ```
 
-`ak_` credentials are for account APIs, `rlt_` for AI Relay, and `dpk_` for the JSON Endpoints product. Credentials are imported through stdin or interactive flows and stored in the operating system keychain.
+`sk-ak-` credentials are for account APIs (legacy `ak_` is accepted), `sk-rlt-` for AI Relay (legacy `rlt_` is accepted), and `sk-dpk-` for the JSON Endpoints product (legacy `dpk_` is accepted). Credentials are imported through stdin or interactive flows and stored in the operating system keychain.
 
 ## Browser OAuth login
 

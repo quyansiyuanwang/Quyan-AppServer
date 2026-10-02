@@ -175,7 +175,10 @@ const customTokenSchema = z
   .trim()
   .min(12)
   .max(200)
-  .regex(/^rlt_[a-zA-Z0-9]+$/, "custom token must start with rlt_ and contain only alphanumeric characters");
+  .regex(
+    /^(?:sk-rlt-[a-zA-Z0-9-]+|rlt_[a-zA-Z0-9]+)$/,
+    "custom token must use sk-rlt- (legacy rlt_ is accepted) and contain only letters, numbers, or hyphens",
+  );
 
 const relayRequestFormatTransformSchema = z.object({
   sourceFormat: z.enum(RELAY_CONVERTIBLE_REQUEST_FORMATS),

@@ -20,9 +20,9 @@ Quyan CLI 的正式实现是 `apps/cli-native` 中的 Rust + Ratatui 原生程�
 
 | 用途           | 凭证                                           | 默认地址                                          |
 | -------------- | ---------------------------------------------- | ------------------------------------------------- |
-| 账户管理       | OAuth access/refresh token 或 `ak_` Access Key | `https://api.qysyw.cn`                            |
-| AI Relay       | `rlt_` Relay Token                             | `https://ai.qysyw.cn`                             |
-| JSON Endpoints | `dpk_` Product API Key                         | `https://api.qysyw.cn/v1/products/json-endpoints` |
+| 账户管理       | OAuth access/refresh token 或 `sk-ak-` Access Key（兼容旧 `ak_`） | `https://api.qysyw.cn`                            |
+| AI Relay       | `sk-rlt-` Relay Token（兼容旧 `rlt_`）                             | `https://ai.qysyw.cn`                             |
+| JSON Endpoints | `sk-dpk-` Product API Key（兼容旧 `dpk_`）                         | `https://api.qysyw.cn/v1/products/json-endpoints` |
 
 三类凭证必须隔离保存和使用。refresh token、Access Key、Relay Token、Product Key 只写入系统密钥链；普通配置文件仅保存非敏感元数据。
 

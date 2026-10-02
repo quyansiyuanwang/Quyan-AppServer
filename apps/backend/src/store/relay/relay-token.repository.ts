@@ -172,6 +172,7 @@ export class RelayTokenRepository implements RelayTokenStore {
         status: data.status,
         name: data.name,
         token: data.token,
+        legacyToken: data.legacyToken,
         isCustomKey: data.isCustomKey ?? false,
         expiresAt: data.expiresAt,
         channelId: data.channelId,
@@ -244,8 +245,8 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async findByToken(token: string): Promise<RelayTokenWithRelations | null> {
-    return prisma.relayToken.findUnique({
-      where: { token },
+    return prisma.relayToken.findFirst({
+      where: { OR: [{ token }, { legacyToken: token }] },
       include: relayTokenInclude,
     });
   }

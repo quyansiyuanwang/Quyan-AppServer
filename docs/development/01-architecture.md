@@ -218,7 +218,7 @@ Relay 模块是平台的核心能力，提供对 OpenAI、Anthropic、Google Gem
 | 服务 | 职责 |
 |------|------|
 | `RelayProxyService` | 核心代理引擎，axios 转发请求，处理流式/非流式响应 |
-| `RelayTokenService` | 中转令牌验证（`rlt_` 前缀），配额/速率限制 |
+| `RelayTokenService` | 中转令牌验证（`sk-rlt-` 前缀，兼容旧 `rlt_`），配额/速率限制 |
 | `RelayChannelService` | 上游渠道配置管理 |
 | `RelayConfigService` | 全局配置，健康检查，并发控制 |
 | `RelayPoolResolverService` | 上游池路由解析，负载均衡 |
@@ -249,7 +249,7 @@ Relay 模块是平台的核心能力，提供对 OpenAI、Anthropic、Google Gem
 | TOTP 2FA | 双因素认证（设置/验证/恢复码/受信设备） | 敏感操作提权 |
 | 第三方登录 | Google、GitHub 等社交账号绑定 | 社交登录 |
 | 扫码登录 | 二维码 + 轮询认证会话 | 移动端扫码 |
-| Relay Token | `rlt_` 前缀令牌认证（用于 API 代理） | 程序化 API 调用 |
+| Relay Token | `sk-rlt-` 前缀令牌认证（兼容旧 `rlt_`，用于 API 代理） | 程序化 API 调用 |
 
 **安全防护机制**：
 

@@ -14,7 +14,7 @@ fn command(
         .relay_token
         .as_deref()
         .filter(|key| classify(key) == "relay-token")
-        .context("Select a Relay Token in AI Relay (u), or import an rlt_ credential first")?;
+        .context("Select a Relay Token in AI Relay (u), or import a sk-rlt- credential first")?;
     let (program, args) = match kind.executable() {
         Some(program) => (OsString::from(program), args),
         None => (

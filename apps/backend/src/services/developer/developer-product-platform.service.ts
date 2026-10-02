@@ -2,7 +2,14 @@
 import { createHash, randomBytes } from "crypto";
 import { Decimal } from "@prisma/client/runtime/library";
 import type { Prisma } from "@prisma/client";
-import { DEVELOPER_PRODUCT_CODES, isDeveloperProductCode, type DeveloperProductCode } from "@quyan/shared";
+import {
+  DEVELOPER_PRODUCT_CODES,
+  getCredentialPrefix,
+  isCredentialOfType,
+  isDeveloperProductCode,
+  toCanonicalCredential,
+  type DeveloperProductCode,
+} from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { Permission } from "@/constant/permission";
 import { CustomCode } from "@/constant/custom-code";
@@ -29,7 +36,7 @@ import type {
   UpdateDeveloperProductConfigDto,
 } from "@/api/dto/developer/product-platform.dto";
 
-const PRODUCT_KEY_PREFIX = "dpk_";
+const PRODUCT_KEY_PREFIX = getCredentialPrefix("productKey");
 const QUOTA_TRANSACTION_MAX_ATTEMPTS = 8;
 const REFUND_RETRY_BATCH_SIZE = 50;
 const REFUND_RETRY_DELAY_MS = 60_000;
@@ -180,7 +187,7 @@ export class DeveloperProductPlatformService {
     return {
       id: key.id,
       name: key.name,
-      keyPrefix: key.keyPrefix,
+      keyPrefix: toCanonicalCredential(key.keyPrefix, "productKey"),
       subjectUserId: key.subjectUserId,
       actions: this.readActions(key.actions),
       expiresAt: asIso(key.expiresAt),
@@ -767,10 +774,10 @@ export class DeveloperProductPlatformService {
   }
 
   async authenticateProductKey(rawKey: string, requiredActions: Permission[]): Promise<ProductKeyContext> {
-    if (!rawKey.startsWith(PRODUCT_KEY_PREFIX))
+    if (!isCredentialOfType(rawKey, "productKey"))
       throw new UnauthorizedError("未提供产品 API Key", undefined, { messageKey: "auth.missingProductApiKey" });
     const key = await prisma.developerProductApiKey.findFirst({
-      where: { keyHash: hash(rawKey), status: 1 },
+      where: { OR: [{ keyHash: hash(rawKey) }, { legacyKeyHash: hash(rawKey) }], status: 1 },
       include: {
         instance: { include: { entitlement: true } },
         subjectUser: { select: { id: true, status: true, accountOwnerId: true } },

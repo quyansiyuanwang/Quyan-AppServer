@@ -7,7 +7,7 @@
 | 安全方案       | 用途             | Token 格式                                            |
 | -------------- | ---------------- | ----------------------------------------------------- |
 | `jwt`          | 标准用户认证     | `Authorization: Bearer <jwt>`                         |
-| `relay-token`  | AI API 代理访问  | `Authorization: Bearer rlt_<token>` 或 `x-api-key` 头 |
+| `relay-token`  | AI API 代理访问  | `Authorization: Bearer sk-rlt-<token>`（兼容旧 `rlt_<token>`） 或 `x-api-key` 头 |
 | `local-or-jwt` | 开发环境本地绕过 | 同上（localhost 请求免认证）                          |
 
 认证实现：`src/middleware/auth/auth_guard.ts` 的 `expressAuthentication()` 函数。

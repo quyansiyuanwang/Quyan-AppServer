@@ -109,3 +109,6 @@ export {
 export type { RelayTokenStreamConfig } from './relay-stream-config'
 export { maskSecret, maskEmail, truncateMiddle } from './mask'
 export type { MaskOptions } from './mask'
+
+export { CREDENTIAL_PREFIXES, classifyCredential, getCredentialPrefix, isCanonicalCredential, isCredentialOfType, isLegacyCredential, isValidCredential, toCanonicalCredential, toLegacyCredential } from './credential'
+export type { CredentialClassification, CredentialType } from './credential'

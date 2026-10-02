@@ -20,7 +20,8 @@ import { RedisService } from "@/services/infrastructure/redis.service";
 import { buildForceOfflineAuthSessionKey, extractAuthSessionId } from "@/util/auth-session";
 import { OAuthAuthorizationRepository } from "@/store/oauth/oauth-authorization.repository";
 import { Permission } from "@/constant/permission";
-import { getOAuthScopeAliases } from "@quyan/shared";
+import { getOAuthScopeAliases, isCredentialOfType } from "@quyan/shared";
+import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 
 const logger = getLogger("AuthGuard", LogCategory.SYSTEM);
 const userRepository = UserRepository.getInstance();
@@ -416,15 +417,22 @@ export async function expressAuthentication(
   if (securityName === "project-key") {
     const authHeader = request.headers["authorization"];
     const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-    if (token.startsWith("dk_"))
-      throw new ForbiddenError(
-        "旧 DeveloperProject API 已停用，请创建产品 API Key",
-        CustomCode.DEVELOPER_PRODUCT_LEGACY_DISABLED,
-        { messageKey: "auth.legacyDeveloperProjectDisabled" },
-      );
-    throw new UnauthorizedError("Unauthorized: No product API key provided", undefined, {
-      messageKey: "auth.missingProductApiKey",
-    });
+    if (!token || !isCredentialOfType(token, "projectKey"))
+      throw new UnauthorizedError("Unauthorized: No project API key provided", undefined, {
+        messageKey: "auth.missingProductApiKey",
+      });
+    const projectApiKey = await DeveloperProjectService.getInstance().authenticateProjectKey(token, scopes ?? []);
+    const projectUser = await userRepository.findById(projectApiKey.project.userId);
+    if (!projectUser) throw new UnauthorizedError("用户不存在", undefined, { messageKey: "user.notFound" });
+    validateAccountStatus(projectUser.status, projectUser.id, `ProjectKey ${request.method} ${request.path}`);
+    request.projectApiKey = projectApiKey;
+    const payload: JWTPayload = {
+      userId: projectUser.id,
+      updatedAt: projectUser.updateTime.toISOString(),
+      status: projectUser.status,
+    };
+    await attachAuthContext(request, payload, projectUser, "project_key");
+    return { projectKey: true };
   }
 
   if (securityName === "product-key") {
@@ -458,7 +466,7 @@ export async function expressAuthentication(
     let token = authHeader.replace("Bearer ", "").trim();
 
     // 检查是否为中转令牌
-    if (token.startsWith("rlt_")) {
+    if (isCredentialOfType(token, "relayToken")) {
       const relayTokenService = new RelayTokenService();
       const relayToken = await relayTokenService.validateToken(token, request);
 
@@ -489,7 +497,7 @@ export async function expressAuthentication(
     }
 
     // 检查是否为 AccessKey
-    if (token.startsWith("ak_")) {
+    if (isCredentialOfType(token, "accessKey")) {
       const { AccessKeyService } = await import("@/services/users/accesskey.service");
       const accessKeyService = new AccessKeyService();
       const accessKey = await accessKeyService.validateKey(token);

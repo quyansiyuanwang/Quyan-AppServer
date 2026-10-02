@@ -164,7 +164,7 @@ public async getProtected(@Request() request: express.Request) {
 **Special Token Types:**
 
 - `reurl:` prefix: Temporary URL tokens for one-time access (managed by ReURLService)
-- `rlt_` prefix: Relay tokens for API proxy access (managed by RelayTokenService)
+- `sk-rlt-` prefix (legacy `rlt_` accepted): Relay tokens for API proxy access (managed by RelayTokenService)
 
 ### Permission System
 

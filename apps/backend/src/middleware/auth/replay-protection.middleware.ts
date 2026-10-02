@@ -28,7 +28,7 @@ const NONCE_TTL = 600; // Nonce有效期10分钟
  * 验证 X-Nonce, X-Timestamp, X-Sign 请求头
  */
 export async function replayProtectionMiddleware(req: TypedRequest, res: Response, next: NextFunction): Promise<void> {
-  // AccessKey (ak_) requests are machine-to-machine calls; skip replay protection
+  // AccessKey (sk-ak- or legacy ak_) requests are machine-to-machine calls; skip replay protection
   if (req.accessKey) return next();
 
   const nonce = req.headers["x-nonce"] as string;

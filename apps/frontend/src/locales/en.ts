@@ -4389,9 +4389,9 @@ export default {
     // Custom Key
     customKey: 'Custom Token',
     customKeyPlaceholder:
-      'Leave empty to auto-generate. Must start with rlt_, at least 12 alphanumeric chars.',
+      'Leave empty to auto-generate. Must start with sk-rlt-; legacy rlt_ values are accepted.',
     customKeyHint:
-      'Users with custom token permission can specify their own token value. Must start with rlt_, alphanumeric only, 12-200 chars. Max 10 custom tokens per user.',
+      'Users with custom token permission can specify their own token value. Must start with sk-rlt- (legacy rlt_ is accepted), alphanumeric only, 12-200 chars. Max 10 custom tokens per user.',
   },
   redemption: {
     code: 'Redemption Code',
@@ -5120,12 +5120,13 @@ export default {
     fieldExtraDesc: 'String, extended field for additional display text',
     relayTokenQuotaHelperTitle: 'Relay Token Quota Helper',
     relayTokenQuotaHelperDesc:
-      'Paste an rlt token below to query the current token quota summary directly from this documentation page.',
-    relayTokenQuotaHelperPlaceholder: 'Paste relay token here, for example: rlt_xxx',
+      'Paste an sk-rlt- token below to query the current token quota summary directly from this documentation page.',
+    relayTokenQuotaHelperPlaceholder: 'Paste relay token here, for example: sk-rlt-xxx',
     relayTokenQuotaHelperButton: 'Query Relay Token Quota',
     relayTokenQuotaHelperResult: 'Query Result',
     relayTokenQuotaHelperRequired: 'Please enter a relay token',
-    relayTokenQuotaHelperInvalid: 'Only relay tokens starting with rlt_ are supported',
+    relayTokenQuotaHelperInvalid:
+      'Only relay tokens starting with sk-rlt- are supported (legacy rlt_ is accepted)',
     relayTokenQuotaHelperLoadFailed: 'Failed to query relay token quota',
     goToTokens: 'Go to Token Management',
     goToAccessKeys: 'Go to AccessKey Management',

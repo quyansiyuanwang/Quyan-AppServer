@@ -4189,9 +4189,9 @@ const zhCN: DeepStringify<typeof en> = {
 
     // 自定义 Key
     customKey: '自定义令牌',
-    customKeyPlaceholder: '留空则自动生成，填写需 rlt_ 开头至少 12 位字母数字',
+    customKeyPlaceholder: '留空则自动生成，填写需 sk-rlt- 开头至少 12 位字母数字（兼容旧 rlt_）',
     customKeyHint:
-      '拥有自定义令牌权限的用户可自行指定令牌值。必须以 rlt_ 开头，仅含字母和数字，长度 12-200。每个用户最多创建 10 个自定义令牌。',
+      '拥有自定义令牌权限的用户可自行指定令牌值。必须以 sk-rlt- 开头，仅含字母和数字（兼容旧 rlt_），长度 12-200。每个用户最多创建 10 个自定义令牌。',
   },
   redemption: {
     code: '兑换码',
@@ -4884,12 +4884,13 @@ const zhCN: DeepStringify<typeof en> = {
     fieldExtra: 'extra',
     fieldExtraDesc: '字符串，扩展字段，可自由补充需要展示的文本',
     relayTokenQuotaHelperTitle: 'Relay Token 额度助手',
-    relayTokenQuotaHelperDesc: '在下方粘贴 rlt 令牌，可直接从当前文档页面查询该令牌的额度摘要。',
-    relayTokenQuotaHelperPlaceholder: '请粘贴 relay token，例如：rlt_xxx',
+    relayTokenQuotaHelperDesc:
+      '在下方粘贴 sk-rlt- 令牌，可直接从当前文档页面查询该令牌的额度摘要。',
+    relayTokenQuotaHelperPlaceholder: '请粘贴 relay token，例如：sk-rlt-xxx',
     relayTokenQuotaHelperButton: '查询 Relay Token 额度',
     relayTokenQuotaHelperResult: '查询结果',
     relayTokenQuotaHelperRequired: '请输入 relay token',
-    relayTokenQuotaHelperInvalid: '仅支持以 rlt_ 开头的 relay token',
+    relayTokenQuotaHelperInvalid: '仅支持以 sk-rlt- 开头的 relay token（兼容旧 rlt_）',
     relayTokenQuotaHelperLoadFailed: '查询 relay token 额度失败',
     goToTokens: '前往令牌管理',
     goToAccessKeys: '前往 AccessKey 管理',
