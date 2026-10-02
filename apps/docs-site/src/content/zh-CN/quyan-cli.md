@@ -122,3 +122,7 @@ Claude Desktop 与 Claude Code 分开处理。Quyan 只管理 `Claude-3p/configL
 ### Stack 模型 ID
 
 使用 `quyan router stack enable --yes` 发布稳定的配置档模型 ID。OpenAI/Responses 使用 `qys-<配置档key>/<model>`，Anthropic 使用 `qys-claude-<配置档key>--<model>`，Gemini 使用 `qys-gemini-<配置档key>--<model>`。Stack ID 会精确绑定对应配置档；配置档不可用时直接失败，不静默回落到其他配置档。普通模型 ID 仍使用自动路由和故障转移。
+
+### 服务端组合令牌
+
+Profile 也可引用组合令牌。通过令牌管理页设置有序成员、嵌套及高级配置，服务端负责路径选择和单次结算；本地 Router 不复制成员密钥，也不增加另一套组合协议。成员变更影响后续请求，不需重启 Agent；目录变更后运行 `quyan router models --refresh`。各层计量不代表重复扣款，详见 `relay-token-management`。

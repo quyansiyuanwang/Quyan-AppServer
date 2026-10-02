@@ -100,3 +100,17 @@ mapping; initial takeover may require one restart. ChatGPT Desktop has no
 verified configuration adapter and is not intercepted or patched. The Router is
 not installed as an OS login service. See the bilingual `quyan-cli` docs-site
 page for routing priorities, TUI keys, credential boundaries and compatibility.
+
+### Server-side composite profiles
+
+A Router Profile may reference a composite Relay Token created in token management.
+The server owns nested member selection, per-path restrictions and single settlement;
+the CLI stores only the entry token in its existing profile keychain entry. Changing
+members or their order affects subsequent requests without restarting the Agent.
+Refresh catalog changes with `quyan router models --refresh`.
+
+Updated Relay APIs return an authoritative `responses` array alongside the other
+protocol catalogs. The CLI uses those incoming-protocol catalogs directly, including
+composite aliases, without inferring physical channels or applying conversions twice.
+An empty Responses array means no Responses models. Older servers retain the existing
+routing-catalog fallback.

@@ -103,3 +103,10 @@ quyan router stack disable --yes
 ```
 
 开启后，模型目录会为每个已启用 Relay Profile 发布稳定的配置档模型 ID：OpenAI/Responses 使用 `qys-<profile-key>/<model>`，Anthropic 使用 `qys-claude-<profile-key>--<model>`，Gemini 使用 `qys-gemini-<profile-key>--<model>`。请求这些带 `qys-` 前缀的模型时，Router 只允许对应 Profile 处理；配置档不存在、已禁用或模型目录不再包含该模型时直接失败，不回落到其他 Profile，避免意外使用错误渠道或额度。普通不带前缀的模型仍使用自动路由和故障转移。
+
+## 服务端组合令牌兼容
+
+组合令牌沿用现有 Profile 添加、keyring 与模型刷新流程，本地不保存成员密钥或展开服务端成员图。
+`available-models` 新增可选 `responses` 数组：存在该数组时，所有协议目录已经过服务端路径和转换校验，
+CLI 直接使用，不再次套用令牌转换规则，也不从 Chat Completions 推断 Responses。旧服务端缺少该字段时
+保留原有 routing-catalog 兼容路径。组合成员与排序变化影响后续请求；目录变化可手动刷新缓存。

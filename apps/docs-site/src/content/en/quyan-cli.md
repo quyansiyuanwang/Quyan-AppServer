@@ -182,3 +182,7 @@ while clients use the local endpoint.
 ### Stack model IDs
 
 Enable `quyan router stack enable --yes` to publish stable profile-scoped model IDs. OpenAI/Responses models use `qys-<profile-key>/<model>`, Anthropic uses `qys-claude-<profile-key>--<model>`, and Gemini uses `qys-gemini-<profile-key>--<model>`. A Stack ID is pinned to its Profile and never silently falls back to another Profile. Plain model IDs continue to use automatic routing and failover.
+
+### Server-side composite tokens
+
+A Profile can reference a composite token. Configure ordered members, nesting and advanced settings in token management; the server selects paths and settles each call once. The local Router neither copies member secrets nor adds a separate composition protocol. Member changes affect future requests without restarting the Agent; refresh catalog changes with `quyan router models --refresh`. Per-level accounting does not mean duplicate charges. See `relay-token-management`.
