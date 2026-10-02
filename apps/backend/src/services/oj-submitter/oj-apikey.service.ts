@@ -11,6 +11,11 @@ import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import type { Request } from "express";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
 
+const canonicalizeOjApiKey = <T extends { key?: unknown }>(apiKey: T): T => {
+  if (typeof apiKey.key !== "string") return apiKey;
+  return { ...apiKey, key: toCanonicalCredential(apiKey.key, "ojApiKey") };
+};
+
 export class OJAPIKeyService {
   private static instance: OJAPIKeyService;
 
@@ -69,17 +74,14 @@ export class OJAPIKeyService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return { ...apiKey, key: toCanonicalCredential(apiKey.key, "ojApiKey") };
+    return canonicalizeOjApiKey(apiKey);
   }
 
   /**
    * 获取用户的所有API密钥
    */
   async listAPIKeys(userId: string) {
-    return (await this.ojApiKeyRepository.listActiveByUserId(userId)).map((key) => ({
-      ...key,
-      key: toCanonicalCredential(key.key, "ojApiKey"),
-    }));
+    return (await this.ojApiKeyRepository.listActiveByUserId(userId)).map(canonicalizeOjApiKey);
   }
 
   /**
@@ -90,7 +92,7 @@ export class OJAPIKeyService {
 
     if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
 
-    return { ...key, key: toCanonicalCredential(key.key, "ojApiKey") };
+    return canonicalizeOjApiKey(key);
   }
 
   /**
@@ -147,7 +149,7 @@ export class OJAPIKeyService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return { ...updated, key: toCanonicalCredential(updated.key, "ojApiKey") };
+    return canonicalizeOjApiKey(updated);
   }
 
   /**
