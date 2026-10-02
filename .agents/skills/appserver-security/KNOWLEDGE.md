@@ -1,7 +1,7 @@
 ## 认证与授权
 
 - JWT access/refresh token 由 `src/util/auth/index.ts` 与 auth guard 处理。
-- Relay API token 使用 `rlt_` 前缀，与网页 JWT session 不同。
+- Relay API token 使用 `sk-rlt-` 前缀（兼容旧 `rlt_`），与网页 JWT session 不同。
 - 最终权限等于组权限加额外权限减移除权限。
 - `@Security(...)` 负责认证，`@CheckPermission(...)` 负责 RBAC。
 - `@ReplayProtected`、CAPTCHA、2FA challenge 装饰器是接口级保护，不能替代授权。

@@ -1,4 +1,5 @@
 import { NotFoundError } from "@/util/errors";
+import { getCredentialPrefix, toCanonicalCredential } from "@quyan/shared";
 import { randomBytes } from "crypto";
 import { UserRepository } from "@/store/users/user.repository";
 import { OJAPIKeyRepository } from "@/store/oj-submitter/oj-apikey.repository";
@@ -30,7 +31,7 @@ export class OJAPIKeyService {
    */
   private generateAPIKey(): string {
     const randomPart = randomBytes(32).toString("hex");
-    return `ojqa_${randomPart}`;
+    return `${getCredentialPrefix("ojApiKey")}${randomPart}`;
   }
 
   /**
@@ -68,14 +69,17 @@ export class OJAPIKeyService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return apiKey;
+    return { ...apiKey, key: toCanonicalCredential(apiKey.key, "ojApiKey") };
   }
 
   /**
    * 获取用户的所有API密钥
    */
   async listAPIKeys(userId: string) {
-    return this.ojApiKeyRepository.listActiveByUserId(userId);
+    return (await this.ojApiKeyRepository.listActiveByUserId(userId)).map((key) => ({
+      ...key,
+      key: toCanonicalCredential(key.key, "ojApiKey"),
+    }));
   }
 
   /**
@@ -86,7 +90,7 @@ export class OJAPIKeyService {
 
     if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
 
-    return key;
+    return { ...key, key: toCanonicalCredential(key.key, "ojApiKey") };
   }
 
   /**
@@ -143,7 +147,7 @@ export class OJAPIKeyService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return updated;
+    return { ...updated, key: toCanonicalCredential(updated.key, "ojApiKey") };
   }
 
   /**

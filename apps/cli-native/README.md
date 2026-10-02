@@ -15,8 +15,7 @@ pnpm run package:cli:native
 ```
 
 Supported targets are `windows-x64`, `linux-x64`, `linux-arm64`, `macos-x64`
-and `macos-arm64`. Credentials are separated by prefix: `ak_` for account
-APIs, `rlt_` for AI Relay, and `dpk_` for JSON Endpoints. Secrets are stored in
+and `macos-arm64`. Credentials use `sk-ak-` for account APIs (legacy `ak_` is accepted), `sk-rlt-` for AI Relay (legacy `rlt_` is accepted), and `sk-dpk-` for JSON Endpoints (legacy `dpk_` is accepted). Secrets are stored in
 the OS keychain.
 
 Running `quyan` without a subcommand opens the Ratatui control center. It

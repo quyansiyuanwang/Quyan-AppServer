@@ -17,7 +17,7 @@ export class AccessKeyRepository implements AccessKeyStore {
   }
 
   async findByKey(key: string): Promise<AccessKey | null> {
-    return prisma.accessKey.findUnique({ where: { key } });
+    return prisma.accessKey.findFirst({ where: { OR: [{ key }, { legacyKey: key }] } });
   }
 
   async findById(id: string): Promise<AccessKey | null> {

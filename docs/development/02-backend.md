@@ -164,7 +164,7 @@ src/store/
 ```
 
 - `jwt`: 标准 JWT 认证（大多数接口使用）
-- `relay-token`: `rlt_` 前缀的中转 token
+- `relay-token`: `sk-rlt-` 前缀（兼容旧 `rlt_`）的中转 token
 - `local-or-jwt`: 本地请求可绕过认证（开发环境）
 
 认证实现：`src/middleware/auth/auth_guard.ts` 的 `expressAuthentication()` 函数。

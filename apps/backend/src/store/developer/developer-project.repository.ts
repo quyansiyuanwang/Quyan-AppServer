@@ -1,5 +1,6 @@
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import { toCanonicalCredential } from "@quyan/shared";
 import { isIP } from "node:net";
 import nodemailer from "nodemailer";
 import { createConnection } from "mysql2/promise";
@@ -48,7 +49,7 @@ import type {
   VerifyDeveloperCodeDto,
 } from "@/api/dto/developer/developer.dto";
 
-const KEY_PREFIX = "dk_";
+const KEY_PREFIX = "sk-dk-";
 const MAX_KV_ENTRIES = 1_000;
 const MAX_KV_VALUE_BYTES = 64 * 1024;
 const MAX_OUTBOUND_RESPONSE_BYTES = 1_024 * 1_024;
@@ -197,7 +198,7 @@ export class DeveloperProjectRepository {
     return {
       id: key.id,
       name: key.name,
-      keyPrefix: key.keyPrefix,
+      keyPrefix: toCanonicalCredential(key.keyPrefix, "projectKey"),
       scopes: this.readScopes(key.scopes),
       expiresAt: asIso(key.expiresAt),
       lastUsedAt: asIso(key.lastUsedAt),
@@ -431,7 +432,7 @@ export class DeveloperProjectRepository {
 
   async authenticateProjectKey(rawKey: string, requiredScopes: string[]): Promise<NonNullable<ProjectKeyRecord>> {
     const key = await prisma.developerProjectApiKey.findFirst({
-      where: { keyHash: hash(rawKey), status: 1, project: { status: 1 } },
+      where: { OR: [{ keyHash: hash(rawKey) }, { legacyKeyHash: hash(rawKey) }], status: 1, project: { status: 1 } },
       include: { project: { select: { userId: true } } },
     });
     if (!key || (key.expiresAt && key.expiresAt.getTime() <= Date.now()))

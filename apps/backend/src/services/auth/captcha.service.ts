@@ -154,7 +154,7 @@ export class CaptchaService {
     if (extractRelayToken(request)) return true;
 
     const authHeader = String(request.headers["authorization"] || "").trim();
-    if (authHeader.startsWith("Bearer ak_")) return true;
+    if (authHeader.startsWith("Bearer sk-ak-") || authHeader.startsWith("Bearer ak_")) return true;
 
     const typedRequest = request as Request & { accessKey?: unknown; relayToken?: unknown };
     return Boolean(typedRequest.accessKey || typedRequest.relayToken);

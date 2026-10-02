@@ -71,7 +71,7 @@ describe("AccessKeyService", () => {
 
     expect(mocks.emailServiceMock.verifyCode).not.toHaveBeenCalled();
     expect(mocks.accessKeyRepositoryMock.create).toHaveBeenCalledTimes(1);
-    expect(result.key.startsWith("ak_")).toBe(true);
+    expect(result.key.startsWith("sk-ak-")).toBe(true);
     expect(mocks.businessLogServiceMock.logOperation).toHaveBeenCalledWith(
       expect.objectContaining({
         operationType: "ACCESS_KEY_CREATE",

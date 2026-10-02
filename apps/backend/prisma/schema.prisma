@@ -345,6 +345,7 @@ model DeveloperProductApiKey {
   name          String    @db.VarChar(100)
   keyHash       String    @unique @db.Char(64)
   keyPrefix     String    @db.VarChar(20)
+  legacyKeyHash String?   @unique @db.Char(64)
   actions       Json
   expiresAt     DateTime?
   lastUsedAt    DateTime?
@@ -421,6 +422,7 @@ model DeveloperProjectApiKey {
   name         String           @db.VarChar(100)
   keyHash      String           @unique @db.Char(64)
   keyPrefix    String           @db.VarChar(20)
+  legacyKeyHash String?          @unique @db.Char(64)
   scopes       Json
   expiresAt    DateTime?
   lastUsedAt   DateTime?
@@ -1398,6 +1400,7 @@ model RelayToken {
   userId                              String
   name                                String?
   token                               String    @unique
+  legacyToken                         String?   @unique
   upstreamUrl                         String?   @db.Text
   upstreamApiKey                      String?   @db.Text
   channelId                           String?
@@ -1787,6 +1790,7 @@ model AccessKey {
   userId       String
   name         String?
   key          String    @unique
+  legacyKey    String?   @unique
   expiresAt    DateTime?
   lastUsedAt   DateTime?
   requestCount Int       @default(0)
@@ -2518,6 +2522,7 @@ model OJAPIKey {
   userId       String
   name         String?
   key          String        @unique
+  legacyKey     String?       @unique
   expiresAt    DateTime?
   lastUsedAt   DateTime?
   requestCount Int           @default(0)

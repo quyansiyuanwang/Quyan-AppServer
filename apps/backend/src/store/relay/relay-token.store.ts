@@ -110,6 +110,7 @@ export interface RelayTokenCreateInput {
   status?: number;
   name?: string | null;
   token: string;
+  legacyToken?: string | null;
   isCustomKey?: boolean;
   expiresAt?: Date | null;
   channelId?: string;
@@ -133,6 +134,7 @@ export interface RelayTokenCreateInput {
 export type RelayTokenUpdateInput = Partial<{
   name: string | null;
   token: string;
+  legacyToken?: string | null;
   isCustomKey: boolean;
   balance: number;
   totalTokens: number;

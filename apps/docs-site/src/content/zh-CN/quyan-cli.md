@@ -9,7 +9,7 @@ quyan relay token list
 quyan product json-endpoints get
 ```
 
-`ak_` 用于账户 API，`rlt_` 用于 AI Relay，`dpk_` 用于 JSON Endpoints 产品。凭证通过 stdin 或交互流程导入，并存储在操作系统密钥链中。
+`sk-ak-` 用于账户 API（兼容旧 `ak_`），`sk-rlt-` 用于 AI Relay（兼容旧 `rlt_`），`sk-dpk-` 用于 JSON Endpoints 产品（兼容旧 `dpk_`）。凭证通过 stdin 或交互流程导入，并存储在操作系统密钥链中。
 
 ## 浏览器 OAuth 登录
 
