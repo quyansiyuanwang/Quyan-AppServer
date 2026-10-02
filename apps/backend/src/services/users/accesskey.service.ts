@@ -11,7 +11,7 @@ import { EmailService } from "@/services/auth/email.service";
 import { CustomCode } from "@/constant/custom-code";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { MANAGED_STATUS } from "@/constant/status";
-import { maskSecret } from "@quyan/shared";
+import { getCredentialPrefix, maskSecret, toCanonicalCredential } from "@quyan/shared";
 import type { Request } from "express";
 
 export class AccessKeyService {
@@ -51,7 +51,7 @@ export class AccessKeyService {
         });
     }
 
-    const key = "ak_" + randomBytes(32).toString("hex");
+    const key = `${getCredentialPrefix("accessKey")}${randomBytes(32).toString("hex")}`;
     const accessKey = await this.repository.create({
       userId,
       key,
@@ -86,7 +86,7 @@ export class AccessKeyService {
     if (accessKey.expiresAt && accessKey.expiresAt < new Date())
       throw new UnauthorizedError("AccessKey expired", undefined, { messageKey: "accessKey.expired" });
 
-    return this.toDto(accessKey);
+    return this.toDto({ ...accessKey, key: toCanonicalCredential(accessKey.key, "accessKey") });
   }
 
   async updateUsage(keyId: string): Promise<void> {
@@ -141,7 +141,9 @@ export class AccessKeyService {
       id: accessKey.id,
       userId: accessKey.userId,
       name: accessKey.name,
-      key: maskKey ? maskSecret(accessKey.key) : accessKey.key,
+      key: maskKey
+        ? maskSecret(toCanonicalCredential(accessKey.key, "accessKey"))
+        : toCanonicalCredential(accessKey.key, "accessKey"),
       expiresAt: accessKey.expiresAt,
       lastUsedAt: accessKey.lastUsedAt,
       requestCount: accessKey.requestCount,

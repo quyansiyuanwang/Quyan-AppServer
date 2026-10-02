@@ -703,7 +703,7 @@ export class CarpoolService {
             userId: member.userId,
             carpoolMemberId: member.id,
             name: `Carpool ${order.packageName}`,
-            token: `rlt_${crypto.randomBytes(24).toString("hex")}`,
+            token: `sk-rlt-${crypto.randomBytes(24).toString("hex")}`,
             channelId: relayChannelId,
             quotaLimit: member.finalQuota,
             allowedModels: order.allowedModels,

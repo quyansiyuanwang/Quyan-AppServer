@@ -6,6 +6,9 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(),
     count: vi.fn(),
   },
+  relayUsageTokenAttribution: {
+    findMany: vi.fn(),
+  },
   relayLogicalRequest: {
     groupBy: vi.fn(),
   },
@@ -30,7 +33,8 @@ describe("RelayUsageRepository", () => {
   const now = new Date("2026-01-01T00:00:00.000Z");
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    prismaMock.relayUsageTokenAttribution.findMany.mockResolvedValue([]);
   });
 
   it("aggregates relay usage metrics with grouped usage rows and structured monthly pass amounts", async () => {
@@ -84,6 +88,7 @@ describe("RelayUsageRepository", () => {
     expect(prismaMock.relayUsage.groupBy).toHaveBeenCalledTimes(1);
     expect(prismaMock.relayLogicalRequest.groupBy).toHaveBeenCalledTimes(1);
     expect(prismaMock.relayUsage.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.relayUsageTokenAttribution.findMany).toHaveBeenCalledTimes(1);
     expect(result).toEqual([
       {
         relayTokenId: "token-1",
@@ -110,6 +115,154 @@ describe("RelayUsageRepository", () => {
         lastUsedAt: now,
       },
     ]);
+  });
+
+  it("aggregates attributed-only composite usage without requiring direct usage rows", async () => {
+    const start = new Date("2025-12-01T00:00:00.000Z");
+    prismaMock.relayUsage.groupBy.mockResolvedValue([]);
+    prismaMock.relayUsage.findMany.mockResolvedValue([]);
+    // Two attempts belong to one logical request; requestCount must not count attribution rows.
+    prismaMock.relayLogicalRequest.groupBy.mockResolvedValue([{ relayTokenId: "composite-1", _count: { _all: 1 } }]);
+    prismaMock.relayUsageTokenAttribution.findMany.mockResolvedValue([
+      {
+        relayTokenId: "composite-1",
+        relayUsageId: "leaf-success",
+        relayUsage: {
+          id: "leaf-success",
+          requestTokens: 10,
+          responseTokens: 20,
+          totalTokens: 30,
+          cacheCreationTokens: 3,
+          cacheReadTokens: 2,
+          createTime: now,
+        },
+      },
+      {
+        relayTokenId: "composite-1",
+        relayUsageId: "leaf-failure",
+        relayUsage: {
+          id: "leaf-failure",
+          requestTokens: 0,
+          responseTokens: 0,
+          totalTokens: 0,
+          cacheCreationTokens: 0,
+          cacheReadTokens: 0,
+          createTime: start,
+        },
+      },
+    ]);
+    prismaMock.balanceTransaction.groupBy.mockResolvedValue([
+      { relatedId: "leaf-success", _sum: { amount: -2 } },
+      { relatedId: "leaf-failure", _sum: { amount: 0 } },
+    ]);
+    prismaMock.monthlyPassUsage.groupBy.mockResolvedValue([
+      { relayUsageId: "leaf-success", _sum: { coveredAmount: 4 } },
+    ]);
+    prismaMock.balanceTransaction.findMany.mockResolvedValue([]);
+
+    const result = await repository.aggregateByRelayTokenIds(["composite-1"], start, now);
+
+    expect(prismaMock.relayUsageTokenAttribution.findMany).toHaveBeenCalledWith({
+      where: {
+        relayTokenId: { in: ["composite-1"] },
+        relayUsage: {
+          relayTokenId: undefined,
+          status: RECORD_STATUS.ACTIVE,
+          createTime: { gte: start, lte: now },
+        },
+      },
+      include: { relayUsage: true },
+    });
+    expect(prismaMock.balanceTransaction.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ relatedId: { in: ["leaf-success", "leaf-failure"] } }),
+      }),
+    );
+    expect(result).toEqual([
+      {
+        relayTokenId: "composite-1",
+        requestCount: 1,
+        requestTokens: 10,
+        responseTokens: 20,
+        totalTokens: 30,
+        cacheCreationTokens: 3,
+        cacheReadTokens: 2,
+        chargedAmount: 2,
+        coveredAmount: 4,
+        lastUsedAt: now,
+      },
+    ]);
+  });
+
+  it("combines historical direct usage and nested attribution while counting logical requests once", async () => {
+    const earlier = new Date("2025-12-31T00:00:00.000Z");
+    prismaMock.relayUsage.groupBy.mockResolvedValue([
+      {
+        relayTokenId: "outer",
+        _sum: { requestTokens: 2, responseTokens: 3, totalTokens: 5, cacheCreationTokens: 0, cacheReadTokens: 1 },
+        _max: { createTime: earlier },
+      },
+    ]);
+    prismaMock.relayUsage.findMany.mockResolvedValue([{ id: "historical-direct", relayTokenId: "outer" }]);
+    prismaMock.relayLogicalRequest.groupBy.mockResolvedValue([
+      { relayTokenId: "outer", _count: { _all: 2 } },
+      { relayTokenId: "inner", _count: { _all: 1 } },
+    ]);
+    const leaf = {
+      id: "nested-leaf",
+      requestTokens: 10,
+      responseTokens: 20,
+      totalTokens: 30,
+      cacheCreationTokens: 3,
+      cacheReadTokens: 2,
+      createTime: now,
+    };
+    prismaMock.relayUsageTokenAttribution.findMany.mockResolvedValue([
+      { relayTokenId: "outer", relayUsageId: leaf.id, relayUsage: leaf },
+      { relayTokenId: "inner", relayUsageId: leaf.id, relayUsage: leaf },
+    ]);
+    prismaMock.balanceTransaction.groupBy.mockResolvedValue([
+      { relatedId: "historical-direct", _sum: { amount: -1 } },
+      { relatedId: leaf.id, _sum: { amount: -2 } },
+    ]);
+    prismaMock.monthlyPassUsage.groupBy.mockResolvedValue([{ relayUsageId: leaf.id, _sum: { coveredAmount: 4 } }]);
+    prismaMock.balanceTransaction.findMany.mockResolvedValue([]);
+
+    const result = await repository.aggregateByRelayTokenIds(["outer", "inner"]);
+
+    expect(result).toEqual([
+      {
+        relayTokenId: "outer",
+        requestCount: 2,
+        requestTokens: 12,
+        responseTokens: 23,
+        totalTokens: 35,
+        cacheCreationTokens: 3,
+        cacheReadTokens: 3,
+        chargedAmount: 3,
+        coveredAmount: 4,
+        lastUsedAt: now,
+      },
+      {
+        relayTokenId: "inner",
+        requestCount: 1,
+        requestTokens: 10,
+        responseTokens: 20,
+        totalTokens: 30,
+        cacheCreationTokens: 3,
+        cacheReadTokens: 2,
+        chargedAmount: 2,
+        coveredAmount: 4,
+        lastUsedAt: now,
+      },
+    ]);
+  });
+
+  it("does not query usage or attribution for an empty token scope", async () => {
+    await expect(repository.aggregateByRelayTokenIds([])).resolves.toEqual([]);
+    expect(prismaMock.relayUsage.groupBy).not.toHaveBeenCalled();
+    expect(prismaMock.relayUsageTokenAttribution.findMany).not.toHaveBeenCalled();
+    expect(prismaMock.balanceTransaction.groupBy).not.toHaveBeenCalled();
   });
 
   it("builds usage detail amounts with legacy fallback only when structured records are missing", async () => {

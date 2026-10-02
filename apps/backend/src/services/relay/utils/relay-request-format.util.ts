@@ -89,3 +89,9 @@ export const buildRelayForwardBody = (
   if (requestFormat !== "gemini" || "model" in clone) (clone as Record<string, unknown>).model = upstreamModelId;
   return clone;
 };
+
+/** Canonical paths for supported request protocol conversions. */
+export const relayConvertedRequestPath = (
+  format: "anthropic" | "openai-responses" | "openai-chat-completions",
+): string =>
+  format === "anthropic" ? "/v1/messages" : format === "openai-responses" ? "/v1/responses" : "/v1/chat/completions";

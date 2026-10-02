@@ -145,7 +145,9 @@ pub fn platform_description() -> String {
 
 pub fn redact(message: &str) -> String {
     let mut output = message.to_string();
-    for prefix in ["ak_", "rlt_", "dpk_"] {
+    for prefix in [
+        "sk-ak-", "sk-rlt-", "sk-dpk-", "sk-dk-", "sk-ojqa-", "ak_", "rlt_", "dpk_", "dk_", "ojqa_",
+    ] {
         let mut offset = 0;
         while let Some(position) = output[offset..].find(prefix) {
             let start = offset + position;
@@ -285,12 +287,12 @@ mod tests {
     #[test]
     fn redacts_credentials_and_authorization_headers() {
         let message =
-            "Authorization: Bearer secret\nrlt_abc-123 dpk_abc.456 ak_test-789 should not log";
+            "Authorization: Bearer secret\nsk-rlt-abc-123 sk-dpk-abc.456 sk-ak-test-789 sk-dk-test-789 sk-ojqa-test-789 should not log";
         let redacted = redact(message);
         assert!(!redacted.contains("secret"));
-        assert!(!redacted.contains("rlt_abc-123"));
-        assert!(!redacted.contains("dpk_abc.456"));
-        assert!(!redacted.contains("ak_test-789"));
+        assert!(!redacted.contains("sk-rlt-abc-123"));
+        assert!(!redacted.contains("sk-dpk-abc.456"));
+        assert!(!redacted.contains("sk-ak-test-789"));
         assert!(redacted.contains("[REDACTED]"));
     }
 }

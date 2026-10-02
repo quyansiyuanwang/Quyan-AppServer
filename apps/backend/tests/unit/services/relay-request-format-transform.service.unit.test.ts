@@ -76,4 +76,68 @@ describe("relay request format conversion", () => {
     expect(Buffer.concat(output).toString("utf8")).toContain("chat.completion.chunk");
     expect(Buffer.concat(output).toString("utf8")).toContain("你");
   });
+  const convertStream = async (
+    source: "anthropic" | "openai-responses" | "openai-chat-completions",
+    target: "anthropic" | "openai-responses" | "openai-chat-completions",
+    events: string,
+  ) => {
+    const transform = new RelaySseFormatTransform(source, target);
+    const chunks: Buffer[] = [];
+    transform.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+    transform.end(events);
+    await new Promise<void>((resolve, reject) => transform.once("end", resolve).once("error", reject));
+    return Buffer.concat(chunks).toString("utf8");
+  };
+  const chatStream =
+    'data: {"id":"fixture","model":"model","choices":[{"delta":{"content":"hello"}}]}\n\n' +
+    'data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":3}}\n\n' +
+    "data: [DONE]\n\n";
+  it("emits complete Anthropic lifecycle rather than forwarding OpenAI DONE", async () => {
+    const output = await convertStream("openai-chat-completions", "anthropic", chatStream);
+    for (const event of [
+      "message_start",
+      "content_block_start",
+      "content_block_delta",
+      "content_block_stop",
+      "message_delta",
+      "message_stop",
+    ])
+      expect(output).toContain(`event: ${event}`);
+    expect(output).not.toContain("[DONE]");
+    expect(output).toContain('"output_tokens":3');
+  });
+  it("composes Chat -> Responses -> Anthropic without leaking a different wire format", async () => {
+    const responses = await convertStream("openai-chat-completions", "openai-responses", chatStream);
+    expect(responses).toContain("response.created");
+    expect(responses).toContain("response.output_text.delta");
+    expect(responses).toContain("response.completed");
+    const anthropic = await convertStream("openai-responses", "anthropic", responses);
+    expect(anthropic).toContain("message_start");
+    expect(anthropic).toContain("hello");
+    expect(anthropic).toContain("message_stop");
+  });
+  it("preserves streamed tool identity and partial arguments", async () => {
+    const frame = (value: unknown) => `data: ${JSON.stringify(value)}\n\n`;
+    const input =
+      frame({
+        id: "fixture",
+        model: "model",
+        choices: [
+          {
+            delta: { tool_calls: [{ index: 0, id: "call_fixture", function: { name: "lookup", arguments: '{"q":' } }] },
+          },
+        ],
+      }) +
+      frame({
+        choices: [
+          { delta: { tool_calls: [{ index: 0, function: { arguments: '"ok"}' } }] }, finish_reason: "tool_calls" },
+        ],
+      }) +
+      "data: [DONE]\n\n";
+    const output = await convertStream("openai-chat-completions", "anthropic", input);
+    expect(output).toContain("call_fixture");
+    expect(output).toContain("lookup");
+    expect(output).toContain("input_json_delta");
+    expect(output).toContain('"stop_reason":"tool_use"');
+  });
 });

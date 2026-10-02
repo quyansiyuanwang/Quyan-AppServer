@@ -1,3 +1,6 @@
+import { RelayTokenRepository } from "@/store/relay/relay-token.repository";
+import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
+import { RelayProxyRepository } from "@/store/relay/relay-proxy.repository";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
@@ -22,6 +25,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
   let relayAIMockPlugin: RelayAIMockPlugin | null = null;
   const observedUpstreamRequests: RelayAIMockRequestContext[] = [];
   const apiLogRequestIds: string[] = [];
+  const compositeTokenIds: string[] = [];
 
   let testGroupId = "";
   let testUserId = "";
@@ -321,9 +325,13 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         where: { requestID: { in: apiLogRequestIds } },
       });
 
-    const relayTokenIds = [openaiRelayTokenId, openaiFailoverTokenId, anthropicRelayTokenId, geminiRelayTokenId].filter(
-      (id) => Boolean(id),
-    );
+    const relayTokenIds = [
+      ...compositeTokenIds,
+      openaiRelayTokenId,
+      openaiFailoverTokenId,
+      anthropicRelayTokenId,
+      geminiRelayTokenId,
+    ].filter((id) => Boolean(id));
     const relayChannelIds = [
       openaiRelayChannelId,
       openaiFailoverPrimaryChannelId,
@@ -340,6 +348,8 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       await prisma.relayTokenChannelConfig.deleteMany({ where: { relayTokenId: { in: relayTokenIds } } });
     if (relayTokenIds.length > 0)
       await prisma.relayTokenFailoverConfig.deleteMany({ where: { relayTokenId: { in: relayTokenIds } } });
+    if (relayTokenIds.length > 0)
+      await prisma.relayTokenMemberConfig.deleteMany({ where: { parentTokenId: { in: relayTokenIds } } });
     if (relayTokenIds.length > 0) await prisma.relayToken.deleteMany({ where: { id: { in: relayTokenIds } } });
     if (relayChannelIds.length > 0) await prisma.relayChannel.deleteMany({ where: { id: { in: relayChannelIds } } });
 
@@ -1882,5 +1892,174 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     expect(usage?.isStreaming).toBe(true);
     expect(usage?.requestTokens ?? 0).toBeGreaterThan(0);
     expect(usage?.responseTokens ?? 0).toBeGreaterThan(0);
+  });
+  it("routes nested aliases, reverses protocol conversion and attributes usage without extra charges", async () => {
+    const repo = RelayTokenRepository.getInstance();
+    const inner = await repo.create({
+      userId: testUserId,
+      token: `rlt_${randomUUID().replace(/-/g, "")}`,
+      name: "test inner composite",
+      routingMode: "composite",
+      memberTokenConfigs: [{ tokenId: openaiRelayTokenId, priority: 0, enabled: true }],
+      modelMapping: { "inner-alias": openaiRelayModelId },
+    });
+    compositeTokenIds.push(inner.id);
+    const outer = await repo.create({
+      userId: testUserId,
+      token: `rlt_${randomUUID().replace(/-/g, "")}`,
+      name: "test outer composite",
+      routingMode: "composite",
+      memberTokenConfigs: [{ tokenId: inner.id, priority: 0, enabled: true }],
+      modelMapping: { "public-alias": "inner-alias" },
+      requestFormatTransforms: [{ sourceFormat: "anthropic", targetFormat: "openai-chat-completions" }],
+    });
+    compositeTokenIds.push(outer.id);
+    const transactionsBefore = await prisma.balanceTransaction.count({ where: { userId: testUserId } });
+    const response = await request(app)
+      .post("/relay/proxy/v1/messages")
+      .set("Authorization", `Bearer ${outer.token}`)
+      .send({
+        model: "public-alias",
+        max_tokens: 32,
+        messages: [{ role: "user", content: "nested composite fixture" }],
+      });
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(response.body.type).toBe("message");
+    expect(await prisma.balanceTransaction.count({ where: { userId: testUserId } })).toBe(transactionsBefore + 1);
+    const rootAfter = await prisma.relayToken.findUniqueOrThrow({ where: { id: outer.id } });
+    const innerAfter = await prisma.relayToken.findUniqueOrThrow({ where: { id: inner.id } });
+    expect(rootAfter.requestCount).toBe(1);
+    expect(innerAfter.requestCount).toBe(1);
+    expect(Number(rootAfter.usedQuota)).toBeGreaterThan(0);
+    expect(Number(innerAfter.usedQuota)).toBe(Number(rootAfter.usedQuota));
+    expect(await prisma.relayUsage.count({ where: { relayTokenId: { in: [outer.id, inner.id] } } })).toBe(0);
+    const aggregates = await RelayUsageRepository.getInstance().aggregateByRelayTokenIds([outer.id, inner.id]);
+    expect(aggregates).toHaveLength(2);
+    expect(aggregates[0].totalTokens).toBeGreaterThan(0);
+    await prisma.relayChannel.update({
+      where: { id: openaiRelayChannelId },
+      data: { allowedModels: JSON.stringify([openaiRelayModel]) },
+    });
+    const catalog = await request(app).get("/relay/proxy/v1/models").set("Authorization", `Bearer ${outer.token}`);
+    // The catalog is protocol-specific: this outer token converts Anthropic, not OpenAI.
+    expect(catalog.status).toBe(200);
+    expect(catalog.body.data.map((model: any) => model.id)).toContain("public-alias");
+    const streamed = await request(app)
+      .post("/relay/proxy/v1/messages")
+      .set("Authorization", `Bearer ${outer.token}`)
+      .send({
+        model: "public-alias",
+        max_tokens: 32,
+        stream: true,
+        messages: [{ role: "user", content: "nested streaming fixture" }],
+      });
+    expect(streamed.status).toBe(200);
+    expect(streamed.text).toContain("message_start");
+    expect(streamed.text).toContain("content_block_delta");
+  });
+
+  it("claims settlement once for duplicate callbacks including a zero-cost result", async () => {
+    const token = await RelayTokenRepository.getInstance().create({
+      userId: testUserId,
+      token: `rlt_${randomUUID().replace(/-/g, "")}`,
+      routingMode: "composite",
+      memberTokenConfigs: [{ tokenId: openaiRelayTokenId, priority: 0, enabled: true }],
+    });
+    compositeTokenIds.push(token.id);
+    const requestId = randomUUID();
+    const input = {
+      userId: testUserId,
+      relayTokenId: openaiRelayTokenId,
+      compositionTokenIds: [token.id, openaiRelayTokenId],
+      requestId,
+      requestTokens: 3,
+      responseTokens: 2,
+      totalTokens: 5,
+      cacheCreationTokens: 0,
+      cacheReadTokens: 0,
+      path: "/v1/chat/completions",
+      method: "POST",
+      statusCode: 200,
+      ipAddress: "127.0.0.1",
+      isStreaming: false,
+      cost: 0,
+      modelName: openaiRelayModel,
+      channelId: openaiRelayChannelId,
+      inputRate: 0,
+      outputRate: 0,
+      multiplier: 1,
+      cacheCreationMultiplier: 1,
+      cacheReadMultiplier: 1,
+      channelMultiplier: 1,
+      globalMultiplier: 1,
+    };
+    const repo = RelayProxyRepository.getInstance();
+    await Promise.all([repo.finalizeChargedUsage(input), repo.finalizeChargedUsage(input)]);
+    const logical = await prisma.relayLogicalRequest.findUniqueOrThrow({
+      where: { relayTokenId_requestId: { relayTokenId: openaiRelayTokenId, requestId } },
+    });
+    expect(await prisma.relayUsage.count({ where: { logicalRequestId: logical.id } })).toBe(1);
+    const updated = await prisma.relayToken.findUniqueOrThrow({ where: { id: token.id } });
+    expect(updated.totalTokens).toBe(5);
+    expect(updated.requestCount).toBe(1);
+  });
+  it("paginates secret-free owned candidates and previews routes without persisting or calling upstream", async () => {
+    const reader = await prisma.user.create({
+      data: {
+        username: `composite_reader_${shortSuffix}`,
+        password: hashPassword("fixture_password"),
+        groupId: testGroupId,
+        permissionAdds: [Permission.RELAY_TOKEN_READ],
+        permissionRemoves: [],
+      },
+    });
+    const leaf = await RelayTokenRepository.getInstance().create({
+      userId: reader.id,
+      name: "own preview fixture",
+      token: `rlt_${randomUUID().replace(/-/g, "")}`,
+      channelId: openaiRelayChannelId,
+    });
+    const jwt = JWTAccessIns.generateToken(
+      { userId: reader.id, updatedAt: reader.updateTime.toISOString(), status: reader.status },
+      3600,
+    );
+    try {
+      const candidates = await request(app)
+        .get("/v1/relay/tokens/composition-candidates")
+        .query({ page: 1, pageSize: 1 })
+        .set("Authorization", `Bearer ${jwt}`);
+      expect(candidates.status).toBe(200);
+      expect(candidates.body.data.items).toHaveLength(1);
+      expect(candidates.body.data.total).toBe(1);
+      expect(JSON.stringify(candidates.body)).not.toContain(leaf.token);
+      const count = await prisma.relayToken.count({ where: { userId: reader.id } });
+      const calls = observedUpstreamRequests.length;
+      const preview = await request(app)
+        .post("/v1/relay/tokens/composition-preview")
+        .set("Authorization", `Bearer ${jwt}`)
+        .send({
+          routingMode: "composite",
+          memberTokenConfigs: [{ tokenId: leaf.id, priority: 0, enabled: true }],
+          modelMapping: { "preview-alias": openaiRelayModelId },
+        });
+      expect(preview.status, JSON.stringify(preview.body)).toBe(200);
+      expect(preview.body.data.models.openai).toContain("preview-alias");
+      expect(preview.body.data.models.responses).toContain("preview-alias");
+      expect(preview.body.data.routes.some((route: any) => route.tokenPathIds.includes(leaf.id))).toBe(true);
+      expect(await prisma.relayToken.count({ where: { userId: reader.id } })).toBe(count);
+      expect(observedUpstreamRequests.length).toBe(calls);
+      const forbidden = await request(app)
+        .post("/v1/relay/tokens/composition-preview")
+        .set("Authorization", `Bearer ${jwt}`)
+        .send({
+          routingMode: "composite",
+          memberTokenConfigs: [{ tokenId: openaiRelayTokenId, priority: 0, enabled: true }],
+        });
+      expect(forbidden.status).toBe(400);
+      expect(JSON.stringify(forbidden.body)).not.toContain(openaiRelayTokenValue);
+    } finally {
+      await prisma.relayToken.delete({ where: { id: leaf.id } });
+      await prisma.user.delete({ where: { id: reader.id } });
+    }
   });
 });

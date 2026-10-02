@@ -3,6 +3,7 @@ import type { AccessKey } from "@prisma/client";
 export interface AccessKeyCreateInput {
   userId: string;
   key: string;
+  legacyKey?: string;
   name?: string;
   expiresAt?: Date;
 }

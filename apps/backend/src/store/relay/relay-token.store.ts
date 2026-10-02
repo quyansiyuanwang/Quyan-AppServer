@@ -1,3 +1,4 @@
+import type { RelayCompositionMember } from "@/util/relay/relay-composition.util";
 import type {
   Prisma,
   RelayToken,
@@ -20,6 +21,10 @@ const _relayChannelWithPoolInclude = {
 
 export type RelayTokenWithRelations = Prisma.RelayTokenGetPayload<{
   include: {
+    memberTokenConfigs: {
+      include: { memberToken: { select: { id: true; name: true; routingMode: true; status: true; expiresAt: true } } };
+      orderBy: { priority: "asc" };
+    };
     user: true;
     channel: {
       include: typeof _relayChannelWithPoolInclude;
@@ -105,10 +110,12 @@ export interface RelayTokenCreateInput {
   status?: number;
   name?: string | null;
   token: string;
+  legacyToken?: string | null;
   isCustomKey?: boolean;
   expiresAt?: Date | null;
   channelId?: string;
-  routingMode?: "ordered" | "automatic-pool";
+  routingMode?: "ordered" | "automatic-pool" | "composite";
+  memberTokenConfigs?: RelayCompositionMember[];
   automaticProxyPoolChannelId?: string;
   blockedAutomaticProxyPoolChannelIds?: string[];
   quotaLimit?: number | null;
@@ -116,6 +123,7 @@ export interface RelayTokenCreateInput {
   allowedModels?: string | null;
   requestFormatTransforms?: RelayRequestFormatTransform[] | null;
   normalizerConfig?: RelayTokenNormalizerConfig | null;
+  streamConfig?: import("@quyan/shared").RelayTokenStreamConfig | null;
   contentSafetyConfig?: ContentSafetyPolicyOverride | null;
   ipWhitelist?: string | null;
   modelMapping?: Record<string, string> | null;
@@ -126,6 +134,7 @@ export interface RelayTokenCreateInput {
 export type RelayTokenUpdateInput = Partial<{
   name: string | null;
   token: string;
+  legacyToken?: string | null;
   isCustomKey: boolean;
   balance: number;
   totalTokens: number;
@@ -138,12 +147,14 @@ export type RelayTokenUpdateInput = Partial<{
   allowedModels: string | null;
   requestFormatTransforms: RelayRequestFormatTransform[] | null;
   normalizerConfig: RelayTokenNormalizerConfig | null;
+  streamConfig: import("@quyan/shared").RelayTokenStreamConfig | null;
   contentSafetyConfig: ContentSafetyPolicyOverride | null;
   ipWhitelist: string | null;
   modelMapping: Record<string, string> | null;
 }> & {
   channelId?: string | null;
-  routingMode?: "ordered" | "automatic-pool";
+  routingMode?: "ordered" | "automatic-pool" | "composite";
+  memberTokenConfigs?: RelayCompositionMember[];
   automaticProxyPoolChannelId?: string | null;
   blockedAutomaticProxyPoolChannelIds?: string[];
   failoverConfig?: RelayFailoverConfigInput;
@@ -177,6 +188,7 @@ export interface RelayTokenStore {
   create(data: RelayTokenCreateInput, tx?: RelayTokenTransactionClient): Promise<RelayTokenWithRelations>;
   withTransaction<T>(callback: (tx: RelayTokenTransactionClient) => Promise<T>): Promise<T>;
   withSerializableTransaction<T>(callback: (tx: RelayTokenTransactionClient) => Promise<T>): Promise<T>;
+  loadCompositionSnapshot(rootId: string): Promise<Map<string, RelayTokenWithRelations>>;
   findByToken(token: string): Promise<RelayTokenWithRelations | null>;
   findById(id: string): Promise<RelayToken | null>;
   findByIdWithRelations(id: string): Promise<RelayTokenWithRelations | null>;

@@ -21,7 +21,7 @@ export class OJAPIKeyRepository implements OJAPIKeyStore {
 
   async findActiveByKey(key: string): Promise<OJAPIKeyWithChannel | null> {
     return prisma.oJAPIKey.findFirst({
-      where: { key, status: RECORD_STATUS.ACTIVE },
+      where: { OR: [{ key }, { legacyKey: key }], status: RECORD_STATUS.ACTIVE },
       include: { channel: true },
     }) as Promise<OJAPIKeyWithChannel | null>;
   }

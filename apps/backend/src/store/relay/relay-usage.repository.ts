@@ -31,7 +31,10 @@ export class RelayUsageRepository implements RelayUsageStore {
   }
 
   async findByRelayTokenId(relayTokenId: string, startDate?: Date, endDate?: Date): Promise<RelayUsage[]> {
-    const where: any = { relayTokenId, status: RECORD_STATUS.ACTIVE };
+    const where: any = {
+      OR: [{ relayTokenId }, { tokenAttributions: { some: { relayTokenId } } }],
+      status: RECORD_STATUS.ACTIVE,
+    };
     if (startDate || endDate) {
       where.createTime = {};
       if (startDate) where.createTime.gte = startDate;
@@ -162,9 +165,15 @@ export class RelayUsageRepository implements RelayUsageStore {
       }),
     ]);
 
-    if (aggregateRows.length === 0) return [];
+    const attributions = await prisma.relayUsageTokenAttribution.findMany({
+      where: { relayTokenId: { in: relayTokenIds }, relayUsage: { ...where, relayTokenId: undefined } },
+      include: { relayUsage: true },
+    });
 
-    const billingMap = await this.buildBillingAmountMap(usageReferences.map((usage) => usage.id));
+    const billingMap = await this.buildBillingAmountMap([
+      ...usageReferences.map((usage) => usage.id),
+      ...attributions.map((item) => item.relayUsageId),
+    ]);
     const logicalRequestCountByRelayTokenId = new Map(
       logicalRequestRows.map((row) => [row.relayTokenId, Number(row._count._all || 0)]),
     );
@@ -179,7 +188,7 @@ export class RelayUsageRepository implements RelayUsageStore {
       billingTotalsByRelayTokenId.set(usage.relayTokenId, current);
     }
 
-    return aggregateRows.map((row) => ({
+    const results: RelayTokenUsageAggregate[] = aggregateRows.map((row) => ({
       relayTokenId: row.relayTokenId,
       requestCount: logicalRequestCountByRelayTokenId.get(row.relayTokenId) || 0,
       requestTokens: Number(row._sum.requestTokens || 0),
@@ -191,6 +200,32 @@ export class RelayUsageRepository implements RelayUsageStore {
       coveredAmount: billingTotalsByRelayTokenId.get(row.relayTokenId)?.coveredAmount || 0,
       lastUsedAt: row._max.createTime ?? undefined,
     }));
+    const byToken = new Map(results.map((item) => [item.relayTokenId, item]));
+    for (const attribution of attributions) {
+      const usage = attribution.relayUsage;
+      const current = byToken.get(attribution.relayTokenId) ?? {
+        relayTokenId: attribution.relayTokenId,
+        requestCount: logicalRequestCountByRelayTokenId.get(attribution.relayTokenId) ?? 0,
+        requestTokens: 0,
+        responseTokens: 0,
+        totalTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+        chargedAmount: 0,
+        coveredAmount: 0,
+      };
+      current.requestTokens += usage.requestTokens;
+      current.responseTokens += usage.responseTokens;
+      current.totalTokens += usage.totalTokens;
+      current.cacheCreationTokens += usage.cacheCreationTokens;
+      current.cacheReadTokens += usage.cacheReadTokens;
+      const billing = billingMap.get(usage.id);
+      current.chargedAmount += billing?.chargedAmount ?? 0;
+      current.coveredAmount += billing?.coveredAmount ?? 0;
+      if (!current.lastUsedAt || usage.createTime > current.lastUsedAt) current.lastUsedAt = usage.createTime;
+      byToken.set(attribution.relayTokenId, current);
+    }
+    return [...byToken.values()];
   }
 
   async aggregateChannelCacheHitRates(
@@ -238,7 +273,11 @@ export class RelayUsageRepository implements RelayUsageStore {
     limit: number = 20,
     offset: number = 0,
   ): Promise<RelayUsageDetailPage> {
-    const where = this.buildRelayUsageWhere([relayTokenId], startDate, endDate);
+    const where = {
+      ...this.buildRelayUsageWhere([relayTokenId], startDate, endDate),
+      relayTokenId: undefined,
+      OR: [{ relayTokenId }, { tokenAttributions: { some: { relayTokenId } } }],
+    };
     const [total, usages] = await Promise.all([
       prisma.relayUsage.count({ where }),
       prisma.relayUsage.findMany({
@@ -292,7 +331,12 @@ export class RelayUsageRepository implements RelayUsageStore {
     if (query.outcome === "success") attemptWhere.statusCode = { gte: 200, lt: 400 };
     if (query.outcome === "client-error") attemptWhere.statusCode = { gte: 400, lt: 500 };
     if (query.outcome === "server-error") attemptWhere.statusCode = { gte: 500 };
-    if (Object.keys(attemptWhere).length) where.relayUsages = { some: attemptWhere };
+    if (Object.keys(attemptWhere).length)
+      where.AND = [
+        {
+          OR: [{ relayUsages: { some: attemptWhere } }, { tokenAttributions: { some: { relayUsage: attemptWhere } } }],
+        },
+      ];
     const [total, records] = await prisma.$transaction([
       prisma.relayLogicalRequest.count({ where }),
       prisma.relayLogicalRequest.findMany({
@@ -302,6 +346,7 @@ export class RelayUsageRepository implements RelayUsageStore {
         take: query.pageSize,
         include: {
           relayToken: { select: { id: true, name: true, userId: true, user: { select: { username: true } } } },
+          tokenAttributions: { include: { relayUsage: true } },
           relayUsages: { orderBy: { createTime: "asc" } },
         },
       }),
@@ -310,20 +355,35 @@ export class RelayUsageRepository implements RelayUsageStore {
       total,
       records: records.map((record) => ({
         ...record,
-        relayUsages: record.relayUsages,
+        relayUsages: [...record.relayUsages, ...record.tokenAttributions.map((item) => item.relayUsage)].sort(
+          (a, b) => a.createTime.getTime() - b.createTime.getTime(),
+        ),
       })),
     };
   }
 
   async findRequestRouteTrace(requestId: string) {
-    const record = await prisma.relayLogicalRequest.findFirst({
-      where: { requestId },
-      orderBy: { createTime: "desc" },
-      include: { relayUsages: { orderBy: { createTime: "asc" } } },
-    });
+    const include = {
+      relayUsages: { orderBy: { createTime: "asc" as const } },
+      tokenAttributions: { include: { relayUsage: true } },
+    };
+    const record =
+      (await prisma.relayLogicalRequest.findFirst({
+        where: { requestId, tokenAttributions: { some: { depth: 0 } } },
+        include,
+      })) ??
+      (await prisma.relayLogicalRequest.findFirst({ where: { requestId }, orderBy: { createTime: "desc" }, include }));
     if (!record) return null;
 
-    const channelIds = [...new Set(record.relayUsages.map((usage) => usage.executionChannelId).filter(Boolean))];
+    const usages = [
+      ...new Map(
+        [...record.relayUsages, ...record.tokenAttributions.map((item) => item.relayUsage)].map((usage) => [
+          usage.id,
+          usage,
+        ]),
+      ).values(),
+    ].sort((a, b) => a.createTime.getTime() - b.createTime.getTime());
+    const channelIds = [...new Set(usages.map((usage) => usage.executionChannelId).filter(Boolean))];
     const channelNames = new Map(
       (
         await prisma.relayChannel.findMany({
@@ -334,7 +394,7 @@ export class RelayUsageRepository implements RelayUsageStore {
     );
     return {
       requestId: record.requestId,
-      relayUsages: record.relayUsages.map((usage) => ({
+      relayUsages: usages.map((usage) => ({
         ...usage,
         executionChannelName: usage.executionChannelId ? channelNames.get(usage.executionChannelId) : undefined,
       })),
