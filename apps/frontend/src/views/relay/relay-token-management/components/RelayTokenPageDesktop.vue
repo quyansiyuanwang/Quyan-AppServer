@@ -247,7 +247,8 @@
                     ><el-tag
                       v-if="
                         row.memberTokenConfigs?.some(
-                          (member: { enabled: boolean; status: number }) => member.enabled && member.status !== 1,
+                          (member: { enabled: boolean; status: number }) =>
+                            member.enabled && member.status !== 1,
                         )
                       "
                       type="warning"
