@@ -3,6 +3,7 @@ import {
   RelayCompositeExecutorService,
   CompositeBranchUnavailable,
   bindCompositeContext,
+  forkCompositeContext,
   consumeCompositeAttempt,
   type CompositeExecutionContext,
 } from "@/services/relay/relay-composite-executor.service";
@@ -96,5 +97,18 @@ describe("composite execution", () => {
     const execute = vi.fn();
     await expect(run([a, node("b"), c], execute)).rejects.toThrow();
     expect(execute).not.toHaveBeenCalled();
+  });
+  it("pins old attribution paths while sharing the global budget and lease", () => {
+    const root = context();
+    root.path = [node("a"), node("b")];
+    const old = forkCompositeContext(root);
+    root.path = [node("a"), node("c")];
+    expect(old.path.map((item) => item.id)).toEqual(["a", "b"]);
+    old.attempts++;
+    expect(root.attempts).toBe(1);
+    old.lease = { fixture: true };
+    expect(root.lease).toEqual({ fixture: true });
+    old.lastUpstreamStatus = 503;
+    expect(root.lastUpstreamStatus).toBeUndefined();
   });
 });

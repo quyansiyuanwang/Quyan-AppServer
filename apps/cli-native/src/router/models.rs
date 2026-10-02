@@ -32,6 +32,10 @@ pub async fn fetch(api: &ApiClient, id: &str, details: &Value) -> Result<RouterM
         )
         .await
         .map_err(|_| anyhow::anyhow!("Cannot load this token's model catalog"))?;
+    // New servers resolve all protocols, including nested compositions, themselves.
+    if available["responses"].is_array() {
+        return from_api(&available, &Value::Array(Vec::new()), details);
+    }
     let catalog: Value = api
         .request(
             Method::GET,
@@ -59,10 +63,15 @@ fn strings(value: &Value) -> Vec<String> {
 pub fn from_api(available: &Value, catalog: &Value, token: &Value) -> Result<RouterModels> {
     let mut models = RouterModels {
         openai: strings(&available["openai"]),
+        openai_responses: strings(&available["responses"]),
         anthropic: strings(&available["anthropic"]),
         gemini: strings(&available["gemini"]),
         ..Default::default()
     };
+    if available["responses"].is_array() {
+        normalize_catalogs(&mut models);
+        return Ok(models);
+    }
     let channels = catalog
         .as_array()
         .context("Invalid routing capability catalog")?;
@@ -145,6 +154,11 @@ pub fn from_api(available: &Value, catalog: &Value, token: &Value) -> Result<Rou
             _ => {}
         }
     }
+    normalize_catalogs(&mut models);
+    Ok(models)
+}
+
+fn normalize_catalogs(models: &mut RouterModels) {
     for list in [
         &mut models.openai,
         &mut models.openai_responses,
@@ -154,7 +168,6 @@ pub fn from_api(available: &Value, catalog: &Value, token: &Value) -> Result<Rou
         list.sort();
         list.dedup();
     }
-    Ok(models)
 }
 
 #[cfg(test)]
@@ -173,5 +186,22 @@ mod tests {
     fn configured_translation_changes_input_capabilities() {
         let models = from_api(&json!({"anthropic":["real"]}), &json!([]), &json!({"requestFormatTransforms":[{"sourceFormat":"openai-responses","targetFormat":"anthropic"}]})).unwrap();
         assert_eq!(models.openai_responses, ["real"]);
+    }
+    #[test]
+    fn composite_catalogs_are_server_authoritative_without_physical_channels() {
+        let token = json!({"routingMode":"composite", "memberTokenConfigs":[{"tokenId":"member", "priority":0,"enabled":true}], "requestFormatTransforms":[{"sourceFormat":"openai-responses","targetFormat":"anthropic"}]});
+        let models = from_api(&json!({"openai":["chat"], "responses":["codex-alias", "codex-alias"], "anthropic":["claude"], "gemini":[]}), &json!([]), &token).unwrap();
+        assert_eq!(models.openai_responses, ["codex-alias"]);
+        assert_eq!(models.anthropic, ["claude"]);
+    }
+    #[test]
+    fn an_authoritative_empty_responses_catalog_never_infers_chat_models() {
+        let models = from_api(
+            &json!({"openai":["chat-only"], "responses":[], "anthropic":[], "gemini":[]}),
+            &json!([]),
+            &json!({"routingMode":"composite"}),
+        )
+        .unwrap();
+        assert!(models.openai_responses.is_empty());
     }
 }

@@ -29,7 +29,7 @@ export class RelayCompositionRepository {
     const where: Prisma.RelayTokenWhereInput = {
       userId,
       status: { in: [0, 1] },
-      ...(search ? { OR: [{ name: { contains: search } }, { id: { in: selectedIds } }] } : {}),
+      ...(search ? { OR: [{ name: { contains: search } }, { id: search }, { id: { in: selectedIds } }] } : {}),
     };
     const [items, total] = await prisma.$transaction([
       prisma.relayToken.findMany({
@@ -43,6 +43,10 @@ export class RelayCompositionRepository {
           routingMode: true,
           status: true,
           expiresAt: true,
+          memberTokenConfigs: {
+            select: { tokenId: true, priority: true, enabled: true },
+            orderBy: { priority: "asc" },
+          },
           _count: { select: { memberTokenConfigs: true } },
         },
       }),

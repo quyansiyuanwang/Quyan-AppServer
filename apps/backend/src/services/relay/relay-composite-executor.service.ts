@@ -4,6 +4,7 @@ import { RELAY_COMPOSITION_POLICY, compositionError } from "@/util/relay/relay-c
 import type { RelayTokenWithRelations } from "@/store/relay/relay-token.store";
 
 export interface CompositeExecutionContext {
+  signal?: AbortSignal;
   entryTokenId: string;
   requestId: string;
   attempts: number;
@@ -26,6 +27,32 @@ export const consumeCompositeAttempt = (request: object): void => {
       messageKey: "relayToken.compositionBudget",
     });
 };
+/** Pin per-attempt attribution even if an upstream callback completes after another branch starts. */
+export function forkCompositeContext(context: CompositeExecutionContext): CompositeExecutionContext {
+  const fork = { ...context, path: [...context.path], retryStatusCodes: [...context.retryStatusCodes] };
+  Object.defineProperties(fork, {
+    attempts: {
+      get: () => context.attempts,
+      set: (value: number) => {
+        context.attempts = value;
+      },
+    },
+    lease: {
+      get: () => context.lease,
+      set: (value: unknown) => {
+        context.lease = value;
+      },
+    },
+    stopHeartbeat: {
+      get: () => context.stopHeartbeat,
+      set: (value: (() => void) | undefined) => {
+        context.stopHeartbeat = value;
+      },
+    },
+  });
+  return fork;
+}
+
 export class CompositeBranchUnavailable extends Error {}
 export interface CompositeResult {
   status: number;
@@ -33,7 +60,13 @@ export interface CompositeResult {
   data: any;
 }
 export interface CompositeExecutorHost {
-  check(token: RelayTokenWithRelations, request: any): Promise<void>;
+  check(token: RelayTokenWithRelations, request: any, ancestors: RelayTokenWithRelations[]): Promise<void>;
+  orderMembers?(
+    token: RelayTokenWithRelations,
+    request: any,
+    members: RelayTokenWithRelations["memberTokenConfigs"],
+  ): Promise<RelayTokenWithRelations["memberTokenConfigs"]>;
+  succeeded?(token: RelayTokenWithRelations, request: any, memberId: string): Promise<void>;
   prepare(token: RelayTokenWithRelations, request: any): Promise<any>;
   execute(token: RelayTokenWithRelations, request: any, context: CompositeExecutionContext): Promise<CompositeResult>;
   committed(): boolean;
@@ -49,7 +82,7 @@ export class RelayCompositeExecutorService {
     context: CompositeExecutionContext,
     host: CompositeExecutorHost,
   ): Promise<CompositeResult> {
-    let paths = 0;
+    const paths = new Set<string>();
     const visit = async (
       token: RelayTokenWithRelations,
       input: any,
@@ -58,10 +91,11 @@ export class RelayCompositeExecutorService {
       if (host.cancelled()) throw Object.assign(new Error("Client disconnected"), { name: "AbortError" });
       if (path.some((parent) => parent.id === token.id)) throw compositionError("cycle");
       if (path.length > RELAY_COMPOSITION_POLICY.maxDepth) throw compositionError("depth");
-      await host.check(token, input);
+      await host.check(token, input, path);
       const nextPath = [...path, token];
       if (token.routingMode !== "composite") {
-        if (++paths > RELAY_COMPOSITION_POLICY.maxLeafPaths) throw compositionError("size");
+        paths.add(JSON.stringify(nextPath.map((node) => node.id)));
+        if (paths.size > RELAY_COMPOSITION_POLICY.maxLeafPaths) throw compositionError("size");
         context.path = nextPath;
         context.lastUpstreamStatus = undefined;
         context.retryStatusCodes = nextPath.slice(0, -1).flatMap((parent) => {
@@ -73,8 +107,9 @@ export class RelayCompositeExecutorService {
         return host.execute(token, input, context);
       }
       const prepared = await host.prepare(token, input);
-      const members = [...(token.memberTokenConfigs ?? [])].sort((a, b) => a.priority - b.priority);
+      let members = [...(token.memberTokenConfigs ?? [])].sort((a, b) => a.priority - b.priority);
       if (members.length > RELAY_COMPOSITION_POLICY.maxMembers) throw compositionError("size");
+      if (host.orderMembers) members = await host.orderMembers(token, input, members);
       const config = token.failoverConfig;
       const enabled = config?.enabled ?? true;
       const maxSwitches = config?.maxRetries ?? Math.max(0, members.length - 1);
@@ -90,7 +125,10 @@ export class RelayCompositeExecutorService {
         for (let retry = 0; retry <= threshold; retry++) {
           try {
             const result = await visit(member, prepared, nextPath);
-            if (result.status < 400 || host.committed()) return result;
+            if (result.status < 400 || host.committed()) {
+              if (result.status < 400 && switches > 0) await host.succeeded?.(token, input, edge.tokenId);
+              return result;
+            }
             last = Object.assign(new Error("Upstream member failed"), { upstreamStatus: result.status, result });
           } catch (error) {
             if (error instanceof CompositeBranchUnavailable) {

@@ -3,6 +3,8 @@ import type { BalanceAccount } from "@prisma/client";
 export type RelayBalanceChargeMode = "strict" | "allow-negative" | "skip-when-non-positive";
 
 export interface RelayUsageRecordInput {
+  /** Server-resolved root-to-leaf path; never populated from client input. */
+  compositionTokenIds?: string[];
   relayTokenId: string;
   requestId: string;
   executionChannelId?: string | null;

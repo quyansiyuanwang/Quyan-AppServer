@@ -20,6 +20,38 @@ export function cloneCompositeRequest(request: any, patch: Record<string, unknow
   transforms.set(clone, [...getCompositeTransforms(request)]);
   return clone;
 }
+const COMPOSITE_CREDENTIAL_QUERY_NAMES = new Set([
+  "key",
+  "api_key",
+  "apikey",
+  "access_token",
+  "authorization",
+  "token",
+]);
+const COMPOSITE_PRIVATE_HEADERS = new Set([
+  "authorization",
+  "x-api-key",
+  "x-goog-api-key",
+  "api-key",
+  "apikey",
+  "cookie",
+  "proxy-authorization",
+  "host",
+  "content-length",
+  "connection",
+  "transfer-encoding",
+]);
+/** Authentication has already completed. Never forward caller credentials to a physical provider. */
+export function compositeIngressRequest(request: any, body: unknown): any {
+  const query = Object.fromEntries(
+    Object.entries(request.query ?? {}).filter(([key]) => !COMPOSITE_CREDENTIAL_QUERY_NAMES.has(key.toLowerCase())),
+  );
+  const headers = Object.fromEntries(
+    Object.entries(request.headers ?? {}).filter(([key]) => !COMPOSITE_PRIVATE_HEADERS.has(key.toLowerCase())),
+  );
+  return cloneCompositeRequest(request, { body, query, headers });
+}
+
 export function addCompositeTransform(request: object, rule: CompositeTransform): void {
   transforms.set(request, [...getCompositeTransforms(request), rule]);
 }

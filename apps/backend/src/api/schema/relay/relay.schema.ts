@@ -730,3 +730,7 @@ export const relayCompositionCandidatesQuerySchema = z.object({
   selectedIds: z.string().max(1200).optional(),
   targetUserId: z.string().trim().min(1).max(50).optional(),
 });
+
+export const relayCompositionPreviewBodySchema = createRelayTokenBodySchema.and(
+  z.object({ editingTokenId: z.string().trim().min(1).max(50).optional() }),
+);

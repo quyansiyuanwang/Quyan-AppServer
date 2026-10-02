@@ -16795,6 +16795,44 @@
 				}
 			}
 		},
+		"/v1/relay/tokens/composition-preview": {
+			"post": {
+				"operationId": "RelayControllerPreviewComposition",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RelayCompositionPreviewDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Relay"
+				],
+				"security": [
+					{
+						"jwt": [
+							"relay:token:read"
+						]
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RelayCompositionPreviewRequest"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/relay/tokens/composition-candidates": {
 			"get": {
 				"operationId": "RelayControllerCompositionCandidates",
@@ -47381,6 +47419,204 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"RelayTokenAvailableModelsDto": {
+				"properties": {
+					"responses": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Authoritative OpenAI Responses catalog, after token-scoped routing and conversions."
+					},
+					"openai": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "OpenAI 格式可用模型列表"
+					},
+					"anthropic": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Anthropic 格式可用模型列表"
+					},
+					"gemini": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Gemini 格式可用模型列表"
+					}
+				},
+				"required": [
+					"openai",
+					"anthropic",
+					"gemini"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayCompositionPreviewDto": {
+				"properties": {
+					"models": {
+						"$ref": "#/components/schemas/RelayTokenAvailableModelsDto"
+					},
+					"routes": {
+						"items": {
+							"properties": {
+								"tokenPathIds": {
+									"items": {
+										"type": "string"
+									},
+									"type": "array"
+								},
+								"model": {
+									"type": "string"
+								},
+								"protocol": {
+									"type": "string",
+									"enum": [
+										"openai",
+										"responses",
+										"anthropic",
+										"gemini"
+									]
+								}
+							},
+							"required": [
+								"tokenPathIds",
+								"model",
+								"protocol"
+							],
+							"type": "object"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"models",
+					"routes"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RelayCompositionPreviewRequest": {
+				"properties": {
+					"routingMode": {
+						"type": "string",
+						"enum": [
+							"ordered",
+							"automatic-pool",
+							"composite"
+						]
+					},
+					"memberTokenConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenMemberConfigInputDto"
+						},
+						"type": "array"
+					},
+					"automaticProxyPoolChannelId": {
+						"type": "string"
+					},
+					"blockedAutomaticProxyPoolChannelIds": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "自动代理池中不参与该令牌路由的成员渠道 ID"
+					},
+					"targetUserId": {
+						"type": "string",
+						"description": "目标用户 ID，不传则为当前用户"
+					},
+					"name": {
+						"type": "string",
+						"nullable": true,
+						"description": "Token 名称"
+					},
+					"token": {
+						"type": "string",
+						"description": "自定义令牌值（需 relay:token:custom_key 权限），不传则自动生成"
+					},
+					"expiresAt": {
+						"type": "string",
+						"nullable": true
+					},
+					"channelId": {
+						"type": "string",
+						"description": "渠道 ID"
+					},
+					"channelConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenChannelConfigInputDto"
+						},
+						"type": "array",
+						"description": "有序渠道配置"
+					},
+					"failoverConfig": {
+						"$ref": "#/components/schemas/RelayTokenFailoverConfigDto",
+						"description": "自动切换配置"
+					},
+					"quotaLimit": {
+						"type": "number",
+						"format": "double",
+						"nullable": true,
+						"description": "额度限制（曲），不填则无限制"
+					},
+					"quotaWindows": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenQuotaWindowInputDto"
+						},
+						"type": "array",
+						"description": "滑动窗口额度规则"
+					},
+					"allowedModels": {
+						"type": "string",
+						"nullable": true,
+						"description": "允许的模型列表，逗号分隔"
+					},
+					"requestFormatTransforms": {
+						"items": {
+							"$ref": "#/components/schemas/RelayRequestFormatTransform"
+						},
+						"type": "array",
+						"description": "Request protocol translation rules. An empty array disables translation."
+					},
+					"normalizerConfig": {
+						"$ref": "#/components/schemas/RelayTokenNormalizerConfig",
+						"description": "Anthropic request normalizer settings scoped to this relay token."
+					},
+					"contentSafetyConfig": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/ContentSafetyPolicyOverride"
+							}
+						],
+						"nullable": true
+					},
+					"streamConfig": {
+						"$ref": "#/components/schemas/RelayTokenStreamConfig",
+						"description": "Stream behavior configuration (preflight buffer limits, etc.)"
+					},
+					"ipWhitelist": {
+						"type": "string",
+						"nullable": true,
+						"description": "IP 白名单，支持换行、逗号或分号分隔"
+					},
+					"modelMapping": {
+						"$ref": "#/components/schemas/Record_string.string_",
+						"description": "模型映射：请求模型 → 扣费模型"
+					},
+					"editingTokenId": {
+						"type": "string"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayCompositionCandidateDto": {
 				"properties": {
 					"id": {
@@ -47409,6 +47645,12 @@
 						"type": "number",
 						"format": "double"
 					},
+					"memberTokenConfigs": {
+						"items": {
+							"$ref": "#/components/schemas/RelayTokenMemberConfigInputDto"
+						},
+						"type": "array"
+					},
 					"selectable": {
 						"type": "boolean"
 					},
@@ -47433,6 +47675,35 @@
 			},
 			"RelayCompositionCandidatesDto": {
 				"properties": {
+					"limits": {
+						"properties": {
+							"retryStatusCodes": {
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							},
+							"maxLeafPaths": {
+								"type": "number",
+								"format": "double"
+							},
+							"maxDepth": {
+								"type": "number",
+								"format": "double"
+							},
+							"maxMembers": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"retryStatusCodes",
+							"maxLeafPaths",
+							"maxDepth",
+							"maxMembers"
+						],
+						"type": "object"
+					},
 					"items": {
 						"items": {
 							"$ref": "#/components/schemas/RelayCompositionCandidateDto"
@@ -47453,6 +47724,7 @@
 					}
 				},
 				"required": [
+					"limits",
 					"items",
 					"total",
 					"page",
@@ -48312,38 +48584,6 @@
 				},
 				"required": [
 					"logs"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"RelayTokenAvailableModelsDto": {
-				"properties": {
-					"openai": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array",
-						"description": "OpenAI 格式可用模型列表"
-					},
-					"anthropic": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array",
-						"description": "Anthropic 格式可用模型列表"
-					},
-					"gemini": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array",
-						"description": "Gemini 格式可用模型列表"
-					}
-				},
-				"required": [
-					"openai",
-					"anthropic",
-					"gemini"
 				],
 				"type": "object",
 				"additionalProperties": false

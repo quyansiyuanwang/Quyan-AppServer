@@ -186,6 +186,7 @@ export class RelayStreamForwarderService {
       consumeCompositeAttempt(req);
       proxyReq = httpModule.request(
         {
+          signal: getCompositeContext(req)?.signal,
           hostname: url.hostname,
           port: url.port,
           path: url.pathname + url.search,
@@ -411,6 +412,7 @@ export class RelayStreamForwarderService {
               await host.relayProxyRepository.recordUsageWithZeroChargeTransaction({
                 userId: relayToken.userId,
                 relayTokenId: relayToken.id,
+                compositionTokenIds: getCompositeContext(relayToken)?.path.map((token) => token.id),
                 requestId: host.getLogicalRequestId(req),
                 requestTokens: 0,
                 responseTokens: 0,

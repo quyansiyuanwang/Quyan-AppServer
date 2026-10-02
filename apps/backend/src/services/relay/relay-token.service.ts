@@ -1,3 +1,5 @@
+import type { RelayCompositionPreviewDto, RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
+import { validateRelayComposition } from "@/util/relay/relay-composition.util";
 import { RelayCompositionRepository } from "@/store/relay/relay-composition.repository";
 import { RELAY_COMPOSITION_POLICY, compositionError } from "@/util/relay/relay-composition.util";
 import { DistributedLockService } from "@/services/infrastructure/distributed-lock.service";
@@ -233,6 +235,12 @@ export class RelayTokenService {
     const result = await repo.candidates(userId, page, pageSize, search, selectedIds.split(",").filter(Boolean));
     return {
       ...result,
+      limits: {
+        maxMembers: RELAY_COMPOSITION_POLICY.maxMembers,
+        maxDepth: RELAY_COMPOSITION_POLICY.maxDepth,
+        maxLeafPaths: RELAY_COMPOSITION_POLICY.maxLeafPaths,
+        retryStatusCodes: [...RELAY_COMPOSITION_POLICY.retryStatusCodes],
+      },
       items: result.items.map((item) => ({
         id: item.id,
         name: item.name ?? undefined,
@@ -240,10 +248,66 @@ export class RelayTokenService {
         status: item.status,
         expiresAt: item.expiresAt ?? undefined,
         memberCount: item._count.memberTokenConfigs,
+        memberTokenConfigs: item.memberTokenConfigs,
         selectable: item.id !== editingTokenId && !ancestors.has(item.id),
         unavailableReason: item.id === editingTokenId ? "self" : ancestors.has(item.id) ? "cycle" : undefined,
       })),
     };
+  }
+
+  async previewComposition(
+    actorUserId: string,
+    data: RelayCompositionPreviewRequest,
+  ): Promise<RelayCompositionPreviewDto> {
+    const userId = await this.resolveManagedUserId(actorUserId, data.targetUserId);
+    if (data.editingTokenId) await this.getAccessibleToken(data.editingTokenId, actorUserId, userId);
+    if (data.routingMode !== "composite") throw compositionError("mode");
+    const id = data.editingTokenId ?? "__composition_preview__";
+    const graph = await RelayCompositionRepository.getInstance().getGraph(userId);
+    validateRelayComposition([
+      ...graph.filter((node) => node.id !== id),
+      {
+        id,
+        userId,
+        routingMode: "composite",
+        status: 1,
+        memberTokenConfigs: data.memberTokenConfigs ?? [],
+      },
+    ]);
+    const snapshot = new Map<string, RelayTokenWithRelations>();
+    for (const edge of data.memberTokenConfigs ?? []) {
+      const subtree = await this.relayTokenRepo.loadCompositionSnapshot(edge.tokenId);
+      for (const [key, value] of subtree) snapshot.set(key, value);
+    }
+    const sample = snapshot.values().next().value;
+    if (!sample) throw compositionError("invalidMember");
+    snapshot.set(id, {
+      ...sample,
+      ...data,
+      id,
+      userId,
+      token: "",
+      allowedModels: data.allowedModels ?? null,
+      modelMapping: data.modelMapping ?? null,
+      requestFormatTransforms: data.requestFormatTransforms ?? null,
+      status: 1,
+      routingMode: "composite",
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      memberTokenConfigs: data.memberTokenConfigs ?? [],
+    } as unknown as RelayTokenWithRelations);
+    const routes: RelayCompositionPreviewDto["routes"] = [];
+    const models: RelayTokenAvailableModelsDto = { openai: [], responses: [], anthropic: [], gemini: [] };
+    for (const [protocol, format] of [
+      ["openai", "openai-chat-completions"],
+      ["responses", "openai-responses"],
+      ["anthropic", "anthropic"],
+      ["gemini", "gemini"],
+    ] as const) {
+      const catalog = await this.relayProxyService.getCompositeCatalog(id, format, snapshot);
+      models[protocol] = [...new Set(catalog.map((item) => item.model))].sort();
+      routes.push(...catalog.map((item) => ({ ...item, protocol })));
+    }
+    return { models, routes };
   }
 
   private compositeFailover(memberCount: number) {

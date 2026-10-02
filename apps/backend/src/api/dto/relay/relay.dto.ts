@@ -439,6 +439,8 @@ export interface RelayTokenSwitchLogsDto {
 }
 
 export interface RelayTokenAvailableModelsDto {
+  /** Authoritative OpenAI Responses catalog, after token-scoped routing and conversions. */
+  responses?: string[];
   /** OpenAI 格式可用模型列表 */
   openai: string[];
   /** Anthropic 格式可用模型列表 */
@@ -465,12 +467,22 @@ export interface RelayCompositionCandidateDto {
   status: number;
   expiresAt?: Date;
   memberCount: number;
+  memberTokenConfigs?: RelayTokenMemberConfigInputDto[];
   selectable: boolean;
   unavailableReason?: "self" | "cycle" | "deleted";
 }
 export interface RelayCompositionCandidatesDto {
+  limits: { maxMembers: number; maxDepth: number; maxLeafPaths: number; retryStatusCodes: string[] };
   items: RelayCompositionCandidateDto[];
   total: number;
   page: number;
   pageSize: number;
+}
+
+export interface RelayCompositionPreviewRequest extends CreateRelayTokenDto {
+  editingTokenId?: string;
+}
+export interface RelayCompositionPreviewDto {
+  models: RelayTokenAvailableModelsDto;
+  routes: Array<{ protocol: "openai" | "responses" | "anthropic" | "gemini"; model: string; tokenPathIds: string[] }>;
 }

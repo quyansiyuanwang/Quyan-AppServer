@@ -1,3 +1,5 @@
+import type { RelayCompositionPreviewDto, RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
+import { relayCompositionPreviewBodySchema } from "@/api/schema/relay/relay.schema";
 import type { RelayCompositionCandidatesDto } from "@/api/dto/relay/relay.dto";
 import { relayCompositionCandidatesQuerySchema } from "@/api/schema/relay/relay.schema";
 import {
@@ -128,6 +130,17 @@ export class RelayController extends Controller {
     @Query() targetUserId?: string,
   ): Promise<RelayTokenPageDto> {
     return this.relayTokenService.listTokens(request.user!.userId, page, pageSize, targetUserId);
+  }
+
+  @Post("tokens/composition-preview")
+  @Security("jwt", ["relay:token:read"])
+  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(validateBody(relayCompositionPreviewBodySchema))
+  async previewComposition(
+    @Body() body: RelayCompositionPreviewRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayCompositionPreviewDto> {
+    return this.relayTokenService.previewComposition(request.user!.userId, body);
   }
 
   @Get("tokens/composition-candidates")

@@ -34,8 +34,17 @@ const createRelayWriteConflictError = (): ResourceLockedError =>
     { messageKey: "relay.billingTransactionContended" },
   );
 
-const isWriteConflict = (error: unknown): boolean =>
-  typeof error === "object" && error !== null && "code" in error && error.code === "P2034";
+const isWriteConflict = (error: unknown): boolean => {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  if (error.code === "P2034") return true;
+  if (error.code !== "P2002") return false;
+  // Prisma emulates this upsert on MySQL; concurrent first callbacks can race on its unique key.
+  const target = (error as { meta?: { target?: unknown } }).meta?.target;
+  return (
+    String(target).includes("relayTokenId_requestId") ||
+    (Array.isArray(target) && target.includes("relayTokenId") && target.includes("requestId"))
+  );
+};
 
 const waitForWriteConflictRetry = async (attempt: number): Promise<void> => {
   // A short backoff lets the transaction that currently owns the row locks commit.
@@ -103,11 +112,41 @@ export class RelayProxyRepository implements RelayProxyStore {
     return logicalRequest.id;
   }
 
+  private async attributeUsage(
+    tx: Prisma.TransactionClient,
+    data: RelayUsageRecordInput,
+    usageId: string,
+    quota = 0,
+  ): Promise<void> {
+    const path = data.compositionTokenIds ?? [];
+    if (!path.length) return;
+    const leaf = await tx.relayToken.findUniqueOrThrow({ where: { id: data.relayTokenId }, select: { userId: true } });
+    const ancestors = path.slice(0, -1);
+    const owned = await tx.relayToken.count({ where: { id: { in: path }, userId: leaf.userId } });
+    if (path[path.length - 1] !== data.relayTokenId || new Set(path).size !== path.length || owned !== path.length)
+      throw new Error("Invalid server-resolved attribution path");
+    for (const [depth, relayTokenId] of ancestors.entries()) {
+      const logicalRequestId = await this.ensureLogicalRequest(tx, relayTokenId, data.requestId);
+      await tx.relayUsageTokenAttribution.create({
+        data: { relayUsageId: usageId, relayTokenId, logicalRequestId, depth },
+      });
+      if (data.totalTokens || quota)
+        await tx.relayToken.update({
+          where: { id: relayTokenId },
+          data: {
+            totalTokens: { increment: data.totalTokens },
+            usedQuota: { increment: new Decimal(quota) },
+            lastUsedAt: new Date(),
+          },
+        });
+    }
+  }
+
   async recordUsageWithoutCharge(data: RelayUsageRecordInput): Promise<void> {
     await runWithWriteConflictRetry(() =>
       prisma.$transaction(async (tx) => {
         const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
-        await tx.relayUsage.create({
+        const usageRecord = await tx.relayUsage.create({
           data: {
             relayTokenId: data.relayTokenId,
             logicalRequestId,
@@ -133,6 +172,7 @@ export class RelayProxyRepository implements RelayProxyStore {
             auditDurationMs: data.auditDurationMs || 0,
           },
         });
+        await this.attributeUsage(tx, data, usageRecord.id);
       }),
     );
   }
@@ -168,6 +208,7 @@ export class RelayProxyRepository implements RelayProxyStore {
           },
         });
 
+        await this.attributeUsage(tx, data, usageRecord.id);
         const currentAccount = await tx.balanceAccount.findUnique({ where: { userId: data.userId } });
         const balanceSnapshot = currentAccount ? Number(currentAccount.balance) : 0;
 
@@ -217,6 +258,14 @@ export class RelayProxyRepository implements RelayProxyStore {
       try {
         const txResult = await prisma.$transaction(
           async (tx) => {
+            const settlementTokenId = data.compositionTokenIds?.[0] ?? data.relayTokenId;
+            const settlementRequestId = await this.ensureLogicalRequest(tx, settlementTokenId, data.requestId);
+            const claimed = await tx.relayLogicalRequest.updateMany({
+              where: { id: settlementRequestId, settledAt: null },
+              data: { settledAt: new Date() },
+            });
+            // An already-settled callback is successful but has no additional financial effects.
+            if (!claimed.count) return { applied: true, notifyContext: undefined };
             const logicalRequestId = await this.ensureLogicalRequest(tx, data.relayTokenId, data.requestId);
             let remainingCost = round4(Math.max(0, data.cost));
             let coveredByMonthlyPass = 0;
@@ -573,6 +622,8 @@ export class RelayProxyRepository implements RelayProxyStore {
                 lastUsedAt: new Date(),
               },
             });
+
+            await this.attributeUsage(tx, data, usageRecord.id, usedQuotaIncrement);
 
             // Collect notification context for post-transaction dispatch
             const notifyContext = {
