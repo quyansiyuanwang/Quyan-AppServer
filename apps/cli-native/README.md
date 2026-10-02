@@ -23,7 +23,7 @@ Running `quyan` without a subcommand opens the Ratatui control center. It
 shows the shared QuYan ASCII banner, a keyboard-navigable list of account,
 Relay, client configuration, JSON Endpoints and diagnostic workflows, and the
 exact command for the selected action. Use `Up`/`Down` or `j`/`k` to select,
-`Enter` to open the selection, or `1` through `6` to open a home action
+`Enter` to open the selection, or `1` through `7` to open a home action
 directly. `?` or `h` shows this key guide.
 
 All home actions are active. Browser login runs the OAuth flow, account loads
@@ -65,3 +65,52 @@ Every invocation writes diagnostics to the platform data directory under
 information to stderr. Logs record only HTTP method, path, request ID, status
 and duration; they never include tokens, Authorization headers, signing data,
 request bodies or response bodies. With `--json`, stdout remains JSON only.
+
+## Local router
+
+The seventh home action is the local routing workspace: combine saved Relay
+profiles, inspect protocol-specific model catalogs, bind aliases to profiles,
+preview client configuration and hot-switch future requests. Writes require an
+explicit confirmation; command-line automation uses `--yes`.
+
+```bash
+quyan router profile add --token-id <token-id> --yes
+quyan router models
+quyan router start --yes
+
+# Publish provider-scoped Stack model IDs (ccswitch-style exact binding)
+quyan router stack enable --yes
+quyan router stack status
+quyan router apply --client codex --model <responses-model-id> --dry-run
+quyan router apply --client codex --model <responses-model-id> --yes
+quyan launch --router --client codex
+quyan router status
+quyan router stop --yes
+```
+
+The loopback-only Router defaults to `http://127.0.0.1:15721`. Relay secrets use
+separate system-keychain entries; ordinary config files contain only metadata
+and the public local compatibility placeholder. The `quyan-router` Codex/pi
+provider is separate from the existing direct Relay provider. SSE is forwarded
+without buffering the entire response, and profile failover never replays a
+response after forwarding starts. Invalid edits retain the last valid snapshot.
+
+Claude Desktop has its own 3P configLibrary adapter and an explicit model-to-role
+mapping; initial takeover may require one restart. ChatGPT Desktop has no
+verified configuration adapter and is not intercepted or patched. The Router is
+not installed as an OS login service. See the bilingual `quyan-cli` docs-site
+page for routing priorities, TUI keys, credential boundaries and compatibility.
+
+### Server-side composite profiles
+
+A Router Profile may reference a composite Relay Token created in token management.
+The server owns nested member selection, per-path restrictions and single settlement;
+the CLI stores only the entry token in its existing profile keychain entry. Changing
+members or their order affects subsequent requests without restarting the Agent.
+Refresh catalog changes with `quyan router models --refresh`.
+
+Updated Relay APIs return an authoritative `responses` array alongside the other
+protocol catalogs. The CLI uses those incoming-protocol catalogs directly, including
+composite aliases, without inferring physical channels or applying conversions twice.
+An empty Responses array means no Responses models. Older servers retain the existing
+routing-catalog fallback.

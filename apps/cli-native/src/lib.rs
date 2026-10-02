@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod core;
 pub mod features;
+pub mod router;
 pub mod services;
 pub mod utils;
 

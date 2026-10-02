@@ -1420,9 +1420,9 @@ model RelayToken {
   isCustomKey                         Boolean   @default(false)
   carpoolMemberId                     String?   @unique
 
-  user                      User                      @relation(fields: [userId], references: [id])
-  channel                   RelayChannel?             @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
-  automaticProxyPoolChannel RelayChannel?             @relation("RelayTokenAutomaticProxyPool", fields: [automaticProxyPoolChannelId], references: [id])
+  user                      User                         @relation(fields: [userId], references: [id])
+  channel                   RelayChannel?                @relation("RelayTokenPrimaryChannel", fields: [channelId], references: [id])
+  automaticProxyPoolChannel RelayChannel?                @relation("RelayTokenAutomaticProxyPool", fields: [automaticProxyPoolChannelId], references: [id])
   failoverConfig            RelayTokenFailoverConfig?
   channelConfigs            RelayTokenChannelConfig[]
   quotaWindows              RelayTokenQuotaWindow[]
@@ -1431,7 +1431,10 @@ model RelayToken {
   logicalRequests           RelayLogicalRequest[]
   conversations             Conversation[]
   agentTasks                AgentTask[]
-  carpoolMember             CarpoolMember?            @relation(fields: [carpoolMemberId], references: [id], onDelete: SetNull)
+  memberTokenConfigs        RelayTokenMemberConfig[]     @relation("CompositeParent")
+  memberOfTokenConfigs      RelayTokenMemberConfig[]     @relation("CompositeMember")
+  usageAttributions         RelayUsageTokenAttribution[]
+  carpoolMember             CarpoolMember?               @relation(fields: [carpoolMemberId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([token])
@@ -1440,6 +1443,43 @@ model RelayToken {
   @@index([carpoolMemberId])
   @@index([status, expiresAt])
   @@map("relay_tokens")
+}
+
+model RelayTokenMemberConfig {
+  id            String     @id @default(cuid())
+  status        Int        @default(1)
+  createTime    DateTime   @default(now())
+  updateTime    DateTime   @updatedAt
+  parentTokenId String
+  tokenId       String
+  priority      Int
+  enabled       Boolean    @default(true)
+  parentToken   RelayToken @relation("CompositeParent", fields: [parentTokenId], references: [id], onDelete: Cascade)
+  memberToken   RelayToken @relation("CompositeMember", fields: [tokenId], references: [id], onDelete: Restrict)
+
+  @@unique([parentTokenId, tokenId])
+  @@index([tokenId])
+  @@index([parentTokenId, priority])
+  @@map("relay_token_member_configs")
+}
+
+model RelayUsageTokenAttribution {
+  id               String              @id @default(cuid())
+  status           Int                 @default(1)
+  createTime       DateTime            @default(now())
+  updateTime       DateTime            @updatedAt
+  relayUsageId     String
+  relayTokenId     String
+  logicalRequestId String
+  depth            Int
+  relayUsage       RelayUsage          @relation(fields: [relayUsageId], references: [id], onDelete: Cascade)
+  relayToken       RelayToken          @relation(fields: [relayTokenId], references: [id], onDelete: Restrict)
+  logicalRequest   RelayLogicalRequest @relation(fields: [logicalRequestId], references: [id], onDelete: Restrict)
+
+  @@unique([relayUsageId, relayTokenId])
+  @@index([relayTokenId, createTime])
+  @@index([logicalRequestId])
+  @@map("relay_usage_token_attributions")
 }
 
 model CarpoolPackageTemplate {
@@ -1708,8 +1748,9 @@ model RelayUsage {
   auditCost           Decimal  @default(0) @db.Decimal(14, 6)
   auditDurationMs     Int      @default(0)
 
-  relayToken     RelayToken           @relation(fields: [relayTokenId], references: [id])
-  logicalRequest RelayLogicalRequest? @relation(fields: [logicalRequestId], references: [id], onDelete: SetNull)
+  tokenAttributions RelayUsageTokenAttribution[]
+  relayToken        RelayToken                   @relation(fields: [relayTokenId], references: [id])
+  logicalRequest    RelayLogicalRequest?         @relation(fields: [logicalRequestId], references: [id], onDelete: SetNull)
 
   @@index([relayTokenId])
   @@index([createTime])
@@ -1721,12 +1762,14 @@ model RelayUsage {
 }
 
 model RelayLogicalRequest {
-  id           String    @id @default(cuid())
-  createTime   DateTime  @default(now())
-  updateTime   DateTime  @updatedAt
-  relayTokenId String
-  requestId    String    @db.VarChar(64)
-  countedAt    DateTime?
+  id                String                       @id @default(cuid())
+  createTime        DateTime                     @default(now())
+  updateTime        DateTime                     @updatedAt
+  relayTokenId      String
+  requestId         String                       @db.VarChar(64)
+  settledAt         DateTime?
+  tokenAttributions RelayUsageTokenAttribution[]
+  countedAt         DateTime?
 
   relayToken  RelayToken   @relation(fields: [relayTokenId], references: [id], onDelete: Cascade)
   relayUsages RelayUsage[]

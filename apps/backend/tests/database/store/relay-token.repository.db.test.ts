@@ -68,6 +68,7 @@ describe("RelayTokenRepository", () => {
   afterEach(async () => {
     if (createdTokenIds.length === 0) return;
 
+    await prisma.relayTokenMemberConfig.deleteMany({ where: { parentTokenId: { in: createdTokenIds } } });
     await prisma.relayToken.deleteMany({
       where: { id: { in: createdTokenIds.splice(0, createdTokenIds.length) } },
     });
@@ -163,5 +164,35 @@ describe("RelayTokenRepository", () => {
       primaryChannelId,
       secondaryChannelId,
     ]);
+  });
+  it("atomically stores composite members, protects ancestors and preserves secrets on mode changes", async () => {
+    const create = async (name: string, members?: string[]) => {
+      const token = await repository.create({
+        userId,
+        name,
+        token: `test_${randomUUID()}`,
+        routingMode: members ? "composite" : "ordered",
+        channelId: members ? undefined : primaryChannelId,
+        memberTokenConfigs: members?.map((tokenId, priority) => ({ tokenId, priority, enabled: true })),
+      });
+      createdTokenIds.push(token.id);
+      return token;
+    };
+    const leaf = await create("leaf");
+    const child = await create("child", [leaf.id]);
+    const root = await create("root", [child.id]);
+    expect(root.memberTokenConfigs[0].memberToken).not.toHaveProperty("token");
+    await expect(
+      repository.update(child.id, { memberTokenConfigs: [{ tokenId: root.id, priority: 0, enabled: true }] }),
+    ).rejects.toThrow();
+    expect((await repository.findByIdWithRelations(child.id))!.memberTokenConfigs[0].tokenId).toBe(leaf.id);
+    await repository.update(root.id, {
+      routingMode: "ordered",
+      channelId: primaryChannelId,
+      channelConfigs: [{ channelId: primaryChannelId, priority: 0 }],
+    });
+    const changed = (await repository.findByIdWithRelations(root.id))!;
+    expect(changed.token).toBe(root.token);
+    expect(changed.memberTokenConfigs).toHaveLength(0);
   });
 });

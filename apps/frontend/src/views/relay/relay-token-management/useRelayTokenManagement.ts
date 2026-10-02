@@ -1,3 +1,4 @@
+import type { RelayTokenMemberConfigInputDto } from '@/client/types.gen'
 import { createUserFacingError, getErrorMessage } from '@/utils/error-utils'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { usePageDevice } from '@/composables/usePageDevice'
@@ -59,7 +60,7 @@ export type ChannelOption = {
 }
 
 type CcswitchApp = 'claude' | 'codex' | 'gemini'
-type RelayRoutingMode = 'ordered' | 'automatic-pool'
+type RelayRoutingMode = 'ordered' | 'automatic-pool' | 'composite'
 
 export type TokenQuotaSnapshot = {
   usedQuota: number
@@ -425,6 +426,9 @@ export const useRelayTokenManagement = () => {
   const saving = ref(false)
   const editMode = ref<'create' | 'edit'>('create')
   const currentEditId = ref('')
+  const originalRoutingMode = ref<RelayRoutingMode>('ordered')
+  const compositionModelIds = ref<string[]>([])
+  const compositeDefaultRetryStatusCodes = ref<string[]>([])
   const DEFAULT_EDIT_DIALOG_SECTIONS = [
     'basic',
     'channelFailover',
@@ -593,6 +597,7 @@ export const useRelayTokenManagement = () => {
     ipWhitelist: [] as string[],
     allowedModelIdsList: [] as string[],
     routingMode: 'ordered' as RelayRoutingMode,
+    memberTokenConfigs: [] as RelayTokenMemberConfigInputDto[],
     automaticProxyPoolChannelId: '',
     blockedAutomaticProxyPoolChannelIds: [] as string[],
     channelConfigs: [createEmptyChannelConfig(0)] as EditableChannelConfig[],
@@ -920,6 +925,7 @@ export const useRelayTokenManagement = () => {
     const selectedChannelIds = new Set(
       editForm.value.channelConfigs.map((config) => config.channelId.trim()).filter(Boolean),
     )
+    if (editForm.value.routingMode === 'composite') return compositionModelIds.value
     if (editForm.value.routingMode === 'automatic-pool') {
       const automaticProxyPoolChannelId = editForm.value.automaticProxyPoolChannelId.trim()
       if (automaticProxyPoolChannelId) selectedChannelIds.add(automaticProxyPoolChannelId)
@@ -1670,11 +1676,42 @@ export const useRelayTokenManagement = () => {
   const openCreateDialog = () => {
     editMode.value = 'create'
     currentEditId.value = ''
+    originalRoutingMode.value = 'ordered'
+    compositionModelIds.value = []
+    compositeDefaultRetryStatusCodes.value = []
     editForm.value = createEmptyEditForm()
     resetTokenChannelEditorState()
     editDialogSectionNames.value = [...DEFAULT_EDIT_DIALOG_SECTIONS]
     showEditDialog.value = true
   }
+
+  watch(
+    () => editForm.value.memberTokenConfigs.length,
+    (length, previous) => {
+      if (
+        (editForm.value.routingMode === 'composite' && editMode.value === 'create') ||
+        (editForm.value.routingMode === 'composite' && originalRoutingMode.value !== 'composite')
+      ) {
+        if (editForm.value.failoverConfig.maxRetries === Math.max(0, previous - 1))
+          editForm.value.failoverConfig.maxRetries = Math.max(0, length - 1)
+      }
+    },
+  )
+  watch(compositeDefaultRetryStatusCodes, (codes, previous) => {
+    if (
+      codes.length &&
+      !previous.length &&
+      editForm.value.routingMode === 'composite' &&
+      originalRoutingMode.value !== 'composite'
+    ) {
+      editForm.value.failoverConfig.enabled = true
+      editForm.value.failoverConfig.retryStatusCodes = [...codes]
+      editForm.value.failoverConfig.maxRetries = Math.max(
+        0,
+        editForm.value.memberTokenConfigs.length - 1,
+      )
+    }
+  })
 
   const getSortedChannelConfigs = (row: RelayTokenDto): RelayTokenChannelConfigDto[] => {
     const configs = [...(row.channelConfigs || [])]
@@ -1699,6 +1736,9 @@ export const useRelayTokenManagement = () => {
   const openEditDialog = async (row: RelayTokenDto) => {
     editMode.value = 'edit'
     currentEditId.value = row.id
+    originalRoutingMode.value = row.routingMode || 'ordered'
+    compositionModelIds.value = []
+    compositeDefaultRetryStatusCodes.value = []
     editDialogSectionNames.value = [...DEFAULT_EDIT_DIALOG_SECTIONS]
 
     const modelIdsList = row.allowedModels
@@ -1732,6 +1772,11 @@ export const useRelayTokenManagement = () => {
       ipWhitelist: splitIpWhitelistInput(row.ipWhitelist),
       allowedModelIdsList: modelIdsList,
       routingMode: routingToken.routingMode || 'ordered',
+      memberTokenConfigs: (row.memberTokenConfigs || []).map(({ tokenId, priority, enabled }) => ({
+        tokenId,
+        priority,
+        enabled,
+      })),
       automaticProxyPoolChannelId: routingToken.automaticProxyPoolChannelId || '',
       blockedAutomaticProxyPoolChannelIds: [
         ...new Set(
@@ -2153,6 +2198,37 @@ export const useRelayTokenManagement = () => {
     saving.value = true
     try {
       const routingMode = editForm.value.routingMode
+      const memberTokenConfigs =
+        routingMode === 'composite'
+          ? editForm.value.memberTokenConfigs.map((member, priority) => ({ ...member, priority }))
+          : undefined
+      if (routingMode === 'composite' && !memberTokenConfigs?.length)
+        throw createUserFacingError(i18ns.t('relay.compositionNoMembers'))
+      if (editMode.value === 'edit' && routingMode !== originalRoutingMode.value) {
+        const confirmed = await ElMessageBox.confirm(
+          i18ns.t('relay.compositionModeConfirm'),
+          i18ns.t('relay.routingMode'),
+          { type: 'warning' },
+        ).then(
+          () => true,
+          () => false,
+        )
+        if (!confirmed) return
+      }
+      if (routingMode === 'composite') {
+        const summary = memberTokenConfigs!
+          .map((member, index) => `#${index + 1} ${member.tokenId} ${member.enabled ? '✓' : '—'}`)
+          .join('\n')
+        const confirmed = await ElMessageBox.confirm(
+          `${i18ns.t('relay.compositionConfirm')}\n${summary}`,
+          i18ns.t('relay.routingModeComposite'),
+          { type: 'warning' },
+        ).then(
+          () => true,
+          () => false,
+        )
+        if (!confirmed) return
+      }
       const channelConfigs = routingMode === 'ordered' ? buildChannelConfigsPayload() : undefined
       const automaticProxyPoolChannelId = editForm.value.automaticProxyPoolChannelId.trim()
       if (
@@ -2209,6 +2285,7 @@ export const useRelayTokenManagement = () => {
           name: normalizedName || undefined,
           token: editForm.value.token.trim() || undefined,
           routingMode,
+          ...(memberTokenConfigs ? { memberTokenConfigs } : {}),
           automaticProxyPoolChannelId:
             routingMode === 'automatic-pool' ? automaticProxyPoolChannelId : undefined,
           blockedAutomaticProxyPoolChannelIds,
@@ -2242,6 +2319,7 @@ export const useRelayTokenManagement = () => {
           name: normalizedName || null,
           token: editForm.value.token.trim() || undefined,
           routingMode,
+          ...(memberTokenConfigs ? { memberTokenConfigs } : {}),
           automaticProxyPoolChannelId:
             routingMode === 'automatic-pool' ? automaticProxyPoolChannelId : null,
           blockedAutomaticProxyPoolChannelIds,
@@ -2606,6 +2684,8 @@ export const useRelayTokenManagement = () => {
   const formatChannelSummary = (row: RelayTokenDto) => {
     if (isAutomaticPoolToken(row)) return getAutomaticProxyPoolChannelName(row)
 
+    if (row.routingMode === 'composite')
+      return `${i18ns.t('relay.routingModeComposite')} · ${row.memberTokenConfigs?.length || 0}`
     const configs = getSortedChannelConfigs(row)
     if (!configs.length) return '-'
     const visibleText = getVisibleChannelConfigs(row)
@@ -2886,6 +2966,9 @@ export const useRelayTokenManagement = () => {
   )
 
   return {
+    currentEditId,
+    compositionModelIds,
+    compositeDefaultRetryStatusCodes,
     isDesktop,
     tokenTableRef,
     userOptions,
