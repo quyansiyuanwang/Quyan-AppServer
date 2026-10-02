@@ -240,6 +240,21 @@
                   >
                     {{ i18ns.t('relay.invalidOrderedAutomaticPool') }}
                   </el-tag>
+                  <template v-else-if="row.routingMode === 'composite'"
+                    ><el-tag size="small"
+                      >{{ i18ns.t('relay.routingModeComposite') }} ·
+                      {{ row.memberTokenConfigs?.length || 0 }}</el-tag
+                    ><el-tag
+                      v-if="
+                        row.memberTokenConfigs?.some(
+                          (member: { enabled: boolean; status: number }) => member.enabled && member.status !== 1,
+                        )
+                      "
+                      type="warning"
+                      size="small"
+                      >{{ i18ns.t('relay.compositionUnavailable') }}</el-tag
+                    ></template
+                  >
                   <template v-else-if="state.isAutomaticPoolToken(row)">
                     <el-tag size="small" type="success" effect="plain">
                       {{ state.getAutomaticProxyPoolChannelName(row) }}

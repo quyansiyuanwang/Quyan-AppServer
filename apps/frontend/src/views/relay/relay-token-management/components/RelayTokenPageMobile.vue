@@ -165,7 +165,13 @@
               />
             </div>
             <div class="token-mobile-card__header">
-              <div class="token-mobile-title">{{ row.name || i18ns.t('relay.unnamedToken') }}</div>
+              <div class="token-mobile-title">
+                {{ row.name || i18ns.t('relay.unnamedToken') }}
+                <el-tag v-if="row.routingMode === 'composite'" size="small"
+                  >{{ i18ns.t('relay.routingModeComposite') }} ·
+                  {{ row.memberTokenConfigs?.length || 0 }}</el-tag
+                >
+              </div>
               <el-tag v-if="row.status === MANAGED_STATUS.ENABLED" size="small" type="success">{{
                 i18ns.t('relay.enabled')
               }}</el-tag>

@@ -4120,6 +4120,29 @@ export default {
     tokenChannelSelectChannelsPlaceholder: 'Select channels to add',
     duplicateChannels: 'The same channel cannot be added twice',
     routingMode: 'Routing Mode',
+    routingModeComposite: 'Composite Token',
+    compositeHint:
+      'Combine your own tokens in order, including nested compositions. Request settings run outside-in; response conversion runs inside-out.',
+    compositionMembers: 'Ordered member tokens',
+    compositionSearch: 'Search owned tokens by name or ID',
+    compositionAdd: 'Add',
+    compositionRemove: 'Remove',
+    compositionMoveUp: 'Move up',
+    compositionMoveDown: 'Move down',
+    compositionPreview: 'Preview models and routes',
+    compositionPreviewHint:
+      'Preview shows capabilities and configured order. IP, quota and safety rules are checked at request time.',
+    compositionConfirm:
+      'Confirm these members and their order. Source tokens will not be modified:',
+    compositionModeConfirm:
+      'Changing routing mode clears the previous bindings while preserving the token value and historical usage. Continue?',
+    compositionUnavailable: 'Member unavailable',
+    compositionEnabled: 'Enable member',
+    compositionNoMembers: 'Add at least one member token',
+    compositionLoadModels: 'Load available models',
+    compositionNested: 'Nested members',
+    compositionMeteringHint:
+      'The entry and executed path each record usage, but balance and passes settle only once. Do not sum per-token usage as total spending.',
     routingModeOrdered: 'Ordered Channels',
     routingModeAutomaticPool: 'Automatic Proxy Pool',
     automaticProxyPoolChannel: 'Automatic Proxy Pool Channel',

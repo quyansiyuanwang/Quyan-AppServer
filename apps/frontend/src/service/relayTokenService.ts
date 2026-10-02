@@ -1,3 +1,8 @@
+import type {
+  RelayCompositionCandidatesDto,
+  RelayCompositionPreviewDto,
+  RelayCompositionPreviewRequest,
+} from '@/client/types.gen'
 import { useRequestStore } from '@/stores/request'
 import { CustomCode } from '@/constant/custom-code'
 import type {
@@ -51,6 +56,26 @@ class RelayTokenService {
     }
 
     return result as T
+  }
+
+  async getCompositionCandidates(params: {
+    page?: number
+    pageSize?: number
+    search?: string
+    editingTokenId?: string
+    selectedIds?: string
+    targetUserId?: string
+  }): Promise<RelayCompositionCandidatesDto> {
+    return this.unwrapResponse(
+      await relayApi.compositionCandidates({
+        params: { ...params, targetUserId: this.normalizeTargetUserId(params.targetUserId) },
+      }),
+    )
+  }
+  async previewComposition(
+    data: RelayCompositionPreviewRequest,
+  ): Promise<RelayCompositionPreviewDto> {
+    return this.unwrapResponse(await relayApi.previewComposition({ body: data }))
   }
 
   async getRequestDiagnostics(params: Record<string, string | number | undefined>) {
