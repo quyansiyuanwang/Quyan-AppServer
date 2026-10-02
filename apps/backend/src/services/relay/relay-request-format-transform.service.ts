@@ -2,6 +2,7 @@ import type { RelayConvertibleRequestFormat, RelayRequestFormatTransform } from 
 import { Transform } from "stream";
 
 type JsonObject = Record<string, any>;
+const SSE_CONVERSION_LIMITS = { eventChars: 1024 * 1024, retainedChars: 128 * 1024, blocks: 128 } as const;
 
 export class RelayFormatTransformError extends Error {
   constructor(message: string) {
@@ -446,7 +447,8 @@ export class RelaySseFormatTransform extends Transform {
   _transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null) => void) {
     try {
       this.pending += this.decoder.decode(chunk, { stream: true });
-      if (this.pending.length > 128 * 1024) throw new RelayFormatTransformError("Upstream SSE event exceeds 128KB");
+      if (this.pending.length > SSE_CONVERSION_LIMITS.eventChars)
+        throw new RelayFormatTransformError("Upstream SSE event exceeds conversion limit");
       const events = this.pending.split(/\r?\n\r?\n/);
       this.pending = events.pop() || "";
       for (const event of events) this.push(this.convertEvent(event));
@@ -465,20 +467,345 @@ export class RelaySseFormatTransform extends Transform {
     }
   }
 
+  private started = false;
+  private finished = false;
+  private id = "relay-converted";
+  private model = "";
+  private inputTokens = 0;
+  private outputTokens = 0;
+  private finishReason = "stop";
+  private outputText = "";
+  private textIndex: number | undefined;
+  private nextIndex = 0;
+  private sequence = 0;
+  private bufferedChars = 0;
+  private readonly tools = new Map<number, { index: number; id: string; name: string; args: string }>();
+  private readonly sourceTools = new Map<number, { id: string; name: string }>();
+
+  private frame(type: string, data: JsonObject): string {
+    if (this.target === "openai-responses") data = { ...data, sequence_number: this.sequence++ };
+    return `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+  }
+  private chat(delta: JsonObject, finish: string | null = null, usage?: JsonObject): string {
+    return `data: ${JSON.stringify({
+      id: this.id,
+      object: "chat.completion.chunk",
+      created: Math.floor(Date.now() / 1000),
+      model: this.model,
+      choices: [{ index: 0, delta, finish_reason: finish }],
+      ...(usage ? { usage } : {}),
+    })}\n\n`;
+  }
+  private response(status: string, output: JsonObject[] = []): JsonObject {
+    return {
+      id: this.id,
+      object: "response",
+      created_at: Math.floor(Date.now() / 1000),
+      model: this.model,
+      status,
+      output,
+      error: null,
+      incomplete_details: status === "incomplete" ? { reason: "max_output_tokens" } : null,
+      usage: {
+        input_tokens: this.inputTokens,
+        output_tokens: this.outputTokens,
+        total_tokens: this.inputTokens + this.outputTokens,
+      },
+    };
+  }
+  private start(): string {
+    if (this.started) return "";
+    this.started = true;
+    if (this.target === "anthropic")
+      return this.frame("message_start", {
+        message: {
+          id: this.id,
+          type: "message",
+          role: "assistant",
+          model: this.model,
+          content: [],
+          stop_reason: null,
+          stop_sequence: null,
+          usage: { input_tokens: this.inputTokens, output_tokens: 0 },
+        },
+      });
+    if (this.target === "openai-responses")
+      return this.frame("response.created", { response: this.response("in_progress") });
+    return this.chat({ role: "assistant", content: "" });
+  }
+  private retain(fragment: string): void {
+    this.bufferedChars += fragment.length;
+    if (this.bufferedChars > SSE_CONVERSION_LIMITS.retainedChars)
+      throw new RelayFormatTransformError("Converted stream output exceeds retention limit");
+  }
+  private textDelta(fragment: string): string {
+    if (!fragment) return "";
+    this.retain(fragment);
+    this.outputText += fragment;
+    if (this.target === "openai-chat-completions") return this.chat({ content: fragment });
+    let output = "";
+    if (this.textIndex === undefined) {
+      this.textIndex = this.nextIndex++;
+      if (this.target === "anthropic")
+        output += this.frame("content_block_start", {
+          index: this.textIndex,
+          content_block: { type: "text", text: "" },
+        });
+      else {
+        output += this.frame("response.output_item.added", {
+          output_index: this.textIndex,
+          item: { id: `${this.id}_message`, type: "message", role: "assistant", status: "in_progress", content: [] },
+        });
+        output += this.frame("response.content_part.added", {
+          output_index: this.textIndex,
+          item_id: `${this.id}_message`,
+          content_index: 0,
+          part: { type: "output_text", text: "", annotations: [] },
+        });
+      }
+    }
+    return (
+      output +
+      (this.target === "anthropic"
+        ? this.frame("content_block_delta", { index: this.textIndex, delta: { type: "text_delta", text: fragment } })
+        : this.frame("response.output_text.delta", {
+            output_index: this.textIndex,
+            item_id: `${this.id}_message`,
+            content_index: 0,
+            delta: fragment,
+          }))
+    );
+  }
+  private toolDelta(sourceIndex: number, id: string | undefined, name: string | undefined, fragment = ""): string {
+    let tool = this.tools.get(sourceIndex);
+    let output = "";
+    if (!tool) {
+      if (!id || !name) throw new RelayFormatTransformError("Stream tool metadata is missing");
+      if (this.tools.size >= SSE_CONVERSION_LIMITS.blocks)
+        throw new RelayFormatTransformError("Stream tool count exceeds conversion limit");
+      this.retain(id + name);
+      tool = { index: this.nextIndex++, id, name, args: "" };
+      this.tools.set(sourceIndex, tool);
+      if (this.target === "anthropic")
+        output += this.frame("content_block_start", {
+          index: tool.index,
+          content_block: { type: "tool_use", id, name, input: {} },
+        });
+      else if (this.target === "openai-responses")
+        output += this.frame("response.output_item.added", {
+          output_index: tool.index,
+          item: {
+            id: `${this.id}_tool_${tool.index}`,
+            type: "function_call",
+            call_id: id,
+            name,
+            arguments: "",
+            status: "in_progress",
+          },
+        });
+      else
+        output += this.chat({
+          tool_calls: [{ index: sourceIndex, id, type: "function", function: { name, arguments: "" } }],
+        });
+    }
+    this.retain(fragment);
+    tool.args += fragment;
+    if (!fragment) return output;
+    if (this.target === "anthropic")
+      return (
+        output +
+        this.frame("content_block_delta", {
+          index: tool.index,
+          delta: { type: "input_json_delta", partial_json: fragment },
+        })
+      );
+    if (this.target === "openai-responses")
+      return (
+        output +
+        this.frame("response.function_call_arguments.delta", {
+          output_index: tool.index,
+          item_id: `${this.id}_tool_${tool.index}`,
+          delta: fragment,
+        })
+      );
+    return output + this.chat({ tool_calls: [{ index: sourceIndex, function: { arguments: fragment } }] });
+  }
+  private finish(): string {
+    if (this.finished) return "";
+    this.finished = true;
+    let output = this.start();
+    if (this.target === "openai-chat-completions")
+      return (
+        output +
+        this.chat({}, this.tools.size ? "tool_calls" : this.finishReason, {
+          prompt_tokens: this.inputTokens,
+          completion_tokens: this.outputTokens,
+          total_tokens: this.inputTokens + this.outputTokens,
+        }) +
+        "data: [DONE]\n\n"
+      );
+    if (this.target === "anthropic") {
+      for (let index = 0; index < this.nextIndex; index++) output += this.frame("content_block_stop", { index });
+      return (
+        output +
+        this.frame("message_delta", {
+          delta: {
+            stop_reason: this.finishReason === "length" ? "max_tokens" : this.tools.size ? "tool_use" : "end_turn",
+            stop_sequence: null,
+          },
+          usage: { input_tokens: this.inputTokens, output_tokens: this.outputTokens },
+        }) +
+        this.frame("message_stop", {})
+      );
+    }
+    const items: Array<{ index: number; item: JsonObject }> = [];
+    if (this.textIndex !== undefined) {
+      const part = { type: "output_text", text: this.outputText, annotations: [] };
+      const item = {
+        id: `${this.id}_message`,
+        type: "message",
+        role: "assistant",
+        status: "completed",
+        content: [part],
+      };
+      output += this.frame("response.output_text.done", {
+        output_index: this.textIndex,
+        item_id: item.id,
+        content_index: 0,
+        text: this.outputText,
+      });
+      output += this.frame("response.content_part.done", {
+        output_index: this.textIndex,
+        item_id: item.id,
+        content_index: 0,
+        part,
+      });
+      items.push({ index: this.textIndex, item });
+    }
+    for (const tool of this.tools.values()) {
+      const item = {
+        id: `${this.id}_tool_${tool.index}`,
+        type: "function_call",
+        call_id: tool.id,
+        name: tool.name,
+        arguments: tool.args,
+        status: "completed",
+      };
+      output += this.frame("response.function_call_arguments.done", {
+        output_index: tool.index,
+        item_id: item.id,
+        arguments: tool.args,
+      });
+      items.push({ index: tool.index, item });
+    }
+    items.sort((a, b) => a.index - b.index);
+    for (const { index, item } of items)
+      output += this.frame("response.output_item.done", { output_index: index, item });
+    return (
+      output +
+      this.frame(this.finishReason === "length" ? "response.incomplete" : "response.completed", {
+        response: this.response(
+          this.finishReason === "length" ? "incomplete" : "completed",
+          items.map((item) => item.item),
+        ),
+      })
+    );
+  }
   private convertEvent(event: string): string {
-    const dataLine = event.split(/\r?\n/).find((line) => line.startsWith("data:"));
-    if (!dataLine) return `${event}\n\n`;
-    const raw = dataLine.slice(5).trim();
-    if (!raw || raw === "[DONE]") return "data: [DONE]\n\n";
+    if (this.source === this.target) return `${event}\n\n`;
+    const raw = event
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trimStart())
+      .join("\n")
+      .trim();
+    if (!raw) return "";
+    if (raw === "[DONE]") return this.finish();
     const value = JSON.parse(raw);
-    if (this.source === "openai-chat-completions" && this.target === "anthropic") {
-      const delta = value.choices?.[0]?.delta || {};
-      return `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: delta.content || "" } })}\n\n`;
+    if (value.error || value.type === "error" || value.type === "response.failed") {
+      this.finished = true;
+      const error = convertRelayError(value.error ? value : (value.response ?? value), this.target);
+      return this.target === "anthropic"
+        ? this.frame("error", error)
+        : this.target === "openai-responses"
+          ? this.frame("response.failed", { response: { ...this.response("failed"), error: error.error } })
+          : `data: ${JSON.stringify(error)}\n\n`;
     }
-    if (this.source === "anthropic" && this.target === "openai-chat-completions") {
-      const delta = value.delta?.text || "";
-      return `data: ${JSON.stringify({ id: value.message?.id || "relay-converted", object: "chat.completion.chunk", choices: [{ index: 0, delta: { content: delta }, finish_reason: value.type === "message_stop" ? "stop" : null }] })}\n\n`;
+    const info = value.message ?? value.response ?? value;
+    if (!this.started) {
+      this.id = info.id ?? this.id;
+      this.model = info.model ?? this.model;
     }
-    return `data: ${JSON.stringify(value)}\n\n`;
+    const usage = value.usage ?? info.usage;
+    if (usage) {
+      this.inputTokens = usage.prompt_tokens ?? usage.input_tokens ?? this.inputTokens;
+      this.outputTokens = usage.completion_tokens ?? usage.output_tokens ?? this.outputTokens;
+    }
+    if (this.source === "openai-chat-completions") {
+      const choice = value.choices?.[0];
+      if (choice?.finish_reason) this.finishReason = choice.finish_reason;
+      let output = this.start() + this.textDelta(choice?.delta?.content ?? "");
+      for (const call of choice?.delta?.tool_calls ?? [])
+        output += this.toolDelta(call.index ?? 0, call.id, call.function?.name, call.function?.arguments ?? "");
+      return output;
+    }
+    if (this.source === "anthropic") {
+      const type =
+        value.type ??
+        event
+          .split(/\r?\n/)
+          .find((line) => line.startsWith("event:"))
+          ?.slice(6)
+          .trim();
+      if (type === "message_stop") return this.finish();
+      if (type === "message_delta") {
+        this.finishReason =
+          value.delta?.stop_reason === "max_tokens"
+            ? "length"
+            : value.delta?.stop_reason === "tool_use"
+              ? "tool_calls"
+              : "stop";
+        return "";
+      }
+      let output = this.start();
+      if (type === "content_block_start" && value.content_block?.type === "tool_use") {
+        const block = value.content_block;
+        this.sourceTools.set(value.index, { id: block.id, name: block.name });
+        return (
+          output +
+          this.toolDelta(
+            value.index,
+            block.id,
+            block.name,
+            Object.keys(block.input ?? {}).length ? JSON.stringify(block.input) : "",
+          )
+        );
+      }
+      if (type === "content_block_delta") {
+        if (value.delta?.partial_json !== undefined) {
+          const tool = this.sourceTools.get(value.index);
+          return output + this.toolDelta(value.index, tool?.id, tool?.name, value.delta.partial_json);
+        }
+        return output + this.textDelta(value.delta?.text ?? "");
+      }
+      return output;
+    }
+    if (value.type === "response.completed" || value.type === "response.incomplete") {
+      this.finishReason = value.type === "response.incomplete" ? "length" : "stop";
+      return this.finish();
+    }
+    let output = this.start();
+    if (value.type === "response.output_text.delta") return output + this.textDelta(value.delta ?? "");
+    if (value.type === "response.output_item.added" && value.item?.type === "function_call") {
+      this.sourceTools.set(value.output_index, { id: value.item.call_id, name: value.item.name });
+      return (
+        output + this.toolDelta(value.output_index, value.item.call_id, value.item.name, value.item.arguments ?? "")
+      );
+    }
+    if (value.type === "response.function_call_arguments.delta") {
+      const tool = this.sourceTools.get(value.output_index);
+      return output + this.toolDelta(value.output_index, tool?.id, tool?.name, value.delta ?? "");
+    }
+    return output;
   }
 }
