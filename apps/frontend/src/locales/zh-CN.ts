@@ -4884,7 +4884,8 @@ const zhCN: DeepStringify<typeof en> = {
     fieldExtra: 'extra',
     fieldExtraDesc: '字符串，扩展字段，可自由补充需要展示的文本',
     relayTokenQuotaHelperTitle: 'Relay Token 额度助手',
-    relayTokenQuotaHelperDesc: '在下方粘贴 sk-rlt- 令牌，可直接从当前文档页面查询该令牌的额度摘要。',
+    relayTokenQuotaHelperDesc:
+      '在下方粘贴 sk-rlt- 令牌，可直接从当前文档页面查询该令牌的额度摘要。',
     relayTokenQuotaHelperPlaceholder: '请粘贴 relay token，例如：sk-rlt-xxx',
     relayTokenQuotaHelperButton: '查询 Relay Token 额度',
     relayTokenQuotaHelperResult: '查询结果',

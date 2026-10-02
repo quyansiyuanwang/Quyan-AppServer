@@ -5125,7 +5125,8 @@ export default {
     relayTokenQuotaHelperButton: 'Query Relay Token Quota',
     relayTokenQuotaHelperResult: 'Query Result',
     relayTokenQuotaHelperRequired: 'Please enter a relay token',
-    relayTokenQuotaHelperInvalid: 'Only relay tokens starting with sk-rlt- are supported (legacy rlt_ is accepted)',
+    relayTokenQuotaHelperInvalid:
+      'Only relay tokens starting with sk-rlt- are supported (legacy rlt_ is accepted)',
     relayTokenQuotaHelperLoadFailed: 'Failed to query relay token quota',
     goToTokens: 'Go to Token Management',
     goToAccessKeys: 'Go to AccessKey Management',

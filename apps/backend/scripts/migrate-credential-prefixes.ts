@@ -18,12 +18,20 @@ async function run(): Promise<void> {
     prisma.accessKey.findMany({ where: { key: { startsWith: "ak_" } }, select: { id: true, key: true } }),
     prisma.relayToken.findMany({ where: { token: { startsWith: "rlt_" } }, select: { id: true, token: true } }),
     prisma.oJAPIKey.findMany({ where: { key: { startsWith: "ojqa_" } }, select: { id: true, key: true } }),
-    prisma.developerProjectApiKey.findMany({ where: { keyPrefix: { startsWith: "dk_" } }, select: { id: true, keyHash: true, keyPrefix: true } }),
-    prisma.developerProductApiKey.findMany({ where: { keyPrefix: { startsWith: "dpk_" } }, select: { id: true, keyHash: true, keyPrefix: true } }),
+    prisma.developerProjectApiKey.findMany({
+      where: { keyPrefix: { startsWith: "dk_" } },
+      select: { id: true, keyHash: true, keyPrefix: true },
+    }),
+    prisma.developerProductApiKey.findMany({
+      where: { keyPrefix: { startsWith: "dpk_" } },
+      select: { id: true, keyHash: true, keyPrefix: true },
+    }),
   ]);
 
   console.log(`[credential-prefix-migration] mode=${apply ? "apply" : "dry-run"}`);
-  console.log(`[credential-prefix-migration] plaintext access=${accessKeys.length} relay=${relayTokens.length} oj=${ojKeys.length}`);
+  console.log(
+    `[credential-prefix-migration] plaintext access=${accessKeys.length} relay=${relayTokens.length} oj=${ojKeys.length}`,
+  );
   console.log(`[credential-prefix-migration] hashed project=${projectKeys.length} product=${productKeys.length}`);
 
   if (!apply) {
@@ -66,7 +74,9 @@ async function run(): Promise<void> {
     }
   });
 
-  console.log(`[credential-prefix-migration] migrated plaintext=${accessKeys.length + relayTokens.length + ojKeys.length}`);
+  console.log(
+    `[credential-prefix-migration] migrated plaintext=${accessKeys.length + relayTokens.length + ojKeys.length}`,
+  );
   console.log(`[credential-prefix-migration] rotated hashed=${rotated.length}`);
   if (rotated.length) {
     console.log("[credential-prefix-migration] one-time key delivery (store securely; values are not recoverable):");
