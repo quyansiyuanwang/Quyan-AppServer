@@ -2,7 +2,7 @@ import { watch } from 'vue'
 import type { RouteLocationNormalized, Router } from 'vue-router'
 import { flattenNavigationRoutes, navigationMenuDefinition } from '@/config/navigation-metadata'
 import type { SiteProfile } from '@/config/site-registry'
-import { i18ns, type I18nENAvailableKeys } from '@/locales'
+import { i18n, i18ns, localeMessagesVersion, type I18nENAvailableKeys } from '@/locales'
 
 type DocumentTitleKey = I18nENAvailableKeys
 
@@ -39,14 +39,26 @@ const getTitleKey = (route: Pick<RouteLocationNormalized, 'name' | 'meta'>) => {
 
 export const resolveDocumentTitle = (
   route: Pick<RouteLocationNormalized, 'name' | 'meta'>,
-  profile: Pick<SiteProfile, 'labelKey'>,
+  profile: Pick<SiteProfile, 'id' | 'labelKey'>,
 ) => {
-  const siteLabel = i18ns.t(profile.labelKey as DocumentTitleKey)
+  const siteLabel = resolveSafeLabel(profile.labelKey, profile.id)
   const titleKey = getTitleKey(route)
   if (!titleKey) return `Quyan · ${siteLabel}`
 
-  const pageLabel = i18ns.t(titleKey)
+  const pageLabel = resolveSafeLabel(titleKey, 'Page')
   return pageLabel === siteLabel ? `Quyan · ${siteLabel}` : `Quyan · ${pageLabel} · ${siteLabel}`
+}
+
+const resolveSafeLabel = (key: string, fallback: string) => {
+  if (i18n.global.te(key, i18ns.locale)) return i18ns.t(key as DocumentTitleKey)
+  if (import.meta.env.DEV) console.warn(`[document-title] Missing translation: ${key}`)
+  return fallback === 'Page'
+    ? key
+        .split('.')
+        .slice(-1)[0]!
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/^./, (value: string) => value.toUpperCase())
+    : fallback.replace(/[-_]/g, ' ').replace(/^./, (value: string) => value.toUpperCase())
 }
 
 export const installDocumentTitle = (router: Router, profile: SiteProfile) => {
@@ -56,6 +68,8 @@ export const installDocumentTitle = (router: Router, profile: SiteProfile) => {
   }
 
   router.afterEach((to) => apply(to))
-  watch(i18ns.refer, () => apply(router.currentRoute.value), { flush: 'post' })
+  watch([i18ns.refer, localeMessagesVersion], () => apply(router.currentRoute.value), {
+    flush: 'post',
+  })
   apply(router.currentRoute.value)
 }

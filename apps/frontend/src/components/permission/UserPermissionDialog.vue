@@ -1,14 +1,25 @@
 <template>
-  <el-dialog
+  <PermissionEditorDialog
     :model-value="modelValue"
-    @update:model-value="$emit('update:modelValue', $event)"
     :title="i18ns.t('UserPermissionDialog.title')"
-    width="1000px"
-    :close-on-click-modal="false"
+    :data="permissionTree"
+    v-model:permissions="effectivePermissions"
+    :hint="i18ns.t('UserPermissionDialog.canAddOrRemove')"
+    :total-label="i18ns.t('UserPermissionDialog.statEffective')"
+    :search-placeholder="i18ns.t('PermissionSelector.searchPlaceholder')"
+    :empty-text="i18ns.t('PermissionSelector.noMatchingPermissions')"
+    width="min(1000px, 96vw)"
+    :loading="loading"
+    :saving="saving"
+    :save-disabled="!user || !userPermissions"
+    :cancel-text="i18ns.t('cancel')"
+    :save-text="i18ns.t('save')"
+    @update:model-value="$emit('update:modelValue', $event)"
+    @save="handleSave"
   >
-    <div v-if="user && userPermissions" v-loading="loading">
+    <template #header>
       <!-- 用户信息头部 -->
-      <div class="user-info-header">
+      <div v-if="user && userPermissions" class="user-info-header">
         <div class="user-avatar">
           {{ (user.name || user.username || '?').charAt(0).toUpperCase() }}
         </div>
@@ -35,38 +46,32 @@
           </div>
         </div>
       </div>
-
-      <!-- Inherited permissions remain editable: unchecking one records a user-level removal. -->
-      <div class="permission-section">
-        <PermissionTreeSelector
-          v-model="effectivePermissions"
-          :data="permissionTree"
-          :search-placeholder="i18ns.t('PermissionSelector.searchPlaceholder')"
-          :empty-text="i18ns.t('PermissionSelector.noMatchingPermissions')"
-          filterable
-        />
-      </div>
-    </div>
+    </template>
 
     <template #footer>
-      <div style="display: flex; justify-content: space-between; width: 100%">
+      <div class="permission-dialog-footer">
         <el-button
           type="danger"
           plain
+          :disabled="!hasCustomPermissions || saving"
           @click="handleClearCustomPermissions"
-          :disabled="!hasCustomPermissions"
         >
           {{ i18ns.t('UserPermissionDialog.clearCustomPermissions') }}
         </el-button>
-        <div>
-          <el-button @click="handleCancel">{{ i18ns.t('cancel') }}</el-button>
-          <el-button type="primary" @click="handleSave" :loading="saving">{{
-            i18ns.t('save')
-          }}</el-button>
+        <div class="permission-dialog-actions">
+          <el-button :disabled="saving" @click="handleCancel">{{ i18ns.t('cancel') }}</el-button>
+          <el-button
+            type="primary"
+            :loading="saving"
+            :disabled="!user || !userPermissions"
+            @click="handleSave"
+          >
+            {{ i18ns.t('save') }}
+          </el-button>
         </div>
       </div>
     </template>
-  </el-dialog>
+  </PermissionEditorDialog>
 </template>
 
 <script setup lang="ts">
@@ -76,7 +81,7 @@ import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { UserDto, UserFullPermissionsDto, Permission } from '@/client/types.gen'
 import { ALL_PERMISSIONS } from '@/constant/permission'
 import { usePermissionStore } from '@/stores/permissionStore'
-import PermissionTreeSelector from './PermissionTreeSelector.vue'
+import PermissionEditorDialog from './PermissionEditorDialog.vue'
 import { i18ns } from '@/locales'
 import { buildGrantablePermissionTree } from '@/views/management/permission-tree'
 
@@ -272,6 +277,19 @@ const handleCancel = () => {
       gap: 8px;
     }
   }
+}
+
+.permission-dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.permission-dialog-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .permission-section {

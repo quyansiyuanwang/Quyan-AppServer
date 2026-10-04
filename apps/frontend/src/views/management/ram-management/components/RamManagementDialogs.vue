@@ -248,10 +248,12 @@
       </el-form-item>
       <el-form-item :label="i18ns.t('RamManagement.permissions')" prop="permissions">
         <div class="permission-tree-container">
-          <PermissionTreeSelector
+          <PermissionEditorPanel
             v-if="permissionTree.length > 0"
             v-model="policyForm.permissions"
             :data="permissionTree"
+            :hint="i18ns.t('GroupManagement.permissionAssignmentHint')"
+            :total-label="i18ns.t('RamManagement.permissions')"
             :search-placeholder="i18ns.t('PermissionSelector.searchPlaceholder')"
             :empty-text="i18ns.t('RamManagement.noGrantablePermissions')"
             filterable
@@ -346,7 +348,7 @@
 
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
-import PermissionTreeSelector from '@/components/permission/PermissionTreeSelector.vue'
+import PermissionEditorPanel from '@/components/permission/PermissionEditorPanel.vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { Permission } from '@/constant/permission'
+import { ALL_PERMISSIONS, Permission } from '@/constant/permission'
 import {
   buildGrantablePermissionTree,
   buildPermissionResourceGroups,
   filterGrantablePermissions,
+  getPermissionCategoryTranslationKey,
 } from '@/views/management/ram-permission-tree'
 
 const translateCategory = (key: string) => key
@@ -13,7 +14,9 @@ interface TreeNode {
 }
 
 const collectPermissionValues = (nodes: TreeNode[]): string[] =>
-  nodes.flatMap((node) => (node.children?.length ? collectPermissionValues(node.children) : [node.value]))
+  nodes.flatMap((node) =>
+    node.children?.length ? collectPermissionValues(node.children) : [node.value],
+  )
 
 describe('ram permission tree security filtering', () => {
   it('only includes permissions in the effective permission set', () => {
@@ -25,7 +28,9 @@ describe('ram permission tree security filtering', () => {
     })
 
     const values = collectPermissionValues(tree)
-    expect(values).toEqual(expect.arrayContaining([Permission.USER_READ, Permission.RAM_POLICY_CREATE]))
+    expect(values).toEqual(
+      expect.arrayContaining([Permission.USER_READ, Permission.RAM_POLICY_CREATE]),
+    )
     expect(values).not.toContain(Permission.USER_DELETE)
   })
 
@@ -102,7 +107,10 @@ describe('ram permission tree security filtering', () => {
         expect.objectContaining({ id: 'ram:user', permissions: [Permission.RAM_USER_READ] }),
         expect.objectContaining({ id: 'ram:policy', permissions: [Permission.RAM_POLICY_CREATE] }),
         expect.objectContaining({ id: 'product:kv', permissions: [Permission.PRODUCT_KV_READ] }),
-        expect.objectContaining({ id: 'product:push', permissions: [Permission.PRODUCT_PUSH_SEND] }),
+        expect.objectContaining({
+          id: 'product:push',
+          permissions: [Permission.PRODUCT_PUSH_SEND],
+        }),
       ]),
     )
   })
@@ -141,5 +149,25 @@ describe('ram permission tree security filtering', () => {
     expect(debug?.children).toEqual([
       expect.objectContaining({ value: Permission.DEBUG_ACCESS, label: '调试访问' }),
     ])
+  })
+  it('keeps every shared permission namespace in its own category', () => {
+    const namespaces = new Set(ALL_PERMISSIONS.map((permission) => permission.split(':')[0]))
+    const labels = [...namespaces].map((namespace) =>
+      getPermissionCategoryTranslationKey(namespace, 'label'),
+    )
+
+    expect(labels).toContain('RamManagement.permissionCategoryLabels.user')
+    expect(new Set(labels).size).toBe(labels.length)
+    for (const namespace of ['agent', 'carpool', 'developer', 'mcp', 'support']) {
+      expect(getPermissionCategoryTranslationKey(namespace, 'label')).toBe(
+        `RamManagement.permissionCategoryLabels.${namespace}`,
+      )
+    }
+  })
+
+  it('does not silently classify an unknown namespace as user management', () => {
+    expect(getPermissionCategoryTranslationKey('future_namespace', 'label')).toBe(
+      'RamManagement.permissionCategoryLabels.unknown',
+    )
   })
 })
