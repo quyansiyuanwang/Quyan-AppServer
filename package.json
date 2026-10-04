@@ -109,7 +109,10 @@
     "CD:check:backend:strict": "node scripts/check-cd-changes.mjs backend --strict",
     "CD:check:backend:allow-no-match": "node scripts/check-cd-changes.mjs backend --allow-no-match",
     "_14_lifecycle": "",
-    "prepare": "husky"
+    "prepare": "husky",
+    "_15_db_migrations": "",
+    "credential-prefix:migrate": "pnpm --filter @quyan/backend run credential-prefix:migrate",
+    "credential-prefix:migrate:apply": "pnpm --filter @quyan/backend run credential-prefix:migrate:apply"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
