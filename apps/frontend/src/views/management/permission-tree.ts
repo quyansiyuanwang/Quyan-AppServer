@@ -1,4 +1,5 @@
 import { ALL_PERMISSIONS } from '@/constant/permission'
+import type { I18nENAvailableKeys } from '@/locales'
 import {
   getPermissionCategory,
   getPermissionLabel,
@@ -6,6 +7,30 @@ import {
 } from '@/constant/permission-meta'
 
 const PERMISSION_CATEGORY_TRANSLATIONS = {
+  unknown: {
+    label: 'RamManagement.permissionCategoryLabels.unknown',
+    tooltip: 'RamManagement.permissionCategoryTooltips.unknown',
+  },
+  agent: {
+    label: 'RamManagement.permissionCategoryLabels.agent',
+    tooltip: 'RamManagement.permissionCategoryTooltips.agent',
+  },
+  carpool: {
+    label: 'RamManagement.permissionCategoryLabels.carpool',
+    tooltip: 'RamManagement.permissionCategoryTooltips.carpool',
+  },
+  developer: {
+    label: 'RamManagement.permissionCategoryLabels.developer',
+    tooltip: 'RamManagement.permissionCategoryTooltips.developer',
+  },
+  mcp: {
+    label: 'RamManagement.permissionCategoryLabels.mcp',
+    tooltip: 'RamManagement.permissionCategoryTooltips.mcp',
+  },
+  support: {
+    label: 'RamManagement.permissionCategoryLabels.support',
+    tooltip: 'RamManagement.permissionCategoryTooltips.support',
+  },
   user: {
     label: 'RamManagement.permissionCategoryLabels.user',
     tooltip: 'RamManagement.permissionCategoryTooltips.user',
@@ -126,12 +151,18 @@ const PERMISSION_CATEGORY_TRANSLATIONS = {
     label: 'RamManagement.permissionCategoryLabels.debug',
     tooltip: 'RamManagement.permissionCategoryTooltips.debug',
   },
-} as const
+} as const satisfies Record<
+  string,
+  {
+    label: Extract<I18nENAvailableKeys, `RamManagement.permissionCategoryLabels.${string}`>
+    tooltip: Extract<I18nENAvailableKeys, `RamManagement.permissionCategoryTooltips.${string}`>
+  }
+>
 
 type PermissionCategoryKey = keyof typeof PERMISSION_CATEGORY_TRANSLATIONS
 export type PermissionCategoryTranslationKey =
-  | (typeof PERMISSION_CATEGORY_TRANSLATIONS)[PermissionCategoryKey]['label']
-  | (typeof PERMISSION_CATEGORY_TRANSLATIONS)[PermissionCategoryKey]['tooltip']
+  | Extract<I18nENAvailableKeys, `RamManagement.permissionCategoryLabels.${string}`>
+  | Extract<I18nENAvailableKeys, `RamManagement.permissionCategoryTooltips.${string}`>
 
 const isPermissionCategoryKey = (value: string): value is PermissionCategoryKey =>
   value in PERMISSION_CATEGORY_TRANSLATIONS
@@ -141,9 +172,12 @@ export const getPermissionCategoryTranslationKey = (
   kind: 'label' | 'tooltip',
 ): PermissionCategoryTranslationKey => {
   if (!isPermissionCategoryKey(category)) {
+    if (import.meta.env.DEV) {
+      console.warn(`[permission-tree] Missing permission category translation: ${category}`)
+    }
     return kind === 'label'
-      ? PERMISSION_CATEGORY_TRANSLATIONS.user.label
-      : PERMISSION_CATEGORY_TRANSLATIONS.user.tooltip
+      ? 'RamManagement.permissionCategoryLabels.unknown'
+      : 'RamManagement.permissionCategoryTooltips.unknown'
   }
   return PERMISSION_CATEGORY_TRANSLATIONS[category][kind]
 }
@@ -311,30 +345,36 @@ export const buildGrantablePermissionTree = ({
   }
 
   return Array.from(categories.entries())
-    .map(([category, groups]) => ({
-      label: translateCategory(getPermissionCategoryTranslationKey(category, 'label')),
-      value: `category:${category}`,
-      tooltip: translateCategory(getPermissionCategoryTranslationKey(category, 'tooltip')),
-      children: groups.flatMap((group) => {
-        const permissions = group.permissions.map((permission) => ({
-          label: getPermissionLabel(permission, locale),
-          value: permission,
-          tooltip: getPermissionTooltip(permission, locale),
-        }))
+    .map(([category, groups]) => {
+      const categoryLabelKey = getPermissionCategoryTranslationKey(category, 'label')
+      const categoryTooltipKey = getPermissionCategoryTranslationKey(category, 'tooltip')
+      const fallbackLabel = humanize(category)
+      const isKnownCategory = isPermissionCategoryKey(category) && category !== 'unknown'
+      return {
+        label: isKnownCategory ? translateCategory(categoryLabelKey) : fallbackLabel,
+        value: `category:${category}`,
+        tooltip: isKnownCategory ? translateCategory(categoryTooltipKey) : fallbackLabel,
+        children: groups.flatMap((group) => {
+          const permissions = group.permissions.map((permission) => ({
+            label: getPermissionLabel(permission, locale),
+            value: permission,
+            tooltip: getPermissionTooltip(permission, locale),
+          }))
 
-        // A generic group has no meaningful resource label. Putting it directly below the
-        // category prevents redundant nodes such as "Redemption Codes > Redemption Codes".
-        if (group.resource === 'general') return permissions
+          // A generic group has no meaningful resource label. Putting it directly below the
+          // category prevents redundant nodes such as "Redemption Codes > Redemption Codes".
+          if (group.resource === 'general') return permissions
 
-        return [
-          {
-            label: getPermissionResourceLabel(category, group.resource, locale),
-            value: `resource:${group.id}`,
-            tooltip: translateCategory(getPermissionCategoryTranslationKey(category, 'tooltip')),
-            children: permissions,
-          },
-        ]
-      }),
-    }))
+          return [
+            {
+              label: getPermissionResourceLabel(category, group.resource, locale),
+              value: `resource:${group.id}`,
+              tooltip: isKnownCategory ? translateCategory(categoryTooltipKey) : fallbackLabel,
+              children: permissions,
+            },
+          ]
+        }),
+      }
+    })
     .sort((a, b) => a.label.localeCompare(b.label))
 }

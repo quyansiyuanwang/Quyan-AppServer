@@ -29,6 +29,11 @@ type DeepStringify<T> = {
 
 // 提取嵌套对象的所有键，使用分隔符连接
 // 如果值是字典则不把键联合进类型，只返回递归的嵌套键
+// Make every nested property optional while preserving leaf value types.
+// Lazy-loaded locale bundles implement only their own top-level messages,
+// while this type still checks them against the complete locale schema.
+type DeepPartial<T> = T extends Record<string, any> ? { [K in keyof T]?: DeepPartial<T[K]> } : T
+
 type NestedKeys<T, C extends string = '.'> =
   T extends Record<string, any>
     ? {
@@ -75,6 +80,7 @@ export type {
   Callable,
   ReverseMapping,
   DeepValues,
+  DeepPartial,
   NestedKeys,
   Assert,
   Equal,

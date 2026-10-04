@@ -31,6 +31,12 @@ describe('document title', () => {
     )
   })
 
+  it('uses the base site label instead of exposing a navigation key', () => {
+    expect(
+      resolveDocumentTitle(route('unknownRoute'), getKnownProfile('ai.management.qysyw.cn')),
+    ).toBe('Quyan · AI 中转运营')
+  })
+
   it('supports route-specific title keys and a site-only fallback', () => {
     expect(
       resolveDocumentTitle(

@@ -12,14 +12,17 @@ describe('lazy i18n locale loading', () => {
     document.cookie = 'appserver.preference.locale=; Max-Age=0; Path=/'
   })
 
-  it('loads only the saved locale during initialization', async () => {
-    setSharedLocaleCookie('en')
+  it('loads the saved locale site bundle and the fallback base bundle', async () => {
+    setSharedLocaleCookie('zh-CN')
     const { initializeI18n, i18n, getLocale } = await import('@/locales')
 
-    await initializeI18n()
+    await initializeI18n(5000, 'management-core')
 
-    expect(getLocale()).toBe('en')
-    expect(i18n.global.availableLocales).toEqual(['en'])
+    expect(getLocale()).toBe('zh-CN')
+    expect(i18n.global.availableLocales.sort()).toEqual(['en', 'zh-CN'])
+    expect(i18n.global.te('nav.siteManagementAi', 'zh-CN')).toBe(true)
+    expect(i18n.global.te('PermissionManagement.title', 'zh-CN')).toBe(true)
+    expect(i18n.global.te('nav.siteManagementAi', 'en')).toBe(true)
   })
 
   it('loads another locale only when it is selected', async () => {

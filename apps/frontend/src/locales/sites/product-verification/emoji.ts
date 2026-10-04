@@ -1,0 +1,7 @@
+// Locale bundle: product-verification/emoji.
+import type en from './en'
+import type { DeepStringify } from '@/types/common'
+
+const emoji: DeepStringify<typeof en> = {}
+
+export default emoji
