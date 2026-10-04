@@ -4,6 +4,7 @@ import { i18ns } from '@/locales'
 import {
   carpoolEventLabel,
   carpoolNextStep,
+  carpoolWorkflowStep,
   deadlineText,
   formatCarpoolMoney,
   formatCarpoolQuota,
@@ -30,6 +31,25 @@ const createOrder = (overrides: Partial<CarpoolOrderDto> = {}): CarpoolOrderDto 
   }) as CarpoolOrderDto
 
 describe('carpool view helpers', () => {
+  it('derives guided progress from existing order state without granting actions', () => {
+    expect(carpoolWorkflowStep()).toBe(0)
+    expect(carpoolWorkflowStep(createOrder({ activeMemberCount: 1 }))).toBe(1)
+    expect(carpoolWorkflowStep(createOrder({ activeMemberCount: 3 }))).toBe(2)
+    expect(
+      carpoolWorkflowStep(
+        createOrder({ activeMemberCount: 1, viewerActions: { canConfirm: true } }),
+      ),
+    ).toBe(2)
+    expect(carpoolWorkflowStep(createOrder({ activeMemberCount: 1, allConfirmed: true }))).toBe(3)
+    expect(carpoolWorkflowStep(createOrder({ activeMemberCount: 3, allConfirmed: true }))).toBe(3)
+    expect(carpoolWorkflowStep(createOrder({ state: 'submitted' }))).toBe(4)
+    expect(carpoolWorkflowStep(createOrder({ state: 'accepted' }))).toBe(4)
+    expect(carpoolWorkflowStep(createOrder({ state: 'fulfilled' }))).toBe(5)
+    expect(
+      carpoolWorkflowStep(createOrder({ state: 'failed', submittedAt: '2026-10-03T00:00:00Z' })),
+    ).toBe(4)
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })

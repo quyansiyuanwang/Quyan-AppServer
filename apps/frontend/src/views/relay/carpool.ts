@@ -81,3 +81,14 @@ export const carpoolEventLabel = (type: string) => {
   }
   return labels[type] ?? type
 }
+
+/** Presentation only: completed steps, never an authorization or business-state guard. */
+export const carpoolWorkflowStep = (order?: CarpoolOrderDto): number => {
+  if (!order) return 0
+  if (order.state === 'fulfilled') return 5
+  if (order.state === 'submitted' || order.state === 'accepted' || order.submittedAt) return 4
+  if (order.viewerActions?.canSubmit || (order.allConfirmed && order.activeMemberCount > 0))
+    return 3
+  if (order.viewerActions?.canConfirm || order.activeMemberCount > 1) return 2
+  return 1
+}

@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'oauth-app-management',
+  updatedAt: '2026-10-04',
   category: {
     en: 'Account',
     'zh-CN': '账号',

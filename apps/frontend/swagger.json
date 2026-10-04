@@ -30109,42 +30109,6 @@
 				]
 			}
 		},
-		"/v1/carpools/admin/{id}": {
-			"get": {
-				"operationId": "CarpoolControllerGetAdminOrder",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/CarpoolOrderDto"
-								}
-							}
-						}
-					}
-				},
-				"description": "Operations-only detail endpoint. The member-facing order endpoint must not be used by operators.",
-				"tags": [
-					"Carpool"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
 		"/v1/carpools/admin/delivery-channels": {
 			"get": {
 				"operationId": "CarpoolControllerListDeliveryChannels",
@@ -30199,6 +30163,42 @@
 						"in": "query",
 						"name": "orderId",
 						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/carpools/admin/{id}": {
+			"get": {
+				"operationId": "CarpoolControllerGetAdminOrder",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CarpoolOrderDto"
+								}
+							}
+						}
+					}
+				},
+				"description": "Operations-only detail endpoint. The member-facing order endpoint must not be used by operators.",
+				"tags": [
+					"Carpool"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "id",
+						"required": true,
 						"schema": {
 							"type": "string"
 						}

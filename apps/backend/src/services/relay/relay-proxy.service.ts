@@ -1,3 +1,4 @@
+import { filterBlockedAutomaticPoolCandidates } from "./relay-candidate-exclusions";
 import { relayConvertedRequestPath } from "./utils/relay-request-format.util";
 import { compositeSafetyService } from "./relay-composite-safety.service";
 import {
@@ -2078,22 +2079,10 @@ export class RelayProxyService {
       topLevelChannels,
       (pool, members, context) => this.orderPooledMemberChannels(pool, members, context),
     );
-    const blockedChannelIds = new Set(
-      Array.isArray(relayToken.blockedAutomaticProxyPoolChannelIds)
-        ? relayToken.blockedAutomaticProxyPoolChannelIds.reduce<string[]>((ids, channelId) => {
-            if (typeof channelId !== "string") return ids;
-            const normalizedChannelId = channelId.trim();
-            if (normalizedChannelId) ids.push(normalizedChannelId);
-            return ids;
-          }, [])
-        : [],
+    const channels = filterBlockedAutomaticPoolCandidates(
+      resolvedChannels,
+      relayToken.blockedAutomaticProxyPoolChannelIds,
     );
-    const channels = blockedChannelIds.size
-      ? resolvedChannels.filter(
-          (candidate) => !blockedChannelIds.has((candidate.billingChannel ?? candidate.resolvedChannel).id),
-        )
-      : resolvedChannels;
-
     const tokenFailoverConfig = await this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;
 

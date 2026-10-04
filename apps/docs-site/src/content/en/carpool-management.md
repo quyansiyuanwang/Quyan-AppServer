@@ -24,6 +24,10 @@ The workbench prioritizes pending work by default and provides state, keyword, a
 
 Users invite, allocate, and confirm while an order is open. The owner submits the carpool only after all required conditions are met; operations then continues the workflow.
 
+## Delivery dialog and order changes
+
+When an operator opens the delivery dialog, the page reloads the latest detail by order ID before loading channels allowed by that order snapshot. Confirmation and post-delivery refresh use the same order ID. If the order was already processed, deleted, or changed state, the dialog closes, the list refreshes, and the page asks the operator to refresh and retry. The server still validates existence, the accepted state, the channel snapshot, and channel eligibility.
+
 ## Accept, deliver, and fail with refund
 
 1. **Accept** a submitted order.

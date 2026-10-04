@@ -1144,6 +1144,31 @@ describe("RelayProxyService failover", () => {
     expect(result.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([firstMember.id]);
   });
 
+  it.each(["buildAttemptPlan", "buildAttemptPlanLegacy"])(
+    "%s excludes a direct member even when the automatic pool is billable",
+    async (method) => {
+      const pool = createChannel("automatic-root", "Automatic pool", "pool.example.com", {
+        channelType: "automatic-proxy-pool",
+      });
+      const keep = createChannel("keep-member", "Keep", "keep.example.com");
+      const blocked = createChannel("blocked-member", "Blocked", "blocked.example.com");
+      const { service, relayPoolResolver } = createService();
+      relayPoolResolver.resolveActiveLeafCandidates.mockResolvedValue([
+        { resolvedChannel: keep, displayChannel: pool, billingChannel: pool },
+        { resolvedChannel: blocked, displayChannel: pool, billingChannel: pool },
+      ]);
+      const result = await (service as any)[method]({
+        id: "test-token",
+        userId: "test-user",
+        routingMode: "automatic-pool",
+        automaticProxyPoolChannel: pool,
+        blockedAutomaticProxyPoolChannelIds: [" blocked-member "],
+      });
+      expect(result.channels.map((candidate: any) => candidate.resolvedChannel.id)).toEqual([keep.id]);
+      expect(result.channels[0].billingChannel.id).toBe(pool.id);
+    },
+  );
+
   it("infers the same available models for automatic and directly configured pools", async () => {
     const directToken = createRelayTokenWithPooledChannel();
     const automaticToken = createRelayTokenWithPooledChannel();

@@ -77,11 +77,16 @@ export interface RelayResolvedChannelCandidate {
   displayChannel: RelayChannel;
   /** User-facing billable channel. For automatic pools this is the direct pooled parent. */
   billingChannel?: RelayChannel;
+  /** Internal root-to-leaf identity, including legacy pooled members; never exposed in DTOs. */
+  routingChannelIds?: string[];
+  /** Same root/leaf constraints share one attempt after path exclusions have been applied. */
+  routingKey?: string;
 }
 
 interface ResolvedLeafPath {
   channel: RelayChannelGraphNode;
   constraints: EffectiveChannelConstraints;
+  ancestorChannelIds: string[];
 }
 
 export class RelayPoolResolverService {
@@ -190,10 +195,12 @@ export class RelayPoolResolverService {
       const resolved = await this.resolveLeafPaths(channel, graph, this.initialConstraints(), orderMembers, new Set());
       for (const path of resolved) {
         const leaf = this.applyConstraints(path.channel, path.constraints);
-        const signature = `${channel.id}\u0000${this.getLeafConstraintSignature(leaf)}`;
+        const signature = `${channel.id}\u0000${path.ancestorChannelIds.join("\u0000")}\u0000${this.getLeafConstraintSignature(leaf)}`;
         candidates.set(signature, {
           resolvedChannel: leaf,
           displayChannel: channel,
+          routingChannelIds: [...path.ancestorChannelIds, leaf.id],
+          routingKey: `${channel.id}\u0000${this.getLeafConstraintSignature(leaf)}`,
           billingChannel:
             leaf.pooledParentId && graph.get(leaf.pooledParentId)?.channelType === "pooled"
               ? graph.get(leaf.pooledParentId)!
@@ -259,7 +266,7 @@ export class RelayPoolResolverService {
 
     const constraints = this.mergeConstraints(inherited, channel);
     if (!["pooled", "automatic-proxy-pool"].includes(channel.channelType || "standalone"))
-      return [{ channel, constraints }];
+      return [{ channel, constraints, ancestorChannelIds: [...ancestors] }];
 
     const nextAncestors = new Set(ancestors).add(channel.id);
     const enabledMembers = channel.poolMembers.filter(

@@ -2,6 +2,16 @@
 
 Use this page to register OAuth 2.0 client applications for third-party integrations.
 
+## Integration quick start
+
+1. Choose a confidential or public client for the deployment shape.
+2. Register the exact Redirect URI used by the application.
+3. Select scopes using least privilege; if the scope catalog fails to load, retry before submitting.
+4. Create the app and submit it for review.
+5. Use the Client ID with the authorization-code flow; keep a confidential client secret on the server only.
+
+The management page shows the same checklist and links back to this guide.
+
 ## What OAuth is
 
 OAuth 2.0 is an **authorization protocol**. It allows a third-party application to access part of a user's account data or capabilities **without receiving the user's password directly**.

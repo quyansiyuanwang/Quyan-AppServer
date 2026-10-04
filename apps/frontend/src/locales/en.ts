@@ -745,6 +745,9 @@ export default {
     expandAll: 'Expand categories',
     collapseAll: 'Collapse categories',
     noGrantableScopes: 'No grantable permissions available',
+    loadFailed: 'Failed to load the scope catalog',
+    retry: 'Retry loading',
+    catalogUnavailable: 'The scope catalog is not loaded yet. Submission is unavailable.',
     categoryDescription: 'Browse available OAuth scopes by permission category.',
     categories: {
       identity: 'Account identity',
@@ -5257,6 +5260,16 @@ export default {
       created: 'Carpool created',
       viewDetail: 'View details',
       continue: 'Continue',
+      estimateHint: 'Full-seat equal-split estimate; confirm your actual share in the order.',
+      workflowTitle: 'Carpool flow',
+      workflowSteps: {
+        package: 'Choose a package',
+        invite: 'Invite members',
+        confirm: 'Member confirmation',
+        submit: 'Submit to depart',
+        fulfilled: 'Delivery complete',
+      },
+      nextAction: 'Next action',
     },
     detail: {
       orderId: 'Order {id}',
@@ -5308,6 +5321,8 @@ export default {
       sharedChannel: 'Delivery channel',
       deliveredSecurely: 'Delivery channel bound securely',
       deliveryAccess: 'Access',
+      monthlyPassLink: 'View my monthly passes',
+      relayTokenLink: 'Manage my Relay Tokens',
       deliveryAccessHint:
         'Your monthly pass and Relay Token were securely created in your account. Plaintext tokens are never displayed here.',
     },
@@ -5315,6 +5330,8 @@ export default {
       title: 'Carpool invitation',
       subtitle:
         'Accept a private carpool invitation; the owner assigns your payment and quota shares.',
+      previewUnavailable:
+        'For privacy, package details and the exact invitation expiry are not shown before acceptance. Confirm them with the owner first; the order summary appears after acceptance.',
       invalidLink: 'Invalid invitation link',
       invalidHint: 'The link has no token or was modified. Ask the owner for a new link.',
       intro:
@@ -5325,6 +5342,7 @@ export default {
         'The invitation may be expired, used, the carpool full, or the order closed. The server checks these states on acceptance.',
       unavailable: 'This invitation is unavailable',
       accept: 'Accept invitation',
+      continue: 'View carpool order',
       loginFirst: 'Sign in first',
       joined: 'Joined the carpool',
       acceptFailed: 'Could not accept the invitation. Check whether the link is still valid.',
@@ -5354,6 +5372,8 @@ export default {
       accepted: 'Order accepted',
       delivered: 'Monthly passes and Relay Tokens delivered',
       refunded: 'Order refunded and closed',
+      orderChanged: 'This order changed. Refresh and try again.',
+      operationFailed: 'The delivery operation failed. Please try again.',
     },
     packages: {
       title: 'Carpool package management',
@@ -5430,6 +5450,32 @@ export default {
       'Two-factor authentication is enabled for this account. AccessKey creation is protected by a step-up challenge, so no additional email code is required.',
   },
 
+  oauthGuide: {
+    authCenterDocsLink: 'Open Auth Center docs',
+    eyebrow: 'Integration quick start',
+    oauthTitle: 'OAuth app integration checklist',
+    oauthDescription: 'Follow these steps to avoid callback, scope, and review issues.',
+    docsLink: 'Open OAuth docs',
+    oauthSteps: {
+      clientType: 'Choose a confidential or public client.',
+      redirect: 'Register the exact Redirect URI used by your app.',
+      scopes: 'Select scopes using least privilege.',
+      review: 'Create the app and submit it for review.',
+      integrate:
+        'Use the Client ID; keep the Client Secret secure for confidential clients and implement the authorization-code flow.',
+    },
+    authCenterTitle: 'Auth Center integration checklist',
+    authCenterDescription:
+      'Choose the authorization scenario first, then configure redirect, PKCE, and least-privilege scopes.',
+    authCenterSteps: {
+      grantType: 'Choose grant types for the integration scenario.',
+      redirectPkce: 'Configure the Redirect URI and PKCE.',
+      scopes: 'Select the minimum required scopes.',
+      review: 'Create the app and submit it for review.',
+      integrate:
+        'Follow the authorization, token, discovery-endpoint, or SDK documentation to integrate.',
+    },
+  },
   oauthClient: {
     management: 'OAuth App Management',
     reviewManagement: 'OAuth App Reviews',

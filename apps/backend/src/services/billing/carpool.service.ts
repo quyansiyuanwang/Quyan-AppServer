@@ -652,10 +652,12 @@ export class CarpoolService {
   }
   async fulfill(orderId: string, relayChannelId: string, actorUserId?: string) {
     return this.repository.withTransaction(async (tx) => {
-      const order = await tx.carpoolOrder.findUniqueOrThrow({
+      const order = await tx.carpoolOrder.findUnique({
         where: { id: orderId },
         include: { members: true, packageTemplate: true },
       });
+      if (!order)
+        throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
       if (order.state !== "accepted")
         throw new BadRequestError("Carpool must be accepted before fulfillment", undefined, {
           messageKey: "carpool.acceptBeforeFulfillment",

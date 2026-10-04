@@ -915,6 +915,23 @@ describe('RelayTokenManagementView', () => {
       }),
     )
 
+    // Reopen the saved member IDs rather than using the automatic root ID.
+    const savedPayload = updateTokenMock.mock.calls.at(-1)?.[1]
+    vm.openEditDialog(
+      createRelayTokenFixture({
+        ...savedPayload,
+        automaticProxyPoolChannelId: automaticProxyPool.id,
+        channelConfigs: [],
+      }),
+    )
+    await flushPromises()
+    expect(vm.editForm.blockedAutomaticProxyPoolChannelIds).toEqual(['channel-secondary'])
+    await vm.handleSave()
+    expect(updateTokenMock).toHaveBeenLastCalledWith(
+      relayToken.id,
+      expect.objectContaining({ blockedAutomaticProxyPoolChannelIds: ['channel-secondary'] }),
+    )
+
     vm.openCreateDialog()
     await flushPromises()
     expect(wrapper.find('.blocked-automatic-pool-channel-select').exists()).toBe(false)

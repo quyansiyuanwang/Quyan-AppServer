@@ -109,7 +109,21 @@
         </el-form-item>
 
         <el-form-item :label="t('systemOAuth.scopes')" prop="scopes">
-          <OAuthScopeTreeSelector v-model="form.scopes" :scopes="scopeCatalog" />
+          <div v-loading="scopeCatalogLoading" class="scope-catalog-field">
+            <el-alert
+              v-if="scopeCatalogError"
+              type="error"
+              :closable="false"
+              :title="scopeCatalogError"
+            >
+              <template #default>
+                <el-button link type="primary" @click="loadScopeCatalog">{{
+                  t('oauthScopes.retry')
+                }}</el-button>
+              </template>
+            </el-alert>
+            <OAuthScopeTreeSelector v-model="form.scopes" :scopes="scopeCatalog" />
+          </div>
         </el-form-item>
 
         <el-form-item label="PKCE" prop="isPkceRequired">
@@ -130,7 +144,12 @@
 
       <template #footer>
         <el-button @click="showCreateDialog = false">{{ t('systemOAuth.cancel') }}</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">
+        <el-button
+          type="primary"
+          @click="handleSubmit"
+          :loading="submitting"
+          :disabled="!scopeCatalogReady"
+        >
           {{ isEditing ? t('systemOAuth.save') : t('systemOAuth.create') }}
         </el-button>
       </template>
@@ -189,16 +208,21 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Plus, Check, Close } from '@element-plus/icons-vue'
 import { OAuthClientService } from '@/service/oauthClientService'
+import { useOAuthScopeCatalog } from '@/composables/useOAuthScopeCatalog'
 import type { OAuthClientDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
-import OAuthScopeTreeSelector, {
-  type OAuthScopeOption,
-} from '@/components/oauth/OAuthScopeTreeSelector.vue'
+import OAuthScopeTreeSelector from '@/components/oauth/OAuthScopeTreeSelector.vue'
 
 type LocaleKey = Parameters<typeof i18ns.t>[0]
 const t = (key: LocaleKey, params?: Record<string, unknown>) => i18ns.t(key, params)
 const statusLabel = (status: string) => t(`systemOAuth.status.${status}` as LocaleKey)
-const scopeCatalog = ref<OAuthScopeOption[]>([])
+const {
+  scopeCatalog,
+  scopeCatalogLoading,
+  scopeCatalogError,
+  scopeCatalogReady,
+  loadScopeCatalog,
+} = useOAuthScopeCatalog()
 
 const oauthClientService = OAuthClientService.getInstance()
 
@@ -269,9 +293,13 @@ async function loadSystemClients() {
 }
 
 async function handleSubmit() {
-  await formRef.value.validate()
+  if (!scopeCatalogReady.value) {
+    ElMessage.warning(t('oauthScopes.catalogUnavailable'))
+    return
+  }
   submitting.value = true
   try {
+    if (!(await formRef.value.validate().catch(() => false))) return
     const payload: any = {
       clientId: form.clientId,
       name: form.name,
@@ -335,11 +363,6 @@ function parseJsonArray(value: string | string[]): string[] {
 onMounted(() => {
   void Promise.all([loadSystemClients(), loadScopeCatalog()])
 })
-
-async function loadScopeCatalog() {
-  const response = await oauthClientService.getOAuthScopes()
-  scopeCatalog.value = (response as { scopes: OAuthScopeOption[] }).scopes
-}
 </script>
 
 <style scoped lang="scss">
