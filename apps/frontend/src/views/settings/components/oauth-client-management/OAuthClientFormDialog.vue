@@ -89,7 +89,20 @@
       <div class="oauth-client-form__section">
         <div class="oauth-client-form__section-title">{{ i18ns.t('oauthClient.scopes') }}</div>
         <el-form-item :label="i18ns.t('oauthClient.scopes')" class="oauth-client-form__block-item">
-          <div class="oauth-scope-selector">
+          <div v-loading="props.scopeCatalogLoading" class="oauth-scope-selector">
+            <el-alert
+              v-if="props.scopeCatalogError"
+              type="error"
+              :closable="false"
+              :title="props.scopeCatalogError"
+              class="oauth-scope-selector__alert"
+            >
+              <template #default>
+                <el-button link type="primary" @click="emit('retry-scope-catalog')">
+                  {{ i18ns.t('oauthScopes.retry') }}
+                </el-button>
+              </template>
+            </el-alert>
             <OAuthScopeTreeSelector v-model="form.scopes" :scopes="props.scopeCatalog" />
             <div class="small-text text-secondary oauth-scope-selector__hint">
               {{ i18ns.t('oauthClient.scopePickerHint') }}
@@ -126,7 +139,12 @@
     </el-form>
     <template #footer>
       <el-button @click="visible = false">{{ i18ns.t('cancel') }}</el-button>
-      <el-button type="primary" :loading="props.submitting" @click="emit('submit')">
+      <el-button
+        type="primary"
+        :loading="props.submitting"
+        :disabled="!props.scopeCatalogReady || props.scopeCatalogLoading"
+        @click="emit('submit')"
+      >
         {{ i18ns.t('confirm') }}
       </el-button>
     </template>
@@ -159,12 +177,16 @@ const props = defineProps<{
   isDesktop: boolean
   submitting: boolean
   scopeCatalog: OAuthScopeOption[]
+  scopeCatalogLoading: boolean
+  scopeCatalogError: string
+  scopeCatalogReady: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'add-redirect-uri'): void
   (e: 'remove-redirect-uri', index: number): void
   (e: 'submit'): void
+  (e: 'retry-scope-catalog'): void
 }>()
 </script>
 

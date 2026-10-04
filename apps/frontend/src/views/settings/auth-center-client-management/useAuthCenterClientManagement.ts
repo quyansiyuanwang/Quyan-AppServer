@@ -3,6 +3,7 @@ import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { useI18n } from 'vue-i18n'
 import { usePageDevice } from '@/composables/usePageDevice'
+import { useOAuthScopeCatalog } from '@/composables/useOAuthScopeCatalog'
 import { i18ns } from '@/locales'
 import { AuthCenterClientService } from '@/service/authCenterClientService'
 import { CustomCode } from '@/constant/custom-code'
@@ -13,7 +14,6 @@ import type {
   CreateAuthCenterClientDto,
   UpdateAuthCenterClientDto,
 } from '@/client/types.gen'
-import type { OAuthScopeOption } from '@/components/oauth/OAuthScopeTreeSelector.vue'
 
 export type AuthCenterClientFormState = {
   name: string
@@ -91,7 +91,13 @@ export const useAuthCenterClientManagement = () => {
     },
   ])
 
-  const scopeCatalog = ref<OAuthScopeOption[]>([])
+  const {
+    scopeCatalog,
+    scopeCatalogLoading,
+    scopeCatalogError,
+    scopeCatalogReady,
+    loadScopeCatalog,
+  } = useOAuthScopeCatalog()
 
   const grantTypeRows = computed(() =>
     grantTypeOptions.value.map((item) => ({
@@ -175,11 +181,6 @@ export const useAuthCenterClientManagement = () => {
     } finally {
       loading.value = false
     }
-  }
-
-  const loadScopeCatalog = async () => {
-    const result = await authCenterClientService.getOAuthScopes()
-    scopeCatalog.value = (result as { scopes: OAuthScopeOption[] }).scopes
   }
 
   const resetForm = () => {
@@ -270,6 +271,11 @@ export const useAuthCenterClientManagement = () => {
 
     if (!form.value.scopes.length) {
       ElMessage.warning(t('authCenterClient.scopesRequired'))
+      return
+    }
+
+    if (!scopeCatalogReady.value) {
+      ElMessage.warning(t('oauthScopes.catalogUnavailable'))
       return
     }
 
@@ -411,6 +417,10 @@ export const useAuthCenterClientManagement = () => {
     isPkceLocked,
     grantTypeOptions,
     scopeCatalog,
+    scopeCatalogLoading,
+    scopeCatalogError,
+    scopeCatalogReady,
+    loadScopeCatalog,
     grantTypeRows,
     getReviewStatusLabel,
     getReviewStatusTagType,

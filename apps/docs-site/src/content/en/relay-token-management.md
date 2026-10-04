@@ -108,6 +108,10 @@ Content-Type: application/json
 
 The request format must be enabled for the token's channels, or have a matching token conversion rule. See `api-documentation` for complete curl examples, the Responses format, and image requests; see `relay-settings` to change channels, models, or formats.
 
+## Blocking automatic-pool members
+
+When a token uses an automatic proxy pool, you can block members that should not receive traffic for now. The UI saves and displays member IDs; the setting works for both direct and nested members without changing token billing rules. The server rejects members outside the selected pool, disabled members, and configurations that leave no usable member.
+
 ## Notes
 
 - Refreshing a token value immediately invalidates the old string; callers must update their configuration.

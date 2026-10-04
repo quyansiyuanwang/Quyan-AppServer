@@ -149,15 +149,7 @@ export class CarpoolController extends Controller {
   ): Promise<CarpoolOrderListResponse> {
     return this.service.listAdmin(state, page, pageSize, keyword);
   }
-  /** Operations-only detail endpoint. The member-facing order endpoint must not be used by operators. */
-  @Get("admin/{id}")
-  @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_READ)
-  @Middlewares(validateParams(carpoolIdParamsSchema))
-  public getAdminOrder(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
-    return this.service.getOrder(id, request.user!.userId, true);
-  }
-
+  // Static admin paths must precede admin/{id} in the generated Express router.
   @Get("admin/delivery-channels")
   @Security("jwt")
   @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
@@ -169,6 +161,15 @@ export class CarpoolController extends Controller {
     @Query() orderId?: string,
   ): Promise<CarpoolDeliveryChannelListResponse> {
     return this.service.listDeliveryChannels(page, pageSize, keyword, orderId);
+  }
+
+  /** Operations-only detail endpoint. The member-facing order endpoint must not be used by operators. */
+  @Get("admin/{id}")
+  @Security("jwt")
+  @RequirePermission(Permission.CARPOOL_ORDER_READ)
+  @Middlewares(validateParams(carpoolIdParamsSchema))
+  public getAdminOrder(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
+    return this.service.getOrder(id, request.user!.userId, true);
   }
 
   @Post()

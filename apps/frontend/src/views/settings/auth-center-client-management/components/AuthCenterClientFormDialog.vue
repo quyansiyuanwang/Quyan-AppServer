@@ -158,7 +158,20 @@
         <el-form-item
           class="auth-center-client-form__block-item auth-center-client-form__block-item--plain"
         >
-          <div class="auth-center-scope-selector">
+          <div v-loading="scopeCatalogLoading" class="auth-center-scope-selector">
+            <el-alert
+              v-if="scopeCatalogError"
+              type="error"
+              :closable="false"
+              :title="scopeCatalogError"
+              class="auth-center-scope-selector__alert"
+            >
+              <template #default>
+                <el-button link type="primary" @click="loadScopeCatalog">
+                  {{ i18ns.t('oauthScopes.retry') }}
+                </el-button>
+              </template>
+            </el-alert>
             <OAuthScopeTreeSelector v-model="form.scopes" :scopes="scopeCatalog" />
           </div>
         </el-form-item>
@@ -202,7 +215,12 @@
 
     <template #footer>
       <el-button @click="showFormDialog = false">{{ i18ns.t('cancel') }}</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">
+      <el-button
+        type="primary"
+        :loading="submitting"
+        :disabled="!scopeCatalogReady || scopeCatalogLoading"
+        @click="handleSubmit"
+      >
         {{ i18ns.t('confirm') }}
       </el-button>
     </template>
@@ -223,6 +241,10 @@ const {
   isPkceLocked,
   grantTypeOptions,
   scopeCatalog,
+  scopeCatalogLoading,
+  scopeCatalogError,
+  scopeCatalogReady,
+  loadScopeCatalog,
   addRedirectUriRow,
   removeRedirectUriRow,
   handleSubmit,

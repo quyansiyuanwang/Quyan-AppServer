@@ -4,6 +4,8 @@ import { ElMessage } from '@/utils/elementPlusRuntime'
 import { useRouter } from 'vue-router'
 import type { CarpoolOrderDto, CarpoolPackageTemplateDto } from '@/client/types.gen'
 import CarpoolStateTag from '@/components/carpool/CarpoolStateTag.vue'
+import CarpoolWorkflow from '@/components/carpool/CarpoolWorkflow.vue'
+import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { i18ns } from '@/locales'
 import { carpoolService } from '@/service/carpoolService'
 import {
@@ -38,6 +40,7 @@ const orderState = ref<string>()
 const keyword = ref('')
 const loadingPackages = ref(false)
 const loadingOrders = ref(false)
+const creating = ref(false)
 const packagesFailed = ref(false)
 const ordersFailed = ref(false)
 const loadPackages = async () => {
@@ -83,10 +86,18 @@ const search = async () => {
   await Promise.all([loadPackages(), loadOrders()])
 }
 const create = async (packageTemplateId: string) => {
-  const result = await carpoolService.create({ packageTemplateId })
-  const orderId = (result.data as CarpoolOrderDto).id
-  ElMessage.success(i18ns.t('carpool.view.created'))
-  await router.push({ name: 'carpoolDetail', params: { id: orderId } })
+  if (creating.value) return
+  creating.value = true
+  try {
+    const result = await carpoolService.create({ packageTemplateId })
+    const orderId = (result.data as CarpoolOrderDto).id
+    ElMessage.success(i18ns.t('carpool.view.created'))
+    await router.push({ name: 'carpoolDetail', params: { id: orderId } })
+  } catch (error) {
+    showRequestErrorNotice(error, i18ns.t('operationFailed'))
+  } finally {
+    creating.value = false
+  }
 }
 onMounted(() => void search())
 </script>
@@ -97,6 +108,11 @@ onMounted(() => void search())
       <h1>{{ i18ns.t('carpool.view.title') }}</h1>
       <p>{{ i18ns.t('carpool.view.subtitle') }}</p>
     </header>
+
+    <el-card class="workflow-card" shadow="never">
+      <template #header>{{ i18ns.t('carpool.view.workflowTitle') }}</template>
+      <CarpoolWorkflow />
+    </el-card>
 
     <div class="toolbar">
       <el-input
@@ -145,13 +161,15 @@ onMounted(() => void search())
               i18ns.t('carpool.common.hours', { hours: item.formationDeadlineHours })
             }}</el-descriptions-item>
           </el-descriptions>
-          <div class="package-footer">
-            <span>{{
+          <div class="package-price">
+            {{
               i18ns.t('carpool.view.estimatedSeat', {
                 price: formatCarpoolMoney(item.estimatedSeatPrice),
               })
-            }}</span>
-            <el-button type="primary" @click="create(item.id)">{{
+            }}<small>{{ i18ns.t('carpool.view.estimateHint') }}</small>
+          </div>
+          <div class="package-footer">
+            <el-button type="primary" :loading="creating" @click="create(item.id)">{{
               i18ns.t('carpool.view.initiate')
             }}</el-button>
           </div>
@@ -190,8 +208,28 @@ onMounted(() => void search())
       </template>
     </el-result>
     <el-empty v-else-if="!orders.length" :description="i18ns.t('carpool.common.emptyOrders')" />
+    <div v-else class="mobile-order-list">
+      <el-card v-for="row in orders" :key="row.id" class="order-card" shadow="never">
+        <div class="order-card__top">
+          <strong>{{ row.packageName }}</strong
+          ><CarpoolStateTag :state="row.state" />
+        </div>
+        <el-progress
+          :percentage="Math.round((row.activeMemberCount / row.maxMembers) * 100)"
+          :format="() => `${row.activeMemberCount}/${row.maxMembers}`"
+        />
+        <p class="muted">{{ i18ns.t('carpool.view.nextAction') }}：{{ carpoolNextStep(row) }}</p>
+        <el-button
+          type="primary"
+          link
+          @click="router.push({ name: 'carpoolDetail', params: { id: row.id } })"
+          >{{ i18ns.t('carpool.view.continue') }}</el-button
+        >
+      </el-card>
+    </div>
     <el-table
-      v-else
+      v-if="!loadingOrders && !ordersFailed && orders.length"
+      class="desktop-order-list"
       :data="orders"
       @row-click="
         (row: CarpoolOrderDto) => router.push({ name: 'carpoolDetail', params: { id: row.id } })
@@ -247,6 +285,22 @@ onMounted(() => void search())
   display: grid;
   gap: 18px;
 }
+.workflow-card {
+  background: linear-gradient(120deg, var(--el-color-primary-light-9), var(--el-bg-color));
+}
+.mobile-order-list {
+  display: none;
+  gap: 12px;
+}
+.order-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+}
 .toolbar,
 .order-heading,
 .package-footer {
@@ -254,6 +308,19 @@ onMounted(() => void search())
   gap: 12px;
   align-items: center;
   justify-content: space-between;
+}
+.order-heading h2 {
+  flex: 1;
+  margin: 0;
+}
+.order-heading :deep(.el-select) {
+  width: 220px;
+  flex: 0 0 220px;
+}
+.package-price small {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
 }
 .toolbar {
   max-width: 560px;
@@ -266,6 +333,13 @@ onMounted(() => void search())
   min-height: 40px;
   color: var(--el-text-color-secondary);
 }
+.package-price {
+  margin-top: 20px;
+  color: var(--el-color-primary);
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
 .package-footer {
   margin-top: 18px;
   font-weight: 600;
@@ -276,6 +350,16 @@ small {
   margin-top: 2px;
 }
 @media (max-width: 640px) {
+  .order-heading :deep(.el-select) {
+    width: 100%;
+    flex: none;
+  }
+  .mobile-order-list {
+    display: grid;
+  }
+  .desktop-order-list {
+    display: none;
+  }
   .toolbar,
   .order-heading,
   .package-footer {

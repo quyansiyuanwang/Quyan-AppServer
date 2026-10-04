@@ -177,7 +177,7 @@ describe("CarpoolService lifecycle guards", () => {
   it("rejects fulfillment with a channel outside the order's immutable snapshot", async () => {
     const tx = {
       carpoolOrder: {
-        findUniqueOrThrow: vi.fn().mockResolvedValue({
+        findUnique: vi.fn().mockResolvedValue({
           id: "order-1",
           state: "accepted",
           allowedChannels: '["channel-1"]',
@@ -192,6 +192,105 @@ describe("CarpoolService lifecycle guards", () => {
     const service = createService(repository);
 
     await expect(service.fulfill("order-1", "channel-2", "operator-1")).rejects.toBeInstanceOf(BadRequestError);
+  });
+
+  it("fulfills an accepted order and returns delivered resources for detail refresh", async () => {
+    const member = {
+      id: "member-1",
+      userId: "user-1",
+      user: { username: "test-member" },
+      role: "owner",
+      state: "confirmed",
+      paymentRatio: 100,
+      quotaRatio: 100,
+      payableAmount: 120,
+      finalQuota: 900,
+    };
+    const order = {
+      id: "order-1",
+      state: "accepted",
+      allocationMode: "equal",
+      packageName: "Test carpool",
+      salePrice: 120,
+      upstreamCost: 72,
+      totalQuota: 900,
+      quotaUnit: "credits",
+      validityDays: 30,
+      maxMembers: 3,
+      allowedChannels: '["channel-1"]',
+      members: [member, { ...member, id: "left-member", state: "left" }],
+      packageTemplate: { monthlyPassTemplateId: "pass-template-1" },
+      events: [],
+    };
+    const delivered = {
+      ...order,
+      state: "fulfilled",
+      relayChannelId: "channel-1",
+      relayChannel: { name: "Test channel" },
+      members: [{ ...member, state: "delivered", relayToken: { id: "token-1" }, userMonthlyPass: { id: "pass-1" } }],
+    };
+    const tx = {
+      carpoolOrder: {
+        findUnique: vi.fn().mockResolvedValue(order),
+        findUniqueOrThrow: vi.fn().mockResolvedValue(delivered),
+        update: vi.fn(),
+      },
+      relayChannel: { findFirst: vi.fn().mockResolvedValue({ id: "channel-1" }) },
+      monthlyPassTemplate: { findUnique: vi.fn().mockResolvedValue({ id: "pass-template-1", status: 0 }) },
+      userMonthlyPass: { create: vi.fn().mockResolvedValue({ id: "pass-1" }) },
+      relayToken: { create: vi.fn().mockResolvedValue({ id: "token-1" }) },
+      carpoolMember: { update: vi.fn() },
+      carpoolOrderEvent: { create: vi.fn() },
+    };
+    repository.withTransaction.mockImplementation((callback: (transaction: typeof tx) => Promise<unknown>) =>
+      callback(tx),
+    );
+    const result = await createService(repository).fulfill("order-1", "channel-1", "operator-1");
+    expect(result).toMatchObject({
+      id: "order-1",
+      state: "fulfilled",
+      relayChannelName: "Test channel",
+      members: [{ relayTokenId: "token-1", userMonthlyPassId: "pass-1", finalQuota: 900 }],
+    });
+    expect(JSON.stringify(result)).not.toContain("sk-rlt-");
+    expect(tx.relayChannel.findFirst).toHaveBeenCalledWith({
+      where: { id: "channel-1", status: 1, providerServiceEnabled: true, submissionStatus: "approved" },
+    });
+    expect(tx.userMonthlyPass.create).toHaveBeenCalledTimes(1);
+    expect(tx.relayToken.create).toHaveBeenCalledTimes(1);
+    expect(tx.carpoolOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "order-1" }, data: expect.objectContaining({ state: "fulfilled" }) }),
+    );
+  });
+
+  it.each(["open", "submitted", "fulfilled", "cancelled"])(
+    "rejects delivery in state %s before creating resources",
+    async (state) => {
+      const tx = {
+        carpoolOrder: { findUnique: vi.fn().mockResolvedValue({ id: "order-1", state }) },
+        userMonthlyPass: { create: vi.fn() },
+      };
+      repository.withTransaction.mockImplementation((callback: (transaction: typeof tx) => Promise<unknown>) =>
+        callback(tx),
+      );
+      await expect(createService(repository).fulfill("order-1", "channel-1")).rejects.toMatchObject({
+        messageKey: "carpool.acceptBeforeFulfillment",
+      });
+      expect(tx.userMonthlyPass.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it("reports a missing order with the carpool not-found error", async () => {
+    const tx = { carpoolOrder: { findUnique: vi.fn().mockResolvedValue(null) } };
+    repository.withTransaction.mockImplementation((callback: (transaction: typeof tx) => Promise<unknown>) =>
+      callback(tx),
+    );
+    const service = createService(repository);
+
+    await expect(service.fulfill("missing-order", "channel-1", "operator-1")).rejects.toMatchObject({
+      message: "Carpool order not found",
+      statusCode: 404,
+    });
   });
 
   it("rejects a custom allocation unless both active-member ratio totals are exactly 100", async () => {

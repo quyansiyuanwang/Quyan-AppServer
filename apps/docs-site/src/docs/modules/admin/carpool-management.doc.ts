@@ -17,7 +17,7 @@ export default defineDocsPage({
     'zh-CN': '说明拼车套餐配置、受理、受控交付和失败退款。',
   },
   tags: ['carpool', 'operations', 'delivery', 'refund'],
-  updatedAt: '2026-09-13',
+  updatedAt: '2026-10-04',
   content: {
     en: contentEn,
     'zh-CN': contentZh,
