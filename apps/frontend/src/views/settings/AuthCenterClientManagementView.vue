@@ -5,6 +5,7 @@
       state.isDesktop.value ? 'desktop-page page-shell' : 'auth-center-client-mobile mobile-page',
     ]"
   >
+    <ClientIntegrationGuide mode="auth-center" />
     <AuthCenterClientReferenceCard />
     <AuthCenterClientDesktop v-if="state.isDesktop.value" />
     <AuthCenterClientMobile v-else />
@@ -15,6 +16,7 @@
 
 <script setup lang="ts">
 import { provide } from 'vue'
+import ClientIntegrationGuide from '@/components/oauth/ClientIntegrationGuide.vue'
 import AuthCenterClientDesktop from './auth-center-client-management/components/AuthCenterClientDesktop.vue'
 import AuthCenterClientFormDialog from './auth-center-client-management/components/AuthCenterClientFormDialog.vue'
 import AuthCenterClientMobile from './auth-center-client-management/components/AuthCenterClientMobile.vue'

@@ -1,3 +1,4 @@
+import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
 import { z } from "zod";
 import {
   RELAY_CONVERTIBLE_REQUEST_FORMATS,
@@ -32,6 +33,50 @@ const relayTokenChannelConfigSchema = z.object({
   channelId: z.string().trim().min(1).max(50),
   priority: z.coerce.number().int().min(0).max(999),
 });
+
+const relayTokenMemberConfigsSchema = z
+  .array(
+    z.object({
+      tokenId: z.string().trim().min(1).max(50),
+      priority: z.coerce.number().int().min(0).max(999),
+      enabled: z.boolean().default(true),
+    }),
+  )
+  .min(1)
+  .max(RELAY_COMPOSITION_POLICY.maxMembers)
+  .superRefine((members, ctx) => {
+    if (
+      new Set(members.map((member) => member.tokenId)).size !== members.length ||
+      new Set(members.map((member) => member.priority)).size !== members.length
+    )
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "duplicate composite member or priority",
+        params: { messageKey: "relayToken.compositionInvalidMember" },
+      });
+  });
+const validateCompositionFields = (
+  value: {
+    routingMode?: string;
+    memberTokenConfigs?: unknown[];
+    channelId?: string | null;
+    channelConfigs?: unknown[];
+    automaticProxyPoolChannelId?: string | null;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (
+    (value.routingMode === "composite" &&
+      (value.channelId || value.channelConfigs?.length || value.automaticProxyPoolChannelId)) ||
+    (value.routingMode && value.routingMode !== "composite" && value.memberTokenConfigs?.length)
+  )
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "routing modes are mutually exclusive",
+      path: ["memberTokenConfigs"],
+      params: { messageKey: "relayToken.compositionMode" },
+    });
+};
 
 const blockedAutomaticProxyPoolChannelIdsSchema = z.array(z.string().trim().min(1).max(50)).max(100).optional();
 
@@ -130,7 +175,10 @@ const customTokenSchema = z
   .trim()
   .min(12)
   .max(200)
-  .regex(/^rlt_[a-zA-Z0-9]+$/, "custom token must start with rlt_ and contain only alphanumeric characters");
+  .regex(
+    /^(?:sk-rlt-[a-zA-Z0-9-]+|rlt_[a-zA-Z0-9]+)$/,
+    "custom token must use sk-rlt- (legacy rlt_ is accepted) and contain only letters, numbers, or hyphens",
+  );
 
 const relayRequestFormatTransformSchema = z.object({
   sourceFormat: z.enum(RELAY_CONVERTIBLE_REQUEST_FORMATS),
@@ -201,7 +249,8 @@ const relayTokenStreamConfigSchema = z.object({
 export const createRelayTokenBodySchema = z
   .object({
     targetUserId: z.string().trim().min(1).max(50).optional(),
-    routingMode: z.enum(["ordered", "automatic-pool"]).optional(),
+    routingMode: z.enum(["ordered", "automatic-pool", "composite"]).optional(),
+    memberTokenConfigs: relayTokenMemberConfigsSchema.optional(),
     automaticProxyPoolChannelId: z.string().trim().min(1).max(50).optional(),
     blockedAutomaticProxyPoolChannelIds: blockedAutomaticProxyPoolChannelIdsSchema,
     name: z.string().max(100).nullish(),
@@ -221,8 +270,17 @@ export const createRelayTokenBodySchema = z
     modelMapping: z.record(z.string(), z.string()).optional(),
   })
   .superRefine((value, ctx) => {
+    validateCompositionFields(value, ctx);
+    if (value.routingMode === "composite" && !value.memberTokenConfigs?.length)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "composite members required",
+        path: ["memberTokenConfigs"],
+        params: { messageKey: "relayToken.compositionSize" },
+      });
     if (
       value.routingMode !== "automatic-pool" &&
+      value.routingMode !== "composite" &&
       !value.channelId &&
       (!value.channelConfigs || value.channelConfigs.length === 0)
     )
@@ -306,7 +364,8 @@ export const createRelayTokenBodySchema = z
 export const updateRelayTokenBodySchema = z
   .object({
     targetUserId: z.string().trim().min(1).max(50).optional(),
-    routingMode: z.enum(["ordered", "automatic-pool"]).optional(),
+    routingMode: z.enum(["ordered", "automatic-pool", "composite"]).optional(),
+    memberTokenConfigs: relayTokenMemberConfigsSchema.optional(),
     automaticProxyPoolChannelId: z.string().trim().min(1).max(50).nullable().optional(),
     blockedAutomaticProxyPoolChannelIds: blockedAutomaticProxyPoolChannelIdsSchema,
     name: z.string().max(100).nullish(),
@@ -326,6 +385,7 @@ export const updateRelayTokenBodySchema = z
     modelMapping: z.record(z.string(), z.string()).nullable().optional(),
   })
   .superRefine((value, ctx) => {
+    validateCompositionFields(value, ctx);
     if (value.routingMode === "automatic-pool" && !value.automaticProxyPoolChannelId)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -417,7 +477,8 @@ const relayTokenImportItemSchema = z
     name: z.string().max(100).nullish(),
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
-    routingMode: z.enum(["ordered", "automatic-pool"]).optional(),
+    routingMode: z.enum(["ordered", "automatic-pool", "composite"]).optional(),
+    memberTokenConfigs: relayTokenMemberConfigsSchema.optional(),
     automaticProxyPoolChannelId: z.string().trim().min(1).max(50).optional(),
     blockedAutomaticProxyPoolChannelIds: blockedAutomaticProxyPoolChannelIdsSchema,
     channelId: z.string().trim().min(1).max(50).optional(),
@@ -433,8 +494,17 @@ const relayTokenImportItemSchema = z
     enabled: z.coerce.boolean().optional(),
   })
   .superRefine((value, ctx) => {
+    validateCompositionFields(value, ctx);
+    if (value.routingMode === "composite" && !value.memberTokenConfigs?.length)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "composite members required",
+        path: ["memberTokenConfigs"],
+        params: { messageKey: "relayToken.compositionSize" },
+      });
     if (
       value.routingMode !== "automatic-pool" &&
+      value.routingMode !== "composite" &&
       !value.channelId &&
       (!value.channelConfigs || value.channelConfigs.length === 0)
     )
@@ -654,3 +724,16 @@ export const relayRequestDiagnosticsQuerySchema = z.object({
     .refine((value) => validDateString(value), "endDate must be a valid date string")
     .optional(),
 });
+
+export const relayCompositionCandidatesQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().trim().max(100).optional(),
+  editingTokenId: z.string().trim().min(1).max(50).optional(),
+  selectedIds: z.string().max(1200).optional(),
+  targetUserId: z.string().trim().min(1).max(50).optional(),
+});
+
+export const relayCompositionPreviewBodySchema = createRelayTokenBodySchema.and(
+  z.object({ editingTokenId: z.string().trim().min(1).max(50).optional() }),
+);

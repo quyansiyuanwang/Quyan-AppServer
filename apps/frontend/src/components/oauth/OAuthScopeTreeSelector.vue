@@ -78,7 +78,9 @@ interface ScopeTreeNode {
   children?: ScopeTreeNode[]
 }
 
-const props = defineProps<{ modelValue: string[]; scopes: OAuthScopeOption[] }>()
+const props = withDefaults(defineProps<{ modelValue: string[]; scopes?: OAuthScopeOption[] }>(), {
+  scopes: () => [],
+})
 const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
 const treeRef = ref<TreeInstance>()
 const keyword = ref('')

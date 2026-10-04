@@ -55,6 +55,18 @@ vi.mock('@/service/relayTokenService', () => ({
     toggleTokenStatus: vi.fn(),
     deleteRelayToken: vi.fn(),
     getTokenSwitchLogs: getTokenSwitchLogsMock,
+    getCompositionCandidates: vi.fn(async () => ({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 20,
+      limits: {
+        maxMembers: 20,
+        maxDepth: 4,
+        maxLeafPaths: 100,
+        retryStatusCodes: ['408', '429', '500', '502', '503', '504'],
+      },
+    })),
   },
 }))
 
@@ -903,6 +915,23 @@ describe('RelayTokenManagementView', () => {
       }),
     )
 
+    // Reopen the saved member IDs rather than using the automatic root ID.
+    const savedPayload = updateTokenMock.mock.calls.at(-1)?.[1]
+    vm.openEditDialog(
+      createRelayTokenFixture({
+        ...savedPayload,
+        automaticProxyPoolChannelId: automaticProxyPool.id,
+        channelConfigs: [],
+      }),
+    )
+    await flushPromises()
+    expect(vm.editForm.blockedAutomaticProxyPoolChannelIds).toEqual(['channel-secondary'])
+    await vm.handleSave()
+    expect(updateTokenMock).toHaveBeenLastCalledWith(
+      relayToken.id,
+      expect.objectContaining({ blockedAutomaticProxyPoolChannelIds: ['channel-secondary'] }),
+    )
+
     vm.openCreateDialog()
     await flushPromises()
     expect(wrapper.find('.blocked-automatic-pool-channel-select').exists()).toBe(false)
@@ -1418,5 +1447,44 @@ describe('RelayTokenManagementView', () => {
 
     expect(clipboardWriteTextMock).toHaveBeenCalledWith(relayToken.token)
     expect(messageSuccessMock).toHaveBeenCalledTimes(1)
+  })
+  it('confirms composite members and saves them without direct channel bindings', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.openCreateDialog()
+    vm.editForm.routingMode = 'composite'
+    vm.editForm.memberTokenConfigs = [
+      { tokenId: 'owned-a', priority: 7, enabled: true },
+      { tokenId: 'owned-b', priority: 3, enabled: false },
+    ]
+    await flushPromises()
+    await vm.handleSave()
+    await flushPromises()
+    expect(confirmMock).toHaveBeenCalled()
+    const payload = createRelayTokenMock.mock.calls[0]![0]
+    expect(payload.routingMode).toBe('composite')
+    expect(payload.memberTokenConfigs).toEqual([
+      { tokenId: 'owned-a', priority: 0, enabled: true },
+      { tokenId: 'owned-b', priority: 1, enabled: false },
+    ])
+    expect(payload).not.toHaveProperty('channelId')
+    expect(payload).not.toHaveProperty('channelConfigs')
+    wrapper.unmount()
+  })
+  it('keeps edits intact when a routing mode switch is cancelled', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.openEditDialog(relayToken)
+    vm.editForm.routingMode = 'composite'
+    vm.editForm.memberTokenConfigs = [{ tokenId: 'owned-a', priority: 0, enabled: true }]
+    confirmMock.mockRejectedValueOnce('cancel')
+    await vm.handleSave()
+    await flushPromises()
+    expect(updateTokenMock).not.toHaveBeenCalled()
+    expect(vm.editForm.memberTokenConfigs).toHaveLength(1)
+    expect(vm.saving).toBe(false)
+    wrapper.unmount()
   })
 })

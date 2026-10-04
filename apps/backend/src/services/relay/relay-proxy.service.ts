@@ -1,5 +1,28 @@
+import { filterBlockedAutomaticPoolCandidates } from "./relay-candidate-exclusions";
+import { relayConvertedRequestPath } from "./utils/relay-request-format.util";
+import { compositeSafetyService } from "./relay-composite-safety.service";
+import {
+  RelayCompositeExecutorService,
+  CompositeBranchUnavailable,
+  bindCompositeContext,
+  forkCompositeContext,
+  getCompositeContext,
+  consumeCompositeAttempt,
+  type CompositeExecutionContext,
+} from "./relay-composite-executor.service";
+import {
+  cloneCompositeRequest,
+  compositeIngressRequest,
+  addCompositeTransform,
+  getCompositeTransforms,
+  compositeStreamResponse,
+  reverseCompositeResponse,
+} from "./relay-composite-transport.util";
+import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
+import { extractClientIp } from "@/util/ip-extractor";
+import { isIpWhitelisted } from "@/util/ip-whitelist.util";
 import axios from "axios";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import https from "https";
 import http from "http";
 import { ProxyAgent } from "proxy-agent";
@@ -278,7 +301,7 @@ export class RelayProxyService {
   private async createStreamForwarderHost(req?: any): Promise<Omit<RelayStreamForwarderHost, "forwardStreamRequest">> {
     const relayConfig = await this.relayConfigService.getRelayConfig();
     return {
-      contentSafetyService: this.contentSafetyService,
+      contentSafetyService: compositeSafetyService(this.contentSafetyService, getCompositeContext(req)),
       relayProxyRepository: this.relayProxyRepository,
       systemPreflightBufferLimitBytes: relayConfig.preflightBufferLimitBytes,
       finalizeStreamUsage: async (token, data) => {
@@ -389,6 +412,7 @@ export class RelayProxyService {
     await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      compositionTokenIds: getCompositeContext(relayToken)?.path.map((token) => token.id),
       requestId: this.getLogicalRequestId(req),
       requestTokens: 0,
       responseTokens: 0,
@@ -889,6 +913,13 @@ export class RelayProxyService {
     relayToken: RelayTokenAvailabilityInput,
     requestFormat: RelayRequestFormat,
   ): Promise<string[]> {
+    if (relayToken.routingMode === "composite" && relayToken.id)
+      return this.getCompositeModels(relayToken.id, requestFormat);
+    const transform = resolveRelayRequestFormatTransform(
+      relayToken.requestFormatTransforms,
+      requestFormat as RelayConvertibleRequestFormat,
+    );
+    requestFormat = transform?.targetFormat ?? requestFormat;
     const modelPricing = await this.modelPricingService.getModelPricing();
     const attemptPlan = await this.buildAttemptPlan(relayToken);
     const eligibleChannels = attemptPlan.channels
@@ -983,6 +1014,7 @@ export class RelayProxyService {
 
   async getAvailableModelMapForToken(relayToken: RelayTokenAvailabilityInput): Promise<{
     openai: string[];
+    responses: string[];
     anthropic: string[];
     gemini: string[];
   }> {
@@ -995,12 +1027,13 @@ export class RelayProxyService {
       }
     };
 
-    const [openai, anthropic, gemini] = await Promise.all([
+    const [openai, anthropic, gemini, responses] = await Promise.all([
       getModels("openai-chat-completions"),
       getModels("anthropic"),
       getModels("gemini"),
+      getModels("openai-responses"),
     ]);
-    return { openai, anthropic, gemini };
+    return { openai, anthropic, gemini, responses };
   }
 
   private rewriteGeminiModelPath(path: string, upstreamModelId: string): string {
@@ -2046,22 +2079,10 @@ export class RelayProxyService {
       topLevelChannels,
       (pool, members, context) => this.orderPooledMemberChannels(pool, members, context),
     );
-    const blockedChannelIds = new Set(
-      Array.isArray(relayToken.blockedAutomaticProxyPoolChannelIds)
-        ? relayToken.blockedAutomaticProxyPoolChannelIds.reduce<string[]>((ids, channelId) => {
-            if (typeof channelId !== "string") return ids;
-            const normalizedChannelId = channelId.trim();
-            if (normalizedChannelId) ids.push(normalizedChannelId);
-            return ids;
-          }, [])
-        : [],
+    const channels = filterBlockedAutomaticPoolCandidates(
+      resolvedChannels,
+      relayToken.blockedAutomaticProxyPoolChannelIds,
     );
-    const channels = blockedChannelIds.size
-      ? resolvedChannels.filter(
-          (candidate) => !blockedChannelIds.has((candidate.billingChannel ?? candidate.resolvedChannel).id),
-        )
-      : resolvedChannels;
-
     const tokenFailoverConfig = await this.getFailoverRuntimeConfig(relayToken);
     const singleTopLevelChannel = topLevelChannels.length === 1 ? topLevelChannels[0] : null;
 
@@ -2430,6 +2451,8 @@ export class RelayProxyService {
     if (!req || (typeof req !== "object" && typeof req !== "function")) return randomUUID();
 
     const requestObject = req as object;
+    const composite = getCompositeContext(requestObject);
+    if (composite) return composite.requestId;
     const existing = this.logicalRequestIds.get(requestObject);
     if (existing) return existing;
 
@@ -2605,6 +2628,7 @@ export class RelayProxyService {
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      compositionTokenIds: getCompositeContext(relayToken)?.path.map((token) => token.id),
       requestId: this.getLogicalRequestId(req),
       requestTokens: tokenBreakdown.requestTokens,
       responseTokens: tokenBreakdown.responseTokens,
@@ -2715,7 +2739,10 @@ export class RelayProxyService {
       authenticationState: "authenticated",
     });
     try {
-      const result = await this.forwardRequestInternal(relayToken, req, res);
+      const result =
+        relayToken.routingMode === "composite"
+          ? await this.forwardCompositeRequest(relayToken, req, res)
+          : await this.forwardRequestInternal(relayToken, req, res);
       const audit = getAIRequestLogContext(response);
       setAIRequestLogContext(response, {
         executionPending: false,
@@ -2731,11 +2758,401 @@ export class RelayProxyService {
     }
   }
 
+  private async compositionAllows(token: RelayTokenAvailabilityInput, ...names: string[]): Promise<boolean> {
+    const allowed = parseRelayTokenAllowedModelIds(token.allowedModels);
+    if (!allowed.length) return true;
+    const pricing = await this.modelPricingService.getModelPricing();
+    return names.some(
+      (name) =>
+        allowed.includes(name) ||
+        this.resolveRequestedModelConfigs(pricing, name).some((model) => isModelIdAllowed(allowed, model)),
+    );
+  }
+
+  private compositeLeafLimits(
+    token: RelayTokenWithRelations,
+    path: RelayTokenWithRelations[],
+  ): RelayTokenWithRelations {
+    const all = [...path, token];
+    const maximums = all
+      .map((node) => node.failoverConfig?.maxAcceptedChannelMultiplier)
+      .filter((value) => value != null)
+      .map(Number);
+    const rates = all
+      .map((node) => node.failoverConfig?.minCacheHitRate)
+      .filter((value) => value != null)
+      .map(Number);
+    if (!maximums.length && !rates.length) return token;
+    const base = token.failoverConfig ?? {
+      id: "effective-composite-policy",
+      relayTokenId: token.id,
+      enabled: false,
+      maxRetries: 2,
+      retryStatusCodes: [],
+      failoverThreshold: 0,
+      failbackCooldownMinutes: 0,
+      cacheHitRateMinSamples: 0,
+      cacheHitRateWindowHours: 0,
+      createTime: new Date(),
+      updateTime: new Date(),
+      maxAcceptedChannelMultiplier: null,
+      minCacheHitRate: null,
+    };
+    return {
+      ...token,
+      failoverConfig: {
+        ...base,
+        maxAcceptedChannelMultiplier: maximums.length ? new Prisma.Decimal(Math.min(...maximums)) : null,
+        minCacheHitRate: rates.length ? new Prisma.Decimal(Math.max(...rates)) : null,
+      },
+    };
+  }
+
+  private compositeStickyScope(token: RelayTokenWithRelations): string {
+    const revision = createHash("sha256")
+      .update(
+        JSON.stringify([
+          token.memberTokenConfigs.map(({ tokenId, priority, enabled }) => ({ tokenId, priority, enabled })),
+          token.failoverConfig,
+          token.modelMapping,
+          token.requestFormatTransforms,
+        ]),
+      )
+      .digest("hex")
+      .slice(0, 16);
+    return `composite:${token.id}:${revision}`;
+  }
+
+  private async compositeLeafCanServe(token: RelayTokenWithRelations, request: any): Promise<boolean> {
+    const source = this.getRequestFormat(request);
+    const format =
+      resolveRelayRequestFormatTransform(token.requestFormatTransforms, source as RelayConvertibleRequestFormat)
+        ?.targetFormat ?? source;
+    const model = String(this.extractRequestedModel(request, source) ?? "").trim();
+    const pricing = await this.modelPricingService.getModelPricing();
+    const allowed = parseRelayTokenAllowedModelIds(token.allowedModels);
+    const plan = await this.buildAttemptPlan(token);
+    return plan.channels.some((candidate) => {
+      const channel = candidate.resolvedChannel;
+      if (!supportsRelayRequestFormat(channel.allowedFormats, format)) return false;
+      const maximum = token.failoverConfig?.maxAcceptedChannelMultiplier;
+      if (maximum != null && Number(channel.multiplier) > Number(maximum)) return false;
+      const mapped = resolveMappedModel(
+        model,
+        channel.modelMapping as Record<string, string>,
+        token.modelMapping as Record<string, string>,
+      );
+      const models = this.resolveRequestedModelConfigs(pricing, mapped).filter((config) =>
+        supportsRelayRequestFormat(config.supportedFormats, format),
+      );
+      const effective = this.resolveChannelModelConfig(channel, mapped, models);
+      if (!effective) return false;
+      return (
+        !allowed.length ||
+        isModelIdAllowed(allowed, effective) ||
+        this.resolveRequestedModelConfigs(pricing, model).some((config) => isModelIdAllowed(allowed, config))
+      );
+    });
+  }
+
+  async getCompositeCatalog(
+    id: string,
+    format: RelayRequestFormat,
+    snapshot?: Map<string, RelayTokenWithRelations>,
+  ): Promise<Array<{ model: string; tokenPathIds: string[] }>> {
+    snapshot ??= await this.relayTokenRepo.loadCompositionSnapshot(id);
+    const graph = snapshot;
+    const visit = async (
+      token: RelayTokenWithRelations,
+      requestFormat: RelayRequestFormat,
+      path: Set<string>,
+      requested: string[] = [],
+    ): Promise<Array<{ model: string; tokenPathIds: string[] }>> => {
+      if (
+        path.has(token.id) ||
+        path.size > RELAY_COMPOSITION_POLICY.maxDepth ||
+        token.status !== 1 ||
+        (token.expiresAt && token.expiresAt < new Date())
+      )
+        return [];
+      if (token.routingMode !== "composite") {
+        try {
+          const models = new Set(await this.getAvailableModelsForToken(token, requestFormat));
+          // Explicit aliases can name a model on an unrestricted channel without exposing the global pricing catalog.
+          for (const model of new Set([
+            ...requested,
+            ...Object.keys((token.modelMapping as Record<string, string>) ?? {}).filter((key) => !/[?*]/.test(key)),
+          ])) {
+            const path =
+              requestFormat === "gemini"
+                ? `/relay/proxy/v1beta/models/${encodeURIComponent(model)}:generateContent`
+                : `/relay/proxy${relayConvertedRequestPath(requestFormat as RelayConvertibleRequestFormat)}`;
+            if (await this.compositeLeafCanServe(token, { path, body: { model } })) models.add(model);
+          }
+          return [...models].map((model) => ({ model, tokenPathIds: [token.id] }));
+        } catch (error) {
+          if (error instanceof BadRequestError) return [];
+          throw error;
+        }
+      }
+      const transform = resolveRelayRequestFormatTransform(
+        token.requestFormatTransforms,
+        requestFormat as RelayConvertibleRequestFormat,
+      );
+      const target = transform?.targetFormat ?? requestFormat;
+      const entries: Array<{ model: string; tokenPathIds: string[] }> = [];
+      for (const edge of [...token.memberTokenConfigs].sort((a, b) => a.priority - b.priority)) {
+        const child = graph.get(edge.tokenId);
+        if (!edge.enabled || !child || child.userId !== token.userId) continue;
+        const mapping = token.modelMapping as Record<string, string> | null;
+        const targets = [
+          ...requested.map((model) => resolveMappedModel(model, undefined, mapping)),
+          ...Object.values(mapping ?? {}),
+        ];
+        const available = await visit(child, target, new Set(path).add(token.id), targets);
+        const candidates = new Set([
+          ...available.map((item) => item.model),
+          ...Object.keys(mapping ?? {}).filter((key) => !/[?*]/.test(key)),
+        ]);
+        for (const model of candidates) {
+          const mapped = resolveMappedModel(model, undefined, mapping);
+          if (!(await this.compositionAllows(token, model, mapped))) continue;
+          for (const candidate of available)
+            if (candidate.model === mapped)
+              entries.push({ model, tokenPathIds: [token.id, ...candidate.tokenPathIds] });
+        }
+      }
+      return entries;
+    };
+    const root = graph.get(id);
+    return root ? visit(root, format, new Set()) : [];
+  }
+
+  private async getCompositeModels(id: string, format: RelayRequestFormat): Promise<string[]> {
+    return [...new Set((await this.getCompositeCatalog(id, format)).map((item) => item.model))].sort();
+  }
+
+  private async forwardCompositeRequest(entry: RelayTokenWithRelations, req: any, res?: any) {
+    const snapshot = await this.relayTokenRepo.loadCompositionSnapshot(entry.id);
+    const root = snapshot.get(entry.id);
+    if (!root) throw new CompositeBranchUnavailable();
+    const response = req.res ?? res;
+    const abort = new AbortController();
+    const cancelRequest = () => abort.abort();
+    const cancelResponse = () => {
+      if (!response?.writableEnded) abort.abort();
+    };
+    const context: CompositeExecutionContext = {
+      signal: abort.signal,
+      entryTokenId: entry.id,
+      requestId: this.getLogicalRequestId(req),
+      attempts: 0,
+      path: [],
+      retryStatusCodes: [],
+    };
+    let body = req.body;
+    if (Buffer.isBuffer(body) && String(req.headers?.["content-type"]).includes("json")) {
+      try {
+        body = JSON.parse(body.toString("utf8"));
+      } catch {
+        throw new BadRequestError("Invalid composite JSON request", undefined, {
+          messageKey: "relayProxy.invalidJsonBody",
+        });
+      }
+    }
+    const original = compositeIngressRequest(req, body);
+    req.once?.("aborted", cancelRequest);
+    response?.once?.("close", cancelResponse);
+    try {
+      return await new RelayCompositeExecutorService().execute(root, snapshot, original, context, {
+        committed: () => Boolean(response?.headersSent || response?.writableEnded),
+        cancelled: () => Boolean(response?.destroyed || req.aborted),
+        orderMembers: async (token, input, members) => {
+          if (!token.failoverConfig?.enabled || !token.failoverConfig.failbackCooldownMinutes) return members;
+          const preferred = await this.getStickyPreferredChannelId({
+            relayTokenId: this.compositeStickyScope(token),
+            requestFormat: this.getRequestFormat(input),
+            requestedModel: String(this.extractRequestedModel(input, this.getRequestFormat(input)) ?? ""),
+            failbackCooldownMinutes: token.failoverConfig.failbackCooldownMinutes,
+          });
+          const edge = members.find((member) => member.enabled && member.tokenId === preferred);
+          return edge ? [edge, ...members.filter((member) => member !== edge)] : members;
+        },
+        succeeded: async (token, input, memberId) => {
+          if (!token.failoverConfig?.failbackCooldownMinutes) return;
+          await this.setStickyPreferredChannel({
+            relayTokenId: this.compositeStickyScope(token),
+            channelId: memberId,
+            requestFormat: this.getRequestFormat(input),
+            requestedModel: String(this.extractRequestedModel(input, this.getRequestFormat(input)) ?? ""),
+            failbackCooldownMinutes: token.failoverConfig.failbackCooldownMinutes,
+          });
+        },
+        check: async (token, input, ancestors) => {
+          const reject = () => {
+            if (token.id === root.id)
+              throw new BadRequestError("Composite entry is unavailable", undefined, {
+                messageKey: "relayToken.invalid",
+              });
+            throw new CompositeBranchUnavailable();
+          };
+          if (
+            token.status !== 1 ||
+            (token.expiresAt && token.expiresAt < new Date()) ||
+            (token.ipWhitelist && !isIpWhitelisted(extractClientIp(req), token.ipWhitelist))
+          )
+            reject();
+          try {
+            await this.assertRelayTokenQuotaAvailable(token);
+          } catch (error) {
+            if (token.id === root.id) throw error;
+            throw new CompositeBranchUnavailable();
+          }
+          if (token.routingMode !== "composite") {
+            try {
+              if (!(await this.compositeLeafCanServe(this.compositeLeafLimits(token, ancestors), input)))
+                throw new CompositeBranchUnavailable();
+            } catch (error) {
+              if (error instanceof BadRequestError) throw new CompositeBranchUnavailable();
+              throw error;
+            }
+          }
+        },
+        prepare: async (token, input) => {
+          const source = this.getRequestFormat(input);
+          const model = String(this.extractRequestedModel(input, source) ?? "").trim();
+          if (!model)
+            throw new BadRequestError("Model is required", undefined, { messageKey: "relayProxy.modelRequired" });
+          const mapped = resolveMappedModel(model, undefined, token.modelMapping as Record<string, string>);
+          if (!(await this.compositionAllows(token, model, mapped))) {
+            if (token.id === root.id)
+              throw new BadRequestError("Entry model is not allowed", undefined, {
+                messageKey: "relayProxy.tokenModelNotAllowed",
+              });
+            throw new CompositeBranchUnavailable();
+          }
+          const transform = resolveRelayRequestFormatTransform(
+            token.requestFormatTransforms,
+            source as RelayConvertibleRequestFormat,
+          );
+          let converted = Buffer.isBuffer(input.body) ? Buffer.from(input.body) : structuredClone(input.body);
+          if (transform) {
+            try {
+              converted = convertRelayRequest(converted, transform.sourceFormat, transform.targetFormat);
+            } catch {
+              throw new BadRequestError("Unsupported composite request conversion", undefined, {
+                messageKey: "relayToken.formatTransformUnsupported",
+              });
+            }
+          }
+          const target = transform?.targetFormat ?? source;
+          if (converted && typeof converted === "object" && !Buffer.isBuffer(converted) && target !== "gemini")
+            converted.model = mapped;
+          if (target === "anthropic")
+            converted = normalizeAnthropicRequestBeforeSend(
+              converted,
+              mapped,
+              normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
+            );
+          const safety = await this.contentSafetyService.evaluate(
+            "request",
+            Buffer.isBuffer(converted) ? converted.toString("utf8") : JSON.stringify(converted),
+            { userId: token.userId, tokenConfig: token.contentSafetyConfig as any },
+          );
+          if (safety.matched)
+            await this.contentSafetyService.recordIncident({
+              userId: token.userId,
+              relayTokenId: token.id,
+              requestId: context.requestId,
+              direction: "request",
+              evaluation: safety,
+              model: mapped,
+              request: req,
+            });
+          if (safety.action === "unreachable") throw new ContentSafetyBlockedError();
+          if (safety.action === "blackhole") {
+            try {
+              converted = JSON.parse(safety.text);
+            } catch {
+              throw new ContentSafetyBlockedError();
+            }
+          }
+          const rewrittenPath = transform
+            ? `/relay/proxy${relayConvertedRequestPath(transform.targetFormat)}`
+            : mapped !== model
+              ? `/relay/proxy${this.buildUpstreamPath(input.path, target, mapped)}`
+              : input.path;
+          const request = cloneCompositeRequest(input, {
+            body: converted,
+            originalUrl: rewrittenPath,
+            url: rewrittenPath,
+            path: rewrittenPath,
+            headers: { ...input.headers },
+          });
+          delete request.headers["content-length"];
+          if (transform)
+            addCompositeTransform(request, { source: transform.sourceFormat, target: transform.targetFormat });
+          return request;
+        },
+        execute: async (token, input, execution) => {
+          const limits = execution.path
+            .map((node) => (node.streamConfig as any)?.preflightBufferLimitBytes)
+            .filter((limit): limit is number => Number.isFinite(limit));
+          const normalizers = execution.path.map((node) => normalizeRelayTokenNormalizerConfig(node.normalizerConfig));
+          const leafNormalizer = normalizeRelayTokenNormalizerConfig(token.normalizerConfig);
+          const leaf = {
+            ...this.compositeLeafLimits(token, execution.path.slice(0, -1)),
+            normalizerConfig: {
+              ...leafNormalizer,
+              enabled: normalizers.some((n) => n.enabled),
+              thinkingSignature: normalizers.some((n) => n.enabled && n.thinkingSignature),
+              thinkingBudget: normalizers.some((n) => n.enabled && n.thinkingBudget),
+              unsupportedImage: normalizers.some((n) => n.enabled && n.unsupportedImage),
+              textOnlyModelIds: [
+                ...new Set(
+                  normalizers.filter((n) => n.enabled && n.unsupportedImage).flatMap((n) => n.textOnlyModelIds),
+                ),
+              ],
+            },
+            streamConfig: limits.length ? { preflightBufferLimitBytes: Math.min(...limits) } : token.streamConfig,
+          };
+          const rules = getCompositeTransforms(input);
+          const outgoing = compositeStreamResponse(response, rules);
+          const request = cloneCompositeRequest(input, {
+            body: Buffer.isBuffer(input.body) ? Buffer.from(input.body) : structuredClone(input.body),
+            res: outgoing,
+          });
+          const attemptContext = forkCompositeContext(execution);
+          bindCompositeContext(leaf, attemptContext);
+          bindCompositeContext(request, attemptContext);
+          let result;
+          try {
+            result = await this.forwardRequestInternal(leaf, request, outgoing);
+          } finally {
+            execution.lastUpstreamStatus = attemptContext.lastUpstreamStatus;
+          }
+          if (rules.length && !outgoing?.headersSent) {
+            result.data = reverseCompositeResponse(result.data, rules, result.status >= 400);
+            for (const key of Object.keys(result.headers ?? {}))
+              if (key.toLowerCase() === "content-length") delete result.headers[key];
+          }
+          return result;
+        },
+      });
+    } finally {
+      req.off?.("aborted", cancelRequest);
+      response?.off?.("close", cancelResponse);
+      context.stopHeartbeat?.();
+      if (context.lease) await this.releaseConcurrencySlot(context.lease as any);
+    }
+  }
+
   private async forwardRequestInternal(
     relayToken: RelayTokenWithChannel,
     req: any,
     res?: any,
   ): Promise<{ status: number; headers: any; data: any }> {
+    const contentSafetyService = compositeSafetyService(this.contentSafetyService, getCompositeContext(req));
     const requestStartTime = Date.now();
     const rawJsonBody =
       Buffer.isBuffer(req.body) && String(req.headers?.["content-type"] || "").includes("json") ? req.body : undefined;
@@ -2816,8 +3233,12 @@ export class RelayProxyService {
     const stickyFailbackCooldownMinutes = attemptPlan.allowStickyFailover ? failoverConfig.failbackCooldownMinutes : 0;
     const isStreamRequested = this.isStreamRequest(req.body, req);
     setAIRequestLogContext(req.res ?? res, { isStreaming: isStreamRequested });
-    const eligibleChannels = attemptPlan.channels.filter((candidate) =>
-      supportsRelayRequestFormat(candidate.resolvedChannel.allowedFormats, requestFormat),
+    const eligibleChannels = attemptPlan.channels.filter(
+      (candidate) =>
+        supportsRelayRequestFormat(candidate.resolvedChannel.allowedFormats, requestFormat) &&
+        (!getCompositeContext(req) ||
+          failoverConfig.maxAcceptedChannelMultiplier == null ||
+          Number(candidate.resolvedChannel.multiplier) <= failoverConfig.maxAcceptedChannelMultiplier),
     );
 
     if (eligibleChannels.length === 0)
@@ -2931,15 +3352,20 @@ export class RelayProxyService {
         queueTimeout: concurrencyPolicy.queueTimeout,
       });
 
-    const concurrencyLease = await this.acquireNamedCapacityLease("relayUpstreamConcurrency", {
-      userId: relayToken.userId,
-      isImageRequest,
-      isStreamRequest: isStreamRequested,
-      relayConfig,
-    });
-    const stopConcurrencyLeaseHeartbeat = isStreamRequested
-      ? this.startConcurrencyLeaseHeartbeat(concurrencyLease)
-      : () => {};
+    const compositeContext = getCompositeContext(req);
+    const concurrencyLease =
+      (compositeContext?.lease as any) ??
+      (await this.acquireNamedCapacityLease("relayUpstreamConcurrency", {
+        userId: relayToken.userId,
+        isImageRequest,
+        isStreamRequest: isStreamRequested,
+        relayConfig,
+      }));
+    if (compositeContext) compositeContext.lease = concurrencyLease;
+    const stopConcurrencyLeaseHeartbeat =
+      compositeContext?.stopHeartbeat ??
+      (isStreamRequested ? this.startConcurrencyLeaseHeartbeat(concurrencyLease) : () => {});
+    if (compositeContext) compositeContext.stopHeartbeat = stopConcurrencyLeaseHeartbeat;
 
     try {
       let lastError: unknown = new BadRequestError("No available relay channel", undefined, {
@@ -2951,9 +3377,9 @@ export class RelayProxyService {
       let auditCost = 0;
       let auditDurationMs = 0;
       const contentSafetyConfig =
-        typeof (this.contentSafetyService as any).getEffectivePolicy === "function"
-          ? await this.contentSafetyService.getEffectivePolicy(relayToken.userId, relayToken.contentSafetyConfig as any)
-          : await this.contentSafetyService.getPublicConfig();
+        typeof (contentSafetyService as any).getEffectivePolicy === "function"
+          ? await contentSafetyService.getEffectivePolicy(relayToken.userId, relayToken.contentSafetyConfig as any)
+          : await contentSafetyService.getPublicConfig();
       const auditStats = {
         get inputTokens() {
           return auditInputTokens;
@@ -3164,12 +3590,13 @@ export class RelayProxyService {
             const globalMultiplier = relayGlobalMultiplier * channelMultiplier * timeMultiplier;
 
             path = requestFormatTransform
-              ? requestFormat === "anthropic"
-                ? "/v1/messages"
-                : requestFormat === "openai-responses"
-                  ? "/v1/responses"
-                  : "/v1/chat/completions"
+              ? relayConvertedRequestPath(requestFormatTransform.targetFormat)
               : this.buildUpstreamPath(req.path, requestFormat, selectedModelId);
+            for (const parent of getCompositeContext(req)?.path.slice(0, -1) ?? [])
+              path = applyRelayTokenV1PathMode(
+                path,
+                normalizeRelayTokenNormalizerConfig(parent.normalizerConfig).v1PathMode,
+              );
             path = applyRelayTokenV1PathMode(path, tokenNormalizerConfig.v1PathMode);
             let fullUpstreamUrl = upstreamUrl.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
 
@@ -3249,7 +3676,7 @@ export class RelayProxyService {
             if (!Buffer.isBuffer(convertedBody)) {
               const requestSafetyText =
                 typeof convertedBody === "string" ? convertedBody : JSON.stringify(convertedBody);
-              const requestSafety = await this.contentSafetyService.evaluate("request", requestSafetyText, {
+              const requestSafety = await contentSafetyService.evaluate("request", requestSafetyText, {
                 userId: relayToken.userId,
                 tokenConfig: relayToken.contentSafetyConfig as any,
               });
@@ -3258,7 +3685,7 @@ export class RelayProxyService {
               auditCost += requestSafety.auditCost;
               auditDurationMs += requestSafety.auditDurationMs;
               if (requestSafety.matched) {
-                await this.contentSafetyService.recordIncident({
+                await contentSafetyService.recordIncident({
                   userId: relayToken.userId,
                   relayTokenId: relayToken.id,
                   requestId: this.getLogicalRequestId(req),
@@ -3326,8 +3753,12 @@ export class RelayProxyService {
                   channelId: channel.id,
                   monthlyPassCoverageAt,
                   upstreamStreamTimeout: relayConfig.upstreamStreamTimeout,
-                  allowRetryBeforeResponse: hasNextChannel && failoverConfig.enabled,
-                  retryStatusCodes: failoverConfig.retryStatusCodes,
+                  allowRetryBeforeResponse:
+                    Boolean(getCompositeContext(req)) || (hasNextChannel && failoverConfig.enabled),
+                  retryStatusCodes: [
+                    ...failoverConfig.retryStatusCodes,
+                    ...(getCompositeContext(req)?.retryStatusCodes ?? []),
+                  ],
                   inputTokensIncludeCacheRead: billingDisplayChannel.inputTokensIncludeCacheRead !== false,
                   originalRequestedModel: relayOriginalRequestedModel,
                   autoInjectedStreamUsageOption,
@@ -3347,6 +3778,12 @@ export class RelayProxyService {
                 }),
               );
 
+              if (!streamResult.handled && getCompositeContext(req))
+                getCompositeContext(req)!.lastUpstreamStatus = streamResult.statusCode ?? 502;
+              if (!streamResult.handled && !hasNextChannel && getCompositeContext(req))
+                throw Object.assign(new Error("Composite stream member failed"), {
+                  upstreamStatus: streamResult.statusCode ?? 502,
+                });
               if (!streamResult.handled && hasNextChannel) {
                 const isEmptyStreamFailure = streamResult.triggerError?.startsWith("upstream stream");
                 if (isEmptyStreamFailure)
@@ -3445,8 +3882,12 @@ export class RelayProxyService {
                   monthlyPassCoverageAt,
                   timeoutMs: resourceGuard.nonStreamUpstreamTimeoutMs,
                   maxBodyBytes: resourceGuard.imageResponseBodyLimitMb * 1024 * 1024,
-                  allowRetryBeforeResponse: hasNextChannel && failoverConfig.enabled,
-                  retryStatusCodes: failoverConfig.retryStatusCodes,
+                  allowRetryBeforeResponse:
+                    Boolean(getCompositeContext(req)) || (hasNextChannel && failoverConfig.enabled),
+                  retryStatusCodes: [
+                    ...failoverConfig.retryStatusCodes,
+                    ...(getCompositeContext(req)?.retryStatusCodes ?? []),
+                  ],
                   inputTokensIncludeCacheRead: billingDisplayChannel.inputTokensIncludeCacheRead !== false,
                   originalRequestedModel: relayOriginalRequestedModel,
                   requestFormat,
@@ -3520,22 +3961,27 @@ export class RelayProxyService {
             delete headers["content-length"];
             delete headers["Content-Length"];
             headers["Content-Length"] = upstreamBody.length;
-            const response = await this.relayChannelProbeLockService.withRead(channel.id, () =>
-              axios({
-                method: req.method,
-                url: fullUpstreamUrl,
-                headers,
-                data: upstreamBody,
-                params: req.query,
-                timeout: resourceGuard.nonStreamUpstreamTimeoutMs,
-                maxBodyLength: maxBodyLimitBytes,
-                maxContentLength: maxResponseBytes,
-                responseType: "stream",
-                validateStatus: () => true,
-                proxy: false,
-                httpAgent: requestAgents.httpAgent,
-                httpsAgent: requestAgents.httpsAgent,
-              }),
+            const response = await this.relayChannelProbeLockService.withRead(
+              channel.id,
+              () => (
+                consumeCompositeAttempt(req),
+                axios({
+                  signal: getCompositeContext(req)?.signal,
+                  method: req.method,
+                  url: fullUpstreamUrl,
+                  headers,
+                  data: upstreamBody,
+                  params: req.query,
+                  timeout: resourceGuard.nonStreamUpstreamTimeoutMs,
+                  maxBodyLength: maxBodyLimitBytes,
+                  maxContentLength: maxResponseBytes,
+                  responseType: "stream",
+                  validateStatus: () => true,
+                  proxy: false,
+                  httpAgent: requestAgents.httpAgent,
+                  httpsAgent: requestAgents.httpsAgent,
+                })
+              ),
             );
             const streamedResponse = await this.readStreamBodyLimited(
               response.data as Readable,
@@ -3554,6 +4000,7 @@ export class RelayProxyService {
                 },
               );
             response.data = this.parseBufferedUpstreamBody(streamedResponse.buffer, response.headers || {});
+            if (getCompositeContext(req)) getCompositeContext(req)!.lastUpstreamStatus = response.status;
             recordAIRequestAttempt(req.res ?? res, {
               success: response.status < 400,
               statusCode: response.status,
@@ -3563,7 +4010,7 @@ export class RelayProxyService {
             if (typeof response.data === "string" || (response.data && typeof response.data === "object")) {
               const responseSafetyText =
                 typeof response.data === "string" ? response.data : JSON.stringify(response.data);
-              const responseSafety = await this.contentSafetyService.evaluate("response", responseSafetyText, {
+              const responseSafety = await contentSafetyService.evaluate("response", responseSafetyText, {
                 userId: relayToken.userId,
                 tokenConfig: relayToken.contentSafetyConfig as any,
               });
@@ -3572,7 +4019,7 @@ export class RelayProxyService {
               auditCost += responseSafety.auditCost;
               auditDurationMs += responseSafety.auditDurationMs;
               if (responseSafety.matched) {
-                await this.contentSafetyService.recordIncident({
+                await contentSafetyService.recordIncident({
                   userId: relayToken.userId,
                   relayTokenId: relayToken.id,
                   requestId: this.getLogicalRequestId(req),
@@ -3716,6 +4163,7 @@ export class RelayProxyService {
               await this.relayProxyRepository.recordUsageWithZeroChargeTransaction({
                 userId: relayToken.userId,
                 relayTokenId: relayToken.id,
+                compositionTokenIds: getCompositeContext(relayToken)?.path.map((token) => token.id),
                 requestId: this.getLogicalRequestId(req),
                 requestTokens: 0,
                 responseTokens: 0,
@@ -3830,6 +4278,7 @@ export class RelayProxyService {
             const finalizeResult = await this.usageChargeService.chargeUsage({
               userId: relayToken.userId,
               relayTokenId: relayToken.id,
+              compositionTokenIds: getCompositeContext(relayToken)?.path.map((token) => token.id),
               requestId: this.getLogicalRequestId(req),
               requestTokens,
               responseTokens,
@@ -3922,6 +4371,7 @@ export class RelayProxyService {
                 await this.usageChargeService.chargeUsage({
                   userId: relayToken.userId,
                   relayTokenId: relayToken.id,
+                  compositionTokenIds: getCompositeContext(relayToken)?.path.map((token) => token.id),
                   requestId: this.getLogicalRequestId(req),
                   requestTokens: 0,
                   responseTokens: 0,
@@ -3967,6 +4417,9 @@ export class RelayProxyService {
               }
             }
 
+            if (getCompositeContext(req) && axios.isAxiosError(error) && !error.response)
+              getCompositeContext(req)!.lastUpstreamStatus =
+                error.code === "ECONNABORTED" || error.code === "ETIMEDOUT" ? 504 : 502;
             const canRetryCurrentAttempt =
               !isStreamRequested || !res || (!res.headersSent && !res.writableEnded && !res.finished);
 
@@ -4114,6 +4567,7 @@ export class RelayProxyService {
                   request: req,
                   attemptedUpstream: upstreamRequestStarted,
                 });
+              if (getCompositeContext(req)) throw error;
               this.sendStreamTransportError(res, error);
               return {
                 status:
@@ -4140,8 +4594,10 @@ export class RelayProxyService {
 
       throw lastError;
     } finally {
-      stopConcurrencyLeaseHeartbeat();
-      await this.releaseConcurrencySlot(concurrencyLease);
+      if (!compositeContext) {
+        stopConcurrencyLeaseHeartbeat();
+        await this.releaseConcurrencySlot(concurrencyLease);
+      }
 
       // Log request completion (especially important for image requests to track what caused issues)
       if (isImageRequest) {
@@ -4366,6 +4822,7 @@ export class RelayProxyService {
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId: relayToken.userId,
       relayTokenId: relayToken.id,
+      compositionTokenIds: getCompositeContext(relayToken)?.path.map((token) => token.id),
       requestId: data.requestId,
       requestTokens: data.requestTokens,
       responseTokens: data.responseTokens,

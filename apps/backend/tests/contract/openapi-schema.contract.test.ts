@@ -116,6 +116,17 @@ function collectRefs(node: unknown, refs: Set<string>): void {
 }
 
 describe("OpenAPI Schema Contract", () => {
+  it("registers carpool delivery channels before dynamic administrator order details", () => {
+    const routes = fs.readFileSync(path.resolve(process.cwd(), "src/build/routes.ts"), "utf8");
+    const staticIndex = routes.indexOf("app.get('/v1/carpools/admin/delivery-channels'");
+    const dynamicIndex = routes.indexOf("app.get('/v1/carpools/admin/:id'");
+    expect(staticIndex).toBeGreaterThan(-1);
+    expect(dynamicIndex).toBeGreaterThan(staticIndex);
+    expect(openApi.paths["/v1/carpools/admin/delivery-channels"]?.get?.operationId).toBe(
+      "CarpoolControllerListDeliveryChannels",
+    );
+  });
+
   const operations = collectOperations(openApi);
 
   it("should expose monthly pass publish endpoints and operationIds", () => {

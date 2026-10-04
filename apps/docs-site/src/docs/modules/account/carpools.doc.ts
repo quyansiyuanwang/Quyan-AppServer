@@ -17,7 +17,7 @@ export default defineDocsPage({
     'zh-CN': '说明私有邀请制拼车、份额确认和交付流程。',
   },
   tags: ['carpool', 'monthly-pass', 'invitation', 'quota'],
-  updatedAt: '2026-09-13',
+  updatedAt: '2026-10-04',
   content: {
     en: contentEn,
     'zh-CN': contentZh,

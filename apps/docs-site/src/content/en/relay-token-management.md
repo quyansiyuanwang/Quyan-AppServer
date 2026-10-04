@@ -108,12 +108,44 @@ Content-Type: application/json
 
 The request format must be enabled for the token's channels, or have a matching token conversion rule. See `api-documentation` for complete curl examples, the Responses format, and image requests; see `relay-settings` to change channels, models, or formats.
 
+## Blocking automatic-pool members
+
+When a token uses an automatic proxy pool, you can block members that should not receive traffic for now. The UI saves and displays member IDs; the setting works for both direct and nested members without changing token billing rules. The server rejects members outside the selected pool, disabled members, and configurations that leave no usable member.
+
 ## Notes
 
 - Refreshing a token value immediately invalidates the old string; callers must update their configuration.
 - **Quota windows vs. the overall cap**: a token has one overall lifetime `quotaLimit` that never resets (tracked against total usage since creation), separate from the rolling quota windows described above, which each reset on their own cycle (per-minute, per-hour, per-day). Both can be active on the same token at once — the overall cap stops the token permanently once reached, while a quota window only throttles until its next reset.
 - Bulk import appends new entries and does not overwrite existing tokens.
 - Show-all mode is useful for audits but can be heavier to scan.
+
+## Composite tokens: ordered members from your own tokens
+
+Choose **Composite Token** in the create or edit drawer, search your own Relay Tokens, then order and enable or disable members. Members can use ordered channels, automatic pools, or another composite token. The composition references member IDs instead of copying secrets or channel settings. Administrators managing another account cannot combine tokens across owners.
+
+- Saving confirms the members and order. Switching modes clears the previous bindings while retaining the token value and historical usage; source tokens are not modified.
+- A path supports **four composite levels**, excluding its ordinary leaf token. Each composition supports **20 direct members** and an entry supports **100 leaf paths**. Self-reference and cycles are rejected, including through disabled bindings.
+- Use **Load available models** for a member's Chat Completions, Responses, Anthropic and Gemini catalogs and **Preview models and routes** for the aggregate catalog and ordered candidate paths. The global pricing table is not advertised as a channel catalog. Explicit aliases are advertised only after checking their corresponding paths.
+- Requests select compatible paths depth-first in member order. Disabled, expired, deleted, IP-restricted or quota-exhausted branches are unavailable. Failure of the entry token's own restrictions terminates the request.
+- Cross-member failover defaults to `408, 429, 500, 502, 503, 504`. Each level controls only switching between its direct members; ordinary tokens retain their internal channel policies. One client request can make at most **100 actual upstream attempts**, including internal retries. No replay or switching is allowed after committing the response.
+
+### Advanced settings and safety
+
+Request model mappings, protocol conversions and applicable normalization run outside-in before the ordinary leaf selects a physical channel. Response protocol conversion runs inside-out. Every level independently enforces its model allow-list, expiry, IP and quota rules, and descendants cannot disable ancestor safety requirements. Safety rejection cannot be bypassed with a fallback. Conversion supports only the existing converters' supported fields and explicitly rejects unsafe conversions. Streaming preflight uses the smallest buffer limit along the executed path.
+
+Preview describes capabilities and configured order, not guaranteed availability: IP, quota, safety and upstream health are checked at request time. Member changes and disabling affect subsequent requests. Secret rotation does not require reconfiguring the composition because references use IDs. In-flight requests retain their routing snapshot.
+
+### Usage and charges
+
+The entry composition, executed intermediate compositions and leaf token each record attributed usage and enforce their own lifetime and rolling-window limits. **Balance, monthly passes and channel revenue settle only once per call.** Unattempted branches have no usage; failed attempts retain existing failure-accounting behavior.
+
+Each level shows attribution of the same call, so **do not add composition and member usage together as total spending**. Financial totals come from consumption transactions. Historical ordinary-token records remain queryable without backfilling.
+
+### Using the Quyan CLI local Router
+
+A composite token works directly as a Router Profile: create it, then run `quyan router profile add --token-id <composite-token-id> --yes` and refresh the catalog. Changing server-side members or their order does not require restarting an Agent already connected to the local Router. Refresh local catalog caches with `quyan router models --refresh` after changing models.
+
+Copying preserves valid same-owner references. Import accepts only existing, verifiable member IDs belonging to the target owner; it never guesses by name or creates missing members.
 
 ## Related pages
 

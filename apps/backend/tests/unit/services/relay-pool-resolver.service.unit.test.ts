@@ -1,3 +1,4 @@
+import { filterBlockedAutomaticPoolCandidates } from "../../../src/services/relay/relay-candidate-exclusions";
 import { describe, expect, it, vi } from "vitest";
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
 import { RelayPoolResolverService } from "../../../src/services/relay/relay-pool-resolver.service";
@@ -27,6 +28,59 @@ const createResolver = (channels: any[]) => {
 };
 
 describe("RelayPoolResolverService", () => {
+  it("excludes standalone automatic members by leaf ID without changing billing", async () => {
+    const direct = createChannel("direct");
+    const keep = createChannel("keep");
+    const root = createChannel("automatic", {
+      channelType: "automatic-proxy-pool",
+      poolMembers: [
+        { memberChannelId: direct.id, enabled: true, priority: 0, weight: 1 },
+        { memberChannelId: keep.id, enabled: true, priority: 1, weight: 1 },
+      ],
+    });
+    const { resolver } = createResolver([root, direct, keep]);
+    const candidates = await resolver.resolveActiveLeafCandidates([root]);
+    expect(candidates[0]?.billingChannel?.id).toBe(root.id);
+    expect(
+      filterBlockedAutomaticPoolCandidates(candidates, [direct.id]).map((item) => item.resolvedChannel.id),
+    ).toEqual([keep.id]);
+  });
+
+  it.each([true, false])("excludes nested pooled members (strict parent: %s)", async (strict) => {
+    const leaf = createChannel("leaf", strict ? { channelType: "pooled-member", pooledParentId: "inner" } : {});
+    const inner = createChannel("inner", {
+      channelType: "pooled",
+      poolMembers: [{ memberChannelId: leaf.id, enabled: true, priority: 0, weight: 1 }],
+    });
+    const root = createChannel("automatic", {
+      channelType: "automatic-proxy-pool",
+      poolMembers: [{ memberChannelId: inner.id, enabled: true, priority: 0, weight: 1 }],
+    });
+    const { resolver } = createResolver([root, inner, leaf]);
+    const candidates = await resolver.resolveActiveLeafCandidates([root]);
+    expect(candidates[0]?.resolvedChannel.id).toBe(leaf.id);
+    expect(candidates[0]?.billingChannel?.id).toBe(strict ? inner.id : root.id);
+    expect(filterBlockedAutomaticPoolCandidates(candidates, [inner.id])).toEqual([]);
+  });
+
+  it("retains an unblocked path when a shared leaf is also reached through a blocked pool", async () => {
+    const leaf = createChannel("leaf");
+    const edge = (id: string) => ({ memberChannelId: id, enabled: true, priority: 0, weight: 1 });
+    const blocked = createChannel("blocked", { channelType: "pooled", poolMembers: [edge(leaf.id)] });
+    const keep = createChannel("keep", { channelType: "pooled", poolMembers: [edge(leaf.id)] });
+    const root = createChannel("automatic", {
+      channelType: "automatic-proxy-pool",
+      poolMembers: [edge(keep.id), edge(blocked.id)],
+    });
+    const { resolver } = createResolver([root, blocked, keep, leaf]);
+    const candidates = await resolver.resolveActiveLeafCandidates([root]);
+    expect(candidates).toHaveLength(2);
+    expect(filterBlockedAutomaticPoolCandidates(candidates, [])).toHaveLength(1);
+    const filtered = filterBlockedAutomaticPoolCandidates(candidates, [blocked.id]);
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.routingChannelIds).toContain(keep.id);
+  });
+
   it("recursively resolves enabled nested pools into standalone leaves", async () => {
     const leaf = createChannel("leaf");
     const innerPool = createChannel("inner", {

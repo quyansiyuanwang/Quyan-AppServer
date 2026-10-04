@@ -1,3 +1,5 @@
+import { RelayCompositionRepository } from "./relay-composition.repository";
+import { RELAY_COMPOSITION_POLICY, compositionError } from "@/util/relay/relay-composition.util";
 import { RelayToken, Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 import type {
@@ -23,6 +25,10 @@ export type RelayTokenWithChannel = RelayTokenWithRelations;
 const visibleRelayTokenStatuses = [MANAGED_STATUS.DISABLED, MANAGED_STATUS.ENABLED] as const;
 
 const relayTokenInclude = {
+  memberTokenConfigs: {
+    include: { memberToken: { select: { id: true, name: true, routingMode: true, status: true, expiresAt: true } } },
+    orderBy: { priority: "asc" },
+  },
   user: true,
   channel: {
     include: {
@@ -142,6 +148,18 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async create(data: RelayTokenCreateInput, tx?: RelayTokenTransactionClient): Promise<RelayTokenWithRelations> {
+    if (data.routingMode === "composite") {
+      if (!tx) return this.withTransaction((client) => this.create(data, client));
+      if (data.channelId || data.channelConfigs?.length || data.automaticProxyPoolChannelId)
+        throw compositionError("mode");
+      await RelayCompositionRepository.getInstance().validateWrite(tx, {
+        id: "__new_composition__",
+        userId: data.userId,
+        routingMode: "composite",
+        status: data.status ?? 1,
+        memberTokenConfigs: data.memberTokenConfigs ?? [],
+      });
+    } else if (data.memberTokenConfigs?.length) throw compositionError("mode");
     const failoverConfigCreateData = data.failoverConfig
       ? buildNestedFailoverConfigCreateData(data.failoverConfig)
       : undefined;
@@ -154,6 +172,7 @@ export class RelayTokenRepository implements RelayTokenStore {
         status: data.status,
         name: data.name,
         token: data.token,
+        legacyToken: data.legacyToken,
         isCustomKey: data.isCustomKey ?? false,
         expiresAt: data.expiresAt,
         channelId: data.channelId,
@@ -164,6 +183,9 @@ export class RelayTokenRepository implements RelayTokenStore {
         allowedModels: data.allowedModels,
         requestFormatTransforms: data.requestFormatTransforms as Prisma.InputJsonValue | undefined,
         normalizerConfig: data.normalizerConfig as Prisma.InputJsonValue | undefined,
+        streamConfig: data.streamConfig as Prisma.InputJsonValue | undefined,
+        memberTokenConfigs:
+          data.routingMode === "composite" ? { createMany: { data: data.memberTokenConfigs ?? [] } } : undefined,
         contentSafetyConfig: data.contentSafetyConfig as Prisma.InputJsonValue | undefined,
         ipWhitelist: data.ipWhitelist,
         modelMapping: data.modelMapping ?? undefined,
@@ -193,9 +215,38 @@ export class RelayTokenRepository implements RelayTokenStore {
     });
   }
 
+  async loadCompositionSnapshot(rootId: string): Promise<Map<string, RelayTokenWithRelations>> {
+    return prisma.$transaction(async (tx) => {
+      const snapshot = new Map<string, RelayTokenWithRelations>();
+      let pending = [rootId];
+      for (let depth = 0; pending.length; depth++) {
+        if (depth > RELAY_COMPOSITION_POLICY.maxDepth) throw compositionError("depth");
+        const tokens = await tx.relayToken.findMany({ where: { id: { in: pending } }, include: relayTokenInclude });
+        pending = [];
+        for (const token of tokens) {
+          snapshot.set(token.id, token);
+          if (
+            token.routingMode === "composite" &&
+            token.status === 1 &&
+            (!token.expiresAt || token.expiresAt >= new Date())
+          )
+            for (const member of token.memberTokenConfigs)
+              if (member.enabled && !snapshot.has(member.tokenId)) pending.push(member.tokenId);
+        }
+        pending = [...new Set(pending)];
+        if (
+          snapshot.size + pending.length >
+          1 + RELAY_COMPOSITION_POLICY.maxDepth * RELAY_COMPOSITION_POLICY.maxLeafPaths
+        )
+          throw compositionError("size");
+      }
+      return snapshot;
+    });
+  }
+
   async findByToken(token: string): Promise<RelayTokenWithRelations | null> {
-    return prisma.relayToken.findUnique({
-      where: { token },
+    return prisma.relayToken.findFirst({
+      where: { OR: [{ token }, { legacyToken: token }] },
       include: relayTokenInclude,
     });
   }
@@ -350,6 +401,8 @@ export class RelayTokenRepository implements RelayTokenStore {
 
   async update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken> {
     const {
+      memberTokenConfigs,
+      streamConfig,
       failoverConfig,
       channelConfigs,
       quotaWindows,
@@ -364,10 +417,37 @@ export class RelayTokenRepository implements RelayTokenStore {
     } = data;
 
     return prisma.$transaction(async (tx) => {
+      if (data.routingMode !== undefined || memberTokenConfigs !== undefined) {
+        const current = await tx.relayToken.findUniqueOrThrow({ where: { id }, select: { userId: true } });
+        await tx.$queryRaw`SELECT id FROM users WHERE id = ${current.userId} FOR UPDATE`;
+        const node = await tx.relayToken.findUniqueOrThrow({
+          where: { id },
+          select: { id: true, userId: true, status: true, routingMode: true, memberTokenConfigs: true },
+        });
+        const mode = data.routingMode ?? node.routingMode;
+        if (mode !== "composite" && memberTokenConfigs?.length) throw compositionError("mode");
+        if (mode === "composite" && (channelId || channelConfigs?.length || automaticProxyPoolChannelId))
+          throw compositionError("mode");
+        await RelayCompositionRepository.getInstance().validateWrite(tx, {
+          ...node,
+          routingMode: mode,
+          memberTokenConfigs: mode === "composite" ? (memberTokenConfigs ?? node.memberTokenConfigs) : [],
+        });
+        if (memberTokenConfigs !== undefined || mode !== "composite") {
+          await tx.relayTokenMemberConfig.deleteMany({ where: { parentTokenId: id } });
+          if (mode === "composite" && memberTokenConfigs?.length)
+            await tx.relayTokenMemberConfig.createMany({
+              data: memberTokenConfigs.map((member) => ({ ...member, parentTokenId: id })),
+            });
+        }
+      }
       const updatedToken = await tx.relayToken.update({
         where: { id },
         data: {
           ...tokenData,
+          ...(streamConfig !== undefined
+            ? { streamConfig: streamConfig === null ? Prisma.DbNull : (streamConfig as Prisma.InputJsonValue) }
+            : {}),
           ...(channelId !== undefined ? { channelId } : {}),
           ...(automaticProxyPoolChannelId !== undefined ? { automaticProxyPoolChannelId } : {}),
           ...(blockedAutomaticProxyPoolChannelIds !== undefined ? { blockedAutomaticProxyPoolChannelIds } : {}),

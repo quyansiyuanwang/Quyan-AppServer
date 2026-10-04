@@ -1,3 +1,9 @@
+import type { RelayCompositionPreviewDto, RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
+import { validateRelayComposition } from "@/util/relay/relay-composition.util";
+import { RelayCompositionRepository } from "@/store/relay/relay-composition.repository";
+import { RELAY_COMPOSITION_POLICY, compositionError } from "@/util/relay/relay-composition.util";
+import { DistributedLockService } from "@/services/infrastructure/distributed-lock.service";
+import type { RelayCompositionCandidatesDto } from "@/api/dto/relay/relay.dto";
 import { setAIRequestLogContext, getAIRequestLogContext } from "@/util/ai-request-log-context";
 import { RelayTokenRepository } from "@/store/relay/relay-token.repository";
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
@@ -46,6 +52,7 @@ import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import crypto from "crypto";
 import type { Request } from "express";
+import { getCredentialPrefix, toCanonicalCredential } from "@quyan/shared";
 import type { RelayChannel } from "@prisma/client";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -196,6 +203,124 @@ export class RelayTokenService {
     private readonly contentSafetyService: ContentSafetyService = ContentSafetyService.getInstance(),
   ) {}
 
+  private withGraphWrite<T>(userId: string, composite: boolean, write: () => Promise<T>): Promise<T> {
+    if (!composite) return write();
+    return DistributedLockService.getInstance().runWithLock(
+      DistributedLockService.buildKey("relay-composition", userId),
+      write,
+      { failClosed: true },
+    );
+  }
+
+  async compositionCandidates(
+    actorUserId: string,
+    page = 1,
+    pageSize = 20,
+    search = "",
+    editingTokenId?: string,
+    selectedIds = "",
+    targetUserId?: string,
+  ): Promise<RelayCompositionCandidatesDto> {
+    const userId = await this.resolveManagedUserId(actorUserId, targetUserId);
+    if (editingTokenId) await this.getAccessibleToken(editingTokenId, actorUserId, userId);
+    const repo = RelayCompositionRepository.getInstance();
+    const graph = await repo.getGraph(userId);
+    const ancestors = new Set<string>();
+    const queue = editingTokenId ? [editingTokenId] : [];
+    for (let index = 0; index < queue.length; index++)
+      for (const node of graph)
+        if (!ancestors.has(node.id) && node.memberTokenConfigs.some((edge) => edge.tokenId === queue[index])) {
+          ancestors.add(node.id);
+          queue.push(node.id);
+        }
+    const result = await repo.candidates(userId, page, pageSize, search, selectedIds.split(",").filter(Boolean));
+    return {
+      ...result,
+      limits: {
+        maxMembers: RELAY_COMPOSITION_POLICY.maxMembers,
+        maxDepth: RELAY_COMPOSITION_POLICY.maxDepth,
+        maxLeafPaths: RELAY_COMPOSITION_POLICY.maxLeafPaths,
+        retryStatusCodes: [...RELAY_COMPOSITION_POLICY.retryStatusCodes],
+      },
+      items: result.items.map((item) => ({
+        id: item.id,
+        name: item.name ?? undefined,
+        routingMode: item.routingMode as "ordered" | "automatic-pool" | "composite",
+        status: item.status,
+        expiresAt: item.expiresAt ?? undefined,
+        memberCount: item._count.memberTokenConfigs,
+        memberTokenConfigs: item.memberTokenConfigs,
+        selectable: item.id !== editingTokenId && !ancestors.has(item.id),
+        unavailableReason: item.id === editingTokenId ? "self" : ancestors.has(item.id) ? "cycle" : undefined,
+      })),
+    };
+  }
+
+  async previewComposition(
+    actorUserId: string,
+    data: RelayCompositionPreviewRequest,
+  ): Promise<RelayCompositionPreviewDto> {
+    const userId = await this.resolveManagedUserId(actorUserId, data.targetUserId);
+    if (data.editingTokenId) await this.getAccessibleToken(data.editingTokenId, actorUserId, userId);
+    if (data.routingMode !== "composite") throw compositionError("mode");
+    const id = data.editingTokenId ?? "__composition_preview__";
+    const graph = await RelayCompositionRepository.getInstance().getGraph(userId);
+    validateRelayComposition([
+      ...graph.filter((node) => node.id !== id),
+      {
+        id,
+        userId,
+        routingMode: "composite",
+        status: 1,
+        memberTokenConfigs: data.memberTokenConfigs ?? [],
+      },
+    ]);
+    const snapshot = new Map<string, RelayTokenWithRelations>();
+    for (const edge of data.memberTokenConfigs ?? []) {
+      const subtree = await this.relayTokenRepo.loadCompositionSnapshot(edge.tokenId);
+      for (const [key, value] of subtree) snapshot.set(key, value);
+    }
+    const sample = snapshot.values().next().value;
+    if (!sample) throw compositionError("invalidMember");
+    snapshot.set(id, {
+      ...sample,
+      ...data,
+      id,
+      userId,
+      token: "",
+      allowedModels: data.allowedModels ?? null,
+      modelMapping: data.modelMapping ?? null,
+      requestFormatTransforms: data.requestFormatTransforms ?? null,
+      status: 1,
+      routingMode: "composite",
+      expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+      memberTokenConfigs: data.memberTokenConfigs ?? [],
+    } as unknown as RelayTokenWithRelations);
+    const routes: RelayCompositionPreviewDto["routes"] = [];
+    const models: RelayTokenAvailableModelsDto = { openai: [], responses: [], anthropic: [], gemini: [] };
+    for (const [protocol, format] of [
+      ["openai", "openai-chat-completions"],
+      ["responses", "openai-responses"],
+      ["anthropic", "anthropic"],
+      ["gemini", "gemini"],
+    ] as const) {
+      const catalog = await this.relayProxyService.getCompositeCatalog(id, format, snapshot);
+      models[protocol] = [...new Set(catalog.map((item) => item.model))].sort();
+      routes.push(...catalog.map((item) => ({ ...item, protocol })));
+    }
+    return { models, routes };
+  }
+
+  private compositeFailover(memberCount: number) {
+    return {
+      enabled: true,
+      maxRetries: Math.max(0, memberCount - 1),
+      retryStatusCodes: [...RELAY_COMPOSITION_POLICY.retryStatusCodes],
+      failoverThreshold: 0,
+      failbackCooldownMinutes: 0,
+    };
+  }
+
   private async resolveManagedUserId(
     actorUserId: string,
     targetUserId?: string,
@@ -314,9 +439,10 @@ export class RelayTokenService {
     const blockedAutomaticProxyPoolChannelIds = automaticPool
       ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
       : [];
-    const normalizedConfig = automaticPoolId
-      ? { defaultChannelId: undefined, channelConfigs: [] }
-      : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
+    const normalizedConfig =
+      data.routingMode === "composite" || automaticPoolId
+        ? { defaultChannelId: undefined, channelConfigs: [] }
+        : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
 
     let tokenValue: string;
     let isCustomKey = false;
@@ -327,35 +453,41 @@ export class RelayTokenService {
         await this.assertCustomKeyLimit(userId);
         await this.assertCustomKeySetRateLimit(userId);
       }
-      tokenValue = await this.resolveImportedTokenValue(data.token);
+      tokenValue = toCanonicalCredential(await this.resolveImportedTokenValue(data.token), "relayToken");
       isCustomKey = true;
     } else {
       tokenValue = this.generateRelayTokenValue();
     }
 
-    const relayToken = await this.relayTokenRepo.create({
-      userId,
-      name: data.name?.trim() || undefined,
-      token: tokenValue,
-      isCustomKey,
-      expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
-      channelId: normalizedConfig.defaultChannelId,
-      routingMode: automaticPoolId ? "automatic-pool" : "ordered",
-      automaticProxyPoolChannelId: automaticPoolId,
-      blockedAutomaticProxyPoolChannelIds,
-      channelConfigs: normalizedConfig.channelConfigs,
-      failoverConfig: data.failoverConfig,
-      quotaLimit: data.quotaLimit ?? undefined,
-      quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
-      allowedModels: data.allowedModels?.trim() || undefined,
-      requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
-      normalizerConfig: data.normalizerConfig
-        ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
-        : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
-      contentSafetyConfig: data.contentSafetyConfig ?? undefined,
-      ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
-      modelMapping: data.modelMapping ?? undefined,
-    });
+    const relayToken = await this.withGraphWrite(userId, data.routingMode === "composite", () =>
+      this.relayTokenRepo.create({
+        userId,
+        name: data.name?.trim() || undefined,
+        token: tokenValue,
+        isCustomKey,
+        expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
+        channelId: normalizedConfig.defaultChannelId,
+        routingMode: data.routingMode === "composite" ? "composite" : automaticPoolId ? "automatic-pool" : "ordered",
+        memberTokenConfigs: data.memberTokenConfigs,
+        streamConfig: data.streamConfig,
+        automaticProxyPoolChannelId: automaticPoolId,
+        blockedAutomaticProxyPoolChannelIds,
+        channelConfigs: normalizedConfig.channelConfigs,
+        failoverConfig:
+          data.failoverConfig ??
+          (data.routingMode === "composite" ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0) : undefined),
+        quotaLimit: data.quotaLimit ?? undefined,
+        quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
+        allowedModels: data.allowedModels?.trim() || undefined,
+        requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
+        normalizerConfig: data.normalizerConfig
+          ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
+          : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
+        contentSafetyConfig: data.contentSafetyConfig ?? undefined,
+        ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
+        modelMapping: data.modelMapping ?? undefined,
+      }),
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_CREATE,
@@ -416,36 +548,41 @@ export class RelayTokenService {
       body.targetUserId,
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
-    const createdTokens = await this.relayTokenRepo.withTransaction(async (tx) => {
-      const reservedNames = await this.getVisibleNameSet(userId);
-      const reservedTokens = new Set<string>();
-      const items: RelayTokenDto[] = [];
+    const createdTokens = await this.withGraphWrite(
+      userId,
+      body.tokens.some((item) => item.routingMode === "composite"),
+      () =>
+        this.relayTokenRepo.withTransaction(async (tx) => {
+          const reservedNames = await this.getVisibleNameSet(userId);
+          const reservedTokens = new Set<string>();
+          const items: RelayTokenDto[] = [];
 
-      for (const item of body.tokens) {
-        const preferredName = item.name?.trim();
-        const finalName = preferredName
-          ? reservedNames.has(preferredName)
-            ? this.buildCopyName(preferredName, reservedNames)
-            : preferredName
-          : undefined;
+          for (const item of body.tokens) {
+            const preferredName = item.name?.trim();
+            const finalName = preferredName
+              ? reservedNames.has(preferredName)
+                ? this.buildCopyName(preferredName, reservedNames)
+                : preferredName
+              : undefined;
 
-        if (finalName) reservedNames.add(finalName);
+            if (finalName) reservedNames.add(finalName);
 
-        const created = await this.createTokenFromImportData(
-          actorUserId,
-          userId,
-          {
-            ...item,
-            name: finalName,
-          },
-          reservedTokens,
-          tx,
-        );
-        items.push(this.toDto(created));
-      }
+            const created = await this.createTokenFromImportData(
+              actorUserId,
+              userId,
+              {
+                ...item,
+                name: finalName,
+              },
+              reservedTokens,
+              tx,
+            );
+            items.push(this.toDto(created));
+          }
 
-      return items;
-    });
+          return items;
+        }),
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_IMPORT,
@@ -679,16 +816,22 @@ export class RelayTokenService {
       : data.routingMode === "ordered"
         ? []
         : undefined;
-    const hasRoutingUpdate = hasAutomaticMode || hasChannelId || hasChannelConfigs;
-    const normalizedConfig = hasAutomaticMode
-      ? { defaultChannelId: null, channelConfigs: [] }
-      : hasRoutingUpdate
-        ? await this.normalizeChannelConfiguration(
-            actorUserId,
-            data.channelId ?? token.channelId ?? undefined,
-            data.channelConfigs,
-          )
-        : null;
+    const hasCompositeMode = (data.routingMode ?? token.routingMode) === "composite";
+    if (!hasCompositeMode && data.memberTokenConfigs?.length) throw compositionError("mode");
+    if (hasCompositeMode && (data.channelId || data.channelConfigs?.length || data.automaticProxyPoolChannelId))
+      throw compositionError("mode");
+    const hasRoutingUpdate = data.routingMode !== undefined || hasChannelId || hasChannelConfigs;
+    if (token.routingMode === "composite") throw compositionError("mode");
+    const normalizedConfig =
+      hasCompositeMode || hasAutomaticMode
+        ? { defaultChannelId: null, channelConfigs: [] }
+        : hasRoutingUpdate
+          ? await this.normalizeChannelConfiguration(
+              actorUserId,
+              data.channelId ?? token.channelId ?? undefined,
+              data.channelConfigs,
+            )
+          : null;
     const hasName = Object.prototype.hasOwnProperty.call(data, "name");
     const hasExpiresAt = Object.prototype.hasOwnProperty.call(data, "expiresAt");
     const hasQuotaWindows = Object.prototype.hasOwnProperty.call(data, "quotaWindows");
@@ -709,37 +852,51 @@ export class RelayTokenService {
         if (!token.isCustomKey) await this.assertCustomKeyLimit(token.userId);
         await this.assertCustomKeySetRateLimit(token.userId);
       }
-      tokenValue = await this.resolveImportedTokenValue(data.token);
+      tokenValue = toCanonicalCredential(await this.resolveImportedTokenValue(data.token), "relayToken");
       isCustomKey = true;
     }
 
-    await this.relayTokenRepo.update(tokenId, {
-      name: hasName ? data.name?.trim() || null : undefined,
-      ...(hasToken ? { token: tokenValue, isCustomKey } : {}),
-      expiresAt: hasExpiresAt ? (this.normalizeOptionalExpiresAt(data.expiresAt) ?? null) : undefined,
-      quotaLimit: hasQuotaLimit ? (data.quotaLimit ?? null) : undefined,
-      quotaWindows: hasQuotaWindows ? this.normalizeQuotaWindows(data.quotaWindows) : undefined,
-      allowedModels: hasAllowedModels ? data.allowedModels?.trim() || null : undefined,
-      ipWhitelist: Object.prototype.hasOwnProperty.call(data, "ipWhitelist")
-        ? this.normalizeOptionalIpWhitelist(data.ipWhitelist)
-        : undefined,
-      modelMapping: hasModelMapping ? (data.modelMapping ?? null) : undefined,
-      requestFormatTransforms: hasRequestFormatTransforms
-        ? normalizeRequestFormatTransforms(data.requestFormatTransforms)
-        : undefined,
-      normalizerConfig: hasNormalizerConfig ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig) : undefined,
-      contentSafetyConfig: hasContentSafetyConfig ? (data.contentSafetyConfig ?? null) : undefined,
-      channelId: normalizedConfig?.defaultChannelId,
-      channelConfigs: normalizedConfig?.channelConfigs,
-      routingMode: data.routingMode,
-      automaticProxyPoolChannelId: hasAutomaticMode
-        ? automaticPoolId
-        : data.routingMode === "ordered"
-          ? null
+    await this.withGraphWrite(token.userId, token.routingMode === "composite" || hasCompositeMode, () =>
+      this.relayTokenRepo.update(tokenId, {
+        name: hasName ? data.name?.trim() || null : undefined,
+        ...(hasToken
+          ? {
+              token: tokenValue,
+              legacyToken: data.token && data.token !== tokenValue ? data.token : null,
+              isCustomKey,
+            }
+          : {}),
+        expiresAt: hasExpiresAt ? (this.normalizeOptionalExpiresAt(data.expiresAt) ?? null) : undefined,
+        quotaLimit: hasQuotaLimit ? (data.quotaLimit ?? null) : undefined,
+        quotaWindows: hasQuotaWindows ? this.normalizeQuotaWindows(data.quotaWindows) : undefined,
+        allowedModels: hasAllowedModels ? data.allowedModels?.trim() || null : undefined,
+        ipWhitelist: Object.prototype.hasOwnProperty.call(data, "ipWhitelist")
+          ? this.normalizeOptionalIpWhitelist(data.ipWhitelist)
           : undefined,
-      blockedAutomaticProxyPoolChannelIds,
-      failoverConfig: data.failoverConfig,
-    });
+        modelMapping: hasModelMapping ? (data.modelMapping ?? null) : undefined,
+        requestFormatTransforms: hasRequestFormatTransforms
+          ? normalizeRequestFormatTransforms(data.requestFormatTransforms)
+          : undefined,
+        normalizerConfig: hasNormalizerConfig ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig) : undefined,
+        contentSafetyConfig: hasContentSafetyConfig ? (data.contentSafetyConfig ?? null) : undefined,
+        channelId: normalizedConfig?.defaultChannelId,
+        channelConfigs: normalizedConfig?.channelConfigs,
+        routingMode: data.routingMode,
+        memberTokenConfigs: data.memberTokenConfigs,
+        streamConfig: data.streamConfig,
+        automaticProxyPoolChannelId: hasAutomaticMode
+          ? automaticPoolId
+          : data.routingMode === "ordered" || hasCompositeMode
+            ? null
+            : undefined,
+        blockedAutomaticProxyPoolChannelIds,
+        failoverConfig:
+          data.failoverConfig ??
+          (hasCompositeMode && token.routingMode !== "composite"
+            ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0)
+            : undefined),
+      }),
+    );
     const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
@@ -861,18 +1018,20 @@ export class RelayTokenService {
 
     const reservedNames = await this.getVisibleNameSet(managedUserId);
     const duplicatedName = data.name?.trim() || this.buildDuplicatedTokenName(sourceToken.name, reservedNames);
-    const duplicatedToken = await this.relayTokenRepo.withTransaction((tx) =>
-      this.createTokenFromImportData(
-        actorUserId,
-        managedUserId,
-        {
-          ...this.toImportItemDto(sourceToken),
-          name: duplicatedName,
-          enabled: true,
-          token: undefined,
-        },
-        new Set<string>(),
-        tx,
+    const duplicatedToken = await this.withGraphWrite(managedUserId, sourceToken.routingMode === "composite", () =>
+      this.relayTokenRepo.withTransaction((tx) =>
+        this.createTokenFromImportData(
+          actorUserId,
+          managedUserId,
+          {
+            ...this.toImportItemDto(sourceToken),
+            name: duplicatedName,
+            enabled: true,
+            token: undefined,
+          },
+          new Set<string>(),
+          tx,
+        ),
       ),
     );
 
@@ -914,30 +1073,35 @@ export class RelayTokenService {
       managedUserId,
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
-    const duplicatedTokens = await this.relayTokenRepo.withTransaction(async (tx) => {
-      const reservedNames = await this.getVisibleNameSet(managedUserId);
-      const reservedTokens = new Set<string>();
-      const items: RelayTokenDto[] = [];
+    const duplicatedTokens = await this.withGraphWrite(
+      managedUserId,
+      sourceTokens.some((item) => item.routingMode === "composite"),
+      () =>
+        this.relayTokenRepo.withTransaction(async (tx) => {
+          const reservedNames = await this.getVisibleNameSet(managedUserId);
+          const reservedTokens = new Set<string>();
+          const items: RelayTokenDto[] = [];
 
-      for (const sourceToken of sourceTokens) {
-        const duplicatedName = this.buildDuplicatedTokenName(sourceToken.name, reservedNames);
-        const duplicatedToken = await this.createTokenFromImportData(
-          actorUserId,
-          managedUserId,
-          {
-            ...this.toImportItemDto(sourceToken),
-            name: duplicatedName,
-            enabled: true,
-            token: undefined,
-          },
-          reservedTokens,
-          tx,
-        );
-        items.push(this.toDto(duplicatedToken));
-      }
+          for (const sourceToken of sourceTokens) {
+            const duplicatedName = this.buildDuplicatedTokenName(sourceToken.name, reservedNames);
+            const duplicatedToken = await this.createTokenFromImportData(
+              actorUserId,
+              managedUserId,
+              {
+                ...this.toImportItemDto(sourceToken),
+                name: duplicatedName,
+                enabled: true,
+                token: undefined,
+              },
+              reservedTokens,
+              tx,
+            );
+            items.push(this.toDto(duplicatedToken));
+          }
 
-      return items;
-    });
+          return items;
+        }),
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_BATCH_DUPLICATE,
@@ -1465,7 +1629,7 @@ export class RelayTokenService {
       username: token.user?.username || undefined,
       ownerName: token.user?.name || token.user?.username || undefined,
       name: token.name,
-      token: token.token,
+      token: toCanonicalCredential(token.token, "relayToken"),
       balance: Number(token.balance),
       totalTokens: token.totalTokens,
       requestCount: token.requestCount,
@@ -1475,7 +1639,21 @@ export class RelayTokenService {
           ? channelConfigs[0]?.channelId
           : token.channelId || undefined,
       channelName: token.channel?.name || undefined,
-      routingMode: token.routingMode === "automatic-pool" ? "automatic-pool" : "ordered",
+      routingMode:
+        token.routingMode === "composite"
+          ? "composite"
+          : token.routingMode === "automatic-pool"
+            ? "automatic-pool"
+            : "ordered",
+      memberTokenConfigs: (token.memberTokenConfigs ?? []).map((member: any) => ({
+        tokenId: member.tokenId,
+        priority: member.priority,
+        enabled: member.enabled,
+        name: member.memberToken?.name ?? undefined,
+        routingMode: member.memberToken?.routingMode ?? "ordered",
+        status: member.memberToken?.status ?? -1,
+        expiresAt: member.memberToken?.expiresAt ?? undefined,
+      })),
       automaticProxyPoolChannelId: token.automaticProxyPoolChannelId || undefined,
       blockedAutomaticProxyPoolChannelIds: this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(
         token.blockedAutomaticProxyPoolChannelIds,
@@ -1490,6 +1668,7 @@ export class RelayTokenService {
       ipWhitelist: token.ipWhitelist || undefined,
       modelMapping: token.modelMapping as Record<string, string> | undefined,
       requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
+      streamConfig: token.streamConfig ?? undefined,
       normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
       contentSafetyConfig: (token.contentSafetyConfig as any) ?? null,
       channelConfigs,
@@ -1517,9 +1696,22 @@ export class RelayTokenService {
   private toImportItemDto(token: RelayTokenWithRelations): RelayTokenImportItemDto {
     return {
       name: token.name || undefined,
-      token: token.token,
+      token: toCanonicalCredential(token.token, "relayToken"),
       expiresAt: token.expiresAt ? token.expiresAt.toISOString() : undefined,
-      routingMode: token.routingMode === "automatic-pool" ? "automatic-pool" : "ordered",
+      routingMode:
+        token.routingMode === "composite"
+          ? "composite"
+          : token.routingMode === "automatic-pool"
+            ? "automatic-pool"
+            : "ordered",
+      memberTokenConfigs:
+        token.routingMode === "composite"
+          ? (token.memberTokenConfigs ?? []).map((member) => ({
+              tokenId: member.tokenId,
+              priority: member.priority,
+              enabled: member.enabled,
+            }))
+          : undefined,
       automaticProxyPoolChannelId: token.automaticProxyPoolChannelId || undefined,
       blockedAutomaticProxyPoolChannelIds: this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(
         token.blockedAutomaticProxyPoolChannelIds,
@@ -1559,6 +1751,7 @@ export class RelayTokenService {
       modelMapping: token.modelMapping as Record<string, string> | undefined,
       requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
       normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
+      streamConfig: token.streamConfig as CreateRelayTokenDto["streamConfig"],
       contentSafetyConfig: (token.contentSafetyConfig as any) ?? null,
       enabled: token.status === MANAGED_STATUS.ENABLED,
     };
@@ -1568,7 +1761,7 @@ export class RelayTokenService {
     return {
       ...this.toImportItemDto(token),
       id: token.id,
-      token: token.token,
+      token: toCanonicalCredential(token.token, "relayToken"),
       enabled: token.status === MANAGED_STATUS.ENABLED,
       createTime: token.createTime,
       updateTime: token.updateTime,
@@ -1921,9 +2114,10 @@ export class RelayTokenService {
     const blockedAutomaticProxyPoolChannelIds = automaticPool
       ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
       : [];
-    const normalizedConfig = automaticPoolId
-      ? { defaultChannelId: undefined, channelConfigs: [] }
-      : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
+    const normalizedConfig =
+      data.routingMode === "composite" || automaticPoolId
+        ? { defaultChannelId: undefined, channelConfigs: [] }
+        : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
 
     const hasCustomToken = Boolean(data.token?.trim());
     if (hasCustomToken) {
@@ -1935,22 +2129,28 @@ export class RelayTokenService {
     }
 
     const tokenValue = await this.resolveImportedTokenValue(data.token, reservedTokens);
-    const isCustomKey = hasCustomToken && tokenValue === data.token!.trim();
+    const isCustomKey = hasCustomToken;
+    const canonicalTokenValue = toCanonicalCredential(tokenValue, "relayToken");
 
     return this.relayTokenRepo.create(
       {
         userId,
         status: data.enabled === false ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED,
         name: data.name?.trim() || undefined,
-        token: tokenValue,
+        token: canonicalTokenValue,
+        legacyToken: tokenValue !== canonicalTokenValue ? tokenValue : undefined,
         isCustomKey,
         expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
         channelId: normalizedConfig.defaultChannelId,
-        routingMode: automaticPoolId ? "automatic-pool" : "ordered",
+        routingMode: data.routingMode === "composite" ? "composite" : automaticPoolId ? "automatic-pool" : "ordered",
+        memberTokenConfigs: data.memberTokenConfigs,
+        streamConfig: data.streamConfig,
         automaticProxyPoolChannelId: automaticPoolId,
         blockedAutomaticProxyPoolChannelIds,
         channelConfigs: normalizedConfig.channelConfigs,
-        failoverConfig: data.failoverConfig,
+        failoverConfig:
+          data.failoverConfig ??
+          (data.routingMode === "composite" ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0) : undefined),
         quotaLimit: data.quotaLimit ?? undefined,
         quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
         allowedModels: data.allowedModels?.trim() || undefined,
@@ -2059,7 +2259,7 @@ export class RelayTokenService {
   }
 
   private generateRelayTokenValue(): string {
-    return "rlt_" + crypto.randomBytes(32).toString("hex");
+    return `${getCredentialPrefix("relayToken")}${crypto.randomBytes(32).toString("hex")}`;
   }
 
   private normalizeOptionalIpWhitelist(value?: string | null): string | null | undefined {

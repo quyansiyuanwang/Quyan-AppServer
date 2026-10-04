@@ -717,6 +717,14 @@ const zhCN = {
     duplicateRunId: "runId 不能重复",
   },
   relayToken: {
+    compositionInvalidMember: "成员必须是同一用户拥有且不重复的中转令牌。",
+    compositionCycle: "组合令牌不能包含循环引用。",
+    compositionDepth: "组合令牌最多支持四层组合节点。",
+    compositionSize: "组合需要 1–20 个成员，且最多展开 100 条末端路径。",
+    compositionMode: "组合模式不能同时设置渠道或自动代理池。",
+    compositionBudget: "组合请求已耗尽上游尝试次数。",
+    compositionUnavailable: "没有组合成员能够处理当前请求。",
+
     notFound: "中转令牌不存在",
     formatTransformsMustBeArray: "requestFormatTransforms 必须是数组",
     formatTransformsMaxRules: "requestFormatTransforms 最多支持 3 条规则",

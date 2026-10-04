@@ -52,7 +52,7 @@ model Example {
 | 模型 | 表名 | 说明 |
 |------|------|------|
 | RelayChannel | `relay_channels` | 上游 AI API 渠道配置 |
-| RelayToken | `relay_tokens` | 用户 API token (前缀 `rlt_`) |
+| RelayToken | `relay_tokens` | 用户 API token (前缀 `sk-rlt-`，兼容旧 `rlt_`) |
 | RelayTokenQuotaWindow | `relay_token_quota_windows` | 基于时间窗口的配额 |
 | RelayTokenFailoverConfig | `relay_token_failover_configs` | 故障转移配置 |
 | RelayTokenChannelConfig | `relay_token_channel_configs` | 按 token 的渠道优先级 |
@@ -62,7 +62,7 @@ model Example {
 | ModelPricing | `model_pricing` | AI 模型定价 |
 
 **RelayToken 关键字段**：
-- `token` (唯一, `rlt_` 前缀)
+- `token` (唯一, `sk-rlt-` 前缀，兼容旧 `rlt_`)
 - `userId` → User (所有者)
 - `channelId` → RelayChannel (默认渠道)
 - `quotaLimit`, `allowedModels`, `ipWhitelist`

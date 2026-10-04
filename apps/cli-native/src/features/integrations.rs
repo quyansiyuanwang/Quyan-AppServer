@@ -1,6 +1,6 @@
 //! Client adapters own their protocol keys; endpoint values come from Quyan config.
 //! Credentials stay in the OS keychain and are injected only into launched children.
-mod files;
+pub(crate) mod files;
 mod launch;
 pub use launch::launch;
 

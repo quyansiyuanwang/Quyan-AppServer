@@ -5,6 +5,7 @@
       isDesktop ? 'desktop-page page-shell' : 'oauth-client-mobile mobile-page',
     ]"
   >
+    <ClientIntegrationGuide mode="oauth" />
     <div v-if="isDesktop" class="oauth-client-management">
       <el-card class="page-card">
         <template #header>
@@ -195,6 +196,10 @@
       :is-desktop="isDesktop"
       :submitting="submitting"
       :scope-catalog="scopeCatalog"
+      :scope-catalog-loading="scopeCatalogLoading"
+      :scope-catalog-error="scopeCatalogError"
+      :scope-catalog-ready="scopeCatalogReady"
+      @retry-scope-catalog="loadScopeCatalog"
       @add-redirect-uri="addRedirectUriRow"
       @remove-redirect-uri="removeRedirectUriRow"
       @submit="handleSubmit"
@@ -213,14 +218,15 @@
 import { Refresh } from '@element-plus/icons-vue'
 import { getErrorMessage } from '@/utils/error-utils'
 import { onMounted, ref } from 'vue'
+import { useOAuthScopeCatalog } from '@/composables/useOAuthScopeCatalog'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { i18ns } from '@/locales'
 import { useI18n } from 'vue-i18n'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { OAuthClientService } from '@/service/oauthClientService'
+import ClientIntegrationGuide from '@/components/oauth/ClientIntegrationGuide.vue'
 import OAuthClientFormDialog from './components/oauth-client-management/OAuthClientFormDialog.vue'
 import OAuthClientSecretDialog from './components/oauth-client-management/OAuthClientSecretDialog.vue'
-import type { OAuthScopeOption } from '@/components/oauth/OAuthScopeTreeSelector.vue'
 import type {
   CreateOAuthClientDto,
   OAuthClientDto,
@@ -255,7 +261,13 @@ const createEmptyForm = () => ({
 })
 
 const form = ref(createEmptyForm())
-const scopeCatalog = ref<OAuthScopeOption[]>([])
+const {
+  scopeCatalog,
+  scopeCatalogLoading,
+  scopeCatalogError,
+  scopeCatalogReady,
+  loadScopeCatalog,
+} = useOAuthScopeCatalog()
 
 const getReviewStatusLabel = (status: OAuthClientReviewStatus) =>
   i18ns.t(`oauthClient.reviewStatuses.${status}`)
@@ -299,11 +311,6 @@ const loadClients = async () => {
   } finally {
     loading.value = false
   }
-}
-
-const loadScopeCatalog = async () => {
-  const result = await oauthClientService.getOAuthScopes()
-  scopeCatalog.value = (result as { scopes: OAuthScopeOption[] }).scopes
 }
 
 const resetForm = () => {
@@ -380,6 +387,11 @@ const handleSubmit = async () => {
 
   if (!form.value.scopes.length) {
     ElMessage.warning(t('oauthClient.scopesRequired'))
+    return
+  }
+
+  if (!scopeCatalogReady.value) {
+    ElMessage.warning(t('oauthScopes.catalogUnavailable'))
     return
   }
 

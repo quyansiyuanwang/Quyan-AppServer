@@ -98,6 +98,7 @@
               <el-form-item required :class="isDesktop ? 'form-item-span-2' : undefined">
                 <template #label>{{ i18ns.t('relay.routingMode') }}</template>
                 <el-radio-group v-model="editForm.routingMode">
+                  <el-radio value="composite">{{ i18ns.t('relay.routingModeComposite') }}</el-radio>
                   <el-radio value="ordered">{{ i18ns.t('relay.routingModeOrdered') }}</el-radio>
                   <el-radio value="automatic-pool">{{
                     i18ns.t('relay.routingModeAutomaticPool')
@@ -105,6 +106,20 @@
                 </el-radio-group>
               </el-form-item>
 
+              <el-form-item
+                v-if="editForm.routingMode === 'composite'"
+                :label="i18ns.t('relay.compositionMembers')"
+                style="grid-column: 1 / -1"
+              >
+                <RelayTokenCompositeMembers
+                  v-model="editForm.memberTokenConfigs"
+                  :editing-token-id="state.currentEditId.value || undefined"
+                  :target-user-id="state.currentTargetUserIdForRequest.value"
+                  :settings="compositionSettings"
+                  @models="state.compositionModelIds.value = $event"
+                  @defaults="state.compositeDefaultRetryStatusCodes.value = $event"
+                />
+              </el-form-item>
               <el-form-item
                 v-if="editForm.routingMode === 'automatic-pool'"
                 required
@@ -1323,6 +1338,7 @@ import { Delete, Plus, QuestionFilled, Rank } from '@element-plus/icons-vue'
 import { computed, ref, unref, type ComponentPublicInstance } from 'vue'
 import { Permission } from '@/constant/permission'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
+import RelayTokenCompositeMembers from './RelayTokenCompositeMembers.vue'
 import ModelMappingEditor from '@/components/relay/ModelMappingEditor.vue'
 import { i18ns } from '@/locales'
 import { useRelayTokenManagementContext } from '../context'
@@ -1351,6 +1367,14 @@ const {
   selectedAutomaticProxyPoolMemberOptions,
   MAX_REQUEST_FORMAT_TRANSFORMS,
 } = state
+
+const compositionSettings = computed(() => ({
+  modelMapping: editForm.value.modelMapping,
+  allowedModels: editForm.value.allowedModelIdsList.join(','),
+  requestFormatTransforms: editForm.value.requestFormatTransforms
+    .filter((rule) => rule.sourceFormat && rule.targetFormat)
+    .map((rule) => ({ sourceFormat: rule.sourceFormat!, targetFormat: rule.targetFormat! })),
+}))
 
 const requestFormatOptions = [
   { value: 'openai-chat-completions', label: i18ns.t('relay.formatOpenAIChatCompletions') },

@@ -2,6 +2,16 @@
 
 Use this page to register external applications that treat this platform as an authentication center.
 
+## Integration quick start
+
+1. Choose grant types for the integration scenario.
+2. Configure the exact Redirect URI and enable PKCE for authorization-code flows.
+3. Select the minimum required scopes.
+4. Create the app and submit it for review.
+5. Follow the authorization, token, discovery-endpoint, or SDK documentation to integrate.
+
+The Auth Center management page shows the same checklist; submission is blocked while the scope catalog is unavailable.
+
 ## Page positioning
 
 This page is the integration guide for third-party systems. Its focus is on flow design, JWT, JWKS, and refresh-token behavior.

@@ -2,6 +2,12 @@
 
 Carpools let you purchase deliverable monthly-pass quota with trusted friends through a **private invitation**. This is not a public marketplace: only people invited by the owner can join.
 
+## Guided page flow
+
+The My carpools page presents the flow as “choose a package → invite members → member confirmation → submit to depart → delivery complete”. The order list highlights its current state and next action; mobile uses stacked cards while the detail page remains the source of truth for server state.
+
+The invitation page does not guess order details before acceptance. After signing in, accept the invitation; the server validates it and returns an order summary before you continue to the detail page.
+
 ## Before you start
 
 - The package, quota, validity, maximum members, and formation deadline shown on the page are the current server configuration.

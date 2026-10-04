@@ -6,6 +6,7 @@ import type {
   CreateSystemOAuthClientDto,
   OAuthClientControllerListClientsForReviewData,
   OAuthClientDto,
+  OAuthScopeCatalogResponseDto,
   ReviewOAuthClientDto,
   UpdateOAuthClientDto,
   UpdateSystemOAuthClientDto,
@@ -33,9 +34,10 @@ export class OAuthClientService {
     return checkApiResult(result, true)
   }
 
-  async getOAuthScopes() {
+  async getOAuthScopes(): Promise<OAuthScopeCatalogResponseDto> {
     const result = await getOAuthControllerApi().scopes({})
-    return checkApiResult<{ scopes: unknown[] }>(result, true)
+    const envelope = checkApiResult<{ data: OAuthScopeCatalogResponseDto }>(result, true)
+    return envelope.data
   }
 
   async getOAuthClient(id: string) {

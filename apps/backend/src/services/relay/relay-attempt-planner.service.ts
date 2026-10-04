@@ -1,3 +1,4 @@
+import { filterBlockedAutomaticPoolCandidates } from "./relay-candidate-exclusions";
 import type { RelayChannel } from "@prisma/client";
 import type {
   RelayAttemptPlan,
@@ -50,21 +51,10 @@ export class RelayAttemptPlannerService {
     const resolvedChannels = await this.host.resolveActiveLeafCandidates(topLevelChannels, (pool, members, context) =>
       this.host.orderPooledMemberChannels(pool, members, context),
     );
-    const blockedChannelIds = new Set(
-      Array.isArray(relayToken.blockedAutomaticProxyPoolChannelIds)
-        ? relayToken.blockedAutomaticProxyPoolChannelIds.reduce<string[]>((ids, channelId) => {
-            if (typeof channelId !== "string") return ids;
-            const normalizedChannelId = channelId.trim();
-            if (normalizedChannelId) ids.push(normalizedChannelId);
-            return ids;
-          }, [])
-        : [],
+    const channels = filterBlockedAutomaticPoolCandidates(
+      resolvedChannels,
+      relayToken.blockedAutomaticProxyPoolChannelIds,
     );
-    const channels = blockedChannelIds.size
-      ? resolvedChannels.filter(
-          (candidate) => !blockedChannelIds.has((candidate.billingChannel ?? candidate.resolvedChannel).id),
-        )
-      : resolvedChannels;
     const tokenFailoverConfig = await this.host.getFailoverRuntimeConfig(relayToken);
     const cacheFilteredChannels = await this.host.filterChannelsByCacheHitRate(
       relayToken,
