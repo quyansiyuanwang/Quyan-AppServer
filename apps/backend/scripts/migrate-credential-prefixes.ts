@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
-import { toCanonicalCredential } from "@quyan/shared";
+import { toCanonicalCredential } from "../../../packages/shared/src/credential.ts";
 
 dotenv.config({ path: ".env" });
 

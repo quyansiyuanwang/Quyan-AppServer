@@ -3,6 +3,7 @@ export {
   buildPermissionResourceGroups,
   filterGrantablePermissions,
   getPermissionCategoryId,
+  getPermissionCategoryTranslationKey,
   getPermissionResourceId,
   getPermissionResourceLabel,
 } from './permission-tree'

@@ -1,9 +1,16 @@
 import { afterEach, vi } from 'vitest'
 import { config } from '@vue/test-utils'
-import { initializeI18n } from '@/locales'
+import { ensureSiteLocaleMessages, getLocale, initializeI18n } from '@/locales'
+import { siteProfiles } from '@/config/site-registry'
 
 await initializeI18n()
-
+// Component tests mount views directly instead of navigating through the router.
+// The application normally loads the current site's bundle in the navigation
+// guard, but direct mounts have no route/site transition to trigger that load.
+// Preload every site bundle in the shared test harness so a component keeps the
+// same translations it has after a real site navigation, without weakening the
+// production lazy-loading boundary.
+await Promise.all(siteProfiles.map((profile) => ensureSiteLocaleMessages(getLocale(), profile.id)))
 const hasDomEnvironment = typeof window !== 'undefined' && typeof document !== 'undefined'
 
 const simpleStub = (name: string) => ({
