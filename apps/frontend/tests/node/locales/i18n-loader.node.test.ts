@@ -8,6 +8,9 @@ import baseEmoji from '@/locales/base/emoji'
 import managementCoreEn from '@/locales/sites/management-core/en'
 import managementCoreZhCN from '@/locales/sites/management-core/zh-CN'
 import managementCoreEmoji from '@/locales/sites/management-core/emoji'
+import sharedEn from '@/locales/sites/shared/en'
+import sharedZhCN from '@/locales/sites/shared/zh-CN'
+import sharedEmoji from '@/locales/sites/shared/emoji'
 
 type MessageTree = Record<string, unknown>
 
@@ -26,11 +29,15 @@ describe('locale bundle schema', () => {
     expect(sortedKeys(emoji)).toEqual(sortedKeys(en))
   })
 
-  it('keeps base and management-core bundles in exact key parity', () => {
+  it('keeps base, shared and management-core bundles in exact key parity', () => {
     expect(sortedKeys(baseZhCN)).toEqual(sortedKeys(baseEn))
     expect(sortedKeys(baseEmoji)).toEqual(sortedKeys(baseEn))
     expect(sortedKeys(managementCoreZhCN)).toEqual(sortedKeys(managementCoreEn))
     expect(sortedKeys(managementCoreEmoji)).toEqual(sortedKeys(managementCoreEn))
+    expect(sortedKeys(sharedZhCN)).toEqual(sortedKeys(sharedEn))
+    expect(sortedKeys(sharedEmoji)).toEqual(sortedKeys(sharedEn))
+    expect(sharedEn.relay.tokenManagement).toBe('Relay Token Management')
+    expect(managementCoreEn.relay).toBeUndefined()
   })
 
   it('keeps the permission category catalog independent across namespaces', () => {
