@@ -531,6 +531,7 @@ const en = {
     configureMachineFirst: 'Configure one remote Agent machine before creating a workspace.',
   },
   RamManagement: {
+    effectiveIamProjectionHint: "Effective permissions use IAM evaluation in enforce mode. Only account-target grants project to global permissions; resource-specific grants are not global. Historical source arrays may omit JSON grants. Use concrete-resource simulation for access decisions.",
     scopedAuthorizations: "Scoped authorizations",
     scopedAuthorizationHint: "Choose a user, group or role, a policy ID and its scope. IDs can be copied from management lists. Creating or revoking requires the dedicated IAM action, delegation proof, replay protection and 2FA. Server checks remain authoritative.",
     scopedPrincipalType: "Principal type",

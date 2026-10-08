@@ -1789,6 +1789,23 @@ export class RamService {
     if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
     this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId || user.id);
 
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const projected = await this.permissionService.getUserFullPermissions(user.id);
+      if (!projected) throw new NotFoundError("User missing", undefined, { messageKey: "user.notFound" });
+      return {
+        userId: user.id,
+        username: user.username,
+        ramUsername: user.ramUsername ?? user.username,
+        directPermissions: projected.additionalPermissions,
+        groupPermissions: projected.groupPermissions,
+        rolePermissions: projected.rolePermissions ?? [],
+        policyPermissions: projected.policyPermissions ?? [],
+        permissionRemoves: projected.removedPermissions,
+        effectivePermissions: projected.effectivePermissions,
+        authorizationMode: "enforce",
+      };
+    }
+
     // 1. 用户直接权限
     const directPermissions = normalizeJsonStringArray(user.permissionAdds);
 
@@ -1832,6 +1849,7 @@ export class RamService {
       policyPermissions,
       permissionRemoves,
       effectivePermissions,
+      authorizationMode: env.security.iamAuthorizationMode,
     };
   }
 }

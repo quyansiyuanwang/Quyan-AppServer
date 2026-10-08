@@ -38991,6 +38991,15 @@
 			},
 			"EffectivePermissionDto": {
 				"properties": {
+					"authorizationMode": {
+						"type": "string",
+						"enum": [
+							"legacy",
+							"shadow",
+							"enforce"
+						],
+						"description": "Projection hint only; resource-level authorization remains server-enforced."
+					},
 					"userId": {
 						"type": "string"
 					},

@@ -244,6 +244,8 @@ export interface AttachPolicyBodyDto {
 // ── 授权概览 DTO ──
 
 export interface EffectivePermissionDto {
+  /** Projection hint only; resource-level authorization remains server-enforced. */
+  authorizationMode?: "legacy" | "shadow" | "enforce";
   userId: string;
   username: string;
   ramUsername: string;

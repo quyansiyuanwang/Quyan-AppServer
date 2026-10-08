@@ -5,6 +5,7 @@ import {
   accountEntityBatchResourceResolver,
   accountEntityResourceResolver,
   ramAccountResourceResolver,
+  ramEffectivePermissionsUserResourceResolver,
   ramAuthorizationResourceResolver,
   ramResourceGroupResourceResolver,
   ramPolicyBindingResourceResolver,
@@ -21,6 +22,18 @@ const principal: IamPrincipal = {
   subjectType: "sub_user",
 };
 describe("IAM resource trust boundaries", () => {
+  it("resolves the inspected user's ARN from validated query input without trusting an account override", async () => {
+    expect(
+      await ramEffectivePermissionsUserResourceResolver({
+        principal,
+        request: { query: { userId: "target", accountOwnerId: "foreign" }, headers: { "x-action": "*" } } as never,
+      }),
+    ).toBe("acs:quyan:*:owner:user/target");
+    for (const userId of ["*", "", undefined, ["target"]])
+      expect(
+        await ramEffectivePermissionsUserResourceResolver({ principal, request: { query: { userId } } as never }),
+      ).toBeUndefined();
+  });
   it("resolves both sides of policy and role bindings and fails closed on either invalid target", async () => {
     const context = (body: object, params = {}) => ({ principal, request: { body, params } as never });
     expect(

@@ -1,3 +1,6 @@
+import { principalConditionContext } from "@/iam/request/condition-context";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { getRequestContext } from "@/util/request-context";
 import { actionForPermission, buildAcsResource } from "@quyan/shared";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
@@ -237,24 +240,41 @@ export class PermissionService {
 
     if (!user) return null;
 
+    const request = getRequestContext();
+    const currentPrincipal =
+      env.security.iamAuthorizationMode === "enforce" && request?.user?.userId === user.id
+        ? getIamPrincipal(request)
+        : undefined;
+    if (currentPrincipal?.roleSessionId && !options.assumedRoleSessionId)
+      options = { ...options, assumedRoleSessionId: currentPrincipal.roleSessionId };
     const legacy = await this.calculateUserPermissionsWithRoles(user, user.group, options);
     if (env.security.iamAuthorizationMode !== "enforce") return legacy;
     const session = options.assumedRoleSessionId
       ? await this.ramRoleRepository.findActiveRoleSession(options.assumedRoleSessionId)
       : undefined;
     const accountOwnerId = user.accountOwnerId || user.id;
-    const policies = await IamAuthorizationService.getInstance().loadPolicies({
+    const principal = currentPrincipal ?? {
       subjectUserId: user.id,
       principalUserId: user.id,
       accountOwnerId,
-      subjectType: session ? "assumed_role" : user.id === accountOwnerId ? "root" : "sub_user",
+      subjectType: session
+        ? ("assumed_role" as const)
+        : user.id === accountOwnerId
+          ? ("root" as const)
+          : ("sub_user" as const),
       assumedRoleId: session?.roleId,
       roleSessionId: options.assumedRoleSessionId,
-    });
+    };
+    if (options.assumedRoleSessionId && principal.roleSessionId !== options.assumedRoleSessionId)
+      throw new ForbiddenError("IAM projection session mismatch", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const policies = await IamAuthorizationService.getInstance().loadPolicies(principal);
+    const context = principalConditionContext(principal);
     const resource = buildAcsResource({ service: "quyan", region: "*", accountId: accountOwnerId, path: "account" });
     const effectivePermissions = Object.values(Permission).filter(
       (permission) =>
-        evaluatePolicies(policies, { action: actionForPermission(permission), resource }).decision === "Allow",
+        evaluatePolicies(policies, { action: actionForPermission(permission), resource, context }).decision === "Allow",
     );
     return { ...legacy, effectivePermissions };
   }

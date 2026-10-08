@@ -65,6 +65,7 @@ import {
   ramUserUpdateResourceResolver,
   ramUserCreateResourceResolver,
   ramUserResourceResolver,
+  ramEffectivePermissionsUserResourceResolver,
   ramPolicyResourceResolver,
   ramSessionResourceResolver,
   ramRoleUserBindingResourceResolver,
@@ -1041,8 +1042,8 @@ export class RamController extends Controller {
   @Middlewares(validateQuery(authorizationQuerySchema))
   @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:ReadUser",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramEffectivePermissionsUserResourceResolver,
   })
   public async getUserEffectivePermissions(
     @Request() request: TypedRequest,

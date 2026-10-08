@@ -487,6 +487,7 @@ const emoji = {
     configureMachineFirst: '🖥️⚙️➡️🗂️',
   },
   RamManagement: {
+    effectiveIamProjectionHint: "🔎 enforce 最终权限使用 IAM。账户目标授权才投影为全局权限；资源级授权保留范围。历史数组可能缺少 JSON 授权，请模拟具体资源确认。",
     scopedAuthorizations: "🔐 范围授权",
     scopedAuthorizationHint: "🔐 选择用户、用户组或角色，填写策略 ID 与授权范围。ID 可从管理列表复制。创建或撤销需要专用 IAM 权限、委派证明、重放保护和二次认证，以服务端检查为准。",
     scopedPrincipalType: "🔐 主体类型",

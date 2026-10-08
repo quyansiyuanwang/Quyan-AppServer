@@ -70,6 +70,10 @@ export const ramAssumeRoleResourceResolver = accountEntityResourceResolver(
 );
 
 export const ramUserResourceResolver = accountEntityResourceResolver("user", (request) => request.params.userId);
+export const ramEffectivePermissionsUserResourceResolver = accountEntityResourceResolver(
+  "user",
+  (request) => request.query.userId,
+);
 export const ramPolicyResourceResolver = accountEntityResourceResolver("policy", (request) => request.params.policyId);
 export const ramSessionResourceResolver = accountEntityResourceResolver(
   "role-session",

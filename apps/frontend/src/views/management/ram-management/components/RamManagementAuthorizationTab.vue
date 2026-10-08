@@ -24,6 +24,12 @@
     </div>
 
     <div v-if="authUserId && effectivePerms" class="auth-summary">
+      <el-alert
+        v-if="effectivePerms.authorizationMode === 'enforce'"
+        :title="i18ns.t('RamManagement.effectiveIamProjectionHint')"
+        type="info"
+        :closable="false"
+      />
       <el-descriptions :column="1" border>
         <el-descriptions-item :label="i18ns.t('username')">
           {{ effectivePerms.ramUsername }}
