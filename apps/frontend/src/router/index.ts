@@ -7,7 +7,7 @@ import {
   type SiteProfile,
 } from '@/config/site-registry'
 import { moduleHost } from '@/plugins/modules'
-import { ensureSiteLocaleMessages, i18ns } from '@/locales'
+import { ensureRouteLocaleMessages, i18ns } from '@/locales'
 import { installDocumentTitle } from './document-title'
 import { createProtectedNavigationGuard, isAuthEntryRoute } from './navigation-guard'
 import { installRoutePrefetch } from './route-prefetch'
@@ -84,18 +84,11 @@ export const installProfileRoutes = async (
 
 function installNavigationGuards(router: ReturnType<typeof createRouter>, profile: SiteProfile) {
   installRoutePrefetch(router, profile)
-  router.beforeEach(async () => {
-    try {
-      // Keep route components behind the site bundle barrier. Base messages are
-      // loaded first by ensureSiteLocaleMessages, so a failed advanced bundle
-      // cannot expose raw navigation/title keys during the transition.
-      await ensureSiteLocaleMessages(i18ns.locale, profile.id)
-    } catch (error) {
-      console.warn(
-        '[router] Failed to load site locale bundle; continuing with base messages.',
-        error,
-      )
-    }
+  router.beforeEach(async (to) => {
+    const routeNames = to.matched.flatMap((route) =>
+      typeof route.name === 'string' ? [route.name] : [],
+    )
+    await ensureRouteLocaleMessages(i18ns.locale, profile.id, routeNames)
     return true
   })
   router.beforeEach(createProtectedNavigationGuard(router, profile))

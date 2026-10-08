@@ -158,11 +158,11 @@ const {
   handleModelRestrictionsApplied,
 } = useRelaySettingsManagementContext()
 
-const formatOptions: Array<{ value: ProbeFormat; label: string }> = [
+const formatOptions = computed<Array<{ value: ProbeFormat; label: string }>>(() => [
   { value: 'openai', label: i18ns.t('relay.formatOpenAI') },
   { value: 'anthropic', label: i18ns.t('relay.formatAnthropic') },
   { value: 'gemini', label: i18ns.t('relay.formatGemini') },
-]
+])
 const activeFormat = ref<ProbeFormat>('openai')
 const probingFormat = ref<ProbeFormat | ''>('')
 const applying = ref(false)
@@ -188,7 +188,7 @@ const formatItems = (format: ProbeFormat) => results.value[format]
 
 const aggregatedModels = computed<AggregatedModel[]>(() => {
   const models = new Map<string, AggregatedModel>()
-  for (const format of formatOptions.map((option) => option.value)) {
+  for (const format of formatOptions.value.map((option) => option.value)) {
     for (const item of results.value[format]) {
       if (item.status !== 'success') continue
       for (const model of item.models) {
@@ -220,7 +220,7 @@ const filteredAggregatedModels = computed(() => {
 
 const supportedModelsByChannel = computed(() => {
   const supported = new Map<string, Set<string>>()
-  for (const format of formatOptions.map((option) => option.value)) {
+  for (const format of formatOptions.value.map((option) => option.value)) {
     for (const item of results.value[format]) {
       if (item.status !== 'success') continue
       const channelModels = supported.get(item.channelId) ?? new Set<string>()

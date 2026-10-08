@@ -23,6 +23,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import obfuscatorPlugin from './scripts/plugins/vite-plugin-obfuscator-custom'
 import { buildInfoPlugin } from './scripts/plugins/vite-plugin-build-info'
 import { autoRouteTypes } from './scripts/plugins/vite-plugin-auto-route-types'
+import { i18nCoveragePlugin } from './scripts/i18n/vite-plugin'
 import { firstPartyHostPrefixes } from './src/config/first-party-hosts'
 
 // Pre-compression is opt-in because hosts must explicitly serve `.br`/`.gz`
@@ -706,6 +707,7 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_PUBLIC_SITE_HOST': JSON.stringify(publicSiteHostname),
     },
     plugins: [
+      i18nCoveragePlugin(),
       autoRouteTypes({
         routesFile: 'src/router/routes.ts',
         outFile: 'src/types/route-types.gen.d.ts',

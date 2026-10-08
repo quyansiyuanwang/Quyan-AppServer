@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const emoji: DeepStringify<typeof en> = {
+const emoji = {
   oauthResult: {
     successTitle: '✅ 授权成功',
     successDescription: '🔐 Quyan CLI 已登录，凭证已保存到系统密钥链。',
@@ -197,6 +197,6 @@ const emoji: DeepStringify<typeof en> = {
     verifyCodeHint: '⌨️ 6️⃣🔢 🆘',
     passkeyNeedSecondFactor: '♿✅ ➕ 2️⃣',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default emoji

@@ -160,7 +160,7 @@ type IncidentColumn = {
   sortable?: boolean
   value?: (row: any) => string
 }
-const columns: IncidentColumn[] = [
+const columns = computed<IncidentColumn[]>(() => [
   { key: 'time', label: t('contentSafety.time'), prop: 'createTime', width: 160, sortable: true },
   {
     key: 'direction',
@@ -228,7 +228,7 @@ const columns: IncidentColumn[] = [
   },
   { key: 'auditCost', label: t('contentSafety.auditCost'), path: 'auditCost', width: 110 },
   { key: 'userId', label: t('contentSafety.userId'), path: 'userId', width: 150 },
-]
+])
 const defaults = [
   'time',
   'direction',
@@ -258,7 +258,7 @@ const filters = reactive<any>({
 })
 const sort = reactive({ sortBy: 'createTime', sortOrder: 'desc' as 'asc' | 'desc' })
 const visibleColumnDefs = computed(() =>
-  columns.filter((column) => visibleColumns.value.includes(column.key)),
+  columns.value.filter((column) => visibleColumns.value.includes(column.key)),
 )
 const get = (row: any, path: string) =>
   path.split('.').reduce((value, key) => value?.[key], row) ?? '-'

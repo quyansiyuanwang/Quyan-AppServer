@@ -216,7 +216,7 @@ export function useRemoteTerminalProductManagement(
     validateEntitlementDateRange(_rule, _value, callback)
   }
 
-  const templateFormRules: FormRules = {
+  const templateFormRules = computed<FormRules>(() => ({
     name: [
       { required: true, message: i18ns.t('remoteTerminalProduct.nameRequired'), trigger: 'blur' },
     ],
@@ -247,9 +247,9 @@ export function useRemoteTerminalProductManagement(
         trigger: 'change',
       },
     ],
-  }
+  }))
 
-  const entitlementFormRules: FormRules = {
+  const entitlementFormRules = computed<FormRules>(() => ({
     userId: [
       { required: true, message: i18ns.t('remoteTerminalProduct.userRequired'), trigger: 'change' },
     ],
@@ -257,7 +257,7 @@ export function useRemoteTerminalProductManagement(
     endAt: [{ validator: validateEndAt, trigger: 'change' }],
     deviceLimit: [{ validator: validateEntitlementQuota, trigger: 'change' }],
     terminalLimit: [{ validator: validateEntitlementQuota, trigger: 'change' }],
-  }
+  }))
 
   const canReadTemplate = computed(() =>
     permissionStore.hasPermission(Permission.REMOTE_TERMINAL_PRODUCT_READ),

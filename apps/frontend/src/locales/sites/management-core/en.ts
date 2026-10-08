@@ -573,6 +573,9 @@ const en = {
     showRamGroups: 'Show RAM Groups',
   },
   PermissionManagement: {
+    inspect: 'Inspect permissions',
+    diagnosticsExplanation:
+      'Inspect effective permissions and explain the source of each grant or denial.',
     title: 'Permission Management',
     name: 'Name',
     groupId: 'User Group ID',
@@ -1407,6 +1410,9 @@ const en = {
     },
   },
   oauthClient: {
+    nameRequired: 'Please enter an app name',
+    redirectUrisRequired: 'Please add at least one redirect URI',
+    regenerateSecretConfirm: 'Regenerate the client secret? The previous secret will stop working.',
     management: 'OAuth App Management',
     reviewManagement: 'OAuth App Reviews',
     description:
@@ -1520,11 +1526,11 @@ const en = {
       notification:
         '`/v1/notification/preferences`, `/v1/notification/webhooks`, `/v1/notification/logs`, `/v1/notification/events`',
       oauthClient:
-        '`GET/POST/PUT/DELETE /v1/oauth-clients`, `POST /v1/oauth-clients/{id}/regenerate-secret`',
+        "`GET/POST/PUT/DELETE /v1/oauth-clients`, `POST /v1/oauth-clients/{'{id}'}/regenerate-secret`",
       accesskey:
         '`GET/POST/DELETE /v1/accesskeys`, `POST /v1/accesskeys/send-accesskey-creation-verification-code`',
       passkey:
-        '`POST /v1/passkey/register/options`, `POST /v1/passkey/register/verify`, `GET /v1/passkey/list`, `DELETE /v1/passkey/{credentialId}`',
+        "`POST /v1/passkey/register/options`, `POST /v1/passkey/register/verify`, `GET /v1/passkey/list`, `DELETE /v1/passkey/{'{credentialId}'}`",
       twoFactor:
         '`GET /v1/users/me/2fa/status`, trusted device management, 2FA setup/confirm/disable, recovery code regeneration, passkey policy updates',
     },
@@ -1746,6 +1752,6 @@ const en = {
       operationFailed: 'Operation failed',
     },
   },
-}
+} as const
 
 export default en

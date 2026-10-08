@@ -1,4 +1,4 @@
 // Locale bundle: product-verification/en.
-const en = {}
+const en = {} as const
 
 export default en

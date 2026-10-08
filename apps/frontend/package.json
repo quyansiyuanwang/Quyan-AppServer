@@ -29,15 +29,15 @@
     "build:full": "pnpm run build",
     "build:full:production": "pnpm run build:production",
     "--- d_typecheck -------------------": "",
-    "type-check": "pnpm run domain-views:generate && vue-tsc --build",
+    "type-check": "pnpm run domain-views:generate && tsc --project scripts/i18n/tsconfig.json && vue-tsc --build",
     "type:generate": "node scripts/generate-route-types.js",
     "--- e_openapi ---------------------": "",
     "openapi:generate": "openapi-ts && pnpm run client:generate",
     "openapi:sync-generate": "pnpm run openapi:generate",
     "client:generate": "node scripts/generate-api-constants.js && node scripts/generate-api-types-map.js && node scripts/generate-replay-protected-endpoints.js",
     "--- f_lint_format -----------------": "",
-    "lint": "eslint . --fix --cache",
-    "lint:check": "eslint . --cache",
+    "lint": "pnpm run i18n:check && eslint . --fix --cache",
+    "lint:check": "pnpm run i18n:check && eslint . --cache",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "lint-format-check": "pnpm run lint:check && pnpm run format:check && pnpm run type-check",
@@ -53,7 +53,8 @@
     "test:taxonomy": "node ./tests/scripts/validate-test-taxonomy.mjs",
     "--- h_check -----------------------": "",
     "check": "pnpm run lint-format-check && pnpm run test:taxonomy && pnpm run test",
-    "precommit": "pnpm run check"
+    "precommit": "pnpm run check",
+    "i18n:check": "tsx scripts/generate-domain-view-manifests.ts --check-i18n"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

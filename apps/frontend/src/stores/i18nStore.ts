@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { setLocale, getLocale, type Locale } from '@/locales'
 import { i18nEventBus } from './globalInstance'
+import { SUPPORTED_LOCALES, DEFAULT_LOCALE } from '@/locales/locale'
 
 /**
  * 国际化 Store
@@ -40,8 +41,8 @@ export const useI18nStore = defineStore('i18n', () => {
    * 切换到下一个语言（按列表循环）
    */
   const toggleLocale = async () => {
-    const localeOrder: Locale[] = ['zh-CN', 'en', 'emoji']
-    const fallbackLocale: Locale = 'zh-CN'
+    const localeOrder = SUPPORTED_LOCALES
+    const fallbackLocale = DEFAULT_LOCALE
     const index = localeOrder.indexOf(currentLocale.value)
     const nextLocale: Locale =
       index >= 0

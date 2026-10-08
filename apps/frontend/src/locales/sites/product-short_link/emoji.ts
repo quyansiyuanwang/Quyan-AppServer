@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const emoji: DeepStringify<typeof en> = {
+const emoji = {
   shortLinkAnalytics: {
     back: '↩️ 🔗',
     title: '📊',
@@ -32,6 +32,6 @@ const emoji: DeepStringify<typeof en> = {
     userAgent: '🖥️',
     loadFailed: '⚠️ 📊',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default emoji

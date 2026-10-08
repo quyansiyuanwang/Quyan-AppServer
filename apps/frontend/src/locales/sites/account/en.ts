@@ -21,6 +21,6 @@ const en = {
     ticketRoadmapDescription:
       'Track next actions, status updates, and future workspace integrations.',
   },
-}
+} as const
 
 export default en

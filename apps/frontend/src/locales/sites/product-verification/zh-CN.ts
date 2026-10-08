@@ -2,6 +2,6 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {}
+const zhCN = {} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

@@ -1,4 +1,4 @@
 // Locale bundle: product-status/en.
-const en = {}
+const en = {} as const
 
 export default en

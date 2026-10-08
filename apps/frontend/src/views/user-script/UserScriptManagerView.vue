@@ -136,10 +136,10 @@ const isEdit = ref(false)
 const editingId = ref<string | null>(null)
 const editorDialogRef = ref<EditorDialogExpose | null>(null)
 const formData = ref<ScriptFormData>({ name: '', description: '', content: '' })
-const formRules: FormRules<ScriptFormData> = {
+const formRules = computed<FormRules<ScriptFormData>>(() => ({
   name: [{ required: true, message: i18ns.t('scriptManager.name'), trigger: 'blur' }],
   content: [{ required: true, message: i18ns.t('scriptManager.content'), trigger: 'blur' }],
-}
+}))
 const dialogTitle = computed(() =>
   isEdit.value ? i18ns.t('scriptManager.edit') : i18ns.t('scriptManager.create'),
 )

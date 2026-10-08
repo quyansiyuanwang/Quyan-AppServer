@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { ArrowDown, ArrowUp, Refresh, Search } from '@element-plus/icons-vue'
 import ComponentErrorBoundary from '@/components/common/ComponentErrorBoundary.vue'
 import ModelPricingTable from '@/components/relay/ModelPricingTable.vue'
@@ -74,16 +75,22 @@ const channelMatchModeOptions = [
   { label: t('apiDoc.channelMatchModeAll'), value: 'match-all' },
 ] as const
 
-const channelPriceModeOptions = [
-  { label: t('apiDoc.channelPriceModeBase'), value: 'base' },
-  { label: t('apiDoc.channelPriceModeSelectedLowest'), value: 'selected-lowest' },
-  { label: t('apiDoc.channelPriceModeGlobalLowest'), value: 'global-lowest' },
-] as const
+const channelPriceModeOptions = computed(
+  () =>
+    [
+      { label: t('apiDoc.channelPriceModeBase'), value: 'base' },
+      { label: t('apiDoc.channelPriceModeSelectedLowest'), value: 'selected-lowest' },
+      { label: t('apiDoc.channelPriceModeGlobalLowest'), value: 'global-lowest' },
+    ] as const,
+)
 
-const pricingTableModeOptions = [
-  { label: t('apiDoc.pricingTableModeSummary'), value: 'summary' },
-  { label: t('apiDoc.pricingTableModeChannelColumns'), value: 'channel-columns' },
-] as const
+const pricingTableModeOptions = computed(
+  () =>
+    [
+      { label: t('apiDoc.pricingTableModeSummary'), value: 'summary' },
+      { label: t('apiDoc.pricingTableModeChannelColumns'), value: 'channel-columns' },
+    ] as const,
+)
 
 const toggleMobilePricingControlsExpanded = () => {
   mobilePricingControlsExpanded.value = !mobilePricingControlsExpanded.value

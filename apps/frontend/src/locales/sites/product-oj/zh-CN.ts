@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   ojSubmitter: {
     apiKeyManagement: 'OJSubmitter API 密钥管理',
     createAPIKey: '创建 API 密钥',
@@ -60,6 +60,6 @@ const zhCN: DeepStringify<typeof en> = {
     updateSuccess: 'API 密钥更新成功',
     updateFailed: '更新 API 密钥失败',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

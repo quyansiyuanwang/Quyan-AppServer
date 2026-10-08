@@ -163,7 +163,6 @@ import { Refresh } from '@element-plus/icons-vue'
 import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { computed, onMounted, ref } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { i18ns } from '@/locales'
 import { OAuthClientService } from '@/service/oauthClientService'
 import type {
@@ -173,7 +172,7 @@ import type {
 } from '@/client/types.gen'
 
 const oauthClientService = OAuthClientService.getInstance()
-const { t } = useI18n()
+const { t } = i18ns
 
 const loading = ref(false)
 const submitting = ref(false)

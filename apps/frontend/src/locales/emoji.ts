@@ -25,7 +25,7 @@ import management_terminal from './sites/management-terminal/emoji'
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const emoji: DeepStringify<typeof en> = {
+const emoji = {
   ...base,
   ...shared,
   ...publicSite,
@@ -49,6 +49,6 @@ const emoji: DeepStringify<typeof en> = {
   ...management_core,
   ...management_developer,
   ...management_terminal,
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default emoji

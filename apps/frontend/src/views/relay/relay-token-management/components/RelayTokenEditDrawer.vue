@@ -1376,39 +1376,47 @@ const compositionSettings = computed(() => ({
     .map((rule) => ({ sourceFormat: rule.sourceFormat!, targetFormat: rule.targetFormat! })),
 }))
 
-const requestFormatOptions = [
-  { value: 'openai-chat-completions', label: i18ns.t('relay.formatOpenAIChatCompletions') },
-  { value: 'openai-responses', label: i18ns.t('relay.formatOpenAIResponses') },
-  { value: 'anthropic', label: i18ns.t('relay.formatAnthropic') },
-] as const
+const requestFormatOptions = computed(
+  () =>
+    [
+      { value: 'openai-chat-completions', label: i18ns.t('relay.formatOpenAIChatCompletions') },
+      { value: 'openai-responses', label: i18ns.t('relay.formatOpenAIResponses') },
+      { value: 'anthropic', label: i18ns.t('relay.formatAnthropic') },
+    ] as const,
+)
 
-const contentSafetyOverrideRows: Array<{
-  direction: string
-  enabledKey: 'requestEnabled' | 'responseEnabled'
-  actionKey: 'requestAction' | 'responseAction'
-  maxActionKey: 'requestMaxAction' | 'responseMaxAction'
-  aiKey: 'requestAiEnabled' | 'responseAiEnabled'
-  aiActionKey: 'requestAiAction' | 'responseAiAction'
-}> = [
-  {
-    direction: i18ns.t('contentSafety.request'),
-    enabledKey: 'requestEnabled',
-    actionKey: 'requestAction',
-    maxActionKey: 'requestMaxAction',
-    aiKey: 'requestAiEnabled',
-    aiActionKey: 'requestAiAction',
-  },
-  {
-    direction: i18ns.t('contentSafety.response'),
-    enabledKey: 'responseEnabled',
-    actionKey: 'responseAction',
-    maxActionKey: 'responseMaxAction',
-    aiKey: 'responseAiEnabled',
-    aiActionKey: 'responseAiAction',
-  },
-] as const
+const contentSafetyOverrideRows = computed<
+  Array<{
+    direction: string
+    enabledKey: 'requestEnabled' | 'responseEnabled'
+    actionKey: 'requestAction' | 'responseAction'
+    maxActionKey: 'requestMaxAction' | 'responseMaxAction'
+    aiKey: 'requestAiEnabled' | 'responseAiEnabled'
+    aiActionKey: 'requestAiAction' | 'responseAiAction'
+  }>
+>(
+  () =>
+    [
+      {
+        direction: i18ns.t('contentSafety.request'),
+        enabledKey: 'requestEnabled',
+        actionKey: 'requestAction',
+        maxActionKey: 'requestMaxAction',
+        aiKey: 'requestAiEnabled',
+        aiActionKey: 'requestAiAction',
+      },
+      {
+        direction: i18ns.t('contentSafety.response'),
+        enabledKey: 'responseEnabled',
+        actionKey: 'responseAction',
+        maxActionKey: 'responseMaxAction',
+        aiKey: 'responseAiEnabled',
+        aiActionKey: 'responseAiAction',
+      },
+    ] as const,
+)
 
-type ContentSafetyOverrideRow = (typeof contentSafetyOverrideRows)[number]
+type ContentSafetyOverrideRow = (typeof contentSafetyOverrideRows.value)[number]
 type ContentSafetyMode = 'inherit' | 'unreachable' | 'blackhole' | 'allow' | 'disabled'
 
 const getContentSafetyMode = (row: ContentSafetyOverrideRow): ContentSafetyMode => {

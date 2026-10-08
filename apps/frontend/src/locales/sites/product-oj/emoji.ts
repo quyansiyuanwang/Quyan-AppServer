@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const emoji: DeepStringify<typeof en> = {
+const emoji = {
   ojSubmitter: {
     apiKeyManagement: '📁 🔌 🗝️ ♿',
     createAPIKey: '✨ 🔌 🗝️',
@@ -60,6 +60,6 @@ const emoji: DeepStringify<typeof en> = {
     updateSuccess: '🔌 🗝️ 😆 🈁',
     updateFailed: '💥 ➡️ 😆 🔌 🗝️',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default emoji

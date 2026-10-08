@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   aiRequestLogs: {
     title: 'AI 请求日志',
     description: '按身份、结果和正文检索 AI 请求，分段阅读提示词、工具、响应及脱敏失败记录。',
@@ -388,6 +388,6 @@ const zhCN: DeepStringify<typeof en> = {
     workspaceStatus: '工作区状态',
     workspaceSaveFailed: '工作区创建失败。',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

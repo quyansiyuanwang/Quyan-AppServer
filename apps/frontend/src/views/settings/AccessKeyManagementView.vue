@@ -177,11 +177,10 @@ const { isDesktop } = usePageDevice()
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import { AccessKeyService } from '@/service/accesskeyService'
-import { useI18n } from 'vue-i18n'
 import type { AccessKeyDto } from '@/client/types.gen'
 import TwoFactorGuardedVerificationField from '@/components/auth/TwoFactorGuardedVerificationField.vue'
 
-const { t } = useI18n()
+const { t } = i18ns
 const accessKeys = ref<AccessKeyDto[]>([])
 const loading = ref(false)
 const showCreateDialog = ref(false)

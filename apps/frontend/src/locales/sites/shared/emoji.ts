@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const emoji: DeepStringify<typeof en> = {
+const emoji = {
   productConsole: {
     refresh: '♻️',
     documentation: '📖',
@@ -442,17 +442,17 @@ const emoji: DeepStringify<typeof en> = {
     breakdownRenewal: '🔄',
     breakdownRenewalOnly: '⬆️',
     breakdownUpgrade: '⬆️',
-    breakdownDevice: '💻',
-    breakdownTerminal: '🖥️',
-    breakdownSubtotal: '➕',
-    breakdownTotal: '💰',
-    breakdownOldQuota: '📉',
-    breakdownNewQuota: '📈',
-    breakdownRemainingDays: '📅',
-    breakdownDeviceUpgrade: '💻 ⬆️',
-    breakdownTerminalUpgrade: '🖥️ ⬆️',
-    breakdownNewDevice: '💻',
-    breakdownNewTerminal: '🖥️',
+    breakdownDevice: '💻 {units} {unit} × {count} × {price}/{unit} = {total}',
+    breakdownTerminal: '🖥️ {units} {unit} × {count} × {price}/{unit} = {total}',
+    breakdownSubtotal: '➕ {total}',
+    breakdownTotal: '💰 {total}',
+    breakdownOldQuota: '📉 💻 {device} / 🖥️ {terminal}',
+    breakdownNewQuota: '📈 💻 {device} / 🖥️ {terminal}',
+    breakdownRemainingDays: '📅 {days} h · 1 {unit} = {unitDays} h',
+    breakdownDeviceUpgrade: '💻 ⬆️ {days} h ÷ {unitDays} h × {count} × {price}/{unit} = {total}',
+    breakdownTerminalUpgrade: '🖥️ ⬆️ {days} h ÷ {unitDays} h × {count} × {price}/{unit} = {total}',
+    breakdownNewDevice: '💻 {units} {unit} × {count} × {price}/{unit} = {total}',
+    breakdownNewTerminal: '🖥️ {units} {unit} × {count} × {price}/{unit} = {total}',
   },
   chat: {
     newConversation: '💬',
@@ -1234,7 +1234,7 @@ const emoji: DeepStringify<typeof en> = {
     terminateAll: '⛔',
     clearResults: '🗑️',
     selectHint: '☑️',
-    selectedCount: '☑️',
+    selectedCount: '☑️ {n}',
     selectAll: '☑️',
     deselectAll: '⬜',
     clearSelection: '🧹',
@@ -1783,9 +1783,9 @@ const emoji: DeepStringify<typeof en> = {
     modelMappingTargetPlaceholder: '👆 🔢 🧠',
     modelMappingWildcardHelp: '🔮 📖 🧠 🔗',
     modelMappingCopyJson: '📋 🧠 🔗',
-    modelMappingDuplicateSource: '🔁 🧠 🔗 ⚠️',
-    modelMappingOverlapWarning: '🧠 🔗 ⚠️ 👻',
-    modelMappingConflictBanner: '⚠️ 🧠 🔗 👻',
+    modelMappingDuplicateSource: '🔁 🧠 {pattern} ⚠️',
+    modelMappingOverlapWarning: '🧠 {less} 👻 {more}',
+    modelMappingConflictBanner: '⚠️ {count} 🧠 🔗 · 👆 ⚠️',
     statusCode: '🚥 💻',
     balance: '💳',
     recharge: '🔋',
@@ -1974,7 +1974,7 @@ const emoji: DeepStringify<typeof en> = {
     probeAccountDeleteConfirm: '⚠️ 👥 🗑️',
     probeAccountBinding: '🔗 👥',
     probeAccountNoBinding: '📡 🔑',
-    probeAccountBindingHelp: '🎫 {{accountToken}} 🔒',
+    probeAccountBindingHelp: "🎫 {'{{accountToken}}'} 🔒",
     probeAccountLegacyWarning: '⚠️ 🧹 📩',
     probeBatchCredentialNotice: '⚠️ 🔐 🚫 📋',
     probeMemberOverrideHelp: '👤 ⚙️',
@@ -2030,7 +2030,8 @@ const emoji: DeepStringify<typeof en> = {
     'channelProbeEndpointHelpopenai-chat-completions': '💬 /📡1/📡/📡 · 📨 📡 · 🔢 📡_📡',
     'channelProbeEndpointHelpopenai-responses': '↩️ /📡1/📡 · 📨 📡 · 🔢 📡_📡_📡',
     'channelProbeEndpointHelpanthropic-messages': '💬 /📡1/📡 · 📨 📡 · 🔢 📡_📡',
-    'channelProbeEndpointHelpgemini-generate-content': '✨ 📡 · 📨 📡 · ⚙️ 📡',
+    'channelProbeEndpointHelpgemini-generate-content':
+      "✨ /v1beta/models/{'{model}'}:generateContent · 📨 contents · ⚙️ generationConfig",
     channelProbeCacheMode: '🗃️ 🧪',
     channelProbeCacheModeBust: '🚫 🗃️',
     channelProbeCacheModeAllow: '✅ 🗃️',
@@ -2111,7 +2112,7 @@ const emoji: DeepStringify<typeof en> = {
     channelProbeFilterAllSuggestions: '💡',
     channelProbeFilterApplicable: '💡 ✅',
     channelProbeFilterNotApplicable: '💡 ∅',
-    channelProbeApplyConfirm: '⚠️',
+    channelProbeApplyConfirm: '⚠️ ✅ {count} 📊？',
     channelProbeApplyDialogTitle: '✅ 📈',
     channelProbeApplyDialogNotice: '⚠️',
     channelProbeSelectionTolerance: '±',
@@ -2269,8 +2270,9 @@ const emoji: DeepStringify<typeof en> = {
     channelProbePreventCacheOff: '🗃️',
     channelProbePreventCacheHelp: '📡',
     channelProbeForceWithoutCacheBuster: '⚠️ ▶️ 📡',
-    channelProbeTokenCostFormula: '🧮',
-    channelProbePerRequestCostFormula: '🧮',
+    channelProbeTokenCostFormula:
+      '🧮 ({input} × {inputRate} + {cacheCreation} × {inputRate} × {cacheCreationMultiplier} + {cacheRead} × {inputRate} × {cacheReadMultiplier} + {output} × {outputRate}) × {global} × {time} = {raw} → {base}',
+    channelProbePerRequestCostFormula: '🧮 {fixed} × {global} × {time} = {raw} → {base}',
     channelProbeFormula: '🧮 ({delta} × {upstreamRate} × {distribution}) ÷ {base} = {suggested}',
     healthTrackingMode: '📡',
     healthTrackingAutomatic: '🤖',
@@ -2625,6 +2627,6 @@ const emoji: DeepStringify<typeof en> = {
     systemPreflightBufferLimitHelp: '🔧 📦 🚦',
     preflightBufferLimitTokenOverride: '🔑 📦 🔧',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default emoji

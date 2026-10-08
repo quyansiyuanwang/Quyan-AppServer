@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   requestErrors: {
     failed: '操作失败，请重试。',
     timeout: '请求超时，请稍后重试。',
@@ -392,6 +392,6 @@ const zhCN: DeepStringify<typeof en> = {
     recentSites: '最近使用',
     noMatchedFeatures: '当前筛选条件下没有匹配的分类或功能。',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

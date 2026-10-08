@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   remoteTerminal: {
     overview: '产品概览',
     overviewDescription: '查看云终端设备、会话额度和订阅状态。',
@@ -161,6 +161,6 @@ const zhCN: DeepStringify<typeof en> = {
       sh: 'POSIX Shell (sh)',
     },
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

@@ -156,7 +156,7 @@ export function useLoginOrRegister() {
     agreedToLegalPolicies: false,
   })
 
-  const loginRules: FormRules = {
+  const loginRules = computed<FormRules>(() => ({
     username: [{ required: true, message: i18ns.t('placeholder.enterUsername'), trigger: 'blur' }],
     password: [{ required: true, message: i18ns.t('placeholder.enterPassword'), trigger: 'blur' }],
     agreedToLegalPolicies: [
@@ -168,9 +168,9 @@ export function useLoginOrRegister() {
         trigger: 'change',
       },
     ],
-  }
+  }))
 
-  const registerRules: FormRules = {
+  const registerRules = computed<FormRules>(() => ({
     username: [
       { required: true, message: i18ns.t('placeholder.enterUsername'), trigger: 'blur' },
       {
@@ -228,13 +228,15 @@ export function useLoginOrRegister() {
         trigger: 'change',
       },
     ],
-  }
+  }))
 
   const isLogin = computed(() => mode.value === 'login')
   const currentForm = computed<LoginForm | RegisterForm>(() =>
     isLogin.value ? loginForm : registerForm,
   )
-  const currentRules = computed<FormRules>(() => (isLogin.value ? loginRules : registerRules))
+  const currentRules = computed<FormRules>(() =>
+    isLogin.value ? loginRules.value : registerRules.value,
+  )
   const submitDisabled = computed(() => captchaVerifying.value)
   const passkeySupported =
     typeof window !== 'undefined' && typeof window.PublicKeyCredential === 'function'

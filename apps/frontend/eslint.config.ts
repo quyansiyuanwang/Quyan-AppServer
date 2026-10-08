@@ -15,7 +15,23 @@ export default defineConfigWithVueTs(
     files: ['**/*.{ts,mts,tsx,vue}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**', '**/.gen/**', '**/*.gen.*', 'src/client/**', 'vite.config.d.ts', 'vite.config.js', 'openapi-ts.config.js', 'openapi-ts.config.d.ts', 'auto-imports.d.ts', 'components.d.ts', 'eslint.config.d.ts', '**/*.vue.d.ts', '**/*.vue.js']),
+  globalIgnores([
+    '**/dist/**',
+    '**/dist-ssr/**',
+    '**/coverage/**',
+    '**/.gen/**',
+    '**/*.gen.*',
+    'src/client/**',
+    'vite.config.d.ts',
+    'vite.config.js',
+    'openapi-ts.config.js',
+    'openapi-ts.config.d.ts',
+    'auto-imports.d.ts',
+    'components.d.ts',
+    'eslint.config.d.ts',
+    '**/*.vue.d.ts',
+    '**/*.vue.js',
+  ]),
 
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
@@ -56,10 +72,19 @@ export default defineConfigWithVueTs(
             'scripts/plugins/vite-plugin-auto-route-types.ts',
             'scripts/plugins/vite-plugin-build-info.d.ts',
             'scripts/plugins/vite-plugin-obfuscator-custom.d.ts',
-            'scripts/generate-domain-view-manifests.ts',
           ],
           defaultProject: './tsconfig.node.json',
         },
+      },
+    },
+  },
+
+  {
+    files: ['scripts/generate-domain-view-manifests.ts', 'scripts/i18n/**/*.ts'],
+    languageOptions: {
+      parserOptions: {
+        projectService: false,
+        project: './scripts/i18n/tsconfig.json',
       },
     },
   },

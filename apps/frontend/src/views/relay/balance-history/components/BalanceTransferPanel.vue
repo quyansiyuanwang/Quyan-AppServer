@@ -23,13 +23,16 @@ const transferAmount = ref<number | undefined>()
 const transferDescription = ref('')
 const giftCodes = ref<BalanceGiftCodeDto[]>([])
 const giftCodePagination = ref({ page: 1, pageSize: 20, total: 0 })
-const giftCodeStateLabels = {
-  active: i18ns.t('balance.giftCodeState.active'),
-  redeemed: i18ns.t('balance.giftCodeState.redeemed'),
-  cancelled: i18ns.t('balance.giftCodeState.cancelled'),
-} as const
+const giftCodeStateLabels = computed(
+  () =>
+    ({
+      active: i18ns.t('balance.giftCodeState.active'),
+      redeemed: i18ns.t('balance.giftCodeState.redeemed'),
+      cancelled: i18ns.t('balance.giftCodeState.cancelled'),
+    }) as const,
+)
 const getGiftCodeStateLabel = (state: string) =>
-  giftCodeStateLabels[state as keyof typeof giftCodeStateLabels] || state
+  giftCodeStateLabels.value[state as keyof typeof giftCodeStateLabels.value] || state
 
 const round4 = (value: number) => Math.round((value + Number.EPSILON) * 10000) / 10000
 const giftFee = computed(() =>
