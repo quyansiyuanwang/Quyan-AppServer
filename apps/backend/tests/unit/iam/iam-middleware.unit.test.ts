@@ -139,6 +139,22 @@ describe("IAM middleware and rollout bridge", () => {
       await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ], false),
     ).toBe(false);
   });
+  it("refuses absent or invalid resolver metadata at startup", () => {
+    expect(() =>
+      iamAuthorizationMiddleware({
+        action: "alidns:AddDomainRecord",
+        resourceKind: "unknown",
+        resource: ramAccountResourceResolver,
+      } as never),
+    ).toThrow();
+    expect(() =>
+      iamAuthorizationMiddleware({
+        action: "alidns:AddDomainRecord",
+        resourceKind: "account",
+        resource: undefined,
+      } as never),
+    ).toThrow();
+  });
   it("refuses unknown endpoint actions at startup", () => {
     expect(() =>
       iamAuthorizationMiddleware({

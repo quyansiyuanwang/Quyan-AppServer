@@ -1,6 +1,6 @@
 import { performance } from "node:perf_hooks";
 import type { RequestHandler } from "express";
-import { isKnownIamAction, isValidIamResource } from "@quyan/shared";
+import { isKnownIamAction, isValidIamResource, IAM_RESOURCE_KINDS } from "@quyan/shared";
 import { IamAuthorizationService } from "../iam-authorization.service";
 import { getIamPrincipal } from "../request/principal-context";
 import type { IamAuthorizationDefinition } from "../request/authorization-definition";
@@ -12,6 +12,8 @@ export function iamAuthorizationMiddleware(
   definition: IamAuthorizationDefinition,
   service = IamAuthorizationService.getInstance(),
 ): RequestHandler {
+  if (!IAM_RESOURCE_KINDS.includes(definition.resourceKind) || typeof definition.resource !== "function")
+    throw new Error("IAM endpoint requires a resource kind and server resolver");
   if (!isKnownIamAction(definition.action)) throw new Error("IAM endpoint action is absent from catalog");
   return async (req, _res, next) => {
     try {

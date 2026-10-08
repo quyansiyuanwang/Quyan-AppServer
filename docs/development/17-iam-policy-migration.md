@@ -32,9 +32,22 @@ Each plan compares the generated account-resource decision for every legacy Perm
 
 Apply is an explicit operational migration and bypasses interactive HTTP step-up prompts. Only an authorized operator with scoped database access should run it. Schedule changes to minimize concurrent policy edits and review dry-run errors before apply.
 
+## Route coverage audit
+
+The audit reads TSOA controller globs and resolves actual decorator imports, aliases, class-level security, method overrides, NoSecurity, JWT/local-or-jwt, legacy Permission actions, and explicit IAM action/resource metadata. Output is derived from source, not a manually maintained endpoint registry.
+
+    pnpm --filter @quyan/backend run iam:routes:audit
+    pnpm --filter @quyan/backend run iam:routes:audit -- --json
+    pnpm --filter @quyan/backend run iam:routes:audit -- --check --base-ref <BASE_COMMIT>
+    pnpm --filter @quyan/backend run iam:routes:audit -- --require-complete
+
+The regression gate reads Controllers from the actual base commit using Git and that commit's TSOA globs. New JWT endpoints must have explicit catalog actions, resource kinds and named server resolvers. Existing authorization coverage cannot decrease and JWT protection cannot be removed silently. No stored allowlist or mutable count baseline is used. Deleted routes are omitted; changes in action semantics still require business review. Quality Check fetches commit history and supplies the PR base SHA (or the event base for manual/push runs).
+
+The complete check intentionally fails while any JWT endpoint is missing explicit metadata, including legacy account bridges. Resolver body/ownership semantics, row filtering and batch behavior require runtime tests; passing a syntactic audit is not proof of complete business authorization.
+
 ## Rollout gates still outstanding
 
-- Produce an AST-based JWT route inventory and a CI gate for complete server Action/Resource definitions.
+- Use the AST route audit below to finish every JWT server Action/Resource definition. The PR gate prevents new gaps and regressions; it does not grandfather routes for production enforcement.
 - Migrate each resource-sensitive business API, including collection filtering and preflight authorization of every batch item.
 - Review shadow differences and administrator bootstrap behavior for actual deployment data.
 - Add the frontend JSON editor, action completion, version UI, and simulator UI.

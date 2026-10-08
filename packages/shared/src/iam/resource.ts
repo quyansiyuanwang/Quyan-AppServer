@@ -6,7 +6,13 @@ export interface IamPrincipal {
   assumedRoleId?: string
   roleSessionId?: string
 }
-export type IamResourceKind = 'account' | 'collection' | 'single-resource' | 'batch'
+export const IAM_RESOURCE_KINDS = Object.freeze([
+  'account',
+  'collection',
+  'single-resource',
+  'batch',
+] as const)
+export type IamResourceKind = (typeof IAM_RESOURCE_KINDS)[number]
 export interface AcsResourceInput {
   service: string
   region: string

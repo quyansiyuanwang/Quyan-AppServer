@@ -74,6 +74,7 @@
     "test:ci": "pnpm run openapi:generate && pnpm run test",
     "test:taxonomy": "node ./tests/scripts/validate-test-taxonomy.mjs",
     "--- i_check -----------------------": "",
+    "iam:routes:audit": "bun scripts/iam/audit-routes.ts",
     "check:explicit-deps": "bun scripts/check-explicit-deps.mjs",
     "check": "pnpm run lint-format-check && pnpm run test:taxonomy && pnpm run test && pnpm run check:explicit-deps",
     "precommit": "pnpm run openapi:generate && pnpm run check",
