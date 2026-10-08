@@ -93,4 +93,23 @@ RamAuthorization is the identity-policy binding source for new grants; account-s
 
 Scope is evaluated with AND before a statement can match. Resource-group members must be real active current-account resources; every authorization read rechecks ownership. Member additions re-prove resulting grants. Group binding and membership transactions serialize using a shared optimistic group revision; stale policy version/hash proofs cannot commit an authorization. No decision cache is used, so changes take effect on the next policy read.
 
-The new API uses dedicated native IAM actions, not expanded legacy permissions. Lists are account-scoped and bounded (default 50, max 100), then filtered per row for HTTP callers with trusted request conditions. No unfiltered total is returned. Management audit records identifiers and resource hashes; decision audit includes matched authorization IDs. Existing historical attachments still need an idempotent backfill run; the current implementation supplies dual-write and read compatibility, not a completed historical data migration.
+The new API uses dedicated native IAM actions, not expanded legacy permissions. Lists are account-scoped and bounded (default 50, max 100), then filtered per row for HTTP callers with trusted request conditions. No unfiltered total is returned. Management audit records identifiers and resource hashes; decision audit includes matched authorization IDs. Historical attachments have a separate idempotent backfill command below. Installing the code supplies dual-write/read compatibility; each deployment still needs its own reviewed account-scoped apply run.
+
+## Historical attachment backfill
+
+Run from the repository root:
+
+    pnpm --filter @quyan/backend run iam:backfill-authorizations
+    pnpm --filter @quyan/backend run iam:backfill-authorizations -- --account-owner-id <ACCOUNT_OWNER_ID>
+    pnpm --filter @quyan/backend run iam:backfill-authorizations -- --apply --account-owner-id <ACCOUNT_OWNER_ID>
+
+Dry-run is the default and makes no writes. Apply requires an explicit account; there is no global apply mode. Reports contain only binding/policy/account identifiers, hashes and closed diagnostic reasons. Invalid or changed sources produce a nonzero exit code. Unknown principal types, missing targets, foreign-account ownership and corrupt versions are not migrated. Inactive principals remain on the compatibility path until restored and re-scanned.
+
+Every account authorization is created under a serializable transaction after rereading the original binding, target ownership, policy version and canonical document hash. Source drift or revocation refuses the conversion. The old attachment remains active, account scope creates no new resource breadth, and repeated runs skip already verified projections. User/group/role targets are supported; resource-scoped relations are never projected back to account scope. Do not delete legacy columns or attachments during the rollout window.
+
+Validation for this tool:
+
+    pnpm --filter @quyan/backend test -- --project backend-unit tests/unit/iam/legacy-authorization-backfill.unit.test.ts
+    node --env-file=.env.test ./tests/scripts/run-vitest.mjs run --project backend-database tests/database/permissions/iam-authorization-backfill.db.test.ts
+
+The database command runs from apps/backend in isolated test databases; no account identifiers or credentials should be copied into production defaults.

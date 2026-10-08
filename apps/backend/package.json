@@ -103,6 +103,7 @@
     "relay-format:all-to-null": "bun ./scripts/migrate-relay-format-all-to-null.ts",
     "relay-format:all-to-null:apply": "bun ./scripts/migrate-relay-format-all-to-null.ts --apply",
     "iam:backfill-policies": "bun ./scripts/backfill-iam-policies.ts",
+    "iam:backfill-authorizations": "bun ./scripts/backfill-iam-authorizations.ts",
     "json-endpoint:backfill-root-slugs": "bun ./scripts/backfill-json-endpoint-root-slugs.ts",
     "json-endpoint:backfill-root-slugs:apply": "bun ./scripts/backfill-json-endpoint-root-slugs.ts --apply",
     "relay-history:diagnose-display-snapshots": "bun ./scripts/diagnose-relay-display-channel-snapshots.ts",
