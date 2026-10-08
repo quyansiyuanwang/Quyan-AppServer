@@ -23879,6 +23879,102 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/iam/catalog/services": {
+			"get": {
+				"operationId": "IamCatalogControllerListServices",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/IamServiceDefinition"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/v1/iam/catalog/services/{service}/actions": {
+			"get": {
+				"operationId": "IamCatalogControllerListActions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/IamActionDefinition"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "service",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/v1/iam/catalog/resources": {
+			"get": {
+				"operationId": "IamCatalogControllerListResources",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/IamResourceTypeDefinition"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/products/admin/quota-overrides": {
 			"get": {
 				"operationId": "DeveloperQuotaAdminControllerList",
@@ -57380,6 +57476,120 @@
 						"type": "boolean"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamActionDefinition": {
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string"
+					},
+					"operation": {
+						"type": "string"
+					},
+					"accessLevel": {
+						"type": "string",
+						"enum": [
+							"Read",
+							"Write",
+							"List"
+						]
+					},
+					"resourceTypes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"apiRoutes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"conditionKeys": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"sensitive": {
+						"type": "boolean"
+					},
+					"authorizationStage": {
+						"type": "string",
+						"enum": [
+							"legacy",
+							"declared"
+						]
+					}
+				},
+				"required": [
+					"action",
+					"service",
+					"operation",
+					"accessLevel",
+					"resourceTypes",
+					"apiRoutes",
+					"conditionKeys",
+					"sensitive",
+					"authorizationStage"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamServiceDefinition": {
+				"properties": {
+					"code": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"actions": {
+						"items": {
+							"$ref": "#/components/schemas/IamActionDefinition"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"code",
+					"name",
+					"actions"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamResourceTypeDefinition": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string"
+					},
+					"arnTemplate": {
+						"type": "string"
+					},
+					"identifierSegments": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"id",
+					"service",
+					"type",
+					"arnTemplate",
+					"identifierSegments"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},

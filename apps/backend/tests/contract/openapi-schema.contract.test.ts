@@ -220,6 +220,9 @@ describe("RAM IAM policy API contract", () => {
     ["/v1/ram/policies/{policyId}/versions", "post"],
     ["/v1/ram/policies/{policyId}/default-version", "put"],
     ["/v1/ram/iam/actions", "get"],
+    ["/v1/iam/catalog/services", "get"],
+    ["/v1/iam/catalog/services/{service}/actions", "get"],
+    ["/v1/iam/catalog/resources", "get"],
   ] as const)("declares JWT security for %s %s", (route, method) => {
     expect(openApi.paths[route]?.[method]?.security).toContainEqual({ jwt: [] });
   });

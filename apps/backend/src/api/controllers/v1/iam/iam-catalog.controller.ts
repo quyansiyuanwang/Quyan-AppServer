@@ -1,0 +1,40 @@
+import { Controller, Get, Path, Route, Security, Tags } from "@tsoa/runtime";
+import type { IamActionDefinition, IamResourceTypeDefinition, IamServiceDefinition } from "@quyan/shared";
+import { Permission } from "@quyan/shared";
+import { IamCatalogService } from "@/iam/iam-catalog.service";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+@Route("v1/iam/catalog")
+@Tags("IAM Catalog")
+export class IamCatalogController extends Controller {
+  @Get("services")
+  @Security("jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async listServices(): Promise<IamServiceDefinition[]> {
+    return IamCatalogService.getInstance().listServices();
+  }
+  @Get("services/{service}/actions")
+  @Security("jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async listActions(@Path() service: string): Promise<IamActionDefinition[]> {
+    return IamCatalogService.getInstance().listActions(service);
+  }
+  @Get("resources")
+  @Security("jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async listResources(): Promise<IamResourceTypeDefinition[]> {
+    return IamCatalogService.getInstance().listResources();
+  }
+}

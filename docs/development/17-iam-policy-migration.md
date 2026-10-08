@@ -78,3 +78,7 @@ CheckPermission accepts an optional fourth IAM definition (or one definition per
 The RAM controller now declares account resource metadata on its legacy-protected endpoints, including both create/update alternatives on document validation. This freezes existing coarse management semantics while providing server-controlled Action and Resource declarations. All old business ownership checks, replay and 2FA guards remain. Single-resource/list filtering migration is a separate business change and must have its own parity tests. The simulate endpoint retains its dedicated always-enforced action.
 
 The fourth-argument path follows IAM_AUTHORIZATION_MODE: legacy uses the old permission result, shadow compares declared resources and records evaluation failures while enforcing legacy, and enforce rejects unresolved resources or unavailable policies. Rollback therefore remains possible for migrated RAM management endpoints; it does not weaken dedicated always-enforced IAM endpoints.
+
+## Structured catalog
+
+Shared Action definitions include service, access level, sensitivity, supported resource type identifiers and legacy/declared migration stage. The old flat catalog is derived from these definitions. API route links are generated from the import-aware Controller inventory during OpenAPI generation, not copied by hand. Catalog APIs expose only actions with actual declared endpoints; compatibility entries remain in the flat catalog to preserve migration behavior. Resource templates do not assert endpoint ownership or row filtering.

@@ -105,6 +105,10 @@ RAM 管理操作当前使用账户级 Resource：`acs:quyan:*:<主账号ID>:acco
 
 评估顺序是 **匹配的显式 Deny > 匹配的 Allow > 默认拒绝**。Action 与 Resource 必须同时匹配。用户、启用的用户组、绑定角色和有效角色会话的策略共同参与评估；旧用户排除权限转换为 Deny。账户归属、角色会话有效性和业务所有权检查仍保留。Action 来自服务端定义，不能由请求头覆盖；无法可靠解析 Resource 的请求被拒绝。
 
+### 服务和资源目录
+
+具有策略读取权限时，可调用 `GET /v1/iam/catalog/services`、`GET /v1/iam/catalog/services/{service}/actions` 和 `GET /v1/iam/catalog/resources` 获取本平台服务、操作分类与 ARN 模板。API 关联由服务端路由声明生成。目录中的 `legacy` 表示该操作仍使用旧权限兼容语义；资源模板用于描述资源格式，不表示所有接口已完成资源级授权。现有 Action 名称保持兼容，不会将 `ReadUser` 自动改名为 `GetUser`。
+
 ### API 和权限
 
 - `POST /v1/ram/policies`：提供 name 和 document，或旧 permissions；不可同时提交两种格式。

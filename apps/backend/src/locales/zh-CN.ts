@@ -148,6 +148,7 @@ const zhCN = {
     hasUsers: "该组下仍有用户，无法删除",
   },
   iam: {
+    unknownService: "未知 IAM 服务",
     resourceResolutionFailed: "无法安全解析请求的资源",
     invalidPolicy: "IAM 策略文档无效或包含不支持的语法",
     versionConflict: "策略已发生变化，请重新加载后再更新",

@@ -1,5 +1,4 @@
-import { ALL_PERMISSIONS } from '../permission'
-import { actionForPermission } from './legacy-permission-map'
+import { IAM_ACTION_DEFINITIONS } from './catalog'
 
 /**
  * The production catalog contains only actions implemented by this platform.
@@ -10,8 +9,7 @@ import { actionForPermission } from './legacy-permission-map'
  * simulation validation without a corresponding Quyan API.
  */
 export const IAM_ACTION_CATALOG: readonly string[] = Object.freeze([
-  ...ALL_PERMISSIONS.map(actionForPermission),
-  'quyan:iam:SimulatePolicy',
+  ...IAM_ACTION_DEFINITIONS.map((definition) => definition.action),
 ])
 const actionSet = new Set(IAM_ACTION_CATALOG)
 export function isKnownIamAction(action: string): boolean {

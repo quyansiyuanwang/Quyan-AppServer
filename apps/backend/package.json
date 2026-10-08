@@ -31,7 +31,7 @@
     "--- e_openapi ---------------------": "",
     "tsoa:spec": "tsoa spec",
     "tsoa:routes": "tsoa routes",
-    "tsoa:spec-and-routes": "tsoa spec-and-routes && bun scripts/add-replay-protection-markers.js && bun scripts/generate-route-paths.ts",
+    "tsoa:spec-and-routes": "tsoa spec-and-routes && bun scripts/add-replay-protection-markers.js && bun scripts/generate-route-paths.ts && bun scripts/iam/generate-action-routes.ts",
     "openapi:generate": "pnpm run tsoa:spec-and-routes",
     "--- f_db --------------------------": "",
     "db:generate": "prisma generate",

@@ -105,6 +105,10 @@ RAM management operations currently use the account Resource `acs:quyan:*:<accou
 
 Evaluation is **matching explicit Deny > matching Allow > implicit Deny**. Both Action and Resource must match. Policies from the user, active group, bound roles, and valid assumed-role session are evaluated together. Legacy permission removals become Deny statements. Account isolation, session validity, and business ownership checks remain in place. Actions come from server metadata, never client headers; unresolved resources are rejected.
 
+### Service and resource catalog
+
+With policy-read permission, use `GET /v1/iam/catalog/services`, `GET /v1/iam/catalog/services/{service}/actions`, and `GET /v1/iam/catalog/resources` for platform services, access levels, and ARN templates. API links are generated from server route metadata. The `legacy` stage identifies compatibility authorization; registering a resource template does not mean every endpoint enforces resource-level access. Existing Action names stay compatible; `ReadUser` is not automatically renamed to `GetUser`.
+
 ### APIs and permissions
 
 - `POST /v1/ram/policies`: submit name plus either document or legacy permissions, never both.

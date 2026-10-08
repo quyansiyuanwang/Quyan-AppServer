@@ -142,6 +142,7 @@ const en = {
     hasUsers: "This group still has users and cannot be deleted",
   },
   iam: {
+    unknownService: "Unknown IAM service",
     resourceResolutionFailed: "The requested resource cannot be resolved safely",
     invalidPolicy: "Invalid or unsupported IAM policy document",
     versionConflict: "The policy changed; reload it before updating",
