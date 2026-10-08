@@ -40296,7 +40296,8 @@
 					},
 					"total": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"description": "Exact legacy count; omitted for IAM-filtered candidate pages. Use hasMore to advance."
 					},
 					"page": {
 						"type": "number",
@@ -40312,7 +40313,6 @@
 				},
 				"required": [
 					"groups",
-					"total",
 					"page",
 					"pageSize",
 					"hasMore"

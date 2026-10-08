@@ -89,7 +89,27 @@
         </el-table>
 
         <div class="pagination-wrapper desktop-pagination">
+          <RamIamPageControls
+            v-if="!totalKnown"
+            :page="pagination.page"
+            :page-size="pagination.pageSize"
+            :has-next="hasMore"
+            :loading="loading"
+            @previous="
+              pagination.page--
+              handlePageChange()
+            "
+            @next="
+              pagination.page++
+              handlePageChange()
+            "
+            @size="
+              pagination.pageSize = $event
+              handlePageSizeChange()
+            "
+          />
           <el-pagination
+            v-else
             v-model:current-page="pagination.page"
             v-model:page-size="pagination.pageSize"
             :page-sizes="[10, 20, 50, 100]"
@@ -106,6 +126,7 @@
 
 <script setup lang="ts">
 import { Plus, Refresh } from '@element-plus/icons-vue'
+import RamIamPageControls from '../../ram-management/components/RamIamPageControls.vue'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'
 import { i18ns } from '@/locales'
 import { useGroupManagementContext } from '../context'
@@ -117,6 +138,8 @@ const {
   showRamGroups,
   pagination,
   displayTotal,
+  totalKnown,
+  hasMore,
   handleCreate,
   handleRefresh,
   handleSearch,

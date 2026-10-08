@@ -16,8 +16,11 @@ import {
   Query,
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
+import { env } from "@/config/env";
+import { IAM_MANAGEMENT_PAGINATION } from "@quyan/shared";
 import { GroupService } from "@/services/users/group.service";
-import { permissionService } from "@/services/users/permission.service";
+import { authorizeLegacyPermissions } from "@/iam/middleware/legacy-permission-bridge";
+import { ramAccountResourceResolver, ramGroupResourceResolver } from "@/iam/request/resource-resolvers";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type {
   CreateGroupDto,
@@ -28,7 +31,7 @@ import type {
   CreateGroupResponse,
   UpdateGroupResponse,
 } from "@/api/dto/users/group.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { UserService } from "@/services/users/user.service";
 import { ForbiddenError } from "@/util/errors";
@@ -55,7 +58,11 @@ export class GroupController extends Controller {
 
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.GROUP_READ)
+  @CheckPermission(Permission.GROUP_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:group:Read",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateQuery(groupListQuerySchema))
   public async getAllGroups(
@@ -68,11 +75,11 @@ export class GroupController extends Controller {
     const currentUserId = request.user!.userId;
 
     // If pagination params provided, use paginated query
-    if (page && pageSize)
+    if (env.security.iamAuthorizationMode === "enforce" || (page && pageSize))
       return this.groupService.getVisibleGroupsPage({
         actorUserId: currentUserId,
-        page,
-        pageSize,
+        page: page ?? 1,
+        pageSize: pageSize ?? IAM_MANAGEMENT_PAGINATION.defaultPageSize,
         keyword,
         hasRamPermission,
       });
@@ -90,18 +97,26 @@ export class GroupController extends Controller {
 
   @Get("{groupId}")
   @Security("jwt")
-  @RequirePermission(Permission.GROUP_READ)
+  @CheckPermission(Permission.GROUP_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:group:Read",
+    resourceKind: "single-resource",
+    resource: ramGroupResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateParams(groupIdParamsSchema))
-  public async getGroupById(@Path() groupId: string, @Request() _request: TypedRequest): Promise<GetGroupByIdResponse> {
-    const group = await this.groupService.getGroupById(groupId);
+  public async getGroupById(@Path() groupId: string, @Request() request: TypedRequest): Promise<GetGroupByIdResponse> {
+    const group = await this.groupService.getGroupById(groupId, request.user!.userId);
     if (!group) throw new ForbiddenError("用户组不存在", undefined, { messageKey: "group.notFound" });
     return group;
   }
 
   @Post("")
   @Security("jwt")
-  @RequirePermission(Permission.GROUP_CREATE)
+  @CheckPermission(Permission.GROUP_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:group:Create",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "创建失败")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
@@ -128,7 +143,11 @@ export class GroupController extends Controller {
 
   @Put("{groupId}")
   @Security("jwt")
-  @RequirePermission(Permission.GROUP_UPDATE)
+  @CheckPermission(Permission.GROUP_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:group:Update",
+    resourceKind: "single-resource",
+    resource: ramGroupResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "更新失败")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
@@ -145,7 +164,7 @@ export class GroupController extends Controller {
   ): Promise<UpdateGroupResponse> {
     const currentUserId = request.user!.userId;
     const isAdmin = await this.userService.isAdmin(currentUserId);
-    const targetGroup = await this.groupService.getGroupById(groupId);
+    const targetGroup = await this.groupService.getGroupById(groupId, request.user!.userId);
     if (!targetGroup) throw new ForbiddenError("用户组不存在", undefined, { messageKey: "group.notFound" });
 
     if (!isAdmin) {
@@ -162,7 +181,11 @@ export class GroupController extends Controller {
 
   @Delete("{groupId}")
   @Security("jwt")
-  @RequirePermission(Permission.GROUP_DELETE)
+  @CheckPermission(Permission.GROUP_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:group:Delete",
+    resourceKind: "single-resource",
+    resource: ramGroupResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "删除失败")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
@@ -174,7 +197,7 @@ export class GroupController extends Controller {
   public async deleteGroup(@Request() request: TypedRequest, @Path() groupId: string): Promise<{ message: string }> {
     const currentUserId = request.user!.userId;
     const isAdmin = await this.userService.isAdmin(currentUserId);
-    const targetGroup = await this.groupService.getGroupById(groupId);
+    const targetGroup = await this.groupService.getGroupById(groupId, request.user!.userId);
     if (!targetGroup) throw new ForbiddenError("用户组不存在", undefined, { messageKey: "group.notFound" });
 
     if (!isAdmin) {
@@ -190,14 +213,27 @@ export class GroupController extends Controller {
 
   @Get("{groupId}/permissions")
   @Security("jwt")
-  @RequirePermission(Permission.GROUP_READ)
+  @CheckPermission(Permission.GROUP_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:group:Read",
+    resourceKind: "single-resource",
+    resource: ramGroupResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateParams(groupIdParamsSchema))
-  public async getGroupPermissions(@Path() groupId: string, @Request() _request: TypedRequest): Promise<string[]> {
-    return this.groupService.getGroupPermissions(groupId);
+  public async getGroupPermissions(@Path() groupId: string, @Request() request: TypedRequest): Promise<string[]> {
+    return this.groupService.getGroupPermissions(groupId, request.user!.userId);
   }
 
   @Put("{groupId}/permissions")
+  @CheckPermission(
+    [Permission.GROUP_PERMISSION_ADD, Permission.GROUP_PERMISSION_REMOVE],
+    PermissionCheckMode.ANY,
+    "jwt",
+    [
+      { action: "quyan:group:permission:Add", resourceKind: "single-resource", resource: ramGroupResourceResolver },
+      { action: "quyan:group:permission:Remove", resourceKind: "single-resource", resource: ramGroupResourceResolver },
+    ],
+  )
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
@@ -214,17 +250,25 @@ export class GroupController extends Controller {
   ): Promise<{ message: string }> {
     const currentUserId = request.user!.userId;
     const isAdmin = await this.userService.isAdmin(currentUserId);
-    const targetGroup = await this.groupService.getGroupById(groupId);
+    const targetGroup = await this.groupService.getGroupById(groupId, request.user!.userId);
     if (!targetGroup) throw new ForbiddenError("用户组不存在", undefined, { messageKey: "group.notFound" });
 
-    const currentPermissions = await this.groupService.getGroupPermissions(groupId);
+    const currentPermissions = await this.groupService.getGroupPermissions(groupId, request.user!.userId);
     const requestedPermissions = new Set(body.permissions);
     const currentPermissionsSet = new Set(currentPermissions);
     const hasAddedPermissions = body.permissions.some((permission) => !currentPermissionsSet.has(permission));
     const hasRemovedPermissions = currentPermissions.some((permission) => !requestedPermissions.has(permission));
     const [canAddPermissions, canRemovePermissions] = await Promise.all([
-      permissionService.hasPermission(currentUserId, Permission.GROUP_PERMISSION_ADD),
-      permissionService.hasPermission(currentUserId, Permission.GROUP_PERMISSION_REMOVE),
+      authorizeLegacyPermissions(request, [Permission.GROUP_PERMISSION_ADD], false, {
+        action: "quyan:group:permission:Add",
+        resourceKind: "single-resource",
+        resource: ramGroupResourceResolver,
+      }),
+      authorizeLegacyPermissions(request, [Permission.GROUP_PERMISSION_REMOVE], false, {
+        action: "quyan:group:permission:Remove",
+        resourceKind: "single-resource",
+        resource: ramGroupResourceResolver,
+      }),
     ]);
 
     if ((hasAddedPermissions && !canAddPermissions) || (hasRemovedPermissions && !canRemovePermissions)) {

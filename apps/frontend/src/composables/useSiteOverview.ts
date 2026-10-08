@@ -1040,10 +1040,11 @@ export const useSiteOverview = () => {
       if (can(Permission.GROUP_READ)) {
         add(
           groupService.getAllGroups({ page: 1, pageSize: 1 }).then((page) => {
+            if (page.total === undefined) return
             nextMetrics.push({
               id: 'groups',
               labelKey: 'siteOverview.metrics.groups',
-              value: Array.isArray(page) ? page.length : page.total,
+              value: page.total,
             })
           }),
         )

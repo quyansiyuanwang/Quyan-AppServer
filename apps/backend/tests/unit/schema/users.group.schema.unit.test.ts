@@ -10,6 +10,10 @@ describe("group permission schema", () => {
     expect(ALL_PERMISSIONS.length).toBeGreaterThan(200);
   });
 
+  it("allows removing the final permission after the server checks Remove authority", () => {
+    expect(setGroupPermissionsBodySchema.safeParse({ permissions: [] }).success).toBe(true);
+  });
+
   it("rejects permission values outside the shared catalog", () => {
     const result = setGroupPermissionsBodySchema.safeParse({
       permissions: [Permission.USER_READ, "group:not-defined"],
