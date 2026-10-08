@@ -533,6 +533,20 @@ const emoji = {
     ago: '⏪',
     expiringSoon: '⚠️ ⌛',
 
+    insertIamAction: '➕ Action → JSON 光标',
+    reloadIamActions: '🔄 重新加载 Action 清单',
+    iamActionsFailed: '❌ 无法加载 Action，请检查策略读取权限。',
+    iamResourceHint:
+      '📍 光标放入 Action 字符串内。Resource：* 或 acs:alidns:*:*:domain/example.com；Action 不代表已提供产品 API。',
+    simulatePolicy: '🧪 模拟授权',
+    iamSimulationHint:
+      '🧪 仅评估同账户已保存策略；需单独授权 quyan:iam:SimulatePolicy 账户资源，读取权限不足以调用。',
+    iamPrincipalId: '👤 主体用户 ID',
+    iamAction: '⚡ Action',
+    iamResource: '🎯 Resource',
+    iamSimulationFailed: '❌ 模拟失败，请检查输入和专用模拟权限。',
+    iamDecisionReason: '💬 决策原因',
+    iamMatches: '🎯 效果 / 策略 / 版本 / 语句',
     policyFormat: '📄 策略格式',
     legacyPolicy: '🌳 权限树',
     iamDocument: '🔐 IAM JSON',

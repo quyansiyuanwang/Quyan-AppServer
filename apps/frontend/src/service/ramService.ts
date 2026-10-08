@@ -11,6 +11,7 @@ import type {
   UpdateRamRoleDto,
   UpdateRamUserDto,
   ValidateIamPolicyDto,
+  SimulateIamPolicyDto,
 } from '@/client/types.gen'
 import { CustomCode } from '@/constant/custom-code'
 import { useRequestStore } from '@/stores/request'
@@ -155,6 +156,18 @@ export class RamService {
 
   async updatePolicy(policyId: string, data: UpdateRamPolicyDto) {
     const result = await ramApi.updatePolicy({ path: { policyId }, body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async getIamActions() {
+    const result = await ramApi.getIamActions({})
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async simulatePolicy(data: SimulateIamPolicyDto) {
+    const result = await ramApi.simulatePolicy({ body: data })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }

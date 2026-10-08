@@ -99,7 +99,7 @@ RAM 控制台使用独立 URL 组织概览、身份管理、权限管理和会�
 
 ## IAM JSON 策略
 
-策略编辑抽屉提供 **权限树** 和 **IAM JSON** 两种格式。选择 IAM JSON 后粘贴策略，点击 **校验 JSON** 由服务端检查；校验结果会提示显式 Deny 和过宽通配符。修改文本后之前的校验结果失效，保存时会先校验未验证的内容。已有 IAM 策略固定使用 JSON 格式，列表显示当前默认版本。更新携带原文档 hash，并发变更返回 409；请重新打开策略并核对变更后再保存。模拟与历史版本管理仍通过 API 使用。身份策略仅支持 `Version: "1"`、`Statement`、可选 `Sid`、`Effect`、`Action` 和 `Resource`。Statement 可为对象或数组，Action/Resource 可为字符串或数组。仅 `*` 为通配符，大小写敏感；未知字段、未知版本、Condition、Principal、NotAction、NotResource 和策略变量均拒绝，不会被忽略。
+策略编辑抽屉提供 **权限树** 和 **IAM JSON** 两种格式。选择 IAM JSON 后粘贴策略，点击 **校验 JSON** 由服务端检查；校验结果会提示显式 Deny 和过宽通配符。修改文本后之前的校验结果失效，保存时会先校验未验证的内容。已有 IAM 策略固定使用 JSON 格式，列表显示当前默认版本。更新携带原文档 hash，并发变更返回 409；请重新打开策略并核对变更后再保存。拥有策略读取权限时可加载服务端 Action 清单，将光标放入 Action 字符串内后选择 Action 插入。Resource 示例说明全局与域名范围。**模拟授权** 抽屉接受同账户主体用户 ID、清单中的 Action 和 Resource，仅评估已保存策略，不包含编辑器未保存的内容。结果显示决策、原因和匹配标识，修改输入会清除结果。即使抽屉可见，调用模拟仍需要专用权限。历史版本管理仍通过 API 使用。身份策略仅支持 `Version: "1"`、`Statement`、可选 `Sid`、`Effect`、`Action` 和 `Resource`。Statement 可为对象或数组，Action/Resource 可为字符串或数组。仅 `*` 为通配符，大小写敏感；未知字段、未知版本、Condition、Principal、NotAction、NotResource 和策略变量均拒绝，不会被忽略。
 
 评估顺序是 **匹配的显式 Deny > 匹配的 Allow > 默认拒绝**。Action 与 Resource 必须同时匹配。用户、启用的用户组、绑定角色和有效角色会话的策略共同参与评估；旧用户排除权限转换为 Deny。账户归属、角色会话有效性和业务所有权检查仍保留。Action 来自服务端定义，不能由请求头覆盖；无法可靠解析 Resource 的请求被拒绝。
 

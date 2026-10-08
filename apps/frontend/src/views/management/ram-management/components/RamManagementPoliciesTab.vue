@@ -5,6 +5,9 @@
         <el-button v-if="canCreatePolicies" type="primary" :icon="Plus" @click="openPolicyDialog()">
           {{ i18ns.t('RamManagement.createPolicy') }}
         </el-button>
+        <el-button @click="iamSimulationVisible = true">{{
+          i18ns.t('RamManagement.simulatePolicy')
+        }}</el-button>
         <el-button :icon="Refresh" @click="loadPolicies">{{ i18ns.t('refresh') }}</el-button>
       </div>
       <el-input
@@ -88,6 +91,7 @@ import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
 const {
+  iamSimulationVisible,
   canCreatePolicies,
   canDeletePolicies,
   canReadPolicies,

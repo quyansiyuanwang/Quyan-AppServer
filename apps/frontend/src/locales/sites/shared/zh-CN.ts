@@ -550,6 +550,20 @@ const zhCN = {
     expiringSoon: '即将过期',
 
     // RAM Policy
+    insertIamAction: '在 JSON 光标处插入 Action',
+    reloadIamActions: '重新加载 Action 清单',
+    iamActionsFailed: '无法加载 Action 清单，请检查策略读取权限后重试。',
+    iamResourceHint:
+      '插入前请将光标置于 Action 字符串内。Resource 示例：全局操作可用 *，域名可用 acs:alidns:*:*:domain/example.com。清单中的 Action 不代表已提供对应产品 API。',
+    simulatePolicy: '模拟授权',
+    iamSimulationHint:
+      '评估同账户主体已保存的策略，不包含编辑器中未保存的内容。单独要求 quyan:iam:SimulatePolicy 对账户资源的 Allow，仅有策略读取权限不足以调用。',
+    iamPrincipalId: '主体用户 ID',
+    iamAction: 'Action',
+    iamResource: 'Resource',
+    iamSimulationFailed: '模拟失败，请检查主体、Action、Resource 和专用模拟权限后重试。',
+    iamDecisionReason: '决策原因',
+    iamMatches: '匹配的效果 / 策略 / 版本 / 语句',
     policyFormat: '策略格式',
     legacyPolicy: '权限树',
     iamDocument: 'IAM JSON',

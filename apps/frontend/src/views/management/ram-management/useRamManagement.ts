@@ -3,6 +3,7 @@ import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { policyAuthorizationPayload, useIamPolicyEditor } from './useIamPolicyEditor'
+import { useIamPolicyTools } from './useIamPolicyTools'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus/es'
 import { Refresh } from '@element-plus/icons-vue'
@@ -36,6 +37,7 @@ export type RamManagementSection =
 export function useRamManagement(section: RamManagementSection) {
   const route = useRoute()
   const iamPolicyEditor = useIamPolicyEditor()
+  const iamPolicyTools = useIamPolicyTools()
   const permissionStore = usePermissionStore()
   const users = ref<RamUserDto[]>([])
   const roles = ref<RamRoleDto[]>([])
@@ -897,6 +899,7 @@ export function useRamManagement(section: RamManagementSection) {
 
   return {
     ...iamPolicyEditor,
+    ...iamPolicyTools,
     Refresh,
     attachDrawerVisible,
     attachForm,

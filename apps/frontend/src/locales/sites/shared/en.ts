@@ -580,6 +580,21 @@ const en = {
     expiringSoon: 'Expiring soon',
 
     // RAM Policy
+    insertIamAction: 'Insert Action at the JSON cursor',
+    reloadIamActions: 'Reload Action catalog',
+    iamActionsFailed: 'Could not load the Action catalog. Check policy-read permission and retry.',
+    iamResourceHint:
+      'Place the cursor inside an Action string before inserting. Resource examples: * for global operations, or acs:alidns:*:*:domain/example.com for a domain. Actions listed in the catalog do not imply a corresponding product API is available.',
+    simulatePolicy: 'Simulate authorization',
+    iamSimulationHint:
+      'Simulates the saved policies of a same-account principal. Unsaved editor content is not included. A separate Allow for quyan:iam:SimulatePolicy on the account resource is required; policy-read permission alone is insufficient.',
+    iamPrincipalId: 'Principal user ID',
+    iamAction: 'Action',
+    iamResource: 'Resource',
+    iamSimulationFailed:
+      'Simulation failed. Check the principal, Action, Resource and dedicated simulation permission, then retry.',
+    iamDecisionReason: 'Reason',
+    iamMatches: 'Matched effect / policy / version / statement',
     policyFormat: 'Policy format',
     legacyPolicy: 'Permission tree',
     iamDocument: 'IAM JSON',
