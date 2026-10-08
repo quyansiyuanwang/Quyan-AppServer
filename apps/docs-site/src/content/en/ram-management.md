@@ -115,6 +115,12 @@ Operators and keys combine with AND; multiple values for one key use OR. `String
 
 With policy-read permission, use `GET /v1/iam/catalog/services`, `GET /v1/iam/catalog/services/{service}/actions`, and `GET /v1/iam/catalog/resources` for platform services, access levels, and ARN templates. API links are generated from server route metadata. The `legacy` stage identifies compatibility authorization; registering a resource template does not mean every endpoint enforces resource-level access. Existing Action names stay compatible; `ReadUser` is not automatically renamed to `GetUser`.
 
+### JSON diagnosis and Schema
+
+Send original JSON text to `POST /v1/ram/policies/diagnose` using `documentText` to receive errors, security warnings, warnings and suggestions. Diagnostics include a stable code, JSON Pointer and one-based line/column. Syntax errors, duplicate keys, prototype keys, unknown fields/actions, invalid condition values and explicit cross-account ARNs fail validation. Broad Allow grants, IAM management grants, duplicate statements and resource type mismatches produce risk notices. Diagnostics do not echo arbitrary policy values.
+
+`GET /v1/iam/catalog/policy-schema` publishes JSON Schema generated from the same validator for editors and AI drafts. It includes current production actions, resource templates, implemented condition keys and limits. Custom catalog and account-ownership semantics still require server diagnosis. Schema access requires policy read permission; diagnosis requires policy create or update permission. Successful validation only confirms the current document syntax: `delegation: "not-evaluated"` explicitly means publication/delegation authority has not been proven. Saving and attaching still enforce the existing authorization checks.
+
 ### APIs and permissions
 
 - `POST /v1/ram/policies`: submit name plus either document or legacy permissions, never both.

@@ -4,7 +4,7 @@ import { ALL_PERMISSIONS } from "@/constant/permission";
 import { AccountStatus } from "@/util/auth/account-status";
 import { encryptedPasswordCredentialSchema } from "@/api/schema/auth/password-encryption.schema";
 
-import { iamPolicyDocumentSchema } from "@/iam/parser/policy-schema";
+import { iamPolicyDocumentSchema, IAM_POLICY_LIMITS } from "@/iam/parser/policy-schema";
 import { isKnownIamAction, isValidIamResource } from "@quyan/shared";
 
 const usernameRegex = /^[a-zA-Z0-9_]+$/;
@@ -114,6 +114,7 @@ export const updateRamPolicyBodySchema = z
     "Cannot mix legacy permissions and IAM document",
   );
 
+export const diagnoseIamPolicyBodySchema = z.object({ documentText: z.string().max(IAM_POLICY_LIMITS.bytes) }).strict();
 export const validateIamPolicyBodySchema = z.object({ document: iamPolicyDocumentSchema }).strict();
 export const createRamPolicyVersionBodySchema = z
   .object({

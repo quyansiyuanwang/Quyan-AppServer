@@ -18,12 +18,15 @@ import type {
   CreateRamPolicyVersionDto,
   SetDefaultRamPolicyVersionDto,
   RamPolicyVersionPageDto,
+  DiagnoseIamPolicyDto,
+  DiagnoseIamPolicyResponseDto,
   ValidateIamPolicyDto,
   ValidateIamPolicyResponseDto,
   SimulateIamPolicyDto,
   SimulateIamPolicyResponseDto,
 } from "@/api/dto/users/ram.dto";
 import {
+  diagnoseIamPolicyBodySchema,
   validateIamPolicyBodySchema,
   createRamPolicyVersionBodySchema,
   setDefaultRamPolicyVersionBodySchema,
@@ -576,6 +579,20 @@ export class RamController extends Controller {
   ): Promise<{ code: number; message: string }> {
     await this.ramService.detachPolicy(request.user!.userId, body);
     return { code: CustomCode.OK, message: "解绑权限策略成功" };
+  }
+
+  @Post("policies/diagnose")
+  @Security("jwt")
+  @Middlewares(validateBody(diagnoseIamPolicyBodySchema))
+  @CheckPermission([Permission.RAM_POLICY_CREATE, Permission.RAM_POLICY_UPDATE], PermissionCheckMode.ANY, "jwt", [
+    { action: "quyan:ram:CreatePolicy", resourceKind: "account", resource: ramAccountResourceResolver },
+    { action: "quyan:ram:UpdatePolicy", resourceKind: "account", resource: ramAccountResourceResolver },
+  ])
+  public async diagnosePolicy(
+    @Body() body: DiagnoseIamPolicyDto,
+    @Request() request: TypedRequest,
+  ): Promise<DiagnoseIamPolicyResponseDto> {
+    return this.ramService.diagnosePolicy(request.user!.userId, body.documentText);
   }
 
   @Post("policies/validate")

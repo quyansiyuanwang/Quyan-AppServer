@@ -3757,6 +3757,42 @@
 				}
 			}
 		},
+		"/v1/ram/policies/diagnose": {
+			"post": {
+				"operationId": "RamControllerDiagnosePolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DiagnoseIamPolicyResponseDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/DiagnoseIamPolicyDto"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/ram/policies/validate": {
 			"post": {
 				"operationId": "RamControllerValidatePolicy",
@@ -23975,6 +24011,32 @@
 				"parameters": []
 			}
 		},
+		"/v1/iam/catalog/policy-schema": {
+			"get": {
+				"operationId": "IamCatalogControllerGetPolicySchema",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Record_string.unknown_"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/iam/catalog/condition-keys": {
 			"get": {
 				"operationId": "IamCatalogControllerListConditionKeys",
@@ -37109,6 +37171,182 @@
 					"policyId",
 					"targetType",
 					"targetId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamDiagnosticCode": {
+				"type": "string",
+				"enum": [
+					"json-syntax",
+					"document-limit",
+					"duplicate-key",
+					"unsafe-key",
+					"unknown-field",
+					"invalid-version",
+					"invalid-field",
+					"unknown-action",
+					"invalid-resource",
+					"invalid-condition",
+					"broad-action",
+					"broad-resource",
+					"iam-management",
+					"duplicate-statement",
+					"cross-account-resource",
+					"resource-type-mismatch",
+					"unreachable-deny"
+				]
+			},
+			"IamDiagnostic": {
+				"properties": {
+					"severity": {
+						"type": "string",
+						"enum": [
+							"error",
+							"security-warning",
+							"warning",
+							"suggestion"
+						]
+					},
+					"code": {
+						"$ref": "#/components/schemas/IamDiagnosticCode"
+					},
+					"path": {
+						"type": "string",
+						"description": "RFC 6901 JSON pointer into the original document."
+					},
+					"line": {
+						"type": "number",
+						"format": "double"
+					},
+					"column": {
+						"type": "number",
+						"format": "double"
+					},
+					"messageKey": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"severity",
+					"code",
+					"path",
+					"line",
+					"column",
+					"messageKey"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NormalizedIamStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Action": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"Resource": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					}
+				},
+				"required": [
+					"Effect",
+					"Action",
+					"Resource"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NormalizedIamPolicyDocument": {
+				"properties": {
+					"Version": {
+						"type": "string",
+						"enum": [
+							"1"
+						],
+						"nullable": false
+					},
+					"Statement": {
+						"items": {
+							"$ref": "#/components/schemas/NormalizedIamStatement"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"Version",
+					"Statement"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamPolicyDiagnosis": {
+				"properties": {
+					"valid": {
+						"type": "boolean"
+					},
+					"diagnostics": {
+						"items": {
+							"$ref": "#/components/schemas/IamDiagnostic"
+						},
+						"type": "array"
+					},
+					"riskLevel": {
+						"type": "string",
+						"enum": [
+							"low",
+							"medium",
+							"high"
+						]
+					},
+					"document": {
+						"$ref": "#/components/schemas/NormalizedIamPolicyDocument"
+					},
+					"documentHash": {
+						"type": "string"
+					},
+					"delegation": {
+						"type": "string",
+						"enum": [
+							"not-evaluated"
+						],
+						"nullable": false,
+						"description": "Diagnosis never proves a caller's right to publish or delegate a policy."
+					}
+				},
+				"required": [
+					"valid",
+					"diagnostics",
+					"riskLevel",
+					"delegation"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DiagnoseIamPolicyResponseDto": {
+				"$ref": "#/components/schemas/IamPolicyDiagnosis"
+			},
+			"DiagnoseIamPolicyDto": {
+				"properties": {
+					"documentText": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"documentText"
 				],
 				"type": "object",
 				"additionalProperties": false

@@ -5,3 +5,5 @@ export * from './decision'
 export * from './legacy-permission-map'
 export * from './catalog'
 export * from './condition'
+
+export * from './diagnostic'

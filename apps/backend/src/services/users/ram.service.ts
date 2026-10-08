@@ -1,3 +1,4 @@
+import { diagnoseIamPolicy } from "@/iam/diagnostics/policy-diagnostics";
 import { randomBytes } from "crypto";
 import { getCredentialPrefix } from "@quyan/shared";
 import type { RamRole, User } from "@prisma/client";
@@ -690,6 +691,9 @@ export class RamService {
     if (actor.userType !== "root" || (actor.accountOwnerId && actor.accountOwnerId !== actor.id))
       throw new ForbiddenError("IAM document delegation denied", undefined, { messageKey: "iam.delegationDenied" });
     return { document: parsed.document, documentHash: parsed.documentHash, createdBy: actorUserId };
+  }
+  async diagnosePolicy(actorUserId: string, documentText: string) {
+    return diagnoseIamPolicy(documentText, await this.getAccountOwnerId(actorUserId));
   }
   async validatePolicy(document: IamPolicyDocument) {
     let parsed;

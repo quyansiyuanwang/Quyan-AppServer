@@ -1,3 +1,4 @@
+import { getIamPolicyJsonSchema } from "@/iam/diagnostics/policy-json-schema";
 import { Controller, Get, Path, Route, Security, Tags } from "@tsoa/runtime";
 import type {
   IamActionDefinition,
@@ -41,6 +42,16 @@ export class IamCatalogController extends Controller {
   })
   public async listResources(): Promise<IamResourceTypeDefinition[]> {
     return IamCatalogService.getInstance().listResources();
+  }
+  @Get("policy-schema")
+  @Security("jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async getPolicySchema(): Promise<Record<string, unknown>> {
+    return getIamPolicyJsonSchema();
   }
   @Get("condition-keys")
   @Security("jwt")

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { inspectPolicyJson } from "../diagnostics/source-json";
 import type { NormalizedIamPolicyDocument } from "@quyan/shared";
 import { IAM_POLICY_LIMITS, iamPolicyDocumentSchema } from "./policy-schema";
 import { normalizeIamPolicy } from "./policy-normalizer";
@@ -49,11 +50,9 @@ export interface ParsedIamPolicy {
 export function parseIamPolicy(input: unknown): ParsedIamPolicy {
   if (typeof input === "string") {
     if (Buffer.byteLength(input) > IAM_POLICY_LIMITS.bytes) throw new IamPolicyValidationError();
-    try {
-      input = JSON.parse(input);
-    } catch {
-      throw new IamPolicyValidationError();
-    }
+    const source = inspectPolicyJson(input);
+    if (source.diagnostics.length) throw new IamPolicyValidationError();
+    input = source.input;
   }
   assertJson(input);
   const serialized = JSON.stringify(input);
