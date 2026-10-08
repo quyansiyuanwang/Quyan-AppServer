@@ -3,6 +3,9 @@ import { ALL_PERMISSIONS } from "@/constant/permission";
 import { AccountStatus } from "@/util/auth/account-status";
 import { encryptedPasswordCredentialSchema } from "@/api/schema/auth/password-encryption.schema";
 
+import { iamPolicyDocumentSchema } from "@/iam/parser/policy-schema";
+import { isKnownIamAction, isValidIamResource } from "@quyan/shared";
+
 const usernameRegex = /^[a-zA-Z0-9_]+$/;
 const roleNameRegex = /^[a-zA-Z0-9+=,.@_-]+$/;
 const permissionSchema = z.enum(ALL_PERMISSIONS as [string, ...string[]]);
@@ -80,17 +83,56 @@ export const assumeRamRoleBodySchema = z.object({
 
 // ── 权限策略 Schemas ──
 
-export const createRamPolicyBodySchema = z.object({
-  name: z.string().trim().min(2).max(128),
-  description: z.string().trim().max(500).optional(),
-  permissions: z.array(permissionSchema).max(500),
-});
+export const createRamPolicyBodySchema = z
+  .object({
+    name: z.string().trim().min(2).max(128),
+    description: z.string().trim().max(500).optional(),
+    permissions: z.array(permissionSchema).max(500).optional(),
+    document: iamPolicyDocumentSchema.optional(),
+  })
+  .strict()
+  .refine(
+    (data) => (data.permissions !== undefined) !== (data.document !== undefined),
+    "Exactly one of permissions or document is required",
+  );
 
-export const updateRamPolicyBodySchema = z.object({
-  description: z.string().trim().max(500).optional(),
-  permissions: z.array(permissionSchema).max(500).optional(),
-  status: z.coerce.number().int().min(0).max(1).optional(),
-});
+export const updateRamPolicyBodySchema = z
+  .object({
+    document: iamPolicyDocumentSchema.optional(),
+    expectedDocumentHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    description: z.string().trim().max(500).optional(),
+    permissions: z.array(permissionSchema).max(500).optional(),
+    status: z.coerce.number().int().min(0).max(1).optional(),
+  })
+  .strict()
+  .refine(
+    (data) => !(data.permissions !== undefined && data.document !== undefined),
+    "Cannot mix legacy permissions and IAM document",
+  );
+
+export const validateIamPolicyBodySchema = z.object({ document: iamPolicyDocumentSchema }).strict();
+export const createRamPolicyVersionBodySchema = z
+  .object({
+    document: iamPolicyDocumentSchema,
+    expectedDocumentHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+  })
+  .strict();
+export const setDefaultRamPolicyVersionBodySchema = z
+  .object({ versionId: z.string().min(1).max(128), expectedDocumentHash: z.string().regex(/^[a-f0-9]{64}$/) })
+  .strict();
+export const simulateIamPolicyBodySchema = z
+  .object({
+    principalId: z.string().min(1).max(128),
+    action: z.string().refine(isKnownIamAction),
+    resource: z.string().refine(isValidIamResource),
+  })
+  .strict();
 
 export const attachPolicyBodySchema = z.object({
   policyId: z.string().trim().min(1),

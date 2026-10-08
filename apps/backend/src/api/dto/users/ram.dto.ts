@@ -1,3 +1,4 @@
+import type { IamPolicyDocument, IamStatement, IamEvaluationResult } from "@quyan/shared";
 import type { Permission } from "@/constant/permission";
 import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-encryption.dto";
 
@@ -120,8 +121,45 @@ export type GetRamRoleBindingsResponse = RamRoleBindingDto[];
 export type GetRamRoleSessionsResponse = RamRoleSessionDto[];
 
 // ── RAM 权限策略 DTO ──
+export type IamStatementDto = IamStatement;
+export type IamPolicyDocumentDto = IamPolicyDocument;
+export interface RamPolicyVersionDto {
+  id: string;
+  version: number;
+  document: IamPolicyDocumentDto;
+  documentHash: string;
+  isDefault: boolean;
+  createdBy: string;
+  createTime: string;
+}
+export interface CreateRamPolicyVersionDto {
+  document: IamPolicyDocumentDto;
+  expectedDocumentHash?: string;
+}
+export interface SetDefaultRamPolicyVersionDto {
+  versionId: string;
+  expectedDocumentHash: string;
+}
+export interface ValidateIamPolicyDto {
+  document: IamPolicyDocumentDto;
+}
+export interface ValidateIamPolicyResponseDto {
+  valid: boolean;
+  documentHash: string;
+  document: IamPolicyDocumentDto;
+  broadWildcard: boolean;
+}
+export interface SimulateIamPolicyDto {
+  principalId: string;
+  action: string;
+  resource: string;
+}
+export type SimulateIamPolicyResponseDto = IamEvaluationResult;
 
 export interface RamPolicyDto {
+  document?: IamPolicyDocumentDto;
+  defaultVersion?: number;
+  documentHash?: string;
   id: string;
   accountOwnerId: string;
   name: string;
@@ -136,10 +174,13 @@ export interface RamPolicyDto {
 export interface CreateRamPolicyDto {
   name: string;
   description?: string;
-  permissions: Permission[];
+  permissions?: Permission[];
+  document?: IamPolicyDocumentDto;
 }
 
 export interface UpdateRamPolicyDto {
+  document?: IamPolicyDocumentDto;
+  expectedDocumentHash?: string;
   description?: string;
   permissions?: Permission[];
   status?: number;

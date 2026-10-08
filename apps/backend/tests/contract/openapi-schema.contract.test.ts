@@ -211,3 +211,36 @@ describe("OpenAPI Schema Contract", () => {
     }
   });
 });
+
+describe("RAM IAM policy API contract", () => {
+  it.each([
+    ["/v1/ram/policies/validate", "post"],
+    ["/v1/ram/policies/simulate", "post"],
+    ["/v1/ram/policies/{policyId}/versions", "get"],
+    ["/v1/ram/policies/{policyId}/versions", "post"],
+    ["/v1/ram/policies/{policyId}/default-version", "put"],
+    ["/v1/ram/iam/actions", "get"],
+  ] as const)("declares JWT security for %s %s", (route, method) => {
+    expect(openApi.paths[route]?.[method]?.security).toContainEqual({ jwt: [] });
+  });
+  it("keeps IAM additions optional for existing policy response clients", () => {
+    const schema = openApi.components?.schemas?.RamPolicyDto as {
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+    for (const name of ["document", "documentHash", "defaultVersion"]) {
+      expect(schema.properties[name]).toBeDefined();
+      expect(schema.required).not.toContain(name);
+    }
+    expect(schema.required).toContain("permissions");
+  });
+  it("returns only decisions and matched policy identifiers from simulation", () => {
+    const alias = openApi.components?.schemas?.SimulateIamPolicyResponseDto as { $ref?: string };
+    const schema = (alias.$ref ? resolveLocalRef(openApi, alias.$ref) : alias) as {
+      properties: Record<string, unknown>;
+    };
+    expect(Object.keys(schema.properties).sort()).toEqual(["decision", "matchedStatements", "reason"]);
+    expect(schema.properties).not.toHaveProperty("document");
+    expect(schema.properties).not.toHaveProperty("principal");
+  });
+});

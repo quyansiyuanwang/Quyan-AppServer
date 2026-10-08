@@ -97,6 +97,30 @@ RAM 控制台使用独立 URL 组织概览、身份管理、权限管理和会�
 3. **授权**: 将角色绑定到用户，或将策略直接附加到用户。
 4. **权限审计**: 权限诊断 → 选择用户 → 查看其综合有效权限。
 
+## IAM JSON 策略（API）
+
+现有控制台仍使用权限分类树；JSON 策略编辑和模拟目前通过 API 使用，尚无专用编辑器。身份策略仅支持 `Version: "1"`、`Statement`、可选 `Sid`、`Effect`、`Action` 和 `Resource`。Statement 可为对象或数组，Action/Resource 可为字符串或数组。仅 `*` 为通配符，大小写敏感；未知字段、未知版本、Condition、Principal、NotAction、NotResource 和策略变量均拒绝，不会被忽略。
+
+评估顺序是 **匹配的显式 Deny > 匹配的 Allow > 默认拒绝**。Action 与 Resource 必须同时匹配。用户、启用的用户组、绑定角色和有效角色会话的策略共同参与评估；旧用户排除权限转换为 Deny。账户归属、角色会话有效性和业务所有权检查仍保留。Action 来自服务端定义，不能由请求头覆盖；无法可靠解析 Resource 的请求被拒绝。
+
+### API 和权限
+
+- `POST /v1/ram/policies`：提供 name 和 document，或旧 permissions；不可同时提交两种格式。
+- `POST /v1/ram/policies/validate`：提供 document，返回规范化文档、SHA-256 hash 和过宽通配符提示；需策略创建权限。
+- `GET /v1/ram/iam/actions`：查看 Action 清单；需策略读取权限。列出的 DNS Action 是策略契约示例，不表示平台已提供 DNS 管理接口。
+- `GET /v1/ram/policies/{policyId}/versions`：查看不可变版本及当前默认版本；需策略读取权限。
+- `POST /v1/ram/policies/{policyId}/versions`：新增版本并设为默认；提交 document 和当前 expectedDocumentHash。首次转换旧策略可不传 hash；已有 IAM 版本时必需。需策略更新权限、2FA 和重放保护。
+- `PUT /v1/ram/policies/{policyId}/default-version`：提交 versionId 和当前 expectedDocumentHash，恢复某个历史版本；需策略更新权限、强制 2FA 和重放保护。hash 过期返回 409，不覆盖其他更新。
+- `POST /v1/ram/policies/simulate`：提交同账户 principalId、action、resource；单独要求 `quyan:iam:SimulatePolicy` 对账户资源的 Allow，策略读取权限不足以调用。仅返回决策、原因和匹配的策略/版本/语句标识，不返回策略内容或凭据。
+
+IAM 文档的创建、更新、默认版本切换和绑定目前仅限拥有相应操作权限的账户所有者，并且部署必须已启用 enforce 模式。RAM 子用户不能委派 JSON 策略。系统托管策略不可通过这些版本接口修改。新 IAM 策略不能降级成旧权限数组。
+
+### 部署与迁移边界
+
+`IAM_AUTHORIZATION_MODE` 默认为 `legacy`：保持旧权限强制。`shadow` 仍由旧权限强制，只比较并审计 IAM 差异；`enforce` 对已接入的旧权限检查使用 IAM，授权数据异常时不退回旧逻辑。明确采用 IAM 中间件的接口（例如模拟器）始终强制 IAM。**当前并非全部 JWT 接口都完成了独立 Action/Resource 迁移，不能仅打开 enforce 就视为全量覆盖。**
+
+旧策略转换时保留旧权限字段，回滚配置无需删除版本数据；新建纯 JSON 策略在 legacy 模式下不会凭空获得旧权限。授权结果不使用缓存，策略解绑、禁用和会话撤销在后续请求中重新读取。列表行过滤、批量操作逐资源检查和业务归属检查不能被账户级授权替代；全量路由切换前应逐个完成迁移与差异校验。
+
 ## 相关页面
 
 - `user-management`

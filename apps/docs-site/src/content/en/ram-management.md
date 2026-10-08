@@ -97,6 +97,30 @@ Select a user to view their complete effective permissions.
 3. **Grant access**: Bind a role to a user, or attach a policy directly to a user.
 4. **Audit permissions**: Permission Diagnostics → select a user → review their effective permissions from all sources.
 
+## IAM JSON policies (API)
+
+The console still uses the permission tree. JSON editing and simulation are API-only; a dedicated editor is not available yet. Identity policies support only `Version: "1"`, `Statement`, optional `Sid`, `Effect`, `Action`, and `Resource`. Statement accepts an object or array; Action and Resource accept a string or array. Only `*` is a wildcard, and matching is case-sensitive. Unknown fields/versions, Condition, Principal, NotAction, NotResource, and policy variables are rejected rather than ignored.
+
+Evaluation is **matching explicit Deny > matching Allow > implicit Deny**. Both Action and Resource must match. Policies from the user, active group, bound roles, and valid assumed-role session are evaluated together. Legacy permission removals become Deny statements. Account isolation, session validity, and business ownership checks remain in place. Actions come from server metadata, never client headers; unresolved resources are rejected.
+
+### APIs and permissions
+
+- `POST /v1/ram/policies`: submit name plus either document or legacy permissions, never both.
+- `POST /v1/ram/policies/validate`: submit document for normalization, SHA-256 hash, and a broad-wildcard warning; requires policy-create permission.
+- `GET /v1/ram/iam/actions`: list actions; requires policy-read permission. DNS catalog actions illustrate the policy contract and do not mean DNS management APIs are provided.
+- `GET /v1/ram/policies/{policyId}/versions`: list immutable versions and the default; requires policy-read permission.
+- `POST /v1/ram/policies/{policyId}/versions`: append a version and make it default. Submit document and the current expectedDocumentHash. The hash is optional only for the first legacy-to-IAM conversion. Requires policy-update permission, 2FA, and replay protection.
+- `PUT /v1/ram/policies/{policyId}/default-version`: submit versionId and current expectedDocumentHash to restore a historical version; requires policy-update permission, mandatory fresh 2FA, and replay protection. Stale hashes return 409 instead of overwriting another update.
+- `POST /v1/ram/policies/simulate`: submit a same-account principalId, action, and resource. Requires a separate Allow for `quyan:iam:SimulatePolicy` on the account resource; policy-read permission alone is insufficient. Returns only the decision, reason, and matched policy/version/statement identifiers, not policy documents or credentials.
+
+Creating, updating, switching defaults, and attaching JSON policies currently require an account owner with the relevant operation permission and an enforce-mode deployment. RAM subusers cannot delegate JSON policies. System-managed policies cannot be modified through version APIs. IAM policies cannot be downgraded to legacy permission arrays.
+
+### Deployment and migration boundaries
+
+`IAM_AUTHORIZATION_MODE` defaults to `legacy`, preserving legacy enforcement. `shadow` also enforces legacy permissions while auditing IAM differences. `enforce` uses IAM for integrated legacy checks and never falls back on authorization-data failure. Explicit IAM middleware endpoints, including simulation, always enforce IAM. **Not every JWT endpoint has completed explicit Action/Resource migration; enabling enforce does not establish complete coverage.**
+
+Legacy-to-IAM conversion preserves legacy fields for configuration rollback without removing version data. New JSON-only policies do not acquire legacy grants when rolled back. Decisions are uncached; subsequent requests reread bindings, disabled policies, and revoked sessions. Collection filtering, per-resource batch authorization, and ownership checks cannot be replaced by account-level authorization; complete these integrations and shadow comparisons before full rollout.
+
 ## Related pages
 
 - `user-management`

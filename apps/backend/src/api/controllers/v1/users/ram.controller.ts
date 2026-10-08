@@ -14,6 +14,23 @@ import {
   SuccessResponse,
   Tags,
 } from "@tsoa/runtime";
+import type {
+  CreateRamPolicyVersionDto,
+  SetDefaultRamPolicyVersionDto,
+  RamPolicyVersionDto,
+  ValidateIamPolicyDto,
+  ValidateIamPolicyResponseDto,
+  SimulateIamPolicyDto,
+  SimulateIamPolicyResponseDto,
+} from "@/api/dto/users/ram.dto";
+import {
+  validateIamPolicyBodySchema,
+  createRamPolicyVersionBodySchema,
+  setDefaultRamPolicyVersionBodySchema,
+  simulateIamPolicyBodySchema,
+} from "@/api/schema/users/ram.schema";
+import { iamAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "@/constant/custom-code";
 import { RamService } from "@/services/users/ram.service";
@@ -462,6 +479,92 @@ export class RamController extends Controller {
   ): Promise<{ code: number; message: string }> {
     await this.ramService.detachPolicy(request.user!.userId, body);
     return { code: CustomCode.OK, message: "解绑权限策略成功" };
+  }
+
+  @Post("policies/validate")
+  @Security("jwt")
+  @Middlewares(validateBody(validateIamPolicyBodySchema))
+  @CheckPermission(Permission.RAM_POLICY_CREATE, PermissionCheckMode.ALL, "jwt")
+  public async validatePolicy(@Body() body: ValidateIamPolicyDto): Promise<ValidateIamPolicyResponseDto> {
+    return this.ramService.validatePolicy(body.document);
+  }
+
+  @Post("policies/simulate")
+  @Security("jwt")
+  @Middlewares(
+    validateBody(simulateIamPolicyBodySchema),
+    iamAuthorizationMiddleware({
+      action: "quyan:iam:SimulatePolicy",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async simulatePolicy(
+    @Body() body: SimulateIamPolicyDto,
+    @Request() request: TypedRequest,
+  ): Promise<SimulateIamPolicyResponseDto> {
+    return this.ramService.simulatePolicy(request.user!.userId, body.principalId, body.action, body.resource);
+  }
+
+  @Get("policies/{policyId}/versions")
+  @Security("jwt")
+  @Middlewares(validateParams(ramPolicyIdParamsSchema))
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt")
+  public async listPolicyVersions(
+    @Path() policyId: string,
+    @Request() request: TypedRequest,
+  ): Promise<RamPolicyVersionDto[]> {
+    return this.ramService.listPolicyVersions(request.user!.userId, policyId);
+  }
+
+  @Post("policies/{policyId}/versions")
+  @Security("jwt")
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(ramPolicyIdParamsSchema),
+    validateBody(createRamPolicyVersionBodySchema),
+  )
+  @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt")
+  public async createPolicyVersion(
+    @Path() policyId: string,
+    @Body() body: CreateRamPolicyVersionDto,
+    @Request() request: TypedRequest,
+  ): Promise<RamPolicyDto> {
+    return this.ramService.updatePolicy(request.user!.userId, policyId, body);
+  }
+
+  @Put("policies/{policyId}/default-version")
+  @Security("jwt")
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
+    replayProtectionMiddleware,
+    validateParams(ramPolicyIdParamsSchema),
+    validateBody(setDefaultRamPolicyVersionBodySchema),
+  )
+  @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt")
+  public async setDefaultPolicyVersion(
+    @Path() policyId: string,
+    @Body() body: SetDefaultRamPolicyVersionDto,
+    @Request() request: TypedRequest,
+  ): Promise<void> {
+    return this.ramService.setDefaultPolicyVersion(
+      request.user!.userId,
+      policyId,
+      body.versionId,
+      body.expectedDocumentHash,
+    );
+  }
+
+  @Get("iam/actions")
+  @Security("jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt")
+  public async getIamActions(): Promise<string[]> {
+    return [...this.ramService.getIamActionCatalog()];
   }
 
   // ── 授权概览 ──

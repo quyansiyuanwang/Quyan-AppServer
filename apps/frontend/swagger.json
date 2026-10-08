@@ -3757,6 +3757,238 @@
 				}
 			}
 		},
+		"/v1/ram/policies/validate": {
+			"post": {
+				"operationId": "RamControllerValidatePolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ValidateIamPolicyResponseDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ValidateIamPolicyDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/ram/policies/simulate": {
+			"post": {
+				"operationId": "RamControllerSimulatePolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/SimulateIamPolicyResponseDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SimulateIamPolicyDto"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/v1/ram/policies/{policyId}/versions": {
+			"get": {
+				"operationId": "RamControllerListPolicyVersions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RamPolicyVersionDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "policyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "RamControllerCreatePolicyVersion",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamPolicyDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "policyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRamPolicyVersionDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/policies/{policyId}/default-version": {
+			"put": {
+				"operationId": "RamControllerSetDefaultPolicyVersion",
+				"responses": {
+					"204": {
+						"description": "No content"
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "policyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetDefaultRamPolicyVersionDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/iam/actions": {
+			"get": {
+				"operationId": "RamControllerGetIamActions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"type": "string"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/ram/authorization/effective-permissions": {
 			"get": {
 				"operationId": "RamControllerGetUserEffectivePermissions",
@@ -36228,6 +36460,90 @@
 				},
 				"type": "array"
 			},
+			"IamEffect": {
+				"type": "string",
+				"enum": [
+					"Allow",
+					"Deny"
+				],
+				"description": "Strict identity-policy subset. Unsupported IAM fields must be rejected."
+			},
+			"IamStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Action": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"Resource": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"Effect",
+					"Action",
+					"Resource"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamPolicyDocument": {
+				"properties": {
+					"Version": {
+						"type": "string",
+						"enum": [
+							"1"
+						],
+						"nullable": false
+					},
+					"Statement": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/IamStatement"
+							},
+							{
+								"items": {
+									"$ref": "#/components/schemas/IamStatement"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"Version",
+					"Statement"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamPolicyDocumentDto": {
+				"$ref": "#/components/schemas/IamPolicyDocument"
+			},
 			"Permission": {
 				"description": "系统权限枚举\n定义了系统中所有可用的权限\n\n这是唯一的规范数据源。前后端都从这里 re-export。",
 				"enum": [
@@ -36439,6 +36755,16 @@
 			},
 			"RamPolicyDto": {
 				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"defaultVersion": {
+						"type": "number",
+						"format": "double"
+					},
+					"documentHash": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -36503,17 +36829,25 @@
 							"$ref": "#/components/schemas/Permission"
 						},
 						"type": "array"
+					},
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
 					}
 				},
 				"required": [
-					"name",
-					"permissions"
+					"name"
 				],
 				"type": "object",
 				"additionalProperties": false
 			},
 			"UpdateRamPolicyDto": {
 				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"expectedDocumentHash": {
+						"type": "string"
+					},
 					"description": {
 						"type": "string"
 					},
@@ -36597,6 +36931,200 @@
 					"policyId",
 					"targetType",
 					"targetId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ValidateIamPolicyResponseDto": {
+				"properties": {
+					"valid": {
+						"type": "boolean"
+					},
+					"documentHash": {
+						"type": "string"
+					},
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"broadWildcard": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"valid",
+					"documentHash",
+					"document",
+					"broadWildcard"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ValidateIamPolicyDto": {
+				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					}
+				},
+				"required": [
+					"document"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamDecision": {
+				"type": "string",
+				"enum": [
+					"Allow",
+					"ExplicitDeny",
+					"ImplicitDeny"
+				]
+			},
+			"IamDecisionReason": {
+				"type": "string",
+				"enum": [
+					"matched-allow",
+					"explicit-deny",
+					"no-matching-allow",
+					"invalid-request"
+				]
+			},
+			"IamMatchedStatement": {
+				"properties": {
+					"policyId": {
+						"type": "string"
+					},
+					"versionId": {
+						"type": "string"
+					},
+					"statementId": {
+						"type": "string"
+					},
+					"effect": {
+						"type": "string",
+						"enum": [
+							"Allow",
+							"Deny"
+						]
+					}
+				},
+				"required": [
+					"policyId",
+					"statementId",
+					"effect"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamEvaluationResult": {
+				"properties": {
+					"decision": {
+						"$ref": "#/components/schemas/IamDecision"
+					},
+					"reason": {
+						"$ref": "#/components/schemas/IamDecisionReason"
+					},
+					"matchedStatements": {
+						"items": {
+							"$ref": "#/components/schemas/IamMatchedStatement"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"decision",
+					"reason",
+					"matchedStatements"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SimulateIamPolicyResponseDto": {
+				"$ref": "#/components/schemas/IamEvaluationResult"
+			},
+			"SimulateIamPolicyDto": {
+				"properties": {
+					"principalId": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"resource": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"principalId",
+					"action",
+					"resource"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamPolicyVersionDto": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"version": {
+						"type": "number",
+						"format": "double"
+					},
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"documentHash": {
+						"type": "string"
+					},
+					"isDefault": {
+						"type": "boolean"
+					},
+					"createdBy": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"version",
+					"document",
+					"documentHash",
+					"isDefault",
+					"createdBy",
+					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CreateRamPolicyVersionDto": {
+				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					},
+					"expectedDocumentHash": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"document"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetDefaultRamPolicyVersionDto": {
+				"properties": {
+					"versionId": {
+						"type": "string"
+					},
+					"expectedDocumentHash": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"versionId",
+					"expectedDocumentHash"
 				],
 				"type": "object",
 				"additionalProperties": false
