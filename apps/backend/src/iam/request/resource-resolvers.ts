@@ -69,6 +69,8 @@ export const ramAssumeRoleResourceResolver = accountEntityResourceResolver(
   (request) => (request.body as { roleId?: unknown })?.roleId,
 );
 
+export const ramGroupResourceResolver = accountEntityResourceResolver("group", (request) => request.params.groupId);
+
 export const ramUserResourceResolver = accountEntityResourceResolver("user", (request) => request.params.userId);
 export const ramEffectivePermissionsUserResourceResolver = accountEntityResourceResolver(
   "user",

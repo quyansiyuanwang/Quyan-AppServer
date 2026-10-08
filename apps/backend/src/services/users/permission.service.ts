@@ -654,15 +654,42 @@ export class PermissionService {
     });
   }
 
+  /** Legacy unowned recovery groups are visible only to their real account owner. */
+  private async assertGroupPermissionAccountScope(
+    group: { id: string; username: string; accountOwnerId: string | null },
+    operatorUserId: string,
+  ): Promise<void> {
+    if (env.security.iamAuthorizationMode !== "enforce") return;
+    const operator = await this.userRepository.findById(operatorUserId);
+    const owner = operator?.accountOwnerId || operator?.id;
+    const request = getRequestContext();
+    const principal = request ? getIamPrincipal(request) : undefined;
+    const recovery =
+      operator?.userType === "root" &&
+      operator.id === owner &&
+      (!request ||
+        (principal?.subjectType === "root" &&
+          principal.principalUserId === operator.id &&
+          principal.accountOwnerId === owner)) &&
+      operator.groupId === group.id &&
+      group.accountOwnerId === null &&
+      group.username === env.security.superAdminGroupUsername;
+    if (!owner || (!recovery && group.accountOwnerId !== owner))
+      throw new ForbiddenError("Legacy group permission target crosses account scope", undefined, {
+        messageKey: "iam.delegationDenied",
+      });
+  }
+
   /**
    * 获取用户组的权限列表
    * @param groupId 用户组ID
    * @returns 权限列表
    */
-  async getGroupPermissions(groupId: string): Promise<PermissionList> {
+  async getGroupPermissions(groupId: string, operatorUserId?: string): Promise<PermissionList> {
     const group = await this.groupRepository.findById(groupId);
 
     if (!group) return [];
+    if (operatorUserId) await this.assertGroupPermissionAccountScope(group, operatorUserId);
 
     return this.parsePermissionJson(group.permissions);
   }
@@ -686,19 +713,7 @@ export class PermissionService {
     const group = await this.groupRepository.findById(groupId);
     if (!group) throw new BadRequestError("用户组不存在", undefined, { messageKey: "permission.groupNotFound" });
 
-    if (env.security.iamAuthorizationMode === "enforce" && operatorUserId) {
-      const operator = await this.userRepository.findById(operatorUserId);
-      const owner = operator?.accountOwnerId || operator?.id;
-      const recovery =
-        operator?.userType === "root" &&
-        operator.id === owner &&
-        operator.groupId === group.id &&
-        group.username === env.security.superAdminGroupUsername;
-      if (!owner || (!recovery && group.accountOwnerId !== owner))
-        throw new ForbiddenError("Legacy group permission target crosses account scope", undefined, {
-          messageKey: "iam.delegationDenied",
-        });
-    }
+    if (operatorUserId) await this.assertGroupPermissionAccountScope(group, operatorUserId);
 
     const beforePermissions = this.parsePermissionJson(group.permissions);
     const afterPermissions = Array.from(new Set(permissions));

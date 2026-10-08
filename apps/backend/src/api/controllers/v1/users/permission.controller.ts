@@ -29,7 +29,9 @@ import { UserService } from "@/services/users/user.service";
 import { GroupRepository } from "@/store/users/group.repository";
 import type { ValidationErrorResponse, BaseResponse } from "@/api/dto/common/common.dto";
 import { ForbiddenError, NotFoundError } from "@/util/errors";
-import { RequirePermission, RequireAllPermissions } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { authorizeLegacyPermissions } from "@/iam/middleware/legacy-permission-bridge";
+import { ramUserResourceResolver, ramGroupResourceResolver } from "@/iam/request/resource-resolvers";
 import { CustomCode } from "@/constant/custom-code";
 import type { TypedRequest } from "@/types/express";
 import { diff } from "@/util/function-tools";
@@ -130,7 +132,11 @@ export class PermissionController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.PERMISSION_ADD)
+  @CheckPermission(Permission.PERMISSION_ADD, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:permission:Add",
+    resourceKind: "single-resource",
+    resource: ramUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -166,7 +172,11 @@ export class PermissionController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.PERMISSION_ADD)
+  @CheckPermission(Permission.PERMISSION_ADD, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:permission:Add",
+    resourceKind: "single-resource",
+    resource: ramUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -202,7 +212,11 @@ export class PermissionController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.PERMISSION_REMOVE)
+  @CheckPermission(Permission.PERMISSION_REMOVE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:permission:Remove",
+    resourceKind: "single-resource",
+    resource: ramUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -236,7 +250,10 @@ export class PermissionController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequireAllPermissions([Permission.PERMISSION_REMOVE, Permission.PERMISSION_ADD])
+  @CheckPermission([Permission.PERMISSION_REMOVE, Permission.PERMISSION_ADD], PermissionCheckMode.ALL, "jwt", [
+    { action: "quyan:permission:Remove", resourceKind: "single-resource", resource: ramUserResourceResolver },
+    { action: "quyan:permission:Add", resourceKind: "single-resource", resource: ramUserResourceResolver },
+  ])
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -289,13 +306,17 @@ export class PermissionController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
-  @RequirePermission(Permission.PERMISSION_VIEW)
+  @CheckPermission(Permission.PERMISSION_VIEW, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:permission:Manage",
+    resourceKind: "single-resource",
+    resource: ramGroupResourceResolver,
+  })
   @Middlewares(validateParams(permissionGroupIdParamsSchema))
   public async getGroupPermissions(
     @Request() request: TypedRequest,
     @Path() groupId: string,
   ): Promise<{ permissions: Permission[] }> {
-    const permissions = await permissionService.getGroupPermissions(groupId);
+    const permissions = await permissionService.getGroupPermissions(groupId, request.user!.userId);
 
     return {
       permissions,
@@ -310,6 +331,10 @@ export class PermissionController extends Controller {
    * @returns 操作结果
    */
   @Put("group/{groupId}/permissions")
+  @CheckPermission([Permission.PERMISSION_ADD, Permission.PERMISSION_REMOVE], PermissionCheckMode.ANY, "jwt", [
+    { action: "quyan:permission:Add", resourceKind: "single-resource", resource: ramGroupResourceResolver },
+    { action: "quyan:permission:Remove", resourceKind: "single-resource", resource: ramGroupResourceResolver },
+  ])
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
@@ -328,17 +353,28 @@ export class PermissionController extends Controller {
     @Body() body: AddPermissionsDTO,
   ): Promise<BaseResponse> {
     const currentUserId = request.user!.userId;
-    const hasAddPerm = await permissionService.hasPermission(currentUserId, Permission.PERMISSION_ADD);
-    const hasRemovePerm = await permissionService.hasPermission(currentUserId, Permission.PERMISSION_REMOVE);
-
     const currentPerm = await permissionService.getGroupPermissions(groupId);
     const diffs = diff(currentPerm, body.permissions);
 
-    if (diffs.added.length !== 0 && !hasAddPerm)
+    const hasAddPerm =
+      !diffs.added.length ||
+      (await authorizeLegacyPermissions(request, [Permission.PERMISSION_ADD], false, {
+        action: "quyan:permission:Add",
+        resourceKind: "single-resource",
+        resource: ramGroupResourceResolver,
+      }));
+    const hasRemovePerm =
+      !diffs.removed.length ||
+      (await authorizeLegacyPermissions(request, [Permission.PERMISSION_REMOVE], false, {
+        action: "quyan:permission:Remove",
+        resourceKind: "single-resource",
+        resource: ramGroupResourceResolver,
+      }));
+    if (!hasAddPerm)
       throw new ForbiddenError("权限不足，无法添加权限", CustomCode.PERMISSION_DENIED, {
         messageKey: "permission.insufficientAddPermission",
       });
-    if (diffs.removed.length !== 0 && !hasRemovePerm)
+    if (!hasRemovePerm)
       throw new ForbiddenError("权限不足，无法移除权限", CustomCode.PERMISSION_DENIED, {
         messageKey: "permission.insufficientRemovePermission",
       });

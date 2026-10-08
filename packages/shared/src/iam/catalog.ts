@@ -61,6 +61,9 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
 // actions remain marked legacy until each business domain declares its targets.
 const ramResources: Partial<Record<Permission, string[]>> = {
+  [Permission.PERMISSION_VIEW]: ['user', 'group'],
+  [Permission.PERMISSION_ADD]: ['user', 'group'],
+  [Permission.PERMISSION_REMOVE]: ['user', 'group'],
   [Permission.RAM_USER_CREATE]: ['user', 'group'],
   [Permission.RAM_USER_READ]: ['user'],
   [Permission.RAM_USER_UPDATE]: ['user', 'group'],
