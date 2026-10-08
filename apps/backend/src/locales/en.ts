@@ -141,6 +141,13 @@ const en = {
     notDeletable: "This user group cannot be deleted",
     hasUsers: "This group still has users and cannot be deleted",
   },
+  iam: {
+    resourceResolutionFailed: "The requested resource cannot be resolved safely",
+    invalidPolicy: "Invalid or unsupported IAM policy document",
+    versionConflict: "The policy changed; reload it before updating",
+    delegationDenied: "This policy cannot be delegated by the current principal",
+    rolloutRequired: "IAM documents require enforce authorization mode",
+  },
   permission: {
     operatorNotFound: "Operator user does not exist",
     userNotFound: "User does not exist",

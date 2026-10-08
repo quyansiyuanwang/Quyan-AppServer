@@ -89,12 +89,12 @@ export class RamRoleRepository implements RamRoleStore {
   async listRoleBindingsForUser(userId: string, groupId?: string | null): Promise<RamRoleBindingRecord[]> {
     const [userBindings, groupBindings] = await Promise.all([
       prisma.ramUserRoleBinding.findMany({
-        where: { userId, role: ACTIVE_WHERE },
+        where: { userId, ...ACTIVE_WHERE, role: ACTIVE_WHERE },
         include: { role: true },
       }),
       groupId
         ? prisma.ramGroupRoleBinding.findMany({
-            where: { groupId, role: ACTIVE_WHERE },
+            where: { groupId, ...ACTIVE_WHERE, role: ACTIVE_WHERE },
             include: { role: true },
           })
         : Promise.resolve([]),
@@ -108,7 +108,7 @@ export class RamRoleRepository implements RamRoleStore {
     // Fetch role permissions from attached policies
     const roleIds = [...new Set(allBindings.map((b) => b.roleId))];
     const policyAttachments = await prisma.ramPolicyAttachment.findMany({
-      where: { targetType: "role", targetId: { in: roleIds }, ...ACTIVE_WHERE },
+      where: { targetType: "role", targetId: { in: roleIds }, ...ACTIVE_WHERE, policy: ACTIVE_WHERE },
       include: { policy: { select: { permissions: true } } },
     });
 

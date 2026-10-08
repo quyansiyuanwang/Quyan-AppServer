@@ -1,14 +1,23 @@
-import type { RamPolicy } from "@prisma/client";
+import type { RamPolicy, RamPolicyVersion } from "@prisma/client";
 
+export type RamPolicyWithVersion = RamPolicy & { defaultVersion?: RamPolicyVersion | null };
+export interface IamVersionWrite {
+  document: import("@quyan/shared").NormalizedIamPolicyDocument;
+  documentHash: string;
+  createdBy: string;
+}
 export interface CreateRamPolicyInput {
   accountOwnerId: string;
   name: string;
   description?: string | null;
   permissions: string[];
   type?: string;
+  iamVersion?: IamVersionWrite;
 }
 
 export interface UpdateRamPolicyInput {
+  iamVersion?: IamVersionWrite;
+  expectedDocumentHash?: string;
   description?: string | null;
   permissions?: string[];
   status?: number;
@@ -25,6 +34,13 @@ export interface PolicyAttachmentRecord {
 }
 
 export interface PolicyBindingInfo {
+  legacyPermissions?: unknown;
+  accountOwnerId?: string;
+  documentFormat?: string;
+  versionId?: string;
+  document?: unknown;
+  documentHash?: string;
+  validationState?: string;
   policyId: string;
   policyName: string;
   permissions: string[];
@@ -35,12 +51,14 @@ export interface PolicyBindingInfoWithTarget extends PolicyBindingInfo {
 }
 
 export interface RamPolicyStore {
-  createPolicy(data: CreateRamPolicyInput): Promise<RamPolicy>;
-  findPolicyById(policyId: string): Promise<RamPolicy | null>;
-  findPolicyByName(accountOwnerId: string, name: string): Promise<RamPolicy | null>;
-  listPolicies(accountOwnerId: string): Promise<RamPolicy[]>;
-  updatePolicy(policyId: string, data: UpdateRamPolicyInput): Promise<RamPolicy>;
-  softDeletePolicy(policyId: string): Promise<RamPolicy>;
+  createPolicy(data: CreateRamPolicyInput): Promise<RamPolicyWithVersion>;
+  findPolicyById(policyId: string): Promise<RamPolicyWithVersion | null>;
+  findPolicyByName(accountOwnerId: string, name: string): Promise<RamPolicyWithVersion | null>;
+  listPolicies(accountOwnerId: string): Promise<RamPolicyWithVersion[]>;
+  updatePolicy(policyId: string, data: UpdateRamPolicyInput): Promise<RamPolicyWithVersion>;
+  listVersions(policyId: string): Promise<RamPolicyVersion[]>;
+  setDefaultVersion(policyId: string, versionId: string, expectedDocumentHash: string): Promise<void>;
+  softDeletePolicy(policyId: string): Promise<RamPolicyWithVersion>;
   attachPolicy(accountOwnerId: string, policyId: string, targetType: string, targetId: string): Promise<void>;
   detachPolicy(policyId: string, targetType: string, targetId: string): Promise<void>;
   listAttachmentsByPolicy(policyId: string): Promise<PolicyAttachmentRecord[]>;

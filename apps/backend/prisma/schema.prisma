@@ -811,10 +811,36 @@ model RamPolicy {
 
   accountOwner      User                  @relation("RamPolicyOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
   policyAttachments RamPolicyAttachment[]
+  versions          RamPolicyVersion[]
+  defaultVersionId  String?
+  defaultVersion    RamPolicyVersion?     @relation("DefaultRamPolicyVersion", fields: [defaultVersionId], references: [id], onDelete: SetNull)
+  policyKind        String                @default("identity") @db.VarChar(20)
+  documentFormat    String                @default("legacy") @db.VarChar(20)
+  validationState   String                @default("legacy") @db.VarChar(20)
 
   @@unique([accountOwnerId, activeName])
   @@index([accountOwnerId])
   @@map("ram_policies")
+}
+
+model RamPolicyVersion {
+  id              String   @id @default(cuid())
+  status          Int      @default(1)
+  createTime      DateTime @default(now())
+  updateTime      DateTime @updatedAt
+  policyId        String
+  version         Int
+  document        Json
+  documentHash    String   @db.VarChar(64)
+  validationState String   @default("valid") @db.VarChar(20)
+  createdBy       String
+
+  policy     RamPolicy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  defaultFor RamPolicy[] @relation("DefaultRamPolicyVersion")
+
+  @@unique([policyId, version])
+  @@index([policyId, status])
+  @@map("ram_policy_versions")
 }
 
 model RamPolicyAttachment {

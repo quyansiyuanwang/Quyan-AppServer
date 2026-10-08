@@ -6,9 +6,12 @@ import type {
   PolicyBindingInfo,
   PolicyBindingInfoWithTarget,
   RamPolicyStore,
+  RamPolicyWithVersion,
   UpdateRamPolicyInput,
 } from "./ram-policy.store";
-import type { RamPolicy } from "@prisma/client";
+import type { Prisma, RamPolicyVersion } from "@prisma/client";
+import { ConflictError } from "@/util/errors";
+import { parseIamPolicy } from "@/iam/parser/policy-parser";
 
 const ACTIVE_WHERE = { status: AccountStatus.ACTIVE } as const;
 
@@ -20,41 +23,132 @@ export class RamPolicyRepository implements RamPolicyStore {
     return RamPolicyRepository.instance;
   }
 
-  async createPolicy(data: CreateRamPolicyInput): Promise<RamPolicy> {
-    return prisma.ramPolicy.create({
-      data: {
-        accountOwnerId: data.accountOwnerId,
-        name: data.name,
-        activeName: data.name,
-        description: data.description ?? null,
-        permissions: data.permissions,
-        type: data.type ?? "custom",
-        status: AccountStatus.ACTIVE,
-      },
+  async createPolicy(data: CreateRamPolicyInput): Promise<RamPolicyWithVersion> {
+    return prisma.$transaction(async (tx) => {
+      const policy = await tx.ramPolicy.create({
+        data: {
+          accountOwnerId: data.accountOwnerId,
+          name: data.name,
+          activeName: data.name,
+          description: data.description ?? null,
+          permissions: data.permissions,
+          type: data.type ?? "custom",
+          status: AccountStatus.ACTIVE,
+        },
+      });
+      if (data.iamVersion) {
+        const parsed = parseIamPolicy(data.iamVersion.document);
+        if (parsed.documentHash !== data.iamVersion.documentHash) throw new Error("IAM document hash mismatch");
+        const version = await tx.ramPolicyVersion.create({
+          data: {
+            policyId: policy.id,
+            version: 1,
+            document: parsed.document as unknown as Prisma.InputJsonValue,
+            documentHash: parsed.documentHash,
+            createdBy: data.iamVersion.createdBy,
+          },
+        });
+        await tx.ramPolicy.update({
+          where: { id: policy.id },
+          data: { defaultVersionId: version.id, documentFormat: "iam-v1", validationState: "valid" },
+        });
+      }
+      return tx.ramPolicy.findUniqueOrThrow({ where: { id: policy.id }, include: { defaultVersion: true } });
     });
   }
-
-  async findPolicyById(policyId: string): Promise<RamPolicy | null> {
-    return prisma.ramPolicy.findFirst({ where: { id: policyId, ...ACTIVE_WHERE } });
+  async findPolicyById(policyId: string): Promise<RamPolicyWithVersion | null> {
+    return prisma.ramPolicy.findFirst({ where: { id: policyId, ...ACTIVE_WHERE }, include: { defaultVersion: true } });
   }
-
-  async findPolicyByName(accountOwnerId: string, name: string): Promise<RamPolicy | null> {
-    return prisma.ramPolicy.findFirst({ where: { accountOwnerId, activeName: name, ...ACTIVE_WHERE } });
+  async findPolicyByName(accountOwnerId: string, name: string): Promise<RamPolicyWithVersion | null> {
+    return prisma.ramPolicy.findFirst({
+      where: { accountOwnerId, activeName: name, ...ACTIVE_WHERE },
+      include: { defaultVersion: true },
+    });
   }
-
-  async listPolicies(accountOwnerId: string): Promise<RamPolicy[]> {
-    return prisma.ramPolicy.findMany({ where: { accountOwnerId, ...ACTIVE_WHERE }, orderBy: { createTime: "desc" } });
+  async listPolicies(accountOwnerId: string): Promise<RamPolicyWithVersion[]> {
+    return prisma.ramPolicy.findMany({
+      where: { accountOwnerId, ...ACTIVE_WHERE },
+      include: { defaultVersion: true },
+      orderBy: { createTime: "desc" },
+    });
   }
-
-  async updatePolicy(policyId: string, data: UpdateRamPolicyInput): Promise<RamPolicy> {
-    const updateData = { ...data } as UpdateRamPolicyInput & { activeName?: string | null };
-    if (data.status !== undefined && data.status !== AccountStatus.ACTIVE) {
-      updateData.activeName = null;
-    }
-    return prisma.ramPolicy.update({ where: { id: policyId }, data: updateData });
+  async updatePolicy(policyId: string, data: UpdateRamPolicyInput): Promise<RamPolicyWithVersion> {
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.ramPolicy.findUniqueOrThrow({
+        where: { id: policyId },
+        include: { defaultVersion: true },
+      });
+      const { iamVersion, expectedDocumentHash, ...updates } = data;
+      if (iamVersion && current.defaultVersion && expectedDocumentHash !== current.defaultVersion.documentHash)
+        throw new ConflictError("IAM policy was modified concurrently", undefined, {
+          messageKey: "iam.versionConflict",
+        });
+      // The pointer CAS serializes writes before allocating the next immutable version.
+      const locked = await tx.ramPolicy.updateMany({
+        where: { id: policyId, defaultVersionId: current.defaultVersionId },
+        data: {
+          ...updates,
+          ...(updates.status !== undefined && updates.status !== AccountStatus.ACTIVE ? { activeName: null } : {}),
+          updateTime: new Date(),
+        },
+      });
+      if (locked.count !== 1)
+        throw new ConflictError("IAM policy was modified concurrently", undefined, {
+          messageKey: "iam.versionConflict",
+        });
+      if (iamVersion) {
+        const parsed = parseIamPolicy(iamVersion.document);
+        if (parsed.documentHash !== iamVersion.documentHash) throw new Error("IAM document hash mismatch");
+        const max = await tx.ramPolicyVersion.aggregate({ where: { policyId }, _max: { version: true } });
+        const version = await tx.ramPolicyVersion.create({
+          data: {
+            policyId,
+            version: (max._max.version ?? 0) + 1,
+            document: parsed.document as unknown as Prisma.InputJsonValue,
+            documentHash: parsed.documentHash,
+            createdBy: iamVersion.createdBy,
+          },
+        });
+        await tx.ramPolicy.update({
+          where: { id: policyId },
+          data: { defaultVersionId: version.id, documentFormat: "iam-v1", validationState: "valid" },
+        });
+      }
+      return tx.ramPolicy.findUniqueOrThrow({ where: { id: policyId }, include: { defaultVersion: true } });
+    });
   }
-
-  async softDeletePolicy(policyId: string): Promise<RamPolicy> {
+  async listVersions(policyId: string): Promise<RamPolicyVersion[]> {
+    return prisma.ramPolicyVersion.findMany({
+      where: { policyId, status: AccountStatus.ACTIVE },
+      orderBy: { version: "desc" },
+    });
+  }
+  async setDefaultVersion(policyId: string, versionId: string, expectedDocumentHash: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      const current = await tx.ramPolicy.findUniqueOrThrow({
+        where: { id: policyId },
+        include: { defaultVersion: true },
+      });
+      const target = await tx.ramPolicyVersion.findFirstOrThrow({
+        where: { id: versionId, policyId, status: AccountStatus.ACTIVE, validationState: "valid" },
+      });
+      if (!current.defaultVersion || current.defaultVersion.documentHash !== expectedDocumentHash)
+        throw new ConflictError("IAM policy was modified concurrently", undefined, {
+          messageKey: "iam.versionConflict",
+        });
+      if (parseIamPolicy(target.document).documentHash !== target.documentHash)
+        throw new Error("IAM document hash mismatch");
+      const updated = await tx.ramPolicy.updateMany({
+        where: { id: policyId, defaultVersionId: current.defaultVersionId },
+        data: { defaultVersionId: versionId },
+      });
+      if (updated.count !== 1)
+        throw new ConflictError("IAM policy was modified concurrently", undefined, {
+          messageKey: "iam.versionConflict",
+        });
+    });
+  }
+  async softDeletePolicy(policyId: string): Promise<RamPolicyWithVersion> {
     return prisma.ramPolicy.update({
       where: { id: policyId },
       data: { status: AccountStatus.DISABLED, activeName: null },
@@ -96,7 +190,7 @@ export class RamPolicyRepository implements RamPolicyStore {
 
   async listAttachmentsByTarget(targetType: string, targetId: string): Promise<PolicyAttachmentRecord[]> {
     const rows = await prisma.ramPolicyAttachment.findMany({
-      where: { targetType, targetId, ...ACTIVE_WHERE },
+      where: { targetType, targetId, ...ACTIVE_WHERE, policy: ACTIVE_WHERE },
       include: { policy: { select: { name: true } } },
     });
     const mapped = rows.map((row) => ({
@@ -117,12 +211,24 @@ export class RamPolicyRepository implements RamPolicyStore {
 
   async listPoliciesForTarget(targetType: string, targetId: string): Promise<PolicyBindingInfo[]> {
     const rows = await prisma.ramPolicyAttachment.findMany({
-      where: { targetType, targetId, ...ACTIVE_WHERE },
-      include: { policy: { select: { name: true, permissions: true } } },
+      where: { targetType, targetId, ...ACTIVE_WHERE, policy: ACTIVE_WHERE },
+      include: { policy: { include: { defaultVersion: true } } },
     });
     return rows.map((row) => ({
       policyId: row.policyId,
       policyName: row.policy.name,
+      accountOwnerId: row.policy.accountOwnerId,
+      documentFormat: row.policy.documentFormat,
+      versionId: row.policy.defaultVersion?.id,
+      document:
+        row.policy.defaultVersion?.policyId === row.policyId &&
+        row.policy.defaultVersion.status === AccountStatus.ACTIVE &&
+        row.accountOwnerId === row.policy.accountOwnerId
+          ? row.policy.defaultVersion.document
+          : undefined,
+      legacyPermissions: row.accountOwnerId === row.policy.accountOwnerId ? row.policy.permissions : null,
+      documentHash: row.policy.defaultVersion?.documentHash,
+      validationState: row.policy.defaultVersion?.validationState,
       permissions: Array.isArray(row.policy.permissions)
         ? row.policy.permissions.filter((p): p is string => typeof p === "string")
         : [],
@@ -132,12 +238,24 @@ export class RamPolicyRepository implements RamPolicyStore {
   async listPoliciesForTargets(targetType: string, targetIds: string[]): Promise<PolicyBindingInfoWithTarget[]> {
     if (targetIds.length === 0) return [];
     const rows = await prisma.ramPolicyAttachment.findMany({
-      where: { targetType, targetId: { in: targetIds }, ...ACTIVE_WHERE },
-      include: { policy: { select: { name: true, permissions: true } } },
+      where: { targetType, targetId: { in: targetIds }, ...ACTIVE_WHERE, policy: ACTIVE_WHERE },
+      include: { policy: { include: { defaultVersion: true } } },
     });
     return rows.map((row) => ({
       policyId: row.policyId,
       policyName: row.policy.name,
+      accountOwnerId: row.policy.accountOwnerId,
+      documentFormat: row.policy.documentFormat,
+      versionId: row.policy.defaultVersion?.id,
+      document:
+        row.policy.defaultVersion?.policyId === row.policyId &&
+        row.policy.defaultVersion.status === AccountStatus.ACTIVE &&
+        row.accountOwnerId === row.policy.accountOwnerId
+          ? row.policy.defaultVersion.document
+          : undefined,
+      legacyPermissions: row.accountOwnerId === row.policy.accountOwnerId ? row.policy.permissions : null,
+      documentHash: row.policy.defaultVersion?.documentHash,
+      validationState: row.policy.defaultVersion?.validationState,
       permissions: Array.isArray(row.policy.permissions)
         ? row.policy.permissions.filter((p): p is string => typeof p === "string")
         : [],

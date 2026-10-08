@@ -147,6 +147,13 @@ const zhCN = {
     notDeletable: "该用户组不允许删除",
     hasUsers: "该组下仍有用户，无法删除",
   },
+  iam: {
+    resourceResolutionFailed: "无法安全解析请求的资源",
+    invalidPolicy: "IAM 策略文档无效或包含不支持的语法",
+    versionConflict: "策略已发生变化，请重新加载后再更新",
+    delegationDenied: "当前主体无法委派此策略",
+    rolloutRequired: "IAM 文档需要 enforce 授权模式",
+  },
   permission: {
     operatorNotFound: "操作者用户不存在",
     userNotFound: "用户不存在",
