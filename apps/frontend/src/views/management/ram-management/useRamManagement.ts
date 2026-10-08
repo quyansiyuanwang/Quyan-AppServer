@@ -1,3 +1,4 @@
+import { useUserInfoStore } from '@/stores/userInfoStore'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -39,6 +40,14 @@ export function useRamManagement(section: RamManagementSection) {
   const route = useRoute()
   const iamPolicyEditor = useIamPolicyEditor()
   const iamPolicyTools = useIamPolicyTools()
+  const userInfoStore = useUserInfoStore()
+  const iamAccountOwnerId = computed(() => userInfoStore.userInfo.accountOwnerId ?? '')
+  onMounted(() => {
+    if (!userInfoStore.userInfo.accountOwnerId)
+      void userInfoStore.fetchUserInfo().catch(() => {
+        /* The editor shows account-context unavailable. */
+      })
+  })
   const permissionStore = usePermissionStore()
   const users = ref<RamUserDto[]>([])
   const roles = ref<RamRoleDto[]>([])
@@ -904,6 +913,7 @@ export function useRamManagement(section: RamManagementSection) {
   onMounted(loadAll)
 
   return {
+    iamAccountOwnerId,
     ...iamPolicyEditor,
     ...iamPolicyTools,
     ...iamPolicyVersions,

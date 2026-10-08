@@ -71,6 +71,7 @@ export class UserService {
     ]);
     return {
       id: user.id,
+      accountOwnerId: user.accountOwnerId || user.id,
       username: user.username,
       email: user.email,
       name: user.name,
@@ -105,6 +106,7 @@ export class UserService {
 
       return {
         id: user.id,
+        accountOwnerId: user.accountOwnerId || user.id,
         username: user.username,
         email: user.email,
         name: user.name,

@@ -23,6 +23,8 @@ export function policyAuthorizationPayload(
 
 export function useIamPolicyEditor() {
   const policyFormat = ref<'legacy' | 'iam'>('legacy')
+  const policyEditorMode = ref<'json' | 'visual'>('json')
+  const visualPolicyValid = ref(true)
   const policyDocumentText = ref('')
   const policyValidation = ref<ValidateIamPolicyResponseDto | null>(null)
   const policyDiagnostics = ref<IamDiagnostic[]>([])
@@ -33,11 +35,11 @@ export function useIamPolicyEditor() {
   let requestSequence = 0
 
   watch(
-    [policyDocumentText, policyFormat],
+    [policyDocumentText, policyFormat, policyEditorMode, visualPolicyValid],
     () => {
       revision++
       policyValidation.value = null
-    policyDiagnostics.value = []
+      policyDiagnostics.value = []
       policyValidationFailed.value = false
     },
     { flush: 'sync' },
@@ -51,6 +53,8 @@ export function useIamPolicyEditor() {
   })
   const initializePolicyEditor = (policy?: RamPolicyDto) => {
     requestSequence++
+    policyEditorMode.value = 'json'
+    visualPolicyValid.value = true
     validatingPolicy.value = false
     policyValidation.value = null
     policyDiagnostics.value = []
@@ -61,6 +65,10 @@ export function useIamPolicyEditor() {
   }
 
   const validatePolicyDocument = async (): Promise<IamPolicyDocument | undefined> => {
+    if (policyEditorMode.value === 'visual' && !visualPolicyValid.value) {
+      policyValidationFailed.value = true
+      return undefined
+    }
     const currentRevision = revision
     const currentRequest = ++requestSequence
     validatingPolicy.value = true
@@ -71,13 +79,20 @@ export function useIamPolicyEditor() {
       const result = await ramService.diagnosePolicy(policyDocumentText.value)
       if (currentRevision !== revision || currentRequest !== requestSequence) return undefined
       policyDiagnostics.value = result.diagnostics
-      if (!result.valid || !result.document || !result.documentHash ||
-          result.diagnostics.some((diagnostic) => diagnostic.severity === 'error'))
+      if (
+        !result.valid ||
+        !result.document ||
+        !result.documentHash ||
+        result.diagnostics.some((diagnostic) => diagnostic.severity === 'error')
+      )
         throw new Error('Policy validation failed')
       policyValidation.value = {
-        valid: true, document: result.document, documentHash: result.documentHash,
-        broadWildcard: result.document.Statement.some((statement) =>
-          statement.Action.includes('*') && statement.Resource.includes('*')),
+        valid: true,
+        document: result.document,
+        documentHash: result.documentHash,
+        broadWildcard: result.document.Statement.some(
+          (statement) => statement.Action.includes('*') && statement.Resource.includes('*'),
+        ),
       }
       validatedRevision = revision
       return result.document
@@ -99,6 +114,8 @@ export function useIamPolicyEditor() {
 
   return {
     policyFormat,
+    policyEditorMode,
+    visualPolicyValid,
     policyDocumentText,
     policyValidation,
     policyDiagnostics,

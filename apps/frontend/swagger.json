@@ -35706,6 +35706,10 @@
 			"UserDto": {
 				"description": "用户基本信息",
 				"properties": {
+					"accountOwnerId": {
+						"type": "string",
+						"description": "Owning account resolved by the server; clients must not infer ownership from the subject ID."
+					},
 					"id": {
 						"type": "string",
 						"description": "用户ID"

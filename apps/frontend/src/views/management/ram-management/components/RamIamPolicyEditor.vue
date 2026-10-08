@@ -6,8 +6,31 @@
       :closable="false"
       show-icon
     />
+    <div class="editor-mode-row">
+      <el-button
+        data-test="json-mode"
+        :disabled="submitting || (policyEditorMode === 'visual' && !visualPolicyValid)"
+        @click="policyEditorMode = 'json'"
+        >{{ i18ns.t('RamManagement.visualJsonMode') }}</el-button
+      >
+      <el-button
+        data-test="visual-mode"
+        :disabled="submitting || switchingEditor || policyEditorMode === 'visual'"
+        :loading="switchingEditor"
+        @click="openVisualEditor"
+        >{{ i18ns.t('RamManagement.visualMode') }}</el-button
+      >
+    </div>
+    <RamIamVisualPolicyBuilder
+      v-if="policyEditorMode === 'visual'"
+      :document="visualDocument"
+      :account-owner-id="iamAccountOwnerId ?? ''"
+      :disabled="submitting"
+      @document="applyVisualDocument"
+      @validity="visualPolicyValid = $event"
+    />
     <el-select
-      v-if="canReadPolicies"
+      v-if="canReadPolicies && policyEditorMode === 'json'"
       :model-value="''"
       filterable
       :loading="iamActionsLoading"
@@ -28,6 +51,7 @@
     </el-button>
     <p>{{ i18ns.t('RamManagement.iamResourceHint') }}</p>
     <el-input
+      v-if="policyEditorMode === 'json'"
       ref="documentInput"
       v-model="policyDocumentText"
       type="textarea"
@@ -38,17 +62,35 @@
       spellcheck="false"
     />
     <div class="validation-row">
-      <el-button :loading="validatingPolicy" :disabled="submitting" @click="validatePolicyDocument">
+      <el-button
+        data-test="validate-policy"
+        :loading="validatingPolicy"
+        :disabled="submitting"
+        @click="validatePolicyDocument"
+      >
         {{ i18ns.t('RamManagement.validatePolicy') }}
       </el-button>
-      <el-button :disabled="submitting || validatingPolicy" @click="formatDocument">{{ i18ns.t('RamManagement.formatPolicy') }}</el-button>
-      <el-button v-if="canReadPolicies" :loading="schemaDownloading" :disabled="submitting" @click="downloadSchema">{{ i18ns.t('RamManagement.downloadPolicySchema') }}</el-button>
+      <el-button :disabled="submitting || validatingPolicy" @click="formatDocument">{{
+        i18ns.t('RamManagement.formatPolicy')
+      }}</el-button>
+      <el-button
+        v-if="canReadPolicies"
+        :loading="schemaDownloading"
+        :disabled="submitting"
+        @click="downloadSchema"
+        >{{ i18ns.t('RamManagement.downloadPolicySchema') }}</el-button
+      >
       <el-tag v-if="policyValidation" type="success">{{
         i18ns.t('RamManagement.policyValid')
       }}</el-tag>
     </div>
     <RamIamPolicyDiagnostics :diagnostics="policyDiagnostics" @select="focusDiagnostic" />
-    <el-alert v-if="schemaDownloadFailed" :title="i18ns.t('RamManagement.policySchemaFailed')" type="error" :closable="false" />
+    <el-alert
+      v-if="schemaDownloadFailed"
+      :title="i18ns.t('RamManagement.policySchemaFailed')"
+      type="error"
+      :closable="false"
+    />
     <el-alert
       v-if="policyValidationFailed"
       :title="i18ns.t('RamManagement.policyValidationFailed')"
@@ -76,7 +118,9 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
 import type { InputInstance } from 'element-plus/es'
-import type { IamDiagnostic } from '@quyan/shared'
+import type { IamPolicyDocument, IamDiagnostic } from '@quyan/shared'
+import RamIamVisualPolicyBuilder from './RamIamVisualPolicyBuilder.vue'
+import { importVisualPolicy } from '../iam-visual-policy'
 import RamIamPolicyDiagnostics from './RamIamPolicyDiagnostics.vue'
 import { ramService } from '@/service/ramService'
 import { iamDiagnosticOffset, insertIamAction } from '../useIamPolicyTools'
@@ -84,6 +128,9 @@ import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
 const {
+  iamAccountOwnerId,
+  policyEditorMode,
+  visualPolicyValid,
   iamActions,
   iamActionsLoading,
   iamActionsFailed,
@@ -100,9 +147,34 @@ const {
   submitting,
 } = useRamManagementContext()
 const documentInput = ref<InputInstance>()
+const visualDocument = ref<IamPolicyDocument>()
+const switchingEditor = ref(false)
+const openVisualEditor = async () => {
+  switchingEditor.value = true
+  try {
+    const document = policyDocumentText.value.trim()
+      ? await getValidatedPolicyDocument()
+      : undefined
+    if (policyDocumentText.value.trim() && !document) return
+    if (document) importVisualPolicy(document)
+    visualDocument.value = document
+    visualPolicyValid.value = false
+    policyEditorMode.value = 'visual'
+  } catch {
+    policyValidationFailed.value = true
+  } finally {
+    switchingEditor.value = false
+  }
+}
+const applyVisualDocument = (document: IamPolicyDocument) => {
+  policyDocumentText.value = JSON.stringify(document, null, 2)
+}
+
 const schemaDownloading = ref(false)
 const schemaDownloadFailed = ref(false)
-const focusDiagnostic = (diagnostic: IamDiagnostic) => {
+const focusDiagnostic = async (diagnostic: IamDiagnostic) => {
+  policyEditorMode.value = 'json'
+  await nextTick()
   const textarea = documentInput.value?.textarea
   if (!textarea) return
   const offset = iamDiagnosticOffset(policyDocumentText.value, diagnostic.line, diagnostic.column)
@@ -119,13 +191,16 @@ const downloadSchema = async () => {
   let url: string | undefined
   try {
     const schema = await ramService.getPolicySchema()
-    url = URL.createObjectURL(new Blob([JSON.stringify(schema, null, 2)], { type: 'application/schema+json' }))
+    url = URL.createObjectURL(
+      new Blob([JSON.stringify(schema, null, 2)], { type: 'application/schema+json' }),
+    )
     const link = document.createElement('a')
     link.href = url
     link.download = 'quyan-identity-policy.schema.json'
     link.click()
-  } catch { schemaDownloadFailed.value = true }
-  finally {
+  } catch {
+    schemaDownloadFailed.value = true
+  } finally {
     if (url) URL.revokeObjectURL(url)
     schemaDownloading.value = false
   }
@@ -159,6 +234,7 @@ const insertSelectedAction = async (action: string) => {
 .iam-policy-editor :deep(textarea) {
   font-family: monospace;
 }
+.editor-mode-row,
 .validation-row {
   display: flex;
   align-items: center;

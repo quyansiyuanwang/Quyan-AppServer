@@ -4,6 +4,7 @@
 import { ACCOUNT_STATUS } from '@/constant/status'
 
 export const UserInfo = {
+  accountOwnerId: '',
   id: '',
   username: '',
   email: null as string | null,
