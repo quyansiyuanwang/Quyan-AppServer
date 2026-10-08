@@ -15,7 +15,7 @@ const service = RamService.getInstance();
 const originalMode = env.security.iamAuthorizationMode;
 const document: IamPolicyDocument = {
   Version: "1",
-  Statement: { Effect: "Allow", Action: "alidns:AddDomainRecord", Resource: "acs:alidns:*:*:domain/qrmr.cn" },
+  Statement: { Effect: "Allow", Action: "quyan:ram:CreateUser", Resource: "acs:quyan:*:*:user/qrmr.cn" },
 };
 
 describe("RAM IAM policy management security", () => {
@@ -117,7 +117,7 @@ describe("RAM IAM policy management security", () => {
     let current = first;
     for (const sid of ["second", "third"])
       current = await service.updatePolicy(ownerId, first.id, {
-        document: { Version: "1", Statement: { Sid: sid, Effect: "Allow", Action: "alidns:*", Resource: "*" } },
+        document: { Version: "1", Statement: { Sid: sid, Effect: "Allow", Action: "quyan:ram:*", Resource: "*" } },
         expectedDocumentHash: current.documentHash,
       });
     const firstPage = await service.listPolicyVersions(ownerId, first.id, { page: 1, pageSize: 1 });
@@ -173,7 +173,7 @@ describe("RAM IAM policy management security", () => {
     await expect(
       service.attachPolicy(ownerId, { policyId: policy.id, targetType: "user", targetId: otherId }),
     ).rejects.toMatchObject({ statusCode: 403 });
-    await expect(service.simulatePolicy(ownerId, otherId, "alidns:AddDomainRecord", "*")).rejects.toMatchObject({
+    await expect(service.simulatePolicy(ownerId, otherId, "quyan:ram:CreateUser", "*")).rejects.toMatchObject({
       statusCode: 403,
     });
     expect(await prisma.ramPolicyAttachment.count({ where: { policyId: policy.id } })).toBe(0);
@@ -181,20 +181,14 @@ describe("RAM IAM policy management security", () => {
   it("honors a user attachment, domain scoping and revocation immediately", async () => {
     const policy = await service.createPolicy(ownerId, { name: "user-policy", document });
     await service.attachPolicy(ownerId, { policyId: policy.id, targetType: "user", targetId: childId });
-    const resource = "acs:alidns:*:" + ownerId + ":domain/qrmr.cn";
-    expect((await service.simulatePolicy(ownerId, childId, "alidns:AddDomainRecord", resource)).decision).toBe("Allow");
+    const resource = "acs:quyan:*:" + ownerId + ":user/qrmr.cn";
+    expect((await service.simulatePolicy(ownerId, childId, "quyan:ram:CreateUser", resource)).decision).toBe("Allow");
     expect(
-      (
-        await service.simulatePolicy(
-          ownerId,
-          childId,
-          "alidns:AddDomainRecord",
-          resource.replace("qrmr.cn", "other.cn"),
-        )
-      ).decision,
+      (await service.simulatePolicy(ownerId, childId, "quyan:ram:CreateUser", resource.replace("qrmr.cn", "other.cn")))
+        .decision,
     ).toBe("ImplicitDeny");
     await service.detachPolicy(ownerId, { policyId: policy.id, targetType: "user", targetId: childId });
-    expect((await service.simulatePolicy(ownerId, childId, "alidns:AddDomainRecord", resource)).decision).toBe(
+    expect((await service.simulatePolicy(ownerId, childId, "quyan:ram:CreateUser", resource)).decision).toBe(
       "ImplicitDeny",
     );
   });
@@ -207,8 +201,8 @@ describe("RAM IAM policy management security", () => {
     await prisma.ramGroupRoleBinding.create({ data: { accountOwnerId: ownerId, groupId: group.id, roleId: role.id } });
     const allow = await service.createPolicy(ownerId, { name: "role-allow", document });
     await service.attachPolicy(ownerId, { policyId: allow.id, targetType: "role", targetId: role.id });
-    const resource = "acs:alidns:*:" + ownerId + ":domain/qrmr.cn";
-    expect((await service.simulatePolicy(ownerId, childId, "alidns:AddDomainRecord", resource)).decision).toBe("Allow");
+    const resource = "acs:quyan:*:" + ownerId + ":user/qrmr.cn";
+    expect((await service.simulatePolicy(ownerId, childId, "quyan:ram:CreateUser", resource)).decision).toBe("Allow");
     await prisma.ramGroupRoleBinding.deleteMany({ where: { roleId: role.id } });
     const session = await prisma.ramRoleSession.create({
       data: {
@@ -225,11 +219,11 @@ describe("RAM IAM policy management security", () => {
       assumedRoleId: role.id,
       roleSessionId: session.id,
     };
-    const request = { principal: assumed, action: "alidns:AddDomainRecord", resource };
+    const request = { principal: assumed, action: "quyan:ram:CreateUser", resource };
     expect((await IamAuthorizationService.getInstance().authorize(request)).decision).toBe("Allow");
     const deny = await service.createPolicy(ownerId, {
       name: "group-deny",
-      document: { Version: "1", Statement: { Effect: "Deny", Action: "alidns:*", Resource: "*" } },
+      document: { Version: "1", Statement: { Effect: "Deny", Action: "quyan:ram:*", Resource: "*" } },
     });
     await service.attachPolicy(ownerId, { policyId: deny.id, targetType: "group", targetId: group.id });
     expect((await IamAuthorizationService.getInstance().authorize(request)).decision).toBe("ExplicitDeny");

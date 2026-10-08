@@ -11,7 +11,7 @@ const repository = RamPolicyRepository.getInstance();
 const document = (effect: "Allow" | "Deny" = "Allow") =>
   parseIamPolicy({
     Version: "1",
-    Statement: { Effect: effect, Action: "alidns:AddDomainRecord", Resource: "acs:alidns:*:*:domain/qrmr.cn" },
+    Statement: { Effect: effect, Action: "quyan:ram:CreateUser", Resource: "acs:quyan:*:*:user/qrmr.cn" },
   });
 
 // The runtime project provides an isolated database and resets it between files.

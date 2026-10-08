@@ -549,7 +549,7 @@ const emoji = {
     reloadIamActions: '🔄 重新加载 Action 清单',
     iamActionsFailed: '❌ 无法加载 Action，请检查策略读取权限。',
     iamResourceHint:
-      '📍 光标放入 Action 字符串内。Resource：* 或 acs:alidns:*:*:domain/example.com；Action 不代表已提供产品 API。',
+      '📍 光标放入 Action 字符串内。Resource：* 或 acs:quyan:*:<account-id>:account；清单只包含本平台 API。',
     simulatePolicy: '🧪 模拟授权',
     iamSimulationHint:
       '🧪 仅评估同账户已保存策略；需单独授权 quyan:iam:SimulatePolicy 账户资源，读取权限不足以调用。',

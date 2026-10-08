@@ -598,7 +598,7 @@ const en = {
     reloadIamActions: 'Reload Action catalog',
     iamActionsFailed: 'Could not load the Action catalog. Check policy-read permission and retry.',
     iamResourceHint:
-      'Place the cursor inside an Action string before inserting. Resource examples: * for global operations, or acs:alidns:*:*:domain/example.com for a domain. Actions listed in the catalog do not imply a corresponding product API is available.',
+      'Place the cursor inside an Action string before inserting. Resource examples: * for global operations, or acs:quyan:*:<account-id>:account for a platform resource. The catalog contains only implemented platform APIs.',
     simulatePolicy: 'Simulate authorization',
     iamSimulationHint:
       'Simulates the saved policies of a same-account principal. Unsaved editor content is not included. A separate Allow for quyan:iam:SimulatePolicy on the account resource is required; policy-read permission alone is insufficient.',

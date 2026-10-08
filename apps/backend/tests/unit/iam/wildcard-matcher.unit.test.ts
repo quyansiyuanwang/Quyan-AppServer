@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { matchIamPattern } from "../../../src/iam/evaluator/wildcard-matcher";
 describe("IAM star-only matcher", () => {
   it.each([
-    ["*", "alidns:DeleteDomainRecord", true],
-    ["alidns:*", "alidns:DescribeDomains", true],
-    ["alidns:Describe*", "alidns:DescribeDomains", true],
+    ["*", "quyan:ram:DeleteUser", true],
+    ["quyan:ram:*", "quyan:ram:ReadUser", true],
+    ["quyan:ram:Read*", "quyan:ram:ReadUser", true],
     ["a*b*c", "axybzxc", true],
     ["a**b", "ab", true],
     ["a*b", "xaby", false],

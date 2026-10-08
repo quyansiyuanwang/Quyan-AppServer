@@ -1,4 +1,4 @@
-import { isValidIamAction, isValidIamResource } from "@quyan/shared";
+import { isKnownIamAction, isValidIamResource } from "@quyan/shared";
 import type {
   IamEvaluationRequest,
   IamEvaluationResult,
@@ -16,7 +16,7 @@ export function evaluatePolicies(
   policies: readonly IamPolicyInput[],
   request: IamEvaluationRequest,
 ): IamEvaluationResult {
-  if (!isValidIamAction(request.action) || !isValidIamResource(request.resource))
+  if (!isKnownIamAction(request.action) || !isValidIamResource(request.resource))
     return { decision: "ImplicitDeny", reason: "invalid-request", matchedStatements: [] };
   const matchedStatements: IamMatchedStatement[] = [];
   for (const policy of policies) {

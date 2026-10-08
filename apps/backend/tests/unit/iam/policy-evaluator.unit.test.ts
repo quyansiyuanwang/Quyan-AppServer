@@ -6,69 +6,59 @@ const input = (policyId: string, document: IamPolicyDocument) => ({
   policyId,
   document: parseIamPolicy(document).document,
 });
-const sample = input("domain-policy", {
+const sample = input("scoped-user-policy", {
   Version: "1",
   Statement: [
     {
       Effect: "Allow",
-      Action: [
-        "alidns:AddDomainRecord",
-        "alidns:UpdateDomainRecord",
-        "alidns:DeleteDomainRecord",
-        "alidns:SetDomainRecordStatus",
-        "alidns:DescribeDomainRecords",
-        "alidns:DescribeDomainRecordInfo",
-        "alidns:DescribeSubDomainRecords",
-      ],
-      Resource: ["acs:alidns:*:*:domain/qrmr.cn", "acs:alidns:*:*:domain/api.taoliya.qysyw.cn"],
+      Action: ["quyan:ram:UpdateUser", "quyan:ram:DeleteUser"],
+      Resource: ["acs:quyan:*:*:user/one", "acs:quyan:*:*:user/two"],
     },
-    { Effect: "Allow", Action: ["alidns:DescribeDomains", "alidns:DescribeDomainInfo"], Resource: "*" },
+    { Effect: "Allow", Action: "quyan:ram:ReadUser", Resource: "*" },
   ],
 });
-const domain = "acs:alidns:*:owner:domain/qrmr.cn";
+const resource = "acs:quyan:*:owner:user/one";
 describe("IAM policy decisions", () => {
-  it("accepts the supplied domain example without allowing other domains", () => {
-    expect(evaluatePolicies([sample], { action: "alidns:AddDomainRecord", resource: domain }).decision).toBe("Allow");
+  it("restricts writes to selected users and allows account reads", () => {
+    expect(evaluatePolicies([sample], { action: "quyan:ram:UpdateUser", resource }).decision).toBe("Allow");
     expect(
-      evaluatePolicies([sample], { action: "alidns:AddDomainRecord", resource: "acs:alidns:*:owner:domain/other.cn" })
-        .decision,
+      evaluatePolicies([sample], { action: "quyan:ram:UpdateUser", resource: "acs:quyan:*:owner:user/other" }).decision,
     ).toBe("ImplicitDeny");
-    expect(evaluatePolicies([sample], { action: "alidns:DescribeDomains", resource: "*" }).decision).toBe("Allow");
+    expect(evaluatePolicies([sample], { action: "quyan:ram:ReadUser", resource: "*" }).decision).toBe("Allow");
   });
-  it("requires both action and resource to match", () => {
-    expect(evaluatePolicies([sample], { action: "alidns:Unknown", resource: domain }).decision).toBe("ImplicitDeny");
-    expect(evaluatePolicies([], { action: "alidns:AddDomainRecord", resource: domain }).decision).toBe("ImplicitDeny");
+  it("requires both action and resource to match and denies unknown actions even under wildcard Allow", () => {
+    expect(evaluatePolicies([sample], { action: "quyan:ram:CreateUser", resource }).decision).toBe("ImplicitDeny");
+    expect(evaluatePolicies([], { action: "quyan:ram:UpdateUser", resource }).decision).toBe("ImplicitDeny");
+    const all = input("all", { Version: "1", Statement: { Effect: "Allow", Action: "*", Resource: "*" } });
+    expect(evaluatePolicies([all], { action: "alidns:AddDomainRecord", resource }).decision).toBe("ImplicitDeny");
   });
-  it("explicit Deny wins irrespective of policy order, while preserving all matching audit references", () => {
+  it("explicit Deny wins in either policy order and retains every matching audit reference", () => {
     const deny = input("deny", {
       Version: "1",
-      Statement: { Sid: "NoWrites", Effect: "Deny", Action: "alidns:*", Resource: "acs:alidns:*:*:domain/*" },
+      Statement: { Sid: "NoWrites", Effect: "Deny", Action: "quyan:ram:*", Resource: "acs:quyan:*:*:user/*" },
     });
     for (const policies of [
       [sample, deny],
       [deny, sample],
     ]) {
-      const result = evaluatePolicies(policies, { action: "alidns:AddDomainRecord", resource: domain });
+      const result = evaluatePolicies(policies, { action: "quyan:ram:UpdateUser", resource });
       expect(result.decision).toBe("ExplicitDeny");
       expect(result.matchedStatements).toHaveLength(2);
-      expect(result.matchedStatements).toContainEqual({ policyId: "deny", statementId: "NoWrites", effect: "Deny" });
+      expect(result.matchedStatements.map((s) => s.policyId).sort()).toEqual(["deny", "scoped-user-policy"]);
     }
   });
-  it("fails closed on malformed persisted policies and invalid requests", () => {
-    expect(evaluatePolicies([sample], { action: "alidns:*", resource: domain }).decision).toBe("ImplicitDeny");
-    expect(
-      evaluatePolicies([sample], { action: "alidns:AddDomainRecord", resource: "acs:alidns:*:*:domain/*" }).decision,
-    ).toBe("ImplicitDeny");
+  it.each(["bad action", "quyan:ram:*", ""])("denies invalid request action %s", (action) => {
+    expect(evaluatePolicies([sample], { action, resource }).reason).toBe("invalid-request");
+  });
+  it.each(["invalid", "acs:quyan:*:*:user/*", ""])("denies invalid concrete resource %s", (resource) => {
+    expect(evaluatePolicies([sample], { action: "quyan:ram:UpdateUser", resource }).reason).toBe("invalid-request");
+  });
+  it("fails closed on malformed persisted policies", () => {
     expect(() =>
-      evaluatePolicies(
-        [
-          {
-            policyId: "corrupt",
-            document: { Version: "1", Statement: [{ Effect: "Bad", Action: ["*"], Resource: ["*"] }] },
-          } as never,
-        ],
-        { action: "alidns:AddDomainRecord", resource: domain },
-      ),
+      evaluatePolicies([{ policyId: "bad", document: { Version: "2" } as never }], {
+        action: "quyan:ram:UpdateUser",
+        resource,
+      }),
     ).toThrow();
   });
 });

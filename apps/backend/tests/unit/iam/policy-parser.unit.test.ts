@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { parseIamPolicy, IamPolicyValidationError } from "../../../src/iam/parser/policy-parser";
-const statement = { Effect: "Allow", Action: "alidns:AddDomainRecord", Resource: "acs:alidns:*:*:domain/qrmr.cn" };
+const statement = { Effect: "Allow", Action: "quyan:ram:CreateUser", Resource: "acs:quyan:*:*:user/qrmr.cn" };
 const policy = { Version: "1", Statement: statement };
 describe("IAM strict parser", () => {
+  it.each(["alidns:AddDomainRecord", "alidns:*", "unknown:Action", "quyan:ram:Unknown*"])(
+    "rejects unimplemented action %s",
+    (Action) => {
+      expect(() => parseIamPolicy({ ...policy, Statement: { ...statement, Action } })).toThrow(
+        IamPolicyValidationError,
+      );
+    },
+  );
   it("normalizes scalar and array forms", () => {
-    expect(parseIamPolicy(policy).document.Statement[0].Action).toEqual(["alidns:AddDomainRecord"]);
+    expect(parseIamPolicy(policy).document.Statement[0].Action).toEqual(["quyan:ram:CreateUser"]);
     expect(parseIamPolicy(JSON.stringify(policy)).document).toEqual(
       parseIamPolicy({
         Version: "1",
@@ -13,13 +21,20 @@ describe("IAM strict parser", () => {
     );
   });
   it("canonicalizes property order, patterns, duplicate statements and statement order", () => {
-    const deny = { Effect: "Deny", Action: "alidns:Delete*", Resource: "*" };
+    const deny = { Effect: "Deny", Action: "quyan:ram:Delete*", Resource: "*" };
     const a = parseIamPolicy({
       Version: "1",
-      Statement: [{ ...statement, Action: ["alidns:B", "alidns:A", "alidns:B"] }, deny],
+      Statement: [
+        { ...statement, Action: ["quyan:ram:UpdateUser", "quyan:ram:CreateUser", "quyan:ram:UpdateUser"] },
+        deny,
+      ],
     });
     const b = parseIamPolicy({
-      Statement: [deny, { Resource: statement.Resource, Effect: "Allow", Action: ["alidns:A", "alidns:B"] }, deny],
+      Statement: [
+        deny,
+        { Resource: statement.Resource, Effect: "Allow", Action: ["quyan:ram:CreateUser", "quyan:ram:UpdateUser"] },
+        deny,
+      ],
       Version: "1",
     });
     expect(a.documentHash).toBe(b.documentHash);
@@ -40,7 +55,7 @@ describe("IAM strict parser", () => {
     { ...policy, Statement: { ...statement, Effect: "allow" } },
     { ...policy, Statement: { ...statement, Action: [] } },
     { ...policy, Statement: { ...statement, Resource: "" } },
-    { ...policy, Statement: { ...statement, Action: "alidns:Describe?" } },
+    { ...policy, Statement: { ...statement, Action: "quyan:ram:Read?" } },
     { ...policy, Statement: { ...statement, Action: "bad\n:Action" } },
     { ...policy, Statement: { ...statement, Resource: "domain/bare-name" } },
   ])("rejects malformed syntax %#", (input) => expect(() => parseIamPolicy(input)).toThrow(IamPolicyValidationError));

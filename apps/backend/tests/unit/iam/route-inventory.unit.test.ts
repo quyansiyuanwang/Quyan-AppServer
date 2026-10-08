@@ -12,7 +12,7 @@ function inventory(method: string, classDecorators = "") {
   return collectIamRoutes([source], "/backend");
 }
 const explicit =
-  '@Get("item") @Security("jwt") @Middlewares(iamAuthorizationMiddleware({action:"alidns:AddDomainRecord",resourceKind:"single-resource",resource:domainResource})) item() {}';
+  '@Get("item") @Security("jwt") @Middlewares(iamAuthorizationMiddleware({action:"quyan:ram:CreateUser",resourceKind:"single-resource",resource:domainResource})) item() {}';
 const legacy =
   '@Get("item") @Security("jwt") @CheckPermission(Permission.USER_READ,PermissionCheckMode.ALL,"jwt") item() {}';
 describe("IAM import-aware route inventory", () => {
@@ -21,7 +21,7 @@ describe("IAM import-aware route inventory", () => {
     expect(entry).toMatchObject({
       key: "GET /test/item",
       coverage: "explicit",
-      actions: ["alidns:AddDomainRecord"],
+      actions: ["quyan:ram:CreateUser"],
       resourceKind: "single-resource",
       resolver: "domainResource",
       issues: [],
@@ -86,16 +86,16 @@ describe("IAM import-aware route inventory", () => {
     expect(collectIamRoutes([source], "/backend")[0].coverage).toBe("legacy");
     const fake = project.createSourceFile(
       "/backend/src/api/controllers/fake.ts",
-      'import { Route, Get, Security, Middlewares } from "@tsoa/runtime"; const iamAuthorizationMiddleware = () => {}; @Route("fake") class C { @Get() @Security("jwt") @Middlewares(iamAuthorizationMiddleware({action:"alidns:AddDomainRecord",resourceKind:"account",resource:resolver})) item() {} }',
+      'import { Route, Get, Security, Middlewares } from "@tsoa/runtime"; const iamAuthorizationMiddleware = () => {}; @Route("fake") class C { @Get() @Security("jwt") @Middlewares(iamAuthorizationMiddleware({action:"quyan:ram:CreateUser",resourceKind:"account",resource:resolver})) item() {} }',
     );
     expect(collectIamRoutes([fake], "/backend")[0].coverage).toBe("missing");
   });
   it.each([
-    explicit.replace("alidns:AddDomainRecord", "invented:Action"),
+    explicit.replace("quyan:ram:CreateUser", "invented:Action"),
     explicit.replace('resourceKind:"single-resource",', ""),
     explicit.replace('resourceKind:"single-resource"', 'resourceKind:"unknown"'),
     explicit.replace("resource:domainResource", 'resource:() => "*"'),
-    explicit.replace('action:"alidns:AddDomainRecord"', "...clientDefinition,action:header.action"),
+    explicit.replace('action:"quyan:ram:CreateUser"', "...clientDefinition,action:header.action"),
     legacy.replace('"jwt") item', '"local") item'),
     legacy.replace("Permission.USER_READ", "clientPermission"),
   ])("rejects unsafe/unverifiable action, resource and legacy metadata %#", (code) =>

@@ -9,7 +9,7 @@ const { getIamActions, simulatePolicy } = vi.hoisted(() => ({
   simulatePolicy: vi.fn(),
 }))
 vi.mock('@/service/ramService', () => ({ ramService: { getIamActions, simulatePolicy } }))
-const action = 'alidns:DescribeDomains'
+const action = 'quyan:ram:ReadUser'
 const result: SimulateIamPolicyResponseDto = {
   decision: 'ImplicitDeny',
   reason: 'no-matching-allow',

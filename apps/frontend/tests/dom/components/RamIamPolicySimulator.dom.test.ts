@@ -30,8 +30,8 @@ const drawer = defineComponent({ template: '<div><slot /><slot name="footer" /><
 describe('IAM policy simulator interaction', () => {
   it('shows decisions and matched identifiers and clears them when inputs change', async () => {
     context = useIamPolicyTools()
-    context.iamActions.value = ['alidns:DescribeDomains']
-    context.iamSimulationForm.action = 'alidns:DescribeDomains'
+    context.iamActions.value = ['quyan:ram:ReadUser']
+    context.iamSimulationForm.action = 'quyan:ram:ReadUser'
     const wrapper = mount(RamIamPolicySimulator, {
       global: {
         stubs: { 'el-input': input, 'el-button': button, 'el-alert': alert, 'el-drawer': drawer },
@@ -49,7 +49,7 @@ describe('IAM policy simulator interaction', () => {
     await flushPromises()
     expect(simulatePolicy).toHaveBeenCalledWith({
       principalId: 'principal-1',
-      action: 'alidns:DescribeDomains',
+      action: 'quyan:ram:ReadUser',
       resource: '*',
     })
     expect(wrapper.text()).toContain('ExplicitDeny')

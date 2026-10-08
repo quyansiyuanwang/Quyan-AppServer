@@ -1,19 +1,16 @@
 import { ALL_PERMISSIONS } from '../permission'
 import { actionForPermission } from './legacy-permission-map'
-export const ALIDNS_ACTIONS = Object.freeze([
-  'alidns:AddDomainRecord',
-  'alidns:UpdateDomainRecord',
-  'alidns:DeleteDomainRecord',
-  'alidns:SetDomainRecordStatus',
-  'alidns:DescribeDomainRecords',
-  'alidns:DescribeDomainRecordInfo',
-  'alidns:DescribeSubDomainRecords',
-  'alidns:DescribeDomains',
-  'alidns:DescribeDomainInfo',
-])
+
+/**
+ * The production catalog contains only actions implemented by this platform.
+ *
+ * Cloud-provider examples such as `alidns:*` belong in documentation and test
+ * fixtures, not in the authorization catalog. Registering an example here
+ * would make it look executable and would allow it through route and
+ * simulation validation without a corresponding Quyan API.
+ */
 export const IAM_ACTION_CATALOG: readonly string[] = Object.freeze([
   ...ALL_PERMISSIONS.map(actionForPermission),
-  ...ALIDNS_ACTIONS,
   'quyan:iam:SimulatePolicy',
 ])
 const actionSet = new Set(IAM_ACTION_CATALOG)

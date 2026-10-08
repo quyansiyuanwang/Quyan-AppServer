@@ -95,7 +95,7 @@ describe('IAM policy editor controls and warnings', () => {
     wrapper.unmount()
   })
   it('inserts catalog actions into the actual textarea selection and invalidates validation', async () => {
-    getIamActions.mockResolvedValue(['alidns:AddDomainRecord'])
+    getIamActions.mockResolvedValue(['quyan:ram:CreateUser'])
     context = {
       ...useIamPolicyEditor(),
       ...useIamPolicyTools(),
@@ -127,11 +127,11 @@ describe('IAM policy editor controls and warnings', () => {
       broadWildcard: false,
       document: { Version: '1', Statement: [{ Effect: 'Allow', Action: '*', Resource: '*' }] },
     }
-    await wrapper.get('select').setValue('alidns:AddDomainRecord')
+    await wrapper.get('select').setValue('quyan:ram:CreateUser')
     await flushPromises()
-    expect(context.policyDocumentText.value).toBe('{"Action":"alidns:AddDomainRecord"}')
+    expect(context.policyDocumentText.value).toBe('{"Action":"quyan:ram:CreateUser"}')
     expect(textarea.element.value).toBe(context.policyDocumentText.value)
-    expect(textarea.element.selectionStart).toBe(start + 'alidns:AddDomainRecord'.length)
+    expect(textarea.element.selectionStart).toBe(start + 'quyan:ram:CreateUser'.length)
     expect(textarea.element.selectionEnd).toBe(textarea.element.selectionStart)
     expect(context.policyValidation.value).toBeNull()
     expect(validatePolicy).not.toHaveBeenCalled()

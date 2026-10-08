@@ -9,7 +9,7 @@ const { validatePolicy } = vi.hoisted(() => ({ validatePolicy: vi.fn() }))
 vi.mock('@/service/ramService', () => ({ ramService: { validatePolicy } }))
 const document: IamPolicyDocument = {
   Version: '1',
-  Statement: { Effect: 'Allow', Action: 'alidns:DescribeDomains', Resource: '*' },
+  Statement: { Effect: 'Allow', Action: 'quyan:ram:ReadUser', Resource: '*' },
 }
 const valid = { valid: true, document, documentHash: 'hash-1', broadWildcard: false }
 const policy: RamPolicyDto = {

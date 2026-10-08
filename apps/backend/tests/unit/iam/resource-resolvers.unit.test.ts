@@ -3,8 +3,7 @@ import { ALL_PERMISSIONS, IAM_ACTION_CATALOG, actionForPermission, buildAcsResou
 import type { IamPrincipal } from "@quyan/shared";
 import {
   accountEntityBatchResourceResolver,
-  domainResourceResolver,
-  normalizeDomainName,
+  accountEntityResourceResolver,
   ramAccountResourceResolver,
 } from "../../../src/iam/request/resource-resolvers";
 import { getIamPrincipal } from "../../../src/iam/request/principal-context";
@@ -21,29 +20,13 @@ describe("IAM resource trust boundaries", () => {
     expect(new Set(actions).size).toBe(ALL_PERMISSIONS.length);
     expect(actions.every((action) => IAM_ACTION_CATALOG.includes(action))).toBe(true);
   });
-  it("normalizes domains and rejects wildcards, controls, malformed labels and empty inputs", () => {
-    expect(normalizeDomainName("API.Example.CN.")).toBe("api.example.cn");
-    for (const value of [
-      "",
-      "*.example.cn",
-      "bad..cn",
-      "-bad.cn",
-      "bad-.cn",
-      " a.cn",
-      "a.cn\n",
-      "a/b.cn",
-      "a".repeat(64) + ".cn",
-      null,
-    ])
-      expect(normalizeDomainName(value)).toBeUndefined();
-  });
-  it("ignores client account/region values", async () => {
+  it("ignores client account/region values when resolving an entity", async () => {
     const context = {
       principal,
-      request: { body: { domainName: "Example.CN", accountId: "victim", region: "attacker" } } as never,
+      request: { body: { id: "target", accountId: "victim", region: "attacker" } } as never,
     };
-    expect(await domainResourceResolver((req) => (req.body as { domainName: string }).domainName)(context)).toBe(
-      "acs:alidns:*:owner:domain/example.cn",
+    expect(await accountEntityResourceResolver("user", (req) => (req.body as { id: string }).id)(context)).toBe(
+      "acs:quyan:*:owner:user/target",
     );
     expect(await ramAccountResourceResolver(context)).toBe("acs:quyan:*:owner:account");
   });
@@ -90,8 +73,8 @@ describe("IAM resource trust boundaries", () => {
     ).toBe("assumed_role");
   });
   it("never allows wildcard injection into constructed resources", () => {
-    expect(() => buildAcsResource({ service: "alidns", region: "*", accountId: "*", path: "domain/a.cn" })).toThrow();
-    expect(() => buildAcsResource({ service: "alidns", region: "*", accountId: "owner", path: "domain/*" })).toThrow();
+    expect(() => buildAcsResource({ service: "quyan", region: "*", accountId: "*", path: "user/a.cn" })).toThrow();
+    expect(() => buildAcsResource({ service: "quyan", region: "*", accountId: "owner", path: "user/*" })).toThrow();
   });
   it("converts removes to Deny and rejects unrecognized persisted legacy values", () => {
     const policy = legacyPermissionsToPolicy([ALL_PERMISSIONS[0]], "owner", "Deny")!;

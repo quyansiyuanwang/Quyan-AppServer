@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { IAM_ACTION_CATALOG } from "@quyan/shared";
+import { matchIamPattern } from "../evaluator/wildcard-matcher";
 export const IAM_POLICY_LIMITS = Object.freeze({
   bytes: 262144,
   statements: 100,
@@ -12,11 +14,14 @@ const pattern = z
   .trim()
   .min(1)
   .max(IAM_POLICY_LIMITS.patternLength)
-  .refine((value) => !/[\s?]/u.test(value) && [...value].every(char => char.charCodeAt(0) > 31 && char.charCodeAt(0) !== 127), "Invalid policy pattern");
-const action = pattern.refine(
-  (value) => /^[A-Za-z0-9_*.-]+(?::[A-Za-z0-9_*.-]+)*$/.test(value),
-  "Invalid action pattern",
-);
+  .refine(
+    (value) =>
+      !/[\s?]/u.test(value) && [...value].every((char) => char.charCodeAt(0) > 31 && char.charCodeAt(0) !== 127),
+    "Invalid policy pattern",
+  );
+const action = pattern
+  .refine((value) => /^[A-Za-z0-9_*.-]+(?::[A-Za-z0-9_*.-]+)*$/.test(value), "Invalid action pattern")
+  .refine((value) => IAM_ACTION_CATALOG.some((action) => matchIamPattern(value, action)), "Unknown platform action");
 const resource = pattern.refine(
   (value) => value === "*" || /^acs:[a-z0-9*-]+:[A-Za-z0-9_*-]*:[A-Za-z0-9_*-]+:[A-Za-z0-9_.+/@*-]+$/.test(value),
   "Invalid ACS resource pattern",

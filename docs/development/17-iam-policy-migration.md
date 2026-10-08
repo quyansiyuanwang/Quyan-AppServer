@@ -6,7 +6,7 @@ Identity policies accept only Version "1", Statement, Sid, Effect, Action, and R
 
 IAM document writes/bindings require enforce mode and an account owner with the relevant endpoint permission. Subusers cannot delegate documents. This is a first-release privileged delegation boundary, not a general wildcard subset proof. Explicit IAM middleware always enforces IAM. Legacy decorators use legacy/shadow/enforce, defaulting to legacy. No decision cache is enabled: live data is read for each evaluation to avoid stale revocation. Audit fields hash resources and exclude documents, tokens, and secrets.
 
-Do not treat enabling enforce as complete JWT route coverage. Unmigrated self-service endpoints and resource-sensitive services still require explicit action metadata, row filtering, per-item batch checks, and ownership validation. DNS actions and resolvers do not create a DNS controller.
+Do not treat enabling enforce as complete JWT route coverage. Unmigrated self-service endpoints and resource-sensitive services still require explicit action metadata, row filtering, per-item batch checks, and ownership validation. Production action validation rejects unimplemented actions, including external cloud examples; a wildcard must match at least one platform Action. External DNS examples live only in docs/examples/iam and test fixtures. The unused DNS resolver was removed. Existing documents containing external actions fail closed and must be replaced with valid platform policies before enabling enforce.
 
 ## Account-scoped policy backfill
 

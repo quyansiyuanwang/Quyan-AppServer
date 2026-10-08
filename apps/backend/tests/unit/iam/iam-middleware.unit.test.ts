@@ -40,7 +40,7 @@ const request = () =>
   ({
     user: { userId: "child" },
     authContext: { principalUserId: "child", accountOwnerId: "owner", subjectType: "access_key" },
-    headers: { "x-action": "alidns:DeleteDomainRecord" },
+    headers: { "x-action": "quyan:ram:DeleteUser" },
   }) as never;
 const allow = { decision: "Allow", reason: "matched-allow", matchedStatements: [] } as const;
 const deny = { decision: "ImplicitDeny", reason: "no-matching-allow", matchedStatements: [] } as const;
@@ -62,13 +62,13 @@ describe("IAM middleware and rollout bridge", () => {
     const req = request(),
       next = vi.fn();
     const middleware = iamAuthorizationMiddleware(
-      { action: "alidns:AddDomainRecord", resourceKind: "account", resource: ramAccountResourceResolver },
+      { action: "quyan:ram:CreateUser", resourceKind: "account", resource: ramAccountResourceResolver },
       service,
     );
     await middleware(req, {} as never, next);
     expect(next).toHaveBeenCalledExactlyOnceWith();
     expect(service.authorize).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "alidns:AddDomainRecord", resource: "acs:quyan:*:owner:account" }),
+      expect.objectContaining({ action: "quyan:ram:CreateUser", resource: "acs:quyan:*:owner:account" }),
     );
     expect((req as { iamDecisions?: unknown[] }).iamDecisions).toHaveLength(1);
   });
@@ -76,7 +76,7 @@ describe("IAM middleware and rollout bridge", () => {
     const service = mockDeep<IamAuthorizationService>(),
       next = vi.fn();
     const middleware = iamAuthorizationMiddleware(
-      { action: "alidns:AddDomainRecord", resourceKind: "single-resource", resource: () => undefined },
+      { action: "quyan:ram:CreateUser", resourceKind: "single-resource", resource: () => undefined },
       service,
     );
     await middleware({} as never, {} as never, next);
@@ -96,7 +96,7 @@ describe("IAM middleware and rollout bridge", () => {
         matchedStatements: [{ policyId: "sensitive-policy", statementId: "secret-rule", effect: "Deny" }],
       });
       await iamAuthorizationMiddleware(
-        { action: "alidns:AddDomainRecord", resourceKind: "account", resource: ramAccountResourceResolver },
+        { action: "quyan:ram:CreateUser", resourceKind: "account", resource: ramAccountResourceResolver },
         service,
       )(request(), {} as never, next);
       expect(next.mock.calls[0][0].statusCode).toBe(403);
@@ -304,14 +304,14 @@ describe("IAM middleware and rollout bridge", () => {
   it("refuses absent or invalid resolver metadata at startup", () => {
     expect(() =>
       iamAuthorizationMiddleware({
-        action: "alidns:AddDomainRecord",
+        action: "quyan:ram:CreateUser",
         resourceKind: "unknown",
         resource: ramAccountResourceResolver,
       } as never),
     ).toThrow();
     expect(() =>
       iamAuthorizationMiddleware({
-        action: "alidns:AddDomainRecord",
+        action: "quyan:ram:CreateUser",
         resourceKind: "account",
         resource: undefined,
       } as never),

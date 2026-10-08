@@ -152,7 +152,7 @@ describe("IAM identity policy loading", () => {
       groupId: "admin",
       group: { id: "admin", username: "admin", status: 1, permissions: [] },
     } as never);
-    expect((await service.authorize({ principal, action: "alidns:AddDomainRecord", resource: "*" })).decision).toBe(
+    expect((await service.authorize({ principal, action: "quyan:iam:SimulatePolicy", resource: "*" })).decision).toBe(
       "ImplicitDeny",
     );
     expect((await service.authorize({ principal, action: "quyan:ram:CreateUser", resource: "*" })).decision).toBe(
@@ -195,35 +195,33 @@ describe("IAM identity policy loading", () => {
   it("evaluates every batch resource before callers perform mutations", async () => {
     policies.listPoliciesForTarget.mockResolvedValue([
       {
-        ...binding("domain", "Allow", "alidns:AddDomainRecord"),
+        ...binding("domain", "Allow", "quyan:ram:CreateUser"),
         ...parseIamPolicy({
           Version: "1",
-          Statement: { Effect: "Allow", Action: "alidns:AddDomainRecord", Resource: "acs:alidns:*:*:domain/qrmr.cn" },
+          Statement: { Effect: "Allow", Action: "quyan:ram:CreateUser", Resource: "acs:quyan:*:*:user/qrmr.cn" },
         }),
         documentFormat: "iam-v1",
       },
     ]);
     const results = await service.authorizeMany({
       principal,
-      action: "alidns:AddDomainRecord",
-      resources: ["acs:alidns:*:owner:domain/qrmr.cn", "acs:alidns:*:owner:domain/other.cn"],
+      action: "quyan:ram:CreateUser",
+      resources: ["acs:quyan:*:owner:user/qrmr.cn", "acs:quyan:*:owner:user/other.cn"],
     });
     expect(results.map((item) => item.decision)).toEqual(["Allow", "ImplicitDeny"]);
-    await expect(
-      service.authorizeMany({ principal, action: "alidns:AddDomainRecord", resources: [] }),
-    ).rejects.toThrow();
+    await expect(service.authorizeMany({ principal, action: "quyan:ram:CreateUser", resources: [] })).rejects.toThrow();
   });
   it("loads policies once for a page and filters both explicit and implicit denial without changing row order", async () => {
     policies.listPoliciesForTarget.mockResolvedValue([
-      binding("allow", "Allow", "alidns:AddDomainRecord"),
+      binding("allow", "Allow", "quyan:ram:CreateUser"),
       {
-        ...binding("deny", "Deny", "alidns:AddDomainRecord"),
+        ...binding("deny", "Deny", "quyan:ram:CreateUser"),
         ...parseIamPolicy({
           Version: "1",
           Statement: {
             Effect: "Deny",
-            Action: "alidns:AddDomainRecord",
-            Resource: "acs:alidns:*:*:domain/blocked.cn",
+            Action: "quyan:ram:CreateUser",
+            Resource: "acs:quyan:*:*:user/blocked.cn",
           },
         }),
       },
@@ -231,9 +229,9 @@ describe("IAM identity policy loading", () => {
     const items = [{ domain: "first.cn" }, { domain: "blocked.cn" }, { domain: "last.cn" }];
     const result = await service.filterAuthorizedPage({
       principal,
-      action: "alidns:AddDomainRecord",
+      action: "quyan:ram:CreateUser",
       items,
-      resource: (row) => "acs:alidns:*:owner:domain/" + row.domain,
+      resource: (row) => "acs:quyan:*:owner:user/" + row.domain,
     });
     expect(result).toEqual([items[0], items[2]]);
     expect(items).toHaveLength(3);
@@ -242,9 +240,9 @@ describe("IAM identity policy loading", () => {
     expect(
       await service.filterAuthorizedPage({
         principal,
-        action: "alidns:AddDomainRecord",
+        action: "quyan:ram:CreateUser",
         items,
-        resource: (row) => "acs:alidns:*:owner:domain/" + row.domain,
+        resource: (row) => "acs:quyan:*:owner:user/" + row.domain,
       }),
     ).toEqual([]);
   });
@@ -252,7 +250,7 @@ describe("IAM identity policy loading", () => {
     expect(
       await service.filterAuthorizedPage({
         principal,
-        action: "alidns:AddDomainRecord",
+        action: "quyan:ram:CreateUser",
         items: [],
         resource: () => undefined,
       }),
@@ -260,16 +258,16 @@ describe("IAM identity policy loading", () => {
     await expect(
       service.filterAuthorizedPage({
         principal,
-        action: "alidns:AddDomainRecord",
+        action: "quyan:ram:CreateUser",
         items: [1, 2],
-        resource: (row) => (row === 1 ? "acs:alidns:*:owner:domain/ok.cn" : undefined),
+        resource: (row) => (row === 1 ? "acs:quyan:*:owner:user/ok.cn" : undefined),
       }),
     ).rejects.toThrow();
     await expect(
-      service.authorizeMany({ principal, action: "alidns:AddDomainRecord", resources: new Array(501).fill("*") }),
+      service.authorizeMany({ principal, action: "quyan:ram:CreateUser", resources: new Array(501).fill("*") }),
     ).rejects.toThrow();
     await expect(
-      service.authorizeMany({ principal, action: "alidns:AddDomainRecord", resources: new Array(2) }),
+      service.authorizeMany({ principal, action: "quyan:ram:CreateUser", resources: new Array(2) }),
     ).rejects.toThrow();
     expect(users.findByIdWithGroup).not.toHaveBeenCalled();
   });
