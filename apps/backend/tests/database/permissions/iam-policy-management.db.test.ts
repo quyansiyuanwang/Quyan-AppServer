@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Permission } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { env } from "@/config/env";
 import { RamService } from "@/services/users/ram.service";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import type { IamPolicyDocument, IamPrincipal } from "@quyan/shared";
+
+import { RamController } from "@/api/controllers/v1/users/ram.controller";
+import * as requestContext from "@/util/request-context";
+import type { TypedRequest } from "@/types/express";
 
 const service = RamService.getInstance();
 const originalMode = env.security.iamAuthorizationMode;
@@ -38,12 +42,33 @@ describe("RAM IAM policy management security", () => {
   });
   afterEach(() => {
     env.security.iamAuthorizationMode = originalMode;
+    vi.restoreAllMocks();
   });
   const principal = (userId: string, owner: string): IamPrincipal => ({
     subjectUserId: userId,
     principalUserId: userId,
     accountOwnerId: owner,
     subjectType: userId === owner ? "root" : "sub_user",
+  });
+  it.each([Permission.RAM_POLICY_CREATE, Permission.RAM_POLICY_UPDATE])(
+    "allows document validation with either create or update permission: %s",
+    async (permission) => {
+      await prisma.user.update({ where: { id: ownerId }, data: { permissionAdds: [permission] } });
+      const request = {
+        user: { userId: ownerId, status: 1, updatedAt: new Date().toISOString() },
+        authContext: { principalUserId: ownerId, accountOwnerId: ownerId, subjectType: "root" },
+      } as TypedRequest;
+      vi.spyOn(requestContext, "getRequestContext").mockReturnValue(request);
+      expect((await new RamController().validatePolicy({ document })).valid).toBe(true);
+    },
+  );
+  it("rejects document validation without either permission", async () => {
+    const request = {
+      user: { userId: ownerId, status: 1, updatedAt: new Date().toISOString() },
+      authContext: { principalUserId: ownerId, accountOwnerId: ownerId, subjectType: "root" },
+    } as TypedRequest;
+    vi.spyOn(requestContext, "getRequestContext").mockReturnValue(request);
+    await expect(new RamController().validatePolicy({ document })).rejects.toMatchObject({ statusCode: 403 });
   });
   it("validates strict syntax and reports broad wildcard risk without saving a policy", async () => {
     const result = await service.validatePolicy({

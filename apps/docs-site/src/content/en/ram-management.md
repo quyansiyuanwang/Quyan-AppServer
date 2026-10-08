@@ -97,16 +97,16 @@ Select a user to view their complete effective permissions.
 3. **Grant access**: Bind a role to a user, or attach a policy directly to a user.
 4. **Audit permissions**: Permission Diagnostics → select a user → review their effective permissions from all sources.
 
-## IAM JSON policies (API)
+## IAM JSON policies
 
-The console still uses the permission tree. JSON editing and simulation are API-only; a dedicated editor is not available yet. Identity policies support only `Version: "1"`, `Statement`, optional `Sid`, `Effect`, `Action`, and `Resource`. Statement accepts an object or array; Action and Resource accept a string or array. Only `*` is a wildcard, and matching is case-sensitive. Unknown fields/versions, Condition, Principal, NotAction, NotResource, and policy variables are rejected rather than ignored.
+The policy drawer offers **Permission tree** and **IAM JSON** formats. Choose IAM JSON to paste a policy, then select **Validate JSON** to check it on the server. Validation displays explicit Deny and broad-wildcard warnings; changes to the text invalidate the previous result. Saving validates any unvalidated text first. Existing IAM policies stay in JSON format, and the list shows their default version. Updates include the original document hash: a concurrent change returns 409; reload the policy and review the changes before trying again. Simulation and version history remain API-only. Identity policies support only `Version: "1"`, `Statement`, optional `Sid`, `Effect`, `Action`, and `Resource`. Statement accepts an object or array; Action and Resource accept a string or array. Only `*` is a wildcard, and matching is case-sensitive. Unknown fields/versions, Condition, Principal, NotAction, NotResource, and policy variables are rejected rather than ignored.
 
 Evaluation is **matching explicit Deny > matching Allow > implicit Deny**. Both Action and Resource must match. Policies from the user, active group, bound roles, and valid assumed-role session are evaluated together. Legacy permission removals become Deny statements. Account isolation, session validity, and business ownership checks remain in place. Actions come from server metadata, never client headers; unresolved resources are rejected.
 
 ### APIs and permissions
 
 - `POST /v1/ram/policies`: submit name plus either document or legacy permissions, never both.
-- `POST /v1/ram/policies/validate`: submit document for normalization, SHA-256 hash, and a broad-wildcard warning; requires policy-create permission.
+- `POST /v1/ram/policies/validate`: submit document for normalization, SHA-256 hash, and a broad-wildcard warning; requires policy-create or policy-update permission.
 - `GET /v1/ram/iam/actions`: list actions; requires policy-read permission. DNS catalog actions illustrate the policy contract and do not mean DNS management APIs are provided.
 - `GET /v1/ram/policies/{policyId}/versions`: list immutable versions and the default; requires policy-read permission.
 - `POST /v1/ram/policies/{policyId}/versions`: append a version and make it default. Submit document and the current expectedDocumentHash. The hash is optional only for the first legacy-to-IAM conversion. Requires policy-update permission, 2FA, and replay protection.

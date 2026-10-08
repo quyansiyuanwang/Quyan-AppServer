@@ -580,6 +580,21 @@ const en = {
     expiringSoon: 'Expiring soon',
 
     // RAM Policy
+    policyFormat: 'Policy format',
+    legacyPolicy: 'Permission tree',
+    iamDocument: 'IAM JSON',
+    iamManagementHint:
+      'Saving IAM documents requires an account owner with the relevant permission and IAM enforce mode enabled on the server. Validation does not grant permission to save.',
+    iamDocumentPlaceholder:
+      'Enter a policy with Version: "1" and Statement containing Effect, Action and Resource.',
+    validatePolicy: 'Validate JSON',
+    policyValid: 'Validated by server',
+    policyValidationFailed:
+      'Validation failed. Check JSON syntax, supported fields and access permissions, then retry. Edited content must be validated again.',
+    iamDenyWarning:
+      'A matching explicit Deny overrides every Allow, including policies attached through users, groups and roles.',
+    iamWildcardWarning:
+      'This policy contains Action "*" and Resource "*". Review the broad scope before saving.',
     policies: 'Policies',
     createPolicy: 'Create policy',
     editPolicy: 'Edit policy',

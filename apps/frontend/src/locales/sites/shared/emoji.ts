@@ -533,6 +533,17 @@ const emoji = {
     ago: '⏪',
     expiringSoon: '⚠️ ⌛',
 
+    policyFormat: '📄 策略格式',
+    legacyPolicy: '🌳 权限树',
+    iamDocument: '🔐 IAM JSON',
+    iamManagementHint:
+      '🔐 保存 IAM 文档需要具有相应权限的主账户及服务端 enforce 模式；校验通过不代表可保存。',
+    iamDocumentPlaceholder: '📄 输入 Version: "1"、Statement 及 Effect、Action、Resource。',
+    validatePolicy: '✅ 校验 JSON',
+    policyValid: '✅ 服务端校验通过',
+    policyValidationFailed: '❌ 校验失败，请检查 JSON、支持字段和权限；修改后需重新校验。',
+    iamDenyWarning: '⛔ 显式 Deny 优先于用户、用户组、角色策略中的全部 Allow。',
+    iamWildcardWarning: '⚠️ Action "*" 与 Resource "*" 范围较宽，请确认后保存。',
     policies: '📜',
     createPolicy: '➕ 📜',
     editPolicy: '✏️ 📜',

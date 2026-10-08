@@ -246,7 +246,19 @@
       <el-form-item :label="i18ns.t('RamManagement.policyDescription')" prop="description">
         <el-input v-model="policyForm.description" type="textarea" :rows="2" />
       </el-form-item>
-      <el-form-item :label="i18ns.t('RamManagement.permissions')" prop="permissions">
+      <el-form-item :label="i18ns.t('RamManagement.policyFormat')">
+        <el-radio-group
+          v-model="policyFormat"
+          :disabled="submitting || Boolean(editingPolicy?.document)"
+        >
+          <el-radio value="legacy">{{ i18ns.t('RamManagement.legacyPolicy') }}</el-radio>
+          <el-radio value="iam">{{ i18ns.t('RamManagement.iamDocument') }}</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item v-if="policyFormat === 'iam'" :label="i18ns.t('RamManagement.iamDocument')">
+        <RamIamPolicyEditor />
+      </el-form-item>
+      <el-form-item v-else :label="i18ns.t('RamManagement.permissions')" prop="permissions">
         <div class="permission-tree-container">
           <PermissionEditorPanel
             v-if="permissionTree.length > 0"
@@ -349,6 +361,7 @@
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
 import PermissionEditorPanel from '@/components/permission/PermissionEditorPanel.vue'
+import RamIamPolicyEditor from './RamIamPolicyEditor.vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
@@ -380,6 +393,7 @@ const {
   policyAttachments,
   policyDialogVisible,
   policyForm,
+  policyFormat,
   policyFormRef,
   policyRules,
   resetPolicyForm,

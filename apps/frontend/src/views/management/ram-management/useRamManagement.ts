@@ -2,6 +2,7 @@ import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { getErrorMessage } from '@/utils/error-utils'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { policyAuthorizationPayload, useIamPolicyEditor } from './useIamPolicyEditor'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus/es'
 import { Refresh } from '@element-plus/icons-vue'
@@ -34,6 +35,7 @@ export type RamManagementSection =
 
 export function useRamManagement(section: RamManagementSection) {
   const route = useRoute()
+  const iamPolicyEditor = useIamPolicyEditor()
   const permissionStore = usePermissionStore()
   const users = ref<RamUserDto[]>([])
   const roles = ref<RamRoleDto[]>([])
@@ -735,7 +737,11 @@ export function useRamManagement(section: RamManagementSection) {
   }
 
   const openPolicyDialog = (policy?: RamPolicyDto) => {
-    if ((policy && !canUpdatePolicies.value) || (!policy && !canCreatePolicies.value)) return
+    if (
+      (policy && (!canUpdatePolicies.value || policy.type !== 'custom')) ||
+      (!policy && !canCreatePolicies.value)
+    )
+      return
     if (policy) {
       editingPolicy.value = policy
       Object.assign(policyForm, {
@@ -752,11 +758,13 @@ export function useRamManagement(section: RamManagementSection) {
         policyForm.permissions = filterGrantablePermissions(template, grantablePermissions.value)
       }
     }
+    iamPolicyEditor.initializePolicyEditor(policy)
     policyDialogVisible.value = true
     policyFormRef.value?.clearValidate()
   }
 
   const resetPolicyForm = () => {
+    iamPolicyEditor.initializePolicyEditor()
     editingPolicy.value = null
     Object.assign(policyForm, { name: '', description: '', permissions: [] })
     policyFormRef.value?.clearValidate()
@@ -770,20 +778,25 @@ export function useRamManagement(section: RamManagementSection) {
 
   const submitPolicy = async () => {
     await policyFormRef.value?.validate()
-    const permissions = getGrantablePolicyPermissions()
+    if (submitting.value) return
     submitting.value = true
+    const policy = editingPolicy.value
+    const name = policyForm.name
+    const description = policyForm.description
     try {
-      if (editingPolicy.value) {
-        await ramService.updatePolicy(editingPolicy.value.id, {
-          description: policyForm.description,
-          permissions,
-        })
+      // Existing versioned policies must never silently fall back to legacy permissions.
+      const isIam = Boolean(policy?.document) || iamPolicyEditor.policyFormat.value === 'iam'
+      const document = isIam ? await iamPolicyEditor.getValidatedPolicyDocument() : undefined
+      if (isIam && !document) return
+      const payload = policyAuthorizationPayload(policy, getGrantablePolicyPermissions(), document)
+      if (policy) {
+        await ramService.updatePolicy(policy.id, { description, ...payload })
         ElMessage.success(i18ns.t('updateSuccess'))
       } else {
         await ramService.createPolicy({
-          name: policyForm.name,
-          description: policyForm.description,
-          permissions,
+          name,
+          description,
+          ...payload,
         })
         ElMessage.success(i18ns.t('createSuccess'))
       }
@@ -883,6 +896,7 @@ export function useRamManagement(section: RamManagementSection) {
   onMounted(loadAll)
 
   return {
+    ...iamPolicyEditor,
     Refresh,
     attachDrawerVisible,
     attachForm,

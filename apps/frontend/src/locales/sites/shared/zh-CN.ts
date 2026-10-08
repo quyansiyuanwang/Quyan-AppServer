@@ -550,6 +550,19 @@ const zhCN = {
     expiringSoon: '即将过期',
 
     // RAM Policy
+    policyFormat: '策略格式',
+    legacyPolicy: '权限树',
+    iamDocument: 'IAM JSON',
+    iamManagementHint:
+      '保存 IAM 文档需要拥有相应权限的主账户，并由服务端启用 IAM enforce 模式。校验通过不代表具备保存权限。',
+    iamDocumentPlaceholder:
+      '输入包含 Version: "1" 和 Statement 的策略；声明需包含 Effect、Action、Resource。',
+    validatePolicy: '校验 JSON',
+    policyValid: '服务端校验通过',
+    policyValidationFailed:
+      '校验失败，请检查 JSON 语法、支持字段和访问权限后重试。修改内容后需重新校验。',
+    iamDenyWarning: '匹配的显式 Deny 优先于所有 Allow，包括通过用户、用户组和角色绑定的策略。',
+    iamWildcardWarning: '策略包含 Action "*" 和 Resource "*"，保存前请确认授权范围。',
     policies: '权限策略',
     createPolicy: '创建权限策略',
     editPolicy: '编辑权限策略',

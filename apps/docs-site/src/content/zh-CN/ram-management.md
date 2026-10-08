@@ -97,16 +97,16 @@ RAM 控制台使用独立 URL 组织概览、身份管理、权限管理和会�
 3. **授权**: 将角色绑定到用户，或将策略直接附加到用户。
 4. **权限审计**: 权限诊断 → 选择用户 → 查看其综合有效权限。
 
-## IAM JSON 策略（API）
+## IAM JSON 策略
 
-现有控制台仍使用权限分类树；JSON 策略编辑和模拟目前通过 API 使用，尚无专用编辑器。身份策略仅支持 `Version: "1"`、`Statement`、可选 `Sid`、`Effect`、`Action` 和 `Resource`。Statement 可为对象或数组，Action/Resource 可为字符串或数组。仅 `*` 为通配符，大小写敏感；未知字段、未知版本、Condition、Principal、NotAction、NotResource 和策略变量均拒绝，不会被忽略。
+策略编辑抽屉提供 **权限树** 和 **IAM JSON** 两种格式。选择 IAM JSON 后粘贴策略，点击 **校验 JSON** 由服务端检查；校验结果会提示显式 Deny 和过宽通配符。修改文本后之前的校验结果失效，保存时会先校验未验证的内容。已有 IAM 策略固定使用 JSON 格式，列表显示当前默认版本。更新携带原文档 hash，并发变更返回 409；请重新打开策略并核对变更后再保存。模拟与历史版本管理仍通过 API 使用。身份策略仅支持 `Version: "1"`、`Statement`、可选 `Sid`、`Effect`、`Action` 和 `Resource`。Statement 可为对象或数组，Action/Resource 可为字符串或数组。仅 `*` 为通配符，大小写敏感；未知字段、未知版本、Condition、Principal、NotAction、NotResource 和策略变量均拒绝，不会被忽略。
 
 评估顺序是 **匹配的显式 Deny > 匹配的 Allow > 默认拒绝**。Action 与 Resource 必须同时匹配。用户、启用的用户组、绑定角色和有效角色会话的策略共同参与评估；旧用户排除权限转换为 Deny。账户归属、角色会话有效性和业务所有权检查仍保留。Action 来自服务端定义，不能由请求头覆盖；无法可靠解析 Resource 的请求被拒绝。
 
 ### API 和权限
 
 - `POST /v1/ram/policies`：提供 name 和 document，或旧 permissions；不可同时提交两种格式。
-- `POST /v1/ram/policies/validate`：提供 document，返回规范化文档、SHA-256 hash 和过宽通配符提示；需策略创建权限。
+- `POST /v1/ram/policies/validate`：提供 document，返回规范化文档、SHA-256 hash 和过宽通配符提示；需策略创建或更新任一权限。
 - `GET /v1/ram/iam/actions`：查看 Action 清单；需策略读取权限。列出的 DNS Action 是策略契约示例，不表示平台已提供 DNS 管理接口。
 - `GET /v1/ram/policies/{policyId}/versions`：查看不可变版本及当前默认版本；需策略读取权限。
 - `POST /v1/ram/policies/{policyId}/versions`：新增版本并设为默认；提交 document 和当前 expectedDocumentHash。首次转换旧策略可不传 hash；已有 IAM 版本时必需。需策略更新权限、2FA 和重放保护。

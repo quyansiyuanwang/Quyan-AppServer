@@ -37,9 +37,20 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column :label="i18ns.t('RamManagement.policyFormat')" width="160">
+        <template #default="{ row }">
+          <el-tag :type="row.document ? 'success' : 'info'">{{
+            row.document
+              ? i18ns.t('RamManagement.iamDocument')
+              : i18ns.t('RamManagement.legacyPolicy')
+          }}</el-tag>
+          <span v-if="row.defaultVersion"> v{{ row.defaultVersion }}</span>
+        </template>
+      </el-table-column>
       <el-table-column :label="i18ns.t('RamManagement.permissionCount')" width="130">
         <template #default="{ row }">
-          <el-tag round type="info">{{ row.permissions?.length ?? 0 }}</el-tag>
+          <el-tag v-if="!row.document" round type="info">{{ row.permissions?.length ?? 0 }}</el-tag>
+          <span v-else>—</span>
         </template>
       </el-table-column>
       <el-table-column :label="i18ns.t('actions')" fixed="right" width="280">
@@ -47,10 +58,20 @@
           <el-button v-if="canReadPolicies" link type="info" @click="openPolicyAttachments(row)">
             {{ i18ns.t('RamManagement.policyAttachments') }}
           </el-button>
-          <el-button v-if="canUpdatePolicies" link type="primary" @click="openPolicyDialog(row)">
+          <el-button
+            v-if="canUpdatePolicies && row.type === 'custom'"
+            link
+            type="primary"
+            @click="openPolicyDialog(row)"
+          >
             {{ i18ns.t('edit') }}
           </el-button>
-          <el-button v-if="canDeletePolicies" link type="danger" @click="deletePolicy(row)">
+          <el-button
+            v-if="canDeletePolicies && row.type === 'custom'"
+            link
+            type="danger"
+            @click="deletePolicy(row)"
+          >
             {{ i18ns.t('delete') }}
           </el-button>
         </template>

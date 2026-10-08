@@ -484,7 +484,7 @@ export class RamController extends Controller {
   @Post("policies/validate")
   @Security("jwt")
   @Middlewares(validateBody(validateIamPolicyBodySchema))
-  @CheckPermission(Permission.RAM_POLICY_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission([Permission.RAM_POLICY_CREATE, Permission.RAM_POLICY_UPDATE], PermissionCheckMode.ANY, "jwt")
   public async validatePolicy(@Body() body: ValidateIamPolicyDto): Promise<ValidateIamPolicyResponseDto> {
     return this.ramService.validatePolicy(body.document);
   }
