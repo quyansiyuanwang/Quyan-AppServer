@@ -1,5 +1,4 @@
 import { Permission } from "@/constant/permission";
-import { PermissionService } from "@/services/users/permission.service";
 import { ForbiddenError } from "../errors";
 import { getLogger, LogCategory } from "../logger";
 import { isLocalRequest } from "../../middleware/auth/local_auth";
@@ -7,6 +6,7 @@ import { SecurityScheme } from "@/middleware/auth/auth_guard";
 import { getRequestContext } from "../request-context";
 import { env } from "@/config/env";
 import { validateAccountStatus } from "@/util/auth/account-status";
+import { authorizeLegacyPermissions } from "@/iam/middleware/legacy-permission-bridge";
 import { copyFunctionMetadata } from "../decorator-metadata";
 
 const logger = getLogger("PermissionDecorator", LogCategory.SECURITY);
@@ -68,41 +68,13 @@ export function CheckPermission(
           validateAccountStatus(request.user.status, userId, `permission check: ${String(propertyKey)}`);
 
         const permissionList = Array.isArray(permissions) ? permissions : [permissions];
-        const permissionService = PermissionService.getInstance();
-        const permissionOptions = { assumedRoleSessionId: request.user.roleSessionId };
-
         try {
-          if (mode === PermissionCheckMode.ALL) {
-            // 需要全部权限
-            const result = await permissionService.checkUserPermissions(userId, permissionList, permissionOptions);
-            if (!result.hasPermission) {
-              logger.warn(
-                `用户 ${userId} 调用方法 ${String(propertyKey)} 失败: 缺少权限 ${result.missingPermissions?.join(", ")}`,
-              );
-              throw new ForbiddenError(`缺少必要权限: ${result.missingPermissions?.join(", ")}`, undefined, {
-                messageKey: "permission.missingRequiredPermissions",
-                messageParams: { permissions: (result.missingPermissions ?? []).join(", ") },
-              });
-            }
-          } else if (mode === PermissionCheckMode.ANY) {
-            // 需要任一权限
-            const result = await permissionService.checkUserPermissions(userId, permissionList, permissionOptions);
-            const hasAny = result.checkedPermissions.some(
-              (permission) => !result.missingPermissions?.includes(permission),
-            );
-            if (!hasAny) {
-              logger.warn(
-                `用户 ${userId} 调用方法 ${String(propertyKey)} 失败: 不具备任何所需权限 ${permissionList.join(", ")}`,
-              );
-              throw new ForbiddenError(`需要以下权限之一: ${permissionList.join(", ")}`, undefined, {
-                messageKey: "permission.requiresAnyPermission",
-                messageParams: { permissions: permissionList.join(", ") },
-              });
-            }
-          } else {
-            logger.error(`未知的权限检查模式: ${mode}`);
-            throw new Error(`未知的权限检查模式: ${mode}`);
-          }
+          if (mode !== PermissionCheckMode.ALL && mode !== PermissionCheckMode.ANY)
+            throw new Error("Unknown permission check mode");
+          if (!(await authorizeLegacyPermissions(request, permissionList, mode === PermissionCheckMode.ANY)))
+            throw new ForbiddenError("IAM/legacy permission denied", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
 
           logger.info(`用户 ${userId} 通过权限检查，执行方法 ${String(propertyKey)}`);
 

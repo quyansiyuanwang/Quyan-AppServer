@@ -1,0 +1,151 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { Permission } from "@quyan/shared";
+import { mockDeep } from "vitest-mock-extended";
+import type { IamAuthorizationService } from "../../../src/iam/iam-authorization.service";
+const mocks = vi.hoisted(() => ({
+  mode: "legacy" as "legacy" | "shadow" | "enforce",
+  authorize: vi.fn(),
+  loadPolicies: vi.fn(),
+  legacy: vi.fn(),
+  audit: vi.fn(),
+}));
+vi.mock("../../../src/config/env", () => ({
+  env: {
+    security: {
+      get iamAuthorizationMode() {
+        return mocks.mode;
+      },
+    },
+  },
+}));
+vi.mock("../../../src/iam/iam-authorization.service", () => ({
+  IamAuthorizationService: { getInstance: () => ({ authorize: mocks.authorize, loadPolicies: mocks.loadPolicies }) },
+}));
+vi.mock("../../../src/services/users/permission.service", () => ({
+  PermissionService: { getInstance: () => ({ checkUserPermissions: mocks.legacy }) },
+}));
+vi.mock("../../../src/iam/audit/iam-audit.service", () => ({ auditIamDecision: mocks.audit }));
+vi.mock("../../../src/util/logger", () => ({
+  LogCategory: { SECURITY: "security" },
+  getLogger: () => ({ warn: vi.fn() }),
+}));
+import { iamAuthorizationMiddleware } from "../../../src/iam/middleware/iam-authorization.middleware";
+import { authorizeLegacyPermissions } from "../../../src/iam/middleware/legacy-permission-bridge";
+import { parseIamPolicy } from "../../../src/iam/parser/policy-parser";
+import { ramAccountResourceResolver } from "../../../src/iam/request/resource-resolvers";
+const request = () =>
+  ({
+    user: { userId: "child" },
+    authContext: { principalUserId: "child", accountOwnerId: "owner", subjectType: "access_key" },
+    headers: { "x-action": "alidns:DeleteDomainRecord" },
+  }) as never;
+const allow = { decision: "Allow", reason: "matched-allow", matchedStatements: [] } as const;
+const deny = { decision: "ImplicitDeny", reason: "no-matching-allow", matchedStatements: [] } as const;
+describe("IAM middleware and rollout bridge", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mode = "legacy";
+    mocks.authorize.mockResolvedValue(allow);
+    mocks.legacy.mockResolvedValue({
+      hasPermission: true,
+      checkedPermissions: [Permission.RAM_USER_CREATE],
+      missingPermissions: [],
+    });
+    mocks.loadPolicies.mockResolvedValue([]);
+  });
+  it("uses only server action metadata, records decision and invokes next once", async () => {
+    const service = mockDeep<IamAuthorizationService>();
+    service.authorize.mockResolvedValue({ ...allow, matchedStatements: [] });
+    const req = request(),
+      next = vi.fn();
+    const middleware = iamAuthorizationMiddleware(
+      { action: "alidns:AddDomainRecord", resourceKind: "account", resource: ramAccountResourceResolver },
+      service,
+    );
+    await middleware(req, {} as never, next);
+    expect(next).toHaveBeenCalledExactlyOnceWith();
+    expect(service.authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "alidns:AddDomainRecord", resource: "acs:quyan:*:owner:account" }),
+    );
+    expect((req as { iamDecisions?: unknown[] }).iamDecisions).toHaveLength(1);
+  });
+  it("returns 401 without an authenticated principal and 403 on unresolved resources", async () => {
+    const service = mockDeep<IamAuthorizationService>(),
+      next = vi.fn();
+    const middleware = iamAuthorizationMiddleware(
+      { action: "alidns:AddDomainRecord", resourceKind: "single-resource", resource: () => undefined },
+      service,
+    );
+    await middleware({} as never, {} as never, next);
+    expect(next.mock.calls[0][0].statusCode).toBe(401);
+    next.mockClear();
+    await middleware(request(), {} as never, next);
+    expect(next.mock.calls[0][0].statusCode).toBe(403);
+    expect(service.authorize).not.toHaveBeenCalled();
+  });
+  it("rejects both implicit and explicit Deny without returning policy details", async () => {
+    for (const decision of ["ImplicitDeny", "ExplicitDeny"] as const) {
+      const service = mockDeep<IamAuthorizationService>(),
+        next = vi.fn();
+      service.authorize.mockResolvedValue({
+        ...deny,
+        decision,
+        matchedStatements: [{ policyId: "sensitive-policy", statementId: "secret-rule", effect: "Deny" }],
+      });
+      await iamAuthorizationMiddleware(
+        { action: "alidns:AddDomainRecord", resourceKind: "account", resource: ramAccountResourceResolver },
+        service,
+      )(request(), {} as never, next);
+      expect(next.mock.calls[0][0].statusCode).toBe(403);
+      expect(next.mock.calls[0][0].message).not.toContain("sensitive-policy");
+    }
+  });
+  it("does not call legacy as fallback when policy loading fails in enforce mode", async () => {
+    mocks.mode = "enforce";
+    mocks.loadPolicies.mockRejectedValue(Error("offline"));
+    await expect(authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false)).rejects.toThrow("offline");
+    expect(mocks.legacy).not.toHaveBeenCalled();
+  });
+  it("preserves legacy decisions in legacy and shadow modes, including shadow engine failure", async () => {
+    expect(await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false)).toBe(true);
+    expect(mocks.loadPolicies).not.toHaveBeenCalled();
+    mocks.mode = "shadow";
+    expect(await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false)).toBe(true);
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authorizationMode: "shadow",
+        legacyAllowed: true,
+        result: expect.objectContaining({ decision: "ImplicitDeny" }),
+      }),
+    );
+    mocks.loadPolicies.mockRejectedValue(Error("offline"));
+    expect(await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false)).toBe(true);
+  });
+  it("enforces ALL and ANY semantics through IAM policies", async () => {
+    mocks.mode = "enforce";
+    mocks.loadPolicies.mockResolvedValue([
+      {
+        policyId: "allow",
+        document: parseIamPolicy({
+          Version: "1",
+          Statement: { Effect: "Allow", Action: "quyan:ram:CreateUser", Resource: "*" },
+        }).document,
+      },
+    ]);
+    expect(
+      await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ], true),
+    ).toBe(true);
+    expect(
+      await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ], false),
+    ).toBe(false);
+  });
+  it("refuses unknown endpoint actions at startup", () => {
+    expect(() =>
+      iamAuthorizationMiddleware({
+        action: "unknown:Action",
+        resourceKind: "account",
+        resource: ramAccountResourceResolver,
+      }),
+    ).toThrow();
+  });
+});

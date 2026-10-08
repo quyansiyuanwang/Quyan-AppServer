@@ -1,3 +1,6 @@
+import { actionForPermission, buildAcsResource } from "@quyan/shared";
+import { IamAuthorizationService } from "@/iam/iam-authorization.service";
+import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { Permission } from "@/constant/permission";
 import { PermissionList, UserPermissionConfig, UserFullPermissions, PermissionCheckResult } from "@/models/permission";
 import { BadRequestError, ForbiddenError } from "@/util/errors";
@@ -80,7 +83,11 @@ export class PermissionService {
 
     if (operatorUser.groupId) {
       const operatorGroup = await this.groupRepository.findById(operatorUser.groupId);
-      if (operatorGroup?.username === env.security.superAdminGroupUsername) return;
+      if (
+        operatorGroup?.username === env.security.superAdminGroupUsername &&
+        env.security.iamAuthorizationMode !== "enforce"
+      )
+        return;
     }
 
     const operatorPermissions = await this.getUserFullPermissions(operatorUserId);
@@ -230,7 +237,26 @@ export class PermissionService {
 
     if (!user) return null;
 
-    return this.calculateUserPermissionsWithRoles(user, user.group, options);
+    const legacy = await this.calculateUserPermissionsWithRoles(user, user.group, options);
+    if (env.security.iamAuthorizationMode !== "enforce") return legacy;
+    const session = options.assumedRoleSessionId
+      ? await this.ramRoleRepository.findActiveRoleSession(options.assumedRoleSessionId)
+      : undefined;
+    const accountOwnerId = user.accountOwnerId || user.id;
+    const policies = await IamAuthorizationService.getInstance().loadPolicies({
+      subjectUserId: user.id,
+      principalUserId: user.id,
+      accountOwnerId,
+      subjectType: session ? "assumed_role" : user.id === accountOwnerId ? "root" : "sub_user",
+      assumedRoleId: session?.roleId,
+      roleSessionId: options.assumedRoleSessionId,
+    });
+    const resource = buildAcsResource({ service: "quyan", region: "*", accountId: accountOwnerId, path: "account" });
+    const effectivePermissions = Object.values(Permission).filter(
+      (permission) =>
+        evaluatePolicies(policies, { action: actionForPermission(permission), resource }).decision === "Allow",
+    );
+    return { ...legacy, effectivePermissions };
   }
 
   /**
