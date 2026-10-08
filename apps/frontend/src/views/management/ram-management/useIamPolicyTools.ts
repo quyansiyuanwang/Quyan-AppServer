@@ -51,14 +51,26 @@ export function useIamPolicyTools() {
   }
 
   const iamSimulationVisible = ref(false)
-  const iamSimulationForm = reactive({ principalId: '', action: '', resource: '' })
+  const iamSimulationForm = reactive({
+    principalId: '',
+    action: '',
+    resource: '',
+    documentText: '',
+  })
+  const iamSimulationUseDraft = ref(false)
   const iamSimulationResult = ref<SimulateIamPolicyResponseDto | null>(null)
   const iamSimulating = ref(false)
   const iamSimulationFailed = ref(false)
   let revision = 0
   let simulationRequest = 0
   watch(
-    () => [iamSimulationForm.principalId, iamSimulationForm.action, iamSimulationForm.resource],
+    () => [
+      iamSimulationForm.principalId,
+      iamSimulationForm.action,
+      iamSimulationForm.resource,
+      iamSimulationForm.documentText,
+      iamSimulationUseDraft.value,
+    ],
     () => {
       revision++
       iamSimulationResult.value = null
@@ -68,7 +80,13 @@ export function useIamPolicyTools() {
   )
   const resetIamSimulation = () => {
     simulationRequest++
-    Object.assign(iamSimulationForm, { principalId: '', action: '', resource: '' })
+    Object.assign(iamSimulationForm, {
+      principalId: '',
+      action: '',
+      resource: '',
+      documentText: '',
+    })
+    iamSimulationUseDraft.value = false
     iamSimulationResult.value = null
     iamSimulationFailed.value = false
     iamSimulating.value = false
@@ -80,12 +98,18 @@ export function useIamPolicyTools() {
       principalId: iamSimulationForm.principalId.trim(),
       action: iamSimulationForm.action,
       resource: iamSimulationForm.resource.trim(),
+      ...(iamSimulationUseDraft.value ? { documentText: iamSimulationForm.documentText } : {}),
     }
     iamSimulating.value = true
     iamSimulationResult.value = null
     iamSimulationFailed.value = false
     try {
-      if (!input.principalId || !input.resource || !iamActions.value.includes(input.action))
+      if (
+        !input.principalId ||
+        !input.resource ||
+        !iamActions.value.includes(input.action) ||
+        (iamSimulationUseDraft.value && !iamSimulationForm.documentText.trim())
+      )
         throw new Error('Invalid simulation input')
       const result = await ramService.simulatePolicy(input)
       if (sequence === simulationRequest && inputRevision === revision)
@@ -105,6 +129,7 @@ export function useIamPolicyTools() {
     loadIamActions,
     iamSimulationVisible,
     iamSimulationForm,
+    iamSimulationUseDraft,
     iamSimulationResult,
     iamSimulationFailed,
     iamSimulating,

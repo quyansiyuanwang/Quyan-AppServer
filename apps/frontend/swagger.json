@@ -38575,6 +38575,10 @@
 					},
 					"resource": {
 						"type": "string"
+					},
+					"documentText": {
+						"type": "string",
+						"description": "Optional raw identity draft. When present, evaluate it in isolation, without saved grants."
 					}
 				},
 				"required": [

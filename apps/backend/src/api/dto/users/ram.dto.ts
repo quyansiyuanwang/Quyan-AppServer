@@ -184,6 +184,8 @@ export interface SimulateIamPolicyDto {
   principalId: string;
   action: string;
   resource: string;
+  /** Optional raw identity draft. When present, evaluate it in isolation, without saved grants. */
+  documentText?: string;
 }
 export type SimulateIamPolicyResponseDto = IamEvaluationResult;
 

@@ -63,4 +63,52 @@ describe('IAM policy simulator interaction', () => {
     expect(wrapper.text()).not.toContain('Allow')
     wrapper.unmount()
   })
+  it('simulates raw draft text without publishing and discards results after edits or source changes', async () => {
+    context = useIamPolicyTools()
+    context.iamActions.value = ['quyan:ram:ReadUser']
+    Object.assign(context.iamSimulationForm, {
+      principalId: 'principal-1',
+      action: 'quyan:ram:ReadUser',
+      resource: '*',
+      documentText: '{raw draft',
+    })
+    context.iamSimulationUseDraft.value = true
+    const wrapper = mount(RamIamPolicySimulator, {
+      global: {
+        stubs: { 'el-input': input, 'el-button': button, 'el-alert': alert, 'el-drawer': drawer },
+      },
+    })
+    simulatePolicy.mockResolvedValueOnce({
+      decision: 'Allow',
+      reason: 'matched-allow',
+      matchedStatements: [{ policyId: 'simulation:draft', statementId: '0', effect: 'Allow' }],
+    })
+    await context.simulateIamPolicy()
+    await flushPromises()
+    expect(simulatePolicy).toHaveBeenCalledWith({
+      principalId: 'principal-1',
+      action: 'quyan:ram:ReadUser',
+      resource: '*',
+      documentText: '{raw draft',
+    })
+    expect(wrapper.text()).toContain('RamManagement.simulateDraftHint')
+    expect(wrapper.text()).toContain('simulation:draft')
+    await wrapper.get('[data-test="simulate-draft-text"]').setValue('{new draft')
+    expect(context.iamSimulationResult.value).toBeNull()
+    let finish!: (value: unknown) => void
+    simulatePolicy.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const pending = context.simulateIamPolicy()
+    context.iamSimulationUseDraft.value = false
+    finish({ decision: 'Allow', reason: 'matched-allow', matchedStatements: [] })
+    await pending
+    expect(context.iamSimulationResult.value).toBeNull()
+    context.resetIamSimulation()
+    expect(context.iamSimulationForm.documentText).toBe('')
+    expect(context.iamSimulationUseDraft.value).toBe(false)
+    wrapper.unmount()
+  })
 })

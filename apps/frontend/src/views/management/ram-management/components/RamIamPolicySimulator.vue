@@ -12,6 +12,24 @@
       :closable="false"
       show-icon
     />
+    <el-checkbox v-model="iamSimulationUseDraft" data-test="simulate-draft-mode">{{
+      i18ns.t('RamManagement.simulateDraftMode')
+    }}</el-checkbox>
+    <el-alert
+      v-if="iamSimulationUseDraft"
+      :title="i18ns.t('RamManagement.simulateDraftHint')"
+      type="warning"
+      :closable="false"
+    />
+    <el-input
+      v-if="iamSimulationUseDraft"
+      v-model="iamSimulationForm.documentText"
+      data-test="simulate-draft-text"
+      type="textarea"
+      :rows="8"
+      :aria-label="i18ns.t('RamManagement.iamDocument')"
+      spellcheck="false"
+    />
     <el-form :model="iamSimulationForm" label-position="top" class="simulation-form">
       <el-form-item :label="i18ns.t('RamManagement.iamPrincipalId')">
         <el-input v-model="iamSimulationForm.principalId" :disabled="iamSimulating" />
@@ -68,7 +86,8 @@
           iamActionsLoading ||
           !iamSimulationForm.principalId.trim() ||
           !iamSimulationForm.action ||
-          !iamSimulationForm.resource.trim()
+          !iamSimulationForm.resource.trim() ||
+          (iamSimulationUseDraft && !iamSimulationForm.documentText.trim())
         "
         @click="simulateIamPolicy"
         >{{ i18ns.t('RamManagement.simulatePolicy') }}</el-button
@@ -86,6 +105,7 @@ const {
   loadIamActions,
   iamSimulationVisible,
   iamSimulationForm,
+  iamSimulationUseDraft,
   iamSimulationResult,
   iamSimulationFailed,
   iamSimulating,

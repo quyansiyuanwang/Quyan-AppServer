@@ -79,6 +79,16 @@
         i18ns.t('RamManagement.formatPolicy')
       }}</el-button>
       <el-button
+        data-test="simulate-current-draft"
+        :disabled="
+          submitting ||
+          !policyDocumentText.trim() ||
+          (policyEditorMode === 'visual' && !visualPolicyValid)
+        "
+        @click="openDraftSimulation"
+        >{{ i18ns.t('RamManagement.simulateCurrentDraft') }}</el-button
+      >
+      <el-button
         v-if="canReadPolicies"
         :loading="schemaDownloading"
         :disabled="submitting"
@@ -121,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import type { InputInstance } from 'element-plus/es'
 import type { IamPolicyDocument, IamDiagnostic } from '@quyan/shared'
 import RamIamPolicyAiDraft from './RamIamPolicyAiDraft.vue'
@@ -135,6 +145,9 @@ import { useRamManagementContext } from '../context'
 
 const {
   iamAccountOwnerId,
+  iamSimulationForm,
+  iamSimulationUseDraft,
+  iamSimulationVisible,
   policyEditorMode,
   visualPolicyValid,
   iamActions,
@@ -152,6 +165,19 @@ const {
   getValidatedPolicyDocument,
   submitting,
 } = useRamManagementContext()
+const openDraftSimulation = () => {
+  iamSimulationForm.documentText = policyDocumentText.value
+  iamSimulationUseDraft.value = true
+  iamSimulationVisible.value = true
+}
+watch(
+  policyDocumentText,
+  (text) => {
+    if (iamSimulationUseDraft.value && iamSimulationVisible.value)
+      iamSimulationForm.documentText = text
+  },
+  { flush: 'sync' },
+)
 const documentInput = ref<InputInstance>()
 const visualDocument = ref<IamPolicyDocument>()
 const switchingEditor = ref(false)

@@ -487,6 +487,9 @@ const emoji = {
     configureMachineFirst: '🖥️⚙️➡️🗂️',
   },
   RamManagement: {
+    simulateDraftMode: "🧪 模拟未发布身份草稿",
+    simulateDraftHint: "📄 仅评估草稿，不叠加已保存的身份授权。Allow 不能替代发布或最终授权；AssumeRole 仍需角色信任。缺少网络上下文时拒绝。",
+    simulateCurrentDraft: "🧪 模拟当前草稿",
     aiDraftTitle: '🤖 AI 策略草稿',
     aiDraftHint:
       '💳 使用所选模型和你拥有的令牌，按模型计费。仅生成草稿；应用后需校验与确认保存。指令和选中的草稿会发给模型，请勿输入凭据。',

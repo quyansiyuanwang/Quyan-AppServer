@@ -502,6 +502,9 @@ const zhCN = {
     configureMachineFirst: '请先配置一台远程 Agent 机器，再创建工作区。',
   },
   RamManagement: {
+    simulateDraftMode: "模拟未发布的身份策略草稿",
+    simulateDraftHint: "仅评估该草稿，不叠加已保存的身份授权。Allow 不代表可发布或绑定后的最终权限；AssumeRole 仍需已保存的角色信任。缺少 IP 或 HTTPS 上下文时拒绝。",
+    simulateCurrentDraft: "模拟当前草稿",
     aiDraftTitle: 'AI 辅助策略草稿',
     aiDraftHint:
       '生成使用所选模型和你拥有的中转令牌，按当前模型计费。只返回草稿，不会保存、发布或绑定；应用后仍需校验和确认保存。指令及选中的草稿会发送给所选模型，请勿输入凭据。',

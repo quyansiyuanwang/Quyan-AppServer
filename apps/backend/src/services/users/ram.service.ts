@@ -1,3 +1,4 @@
+import { evaluateIdentityPolicyDraft } from "@/iam/simulation/draft-simulation";
 import type { ChatTextGenerationOptions } from "@/services/chat/chat.service";
 import {
   parseIamTrustPolicy,
@@ -1477,7 +1478,13 @@ export class RamService {
     await this.prepareIamVersion(actorUserId, parseIamPolicy(version.document).document, policyId);
     await this.ramPolicyRepository.setDefaultVersion(policyId, versionId, expectedDocumentHash);
   }
-  async simulatePolicy(actorUserId: string, principalId: string, action: string, resource: string) {
+  async simulatePolicy(
+    actorUserId: string,
+    principalId: string,
+    action: string,
+    resource: string,
+    documentText?: string,
+  ) {
     if (!isKnownIamAction(action) || !isValidIamResource(resource))
       throw new BadRequestError("Invalid IAM simulation input", undefined, { messageKey: "iam.invalidPolicy" });
     const owner = await this.getAccountOwnerId(actorUserId),
@@ -1489,7 +1496,14 @@ export class RamService {
       accountOwnerId: owner,
       subjectType: user.id === owner ? ("root" as const) : ("sub_user" as const),
     };
-    const identity = await IamAuthorizationService.getInstance().authorize({ principal, action, resource });
+    const identity =
+      documentText === undefined
+        ? await IamAuthorizationService.getInstance().authorize({ principal, action, resource })
+        : evaluateIdentityPolicyDraft(documentText, owner, {
+            action,
+            resource,
+            context: principalConditionContext(principal),
+          });
     if (action !== IAM_ASSUME_ROLE_ACTION) return identity;
     if (getIamResourceType(resource)?.id !== "quyan/role" || resource.split(":")[4].includes("*"))
       return { decision: "ImplicitDeny" as const, reason: "invalid-request" as const, matchedStatements: [] };

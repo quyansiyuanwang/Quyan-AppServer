@@ -279,4 +279,36 @@ describe('IAM policy editor controls and warnings', () => {
       wrapper.unmount()
     }
   })
+  it('opens draft simulation from the current editor text and keeps edits from reusing old results', async () => {
+    context = {
+      ...useIamPolicyEditor(),
+      ...useIamPolicyTools(),
+      submitting: ref(false),
+      canReadPolicies: ref(false),
+    }
+    context.policyDocumentText.value = '{draft-one'
+    const wrapper = mount(RamIamPolicyEditor, {
+      global: {
+        stubs: {
+          RamIamPolicyAiDraft: true,
+          'el-input': inputStub,
+          'el-button': buttonStub,
+          'el-alert': alertStub,
+        },
+      },
+    })
+    await wrapper.get('[data-test="simulate-current-draft"]').trigger('click')
+    expect(context.iamSimulationVisible.value).toBe(true)
+    expect(context.iamSimulationUseDraft.value).toBe(true)
+    expect(context.iamSimulationForm.documentText).toBe('{draft-one')
+    context.iamSimulationResult.value = {
+      decision: 'Allow',
+      reason: 'matched-allow',
+      matchedStatements: [],
+    }
+    await wrapper.get('textarea').setValue('{draft-two')
+    expect(context.iamSimulationForm.documentText).toBe('{draft-two')
+    expect(context.iamSimulationResult.value).toBeNull()
+    wrapper.unmount()
+  })
 })

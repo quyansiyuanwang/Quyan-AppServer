@@ -887,7 +887,13 @@ export class RamController extends Controller {
     @Body() body: SimulateIamPolicyDto,
     @Request() request: TypedRequest,
   ): Promise<SimulateIamPolicyResponseDto> {
-    return this.ramService.simulatePolicy(request.user!.userId, body.principalId, body.action, body.resource);
+    return this.ramService.simulatePolicy(
+      request.user!.userId,
+      body.principalId,
+      body.action,
+      body.resource,
+      body.documentText,
+    );
   }
 
   @Get("policies/{policyId}/versions")

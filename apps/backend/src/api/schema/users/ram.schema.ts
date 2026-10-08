@@ -155,6 +155,7 @@ export const simulateIamPolicyBodySchema = z
     principalId: z.string().min(1).max(128),
     action: z.string().refine(isKnownIamAction),
     resource: z.string().refine(isValidIamResource),
+    documentText: z.string().min(1).max(IAM_POLICY_LIMITS.bytes).optional(),
   })
   .strict();
 

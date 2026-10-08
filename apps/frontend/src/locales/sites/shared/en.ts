@@ -531,6 +531,9 @@ const en = {
     configureMachineFirst: 'Configure one remote Agent machine before creating a workspace.',
   },
   RamManagement: {
+    simulateDraftMode: "Simulate an unpublished identity draft",
+    simulateDraftHint: "Evaluate only this draft; saved identity grants are excluded. An Allow is not proof of publication or final access after attachment. AssumeRole also requires the saved role trust. Missing IP or HTTPS context fails closed.",
+    simulateCurrentDraft: "Simulate current draft",
     aiDraftTitle: 'AI policy draft',
     aiDraftHint:
       'Generation uses your selected model and your own relay token, with normal model billing. It only returns a draft and cannot save, publish or attach it. Applying still requires validation and a separate save. Your instruction and any selected draft are sent to the model; do not enter credentials.',
