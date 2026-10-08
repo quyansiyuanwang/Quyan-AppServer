@@ -7,6 +7,7 @@ import { PermissionService } from "@/services/users/permission.service";
 import type { TypedRequest } from "@/types/express";
 import { ForbiddenError, UnauthorizedError } from "@/util/errors";
 import { IamAuthorizationService } from "../iam-authorization.service";
+import { requestConditionContext } from "../request/condition-context";
 import { getIamPrincipal } from "../request/principal-context";
 import { ramAccountResourceResolver } from "../request/resource-resolvers";
 import { assertIamAuthorizationDefinition } from "../request/authorization-definition";
@@ -72,10 +73,11 @@ export async function authorizeLegacyPermissions(
       });
     const policies = await IamAuthorizationService.getInstance().loadPolicies(principal);
     const { evaluatePolicies } = await import("../evaluator/policy-evaluator");
+    const context = requestConditionContext(request, principal);
     const groups = resolved.map((definition) => ({
       ...definition,
       results: definition.resources.map((resource) =>
-        evaluatePolicies(policies, { action: definition.action, resource }),
+        evaluatePolicies(policies, { action: definition.action, resource, context }),
       ),
     }));
     for (const group of groups)

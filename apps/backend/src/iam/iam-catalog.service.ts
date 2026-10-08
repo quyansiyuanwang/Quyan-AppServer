@@ -1,5 +1,15 @@
-import { IAM_ACTION_DEFINITIONS, IAM_RESOURCE_TYPE_CATALOG, iamServiceDefinitions } from "@quyan/shared";
-import type { IamActionDefinition, IamResourceTypeDefinition, IamServiceDefinition } from "@quyan/shared";
+import {
+  IAM_ACTION_DEFINITIONS,
+  IAM_CONDITION_KEY_CATALOG,
+  IAM_RESOURCE_TYPE_CATALOG,
+  iamServiceDefinitions,
+} from "@quyan/shared";
+import type {
+  IamActionDefinition,
+  IamResourceTypeDefinition,
+  IamConditionKeyDefinition,
+  IamServiceDefinition,
+} from "@quyan/shared";
 import { IAM_ACTION_ROUTES } from "@/build/iam-action-routes";
 import { NotFoundError } from "@/util/errors";
 export class IamCatalogService {
@@ -21,6 +31,9 @@ export class IamCatalogService {
     const entry = this.listServices().find((entry) => entry.code === service);
     if (!entry) throw new NotFoundError("Unknown IAM service", undefined, { messageKey: "iam.unknownService" });
     return entry.actions;
+  }
+  listConditionKeys(): IamConditionKeyDefinition[] {
+    return IAM_CONDITION_KEY_CATALOG.map((key) => ({ ...key, operators: [...key.operators] }));
   }
   listResources(): IamResourceTypeDefinition[] {
     return IAM_RESOURCE_TYPE_CATALOG.map((resource) => ({ ...resource }));

@@ -2,6 +2,7 @@ import { isSafeIamResourceBatch } from "../authorization-limits";
 import { performance } from "node:perf_hooks";
 import type { RequestHandler } from "express";
 import { IamAuthorizationService } from "../iam-authorization.service";
+import { requestConditionContext } from "../request/condition-context";
 import { getIamPrincipal } from "../request/principal-context";
 import { assertIamAuthorizationDefinition } from "../request/authorization-definition";
 import type { IamAuthorizationDefinition } from "../request/authorization-definition";
@@ -26,11 +27,12 @@ export function iamAuthorizationMiddleware(
         throw new ForbiddenError("IAM resource resolution failed", undefined, {
           messageKey: "iam.resourceResolutionFailed",
         });
+      const context = requestConditionContext(request, principal);
       const start = performance.now();
       const results =
         definition.resourceKind === "batch"
-          ? await service.authorizeMany({ principal, action: definition.action, resources })
-          : [await service.authorize({ principal, action: definition.action, resource: resources[0] })];
+          ? await service.authorizeMany({ principal, action: definition.action, resources, context })
+          : [await service.authorize({ principal, action: definition.action, resource: resources[0], context })];
       if (results.length !== resources.length || resources.some((_, index) => !results[index]))
         throw new ForbiddenError("Incomplete IAM batch decision", undefined, {
           messageKey: "permission.insufficientPermission",

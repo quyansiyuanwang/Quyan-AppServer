@@ -82,6 +82,38 @@ describe("RAM IAM policy management security", () => {
     });
     expect(await prisma.ramPolicy.count({ where: { accountOwnerId: ownerId } })).toBe(0);
   });
+  it("persists conditional policies and evaluates server principal context without ignoring missing request attributes", async () => {
+    const conditional = await service.createPolicy(ownerId, {
+      name: "conditional",
+      document: {
+        Version: "1",
+        Statement: {
+          Effect: "Allow",
+          Action: "quyan:ram:ReadUser",
+          Resource: "*",
+          Condition: { StringEquals: { "quyan:PrincipalId": childId } },
+        },
+      },
+    });
+    await service.attachPolicy(ownerId, { policyId: conditional.id, targetType: "user", targetId: childId });
+    expect((await service.simulatePolicy(ownerId, childId, "quyan:ram:ReadUser", "*")).decision).toBe("Allow");
+    await service.updatePolicy(ownerId, conditional.id, {
+      expectedDocumentHash: conditional.documentHash,
+      document: {
+        Version: "1",
+        Statement: {
+          Effect: "Allow",
+          Action: "quyan:ram:ReadUser",
+          Resource: "*",
+          Condition: { Bool: { "acs:SecureTransport": true } },
+        },
+      },
+    });
+    expect(await service.simulatePolicy(ownerId, childId, "quyan:ram:ReadUser", "*")).toMatchObject({
+      decision: "ImplicitDeny",
+      reason: "missing-condition-context",
+    });
+  });
   it("requires enforce mode for document management and rejects subuser delegation", async () => {
     env.security.iamAuthorizationMode = "shadow";
     await expect(service.createPolicy(ownerId, { name: "shadow", document })).rejects.toMatchObject({

@@ -23975,6 +23975,35 @@
 				"parameters": []
 			}
 		},
+		"/v1/iam/catalog/condition-keys": {
+			"get": {
+				"operationId": "IamCatalogControllerListConditionKeys",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/IamConditionKeyDefinition"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"IAM Catalog"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/v1/products/admin/quota-overrides": {
 			"get": {
 				"operationId": "DeveloperQuotaAdminControllerList",
@@ -36579,6 +36608,41 @@
 				],
 				"description": "Strict identity-policy subset. Unsupported IAM fields must be rejected."
 			},
+			"IamConditionScalar": {
+				"anyOf": [
+					{
+						"type": "string"
+					},
+					{
+						"type": "number",
+						"format": "double"
+					},
+					{
+						"type": "boolean"
+					}
+				]
+			},
+			"IamCondition": {
+				"properties": {},
+				"type": "object",
+				"additionalProperties": {
+					"properties": {},
+					"additionalProperties": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/IamConditionScalar"
+							},
+							{
+								"items": {
+									"$ref": "#/components/schemas/IamConditionScalar"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"type": "object"
+				}
+			},
 			"IamStatement": {
 				"properties": {
 					"Sid": {
@@ -36612,6 +36676,9 @@
 								"type": "array"
 							}
 						]
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
 					}
 				},
 				"required": [
@@ -37096,7 +37163,8 @@
 					"matched-allow",
 					"explicit-deny",
 					"no-matching-allow",
-					"invalid-request"
+					"invalid-request",
+					"missing-condition-context"
 				]
 			},
 			"IamMatchedStatement": {
@@ -57589,6 +57657,78 @@
 					"type",
 					"arnTemplate",
 					"identifierSegments"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamConditionOperator": {
+				"type": "string",
+				"enum": [
+					"StringEquals",
+					"StringNotEquals",
+					"StringEqualsIgnoreCase",
+					"StringNotEqualsIgnoreCase",
+					"StringLike",
+					"StringNotLike",
+					"NumericEquals",
+					"NumericNotEquals",
+					"NumericLessThan",
+					"NumericLessThanEquals",
+					"NumericGreaterThan",
+					"NumericGreaterThanEquals",
+					"DateEquals",
+					"DateNotEquals",
+					"DateLessThan",
+					"DateLessThanEquals",
+					"DateGreaterThan",
+					"DateGreaterThanEquals",
+					"Bool",
+					"IpAddress",
+					"NotIpAddress",
+					"IpAddressIncludeBorder",
+					"NotIpAddressIncludeBorder",
+					"Null"
+				]
+			},
+			"IamConditionKeyDefinition": {
+				"properties": {
+					"key": {
+						"type": "string"
+					},
+					"valueType": {
+						"type": "string",
+						"enum": [
+							"string",
+							"number",
+							"date",
+							"boolean",
+							"ip"
+						]
+					},
+					"operators": {
+						"items": {
+							"$ref": "#/components/schemas/IamConditionOperator"
+						},
+						"type": "array"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"request",
+							"principal",
+							"resource"
+						]
+					},
+					"supported": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"key",
+					"valueType",
+					"operators",
+					"source",
+					"supported"
 				],
 				"type": "object",
 				"additionalProperties": false

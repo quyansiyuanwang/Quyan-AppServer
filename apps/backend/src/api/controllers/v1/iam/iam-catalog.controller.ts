@@ -1,5 +1,10 @@
 import { Controller, Get, Path, Route, Security, Tags } from "@tsoa/runtime";
-import type { IamActionDefinition, IamResourceTypeDefinition, IamServiceDefinition } from "@quyan/shared";
+import type {
+  IamActionDefinition,
+  IamConditionKeyDefinition,
+  IamResourceTypeDefinition,
+  IamServiceDefinition,
+} from "@quyan/shared";
 import { Permission } from "@quyan/shared";
 import { IamCatalogService } from "@/iam/iam-catalog.service";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
@@ -36,5 +41,15 @@ export class IamCatalogController extends Controller {
   })
   public async listResources(): Promise<IamResourceTypeDefinition[]> {
     return IamCatalogService.getInstance().listResources();
+  }
+  @Get("condition-keys")
+  @Security("jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async listConditionKeys(): Promise<IamConditionKeyDefinition[]> {
+    return IamCatalogService.getInstance().listConditionKeys();
   }
 }

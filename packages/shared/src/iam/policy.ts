@@ -1,3 +1,4 @@
+import type { IamCondition } from './condition'
 /** Strict identity-policy subset. Unsupported IAM fields must be rejected. */
 export type IamEffect = 'Allow' | 'Deny'
 export interface IamStatement {
@@ -5,6 +6,7 @@ export interface IamStatement {
   Effect: IamEffect
   Action: string | string[]
   Resource: string | string[]
+  Condition?: IamCondition
 }
 export interface IamPolicyDocument {
   Version: '1'
@@ -15,6 +17,7 @@ export interface NormalizedIamStatement {
   Effect: IamEffect
   Action: string[]
   Resource: string[]
+  Condition?: IamCondition
 }
 export interface NormalizedIamPolicyDocument {
   Version: '1'

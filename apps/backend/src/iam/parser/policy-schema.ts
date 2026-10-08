@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { IAM_ACTION_CATALOG } from "@quyan/shared";
+import { iamConditionSchema } from "../condition/condition-schema";
 import { matchIamPattern } from "../evaluator/wildcard-matcher";
 export const IAM_POLICY_LIMITS = Object.freeze({
   bytes: 262144,
@@ -40,6 +41,7 @@ export const iamStatementSchema = z
     Effect: z.enum(["Allow", "Deny"]),
     Action: oneOrMany(action),
     Resource: oneOrMany(resource),
+    Condition: iamConditionSchema.optional(),
   })
   .strict();
 export const iamPolicyDocumentSchema = z

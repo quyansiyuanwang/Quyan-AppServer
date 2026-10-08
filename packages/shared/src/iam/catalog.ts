@@ -1,3 +1,4 @@
+import { IAM_SUPPORTED_CONDITION_KEYS } from './condition'
 import { ALL_PERMISSIONS, Permission } from '../permission'
 import { actionForPermission } from './legacy-permission-map'
 
@@ -99,7 +100,7 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
         : 'Write',
     resourceTypes: ['quyan/account', ...(resources ?? []).map((type) => 'quyan/' + type)],
     apiRoutes: [],
-    conditionKeys: [],
+    conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
     sensitive: /ram:|permission:|impersonate|secret|password|key/i.test(permission),
     authorizationStage: resources ? 'declared' : 'legacy',
   }
@@ -113,7 +114,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     accessLevel: 'Read',
     resourceTypes: ['quyan/account'],
     apiRoutes: [],
-    conditionKeys: [],
+    conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
     sensitive: true,
     authorizationStage: 'declared',
   },

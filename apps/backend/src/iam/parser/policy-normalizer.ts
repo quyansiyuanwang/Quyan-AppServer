@@ -5,6 +5,27 @@ const patterns = (value: string | string[]) =>
 export function normalizeIamPolicy(policy: IamPolicyDocument): NormalizedIamPolicyDocument {
   const statements = (Array.isArray(policy.Statement) ? policy.Statement : [policy.Statement]).map((statement) => ({
     ...(statement.Sid ? { Sid: statement.Sid.trim() } : {}),
+    ...(statement.Condition
+      ? {
+          Condition: Object.fromEntries(
+            Object.entries(statement.Condition)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([operator, clause]) => [
+                operator,
+                Object.fromEntries(
+                  Object.entries(clause)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([key, values]) => [
+                      key,
+                      [...new Map([values].flat().map((value) => [JSON.stringify(value), value])).values()].sort(
+                        (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)),
+                      ),
+                    ]),
+                ),
+              ]),
+          ),
+        }
+      : {}),
     Effect: statement.Effect,
     Action: patterns(statement.Action),
     Resource: patterns(statement.Resource),

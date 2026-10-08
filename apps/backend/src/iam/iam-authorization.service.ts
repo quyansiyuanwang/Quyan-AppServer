@@ -1,6 +1,6 @@
 import { isKnownIamAction } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS, isSafeIamResourceBatch } from "./authorization-limits";
-import type { IamEvaluationResult, IamPrincipal } from "@quyan/shared";
+import type { IamEvaluationResult, IamPrincipal, IamConditionContext } from "@quyan/shared";
 import { UserRepository } from "@/store/users/user.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
@@ -10,6 +10,7 @@ import type { PolicyBindingInfo, RamPolicyStore } from "@/store/users/ram-policy
 import { ForbiddenError } from "@/util/errors";
 import { legacyPermissionsToPolicy } from "./legacy-policy";
 import { parseIamPolicy } from "./parser/policy-parser";
+import { principalConditionContext } from "./request/condition-context";
 import { evaluatePolicies } from "./evaluator/policy-evaluator";
 import type { IamPolicyInput } from "./evaluator/policy-evaluator";
 
@@ -101,24 +102,35 @@ export class IamAuthorizationService {
       if (document) result.push({ policyId: binding.policyId, document });
     } else throw deny();
   }
-  async authorize(input: { principal: IamPrincipal; action: string; resource: string }): Promise<IamEvaluationResult> {
-    return evaluatePolicies(await this.loadPolicies(input.principal), input);
+  async authorize(input: {
+    principal: IamPrincipal;
+    action: string;
+    resource: string;
+    context?: IamConditionContext;
+  }): Promise<IamEvaluationResult> {
+    return evaluatePolicies(await this.loadPolicies(input.principal), {
+      ...input,
+      context: { ...principalConditionContext(input.principal), ...input.context },
+    });
   }
   /** Batch mutations must authorize every resource before any write; list services can use this same evaluator. */
   async authorizeMany(input: {
     principal: IamPrincipal;
     action: string;
     resources: readonly string[];
+    context?: IamConditionContext;
   }): Promise<IamEvaluationResult[]> {
     if (!isKnownIamAction(input.action) || !isSafeIamResourceBatch(input.resources)) throw deny();
     const policies = await this.loadPolicies(input.principal);
-    return input.resources.map((resource) => evaluatePolicies(policies, { action: input.action, resource }));
+    const context = { ...principalConditionContext(input.principal), ...input.context };
+    return input.resources.map((resource) => evaluatePolicies(policies, { action: input.action, resource, context }));
   }
   /** Apply to an already account-scoped database page. Do not expose an unfiltered total as an authorized total. */
   async filterAuthorizedPage<T>(input: {
     principal: IamPrincipal;
     action: string;
     items: readonly T[];
+    context?: IamConditionContext;
     resource: (item: T) => string | undefined;
   }): Promise<T[]> {
     if (!isKnownIamAction(input.action) || input.items.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest)
@@ -126,7 +138,12 @@ export class IamAuthorizationService {
     if (!input.items.length) return [];
     const resources = input.items.map(input.resource);
     if (!isSafeIamResourceBatch(resources)) throw deny();
-    const results = await this.authorizeMany({ principal: input.principal, action: input.action, resources });
+    const results = await this.authorizeMany({
+      principal: input.principal,
+      action: input.action,
+      resources,
+      context: input.context,
+    });
     return input.items.filter((_, index) => results[index].decision === "Allow");
   }
 }
