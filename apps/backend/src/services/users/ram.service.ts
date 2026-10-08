@@ -23,6 +23,7 @@ import type { GroupStore } from "@/store/users/group.store";
 import type { AccessKeyStore } from "@/store/users/accesskey.store";
 import type { RamRoleStore, RamRoleBindingRecord, ActiveRamRoleSession } from "@/store/users/ram-role.store";
 import type { RamPolicyWithVersion, UpdateRamPolicyInput } from "@/store/users/ram-policy.store";
+import { iamVersionPaginationSchema } from "@/iam/policy-version-pagination";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { IAM_ACTION_CATALOG, isKnownIamAction, isValidIamResource } from "@quyan/shared";
@@ -706,20 +707,39 @@ export class RamService {
       ),
     };
   }
-  async listPolicyVersions(actorUserId: string, policyId: string) {
+  async listPolicyVersions(actorUserId: string, policyId: string, options: { page?: number; pageSize?: number } = {}) {
+    const pagination = iamVersionPaginationSchema.safeParse(options);
+    if (!pagination.success)
+      throw new BadRequestError("Invalid IAM history pagination", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
     const owner = await this.getAccountOwnerId(actorUserId),
       policy = await this.ramPolicyRepository.findPolicyById(policyId);
     if (!policy) throw new NotFoundError("Policy not found", undefined, { messageKey: "ram.policyNotFound" });
     this.assertSameAccount(owner, policy.accountOwnerId);
-    return (await this.ramPolicyRepository.listVersions(policyId)).map((version) => ({
-      id: version.id,
-      version: version.version,
-      document: parseIamPolicy(version.document).document,
-      documentHash: version.documentHash,
-      isDefault: version.id === policy.defaultVersionId,
-      createdBy: version.createdBy,
-      createTime: version.createTime.toISOString(),
-    }));
+    const result = await this.ramPolicyRepository.listVersions(policyId, pagination.data);
+    const items = result.items.map((version) => {
+      const parsed = parseIamPolicy(version.document);
+      if (version.validationState !== "valid" || parsed.documentHash !== version.documentHash)
+        throw new ForbiddenError("IAM version integrity check failed", undefined, { messageKey: "iam.invalidPolicy" });
+      return {
+        id: version.id,
+        version: version.version,
+        document: parsed.document,
+        documentHash: version.documentHash,
+        isDefault: version.id === policy.defaultVersionId,
+        createdBy: version.createdBy,
+        createTime: version.createTime.toISOString(),
+      };
+    });
+    return {
+      items,
+      total: result.total,
+      ...pagination.data,
+      defaultVersionId: policy.defaultVersionId ?? undefined,
+      defaultDocumentHash: policy.defaultVersion?.documentHash,
+    };
   }
   async setDefaultPolicyVersion(
     actorUserId: string,
@@ -735,7 +755,7 @@ export class RamService {
       throw new ForbiddenError("Managed policy cannot be changed", undefined, {
         messageKey: "ram.systemManagedPolicyNotModifiable",
       });
-    const version = (await this.ramPolicyRepository.listVersions(policyId)).find((item) => item.id === versionId);
+    const version = await this.ramPolicyRepository.findVersion(policyId, versionId);
     if (!version) throw new NotFoundError("Policy version not found", undefined, { messageKey: "ram.policyNotFound" });
     await this.prepareIamVersion(actorUserId, parseIamPolicy(version.document).document);
     await this.ramPolicyRepository.setDefaultVersion(policyId, versionId, expectedDocumentHash);

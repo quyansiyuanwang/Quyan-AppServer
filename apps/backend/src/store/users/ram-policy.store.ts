@@ -1,3 +1,4 @@
+import type { IamVersionPagination } from "@/iam/policy-version-pagination";
 import type { RamPolicy, RamPolicyVersion } from "@prisma/client";
 
 export type RamPolicyWithVersion = RamPolicy & { defaultVersion?: RamPolicyVersion | null };
@@ -56,7 +57,11 @@ export interface RamPolicyStore {
   findPolicyByName(accountOwnerId: string, name: string): Promise<RamPolicyWithVersion | null>;
   listPolicies(accountOwnerId: string): Promise<RamPolicyWithVersion[]>;
   updatePolicy(policyId: string, data: UpdateRamPolicyInput): Promise<RamPolicyWithVersion>;
-  listVersions(policyId: string): Promise<RamPolicyVersion[]>;
+  listVersions(
+    policyId: string,
+    pagination: IamVersionPagination,
+  ): Promise<{ items: RamPolicyVersion[]; total: number }>;
+  findVersion(policyId: string, versionId: string): Promise<RamPolicyVersion | null>;
   setDefaultVersion(policyId: string, versionId: string, expectedDocumentHash: string): Promise<void>;
   softDeletePolicy(policyId: string): Promise<RamPolicyWithVersion>;
   attachPolicy(accountOwnerId: string, policyId: string, targetType: string, targetId: string): Promise<void>;

@@ -4,6 +4,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { policyAuthorizationPayload, useIamPolicyEditor } from './useIamPolicyEditor'
 import { useIamPolicyTools } from './useIamPolicyTools'
+import { useIamPolicyVersions } from './useIamPolicyVersions'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus/es'
 import { Refresh } from '@element-plus/icons-vue'
@@ -415,6 +416,11 @@ export function useRamManagement(section: RamManagementSection) {
       loading.policies = false
     }
   }
+
+  const iamPolicyVersions = useIamPolicyVersions({
+    canUpdate: () => canUpdatePolicies.value,
+    onChanged: loadPolicies,
+  })
 
   const loadAll = async () => {
     try {
@@ -900,6 +906,7 @@ export function useRamManagement(section: RamManagementSection) {
   return {
     ...iamPolicyEditor,
     ...iamPolicyTools,
+    ...iamPolicyVersions,
     Refresh,
     attachDrawerVisible,
     attachForm,

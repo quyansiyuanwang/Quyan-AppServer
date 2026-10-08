@@ -3838,10 +3838,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"items": {
-										"$ref": "#/components/schemas/RamPolicyVersionDto"
-									},
-									"type": "array"
+									"$ref": "#/components/schemas/RamPolicyVersionPageDto"
 								}
 							}
 						}
@@ -3862,6 +3859,24 @@
 						"required": true,
 						"schema": {
 							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
 						}
 					}
 				]
@@ -37094,6 +37109,42 @@
 					"isDefault",
 					"createdBy",
 					"createTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamPolicyVersionPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamPolicyVersionDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"defaultVersionId": {
+						"type": "string"
+					},
+					"defaultDocumentHash": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"items",
+					"total",
+					"page",
+					"pageSize"
 				],
 				"type": "object",
 				"additionalProperties": false

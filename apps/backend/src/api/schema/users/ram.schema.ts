@@ -1,4 +1,5 @@
 import { z } from "zod";
+export { iamVersionPaginationSchema as ramPolicyVersionsQuerySchema } from "@/iam/policy-version-pagination";
 import { ALL_PERMISSIONS } from "@/constant/permission";
 import { AccountStatus } from "@/util/auth/account-status";
 import { encryptedPasswordCredentialSchema } from "@/api/schema/auth/password-encryption.schema";

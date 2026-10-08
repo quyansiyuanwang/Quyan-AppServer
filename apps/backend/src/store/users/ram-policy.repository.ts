@@ -11,6 +11,7 @@ import type {
 } from "./ram-policy.store";
 import type { Prisma, RamPolicyVersion } from "@prisma/client";
 import { ConflictError } from "@/util/errors";
+import type { IamVersionPagination } from "@/iam/policy-version-pagination";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 
 const ACTIVE_WHERE = { status: AccountStatus.ACTIVE } as const;
@@ -117,11 +118,21 @@ export class RamPolicyRepository implements RamPolicyStore {
       return tx.ramPolicy.findUniqueOrThrow({ where: { id: policyId }, include: { defaultVersion: true } });
     });
   }
-  async listVersions(policyId: string): Promise<RamPolicyVersion[]> {
-    return prisma.ramPolicyVersion.findMany({
-      where: { policyId, status: AccountStatus.ACTIVE },
-      orderBy: { version: "desc" },
-    });
+  async listVersions(policyId: string, pagination: IamVersionPagination) {
+    const where = { policyId, status: AccountStatus.ACTIVE };
+    const [items, total] = await prisma.$transaction([
+      prisma.ramPolicyVersion.findMany({
+        where,
+        orderBy: { version: "desc" },
+        skip: (pagination.page - 1) * pagination.pageSize,
+        take: pagination.pageSize,
+      }),
+      prisma.ramPolicyVersion.count({ where }),
+    ]);
+    return { items, total };
+  }
+  async findVersion(policyId: string, versionId: string): Promise<RamPolicyVersion | null> {
+    return prisma.ramPolicyVersion.findFirst({ where: { id: versionId, policyId, status: AccountStatus.ACTIVE } });
   }
   async setDefaultVersion(policyId: string, versionId: string, expectedDocumentHash: string): Promise<void> {
     await prisma.$transaction(async (tx) => {

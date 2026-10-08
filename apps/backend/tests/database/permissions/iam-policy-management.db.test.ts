@@ -105,9 +105,47 @@ describe("RAM IAM policy management security", () => {
     });
     expect(second.defaultVersion).toBe(2);
     const versions = await service.listPolicyVersions(ownerId, first.id);
-    expect(versions.map((item) => item.isDefault)).toEqual([true, false]);
-    await service.setDefaultPolicyVersion(ownerId, first.id, versions[1].id, second.documentHash!);
-    expect((await service.listPolicyVersions(ownerId, first.id)).map((item) => item.isDefault)).toEqual([false, true]);
+    expect(versions.items.map((item) => item.isDefault)).toEqual([true, false]);
+    await service.setDefaultPolicyVersion(ownerId, first.id, versions.items[1].id, second.documentHash!);
+    expect((await service.listPolicyVersions(ownerId, first.id)).items.map((item) => item.isDefault)).toEqual([
+      false,
+      true,
+    ]);
+  });
+  it("paginates immutable history, includes the current hash on every page and excludes inactive versions", async () => {
+    const first = await service.createPolicy(ownerId, { name: "paged-history", document });
+    let current = first;
+    for (const sid of ["second", "third"])
+      current = await service.updatePolicy(ownerId, first.id, {
+        document: { Version: "1", Statement: { Sid: sid, Effect: "Allow", Action: "alidns:*", Resource: "*" } },
+        expectedDocumentHash: current.documentHash,
+      });
+    const firstPage = await service.listPolicyVersions(ownerId, first.id, { page: 1, pageSize: 1 });
+    const lastPage = await service.listPolicyVersions(ownerId, first.id, { page: 3, pageSize: 1 });
+    expect(firstPage).toMatchObject({ total: 3, page: 1, pageSize: 1, defaultDocumentHash: current.documentHash });
+    expect(firstPage.items.map((item) => item.version)).toEqual([3]);
+    expect(lastPage.items.map((item) => item.version)).toEqual([1]);
+    expect(lastPage.defaultDocumentHash).toBe(current.documentHash);
+    expect((await service.listPolicyVersions(ownerId, first.id, { page: 4, pageSize: 1 })).items).toEqual([]);
+    await expect(service.listPolicyVersions(ownerId, first.id, { page: 0 })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(service.listPolicyVersions(ownerId, first.id, { pageSize: 101 })).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    // Restore a version outside page 1 without loading the entire history.
+    await service.setDefaultPolicyVersion(ownerId, first.id, lastPage.items[0].id, current.documentHash!);
+    await expect(
+      service.setDefaultPolicyVersion(ownerId, first.id, firstPage.items[0].id, current.documentHash!),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    await prisma.ramPolicyVersion.update({ where: { id: firstPage.items[0].id }, data: { status: 0 } });
+    expect((await service.listPolicyVersions(ownerId, first.id)).total).toBe(2);
+  });
+  it("rejects corrupted version documents rather than displaying them as validated history", async () => {
+    const first = await service.createPolicy(ownerId, { name: "corrupt-history", document });
+    await prisma.ramPolicyVersion.update({
+      where: { id: (await prisma.ramPolicy.findUniqueOrThrow({ where: { id: first.id } })).defaultVersionId! },
+      data: { documentHash: "0".repeat(64) },
+    });
+    await expect(service.listPolicyVersions(ownerId, first.id)).rejects.toMatchObject({ statusCode: 403 });
   });
   it("rejects format downgrades and mixed formats", async () => {
     const policy = await service.createPolicy(ownerId, { name: "formats", document });

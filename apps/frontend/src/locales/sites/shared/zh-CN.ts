@@ -551,6 +551,18 @@ const zhCN = {
 
     // RAM Policy
     insertIamAction: '在 JSON 光标处插入 Action',
+    iamVersionNumber: '版本',
+    iamVersionHistory: '版本历史',
+    iamVersionHistoryHint:
+      '历史版本不可修改。恢复将切换绑定身份使用的默认版本，需要主账号授权和二次验证。',
+    iamDefaultVersion: '默认版本',
+    iamVersionCreatedAt: '创建时间',
+    iamVersionCreatedBy: '创建人',
+    iamViewDocument: '查看 JSON',
+    iamRestoreVersion: '恢复',
+    iamRestoreConfirm: '将此版本设为默认版本？所有绑定身份将立即使用其权限。',
+    iamVersionsFailed: '版本历史加载失败，请检查权限并刷新。',
+    iamRestoreFailed: '恢复失败，请刷新历史并确认当前默认版本后重试。',
     reloadIamActions: '重新加载 Action 清单',
     iamActionsFailed: '无法加载 Action 清单，请检查策略读取权限后重试。',
     iamResourceHint:

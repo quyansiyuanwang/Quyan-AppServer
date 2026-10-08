@@ -17,7 +17,7 @@ import {
 import type {
   CreateRamPolicyVersionDto,
   SetDefaultRamPolicyVersionDto,
-  RamPolicyVersionDto,
+  RamPolicyVersionPageDto,
   ValidateIamPolicyDto,
   ValidateIamPolicyResponseDto,
   SimulateIamPolicyDto,
@@ -28,6 +28,7 @@ import {
   createRamPolicyVersionBodySchema,
   setDefaultRamPolicyVersionBodySchema,
   simulateIamPolicyBodySchema,
+  ramPolicyVersionsQuerySchema,
 } from "@/api/schema/users/ram.schema";
 import { iamAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
@@ -508,13 +509,15 @@ export class RamController extends Controller {
 
   @Get("policies/{policyId}/versions")
   @Security("jwt")
-  @Middlewares(validateParams(ramPolicyIdParamsSchema))
+  @Middlewares(validateParams(ramPolicyIdParamsSchema), validateQuery(ramPolicyVersionsQuerySchema))
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt")
   public async listPolicyVersions(
     @Path() policyId: string,
     @Request() request: TypedRequest,
-  ): Promise<RamPolicyVersionDto[]> {
-    return this.ramService.listPolicyVersions(request.user!.userId, policyId);
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamPolicyVersionPageDto> {
+    return this.ramService.listPolicyVersions(request.user!.userId, policyId, { page, pageSize });
   }
 
   @Post("policies/{policyId}/versions")

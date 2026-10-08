@@ -33,6 +33,28 @@ describe('RAM service IAM document operations', () => {
     )
   })
 
+  it('uses server pagination and sends the snapshot hash when restoring a version', async () => {
+    const query = { page: 3, pageSize: 20 }
+    const data = { items: [], total: 41, ...query, defaultDocumentHash: 'a'.repeat(64) }
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data })
+    expect(await ramService.listPolicyVersions('policy-1', query)).toEqual(data)
+    expect(requestMock.get).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'RamControllerListPolicyVersions' }),
+      { path: { policyId: 'policy-1' }, params: query },
+      undefined,
+    )
+    const body = { versionId: 'version-1', expectedDocumentHash: data.defaultDocumentHash }
+    requestMock.put.mockResolvedValueOnce({ code: CustomCode.OK })
+    await ramService.setDefaultPolicyVersion('policy-1', body)
+    expect(requestMock.put).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'RamControllerSetDefaultPolicyVersion' }),
+      { path: { policyId: 'policy-1' }, body },
+      undefined,
+    )
+    requestMock.put.mockResolvedValueOnce({ code: CustomCode.PERMISSION_DENIED })
+    await expect(ramService.setDefaultPolicyVersion('policy-1', body)).rejects.toThrow()
+  })
+
   it('validates through the generated RAM endpoint', async () => {
     const data = { valid: true, document, documentHash: 'h1', broadWildcard: false }
     requestMock.post.mockResolvedValueOnce({ code: CustomCode.OK, data })

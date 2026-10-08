@@ -581,6 +581,20 @@ const en = {
 
     // RAM Policy
     insertIamAction: 'Insert Action at the JSON cursor',
+    iamVersionNumber: 'Version',
+    iamVersionHistory: 'Version history',
+    iamVersionHistoryHint:
+      'Versions are immutable. Restoring changes the default used by attached identities and requires account-owner authorization and two-factor verification.',
+    iamDefaultVersion: 'Default',
+    iamVersionCreatedAt: 'Created at',
+    iamVersionCreatedBy: 'Created by',
+    iamViewDocument: 'View JSON',
+    iamRestoreVersion: 'Restore',
+    iamRestoreConfirm:
+      'Restore this version as the default? Attached identities will use its permissions immediately.',
+    iamVersionsFailed: 'Could not load version history. Check access and refresh.',
+    iamRestoreFailed:
+      'Restore failed. Refresh the history and review the current default before retrying.',
     reloadIamActions: 'Reload Action catalog',
     iamActionsFailed: 'Could not load the Action catalog. Check policy-read permission and retry.',
     iamResourceHint:

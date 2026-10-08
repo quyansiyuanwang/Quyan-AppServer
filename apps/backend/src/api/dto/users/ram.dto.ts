@@ -132,6 +132,14 @@ export interface RamPolicyVersionDto {
   createdBy: string;
   createTime: string;
 }
+export interface RamPolicyVersionPageDto {
+  items: RamPolicyVersionDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+  defaultVersionId?: string;
+  defaultDocumentHash?: string;
+}
 export interface CreateRamPolicyVersionDto {
   document: IamPolicyDocumentDto;
   expectedDocumentHash?: string;

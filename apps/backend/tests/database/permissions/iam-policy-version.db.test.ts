@@ -6,6 +6,7 @@ import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { ConflictError } from "@/util/errors";
 import { Permission } from "@quyan/shared";
 
+const pagination = { page: 1, pageSize: 20 };
 const repository = RamPolicyRepository.getInstance();
 const document = (effect: "Allow" | "Deny" = "Allow") =>
   parseIamPolicy({
@@ -51,8 +52,10 @@ describe("immutable IAM policy versions", () => {
       expectedDocumentHash: initial.defaultVersion!.documentHash,
     });
     expect(updated.defaultVersion?.version).toBe(2);
-    expect((await repository.listVersions(initial.id)).map((row) => row.version)).toEqual([2, 1]);
-    expect((await repository.listVersions(initial.id))[1].documentHash).toBe(initial.defaultVersion!.documentHash);
+    expect((await repository.listVersions(initial.id, pagination)).items.map((row) => row.version)).toEqual([2, 1]);
+    expect((await repository.listVersions(initial.id, pagination)).items[1].documentHash).toBe(
+      initial.defaultVersion!.documentHash,
+    );
     await repository.setDefaultVersion(initial.id, initial.defaultVersionId!, updated.defaultVersion!.documentHash);
     expect((await repository.findPolicyById(initial.id))?.defaultVersionId).toBe(initial.defaultVersionId);
   });
@@ -65,7 +68,7 @@ describe("immutable IAM policy versions", () => {
         expectedDocumentHash: "stale",
       }),
     ).rejects.toBeInstanceOf(ConflictError);
-    expect(await repository.listVersions(initial.id)).toHaveLength(1);
+    expect((await repository.listVersions(initial.id, pagination)).items).toHaveLength(1);
     expect((await repository.findPolicyById(initial.id))?.description).toBeNull();
   });
   it("rolls back policy creation and version updates when the document hash is invalid", async () => {
@@ -86,7 +89,7 @@ describe("immutable IAM policy versions", () => {
         iamVersion: { ...version(ownerId), documentHash: "invalid" },
       }),
     ).rejects.toThrow();
-    expect(await repository.listVersions(initial.id)).toHaveLength(1);
+    expect((await repository.listVersions(initial.id, pagination)).items).toHaveLength(1);
     expect((await repository.findPolicyById(initial.id))?.description).toBeNull();
   });
   it("serializes competing version updates so only one writer with the old hash succeeds", async () => {
@@ -102,7 +105,7 @@ describe("immutable IAM policy versions", () => {
     );
     expect(updates.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     expect(updates.filter((result) => result.status === "rejected")).toHaveLength(1);
-    expect((await repository.listVersions(initial.id)).map((row) => row.version)).toEqual([2, 1]);
+    expect((await repository.listVersions(initial.id, pagination)).items.map((row) => row.version)).toEqual([2, 1]);
   });
   it("rejects switching to another policy version or an inactive version", async () => {
     const first = await create("first");

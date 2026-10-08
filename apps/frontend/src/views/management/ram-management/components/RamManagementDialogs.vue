@@ -1,5 +1,6 @@
 <template>
   <RamIamPolicySimulator />
+  <RamIamPolicyVersions />
   <el-drawer
     v-model="userDialogVisible"
     :title="editingUser ? i18ns.t('RamManagement.editUser') : i18ns.t('RamManagement.createUser')"
@@ -364,6 +365,7 @@ import { Plus } from '@element-plus/icons-vue'
 import PermissionEditorPanel from '@/components/permission/PermissionEditorPanel.vue'
 import RamIamPolicyEditor from './RamIamPolicyEditor.vue'
 import RamIamPolicySimulator from './RamIamPolicySimulator.vue'
+import RamIamPolicyVersions from './RamIamPolicyVersions.vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 

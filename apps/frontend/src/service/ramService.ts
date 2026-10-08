@@ -12,6 +12,7 @@ import type {
   UpdateRamUserDto,
   ValidateIamPolicyDto,
   SimulateIamPolicyDto,
+  SetDefaultRamPolicyVersionDto,
 } from '@/client/types.gen'
 import { CustomCode } from '@/constant/custom-code'
 import { useRequestStore } from '@/stores/request'
@@ -157,6 +158,18 @@ export class RamService {
   async updatePolicy(policyId: string, data: UpdateRamPolicyDto) {
     const result = await ramApi.updatePolicy({ path: { policyId }, body: data })
     if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async listPolicyVersions(policyId: string, query: { page: number; pageSize: number }) {
+    const result = await ramApi.listPolicyVersions({ path: { policyId }, params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async setDefaultPolicyVersion(policyId: string, data: SetDefaultRamPolicyVersionDto) {
+    const result = await ramApi.setDefaultPolicyVersion({ path: { policyId }, body: data })
+    if (result?.code === CustomCode.OK) return
     throw toServiceError(result)
   }
 

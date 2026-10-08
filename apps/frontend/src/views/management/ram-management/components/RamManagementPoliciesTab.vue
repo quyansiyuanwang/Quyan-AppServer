@@ -56,8 +56,11 @@
           <span v-else>—</span>
         </template>
       </el-table-column>
-      <el-table-column :label="i18ns.t('actions')" fixed="right" width="280">
+      <el-table-column :label="i18ns.t('actions')" fixed="right" width="380">
         <template #default="{ row }">
+          <el-button v-if="row.document" link @click="openIamPolicyVersions(row)">
+            {{ i18ns.t('RamManagement.iamVersionHistory') }}
+          </el-button>
           <el-button v-if="canReadPolicies" link type="info" @click="openPolicyAttachments(row)">
             {{ i18ns.t('RamManagement.policyAttachments') }}
           </el-button>
@@ -92,6 +95,7 @@ import { useRamManagementContext } from '../context'
 
 const {
   iamSimulationVisible,
+  openIamPolicyVersions,
   canCreatePolicies,
   canDeletePolicies,
   canReadPolicies,
