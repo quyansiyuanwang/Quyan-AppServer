@@ -148,6 +148,11 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     },
     { operation: 'CreateResourceGroup', accessLevel: 'Write', resourceTypes: ['quyan/account'] },
     {
+      operation: 'UpdateRoleTrustPolicy',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/account', 'quyan/role'],
+    },
+    {
       operation: 'AddResourceGroupMember',
       accessLevel: 'Write',
       resourceTypes: ['quyan/resource-group'],

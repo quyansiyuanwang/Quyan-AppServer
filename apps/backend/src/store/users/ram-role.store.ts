@@ -18,6 +18,7 @@ export interface CreateRamRoleInput {
 }
 
 export interface UpdateRamRoleInput {
+  expectedUpdateTime?: Date;
   description?: string | null;
   trustPolicy?: Record<string, unknown> | null;
   maxSessionDuration?: number;
@@ -52,6 +53,7 @@ export interface RamRoleStore {
     roleId: string;
     sessionName: string;
     expiresAt: Date;
+    expectedRoleUpdateTime?: Date;
   }): Promise<ActiveRamRoleSession>;
   findActiveRoleSession(sessionId: string): Promise<ActiveRamRoleSession | null>;
   revokeRoleSession(sessionId: string): Promise<RamRoleSession>;

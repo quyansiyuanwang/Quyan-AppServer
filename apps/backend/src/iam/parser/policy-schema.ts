@@ -31,7 +31,7 @@ const resource = pattern
   .refine((value) => getIamResourcePatternTypes(value).length > 0, "Unregistered platform resource");
 const oneOrMany = (schema: typeof pattern | typeof action | typeof resource) =>
   z.union([schema, z.array(schema).min(1).max(IAM_POLICY_LIMITS.patterns)]);
-export const iamStatementSchema = z
+export const iamStatementFieldsSchema = z
   .object({
     Sid: z
       .string()
@@ -45,29 +45,27 @@ export const iamStatementSchema = z
     Resource: oneOrMany(resource),
     Condition: iamConditionSchema.optional(),
   })
-  .strict()
-  .superRefine((statement, context) => {
-    const actions = [statement.Action].flat();
-    const resources = [statement.Resource].flat();
-    resources.forEach((resource, index) => {
-      const types = getIamResourcePatternTypes(resource);
-      if (!types.length) return;
-      const compatible = IAM_ACTION_CATALOG.some(
-        (action) =>
-          actions.some((pattern) => matchIamPattern(pattern, action)) &&
-          types.some((type) => getIamActionDefinition(action)!.resourceTypes.includes(type.id)),
-      );
-      if (!compatible)
-        context.addIssue({
-          code: "custom",
-          path: Array.isArray(statement.Resource) ? ["Resource", index] : ["Resource"],
-          message:
-            statement.Effect === "Deny"
-              ? "Unreachable Deny resource type"
-              : "Action and resource types are incompatible",
-        });
-    });
+  .strict();
+export const iamStatementSchema = iamStatementFieldsSchema.superRefine((statement, context) => {
+  const actions = [statement.Action].flat();
+  const resources = [statement.Resource].flat();
+  resources.forEach((resource, index) => {
+    const types = getIamResourcePatternTypes(resource);
+    if (!types.length) return;
+    const compatible = IAM_ACTION_CATALOG.some(
+      (action) =>
+        actions.some((pattern) => matchIamPattern(pattern, action)) &&
+        types.some((type) => getIamActionDefinition(action)!.resourceTypes.includes(type.id)),
+    );
+    if (!compatible)
+      context.addIssue({
+        code: "custom",
+        path: Array.isArray(statement.Resource) ? ["Resource", index] : ["Resource"],
+        message:
+          statement.Effect === "Deny" ? "Unreachable Deny resource type" : "Action and resource types are incompatible",
+      });
   });
+});
 export const iamPolicyDocumentSchema = z
   .object({
     Version: z.literal("1"),

@@ -55,7 +55,10 @@ export function auditIamManagement(input: {
     | "delete-authorization"
     | "create-resource-group"
     | "add-resource-group-member"
-    | "remove-resource-group-member";
+    | "remove-resource-group-member"
+    | "create-role-trust"
+    | "update-role-trust"
+    | "assume-role";
   targetId: string;
   policyId?: string;
   scopeType?: string;

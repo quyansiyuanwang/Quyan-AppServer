@@ -1,5 +1,6 @@
 import type {
   IamPolicyDocument,
+  IamTrustPolicyDocument,
   IamStatement,
   IamEvaluationResult,
   IamPolicyDiagnosis,
@@ -52,6 +53,7 @@ export interface UpdateRamUserDto {
 }
 
 export interface RamRoleDto {
+  trustPolicyHash?: string;
   id: string;
   accountOwnerId: string;
   name: string;
@@ -72,12 +74,17 @@ export interface CreateRamRoleDto {
 }
 
 export interface UpdateRamRoleDto {
+  expectedTrustPolicyHash?: string;
   description?: string;
   trustPolicy?: Record<string, unknown> | null;
   maxSessionDuration?: number;
   status?: number;
 }
 
+export interface SetRamRoleTrustPolicyDto {
+  document: IamTrustPolicyDocument;
+  expectedDocumentHash?: string;
+}
 export interface RamRoleBindingDto {
   id: string;
   roleId: string;
@@ -159,6 +166,7 @@ export interface SetDefaultRamPolicyVersionDto {
 export type CheckIamDelegationResponseDto = IamDelegationResult;
 export interface DiagnoseIamPolicyDto {
   documentText: string;
+  policyKind?: "identity" | "trust";
 }
 export type DiagnoseIamPolicyResponseDto = IamPolicyDiagnosis;
 export interface ValidateIamPolicyDto {

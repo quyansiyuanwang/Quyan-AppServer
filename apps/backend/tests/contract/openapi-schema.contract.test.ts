@@ -214,6 +214,7 @@ describe("OpenAPI Schema Contract", () => {
 
 describe("RAM IAM policy API contract", () => {
   it.each([
+    ["/v1/ram/roles/{roleId}/trust-policy", "put"],
     ["/v1/ram/authorizations", "get"],
     ["/v1/ram/authorizations", "post"],
     ["/v1/ram/authorizations/{authorizationId}", "delete"],

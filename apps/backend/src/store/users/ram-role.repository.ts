@@ -1,3 +1,4 @@
+import { ConflictError } from "@/util/errors";
 import { AccountStatus } from "@/util/auth/account-status";
 import { prisma } from "@/config/database";
 import type {
@@ -55,7 +56,20 @@ export class RamRoleRepository implements RamRoleStore {
     if (data.maxSessionDuration !== undefined) updateData.maxSessionDuration = data.maxSessionDuration;
     if (data.status !== undefined) updateData.status = data.status;
 
-    return prisma.ramRole.update({ where: { id: roleId }, data: updateData });
+    if (!data.expectedUpdateTime) return prisma.ramRole.update({ where: { id: roleId }, data: updateData });
+    updateData.updateTime = new Date(Math.max(Date.now(), data.expectedUpdateTime.getTime() + 1));
+    return prisma.$transaction(
+      async (tx) => {
+        const result = await tx.ramRole.updateMany({
+          where: { id: roleId, status: AccountStatus.ACTIVE, updateTime: data.expectedUpdateTime },
+          data: updateData,
+        });
+        if (result.count !== 1)
+          throw new ConflictError("Role version changed", undefined, { messageKey: "iam.versionConflict" });
+        return tx.ramRole.findUniqueOrThrow({ where: { id: roleId } });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async softDeleteRole(roleId: string): Promise<RamRole> {
@@ -144,18 +158,34 @@ export class RamRoleRepository implements RamRoleStore {
     roleId: string;
     sessionName: string;
     expiresAt: Date;
+    expectedRoleUpdateTime?: Date;
   }): Promise<ActiveRamRoleSession> {
-    return prisma.ramRoleSession.create({
-      data: {
-        accountOwnerId: data.accountOwnerId,
-        subjectUserId: data.subjectUserId,
-        roleId: data.roleId,
-        sessionName: data.sessionName,
-        expiresAt: data.expiresAt,
-        status: AccountStatus.ACTIVE,
+    return prisma.$transaction(
+      async (tx) => {
+        const role = await tx.ramRole.findFirst({
+          where: {
+            id: data.roleId,
+            accountOwnerId: data.accountOwnerId,
+            status: AccountStatus.ACTIVE,
+            ...(data.expectedRoleUpdateTime ? { updateTime: data.expectedRoleUpdateTime } : {}),
+          },
+        });
+        if (!role)
+          throw new ConflictError("Role changed during assumption", undefined, { messageKey: "iam.versionConflict" });
+        return tx.ramRoleSession.create({
+          data: {
+            accountOwnerId: data.accountOwnerId,
+            subjectUserId: data.subjectUserId,
+            roleId: data.roleId,
+            sessionName: data.sessionName,
+            expiresAt: data.expiresAt,
+            status: AccountStatus.ACTIVE,
+          },
+          include: { role: true },
+        });
       },
-      include: { role: true },
-    });
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async findActiveRoleSession(sessionId: string): Promise<ActiveRamRoleSession | null> {

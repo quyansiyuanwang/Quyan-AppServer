@@ -89,6 +89,14 @@ describe("IAM resource trust boundaries", () => {
       } as never)?.subjectType,
     ).toBe("assumed_role");
   });
+  it("builds regionless global IAM user ARNs while rejecting malformed region components", () => {
+    expect(buildAcsResource({ service: "quyan", region: "", accountId: "owner", path: "user/target" })).toBe(
+      "acs:quyan::owner:user/target",
+    );
+    expect(() =>
+      buildAcsResource({ service: "quyan", region: "bad:region", accountId: "owner", path: "user/target" }),
+    ).toThrow();
+  });
   it("never allows wildcard injection into constructed resources", () => {
     expect(() => buildAcsResource({ service: "quyan", region: "*", accountId: "*", path: "user/a.cn" })).toThrow();
     expect(() => buildAcsResource({ service: "quyan", region: "*", accountId: "owner", path: "user/*" })).toThrow();

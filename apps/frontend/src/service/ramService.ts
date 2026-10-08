@@ -14,6 +14,7 @@ import type {
   ValidateIamPolicyDto,
   SimulateIamPolicyDto,
   SetDefaultRamPolicyVersionDto,
+  SetRamRoleTrustPolicyDto,
 } from '@/client/types.gen'
 import { CustomCode } from '@/constant/custom-code'
 import { useRequestStore } from '@/stores/request'
@@ -86,6 +87,12 @@ export class RamService {
 
   async updateRole(roleId: string, data: UpdateRamRoleDto) {
     const result = await ramApi.updateRole({ path: { roleId }, body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async setRoleTrustPolicy(roleId: string, data: SetRamRoleTrustPolicyDto) {
+    const result = await ramApi.setRoleTrustPolicy({ path: { roleId }, body: data })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }
@@ -188,14 +195,16 @@ export class RamService {
     throw toServiceError(result)
   }
 
-  async diagnosePolicy(documentText: string) {
-    const result = await ramApi.diagnosePolicy({ body: { documentText } })
+  async diagnosePolicy(documentText: string, policyKind?: 'identity' | 'trust') {
+    const result = await ramApi.diagnosePolicy({
+      body: { documentText, ...(policyKind ? { policyKind } : {}) },
+    })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }
 
-  async getPolicySchema() {
-    const result = await catalogApi.getPolicySchema({})
+  async getPolicySchema(policyKind: 'identity' | 'trust' = 'identity') {
+    const result = await catalogApi.getPolicySchema({ params: { policyKind } })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }

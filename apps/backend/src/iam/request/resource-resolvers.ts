@@ -62,3 +62,9 @@ export const ramResourceGroupResourceResolver = accountEntityResourceResolver(
   "resource-group",
   (request) => request.params.groupId,
 );
+
+export const ramRoleResourceResolver = accountEntityResourceResolver("role", (request) => request.params.roleId);
+export const ramAssumeRoleResourceResolver = accountEntityResourceResolver(
+  "role",
+  (request) => (request.body as { roleId?: unknown })?.roleId,
+);

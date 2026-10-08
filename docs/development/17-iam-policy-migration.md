@@ -51,7 +51,7 @@ The complete check intentionally fails while any JWT endpoint is missing explici
 - Migrate each resource-sensitive business API, including collection filtering and preflight authorization of every batch item.
 - Review shadow differences and administrator bootstrap behavior for actual deployment data.
 - Finish the visual policy builder, resource/condition pickers, authorization/resource-group UI and AI draft flow. JSON diagnostics, Schema export, versions and simulation UI already exist.
-- Extend independently tested conservative delegation proofs to role trust and remaining IAM control-plane mutations. Scoped authorization grants must retain their scope during proofs.
+- Extend independently tested conservative delegation proofs to remaining IAM control-plane mutations; trust publication already checks scoped role grants. Scoped authorization grants must retain their scope during proofs.
 - Consider distributed policy/decision caching only after versioned invalidation and revocation tests exist.
 
 The switch must be deliberate. Never automatically fall back from enforce on missing policies, invalid documents, resource resolution failures, or database/cache errors. Reverting the configuration to legacy does not grant old permissions to JSON-only policies whose legacy arrays were empty.
@@ -113,3 +113,13 @@ Validation for this tool:
     node --env-file=.env.test ./tests/scripts/run-vitest.mjs run --project backend-database tests/database/permissions/iam-authorization-backfill.db.test.ts
 
 The database command runs from apps/backend in isolated test databases; no account identifiers or credentials should be copied into production defaults.
+
+## Role trust and session identity
+
+Trust documents use a separate strict Principal schema, parser and JSON Schema (policyKind=trust), never the identity parser. This release supports exact current-account RAM user ARNs only. Principal/service wildcards, cross-account trusts and role chaining fail validation/admission. Native UpdateRoleTrustPolicy is independent of the legacy role-update permission. The dedicated PUT roles/{roleId}/trust-policy endpoint and legacy trustPolicy fields use the same publication validation, target lookup and delegation proof.
+
+Enforce-mode assumption requires identity and trust Allow on the concrete role ARN. Both runtime and simulation use the same identity/trust intersection helper. Policy-loading or malformed trust failures close authorization. Role update/issue transactions compare the evaluated role revision; stale document hashes or revisions return 409 and cannot issue a token. Audit carries identifiers, not tokens or JSON. Legacy/shadow admission retains bound-role/owner compatibility; valid trust must be prepared before deployment enforcement.
+
+An assumed-role session is a distinct authorization identity: load only that role's policies and scoped authorizations, not caller user/group grants, removals or other assigned roles. Account ownership, subject, role, status, revocation and expiry remain mandatory. Issued sessions are not reevaluated against trust on every business request; trust updates govern future issuance, and explicit revocation terminates existing sessions. Ordinary users still combine their legacy direct/group/assigned-role sources. Review this intentional identity-isolation change in shadow data, including historical group Deny cases, before rollout.
+
+Role trust JSON currently has optimistic hashes and mutation audit; an immutable trust-history UI is not implemented. The existing identity-policy version API remains immutable. Service/resource principals, session policies, permission boundaries, resource-group/tag conditions and conservative NotAction support remain separate extensions and must not be silently accepted.

@@ -634,6 +634,8 @@ const en = {
       "unknown-action": "This Action is not registered by this platform.",
       "invalid-resource": "The resource does not match the ACS ARN syntax.",
       "invalid-condition": "The condition key, operator or value is not supported.",
+      "invalid-principal": "The principal must be an exact RAM user ARN.",
+      "cross-account-principal": "The principal belongs to another account.",
       "broad-action": "This Allow uses an Action wildcard. Review its scope.",
       "broad-resource": "This Allow covers all resources or accounts. Review its scope.",
       "iam-management": "This policy grants IAM management operations. Review delegation authority.",

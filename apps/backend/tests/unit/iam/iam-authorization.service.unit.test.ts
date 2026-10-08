@@ -153,6 +153,52 @@ describe("IAM identity policy loading", () => {
     roles.findActiveRoleSession.mockResolvedValue(null);
     await expect(service.loadPolicies(assumed)).rejects.toThrow();
   });
+  it("loads only the assumed role, excluding caller policies, groups and unrelated bound roles", async () => {
+    const assumed = {
+      ...principal,
+      subjectType: "assumed_role" as const,
+      roleSessionId: "session",
+      assumedRoleId: "role",
+    };
+    roles.findActiveRoleSession.mockResolvedValue({
+      id: "session",
+      status: 1,
+      subjectUserId: "child",
+      roleId: "role",
+      accountOwnerId: "owner",
+      expiresAt: new Date(Date.now() + 60000),
+      revokedAt: null,
+      role,
+    } as never);
+    roles.listRoleBindingsForUser.mockResolvedValue([{ roleId: "unrelated" } as never]);
+    policies.listPoliciesForTarget.mockResolvedValue([binding("caller", "Allow", "quyan:ram:DeleteUser")]);
+    policies.listPoliciesForTargets.mockResolvedValue([
+      { ...binding("assumed", "Allow", "quyan:ram:CreateUser"), targetId: "role" },
+    ]);
+    users.findByIdWithGroup.mockResolvedValue({
+      id: "child",
+      status: 1,
+      accountOwnerId: "owner",
+      permissionAdds: [Permission.RAM_USER_DELETE],
+      permissionRemoves: [Permission.RAM_USER_CREATE],
+      groupId: "group",
+      group: { id: "group", status: 1, permissions: [Permission.RAM_USER_DELETE] },
+    } as never);
+    const rolePolicies = await service.loadPolicies(assumed);
+    expect(rolePolicies.map((policy) => policy.policyId)).toEqual(["assumed"]);
+    expect(roles.listRoleBindingsForUser).not.toHaveBeenCalled();
+    expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
+    expect(policies.listPoliciesForTargets).toHaveBeenCalledWith("role", ["role"]);
+    expect(authorizations.listForPrincipals).toHaveBeenCalledWith("owner", [
+      { principalType: "role", principalId: "role" },
+    ]);
+    expect(
+      (await service.authorize({ principal: assumed, action: "quyan:ram:DeleteUser", resource: "*" })).decision,
+    ).toBe("ImplicitDeny");
+    expect(
+      (await service.authorize({ principal: assumed, action: "quyan:ram:CreateUser", resource: "*" })).decision,
+    ).toBe("Allow");
+  });
   it("does not give bootstrap administrators new service actions or override Deny", async () => {
     users.findByIdWithGroup.mockResolvedValue({
       id: "child",

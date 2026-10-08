@@ -57,18 +57,72 @@ describe('RAM service IAM document operations', () => {
 
   it('sends raw JSON unchanged through the diagnosis endpoint', async () => {
     const raw = '{"Version":"1",}'
-    const data = { valid: false, diagnostics: [{ code: 'json-syntax', line: 1, column: 16 }], delegation: 'not-evaluated' }
+    const data = {
+      valid: false,
+      diagnostics: [{ code: 'json-syntax', line: 1, column: 16 }],
+      delegation: 'not-evaluated',
+    }
     requestMock.post.mockResolvedValueOnce({ code: CustomCode.OK, data })
     expect(await ramService.diagnosePolicy(raw)).toEqual(data)
     expect(requestMock.post).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'RamControllerDiagnosePolicy' }), { body: { documentText: raw } }, undefined,
+      expect.objectContaining({ name: 'RamControllerDiagnosePolicy' }),
+      { body: { documentText: raw } },
+      undefined,
     )
   })
   it('uses the generated catalog descriptor for the policy Schema', async () => {
     const data = { title: 'Policy', additionalProperties: false }
     requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data })
     expect(await ramService.getPolicySchema()).toEqual(data)
-    expect(requestMock.get).toHaveBeenCalledWith(expect.objectContaining({ name: 'IamCatalogControllerGetPolicySchema' }), {}, undefined)
+    expect(requestMock.get).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'IamCatalogControllerGetPolicySchema' }),
+      { params: { policyKind: 'identity' } },
+      undefined,
+    )
+  })
+  it('uses trust-specific Schema and diagnosis without publishing a document', async () => {
+    const schema = { title: 'Trust', 'x-quyan-policy-kind': 'trust' }
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data: schema })
+    expect(await ramService.getPolicySchema('trust')).toEqual(schema)
+    expect(requestMock.get).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'IamCatalogControllerGetPolicySchema' }),
+      { params: { policyKind: 'trust' } },
+      undefined,
+    )
+    requestMock.post.mockResolvedValueOnce({
+      code: CustomCode.OK,
+      data: { valid: false, diagnostics: [] },
+    })
+    await ramService.diagnosePolicy('{}', 'trust')
+    expect(requestMock.post).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'RamControllerDiagnosePolicy' }),
+      { body: { documentText: '{}', policyKind: 'trust' } },
+      undefined,
+    )
+    expect(requestMock.put).not.toHaveBeenCalled()
+  })
+  it('publishes trust only through the generated replay-protected role API and carries the hash', async () => {
+    const body = {
+      document: {
+        Version: '1' as const,
+        Statement: {
+          Effect: 'Allow' as const,
+          Action: 'quyan:ram:AssumeRole',
+          Resource: 'acs:quyan:*:owner:role/role',
+          Principal: { RAM: 'acs:quyan::owner:user/user' },
+        },
+      },
+      expectedDocumentHash: 'a'.repeat(64),
+    }
+    requestMock.put.mockResolvedValueOnce({ code: CustomCode.OK, data: { id: 'role' } })
+    expect(await ramService.setRoleTrustPolicy('role', body)).toEqual({ id: 'role' })
+    expect(requestMock.put).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'RamControllerSetRoleTrustPolicy' }),
+      { path: { roleId: 'role' }, body },
+      undefined,
+    )
+    requestMock.put.mockResolvedValueOnce({ code: CustomCode.PERMISSION_DENIED })
+    await expect(ramService.setRoleTrustPolicy('role', body)).rejects.toThrow()
   })
   it('validates through the generated RAM endpoint', async () => {
     const data = { valid: true, document, documentHash: 'h1', broadWildcard: false }

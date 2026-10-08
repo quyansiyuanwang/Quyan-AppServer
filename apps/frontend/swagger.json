@@ -3022,6 +3022,57 @@
 				}
 			}
 		},
+		"/v1/ram/roles/{roleId}/trust-policy": {
+			"put": {
+				"operationId": "RamControllerSetRoleTrustPolicy",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamRoleDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "roleId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SetRamRoleTrustPolicyDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/ram/roles/{roleId}/bindings": {
 			"get": {
 				"operationId": "RamControllerListRoleBindings",
@@ -24429,7 +24480,21 @@
 						"jwt": []
 					}
 				],
-				"parameters": []
+				"parameters": [
+					{
+						"in": "query",
+						"name": "policyKind",
+						"required": false,
+						"schema": {
+							"default": "identity",
+							"type": "string",
+							"enum": [
+								"identity",
+								"trust"
+							]
+						}
+					}
+				]
 			}
 		},
 		"/v1/iam/catalog/condition-keys": {
@@ -36790,6 +36855,9 @@
 			},
 			"RamRoleDto": {
 				"properties": {
+					"trustPolicyHash": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
@@ -36875,6 +36943,9 @@
 			},
 			"UpdateRamRoleDto": {
 				"properties": {
+					"expectedTrustPolicyHash": {
+						"type": "string"
+					},
 					"description": {
 						"type": "string"
 					},
@@ -36895,6 +36966,167 @@
 						"format": "double"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamPrincipalSelector": {
+				"description": "First release accepts exact current-account RAM user principals only.",
+				"properties": {
+					"RAM": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"RAM"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamEffect": {
+				"type": "string",
+				"enum": [
+					"Allow",
+					"Deny"
+				],
+				"description": "Strict identity-policy subset. Unsupported IAM fields must be rejected."
+			},
+			"IamConditionScalar": {
+				"anyOf": [
+					{
+						"type": "string"
+					},
+					{
+						"type": "number",
+						"format": "double"
+					},
+					{
+						"type": "boolean"
+					}
+				]
+			},
+			"IamCondition": {
+				"properties": {},
+				"type": "object",
+				"additionalProperties": {
+					"properties": {},
+					"additionalProperties": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/IamConditionScalar"
+							},
+							{
+								"items": {
+									"$ref": "#/components/schemas/IamConditionScalar"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"type": "object"
+				}
+			},
+			"IamTrustStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Action": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"Resource": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					},
+					"Principal": {
+						"$ref": "#/components/schemas/IamPrincipalSelector"
+					}
+				},
+				"required": [
+					"Effect",
+					"Action",
+					"Resource",
+					"Principal"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamTrustPolicyDocument": {
+				"properties": {
+					"Version": {
+						"type": "string",
+						"enum": [
+							"1"
+						],
+						"nullable": false
+					},
+					"Statement": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/IamTrustStatement"
+							},
+							{
+								"items": {
+									"$ref": "#/components/schemas/IamTrustStatement"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"Version",
+					"Statement"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SetRamRoleTrustPolicyDto": {
+				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamTrustPolicyDocument"
+					},
+					"expectedDocumentHash": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"document"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -37056,49 +37288,6 @@
 					"$ref": "#/components/schemas/RamRoleSessionDto"
 				},
 				"type": "array"
-			},
-			"IamEffect": {
-				"type": "string",
-				"enum": [
-					"Allow",
-					"Deny"
-				],
-				"description": "Strict identity-policy subset. Unsupported IAM fields must be rejected."
-			},
-			"IamConditionScalar": {
-				"anyOf": [
-					{
-						"type": "string"
-					},
-					{
-						"type": "number",
-						"format": "double"
-					},
-					{
-						"type": "boolean"
-					}
-				]
-			},
-			"IamCondition": {
-				"properties": {},
-				"type": "object",
-				"additionalProperties": {
-					"properties": {},
-					"additionalProperties": {
-						"anyOf": [
-							{
-								"$ref": "#/components/schemas/IamConditionScalar"
-							},
-							{
-								"items": {
-									"$ref": "#/components/schemas/IamConditionScalar"
-								},
-								"type": "array"
-							}
-						]
-					},
-					"type": "object"
-				}
 			},
 			"IamStatement": {
 				"properties": {
@@ -37886,6 +38075,8 @@
 					"unknown-action",
 					"invalid-resource",
 					"invalid-condition",
+					"invalid-principal",
+					"cross-account-principal",
 					"broad-action",
 					"broad-resource",
 					"iam-management",
@@ -37991,6 +38182,76 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"NormalizedIamTrustStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Action": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"Resource": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					},
+					"Principal": {
+						"properties": {
+							"RAM": {
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						},
+						"required": [
+							"RAM"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"Effect",
+					"Action",
+					"Resource",
+					"Principal"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"NormalizedIamTrustPolicyDocument": {
+				"properties": {
+					"Version": {
+						"type": "string",
+						"enum": [
+							"1"
+						],
+						"nullable": false
+					},
+					"Statement": {
+						"items": {
+							"$ref": "#/components/schemas/NormalizedIamTrustStatement"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"Version",
+					"Statement"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"IamPolicyDiagnosis": {
 				"properties": {
 					"valid": {
@@ -38011,7 +38272,14 @@
 						]
 					},
 					"document": {
-						"$ref": "#/components/schemas/NormalizedIamPolicyDocument"
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/NormalizedIamPolicyDocument"
+							},
+							{
+								"$ref": "#/components/schemas/NormalizedIamTrustPolicyDocument"
+							}
+						]
 					},
 					"documentHash": {
 						"type": "string"
@@ -38041,6 +38309,13 @@
 				"properties": {
 					"documentText": {
 						"type": "string"
+					},
+					"policyKind": {
+						"type": "string",
+						"enum": [
+							"identity",
+							"trust"
+						]
 					}
 				},
 				"required": [

@@ -53,11 +53,16 @@ export class IamAuthorizationService {
       const document = legacyPermissionsToPolicy(permissions, principal.accountOwnerId, effect);
       if (document) result.push({ policyId: id, document });
     };
+    const assumedSession = Boolean(principal.roleSessionId);
+    if (assumedSession && principal.subjectType !== "assumed_role") throw deny();
     // Preserve seeded administrator group grants; never manufacture broader bootstrap privileges.
-    if (user.group && user.group.status === 1) addLegacy("legacy:group:" + user.group.id, user.group.permissions);
-    addLegacy("legacy:user:adds:" + user.id, user.permissionAdds);
-    addLegacy("legacy:user:removes:" + user.id, user.permissionRemoves, "Deny");
-    const bindings = await this.roles.listRoleBindingsForUser(user.id, user.group?.status === 1 ? user.groupId : null);
+    if (!assumedSession && user.group && user.group.status === 1)
+      addLegacy("legacy:group:" + user.group.id, user.group.permissions);
+    if (!assumedSession) addLegacy("legacy:user:adds:" + user.id, user.permissionAdds);
+    if (!assumedSession) addLegacy("legacy:user:removes:" + user.id, user.permissionRemoves, "Deny");
+    const bindings = assumedSession
+      ? []
+      : await this.roles.listRoleBindingsForUser(user.id, user.group?.status === 1 ? user.groupId : null);
     const roleIds = new Set(bindings.map((binding) => binding.roleId));
     if (principal.roleSessionId) {
       const session = await this.roles.findActiveRoleSession(principal.roleSessionId);
@@ -80,33 +85,50 @@ export class IamAuthorizationService {
       if (!role || role.status !== 1 || role.accountOwnerId !== principal.accountOwnerId) throw deny();
     }
     const attached = [
-      ...(await this.policies.listPoliciesForTarget("user", user.id)),
-      ...(user.group?.status === 1 && user.groupId
+      ...(!assumedSession ? await this.policies.listPoliciesForTarget("user", user.id) : []),
+      ...(!assumedSession && user.group?.status === 1 && user.groupId
         ? await this.policies.listPoliciesForTarget("group", user.groupId)
         : []),
       ...(await this.policies.listPoliciesForTargets("role", [...roleIds])),
     ];
+    const targets: IamAuthorizationTarget[] = assumedSession ? [] : [{ principalType: "user", principalId: user.id }];
+    if (!assumedSession && user.group?.status === 1 && user.groupId)
+      targets.push({ principalType: "group", principalId: user.groupId });
+    targets.push(...[...roleIds].map((principalId) => ({ principalType: "role", principalId })));
+    return result.concat(await this.loadAttachedPolicies(principal.accountOwnerId, attached, targets));
+  }
+  /** Used for delegation proofs without creating a session or importing the caller's own grants. */
+  async loadRolePolicies(accountOwnerId: string, roleId: string): Promise<IamPolicyInput[]> {
+    const role = await this.roles.findRoleById(roleId);
+    if (!role || role.status !== 1 || role.accountOwnerId !== accountOwnerId) throw deny();
+    return this.loadAttachedPolicies(accountOwnerId, await this.policies.listPoliciesForTarget("role", roleId), [
+      { principalType: "role", principalId: roleId },
+    ]);
+  }
+  private async loadAttachedPolicies(
+    accountOwnerId: string,
+    attached: readonly PolicyBindingInfo[],
+    targets: readonly IamAuthorizationTarget[],
+  ): Promise<IamPolicyInput[]> {
+    const result: IamPolicyInput[] = [];
     const validated = new Map<string, IamPolicyInput>();
     for (const binding of attached) {
-      if (binding.accountOwnerId !== principal.accountOwnerId) throw deny();
+      if (binding.accountOwnerId !== accountOwnerId) throw deny();
       // Validate every attachment before deduplication; an invalid duplicate must not disappear.
       const entries: IamPolicyInput[] = [];
-      this.addBinding(entries, binding, principal.accountOwnerId);
+      this.addBinding(entries, binding, accountOwnerId);
       for (const entry of entries) validated.set(entry.policyId, entry);
     }
 
-    const targets: IamAuthorizationTarget[] = [{ principalType: "user", principalId: user.id }];
-    if (user.group?.status === 1 && user.groupId) targets.push({ principalType: "group", principalId: user.groupId });
-    targets.push(...[...roleIds].map((principalId) => ({ principalType: "role", principalId })));
-    const relations = await this.authorizations.listForPrincipals(principal.accountOwnerId, targets);
+    const relations = await this.authorizations.listForPrincipals(accountOwnerId, targets);
     const projectedPolicyIds = new Set(
       relations.filter((relation) => relation.scopeType === "account").map((relation) => relation.policyId),
     );
     result.push(...[...validated.values()].filter((entry) => !projectedPolicyIds.has(entry.policyId)));
     for (const relation of relations) {
       if (
-        relation.accountOwnerId !== principal.accountOwnerId ||
-        relation.policy.accountOwnerId !== principal.accountOwnerId ||
+        relation.accountOwnerId !== accountOwnerId ||
+        relation.policy.accountOwnerId !== accountOwnerId ||
         relation.policy.policyKind !== "identity"
       )
         throw deny();
@@ -120,27 +142,27 @@ export class IamAuthorizationService {
           relation.scopeArn === "*" ||
           relation.scopeResourceId ||
           !getIamResourcePatternTypes(relation.scopeArn).length ||
-          ![principal.accountOwnerId, "*"].includes(relation.scopeArn.split(":")[3])
+          ![accountOwnerId, "*"].includes(relation.scopeArn.split(":")[3])
         )
           throw deny();
         scope = { type: "resource", arn: relation.scopeArn };
       } else if (relation.scopeType === "resource-group") {
         if (!relation.scopeResourceId || relation.scopeArn) throw deny();
         const group = await this.resourceGroups.findById(relation.scopeResourceId);
-        if (!group || group.accountOwnerId !== principal.accountOwnerId) throw deny();
+        if (!group || group.accountOwnerId !== accountOwnerId) throw deny();
         const resources: string[] = [];
         if (
           group.members.some(
             (member) =>
-              member.accountOwnerId !== principal.accountOwnerId ||
+              member.accountOwnerId !== accountOwnerId ||
               !isValidIamResource(member.resourceArn) ||
               member.resourceArn === "*" ||
-              !isIamResourceInAccount(member.resourceArn, principal.accountOwnerId),
+              !isIamResourceInAccount(member.resourceArn, accountOwnerId),
           )
         )
           throw deny();
         for (const member of group.members) {
-          if (await this.resourceGroups.resourceExistsInAccount(member.resourceArn, principal.accountOwnerId))
+          if (await this.resourceGroups.resourceExistsInAccount(member.resourceArn, accountOwnerId))
             resources.push(member.resourceArn);
         }
         scope = { type: "resource-group", id: group.id, resources };
@@ -162,7 +184,7 @@ export class IamAuthorizationService {
           permissions: [],
           legacyPermissions: policy.permissions,
         },
-        principal.accountOwnerId,
+        accountOwnerId,
       );
       result.push(...entries.map((entry) => ({ ...entry, authorizationId: relation.id, scope })));
     }

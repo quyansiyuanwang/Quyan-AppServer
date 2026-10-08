@@ -1,5 +1,5 @@
 import { getIamPolicyJsonSchema } from "@/iam/diagnostics/policy-json-schema";
-import { Controller, Get, Path, Route, Security, Tags } from "@tsoa/runtime";
+import { Controller, Get, Path, Query, Route, Security, Tags } from "@tsoa/runtime";
 import type {
   IamActionDefinition,
   IamConditionKeyDefinition,
@@ -50,8 +50,10 @@ export class IamCatalogController extends Controller {
     resourceKind: "account",
     resource: ramAccountResourceResolver,
   })
-  public async getPolicySchema(): Promise<Record<string, unknown>> {
-    return getIamPolicyJsonSchema();
+  public async getPolicySchema(
+    @Query() policyKind: "identity" | "trust" = "identity",
+  ): Promise<Record<string, unknown>> {
+    return getIamPolicyJsonSchema(policyKind);
   }
   @Get("condition-keys")
   @Security("jwt")

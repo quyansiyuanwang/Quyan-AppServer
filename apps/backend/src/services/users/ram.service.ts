@@ -1,3 +1,12 @@
+import {
+  parseIamTrustPolicy,
+  evaluateIamTrustPolicy,
+  combineIamIdentityAndTrust,
+  IAM_ASSUME_ROLE_ACTION,
+} from "@/iam/trust/trust-policy";
+import { principalConditionContext } from "@/iam/request/condition-context";
+import { auditIamDecision } from "@/iam/audit/iam-audit.service";
+import { performance } from "node:perf_hooks";
 import { auditIamManagement } from "@/iam/audit/iam-audit.service";
 import { iamManagementPaginationSchema } from "@/iam/management-pagination";
 import { requestConditionContext } from "@/iam/request/condition-context";
@@ -6,6 +15,7 @@ import {
   createRamResourceGroupBodySchema,
   addRamResourceGroupMemberBodySchema,
   iamAuthorizationQuerySchema,
+  assumeRamRoleBodySchema,
 } from "@/api/schema/users/ram.schema";
 import { iamAuthorizationScopeKey } from "@/iam/authorization-scope";
 import { projectScopedPolicyForDelegation } from "@/iam/delegation/scoped-policy";
@@ -15,11 +25,11 @@ import { getRequestContext } from "@/util/request-context";
 import { assertIamPolicyAccount } from "@/iam/parser/policy-account";
 import { diagnoseIamPolicy } from "@/iam/diagnostics/policy-diagnostics";
 import { randomBytes } from "crypto";
-import { getCredentialPrefix } from "@quyan/shared";
+import { buildAcsResource, getCredentialPrefix } from "@quyan/shared";
 import type { RamRole, User } from "@prisma/client";
 import { Permission } from "@/constant/permission";
 import { AccountStatus } from "@/util/auth/account-status";
-import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
+import { BadRequestError, ForbiddenError, NotFoundError, ConflictError } from "@/util/errors";
 import { hashPassword } from "@/util/crypto";
 import { JWTAccessIns } from "@/util/auth";
 import { isValidPermission } from "@/util/permission/validation";
@@ -602,7 +612,14 @@ export class RamService {
   }
 
   private mapRoleToDto(role: RamRole, permissions: string[]): RamRoleDto {
+    let trustPolicyHash: string | undefined;
+    try {
+      if (role.trustPolicy) trustPolicyHash = parseIamTrustPolicy(role.trustPolicy).documentHash;
+    } catch {
+      /* Legacy invalid trust can still be diagnosed; it never authorizes enforce-mode assumption. */
+    }
     return {
+      ...(trustPolicyHash ? { trustPolicyHash } : {}),
       id: role.id,
       accountOwnerId: role.accountOwnerId,
       name: role.name,
@@ -819,18 +836,105 @@ export class RamService {
     return map;
   }
 
+  private async actorIamContext(actorUserId: string) {
+    const actor = await this.getActor(actorUserId),
+      accountOwnerId = this.resolveAccountOwnerId(actor);
+    const request = getRequestContext();
+    const principal = request
+      ? getIamPrincipal(request)
+      : {
+          subjectUserId: actor.id,
+          principalUserId: actor.id,
+          accountOwnerId,
+          subjectType: actor.id === accountOwnerId ? ("root" as const) : ("sub_user" as const),
+        };
+    if (!principal || principal.principalUserId !== actorUserId || principal.accountOwnerId !== accountOwnerId)
+      throw new ForbiddenError("Invalid IAM actor context", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    return {
+      principal,
+      context: request ? requestConditionContext(request, principal) : principalConditionContext(principal),
+    };
+  }
+  private async assertTrustManagementAction(actorUserId: string, roleId?: string): Promise<void> {
+    const { principal, context } = await this.actorIamContext(actorUserId);
+    const resource = buildAcsResource({
+      service: "quyan",
+      region: "*",
+      accountId: principal.accountOwnerId,
+      path: roleId ? "role/" + roleId : "account",
+    });
+    const result = await IamAuthorizationService.getInstance().authorize({
+      principal,
+      action: "quyan:ram:UpdateRoleTrustPolicy",
+      resource,
+      context,
+    });
+    if (result.decision !== "Allow")
+      throw new ForbiddenError("Role trust management denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+  }
+  private async prepareRoleTrust(
+    actorUserId: string,
+    input: unknown,
+    roleId?: string,
+  ): Promise<Record<string, unknown>> {
+    let parsed;
+    try {
+      parsed = parseIamTrustPolicy(input);
+    } catch {
+      throw new BadRequestError("Invalid role trust policy", undefined, { messageKey: "iam.invalidPolicy" });
+    }
+    const owner = await this.getAccountOwnerId(actorUserId);
+    await this.assertTrustManagementAction(actorUserId, roleId);
+    try {
+      assertIamPolicyAccount(parsed.document, owner);
+    } catch {
+      throw new BadRequestError("Invalid trust account", undefined, { messageKey: "iam.invalidPolicy" });
+    }
+    for (const statement of parsed.document.Statement) {
+      for (const arn of statement.Principal.RAM) {
+        const principalOwner = arn.split(":")[3],
+          id = arn.split(":")[4].slice("user/".length);
+        const user = await this.userRepository.findById(id);
+        if (
+          principalOwner !== owner ||
+          !user ||
+          user.status !== AccountStatus.ACTIVE ||
+          (user.accountOwnerId || user.parentUserId || user.id) !== owner
+        )
+          throw new BadRequestError("Invalid trust principal", undefined, { messageKey: "iam.invalidPolicy" });
+      }
+    }
+    const identity = {
+      Version: "1" as const,
+      Statement: parsed.document.Statement.map(({ Principal: _principal, ...fields }) => fields),
+    };
+    if (!(await this.checkPolicyDelegation(actorUserId, identity)).allowed)
+      throw new ForbiddenError("Role trust delegation denied", undefined, { messageKey: "iam.delegationDenied" });
+    if (roleId) {
+      await this.assertRecoveryTarget(actorUserId, "role", roleId, identity);
+      await this.assertRoleDelegation(actorUserId, roleId);
+    }
+    return parsed.document as unknown as Record<string, unknown>;
+  }
   async createRole(actorUserId: string, data: CreateRamRoleDto): Promise<RamRoleDto> {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const existing = await this.ramRoleRepository.findRoleByName(accountOwnerId, data.name);
     if (existing) throw new BadRequestError("角色名称已存在", undefined, { messageKey: "ram.roleNameExists" });
 
+    const trustPolicy = data.trustPolicy ? await this.prepareRoleTrust(actorUserId, data.trustPolicy) : null;
     const role = await this.ramRoleRepository.createRole({
       accountOwnerId,
       name: data.name,
       description: data.description ?? null,
-      trustPolicy: data.trustPolicy ?? null,
+      trustPolicy,
       maxSessionDuration: data.maxSessionDuration ?? DEFAULT_ROLE_SESSION_DURATION_SECONDS,
     });
+    if (trustPolicy)
+      auditIamManagement({ actorUserId, accountOwnerId, operation: "create-role-trust", targetId: role.id });
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_CREATED, {
       subject: "RAM角色已创建",
       summary: `角色 "${data.name}" 已成功创建。`,
@@ -846,7 +950,34 @@ export class RamService {
     if (!role) throw new NotFoundError("角色不存在", undefined, { messageKey: "ram.roleNotFound" });
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
 
-    const updated = await this.ramRoleRepository.updateRole(roleId, data);
+    if (data.expectedTrustPolicyHash !== undefined) {
+      let hash: string | null = null;
+      try {
+        hash = role.trustPolicy ? parseIamTrustPolicy(role.trustPolicy).documentHash : null;
+      } catch {
+        /* invalid legacy trust is not a valid optimistic baseline */
+      }
+      if (hash !== data.expectedTrustPolicyHash)
+        throw new ConflictError("Role trust policy changed", undefined, { messageKey: "iam.versionConflict" });
+    }
+    let trustPolicy = data.trustPolicy;
+    if (trustPolicy !== undefined) {
+      if (trustPolicy === null) {
+        if (env.security.iamAuthorizationMode === "enforce")
+          throw new BadRequestError("Trust policy required in enforce mode", undefined, {
+            messageKey: "iam.invalidPolicy",
+          });
+        await this.assertTrustManagementAction(actorUserId, roleId);
+      } else trustPolicy = await this.prepareRoleTrust(actorUserId, trustPolicy, roleId);
+    }
+    const { expectedTrustPolicyHash: _expectedHash, ...updates } = data;
+    const updated = await this.ramRoleRepository.updateRole(roleId, {
+      ...updates,
+      ...(trustPolicy === undefined ? {} : { trustPolicy }),
+      expectedUpdateTime: role.updateTime,
+    });
+    if (trustPolicy !== undefined)
+      auditIamManagement({ actorUserId, accountOwnerId, operation: "update-role-trust", targetId: roleId });
     const permissions = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId);
     return this.mapRoleToDto(
       updated,
@@ -981,18 +1112,65 @@ export class RamService {
   }
 
   async assumeRole(actorUserId: string, data: AssumeRamRoleDto): Promise<AssumeRamRoleResponseDto> {
+    const validated = assumeRamRoleBodySchema.safeParse(data);
+    if (!validated.success)
+      throw new BadRequestError("Invalid role session request", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "roleSession" },
+      });
+    data = validated.data;
     const actor = await this.getActor(actorUserId);
     const accountOwnerId = this.resolveAccountOwnerId(actor);
     const role = await this.ramRoleRepository.findRoleById(data.roleId);
     if (!role) throw new NotFoundError("角色不存在", undefined, { messageKey: "ram.roleNotFound" });
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
 
-    const bindings = await this.ramRoleRepository.listRoleBindingsForUser(actor.id, actor.groupId);
-    const canAssume = bindings.some((binding) => binding.roleId === role.id) || actor.id === accountOwnerId;
-    if (!canAssume)
-      throw new ForbiddenError("当前用户未绑定该角色，无法扮演", undefined, {
-        messageKey: "ram.cannotAssumeUnboundRole",
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const { principal, context } = await this.actorIamContext(actorUserId);
+      const resource = buildAcsResource({
+        service: "quyan",
+        region: "*",
+        accountId: accountOwnerId,
+        path: "role/" + role.id,
       });
+      if (principal.subjectType === "assumed_role" || !role.trustPolicy)
+        throw new ForbiddenError("Role trust required", undefined, { messageKey: "permission.insufficientPermission" });
+      const started = performance.now();
+      const identity = await IamAuthorizationService.getInstance().authorize({
+        principal,
+        action: IAM_ASSUME_ROLE_ACTION,
+        resource,
+        context,
+      });
+      let trust;
+      try {
+        trust = evaluateIamTrustPolicy(role.trustPolicy, { principal, roleArn: resource, context });
+      } catch {
+        throw new ForbiddenError("Invalid saved role trust", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      }
+      const combined = combineIamIdentityAndTrust(identity, trust);
+      auditIamDecision({
+        principal,
+        action: IAM_ASSUME_ROLE_ACTION,
+        resource,
+        result: combined,
+        evaluationLatencyMs: performance.now() - started,
+        authorizationMode: "enforce",
+        requestId: getRequestContext()?.res?.locals.requestId,
+      });
+      if (combined.decision !== "Allow")
+        throw new ForbiddenError("Role assumption denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+    } else {
+      const bindings = await this.ramRoleRepository.listRoleBindingsForUser(actor.id, actor.groupId);
+      if (!bindings.some((binding) => binding.roleId === role.id) && actor.id !== accountOwnerId)
+        throw new ForbiddenError("Cannot assume an unbound role", undefined, {
+          messageKey: "ram.cannotAssumeUnboundRole",
+        });
+    }
 
     const durationSeconds = Math.min(
       data.durationSeconds ?? DEFAULT_ROLE_SESSION_DURATION_SECONDS,
@@ -1005,7 +1183,9 @@ export class RamService {
       roleId: role.id,
       sessionName: data.sessionName ?? `${role.name}-${Date.now()}`,
       expiresAt,
+      expectedRoleUpdateTime: role.updateTime,
     });
+    auditIamManagement({ actorUserId, accountOwnerId, operation: "assume-role", targetId: session.id });
 
     const accessToken = JWTAccessIns.generateToken(
       {
@@ -1085,17 +1265,13 @@ export class RamService {
     targetId?: string,
   ): Promise<void> {
     if (env.security.iamAuthorizationMode !== "enforce") return;
-    const bindings = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId);
-    for (const binding of bindings) {
-      const policy = await this.ramPolicyRepository.findPolicyById(binding.policyId);
-      if (!policy) throw new ForbiddenError("Invalid role policy", undefined, { messageKey: "iam.invalidPolicy" });
-      if (policy.documentFormat === "iam-v1") {
-        if (!policy.defaultVersion)
-          throw new ForbiddenError("Invalid role policy version", undefined, { messageKey: "iam.invalidPolicy" });
-        const document = parseIamPolicy(policy.defaultVersion.document).document;
-        if (targetType && targetId) await this.assertRecoveryTarget(actorUserId, targetType, targetId, document);
-        await this.prepareIamVersion(actorUserId, document);
-      } else await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
+    const owner = await this.getAccountOwnerId(actorUserId);
+    for (const policy of await IamAuthorizationService.getInstance().loadRolePolicies(owner, roleId)) {
+      const projected = projectScopedPolicyForDelegation(policy);
+      if (!projected) continue;
+      if (targetType && targetId) await this.assertRecoveryTarget(actorUserId, targetType, targetId, projected);
+      if (!(await this.checkPolicyDelegation(actorUserId, projected)).allowed)
+        throw new ForbiddenError("Role delegation denied", undefined, { messageKey: "iam.delegationDenied" });
     }
     if (targetType && targetId) await this.assertRecoveryTarget(actorUserId, targetType, targetId);
   }
@@ -1186,8 +1362,8 @@ export class RamService {
       }),
     );
   }
-  async diagnosePolicy(actorUserId: string, documentText: string) {
-    return diagnoseIamPolicy(documentText, await this.getAccountOwnerId(actorUserId));
+  async diagnosePolicy(actorUserId: string, documentText: string, policyKind: "identity" | "trust" = "identity") {
+    return diagnoseIamPolicy(documentText, await this.getAccountOwnerId(actorUserId), policyKind);
   }
   async validatePolicy(document: IamPolicyDocument) {
     let parsed;
@@ -1264,17 +1440,39 @@ export class RamService {
     const owner = await this.getAccountOwnerId(actorUserId),
       user = await this.getActor(principalId);
     this.assertSameAccount(owner, user.accountOwnerId || user.id);
-    return IamAuthorizationService.getInstance().authorize({
-      principal: {
-        subjectUserId: user.id,
-        principalUserId: user.id,
-        accountOwnerId: owner,
-        subjectType: user.id === owner ? "root" : "sub_user",
-      },
-      action,
-      resource,
-    });
+    const principal = {
+      subjectUserId: user.id,
+      principalUserId: user.id,
+      accountOwnerId: owner,
+      subjectType: user.id === owner ? ("root" as const) : ("sub_user" as const),
+    };
+    const identity = await IamAuthorizationService.getInstance().authorize({ principal, action, resource });
+    if (action !== IAM_ASSUME_ROLE_ACTION) return identity;
+    if (getIamResourceType(resource)?.id !== "quyan/role" || resource.split(":")[4].includes("*"))
+      return { decision: "ImplicitDeny" as const, reason: "invalid-request" as const, matchedStatements: [] };
+    const role = await this.ramRoleRepository.findRoleById(resource.split(":")[4].slice("role/".length));
+    if (!role || role.accountOwnerId !== owner || !role.trustPolicy)
+      return {
+        decision: "ImplicitDeny" as const,
+        reason: "no-matching-allow" as const,
+        matchedStatements: identity.matchedStatements,
+      };
+    try {
+      return combineIamIdentityAndTrust(
+        identity,
+        evaluateIamTrustPolicy(role.trustPolicy, {
+          principal,
+          roleArn: resource,
+          context: principalConditionContext(principal),
+        }),
+      );
+    } catch {
+      throw new ForbiddenError("Invalid role trust data", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    }
   }
+
   getIamActionCatalog(): readonly string[] {
     return IAM_ACTION_CATALOG;
   }

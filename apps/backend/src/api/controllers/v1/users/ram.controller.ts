@@ -16,6 +16,7 @@ import {
 } from "@tsoa/runtime";
 import type {
   CreateRamPolicyVersionDto,
+  SetRamRoleTrustPolicyDto,
   SetDefaultRamPolicyVersionDto,
   RamPolicyVersionPageDto,
   CheckIamDelegationResponseDto,
@@ -36,6 +37,7 @@ import {
   validateIamPolicyBodySchema,
   createRamPolicyVersionBodySchema,
   setDefaultRamPolicyVersionBodySchema,
+  setRamRoleTrustPolicyBodySchema,
   simulateIamPolicyBodySchema,
   ramPolicyVersionsQuerySchema,
   addRamResourceGroupMemberBodySchema,
@@ -52,6 +54,8 @@ import {
   ramAuthorizationResourceResolver,
   ramResourceGroupResourceResolver,
   ramAccountResourceResolver,
+  ramRoleResourceResolver,
+  ramAssumeRoleResourceResolver,
 } from "@/iam/request/resource-resolvers";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "@/constant/custom-code";
@@ -253,8 +257,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_ROLE_UPDATE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:role:Update",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramRoleResourceResolver,
   })
   public async updateRole(
     @Path() roleId: string,
@@ -262,6 +266,34 @@ export class RamController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RamRoleDto> {
     return this.ramService.updateRole(request.user!.userId, roleId, body);
+  }
+
+  @Put("roles/{roleId}/trust-policy")
+  @Security("jwt")
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(ramRoleIdParamsSchema),
+    validateBody(setRamRoleTrustPolicyBodySchema),
+  )
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:UpdateRoleTrustPolicy",
+      resourceKind: "single-resource",
+      resource: ramRoleResourceResolver,
+    }),
+  )
+  public async setRoleTrustPolicy(
+    @Path() roleId: string,
+    @Body() body: SetRamRoleTrustPolicyDto,
+    @Request() request: TypedRequest,
+  ): Promise<RamRoleDto> {
+    return this.ramService.updateRole(request.user!.userId, roleId, {
+      trustPolicy: body.document as unknown as Record<string, unknown>,
+      expectedTrustPolicyHash: body.expectedDocumentHash,
+    });
   }
 
   @Delete("roles/{roleId}")
@@ -409,8 +441,8 @@ export class RamController extends Controller {
   @Middlewares(replayProtectionMiddleware, validateBody(assumeRamRoleBodySchema))
   @CheckPermission(Permission.RAM_ASSUME_ROLE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:AssumeRole",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramAssumeRoleResourceResolver,
   })
   public async assumeRole(
     @Body() body: AssumeRamRoleDto,
@@ -782,7 +814,7 @@ export class RamController extends Controller {
     @Body() body: DiagnoseIamPolicyDto,
     @Request() request: TypedRequest,
   ): Promise<DiagnoseIamPolicyResponseDto> {
-    return this.ramService.diagnosePolicy(request.user!.userId, body.documentText);
+    return this.ramService.diagnosePolicy(request.user!.userId, body.documentText, body.policyKind);
   }
 
   @Post("policies/validate")

@@ -357,7 +357,7 @@ describe("RAM IAM policy management security", () => {
       "ImplicitDeny",
     );
   });
-  it("merges group, bound-role and assumed-role policies with Deny priority and revoked sessions", async () => {
+  it("merges ordinary group/role policies but isolates assumed-role identity and preserves role Deny priority", async () => {
     const group = await prisma.group.create({
       data: { username: "iam-group-" + randomUUID(), accountOwnerId: ownerId, permissions: [] },
     });
@@ -391,6 +391,11 @@ describe("RAM IAM policy management security", () => {
       document: { Version: "1", Statement: { Effect: "Deny", Action: "quyan:ram:*", Resource: "*" } },
     });
     await service.attachPolicy(ownerId, { policyId: deny.id, targetType: "group", targetId: group.id });
+    expect((await service.simulatePolicy(ownerId, childId, "quyan:ram:CreateUser", resource)).decision).toBe(
+      "ExplicitDeny",
+    );
+    expect((await IamAuthorizationService.getInstance().authorize(request)).decision).toBe("Allow");
+    await service.attachPolicy(ownerId, { policyId: deny.id, targetType: "role", targetId: role.id });
     expect((await IamAuthorizationService.getInstance().authorize(request)).decision).toBe("ExplicitDeny");
     await prisma.ramRoleSession.update({ where: { id: session.id }, data: { status: 0 } });
     await expect(IamAuthorizationService.getInstance().authorize(request)).rejects.toMatchObject({ statusCode: 403 });

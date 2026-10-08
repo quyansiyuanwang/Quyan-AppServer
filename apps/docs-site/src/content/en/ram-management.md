@@ -103,7 +103,7 @@ The policy drawer offers **Permission tree** and **IAM JSON** formats. Choose IA
 
 RAM management operations currently use the account Resource `acs:quyan:*:<account-owner-id>:account`. Their Actions are declared by the server, and target ownership remains checked separately. These management operations follow the configured legacy/shadow/enforce rollout mode; the dedicated simulation Action is always enforced.
 
-Evaluation is **matching explicit Deny > matching Allow > implicit Deny**. Both Action and Resource must match. Policies from the user, active group, bound roles, and valid assumed-role session are evaluated together. Legacy permission removals become Deny statements. Account isolation, session validity, and business ownership checks remain in place. Actions come from server metadata, never client headers; unresolved resources are rejected.
+Evaluation is **matching explicit Deny > matching Allow > implicit Deny**. Both Action and Resource must match. An ordinary user identity combines user, active-group and assigned-role policies. An assumed-role session uses only the assumed role’s policies and scoped authorizations; it never adds the caller’s user/group permissions or other assigned roles. Legacy permission removals become Deny statements for ordinary user identities. Account isolation, session validity, and business ownership checks remain in place. Actions come from server metadata, never client headers; unresolved resources are rejected.
 
 ### Conditions
 
@@ -185,3 +185,32 @@ Create an authorization using:
 Create groups with name and optional description; add members with resourceArn. Members must be real active resources owned by the account, never wildcards or invented ownership. Removing a member immediately stops group-scoped grants; disabled resources or resources that leave the account also stop receiving these grants. Admission rechecks delegation, preventing beneficiaries from expanding their own scope. APIs are available; the management UI resource-group selector is not yet available.
 
 One policy may have multiple scopes. Deny applies only within its authorization scope. Concurrent policy-version or group changes require rereading and retrying; a failed change does not authorize anything. Sub-users cannot mutate recovery relations of the owner, the owner's group or recovery roles.
+
+## Role trust policies
+
+Role assumption in enforce mode requires **identity Allow AND role-trust Allow**. Matching Deny on either side wins. A legacy role assignment alone does not satisfy trust, and a trust Allow alone does not grant AssumeRole. Configure trust for existing roles and review session-isolation differences before enforcing the rollout.
+
+A trust policy requires Principal; identity policies continue rejecting Principal. This release accepts exact active current-account RAM user principals only, including the owner’s user ARN. Wildcard principals, cross-account identities, service principals and role chaining are not accepted. Action must be quyan:ram:AssumeRole and resources must be registered role ARNs.
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "RAM": ["acs:quyan::account-id:user/user-id"] },
+      "Action": "quyan:ram:AssumeRole",
+      "Resource": "acs:quyan:*:account-id:role/role-id",
+      "Condition": { "Bool": { "acs:SecureTransport": true } }
+    }
+  ]
+}
+```
+
+Use `GET /v1/iam/catalog/policy-schema?policyKind=trust` for the separate JSON Schema. Diagnose original JSON through `POST /v1/ram/policies/diagnose` with documentText and policyKind set to trust; errors retain JSON Pointer and line/column positions. Schema access and diagnosis retain the policy-read/create/update permissions described above. Diagnosis checks syntax and explicit cross-account principals; publication additionally verifies that principals really exist in the account and that delegation is allowed.
+
+Publish with `PUT /v1/ram/roles/{roleId}/trust-policy` using document and optional expectedDocumentHash. This API requires `quyan:ram:UpdateRoleTrustPolicy` on that role, replay protection and 2FA. General role-update permission does not automatically grant trust publication. The existing role create/update APIs still accept trustPolicy but require the same dedicated action whenever it is supplied (account scope on creation, role scope on update). Role responses include trustPolicyHash for valid trust documents; stale hashes or role versions return 409. Publication proves AssumeRole access and the role’s complete effective grants, preserving every authorization scope. Trust JSON is exposed through APIs and Schema; a dedicated trust editor is not yet provided.
+
+In enforce mode, assume-role authorizes the concrete role ARN from the validated roleId. Simulation of quyan:ram:AssumeRole on that ARN also combines identity and saved trust. Simulations do not invent IP/HTTPS context. Roles without valid trust are rejected under enforce; legacy/shadow retain the old bound-role/owner admission path.
+
+Issued sessions use only the selected role’s current permissions and remain subject to account, status, expiry and revocation checks. Trust changes govern new sessions; existing sessions end by expiry or explicit revocation, not by rechecking the original trust conditions on every request. A group’s user-policy Deny does not become a session permission boundary: to prevent switching identities, deny AssumeRole; to stop issued sessions, revoke them. Matching Deny inside the role’s policies still overrides its Allow.

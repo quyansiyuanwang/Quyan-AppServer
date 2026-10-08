@@ -1,4 +1,5 @@
 import type { NormalizedIamPolicyDocument } from './policy'
+import type { NormalizedIamTrustPolicyDocument } from './trust-policy'
 export const IAM_DIAGNOSTIC_CODES = Object.freeze([
   'json-syntax',
   'document-limit',
@@ -10,6 +11,8 @@ export const IAM_DIAGNOSTIC_CODES = Object.freeze([
   'unknown-action',
   'invalid-resource',
   'invalid-condition',
+  'invalid-principal',
+  'cross-account-principal',
   'broad-action',
   'broad-resource',
   'iam-management',
@@ -32,7 +35,7 @@ export interface IamPolicyDiagnosis {
   valid: boolean
   diagnostics: IamDiagnostic[]
   riskLevel: 'low' | 'medium' | 'high'
-  document?: NormalizedIamPolicyDocument
+  document?: NormalizedIamPolicyDocument | NormalizedIamTrustPolicyDocument
   documentHash?: string
   /** Diagnosis never proves a caller's right to publish or delegate a policy. */
   delegation: 'not-evaluated'

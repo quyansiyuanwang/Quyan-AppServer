@@ -60,7 +60,8 @@ export function getIamResourcePatternTypes(pattern: string): readonly IamResourc
       matchIamPattern(service!, definition.service) &&
       matchIamPattern(type!, definition.type) &&
       ids.length <= definition.identifierSegments &&
-      (ids.length === definition.identifierSegments || (ids[ids.length - 1] ?? type!).includes('*')),
+      (ids.length === definition.identifierSegments ||
+        (ids[ids.length - 1] ?? type!).includes('*')),
   )
 }
 export function isIamResourceInAccount(resource: string, accountOwnerId: string): boolean {
@@ -81,7 +82,7 @@ export function isIamActionResourceCompatible(action: string, resource: string):
 export function buildAcsResource(input: AcsResourceInput): string {
   if (
     !/^[a-z][a-z0-9-]*$/.test(input.service) ||
-    !/^(?:\*|[A-Za-z0-9_-]+)$/.test(input.region) ||
+    !/^(?:\*|[A-Za-z0-9_-]*)$/.test(input.region) ||
     !/^[A-Za-z0-9_-]+$/.test(input.accountId) ||
     !/^[A-Za-z0-9_.+/@-]+$/.test(input.path) ||
     input.path.includes('..')

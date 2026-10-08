@@ -47,7 +47,7 @@ export interface ParsedIamPolicy {
   canonicalJson: string;
   documentHash: string;
 }
-export function parseIamPolicy(input: unknown): ParsedIamPolicy {
+export function readIamPolicyJson(input: unknown): unknown {
   if (typeof input === "string") {
     if (Buffer.byteLength(input) > IAM_POLICY_LIMITS.bytes) throw new IamPolicyValidationError();
     const source = inspectPolicyJson(input);
@@ -57,7 +57,10 @@ export function parseIamPolicy(input: unknown): ParsedIamPolicy {
   assertJson(input);
   const serialized = JSON.stringify(input);
   if (!serialized || Buffer.byteLength(serialized) > IAM_POLICY_LIMITS.bytes) throw new IamPolicyValidationError();
-  const parsed = iamPolicyDocumentSchema.safeParse(input);
+  return input;
+}
+export function parseIamPolicy(input: unknown): ParsedIamPolicy {
+  const parsed = iamPolicyDocumentSchema.safeParse(readIamPolicyJson(input));
   if (!parsed.success) throw new IamPolicyValidationError();
   const document = normalizeIamPolicy(parsed.data);
   const canonicalJson = JSON.stringify(document);

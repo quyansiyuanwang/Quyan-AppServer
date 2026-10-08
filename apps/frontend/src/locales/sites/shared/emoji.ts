@@ -583,6 +583,8 @@ const emoji = {
       "unknown-action": "🛡️ 此 Action 未在本平台注册。",
       "invalid-resource": "🛡️ 资源不符合 ACS ARN 语法。",
       "invalid-condition": "🛡️ 条件键、运算符或条件值无效。",
+      "invalid-principal": "🔐 主体必须为准确的 RAM 用户 ARN。",
+      "cross-account-principal": "🔒 主体属于其他账户。",
       "broad-action": "🛡️ 此 Allow 使用 Action 通配符，请检查授权范围。",
       "broad-resource": "🛡️ 此 Allow 覆盖所有资源或账户，请检查授权范围。",
       "iam-management": "🛡️ 此策略授予 IAM 管理操作，请检查委派权限。",

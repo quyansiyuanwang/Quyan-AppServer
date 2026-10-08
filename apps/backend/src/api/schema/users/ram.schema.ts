@@ -1,3 +1,4 @@
+import { iamTrustPolicyDocumentSchema } from "@/iam/trust/trust-policy";
 import { iamManagementPaginationSchema } from "@/iam/management-pagination";
 import { z } from "zod";
 export { iamVersionPaginationSchema as ramPolicyVersionsQuerySchema } from "@/iam/policy-version-pagination";
@@ -58,16 +59,30 @@ export const updateRamUserBodySchema = z.object({
 export const createRamRoleBodySchema = z.object({
   name: z.string().trim().min(2).max(64).regex(roleNameRegex),
   description: z.string().trim().max(500).optional(),
-  trustPolicy: z.record(z.string(), z.unknown()).optional(),
+  trustPolicy: iamTrustPolicyDocumentSchema.optional(),
   maxSessionDuration: z.coerce.number().int().min(900).max(43200).optional(),
 });
 
 export const updateRamRoleBodySchema = z.object({
+  expectedTrustPolicyHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   description: z.string().trim().max(500).optional(),
-  trustPolicy: z.record(z.string(), z.unknown()).nullable().optional(),
+  trustPolicy: iamTrustPolicyDocumentSchema.nullable().optional(),
   maxSessionDuration: z.coerce.number().int().min(900).max(43200).optional(),
   status: z.coerce.number().int().min(AccountStatus.DISABLED).max(AccountStatus.ACTIVE).optional(),
 });
+
+export const setRamRoleTrustPolicyBodySchema = z
+  .object({
+    document: iamTrustPolicyDocumentSchema,
+    expectedDocumentHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+  })
+  .strict();
 
 export const bindRamRoleToUserBodySchema = z.object({
   userId: z.string().trim().min(1),
@@ -115,7 +130,12 @@ export const updateRamPolicyBodySchema = z
     "Cannot mix legacy permissions and IAM document",
   );
 
-export const diagnoseIamPolicyBodySchema = z.object({ documentText: z.string().max(IAM_POLICY_LIMITS.bytes) }).strict();
+export const diagnoseIamPolicyBodySchema = z
+  .object({
+    documentText: z.string().max(IAM_POLICY_LIMITS.bytes),
+    policyKind: z.enum(["identity", "trust"]).optional(),
+  })
+  .strict();
 export const validateIamPolicyBodySchema = z.object({ document: iamPolicyDocumentSchema }).strict();
 export const createRamPolicyVersionBodySchema = z
   .object({

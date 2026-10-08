@@ -13,3 +13,5 @@ export * from './pattern'
 export * from './delegation'
 
 export * from './authorization'
+
+export * from './trust-policy'

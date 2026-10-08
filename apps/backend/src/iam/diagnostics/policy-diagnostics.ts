@@ -1,3 +1,4 @@
+import { parseIamTrustPolicy, iamTrustPolicyDocumentSchema, iamPrincipalSelectorSchema } from "../trust/trust-policy";
 import type { IamDiagnostic, IamDiagnosticCode, IamPolicyDiagnosis } from "@quyan/shared";
 import { IAM_ACTION_DEFINITIONS, IAM_RESOURCE_TYPE_CATALOG } from "@quyan/shared";
 import type { ZodIssue } from "zod";
@@ -29,18 +30,26 @@ const codeForIssue = (issue: ZodIssue): IamDiagnosticCode =>
           ? "resource-type-mismatch"
           : issue.message === "Invalid ACS resource pattern" || issue.message === "Unregistered platform resource"
             ? "invalid-resource"
-            : issue.path.includes("Condition")
-              ? "invalid-condition"
-              : "invalid-field";
+            : issue.path.includes("Principal")
+              ? "invalid-principal"
+              : issue.path.includes("Condition")
+                ? "invalid-condition"
+                : "invalid-field";
 /** Pure diagnosis. Neither persistence nor delegation is performed here. */
-export function diagnoseIamPolicy(text: string, accountOwnerId?: string): IamPolicyDiagnosis {
+export function diagnoseIamPolicy(
+  text: string,
+  accountOwnerId?: string,
+  policyKind: "identity" | "trust" = "identity",
+): IamPolicyDiagnosis {
   const source = inspectPolicyJson(text);
   const diagnostics = [...source.diagnostics];
   const add = (code: IamDiagnosticCode, parts: (string | number)[], severity: IamDiagnostic["severity"] = "error") => {
     if (diagnostics.length < IAM_DIAGNOSTIC_LIMIT)
       diagnostics.push(sourceDiagnostic(text, code, parts, severity, source.tree));
   };
-  const finish = (parsed?: ReturnType<typeof parseIamPolicy>): IamPolicyDiagnosis => {
+  const finish = (
+    parsed?: ReturnType<typeof parseIamPolicy> | ReturnType<typeof parseIamTrustPolicy>,
+  ): IamPolicyDiagnosis => {
     const valid = !diagnostics.some((diagnostic) => diagnostic.severity === "error");
     return {
       valid,
@@ -55,7 +64,8 @@ export function diagnoseIamPolicy(text: string, accountOwnerId?: string): IamPol
     };
   };
   if (diagnostics.length) return finish();
-  const result = iamPolicyDocumentSchema.safeParse(source.input);
+  const schema = policyKind === "trust" ? iamTrustPolicyDocumentSchema : iamPolicyDocumentSchema;
+  const result = schema.safeParse(source.input);
   if (!result.success) {
     for (const issue of issues(result.error.issues)) {
       if (issue.code === "unrecognized_keys") {
@@ -64,9 +74,9 @@ export function diagnoseIamPolicy(text: string, accountOwnerId?: string): IamPol
     }
     return finish();
   }
-  let parsed: ReturnType<typeof parseIamPolicy>;
+  let parsed: ReturnType<typeof parseIamPolicy> | ReturnType<typeof parseIamTrustPolicy>;
   try {
-    parsed = parseIamPolicy(source.input);
+    parsed = policyKind === "trust" ? parseIamTrustPolicy(source.input) : parseIamPolicy(source.input);
   } catch {
     add("invalid-field", []);
     return finish();
@@ -88,7 +98,20 @@ export function diagnoseIamPolicy(text: string, accountOwnerId?: string): IamPol
       if (expanded.some((action) => action.sensitive && action.service === "ram" && action.accessLevel === "Write"))
         add("iam-management", [...base, "Action"], "security-warning");
     }
-    const canonical = parseIamPolicy({ Version: "1", Statement: statement }).canonicalJson;
+    if ("Principal" in statement) {
+      const principals = iamPrincipalSelectorSchema.parse(statement.Principal).RAM;
+      [principals].flat().forEach((principal, principalIndex) => {
+        if (accountOwnerId && principal.split(":")[3] !== accountOwnerId)
+          add(
+            "cross-account-principal",
+            Array.isArray(principals) ? [...base, "Principal", "RAM", principalIndex] : [...base, "Principal", "RAM"],
+          );
+      });
+    }
+    const canonical = (policyKind === "trust" ? parseIamTrustPolicy : parseIamPolicy)({
+      Version: "1",
+      Statement: statement,
+    }).canonicalJson;
     if (seen.has(canonical)) add("duplicate-statement", base, "suggestion");
     seen.add(canonical);
     resources.forEach((resource, resourceIndex) => {

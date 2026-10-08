@@ -1,25 +1,32 @@
+import { iamTrustPolicyDocumentSchema, IAM_ASSUME_ROLE_ACTION } from "../trust/trust-policy";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { IAM_ACTION_DEFINITIONS, IAM_CONDITION_KEY_CATALOG, IAM_RESOURCE_TYPE_CATALOG } from "@quyan/shared";
 import { iamPolicyDocumentSchema, IAM_POLICY_LIMITS } from "../parser/policy-schema";
 /** Generated from the same Zod validator; custom catalog/ownership refinements require server diagnosis. */
-export function getIamPolicyJsonSchema(): Record<string, unknown> {
+export function getIamPolicyJsonSchema(policyKind: "identity" | "trust" = "identity"): Record<string, unknown> {
   return {
-    ...zodToJsonSchema(iamPolicyDocumentSchema, {
-      name: "QuyanIdentityPolicy",
+    ...zodToJsonSchema(policyKind === "trust" ? iamTrustPolicyDocumentSchema : iamPolicyDocumentSchema, {
+      name: policyKind === "trust" ? "QuyanTrustPolicy" : "QuyanIdentityPolicy",
       target: "jsonSchema7",
       effectStrategy: "input",
     }),
-    title: "Quyan RAM identity policy, Version 1",
+    title: "Quyan RAM " + policyKind + " policy, Version 1",
     description:
-      "Effect, Action, Resource and supported Condition clauses. Server diagnosis and delegation checks are required before publishing.",
-    "x-quyan-policy-kind": "identity",
+      policyKind === "trust"
+        ? "Role trust requires exact RAM Principal, AssumeRole Action, role Resource and supported Condition. Server validation and delegation checks are mandatory."
+        : "Effect, Action, Resource and supported Condition clauses. Server diagnosis and delegation checks are required before publishing.",
+    "x-quyan-policy-kind": policyKind,
     "x-quyan-server-validation-required": true,
     "x-quyan-limits": IAM_POLICY_LIMITS,
-    "x-quyan-actions": IAM_ACTION_DEFINITIONS.map((action) => ({
+    "x-quyan-actions": IAM_ACTION_DEFINITIONS.filter(
+      (action) => policyKind === "identity" || action.action === IAM_ASSUME_ROLE_ACTION,
+    ).map((action) => ({
       action: action.action,
       resourceTypes: [...action.resourceTypes],
     })),
-    "x-quyan-resource-types": IAM_RESOURCE_TYPE_CATALOG,
+    "x-quyan-resource-types": IAM_RESOURCE_TYPE_CATALOG.filter(
+      (type) => policyKind === "identity" || type.id === "quyan/role",
+    ),
     "x-quyan-condition-keys": IAM_CONDITION_KEY_CATALOG.filter((key) => key.supported),
   };
 }
