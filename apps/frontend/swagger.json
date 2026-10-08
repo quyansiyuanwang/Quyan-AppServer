@@ -3757,6 +3757,365 @@
 				}
 			}
 		},
+		"/v1/ram/authorizations": {
+			"get": {
+				"operationId": "RamControllerListAuthorizations",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RamAuthorizationDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "principalType",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "principalId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "RamControllerCreateAuthorization",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamAuthorizationDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRamAuthorizationDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/authorizations/{authorizationId}": {
+			"delete": {
+				"operationId": "RamControllerDeleteAuthorization",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "authorizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/resource-groups": {
+			"get": {
+				"operationId": "RamControllerListResourceGroups",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"items": {
+										"$ref": "#/components/schemas/RamResourceGroupDto"
+									},
+									"type": "array"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "RamControllerCreateResourceGroup",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateRamResourceGroupDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/resource-groups/{groupId}/members": {
+			"post": {
+				"operationId": "RamControllerAddResourceGroupMember",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "groupId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AddRamResourceGroupMemberDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
+		"/v1/ram/resource-groups/{groupId}/members/{memberId}": {
+			"delete": {
+				"operationId": "RamControllerRemoveResourceGroupMember",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"message": {
+											"type": "string"
+										},
+										"code": {
+											"type": "number",
+											"format": "double"
+										}
+									},
+									"required": [
+										"message",
+										"code"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "groupId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "memberId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/ram/policies/delegation-check": {
 			"post": {
 				"operationId": "RamControllerCheckPolicyDelegation",
@@ -37211,6 +37570,248 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamAuthorizationPrincipalType": {
+				"type": "string",
+				"enum": [
+					"user",
+					"group",
+					"role"
+				]
+			},
+			"IamAuthorizationScopeType": {
+				"type": "string",
+				"enum": [
+					"account",
+					"resource-group",
+					"resource"
+				]
+			},
+			"IamAuthorizationContract": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"accountOwnerId": {
+						"type": "string"
+					},
+					"principalType": {
+						"$ref": "#/components/schemas/IamAuthorizationPrincipalType"
+					},
+					"principalId": {
+						"type": "string"
+					},
+					"policyId": {
+						"type": "string"
+					},
+					"scopeType": {
+						"$ref": "#/components/schemas/IamAuthorizationScopeType"
+					},
+					"scopeResourceId": {
+						"type": "string",
+						"nullable": true
+					},
+					"scopeArn": {
+						"type": "string",
+						"nullable": true
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"createdBy": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"accountOwnerId",
+					"principalType",
+					"principalId",
+					"policyId",
+					"scopeType",
+					"status",
+					"createdBy",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamAuthorizationDto": {
+				"$ref": "#/components/schemas/IamAuthorizationContract"
+			},
+			"CreateRamAuthorizationDto": {
+				"properties": {
+					"principalType": {
+						"type": "string",
+						"enum": [
+							"user",
+							"group",
+							"role"
+						]
+					},
+					"principalId": {
+						"type": "string"
+					},
+					"policyId": {
+						"type": "string"
+					},
+					"scopeType": {
+						"type": "string",
+						"enum": [
+							"account",
+							"resource-group",
+							"resource"
+						]
+					},
+					"scopeResourceId": {
+						"type": "string"
+					},
+					"scopeArn": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"principalType",
+					"principalId",
+					"policyId",
+					"scopeType"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamResourceGroupMemberContract": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"resourceGroupId": {
+						"type": "string"
+					},
+					"resourceArn": {
+						"type": "string"
+					},
+					"service": {
+						"type": "string"
+					},
+					"resourceType": {
+						"type": "string"
+					},
+					"resourceId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"resourceGroupId",
+					"resourceArn",
+					"service",
+					"resourceType",
+					"resourceId",
+					"status",
+					"createTime",
+					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamResourceGroupContract": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"accountOwnerId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string",
+						"nullable": true
+					},
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"updateTime": {
+						"type": "string"
+					},
+					"members": {
+						"items": {
+							"$ref": "#/components/schemas/IamResourceGroupMemberContract"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"accountOwnerId",
+					"name",
+					"status",
+					"createTime",
+					"updateTime",
+					"members"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamResourceGroupDto": {
+				"$ref": "#/components/schemas/IamResourceGroupContract"
+			},
+			"CreateRamResourceGroupDto": {
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AddRamResourceGroupMemberDto": {
+				"properties": {
+					"resourceArn": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"resourceArn"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"IamDelegationIssue": {
 				"properties": {
 					"code": {
@@ -37492,6 +38093,9 @@
 			},
 			"IamMatchedStatement": {
 				"properties": {
+					"authorizationId": {
+						"type": "string"
+					},
 					"policyId": {
 						"type": "string"
 					},

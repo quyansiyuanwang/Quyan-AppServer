@@ -12,6 +12,11 @@ export interface IamPolicyInput {
   policyId: string;
   versionId?: string;
   document: NormalizedIamPolicyDocument;
+  authorizationId?: string;
+  scope?:
+    | { type: "account" }
+    | { type: "resource"; arn: string }
+    | { type: "resource-group"; id: string; resources: readonly string[] };
 }
 export function evaluatePolicies(
   policies: readonly IamPolicyInput[],
@@ -28,6 +33,8 @@ export function evaluatePolicies(
   for (const policy of policies) {
     // Fail closed even for malformed documents already persisted in storage.
     const document = parseIamPolicy(policy.document).document;
+    if (policy.scope?.type === "resource" && !matchIamPattern(policy.scope.arn, request.resource)) continue;
+    if (policy.scope?.type === "resource-group" && !policy.scope.resources.includes(request.resource)) continue;
     document.Statement.forEach((statement, index) => {
       if (
         !statement.Action.some((pattern) => matchIamPattern(pattern, request.action)) ||
@@ -43,6 +50,7 @@ export function evaluatePolicies(
       }
       matchedStatements.push({
         policyId: policy.policyId,
+        ...(policy.authorizationId ? { authorizationId: policy.authorizationId } : {}),
         ...(policy.versionId ? { versionId: policy.versionId } : {}),
         statementId: statement.Sid ?? String(index),
         effect: statement.Effect,

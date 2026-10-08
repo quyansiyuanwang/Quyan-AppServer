@@ -153,6 +153,13 @@ const zhCN = {
     invalidPolicy: "IAM 策略文档无效或包含不支持的语法",
     versionConflict: "策略已发生变化，请重新加载后再更新",
     delegationDenied: "当前主体无法委派此策略",
+    authorizationNotFound: "授权关系不存在",
+    authorizationInvalid: "授权主体或范围无效",
+    authorizationScopeInvalid: "授权资源范围无效",
+    resourceGroupNameConflict: "资源组名称已被使用",
+    resourceGroupNotFound: "资源组不存在",
+    resourceGroupNameExists: "资源组名称已存在",
+    resourceGroupMemberInvalid: "资源组成员必须是当前账号已注册的具体资源",
     rolloutRequired: "IAM 文档需要 enforce 授权模式",
   },
   permission: {

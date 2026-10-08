@@ -135,7 +135,7 @@ The JSON editor sends original text when you choose Validate JSON, grouping resu
 - `PUT /v1/ram/policies/{policyId}/default-version`: submit versionId and current expectedDocumentHash to restore a historical version; requires policy-update permission, mandatory fresh 2FA, and replay protection. Stale hashes return 409 instead of overwriting another update.
 - `POST /v1/ram/policies/simulate`: submit a same-account principalId, action, and resource. Requires a separate Allow for `quyan:iam:SimulatePolicy` on the account resource; policy-read permission alone is insufficient. Returns only the decision, reason, and matched policy/version/statement identifiers, not policy documents or credentials.
 
-Creating, updating, switching defaults, and attaching JSON policies currently require an account owner with the relevant operation permission and an enforce-mode deployment. RAM subusers cannot delegate JSON policies. System-managed policies cannot be modified through version APIs. IAM policies cannot be downgraded to legacy permission arrays.
+Creating, updating, switching defaults, and attaching JSON policies requires the relevant operation permission and an enforce-mode deployment. Sub-users may delegate only a provable subset of their current grants: resources cannot expand and conditions cannot weaken. Uncertain wildcard containment or Deny overlap is rejected. The account owner retains recovery authorization management. System-managed policies cannot be modified through version APIs. IAM policies cannot be downgraded to legacy permission arrays.
 
 ### Deployment and migration boundaries
 
@@ -149,3 +149,39 @@ Legacy-to-IAM conversion preserves legacy fields for configuration rollback with
 - `group-management`
 - `permission-management`
 - `access-key-management`
+
+## Scoped authorizations and resource-group APIs
+
+An authorization connects a user, group or role to a policy and independently limits its scope. A request must satisfy the policy action, resource and conditions AND the authorization scope. Group membership never allows a resource excluded by the policy.
+
+| Operation             | API                                                           | Required action                       |
+| --------------------- | ------------------------------------------------------------- | ------------------------------------- |
+| List authorizations   | `GET /v1/ram/authorizations`                                  | `quyan:ram:ListAuthorizations`        |
+| Create authorization  | `POST /v1/ram/authorizations`                                 | `quyan:ram:CreateAuthorization`       |
+| Delete authorization  | `DELETE /v1/ram/authorizations/{authorizationId}`             | `quyan:ram:DeleteAuthorization`       |
+| List resource groups  | `GET /v1/ram/resource-groups`                                 | `quyan:ram:ListResourceGroups`        |
+| Create resource group | `POST /v1/ram/resource-groups`                                | `quyan:ram:CreateResourceGroup`       |
+| Add member            | `POST /v1/ram/resource-groups/{groupId}/members`              | `quyan:ram:AddResourceGroupMember`    |
+| Remove member         | `DELETE /v1/ram/resource-groups/{groupId}/members/{memberId}` | `quyan:ram:RemoveResourceGroupMember` |
+
+These actions require dedicated IAM grants; existing group-management or attachment permissions do not automatically grant them. Writes require replay protection and two-factor authentication. Lists accept `page` and `pageSize` (default 50, maximum 100). Account isolation and database pagination run before per-row IAM filtering, so pages may contain fewer rows and never expose an unfiltered total. Listing a collection requires account-scoped list access; each returned authorization or resource group also requires list access on its own ARN.
+
+Create an authorization using:
+
+```json
+{
+  "principalType": "user",
+  "principalId": "user-id",
+  "policyId": "policy-id",
+  "scopeType": "resource",
+  "scopeArn": "acs:quyan:*:account-id:user/target-user-id"
+}
+```
+
+- `account`: omit scopeArn and scopeResourceId. Account grants are projected into legacy attachment views.
+- `resource`: supply a registered current-account ARN or resource-path wildcard; standalone `*` is forbidden.
+- `resource-group`: supply a current-account scopeResourceId; omit scopeArn.
+
+Create groups with name and optional description; add members with resourceArn. Members must be real active resources owned by the account, never wildcards or invented ownership. Removing a member immediately stops group-scoped grants; disabled resources or resources that leave the account also stop receiving these grants. Admission rechecks delegation, preventing beneficiaries from expanding their own scope. APIs are available; the management UI resource-group selector is not yet available.
+
+One policy may have multiple scopes. Deny applies only within its authorization scope. Concurrent policy-version or group changes require rereading and retrying; a failed change does not authorize anything. Sub-users cannot mutate recovery relations of the owner, the owner's group or recovery roles.

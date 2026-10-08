@@ -135,7 +135,7 @@ JSON 编辑器的“校验 JSON”会提交原始文本，并按错误、安全�
 - `PUT /v1/ram/policies/{policyId}/default-version`：提交 versionId 和当前 expectedDocumentHash，恢复某个历史版本；需策略更新权限、强制 2FA 和重放保护。hash 过期返回 409，不覆盖其他更新。
 - `POST /v1/ram/policies/simulate`：提交同账户 principalId、action、resource；单独要求 `quyan:iam:SimulatePolicy` 对账户资源的 Allow，策略读取权限不足以调用。仅返回决策、原因和匹配的策略/版本/语句标识，不返回策略内容或凭据。
 
-IAM 文档的创建、更新、默认版本切换和绑定目前仅限拥有相应操作权限的账户所有者，并且部署必须已启用 enforce 模式。RAM 子用户不能委派 JSON 策略。系统托管策略不可通过这些版本接口修改。新 IAM 策略不能降级成旧权限数组。
+IAM 文档的创建、更新、默认版本切换和绑定要求拥有相应操作权限，并且部署必须已启用 enforce 模式。子用户可以委派可证明为自己现有授权子集的策略：资源范围不能扩大，条件不能放宽；无法证明的通配符包含关系或 Deny 交集会被拒绝。账户所有者保留恢复授权关系的管理能力。系统托管策略不可通过这些版本接口修改。新 IAM 策略不能降级成旧权限数组。
 
 ### 部署与迁移边界
 
@@ -149,3 +149,39 @@ IAM 文档的创建、更新、默认版本切换和绑定目前仅限拥有相�
 - `group-management`
 - `permission-management`
 - `access-key-management`
+
+## 授权关系与资源组 API
+
+授权关系把用户、用户组或角色与策略连接起来，并独立限定生效范围。请求必须同时满足策略的操作、资源和条件，以及授权关系的范围。资源组范围不会把策略中未允许的资源变成允许。
+
+| 操作       | API                                                           | 所需操作                              |
+| ---------- | ------------------------------------------------------------- | ------------------------------------- |
+| 查询授权   | `GET /v1/ram/authorizations`                                  | `quyan:ram:ListAuthorizations`        |
+| 创建授权   | `POST /v1/ram/authorizations`                                 | `quyan:ram:CreateAuthorization`       |
+| 删除授权   | `DELETE /v1/ram/authorizations/{authorizationId}`             | `quyan:ram:DeleteAuthorization`       |
+| 查询资源组 | `GET /v1/ram/resource-groups`                                 | `quyan:ram:ListResourceGroups`        |
+| 创建资源组 | `POST /v1/ram/resource-groups`                                | `quyan:ram:CreateResourceGroup`       |
+| 添加成员   | `POST /v1/ram/resource-groups/{groupId}/members`              | `quyan:ram:AddResourceGroupMember`    |
+| 移除成员   | `DELETE /v1/ram/resource-groups/{groupId}/members/{memberId}` | `quyan:ram:RemoveResourceGroupMember` |
+
+这些操作使用独立的 IAM 权限，旧用户组管理或策略绑定权限不会自动获得新能力。写操作需要重放保护和二次认证。列表支持 `page`、`pageSize`，默认每页 50 条，最大 100 条；先在账户内分页，再逐条过滤 IAM 拒绝的记录，因此返回条数可能少于页大小，不提供未过滤总数。查询集合需要账号范围的列表权限，查看每条记录还需要对应 authorization 或 resource-group ARN 的列表权限。
+
+创建授权提交以下字段：
+
+```json
+{
+  "principalType": "user",
+  "principalId": "user-id",
+  "policyId": "policy-id",
+  "scopeType": "resource",
+  "scopeArn": "acs:quyan:*:account-id:user/target-user-id"
+}
+```
+
+- `account`：不填写 scopeArn 或 scopeResourceId；这种授权同步到旧绑定展示。
+- `resource`：填写注册类型的 scopeArn，限定当前账户的具体资源或资源路径通配符；不能使用单独的 `*`。
+- `resource-group`：填写本账户资源组的 scopeResourceId，不填写 scopeArn。
+
+创建资源组提交 name 和可选 description；添加成员提交 resourceArn。成员必须是本账户真实存在且启用的具体资源，不能使用通配符或虚构账户归属。移除成员立即停止组范围授权，资源禁用或移出账户后也不再获得该组授权。成员加入会重新检查委派，不能通过扩展资源组扩大自己的权限。当前提供 API，管理界面的资源组选择器尚未开放。
+
+同一策略可有多条不同范围的授权，Deny 仅在该授权范围内生效。发布、绑定或资源组修改出现并发版本变化时应重新读取并重试；不得把失败当成已授权。子用户不能改动主账户及其恢复组、恢复角色的授权关系。

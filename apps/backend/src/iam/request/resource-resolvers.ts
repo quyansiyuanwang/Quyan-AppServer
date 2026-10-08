@@ -53,3 +53,12 @@ export function accountEntityBatchResourceResolver(
     );
   };
 }
+
+export const ramAuthorizationResourceResolver = accountEntityResourceResolver(
+  "authorization",
+  (request) => request.params.authorizationId,
+);
+export const ramResourceGroupResourceResolver = accountEntityResourceResolver(
+  "resource-group",
+  (request) => request.params.groupId,
+);

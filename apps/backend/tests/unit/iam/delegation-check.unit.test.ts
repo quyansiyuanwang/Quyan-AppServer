@@ -1,3 +1,4 @@
+import { projectScopedPolicyForDelegation } from "@/iam/delegation/scoped-policy";
 import { describe, expect, it } from "vitest";
 import { checkIamDelegation, isProvenConditionSubset, isProvenPatternSubset } from "@/iam/delegation/delegation-check";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
@@ -88,5 +89,35 @@ describe("conservative delegation proofs", () => {
         { ...policy(), Statement: [{ ...policy().Statement[0], Condition: { Unknown: {} } }] },
       ]),
     ).toThrow();
+  });
+});
+
+describe("scoped delegation projection", () => {
+  it("never drops a relation scope when proving broad policy grants", () => {
+    const document = policy("quyan:ram:UpdateUser", "*");
+    const resource = "acs:quyan:*:owner:user/id";
+    const projected = projectScopedPolicyForDelegation({
+      policyId: "policy",
+      document,
+      scope: { type: "resource", arn: resource },
+    })!;
+    expect(projected.Statement[0].Resource).toEqual([resource]);
+    expect(checkIamDelegation(policy(undefined, "acs:quyan:*:owner:user/other"), [projected]).allowed).toBe(false);
+  });
+  it("turns resource group membership into a finite grant and handles empty groups", () => {
+    const document = policy("quyan:ram:UpdateUser", "*");
+    const projected = projectScopedPolicyForDelegation({
+      policyId: "policy",
+      document,
+      scope: { type: "resource-group", id: "group", resources: ["acs:quyan:*:owner:user/id"] },
+    })!;
+    expect(checkIamDelegation(policy(undefined, "acs:quyan:*:owner:user/*"), [projected]).allowed).toBe(false);
+    expect(
+      projectScopedPolicyForDelegation({
+        policyId: "policy",
+        document,
+        scope: { type: "resource-group", id: "group", resources: [] },
+      }),
+    ).toBeUndefined();
   });
 });

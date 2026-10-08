@@ -1,3 +1,8 @@
+import { getIamResourcePatternTypes, isValidIamResource } from "@quyan/shared";
+import { RamAuthorizationRepository } from "@/store/users/ram-authorization.repository";
+import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
+import type { RamAuthorizationStore, IamAuthorizationTarget } from "@/store/users/ram-authorization.store";
+import type { RamResourceGroupStore } from "@/store/users/ram-resource-group.store";
 import { assertIamPolicyAccount } from "./parser/policy-account";
 import { isIamResourceInAccount } from "@quyan/shared";
 import { isKnownIamAction } from "@quyan/shared";
@@ -26,6 +31,8 @@ export class IamAuthorizationService {
     private readonly users: UserStore = UserRepository.getInstance(),
     private readonly roles: RamRoleStore = RamRoleRepository.getInstance(),
     private readonly policies: RamPolicyStore = RamPolicyRepository.getInstance(),
+    private readonly authorizations: RamAuthorizationStore = RamAuthorizationRepository.getInstance(),
+    private readonly resourceGroups: RamResourceGroupStore = RamResourceGroupRepository.getInstance(),
   ) {}
   static getInstance(): IamAuthorizationService {
     return (this.instance ??= new IamAuthorizationService());
@@ -87,7 +94,78 @@ export class IamAuthorizationService {
       this.addBinding(entries, binding, principal.accountOwnerId);
       for (const entry of entries) validated.set(entry.policyId, entry);
     }
-    result.push(...validated.values());
+
+    const targets: IamAuthorizationTarget[] = [{ principalType: "user", principalId: user.id }];
+    if (user.group?.status === 1 && user.groupId) targets.push({ principalType: "group", principalId: user.groupId });
+    targets.push(...[...roleIds].map((principalId) => ({ principalType: "role", principalId })));
+    const relations = await this.authorizations.listForPrincipals(principal.accountOwnerId, targets);
+    const projectedPolicyIds = new Set(
+      relations.filter((relation) => relation.scopeType === "account").map((relation) => relation.policyId),
+    );
+    result.push(...[...validated.values()].filter((entry) => !projectedPolicyIds.has(entry.policyId)));
+    for (const relation of relations) {
+      if (
+        relation.accountOwnerId !== principal.accountOwnerId ||
+        relation.policy.accountOwnerId !== principal.accountOwnerId ||
+        relation.policy.policyKind !== "identity"
+      )
+        throw deny();
+      let scope: IamPolicyInput["scope"];
+      if (relation.scopeType === "account") {
+        if (relation.scopeArn || relation.scopeResourceId) throw deny();
+        scope = { type: "account" };
+      } else if (relation.scopeType === "resource") {
+        if (
+          !relation.scopeArn ||
+          relation.scopeArn === "*" ||
+          relation.scopeResourceId ||
+          !getIamResourcePatternTypes(relation.scopeArn).length ||
+          ![principal.accountOwnerId, "*"].includes(relation.scopeArn.split(":")[3])
+        )
+          throw deny();
+        scope = { type: "resource", arn: relation.scopeArn };
+      } else if (relation.scopeType === "resource-group") {
+        if (!relation.scopeResourceId || relation.scopeArn) throw deny();
+        const group = await this.resourceGroups.findById(relation.scopeResourceId);
+        if (!group || group.accountOwnerId !== principal.accountOwnerId) throw deny();
+        const resources: string[] = [];
+        if (
+          group.members.some(
+            (member) =>
+              member.accountOwnerId !== principal.accountOwnerId ||
+              !isValidIamResource(member.resourceArn) ||
+              member.resourceArn === "*" ||
+              !isIamResourceInAccount(member.resourceArn, principal.accountOwnerId),
+          )
+        )
+          throw deny();
+        for (const member of group.members) {
+          if (await this.resourceGroups.resourceExistsInAccount(member.resourceArn, principal.accountOwnerId))
+            resources.push(member.resourceArn);
+        }
+        scope = { type: "resource-group", id: group.id, resources };
+      } else throw deny();
+      const policy = relation.policy,
+        version = policy.defaultVersion;
+      const entries: IamPolicyInput[] = [];
+      this.addBinding(
+        entries,
+        {
+          policyId: policy.id,
+          policyName: policy.name,
+          accountOwnerId: policy.accountOwnerId,
+          documentFormat: policy.documentFormat,
+          versionId: version?.id,
+          document: version?.policyId === policy.id && version.status === 1 ? version.document : undefined,
+          documentHash: version?.documentHash,
+          validationState: version?.validationState,
+          permissions: [],
+          legacyPermissions: policy.permissions,
+        },
+        principal.accountOwnerId,
+      );
+      result.push(...entries.map((entry) => ({ ...entry, authorizationId: relation.id, scope })));
+    }
     return result;
   }
   private addBinding(result: IamPolicyInput[], binding: PolicyBindingInfo, owner: string): void {

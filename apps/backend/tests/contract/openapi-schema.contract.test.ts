@@ -214,6 +214,13 @@ describe("OpenAPI Schema Contract", () => {
 
 describe("RAM IAM policy API contract", () => {
   it.each([
+    ["/v1/ram/authorizations", "get"],
+    ["/v1/ram/authorizations", "post"],
+    ["/v1/ram/authorizations/{authorizationId}", "delete"],
+    ["/v1/ram/resource-groups", "get"],
+    ["/v1/ram/resource-groups", "post"],
+    ["/v1/ram/resource-groups/{groupId}/members", "post"],
+    ["/v1/ram/resource-groups/{groupId}/members/{memberId}", "delete"],
     ["/v1/ram/policies/validate", "post"],
     ["/v1/ram/policies/diagnose", "post"],
     ["/v1/ram/policies/delegation-check", "post"],

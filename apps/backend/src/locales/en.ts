@@ -147,6 +147,13 @@ const en = {
     invalidPolicy: "Invalid or unsupported IAM policy document",
     versionConflict: "The policy changed; reload it before updating",
     delegationDenied: "This policy cannot be delegated by the current principal",
+    authorizationNotFound: "Authorization relation does not exist",
+    authorizationInvalid: "Invalid authorization principal or scope",
+    authorizationScopeInvalid: "Invalid authorization scope",
+    resourceGroupNameConflict: "Resource group name is already in use",
+    resourceGroupNotFound: "Resource group does not exist",
+    resourceGroupNameExists: "Resource group name already exists",
+    resourceGroupMemberInvalid: "Resource group members must be registered same-account resources",
     rolloutRequired: "IAM documents require enforce authorization mode",
   },
   permission: {

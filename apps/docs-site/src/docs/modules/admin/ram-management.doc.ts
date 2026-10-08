@@ -14,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': 'RAM 资源访问管理',
   },
   summary: {
-    en: 'Manage RAM users, roles, permission policies, bindings, role sessions, and view effective permissions.',
-    'zh-CN': '管理 RAM 用户、角色、权限策略、绑定、角色会话，查看有效权限。',
+    en: 'Manage RAM users, roles, permission policies, scoped authorizations, resource groups, role sessions, and view effective permissions.',
+    'zh-CN': '管理 RAM 用户、角色、权限策略、范围授权、资源组、角色会话，查看有效权限。',
   },
   tags: ['ram', 'role', 'policy', 'permission', 'admin', 'access-control', 'iam'],
   content: {

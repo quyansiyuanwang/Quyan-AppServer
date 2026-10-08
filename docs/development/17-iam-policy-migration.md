@@ -50,8 +50,8 @@ The complete check intentionally fails while any JWT endpoint is missing explici
 - Use the AST route audit below to finish every JWT server Action/Resource definition. The PR gate prevents new gaps and regressions; it does not grandfather routes for production enforcement.
 - Migrate each resource-sensitive business API, including collection filtering and preflight authorization of every batch item.
 - Review shadow differences and administrator bootstrap behavior for actual deployment data.
-- Add the frontend JSON editor, action completion, version UI, and simulator UI.
-- Implement delegation subset proofs only with explicit semantics and independent tests, not wildcard approximations.
+- Finish the visual policy builder, resource/condition pickers, authorization/resource-group UI and AI draft flow. JSON diagnostics, Schema export, versions and simulation UI already exist.
+- Extend independently tested conservative delegation proofs to role trust and remaining IAM control-plane mutations. Scoped authorization grants must retain their scope during proofs.
 - Consider distributed policy/decision caching only after versioned invalidation and revocation tests exist.
 
 The switch must be deliberate. Never automatically fall back from enforce on missing policies, invalid documents, resource resolution failures, or database/cache errors. Reverting the configuration to legacy does not grant old permissions to JSON-only policies whose legacy arrays were empty.
@@ -86,3 +86,11 @@ Shared Action definitions include service, access level, sensitivity, supported 
 ## Condition evaluation
 
 Shared operator/key catalogs drive validation and the read API. Request context uses authentication, server time and Express trusted-proxy resolution, never a client body context. Conditions normalize deterministically; unconditional document hashes remain unchanged. Matching conditional statements with unavailable attributes deny the whole evaluation unless Null explicitly tests absence. Resource/MFA condition providers are unavailable and rejected, not silently ignored. The current user-principal simulator supplies only principal/time context and reports missing-condition-context for request-specific attributes.
+
+## Scoped authorizations and resource groups
+
+RamAuthorization is the identity-policy binding source for new grants; account-scoped grants project into RamPolicyAttachment in the same transaction. Legacy attachment reads remain available for historical rows; duplicate account projections are suppressed only after all loaded rows pass integrity validation. Distinct scope grants for the same policy are never collapsed by policy ID.
+
+Scope is evaluated with AND before a statement can match. Resource-group members must be real active current-account resources; every authorization read rechecks ownership. Member additions re-prove resulting grants. Group binding and membership transactions serialize using a shared optimistic group revision; stale policy version/hash proofs cannot commit an authorization. No decision cache is used, so changes take effect on the next policy read.
+
+The new API uses dedicated native IAM actions, not expanded legacy permissions. Lists are account-scoped and bounded (default 50, max 100), then filtered per row for HTTP callers with trusted request conditions. No unfiltered total is returned. Management audit records identifiers and resource hashes; decision audit includes matched authorization IDs. Existing historical attachments still need an idempotent backfill run; the current implementation supplies dual-write and read compatibility, not a completed historical data migration.

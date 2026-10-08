@@ -1,3 +1,5 @@
+import { iamAuthorizationScopeKey } from "@/iam/authorization-scope";
+import { RamAuthorizationRepository } from "./ram-authorization.repository";
 import { AccountStatus } from "@/util/auth/account-status";
 import { prisma } from "@/config/database";
 import type {
@@ -167,14 +169,29 @@ export class RamPolicyRepository implements RamPolicyStore {
   }
 
   async attachPolicy(accountOwnerId: string, policyId: string, targetType: string, targetId: string): Promise<void> {
-    await prisma.ramPolicyAttachment.create({
-      data: { accountOwnerId, policyId, targetType, targetId, status: AccountStatus.ACTIVE },
+    await RamAuthorizationRepository.getInstance().create({
+      accountOwnerId,
+      policyId,
+      principalType: targetType,
+      principalId: targetId,
+      scopeType: "account",
+      scopeKey: iamAuthorizationScopeKey("account"),
+      createdBy: accountOwnerId,
     });
   }
-
   async detachPolicy(policyId: string, targetType: string, targetId: string): Promise<void> {
-    await prisma.ramPolicyAttachment.deleteMany({
-      where: { policyId, targetType, targetId },
+    await prisma.$transaction(async (tx) => {
+      await tx.ramAuthorization.updateMany({
+        where: {
+          policyId,
+          principalType: targetType,
+          principalId: targetId,
+          scopeType: "account",
+          status: AccountStatus.ACTIVE,
+        },
+        data: { status: AccountStatus.DELETED },
+      });
+      await tx.ramPolicyAttachment.deleteMany({ where: { policyId, targetType, targetId } });
     });
   }
 

@@ -11,3 +11,5 @@ export * from './diagnostic'
 export * from './pattern'
 
 export * from './delegation'
+
+export * from './authorization'

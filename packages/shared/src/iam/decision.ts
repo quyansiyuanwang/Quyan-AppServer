@@ -7,6 +7,7 @@ export type IamDecisionReason =
   | 'invalid-request'
   | 'missing-condition-context'
 export interface IamMatchedStatement {
+  authorizationId?: string
   policyId: string
   versionId?: string
   statementId: string

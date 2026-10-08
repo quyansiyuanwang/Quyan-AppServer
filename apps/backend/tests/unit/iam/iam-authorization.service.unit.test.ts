@@ -1,3 +1,5 @@
+import type { RamAuthorizationStore } from "@/store/users/ram-authorization.store";
+import type { RamResourceGroupStore } from "@/store/users/ram-resource-group.store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Permission } from "@quyan/shared";
 import type { IamPrincipal } from "@quyan/shared";
@@ -8,6 +10,12 @@ import type { RamPolicyStore } from "../../../src/store/users/ram-policy.store";
 vi.mock("../../../src/store/users/user.repository", () => ({ UserRepository: { getInstance: vi.fn() } }));
 vi.mock("../../../src/store/users/ram-role.repository", () => ({ RamRoleRepository: { getInstance: vi.fn() } }));
 vi.mock("../../../src/store/users/ram-policy.repository", () => ({ RamPolicyRepository: { getInstance: vi.fn() } }));
+vi.mock("../../../src/store/users/ram-authorization.repository", () => ({
+  RamAuthorizationRepository: { getInstance: vi.fn() },
+}));
+vi.mock("../../../src/store/users/ram-resource-group.repository", () => ({
+  RamResourceGroupRepository: { getInstance: vi.fn() },
+}));
 vi.mock("../../../src/config/env", () => ({ env: { security: { superAdminGroupUsername: "admin" } } }));
 import { IamAuthorizationService } from "../../../src/iam/iam-authorization.service";
 import { parseIamPolicy } from "../../../src/iam/parser/policy-parser";
@@ -20,7 +28,9 @@ const principal: IamPrincipal = {
 const users = mockDeep<UserStore>(),
   roles = mockDeep<RamRoleStore>(),
   policies = mockDeep<RamPolicyStore>();
-const service = new IamAuthorizationService(users, roles, policies);
+const authorizations = mockDeep<RamAuthorizationStore>(),
+  resourceGroups = mockDeep<RamResourceGroupStore>();
+const service = new IamAuthorizationService(users, roles, policies, authorizations, resourceGroups);
 const role = { id: "role", name: "reader", accountOwnerId: "owner", status: 1 } as never;
 function binding(policyId: string, effect: "Allow" | "Deny", action = "quyan:ram:CreateUser") {
   const parsed = parseIamPolicy({
@@ -42,6 +52,7 @@ function binding(policyId: string, effect: "Allow" | "Deny", action = "quyan:ram
 describe("IAM identity policy loading", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authorizations.listForPrincipals.mockResolvedValue([]);
     users.findByIdWithGroup.mockResolvedValue({
       id: "child",
       status: 1,

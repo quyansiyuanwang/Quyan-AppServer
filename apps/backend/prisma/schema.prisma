@@ -92,6 +92,8 @@ model User {
   authCenterClientsReviewed    AuthCenterClient[]              @relation("AuthCenterClientReviewedBy")
   ownedRamPolicies             RamPolicy[]                     @relation("RamPolicyOwner")
   ramPolicyAttachmentOwners    RamPolicyAttachment[]           @relation("RamPolicyAttachmentOwner")
+  ownedRamAuthorizations       RamAuthorization[]              @relation("RamAuthorizationOwner")
+  ownedRamResourceGroups       RamResourceGroup[]              @relation("RamResourceGroupOwner")
   developerProjects            DeveloperProject[]
   developerProductEntitlements DeveloperProductEntitlement[]   @relation("DeveloperProductEntitlementOwner")
   developerProductKeys         DeveloperProductApiKey[]        @relation("DeveloperProductKeySubject")
@@ -811,6 +813,7 @@ model RamPolicy {
 
   accountOwner      User                  @relation("RamPolicyOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
   policyAttachments RamPolicyAttachment[]
+  authorizations    RamAuthorization[]
   versions          RamPolicyVersion[]
   defaultVersionId  String?
   defaultVersion    RamPolicyVersion?     @relation("DefaultRamPolicyVersion", fields: [defaultVersionId], references: [id], onDelete: SetNull)
@@ -821,6 +824,69 @@ model RamPolicy {
   @@unique([accountOwnerId, activeName])
   @@index([accountOwnerId])
   @@map("ram_policies")
+}
+
+model RamAuthorization {
+  id              String    @id @default(cuid())
+  status          Int       @default(1)
+  createTime      DateTime  @default(now())
+  updateTime      DateTime  @updatedAt
+  accountOwnerId String
+  principalType   String   @db.VarChar(20)
+  principalId     String   @db.VarChar(128)
+  policyId       String
+  scopeType       String   @db.VarChar(20)
+  scopeResourceId String?  @db.VarChar(128)
+  scopeArn        String?  @db.VarChar(512)
+  scopeKey        String   @db.VarChar(128)
+  description String?  @db.VarChar(500)
+  createdBy       String   @db.VarChar(128)
+
+  accountOwner User      @relation("RamAuthorizationOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  policy       RamPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([accountOwnerId, principalType, principalId, policyId, scopeKey])
+  @@index([accountOwnerId, principalType, principalId, status])
+  @@index([policyId, status])
+  @@index([scopeType, scopeResourceId])
+  @@map("ram_authorizations")
+}
+
+model RamResourceGroup {
+  id              String    @id @default(cuid())
+  status          Int       @default(1)
+  createTime      DateTime  @default(now())
+  updateTime      DateTime  @updatedAt
+  accountOwnerId String
+  name           String   @db.VarChar(128)
+  description String?  @db.VarChar(500)
+
+  accountOwner User                     @relation("RamResourceGroupOwner", fields: [accountOwnerId], references: [id], onDelete: Cascade)
+  members      RamResourceGroupMember[]
+
+  @@unique([accountOwnerId, name])
+  @@index([accountOwnerId, status])
+  @@map("ram_resource_groups")
+}
+
+model RamResourceGroupMember {
+  id              String    @id @default(cuid())
+  status          Int       @default(1)
+  createTime      DateTime  @default(now())
+  updateTime      DateTime  @updatedAt
+  accountOwnerId String
+  resourceGroupId String
+  resourceArn     String   @db.VarChar(512)
+  service         String   @db.VarChar(64)
+  resourceType    String   @db.VarChar(128)
+  resourceId      String   @db.VarChar(256)
+
+  resourceGroup RamResourceGroup @relation(fields: [resourceGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceGroupId, resourceArn])
+  @@index([accountOwnerId, resourceGroupId, status])
+  @@index([resourceArn])
+  @@map("ram_resource_group_members")
 }
 
 model RamPolicyVersion {

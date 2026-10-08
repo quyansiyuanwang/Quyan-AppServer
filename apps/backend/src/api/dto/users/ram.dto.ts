@@ -4,6 +4,8 @@ import type {
   IamEvaluationResult,
   IamPolicyDiagnosis,
   IamDelegationResult,
+  IamAuthorizationContract,
+  IamResourceGroupContract,
 } from "@quyan/shared";
 import type { Permission } from "@/constant/permission";
 import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-encryption.dto";
@@ -258,3 +260,22 @@ export interface RamGroupDto {
 }
 
 export type GetRamGroupsResponse = RamGroupDto[];
+
+export type RamAuthorizationDto = IamAuthorizationContract;
+export interface CreateRamAuthorizationDto {
+  principalType: "user" | "group" | "role";
+  principalId: string;
+  policyId: string;
+  scopeType: "account" | "resource-group" | "resource";
+  scopeResourceId?: string;
+  scopeArn?: string;
+  description?: string;
+}
+export type RamResourceGroupDto = IamResourceGroupContract;
+export interface CreateRamResourceGroupDto {
+  name: string;
+  description?: string;
+}
+export interface AddRamResourceGroupMemberDto {
+  resourceArn: string;
+}

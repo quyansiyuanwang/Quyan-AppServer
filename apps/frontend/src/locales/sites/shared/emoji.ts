@@ -563,7 +563,7 @@ const emoji = {
     legacyPolicy: '🌳 权限树',
     iamDocument: '🔐 IAM JSON',
     iamManagementHint:
-      '🔐 保存 IAM 文档需要具有相应权限的主账户及服务端 enforce 模式；校验通过不代表可保存。',
+      '🔐 保存需要相应权限及 enforce 模式；委派须为现有授权的可证明子集，校验通过不代表可保存。',
     iamDocumentPlaceholder: '📄 输入 Version: "1"、Statement 及 Effect、Action、Resource。',
     validatePolicy: '✅ 校验 JSON',
     policyDiagnostics: "🧩 策略诊断",

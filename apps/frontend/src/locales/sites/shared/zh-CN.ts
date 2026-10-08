@@ -580,7 +580,7 @@ const zhCN = {
     legacyPolicy: '权限树',
     iamDocument: 'IAM JSON',
     iamManagementHint:
-      '保存 IAM 文档需要拥有相应权限的主账户，并由服务端启用 IAM enforce 模式。校验通过不代表具备保存权限。',
+      '保存 IAM 文档需要相应操作权限和服务端 enforce 模式；委派必须可证明属于自己现有授权的子集。校验通过不代表具备保存权限。',
     iamDocumentPlaceholder:
       '输入包含 Version: "1" 和 Statement 的策略；声明需包含 Effect、Action、Resource。',
     validatePolicy: '校验 JSON',

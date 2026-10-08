@@ -613,7 +613,7 @@ const en = {
     legacyPolicy: 'Permission tree',
     iamDocument: 'IAM JSON',
     iamManagementHint:
-      'Saving IAM documents requires an account owner with the relevant permission and IAM enforce mode enabled on the server. Validation does not grant permission to save.',
+      'Saving IAM documents requires the relevant action and server enforce mode. Delegated grants must be a provable subset of your current access; validation alone does not grant permission to save.',
     iamDocumentPlaceholder:
       'Enter a policy with Version: "1" and Statement containing Effect, Action and Resource.',
     validatePolicy: 'Validate JSON',

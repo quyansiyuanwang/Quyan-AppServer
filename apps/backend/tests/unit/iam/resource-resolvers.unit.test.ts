@@ -5,6 +5,8 @@ import {
   accountEntityBatchResourceResolver,
   accountEntityResourceResolver,
   ramAccountResourceResolver,
+  ramAuthorizationResourceResolver,
+  ramResourceGroupResourceResolver,
 } from "../../../src/iam/request/resource-resolvers";
 import { getIamPrincipal } from "../../../src/iam/request/principal-context";
 import { legacyPermissionsToPolicy } from "../../../src/iam/legacy-policy";
@@ -48,6 +50,21 @@ describe("IAM resource trust boundaries", () => {
       new Array(501).fill("one"),
     ])
       expect(await resolve(context(ids))).toBeUndefined();
+  });
+  it("resolves IAM control-plane targets from validated paths and trusted accounts", async () => {
+    const request = {
+      params: { authorizationId: "authorization", groupId: "group" },
+      body: { accountOwnerId: "foreign" },
+    } as never;
+    expect(await ramAuthorizationResourceResolver({ principal, request })).toBe(
+      "acs:quyan:*:owner:authorization/authorization",
+    );
+    expect(await ramResourceGroupResourceResolver({ principal, request })).toBe(
+      "acs:quyan:*:owner:resource-group/group",
+    );
+    expect(
+      await ramResourceGroupResourceResolver({ principal, request: { params: { groupId: "*" } } as never }),
+    ).toBeUndefined();
   });
   it("requires authentication-enriched principal context", () => {
     expect(

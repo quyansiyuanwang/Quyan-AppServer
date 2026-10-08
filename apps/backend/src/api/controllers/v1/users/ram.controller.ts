@@ -25,6 +25,11 @@ import type {
   ValidateIamPolicyResponseDto,
   SimulateIamPolicyDto,
   SimulateIamPolicyResponseDto,
+  AddRamResourceGroupMemberDto,
+  CreateRamAuthorizationDto,
+  CreateRamResourceGroupDto,
+  RamAuthorizationDto,
+  RamResourceGroupDto,
 } from "@/api/dto/users/ram.dto";
 import {
   diagnoseIamPolicyBodySchema,
@@ -33,9 +38,21 @@ import {
   setDefaultRamPolicyVersionBodySchema,
   simulateIamPolicyBodySchema,
   ramPolicyVersionsQuerySchema,
+  addRamResourceGroupMemberBodySchema,
+  authorizationIdParamsSchema,
+  createIamAuthorizationBodySchema,
+  createRamResourceGroupBodySchema,
+  iamAuthorizationQuerySchema,
+  iamResourceGroupQuerySchema,
+  resourceGroupIdParamsSchema,
+  resourceGroupMemberParamsSchema,
 } from "@/api/schema/users/ram.schema";
 import { iamAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
-import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  ramAuthorizationResourceResolver,
+  ramResourceGroupResourceResolver,
+  ramAccountResourceResolver,
+} from "@/iam/request/resource-resolvers";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "@/constant/custom-code";
 import { RamService } from "@/services/users/ram.service";
@@ -580,6 +597,164 @@ export class RamController extends Controller {
   ): Promise<{ code: number; message: string }> {
     await this.ramService.detachPolicy(request.user!.userId, body);
     return { code: CustomCode.OK, message: "解绑权限策略成功" };
+  }
+
+  @Get("authorizations")
+  @Security("jwt")
+  @Middlewares(validateQuery(iamAuthorizationQuerySchema))
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:ListAuthorizations",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listAuthorizations(
+    @Request() request: TypedRequest,
+    @Query() principalType?: string,
+    @Query() principalId?: string,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamAuthorizationDto[]> {
+    return this.ramService.listAuthorizations(request.user!.userId, { principalType, principalId, page, pageSize });
+  }
+
+  @Post("authorizations")
+  @Security("jwt")
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createIamAuthorizationBodySchema),
+  )
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:CreateAuthorization",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async createAuthorization(
+    @Body() body: CreateRamAuthorizationDto,
+    @Request() request: TypedRequest,
+  ): Promise<RamAuthorizationDto> {
+    return this.ramService.createAuthorization(request.user!.userId, body);
+  }
+
+  @Delete("authorizations/{authorizationId}")
+  @Security("jwt")
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
+    replayProtectionMiddleware,
+    validateParams(authorizationIdParamsSchema),
+  )
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:DeleteAuthorization",
+      resourceKind: "single-resource",
+      resource: ramAuthorizationResourceResolver,
+    }),
+  )
+  public async deleteAuthorization(
+    @Path() authorizationId: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ code: number; message: string }> {
+    await this.ramService.deleteAuthorization(request.user!.userId, authorizationId);
+    return { code: CustomCode.OK, message: "删除授权关系成功" };
+  }
+
+  @Get("resource-groups")
+  @Security("jwt")
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:ListResourceGroups",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  @Middlewares(validateQuery(iamResourceGroupQuerySchema))
+  public async listResourceGroups(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamResourceGroupDto[]> {
+    return this.ramService.listResourceGroups(request.user!.userId, { page, pageSize });
+  }
+
+  @Post("resource-groups")
+  @Security("jwt")
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(createRamResourceGroupBodySchema),
+  )
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:CreateResourceGroup",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async createResourceGroup(
+    @Body() body: CreateRamResourceGroupDto,
+    @Request() request: TypedRequest,
+  ): Promise<RamResourceGroupDto> {
+    return this.ramService.createResourceGroup(request.user!.userId, body);
+  }
+
+  @Post("resource-groups/{groupId}/members")
+  @Security("jwt")
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateParams(resourceGroupIdParamsSchema),
+    validateBody(addRamResourceGroupMemberBodySchema),
+  )
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:AddResourceGroupMember",
+      resourceKind: "single-resource",
+      resource: ramResourceGroupResourceResolver,
+    }),
+  )
+  public async addResourceGroupMember(
+    @Path() groupId: string,
+    @Body() body: AddRamResourceGroupMemberDto,
+    @Request() request: TypedRequest,
+  ): Promise<RamResourceGroupDto> {
+    return this.ramService.addResourceGroupMember(request.user!.userId, groupId, body);
+  }
+
+  @Delete("resource-groups/{groupId}/members/{memberId}")
+  @Security("jwt")
+  @ReplayProtected()
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
+    replayProtectionMiddleware,
+    validateParams(resourceGroupMemberParamsSchema),
+  )
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:RemoveResourceGroupMember",
+      resourceKind: "single-resource",
+      resource: ramResourceGroupResourceResolver,
+    }),
+  )
+  public async removeResourceGroupMember(
+    @Path() groupId: string,
+    @Path() memberId: string,
+    @Request() request: TypedRequest,
+  ): Promise<{ code: number; message: string }> {
+    await this.ramService.removeResourceGroupMember(request.user!.userId, groupId, memberId);
+    return { code: CustomCode.OK, message: "移除资源组成员成功" };
   }
 
   @Post("policies/delegation-check")

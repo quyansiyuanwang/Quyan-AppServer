@@ -70,9 +70,9 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_ROLE_UPDATE]: ['role'],
   [Permission.RAM_ROLE_DELETE]: ['role'],
   [Permission.RAM_ASSUME_ROLE]: ['role'],
-  [Permission.RAM_BINDING_CREATE]: ['user', 'group', 'role'],
-  [Permission.RAM_BINDING_READ]: ['user', 'group', 'role'],
-  [Permission.RAM_BINDING_DELETE]: ['user', 'group', 'role'],
+  [Permission.RAM_BINDING_CREATE]: ['user', 'group', 'role', 'authorization'],
+  [Permission.RAM_BINDING_READ]: ['user', 'group', 'role', 'authorization'],
+  [Permission.RAM_BINDING_DELETE]: ['user', 'group', 'role', 'authorization'],
   [Permission.RAM_SESSION_READ]: ['role-session'],
   [Permission.RAM_SESSION_REVOKE]: ['role-session'],
   [Permission.RAM_POLICY_CREATE]: ['policy'],
@@ -118,6 +118,57 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
 }
 export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.freeze([
   ...ALL_PERMISSIONS.map(fromPermission),
+  ...[
+    {
+      operation: 'ListAuthorizations',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/account', 'quyan/authorization'],
+    },
+    {
+      operation: 'CreateAuthorization',
+      accessLevel: 'Write',
+      resourceTypes: [
+        'quyan/account',
+        'quyan/policy',
+        'quyan/user',
+        'quyan/group',
+        'quyan/role',
+        'quyan/resource-group',
+      ],
+    },
+    {
+      operation: 'DeleteAuthorization',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/authorization'],
+    },
+    {
+      operation: 'ListResourceGroups',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/account', 'quyan/resource-group'],
+    },
+    { operation: 'CreateResourceGroup', accessLevel: 'Write', resourceTypes: ['quyan/account'] },
+    {
+      operation: 'AddResourceGroupMember',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/resource-group'],
+    },
+    {
+      operation: 'RemoveResourceGroupMember',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/resource-group'],
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:ram:' + definition.operation,
+      service: 'ram',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+    }),
+  ),
   {
     action: 'quyan:iam:SimulatePolicy',
     service: 'iam',

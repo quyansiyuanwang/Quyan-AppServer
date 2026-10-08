@@ -1,3 +1,14 @@
+import { auditIamManagement } from "@/iam/audit/iam-audit.service";
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { requestConditionContext } from "@/iam/request/condition-context";
+import {
+  createIamAuthorizationBodySchema,
+  createRamResourceGroupBodySchema,
+  addRamResourceGroupMemberBodySchema,
+  iamAuthorizationQuerySchema,
+} from "@/api/schema/users/ram.schema";
+import { iamAuthorizationScopeKey } from "@/iam/authorization-scope";
+import { projectScopedPolicyForDelegation } from "@/iam/delegation/scoped-policy";
 import { checkIamDelegation } from "@/iam/delegation/delegation-check";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { getRequestContext } from "@/util/request-context";
@@ -17,6 +28,8 @@ import { UserRepository } from "@/store/users/user.repository";
 import { GroupRepository } from "@/store/users/group.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
+import { RamAuthorizationRepository } from "@/store/users/ram-authorization.repository";
+import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
 import { AccessKeyRepository } from "@/store/users/accesskey.repository";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
 import { NotificationService } from "@/services/notification/notification.service";
@@ -31,9 +44,17 @@ import type { RamPolicyWithVersion, UpdateRamPolicyInput } from "@/store/users/r
 import { iamVersionPaginationSchema } from "@/iam/policy-version-pagination";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
-import { IAM_ACTION_CATALOG, isKnownIamAction, isValidIamResource } from "@quyan/shared";
+import {
+  IAM_ACTION_CATALOG,
+  getIamResourcePatternTypes,
+  getIamResourceType,
+  isKnownIamAction,
+  isValidIamResource,
+} from "@quyan/shared";
 import type { IamPolicyDocument } from "@quyan/shared";
 import type { RamPolicyStore } from "@/store/users/ram-policy.store";
+import type { RamAuthorizationStore } from "@/store/users/ram-authorization.store";
+import type { RamResourceGroupStore } from "@/store/users/ram-resource-group.store";
 import type {
   AssumeRamRoleDto,
   AssumeRamRoleResponseDto,
@@ -52,6 +73,11 @@ import type {
   UpdateRamPolicyDto,
   UpdateRamRoleDto,
   UpdateRamUserDto,
+  AddRamResourceGroupMemberDto,
+  CreateRamAuthorizationDto,
+  CreateRamResourceGroupDto,
+  RamAuthorizationDto,
+  RamResourceGroupDto,
 } from "@/api/dto/users/ram.dto";
 
 const DEFAULT_ROLE_SESSION_DURATION_SECONDS = 3600;
@@ -73,6 +99,8 @@ export class RamService {
     private readonly ramPolicyRepository: RamPolicyStore = RamPolicyRepository.getInstance(),
     private readonly accessKeyRepository: AccessKeyStore = AccessKeyRepository.getInstance(),
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
+    private readonly authorizationRepository: RamAuthorizationStore = RamAuthorizationRepository.getInstance(),
+    private readonly resourceGroupRepository: RamResourceGroupStore = RamResourceGroupRepository.getInstance(),
   ) {}
 
   private static instance: RamService;
@@ -105,6 +133,375 @@ export class RamService {
       throw new ForbiddenError("无权访问其他主账号下的资源", undefined, {
         messageKey: "ram.crossAccountResourceForbidden",
       });
+  }
+
+  private authorizationScopeKey(
+    data: Pick<CreateRamAuthorizationDto, "scopeType" | "scopeResourceId" | "scopeArn">,
+  ): string {
+    return iamAuthorizationScopeKey(data.scopeType, data.scopeResourceId, data.scopeArn);
+  }
+  private mapAuthorization(
+    record: Awaited<ReturnType<RamAuthorizationStore["findById"]>> extends infer T ? Exclude<T, null> : never,
+  ): RamAuthorizationDto {
+    return {
+      id: record.id,
+      accountOwnerId: record.accountOwnerId,
+      principalType: record.principalType as RamAuthorizationDto["principalType"],
+      principalId: record.principalId,
+      policyId: record.policyId,
+      scopeType: record.scopeType as RamAuthorizationDto["scopeType"],
+      scopeResourceId: record.scopeResourceId,
+      scopeArn: record.scopeArn,
+      description: record.description,
+      status: record.status,
+      createdBy: record.createdBy,
+      createTime: record.createTime.toISOString(),
+      updateTime: record.updateTime.toISOString(),
+    };
+  }
+  private mapResourceGroup(
+    record: Awaited<ReturnType<RamResourceGroupStore["findById"]>> extends infer T ? Exclude<T, null> : never,
+  ): RamResourceGroupDto {
+    return {
+      id: record.id,
+      accountOwnerId: record.accountOwnerId,
+      name: record.name,
+      description: record.description,
+      status: record.status,
+      createTime: record.createTime.toISOString(),
+      updateTime: record.updateTime.toISOString(),
+      members: record.members.map((member) => ({
+        id: member.id,
+        resourceGroupId: member.resourceGroupId,
+        resourceArn: member.resourceArn,
+        service: member.service,
+        resourceType: member.resourceType,
+        resourceId: member.resourceId,
+        status: member.status,
+        createTime: member.createTime.toISOString(),
+        updateTime: member.updateTime.toISOString(),
+      })),
+    };
+  }
+  private async assertAuthorizationPrincipal(
+    owner: string,
+    type: CreateRamAuthorizationDto["principalType"],
+    id: string,
+  ): Promise<void> {
+    if (!["user", "group", "role"].includes(type))
+      throw new BadRequestError("Invalid IAM principal type", undefined, {
+        messageKey: "iam.authorizationScopeInvalid",
+      });
+    if (type === "user") {
+      const user = await this.userRepository.findById(id);
+      if (!user || user.status !== AccountStatus.ACTIVE)
+        throw new NotFoundError("Authorization principal not found", undefined, { messageKey: "user.notFound" });
+      this.assertSameAccount(owner, user.accountOwnerId || user.parentUserId || user.id);
+    } else if (type === "group") {
+      const group = await this.groupRepository.findById(id);
+      if (!group || group.status !== AccountStatus.ACTIVE)
+        throw new NotFoundError("Authorization principal not found", undefined, { messageKey: "group.notFound" });
+      this.assertSameAccount(owner, group.accountOwnerId);
+    } else if (type === "role") {
+      const role = await this.ramRoleRepository.findRoleById(id);
+      if (!role || role.status !== AccountStatus.ACTIVE)
+        throw new NotFoundError("Authorization principal not found", undefined, { messageKey: "ram.roleNotFound" });
+      this.assertSameAccount(owner, role.accountOwnerId);
+    }
+  }
+  private async assertAuthorizationScope(owner: string, data: CreateRamAuthorizationDto): Promise<void> {
+    if (data.scopeType === "account") {
+      if (data.scopeResourceId || data.scopeArn)
+        throw new BadRequestError("Invalid account scope", undefined, { messageKey: "iam.authorizationScopeInvalid" });
+      return;
+    }
+    if (data.scopeType === "resource-group") {
+      if (!data.scopeResourceId || data.scopeArn)
+        throw new BadRequestError("Invalid resource group scope", undefined, {
+          messageKey: "iam.authorizationScopeInvalid",
+        });
+      const group = await this.resourceGroupRepository.findById(data.scopeResourceId);
+      if (!group)
+        throw new NotFoundError("Resource group not found", undefined, { messageKey: "iam.resourceGroupNotFound" });
+      this.assertSameAccount(owner, group.accountOwnerId);
+      return;
+    }
+    if (data.scopeType !== "resource" || !data.scopeArn || data.scopeResourceId || data.scopeArn === "*")
+      throw new BadRequestError("Invalid resource scope", undefined, { messageKey: "iam.authorizationScopeInvalid" });
+    const types = getIamResourcePatternTypes(data.scopeArn);
+    const account = data.scopeArn.split(":")[3];
+    if (!types.length || (account !== "*" && account !== owner))
+      throw new BadRequestError("Invalid resource scope", undefined, { messageKey: "iam.authorizationScopeInvalid" });
+  }
+  /** The controller checks collection access; every HTTP row is then evaluated independently. */
+  private async filterManagementPage<T extends { id: string }>(
+    actorUserId: string,
+    owner: string,
+    action: string,
+    type: "authorization" | "resource-group",
+    items: T[],
+  ): Promise<T[]> {
+    const request = getRequestContext();
+    if (!request) return items; // Internal callers still receive only an account-scoped, bounded page.
+    const principal = getIamPrincipal(request);
+    if (!principal || principal.principalUserId !== actorUserId || principal.accountOwnerId !== owner)
+      throw new ForbiddenError("Invalid IAM list context", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    return IamAuthorizationService.getInstance().filterAuthorizedPage({
+      principal,
+      action,
+      items,
+      context: requestConditionContext(request, principal),
+      resource: (item) => "acs:quyan:*:" + owner + ":" + type + "/" + item.id,
+    });
+  }
+  async listAuthorizations(
+    actorUserId: string,
+    query: { principalType?: string; principalId?: string; page?: number; pageSize?: number } = {},
+  ): Promise<RamAuthorizationDto[]> {
+    const parsed = iamAuthorizationQuerySchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid authorization query", undefined, {
+        messageKey: "iam.authorizationScopeInvalid",
+      });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const records = await this.authorizationRepository.list(
+      owner,
+      parsed.data.principalType,
+      parsed.data.principalId,
+      parsed.data,
+    );
+    return (
+      await this.filterManagementPage(actorUserId, owner, "quyan:ram:ListAuthorizations", "authorization", records)
+    ).map((record) => this.mapAuthorization(record));
+  }
+  async createAuthorization(actorUserId: string, data: CreateRamAuthorizationDto): Promise<RamAuthorizationDto> {
+    const validatedInput = createIamAuthorizationBodySchema.safeParse(data);
+    if (!validatedInput.success)
+      throw new BadRequestError("Invalid authorization", undefined, { messageKey: "iam.authorizationScopeInvalid" });
+    data = validatedInput.data;
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const policy = await this.ramPolicyRepository.findPolicyById(data.policyId);
+    if (!policy) throw new NotFoundError("Policy not found", undefined, { messageKey: "ram.policyNotFound" });
+    this.assertSameAccount(owner, policy.accountOwnerId);
+    await this.assertAuthorizationPrincipal(owner, data.principalType, data.principalId);
+    await this.assertAuthorizationScope(owner, data);
+    const scopedGroup =
+      data.scopeType === "resource-group"
+        ? await this.resourceGroupRepository.findById(data.scopeResourceId!)
+        : undefined;
+    if (data.scopeType === "resource-group" && !scopedGroup)
+      throw new NotFoundError("Resource group not found", undefined, { messageKey: "iam.resourceGroupNotFound" });
+    if (policy.policyKind !== "identity")
+      throw new BadRequestError("Identity policy required", undefined, { messageKey: "iam.invalidPolicy" });
+    if (policy.documentFormat === "iam-v1") {
+      if (
+        !policy.defaultVersion ||
+        policy.defaultVersion.status !== AccountStatus.ACTIVE ||
+        policy.defaultVersion.validationState !== "valid" ||
+        policy.defaultVersion.policyId !== policy.id ||
+        parseIamPolicy(policy.defaultVersion.document).documentHash !== policy.defaultVersion.documentHash
+      )
+        throw new BadRequestError("Invalid policy version", undefined, { messageKey: "iam.invalidPolicy" });
+      const document = parseIamPolicy(policy.defaultVersion.document).document;
+      await this.assertRecoveryTarget(actorUserId, data.principalType, data.principalId, document);
+      if (env.security.iamAuthorizationMode !== "enforce")
+        throw new ForbiddenError("IAM rollout required", undefined, { messageKey: "iam.rolloutRequired" });
+      assertIamPolicyAccount(document, owner);
+      const scope =
+        data.scopeType === "account"
+          ? { type: "account" as const }
+          : data.scopeType === "resource"
+            ? { type: "resource" as const, arn: data.scopeArn! }
+            : {
+                type: "resource-group" as const,
+                id: data.scopeResourceId!,
+                resources: scopedGroup!.members.map((member) => member.resourceArn),
+              };
+      const projected = projectScopedPolicyForDelegation({ policyId: policy.id, document, scope });
+      if (projected && !(await this.checkPolicyDelegation(actorUserId, projected)).allowed)
+        throw new ForbiddenError("Authorization delegation denied", undefined, { messageKey: "iam.delegationDenied" });
+    } else {
+      await this.assertRecoveryTarget(actorUserId, data.principalType, data.principalId);
+      await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
+    }
+    const created = await this.authorizationRepository.create({
+      accountOwnerId: owner,
+      principalType: data.principalType,
+      principalId: data.principalId,
+      policyId: data.policyId,
+      scopeType: data.scopeType,
+      scopeResourceId: data.scopeResourceId,
+      scopeArn: data.scopeArn,
+      scopeKey: this.authorizationScopeKey(data),
+      description: data.description,
+      createdBy: actorUserId,
+      expectedGroupUpdateTime: scopedGroup?.updateTime,
+      expectedVersionId: policy.defaultVersionId,
+      expectedDocumentHash: policy.defaultVersion?.documentHash ?? null,
+    });
+    auditIamManagement({
+      actorUserId,
+      accountOwnerId: owner,
+      operation: "create-authorization",
+      targetId: created.id,
+      policyId: created.policyId,
+      scopeType: created.scopeType,
+      resourceArn: created.scopeArn ?? undefined,
+      requestId: getRequestContext()?.res?.locals.requestId,
+    });
+    return this.mapAuthorization(created);
+  }
+  async deleteAuthorization(actorUserId: string, authorizationId: string): Promise<void> {
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const record = await this.authorizationRepository.findById(authorizationId);
+    if (!record)
+      throw new NotFoundError("Authorization not found", undefined, { messageKey: "iam.authorizationNotFound" });
+    this.assertSameAccount(owner, record.accountOwnerId);
+    await this.assertRecoveryTarget(actorUserId, record.principalType, record.principalId);
+    await this.authorizationRepository.delete(authorizationId);
+    auditIamManagement({
+      actorUserId,
+      accountOwnerId: owner,
+      operation: "delete-authorization",
+      targetId: authorizationId,
+      policyId: record.policyId,
+      scopeType: record.scopeType,
+      requestId: getRequestContext()?.res?.locals.requestId,
+    });
+  }
+  async listResourceGroups(
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<RamResourceGroupDto[]> {
+    const page = iamManagementPaginationSchema.safeParse(query);
+    if (!page.success)
+      throw new BadRequestError("Invalid resource group query", undefined, {
+        messageKey: "iam.authorizationScopeInvalid",
+      });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const records = await this.resourceGroupRepository.list(owner, page.data);
+    return (
+      await this.filterManagementPage(actorUserId, owner, "quyan:ram:ListResourceGroups", "resource-group", records)
+    ).map((record) => this.mapResourceGroup(record));
+  }
+  async createResourceGroup(actorUserId: string, data: CreateRamResourceGroupDto): Promise<RamResourceGroupDto> {
+    const validated = createRamResourceGroupBodySchema.safeParse(data);
+    if (!validated.success)
+      throw new BadRequestError("Invalid resource group", undefined, { messageKey: "iam.authorizationScopeInvalid" });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    let group;
+    try {
+      group = await this.resourceGroupRepository.create({ accountOwnerId: owner, ...validated.data });
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002")
+        throw new BadRequestError("Resource group already exists", undefined, {
+          messageKey: "iam.resourceGroupNameConflict",
+        });
+      throw error;
+    }
+    auditIamManagement({
+      actorUserId,
+      accountOwnerId: owner,
+      operation: "create-resource-group",
+      targetId: group.id,
+      requestId: getRequestContext()?.res?.locals.requestId,
+    });
+    return this.mapResourceGroup({ ...group, members: [] });
+  }
+  private async assertResourceGroupMutation(
+    actorUserId: string,
+    groupId: string,
+    resourceArn: string,
+    adding: boolean,
+  ): Promise<void> {
+    for (const relation of await this.authorizationRepository.listForResourceGroup(groupId)) {
+      await this.assertRecoveryTarget(actorUserId, relation.principalType, relation.principalId);
+      if (!adding) continue;
+      const policy = relation.policy;
+      if (policy.documentFormat !== "iam-v1" || !policy.defaultVersion) {
+        await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
+        continue;
+      }
+      const document = parseIamPolicy(policy.defaultVersion.document).document;
+      const projected = projectScopedPolicyForDelegation({
+        policyId: policy.id,
+        document,
+        scope: { type: "resource-group", id: groupId, resources: [resourceArn] },
+      });
+      if (projected && !(await this.checkPolicyDelegation(actorUserId, projected)).allowed)
+        throw new ForbiddenError("Resource group membership expands delegation scope", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+    }
+  }
+  async addResourceGroupMember(
+    actorUserId: string,
+    groupId: string,
+    data: AddRamResourceGroupMemberDto,
+  ): Promise<RamResourceGroupDto> {
+    const validated = addRamResourceGroupMemberBodySchema.safeParse(data);
+    if (!validated.success)
+      throw new BadRequestError("Invalid resource group member", undefined, {
+        messageKey: "iam.resourceGroupMemberInvalid",
+      });
+    data = validated.data;
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const group = await this.resourceGroupRepository.findById(groupId);
+    if (!group)
+      throw new NotFoundError("Resource group not found", undefined, { messageKey: "iam.resourceGroupNotFound" });
+    this.assertSameAccount(owner, group.accountOwnerId);
+    const type = getIamResourceType(data.resourceArn);
+    if (!type || !(await this.resourceGroupRepository.resourceExistsInAccount(data.resourceArn, owner)))
+      throw new BadRequestError("Invalid resource group member", undefined, {
+        messageKey: "iam.resourceGroupMemberInvalid",
+      });
+    await this.assertResourceGroupMutation(actorUserId, groupId, data.resourceArn, true);
+    const parts = data.resourceArn.split(":")[4].split("/");
+    await this.resourceGroupRepository.addMember({
+      accountOwnerId: owner,
+      resourceGroupId: groupId,
+      resourceArn: data.resourceArn,
+      service: type.service,
+      resourceType: type.type,
+      resourceId: parts.slice(1).join("/"),
+      expectedGroupUpdateTime: group.updateTime,
+    });
+    auditIamManagement({
+      actorUserId,
+      accountOwnerId: owner,
+      operation: "add-resource-group-member",
+      targetId: groupId,
+      resourceArn: data.resourceArn,
+      requestId: getRequestContext()?.res?.locals.requestId,
+    });
+    const full = await this.resourceGroupRepository.findById(groupId);
+    if (!full)
+      throw new NotFoundError("Resource group not found", undefined, { messageKey: "iam.resourceGroupNotFound" });
+    return this.mapResourceGroup(full);
+  }
+  async removeResourceGroupMember(actorUserId: string, groupId: string, memberId: string): Promise<void> {
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const group = await this.resourceGroupRepository.findById(groupId);
+    if (!group)
+      throw new NotFoundError("Resource group not found", undefined, { messageKey: "iam.resourceGroupNotFound" });
+    this.assertSameAccount(owner, group.accountOwnerId);
+    const member = group.members.find((member) => member.id === memberId);
+    if (!member)
+      throw new NotFoundError("Resource group member not found", undefined, {
+        messageKey: "iam.resourceGroupMemberInvalid",
+      });
+    await this.assertResourceGroupMutation(actorUserId, groupId, member.resourceArn, false);
+    await this.resourceGroupRepository.removeMember(groupId, memberId, group.updateTime);
+    auditIamManagement({
+      actorUserId,
+      accountOwnerId: owner,
+      operation: "remove-resource-group-member",
+      targetId: groupId,
+      resourceArn: member.resourceArn,
+      requestId: getRequestContext()?.res?.locals.requestId,
+    });
   }
 
   private normalizePolicyPermissions(permissions: string[]): Permission[] {
@@ -738,6 +1135,8 @@ export class RamService {
     if (env.security.iamAuthorizationMode !== "enforce") return;
     for (const attachment of await this.ramPolicyRepository.listAttachmentsByPolicy(policyId))
       await this.assertRecoveryTarget(actorUserId, attachment.targetType, attachment.targetId, document);
+    for (const relation of await this.authorizationRepository.listForPolicy(policyId))
+      await this.assertRecoveryTarget(actorUserId, relation.principalType, relation.principalId, document);
   }
   private async prepareIamVersion(actorUserId: string, document: IamPolicyDocument, policyId?: string) {
     let parsed;
@@ -781,7 +1180,10 @@ export class RamService {
     const grants = await IamAuthorizationService.getInstance().loadPolicies(principal);
     return checkIamDelegation(
       parsed.document,
-      grants.map((policy) => policy.document),
+      grants.flatMap((policy) => {
+        const projected = projectScopedPolicyForDelegation(policy);
+        return projected ? [projected] : [];
+      }),
     );
   }
   async diagnosePolicy(actorUserId: string, documentText: string) {
