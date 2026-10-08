@@ -209,7 +209,7 @@ enforce 模式下，扮演角色必须同时满足 **身份策略 Allow 与角�
 
 使用 `GET /v1/iam/catalog/policy-schema?policyKind=trust` 获取独立 JSON Schema；向 `POST /v1/ram/policies/diagnose` 提交 documentText 和 policyKind: trust，获得原始 JSON 的路径及行列诊断。Schema 和诊断仍需要前文说明的策略读取、创建或更新权限。诊断校验语法和显式跨账户主体；发布还会验证主体真实存在及委派能力。
 
-通过 `PUT /v1/ram/roles/{roleId}/trust-policy` 发布，提交 document 和可选 expectedDocumentHash。需要 `quyan:ram:UpdateRoleTrustPolicy` 对该角色的授权、重放保护和二次认证。普通角色更新权限不会自动获得信任发布能力。原角色创建、更新接口仍接受 trustPolicy，但提交时同样需要这项专用权限：创建使用账户范围，更新使用具体角色范围。有效信任文档的角色响应包含 trustPolicyHash；hash 或角色版本过期返回 409。发布会证明 AssumeRole 权限及角色全部有效授权，不丢弃授权关系的资源范围。当前提供 API 与 Schema，专用信任编辑器尚未提供。
+通过 `PUT /v1/ram/roles/{roleId}/trust-policy` 发布，提交 document 和可选 expectedDocumentHash。需要 `quyan:ram:UpdateRoleTrustPolicy` 对该角色的授权、重放保护和二次认证。普通角色更新权限不会自动获得信任发布能力。原角色创建、更新接口仍接受 trustPolicy，但提交时同样需要这项专用权限：创建使用账户范围，更新使用具体角色范围。有效信任文档的角色响应包含 trustPolicyHash；hash 或角色版本过期返回 409。发布会证明 AssumeRole 权限及角色全部有效授权，不丢弃授权关系的资源范围。角色列表提供独立信任编辑器。
 
 enforce 模式下，assume-role 从已校验的 roleId 解析具体角色 ARN。模拟 quyan:ram:AssumeRole 对该 ARN 的请求也会同时评估身份与已保存信任，不虚构来源 IP 或 HTTPS 属性。无有效信任的角色在 enforce 下拒绝；legacy/shadow 保留旧的绑定角色或主账户准入方式。
 
@@ -250,3 +250,5 @@ API `POST /v1/ram/policies/ai/draft` 需要 JWT 和重放保护。提交 instruc
 创建授权后刷新列表；撤销前显示确认，服务端仍要求专用管理 Action、二次认证、账户归属和委派检查。资源组成员使用独立服务端分页，添加时填写准确 ARN；移除前确认对访问权限的影响。加载失败可重试，空过滤页仍允许下一页。页面入口沿用现有 RAM 菜单可见权限；列表与写入各自独立检查新 IAM Action，菜单可见不代表已获授权。
 
 enforce 模式下，“有效权限”的最终列表与用户权限接口共用 IAM 求值，只把账户目标上 Allow 的旧 Action 投影成全局 Permission；具体资源上的 Allow 不会被扩大。Explicit Deny 会从最终投影中排除对应权限。查看自己时采用当前认证身份与角色会话，查看其他主体时不借用操作者的会话。AccessKey 的主体类型条件也参与当前身份投影。来源数组保留历史解释用途，可能不覆盖 JSON-only 策略的全部授权；确认某个 ARN 的权限应使用模拟器。legacy/shadow 的历史展示保持兼容。
+
+角色列表提供“角色信任策略”入口，打开后编辑独立信任 JSON，下载 trust Schema、查看原始文本诊断，或生成 trust 类型 AI 草稿。AI 应用仍只修改待编辑文本。发布先进行服务端信任诊断，再确认对新会话准入的影响，提交角色已有的 trustPolicyHash 防止覆盖并发更改。语法诊断不能证明发布权限；服务端继续检查真实同账户主体、专用 UpdateRoleTrustPolicy、AssumeRole 委派和角色有效授权。发布失败保留草稿供审阅，遇到版本冲突需重新加载角色；已有会话需要单独撤销。

@@ -531,6 +531,11 @@ const en = {
     configureMachineFirst: 'Configure one remote Agent machine before creating a workspace.',
   },
   RamManagement: {
+    trustEditorTitle: "Role trust policy",
+    trustEditorHint: "Allow who may assume this role using exact same-account RAM user ARNs and quyan:ram:AssumeRole. Identity authorization is also required. Publication checks real principals, delegation and the dedicated role action, with replay protection and 2FA.",
+    trustEditorPublish: "Publish trust policy",
+    trustEditorConfirm: "Publish this trust policy? It changes admission for new role sessions. Existing sessions must be revoked separately.",
+    trustEditorFailed: "Trust validation or publication failed. Review diagnostics, permission and current role hash; reload the role before retrying a conflict.",
     effectiveIamProjectionHint: "Effective permissions use IAM evaluation in enforce mode. Only account-target grants project to global permissions; resource-specific grants are not global. Historical source arrays may omit JSON grants. Use concrete-resource simulation for access decisions.",
     scopedAuthorizations: "Scoped authorizations",
     scopedAuthorizationHint: "Choose a user, group or role, a policy ID and its scope. IDs can be copied from management lists. Creating or revoking requires the dedicated IAM action, delegation proof, replay protection and 2FA. Server checks remain authoritative.",

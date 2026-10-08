@@ -487,6 +487,11 @@ const emoji = {
     configureMachineFirst: '🖥️⚙️➡️🗂️',
   },
   RamManagement: {
+    trustEditorTitle: "🤝 角色信任策略",
+    trustEditorHint: "🔐 准确本账户 RAM 用户 ARN + AssumeRole，仍需身份授权。发布检查真实主体、委派、角色专用权限、重放与二次认证。",
+    trustEditorPublish: "📤 发布信任策略",
+    trustEditorConfirm: "🤝 确认发布？影响新会话准入，已有会话需单独撤销。",
+    trustEditorFailed: "❌ 校验或发布失败，请检查诊断、权限与角色 hash；冲突后重新加载。",
     effectiveIamProjectionHint: "🔎 enforce 最终权限使用 IAM。账户目标授权才投影为全局权限；资源级授权保留范围。历史数组可能缺少 JSON 授权，请模拟具体资源确认。",
     scopedAuthorizations: "🔐 范围授权",
     scopedAuthorizationHint: "🔐 选择用户、用户组或角色，填写策略 ID 与授权范围。ID 可从管理列表复制。创建或撤销需要专用 IAM 权限、委派证明、重放保护和二次认证，以服务端检查为准。",

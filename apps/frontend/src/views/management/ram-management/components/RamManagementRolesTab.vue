@@ -75,6 +75,9 @@
           >
             {{ i18ns.t('RamManagement.bindGroup') }}
           </el-button>
+          <el-button link type="primary" @click="trustRole = row">{{
+            i18ns.t('RamManagement.trustEditorTitle')
+          }}</el-button>
           <el-button v-if="canDeleteRoles" link type="danger" @click="deleteRole(row)">
             {{ i18ns.t('delete') }}
           </el-button>
@@ -82,11 +85,14 @@
       </el-table-column>
     </el-table>
 
-    <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
+    <RamIamRoleTrustEditor :role="trustRole" @close="trustRole = null" @saved="loadRoles" />
+    <el-empty v-if="!canReadRoles" :description="i18ns.t('message.error.forbidden')" />
   </section>
 </template>
 
 <script setup lang="ts">
+import { shallowRef } from 'vue'
+import RamIamRoleTrustEditor from './RamIamRoleTrustEditor.vue'
 import { Delete, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import type { RamRoleDto } from '@/client/types.gen'
 import { i18ns } from '@/locales'
@@ -112,6 +118,8 @@ const {
   selectRole,
   selectedRoles,
 } = useRamManagementContext()
+
+const trustRole = shallowRef<RamRoleDto | null>(null)
 
 const refreshRoles = () => void Promise.all([loadRoles(), loadUsers(), loadGroups()])
 

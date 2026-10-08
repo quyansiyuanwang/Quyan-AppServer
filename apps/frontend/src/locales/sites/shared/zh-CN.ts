@@ -502,6 +502,11 @@ const zhCN = {
     configureMachineFirst: '请先配置一台远程 Agent 机器，再创建工作区。',
   },
   RamManagement: {
+    trustEditorTitle: "角色信任策略",
+    trustEditorHint: "使用准确的本账户 RAM 用户 ARN 和 quyan:ram:AssumeRole 声明谁可扮演角色，同时仍需身份授权。发布检查真实主体、委派与该角色的专用 Action，并要求重放保护和二次认证。",
+    trustEditorPublish: "发布信任策略",
+    trustEditorConfirm: "确认发布该信任策略？它会改变新角色会话的准入，已有会话需单独撤销。",
+    trustEditorFailed: "信任校验或发布失败，请检查诊断、权限与当前角色 hash；冲突后重新加载角色再重试。",
     effectiveIamProjectionHint: "enforce 模式下最终权限由 IAM 求值。只有账户目标授权投影为全局权限，具体资源授权不会变成全局权限。历史来源数组可能不包含 JSON 授权；请用具体资源模拟确认访问。",
     scopedAuthorizations: "范围授权",
     scopedAuthorizationHint: "选择用户、用户组或角色，填写策略 ID 与授权范围。ID 可从管理列表复制。创建或撤销需要专用 IAM 权限、委派证明、重放保护和二次认证，以服务端检查为准。",
