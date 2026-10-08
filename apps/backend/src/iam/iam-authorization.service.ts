@@ -1,3 +1,5 @@
+import { assertIamPolicyAccount } from "./parser/policy-account";
+import { isIamResourceInAccount } from "@quyan/shared";
 import { isKnownIamAction } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS, isSafeIamResourceBatch } from "./authorization-limits";
 import type { IamEvaluationResult, IamPrincipal, IamConditionContext } from "@quyan/shared";
@@ -93,6 +95,7 @@ export class IamAuthorizationService {
       if (!binding.versionId || !binding.document || binding.validationState !== "valid") throw deny();
       const parsed = parseIamPolicy(binding.document);
       if (parsed.documentHash !== binding.documentHash) throw deny();
+      assertIamPolicyAccount(parsed.document, owner);
       result.push({ policyId: binding.policyId, versionId: binding.versionId, document: parsed.document });
     } else if (binding.documentFormat === "legacy") {
       const document = legacyPermissionsToPolicy(
@@ -108,6 +111,8 @@ export class IamAuthorizationService {
     resource: string;
     context?: IamConditionContext;
   }): Promise<IamEvaluationResult> {
+    if (!isIamResourceInAccount(input.resource, input.principal.accountOwnerId))
+      return { decision: "ImplicitDeny", reason: "invalid-request", matchedStatements: [] };
     return evaluatePolicies(await this.loadPolicies(input.principal), {
       ...input,
       context: { ...principalConditionContext(input.principal), ...input.context },
@@ -120,7 +125,12 @@ export class IamAuthorizationService {
     resources: readonly string[];
     context?: IamConditionContext;
   }): Promise<IamEvaluationResult[]> {
-    if (!isKnownIamAction(input.action) || !isSafeIamResourceBatch(input.resources)) throw deny();
+    if (
+      !isKnownIamAction(input.action) ||
+      !isSafeIamResourceBatch(input.resources) ||
+      input.resources.some((resource) => !isIamResourceInAccount(resource, input.principal.accountOwnerId))
+    )
+      throw deny();
     const policies = await this.loadPolicies(input.principal);
     const context = { ...principalConditionContext(input.principal), ...input.context };
     return input.resources.map((resource) => evaluatePolicies(policies, { action: input.action, resource, context }));

@@ -23,11 +23,15 @@ const codeForIssue = (issue: ZodIssue): IamDiagnosticCode =>
     ? "invalid-version"
     : issue.message === "Unknown platform action"
       ? "unknown-action"
-      : issue.message === "Invalid ACS resource pattern"
-        ? "invalid-resource"
-        : issue.path.includes("Condition")
-          ? "invalid-condition"
-          : "invalid-field";
+      : issue.message === "Unreachable Deny resource type"
+        ? "unreachable-deny"
+        : issue.message === "Action and resource types are incompatible"
+          ? "resource-type-mismatch"
+          : issue.message === "Invalid ACS resource pattern" || issue.message === "Unregistered platform resource"
+            ? "invalid-resource"
+            : issue.path.includes("Condition")
+              ? "invalid-condition"
+              : "invalid-field";
 /** Pure diagnosis. Neither persistence nor delegation is performed here. */
 export function diagnoseIamPolicy(text: string, accountOwnerId?: string): IamPolicyDiagnosis {
   const source = inspectPolicyJson(text);

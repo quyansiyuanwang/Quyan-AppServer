@@ -62,6 +62,22 @@ describe("RAM IAM policy management security", () => {
       expect((await new RamController().validatePolicy({ document })).valid).toBe(true);
     },
   );
+  it("diagnoses malformed original text through the authenticated Controller without saving it", async () => {
+    await prisma.user.update({ where: { id: ownerId }, data: { permissionAdds: [Permission.RAM_POLICY_CREATE] } });
+    const request = { user: { userId: ownerId, status: 1 }, authContext: { principalUserId: ownerId, accountOwnerId: ownerId, subjectType: "root" } } as TypedRequest;
+    vi.spyOn(requestContext, "getRequestContext").mockReturnValue(request);
+    const result = await new RamController().diagnosePolicy({ documentText: '{\n!' }, request);
+    expect(result.valid).toBe(false);
+    expect(result.diagnostics[0]).toMatchObject({ code: "json-syntax", line: 2, column: 1 });
+    expect(await prisma.ramPolicy.count({ where: { accountOwnerId: ownerId } })).toBe(0);
+  });
+  it("rejects foreign-account resource policies even when the publisher owns this account", async () => {
+    await expect(service.createPolicy(ownerId, { name: "foreign-resource", document: { Version: "1", Statement: {
+      Effect: "Allow", Action: "quyan:ram:ReadUser", Resource: "acs:quyan:*:" + otherId + ":user/target",
+    } } })).rejects.toMatchObject({ statusCode: 400 });
+    expect((await service.simulatePolicy(ownerId, childId, "quyan:ram:ReadUser", "acs:quyan:*:" + otherId + ":user/target")).decision).toBe("ImplicitDeny");
+    expect(await prisma.ramPolicy.count({ where: { accountOwnerId: ownerId } })).toBe(0);
+  });
   it("rejects document validation without either permission", async () => {
     const request = {
       user: { userId: ownerId, status: 1, updatedAt: new Date().toISOString() },

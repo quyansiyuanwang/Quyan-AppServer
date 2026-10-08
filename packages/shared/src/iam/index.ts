@@ -7,3 +7,5 @@ export * from './catalog'
 export * from './condition'
 
 export * from './diagnostic'
+
+export * from './pattern'

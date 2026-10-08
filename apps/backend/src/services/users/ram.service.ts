@@ -1,3 +1,4 @@
+import { assertIamPolicyAccount } from "@/iam/parser/policy-account";
 import { diagnoseIamPolicy } from "@/iam/diagnostics/policy-diagnostics";
 import { randomBytes } from "crypto";
 import { getCredentialPrefix } from "@quyan/shared";
@@ -690,6 +691,11 @@ export class RamService {
     // First release delegates document management only to account owners. General wildcard subset proofs are not safe to approximate.
     if (actor.userType !== "root" || (actor.accountOwnerId && actor.accountOwnerId !== actor.id))
       throw new ForbiddenError("IAM document delegation denied", undefined, { messageKey: "iam.delegationDenied" });
+    try {
+      assertIamPolicyAccount(parsed.document, actor.accountOwnerId ?? actor.id);
+    } catch {
+      throw new BadRequestError("Invalid policy account", undefined, { messageKey: "iam.invalidPolicy" });
+    }
     return { document: parsed.document, documentHash: parsed.documentHash, createdBy: actorUserId };
   }
   async diagnosePolicy(actorUserId: string, documentText: string) {

@@ -82,13 +82,24 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_POLICY_ATTACH]: ['policy', 'user', 'group', 'role', 'authorization'],
   [Permission.RAM_POLICY_DETACH]: ['policy', 'user', 'group', 'role', 'authorization'],
 }
+const businessResources: Partial<Record<Permission, string[]>> = {
+  [Permission.RELAY_CHANNEL_CREATE]: ['relay/channel'],
+  [Permission.RELAY_CHANNEL_READ]: ['relay/channel'],
+  [Permission.RELAY_CHANNEL_UPDATE]: ['relay/channel'],
+  [Permission.RELAY_CHANNEL_DELETE]: ['relay/channel'],
+  [Permission.RELAY_CHANNEL_EXPORT]: ['relay/channel'],
+  [Permission.ARTICLE_READ]: ['article/article'],
+  [Permission.ARTICLE_UPDATE]: ['article/article'],
+  [Permission.ARTICLE_DELETE]: ['article/article'],
+}
 const fromPermission = (permission: Permission): IamActionDefinition => {
   const action = actionForPermission(permission)
   const parts = action.split(':')
   const service = parts[1]
   if (!service) throw new Error('Invalid registered IAM Action')
   const operation = parts.slice(2).join(':')
-  const resources = ramResources[permission]
+  const resources =
+    ramResources[permission]?.map((type) => 'quyan/' + type) ?? businessResources[permission]
   return {
     action,
     service,
@@ -98,7 +109,7 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
       : /^(Read|Get|Describe|View)$/.test(parts[parts.length - 1] ?? '') || /^Read/.test(operation)
         ? 'Read'
         : 'Write',
-    resourceTypes: ['quyan/account', ...(resources ?? []).map((type) => 'quyan/' + type)],
+    resourceTypes: ['quyan/account', ...(resources ?? [])],
     apiRoutes: [],
     conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
     sensitive: /ram:|permission:|impersonate|secret|password|key/i.test(permission),

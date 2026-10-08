@@ -192,6 +192,19 @@ describe("IAM identity policy loading", () => {
     policies.listPoliciesForTargets.mockResolvedValue([{ ...binding("duplicate", "Allow"), targetId: "role" }]);
     await expect(service.loadPolicies(principal)).rejects.toThrow();
   });
+  it("rejects a concrete foreign-account request before loading authorization data", async () => {
+    expect(
+      await service.authorize({ principal, action: "quyan:ram:ReadUser", resource: "acs:quyan:*:other:user/id" }),
+    ).toMatchObject({ decision: "ImplicitDeny", reason: "invalid-request" });
+    await expect(
+      service.authorizeMany({
+        principal,
+        action: "quyan:ram:ReadUser",
+        resources: ["acs:quyan:*:owner:user/id", "acs:quyan:*:other:user/id"],
+      }),
+    ).rejects.toThrow();
+    expect(users.findByIdWithGroup).not.toHaveBeenCalled();
+  });
   it("evaluates every batch resource before callers perform mutations", async () => {
     policies.listPoliciesForTarget.mockResolvedValue([
       {

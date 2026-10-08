@@ -115,9 +115,11 @@ RAM 管理操作当前使用账户级 Resource：`acs:quyan:*:<主账号ID>:acco
 
 具有策略读取权限时，可调用 `GET /v1/iam/catalog/services`、`GET /v1/iam/catalog/services/{service}/actions` 和 `GET /v1/iam/catalog/resources` 获取本平台服务、操作分类与 ARN 模板。API 关联由服务端路由声明生成。目录中的 `legacy` 表示该操作仍使用旧权限兼容语义；资源模板用于描述资源格式，不表示所有接口已完成资源级授权。现有 Action 名称保持兼容，不会将 `ReadUser` 自动改名为 `GetUser`。
 
+ARN 构造、策略校验和评估只接受目录中已注册的资源类型。具体资源必须包含正确数量的标识段，例如策略版本必须包含策略 ID 和版本 ID；未知服务、未知类型、空标识和多余路径段会被拒绝。Action 与 Resource 类型不兼容时策略校验失败；即使通配符策略允许所有操作，具体请求仍须符合对应 Action 的资源类型。实际资源账户必须与认证主体账户一致，明确跨账户的策略 ARN 无法发布。资源归属查询和列表数据隔离仍须由业务服务执行。
+
 ### JSON 诊断和 Schema
 
-提供原始 JSON 文本给 `POST /v1/ram/policies/diagnose`（字段 `documentText`），可获得错误、安全警告、警告和建议。每条诊断含稳定错误码、JSON Pointer、从 1 开始的行号和列号。语法错误、重复键、原型键、未知字段、未知 Action、条件值错误和明确的跨账户 ARN 会阻止验证；过宽 Allow、IAM 管理授权、重复语句和资源类型不匹配会提示风险。诊断不回显策略中的任意值。
+提供原始 JSON 文本给 `POST /v1/ram/policies/diagnose`（字段 `documentText`），可获得错误、安全警告、警告和建议。每条诊断含稳定错误码、JSON Pointer、从 1 开始的行号和列号。语法错误、重复键、原型键、未知字段、未知 Action、条件值错误、资源类型不匹配和明确的跨账户 ARN 会阻止验证；过宽 Allow、IAM 管理授权和重复语句会提示风险。诊断不回显策略中的任意值。
 
 `GET /v1/iam/catalog/policy-schema` 提供从同一策略校验器生成的 JSON Schema，供编辑器和 AI 构造草稿。Schema 包含当前生产 Action、资源模板、已实现条件键和限制；目录及账户归属等自定义语义仍须经过服务端诊断。获取 Schema 需要策略读取权限，诊断需要策略创建或更新任一权限。验证通过只说明文档符合当前语法，返回的 `delegation: "not-evaluated"` 表示尚未证明操作者可以发布或委派；保存和绑定继续执行已有授权检查。
 

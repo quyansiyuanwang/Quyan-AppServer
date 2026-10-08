@@ -14,24 +14,24 @@ export const ramAccountResourceResolver: ResourceResolver = ({ principal }) =>
   buildAcsResource({ service: "quyan", region: "*", accountId: principal.accountOwnerId, path: "account" });
 /** Resolver factories require already-validated, server-owned identifiers. Ownership checks remain in services. */
 export function accountEntityResourceResolver(
-  kind: "user" | "group" | "role" | "relay-channel",
+  kind: "user" | "group" | "role" | "policy" | "authorization" | "resource-group" | "role-session" | "relay-channel",
   readId: (request: TypedRequest<unknown>) => unknown,
 ): ResourceResolver {
   return ({ request, principal }) => {
     const id = readId(request);
     if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return undefined;
     return buildAcsResource({
-      service: "quyan",
+      service: kind === "relay-channel" ? "relay" : "quyan",
       region: "*",
       accountId: principal.accountOwnerId,
-      path: kind + "/" + id,
+      path: (kind === "relay-channel" ? "channel" : kind) + "/" + id,
     });
   };
 }
 
 /** Reject the entire batch when any identifier is invalid; never omit an unresolved target. */
 export function accountEntityBatchResourceResolver(
-  kind: "user" | "group" | "role" | "relay-channel",
+  kind: "user" | "group" | "role" | "policy" | "authorization" | "resource-group" | "role-session" | "relay-channel",
   readIds: (request: TypedRequest<unknown>) => unknown,
 ): BatchResourceResolver {
   return ({ request, principal }) => {
@@ -45,10 +45,10 @@ export function accountEntityBatchResourceResolver(
       return undefined;
     return ids.map((id) =>
       buildAcsResource({
-        service: "quyan",
+        service: kind === "relay-channel" ? "relay" : "quyan",
         region: "*",
         accountId: principal.accountOwnerId,
-        path: kind + "/" + id,
+        path: (kind === "relay-channel" ? "channel" : kind) + "/" + id,
       }),
     );
   };
