@@ -56,6 +56,15 @@ import {
   ramAccountResourceResolver,
   ramRoleResourceResolver,
   ramAssumeRoleResourceResolver,
+  ramUserUpdateResourceResolver,
+  ramUserCreateResourceResolver,
+  ramUserResourceResolver,
+  ramPolicyResourceResolver,
+  ramSessionResourceResolver,
+  ramRoleUserBindingResourceResolver,
+  ramRoleGroupBindingResourceResolver,
+  ramPolicyBindingResourceResolver,
+  ramDefaultPolicyVersionResourceResolver,
 } from "@/iam/request/resource-resolvers";
 import { HttpStatusCode } from "axios";
 import { CustomCode } from "@/constant/custom-code";
@@ -158,8 +167,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_USER_CREATE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:CreateUser",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramUserCreateResourceResolver,
   })
   public async createUser(@Body() body: CreateRamUserDto, @Request() request: TypedRequest): Promise<RamUserDto> {
     const password = passwordEncryptionService.resolvePassword(body.password, body.passwordCredential);
@@ -179,8 +188,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_USER_UPDATE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:UpdateUser",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramUserUpdateResourceResolver,
   })
   public async updateUser(
     @Path() userId: string,
@@ -202,8 +211,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_USER_DELETE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:DeleteUser",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramUserResourceResolver,
   })
   public async deleteUser(
     @Path() userId: string,
@@ -308,8 +317,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_ROLE_DELETE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:role:Delete",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramRoleResourceResolver,
   })
   public async deleteRole(
     @Path() roleId: string,
@@ -325,8 +334,8 @@ export class RamController extends Controller {
   @Middlewares(validateParams(ramRoleIdParamsSchema))
   @CheckPermission(Permission.RAM_BINDING_READ, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:binding:Read",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramRoleResourceResolver,
   })
   public async listRoleBindings(
     @Path() roleId: string,
@@ -349,8 +358,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_BINDING_CREATE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:binding:Create",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramRoleUserBindingResourceResolver,
   })
   public async bindRoleToUser(
     @Path() roleId: string,
@@ -373,8 +382,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_BINDING_DELETE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:binding:Delete",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramRoleUserBindingResourceResolver,
   })
   public async unbindRoleFromUser(
     @Path() roleId: string,
@@ -398,8 +407,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_BINDING_CREATE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:binding:Create",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramRoleGroupBindingResourceResolver,
   })
   public async bindRoleToGroup(
     @Path() roleId: string,
@@ -422,8 +431,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_BINDING_DELETE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:binding:Delete",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramRoleGroupBindingResourceResolver,
   })
   public async unbindRoleFromGroup(
     @Path() roleId: string,
@@ -478,8 +487,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_SESSION_REVOKE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:session:Revoke",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramSessionResourceResolver,
   })
   public async revokeSession(
     @Path() sessionId: string,
@@ -535,8 +544,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:UpdatePolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramPolicyResourceResolver,
   })
   public async updatePolicy(
     @Path() policyId: string,
@@ -558,8 +567,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_POLICY_DELETE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:DeletePolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramPolicyResourceResolver,
   })
   public async deletePolicy(
     @Path() policyId: string,
@@ -575,8 +584,8 @@ export class RamController extends Controller {
   @Middlewares(validateParams(ramPolicyIdParamsSchema))
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramPolicyResourceResolver,
   })
   public async listPolicyAttachments(
     @Path() policyId: string,
@@ -597,8 +606,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_POLICY_ATTACH, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:AttachPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramPolicyBindingResourceResolver,
   })
   public async attachPolicy(
     @Body() body: AttachPolicyBodyDto,
@@ -620,8 +629,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_POLICY_DETACH, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:DetachPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramPolicyBindingResourceResolver,
   })
   public async detachPolicy(
     @Body() body: AttachPolicyBodyDto,
@@ -850,8 +859,8 @@ export class RamController extends Controller {
   @Middlewares(validateParams(ramPolicyIdParamsSchema), validateQuery(ramPolicyVersionsQuerySchema))
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramPolicyResourceResolver,
   })
   public async listPolicyVersions(
     @Path() policyId: string,
@@ -874,8 +883,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:UpdatePolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "single-resource",
+    resource: ramPolicyResourceResolver,
   })
   public async createPolicyVersion(
     @Path() policyId: string,
@@ -897,8 +906,8 @@ export class RamController extends Controller {
   )
   @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt", {
     action: "quyan:ram:UpdatePolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    resourceKind: "batch",
+    resource: ramDefaultPolicyVersionResourceResolver,
   })
   public async setDefaultPolicyVersion(
     @Path() policyId: string,

@@ -123,3 +123,9 @@ Enforce-mode assumption requires identity and trust Allow on the concrete role A
 An assumed-role session is a distinct authorization identity: load only that role's policies and scoped authorizations, not caller user/group grants, removals or other assigned roles. Account ownership, subject, role, status, revocation and expiry remain mandatory. Issued sessions are not reevaluated against trust on every business request; trust updates govern future issuance, and explicit revocation terminates existing sessions. Ordinary users still combine their legacy direct/group/assigned-role sources. Review this intentional identity-isolation change in shadow data, including historical group Deny cases, before rollout.
 
 Role trust JSON currently has optimistic hashes and mutation audit; an immutable trust-history UI is not implemented. The existing identity-policy version API remains immutable. Service/resource principals, session policies, permission boundaries, resource-group/tag conditions and conservative NotAction support remain separate extensions and must not be silently accepted.
+
+## Concrete control-plane target migration
+
+User update/delete, role delete, session revoke and policy update/delete/versions use named concrete resolvers. Binding requests evaluate both entities with ALL batch semantics. Default-version changes evaluate the policy plus exact version ARN. User group assignment requires group resource access and subset proof for direct, scoped and role-derived group grants. Services retain database ownership and account-recovery checks.
+
+Legacy permission conversion now derives account-contained resource templates from the action catalog to preserve historical target breadth. This does not reinterpret user-authored IAM account statements or mutate immutable versions. Review and publish replacement versions for earlier backfilled account-only documents when needed; a changed backfill hash is a review failure, not automatic widening.

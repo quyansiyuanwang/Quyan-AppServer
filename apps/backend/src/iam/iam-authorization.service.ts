@@ -1,3 +1,5 @@
+import { GroupRepository } from "@/store/users/group.repository";
+import type { GroupStore } from "@/store/users/group.store";
 import { getIamResourcePatternTypes, isValidIamResource } from "@quyan/shared";
 import { RamAuthorizationRepository } from "@/store/users/ram-authorization.repository";
 import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
@@ -33,6 +35,7 @@ export class IamAuthorizationService {
     private readonly policies: RamPolicyStore = RamPolicyRepository.getInstance(),
     private readonly authorizations: RamAuthorizationStore = RamAuthorizationRepository.getInstance(),
     private readonly resourceGroups: RamResourceGroupStore = RamResourceGroupRepository.getInstance(),
+    private readonly groups: GroupStore = GroupRepository.getInstance(),
   ) {}
   static getInstance(): IamAuthorizationService {
     return (this.instance ??= new IamAuthorizationService());
@@ -104,6 +107,21 @@ export class IamAuthorizationService {
     return this.loadAttachedPolicies(accountOwnerId, await this.policies.listPoliciesForTarget("role", roleId), [
       { principalType: "role", principalId: roleId },
     ]);
+  }
+  /** Includes direct, scoped and role-derived grants when proving a membership change. */
+  async loadGroupPolicies(accountOwnerId: string, groupId: string): Promise<IamPolicyInput[]> {
+    const group = await this.groups.findById(groupId);
+    if (!group || group.status !== 1 || group.accountOwnerId !== accountOwnerId) throw deny();
+    const result = await this.loadAttachedPolicies(
+      accountOwnerId,
+      await this.policies.listPoliciesForTarget("group", groupId),
+      [{ principalType: "group", principalId: groupId }],
+    );
+    const legacy = legacyPermissionsToPolicy(group.permissions, accountOwnerId);
+    if (legacy) result.push({ policyId: "legacy:group:" + groupId, document: legacy });
+    const roleIds = new Set((await this.roles.listRoleBindingsForUser("", groupId)).map((binding) => binding.roleId));
+    for (const roleId of roleIds) result.push(...(await this.loadRolePolicies(accountOwnerId, roleId)));
+    return result;
   }
   private async loadAttachedPolicies(
     accountOwnerId: string,

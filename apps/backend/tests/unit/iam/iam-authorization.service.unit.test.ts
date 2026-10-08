@@ -1,3 +1,4 @@
+import type { GroupStore } from "@/store/users/group.store";
 import type { RamAuthorizationStore } from "@/store/users/ram-authorization.store";
 import type { RamResourceGroupStore } from "@/store/users/ram-resource-group.store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +18,7 @@ vi.mock("../../../src/store/users/ram-resource-group.repository", () => ({
   RamResourceGroupRepository: { getInstance: vi.fn() },
 }));
 vi.mock("../../../src/config/env", () => ({ env: { security: { superAdminGroupUsername: "admin" } } }));
+vi.mock("../../../src/store/users/group.repository", () => ({ GroupRepository: { getInstance: vi.fn() } }));
 import { IamAuthorizationService } from "../../../src/iam/iam-authorization.service";
 import { parseIamPolicy } from "../../../src/iam/parser/policy-parser";
 const principal: IamPrincipal = {
@@ -30,7 +32,8 @@ const users = mockDeep<UserStore>(),
   policies = mockDeep<RamPolicyStore>();
 const authorizations = mockDeep<RamAuthorizationStore>(),
   resourceGroups = mockDeep<RamResourceGroupStore>();
-const service = new IamAuthorizationService(users, roles, policies, authorizations, resourceGroups);
+const groups = mockDeep<GroupStore>();
+const service = new IamAuthorizationService(users, roles, policies, authorizations, resourceGroups, groups);
 const role = { id: "role", name: "reader", accountOwnerId: "owner", status: 1 } as never;
 function binding(policyId: string, effect: "Allow" | "Deny", action = "quyan:ram:CreateUser") {
   const parsed = parseIamPolicy({
@@ -50,6 +53,39 @@ function binding(policyId: string, effect: "Allow" | "Deny", action = "quyan:ram
   };
 }
 describe("IAM identity policy loading", () => {
+  it("loads group direct and role-derived policies for delegation, retaining scoped relations", async () => {
+    groups.findById.mockResolvedValue({
+      id: "group",
+      accountOwnerId: "owner",
+      status: 1,
+      permissions: [Permission.RAM_USER_READ],
+    } as never);
+    roles.listRoleBindingsForUser.mockResolvedValue([{ roleId: "role" } as never]);
+    policies.listPoliciesForTarget.mockImplementation(async (type) => [binding(type, "Allow")]);
+    const result = await service.loadGroupPolicies("owner", "group");
+    expect(result.map((policy) => policy.policyId)).toEqual(
+      expect.arrayContaining(["group", "role", "legacy:group:group"]),
+    );
+    expect(roles.listRoleBindingsForUser).toHaveBeenCalledWith("", "group");
+    expect(authorizations.listForPrincipals).toHaveBeenCalledWith("owner", [
+      { principalType: "group", principalId: "group" },
+    ]);
+    expect(authorizations.listForPrincipals).toHaveBeenCalledWith("owner", [
+      { principalType: "role", principalId: "role" },
+    ]);
+  });
+  it("refuses foreign and disabled groups before loading their grants", async () => {
+    for (const group of [
+      { id: "group", accountOwnerId: "foreign", status: 1 },
+      { id: "group", accountOwnerId: "owner", status: 0 },
+      null,
+    ]) {
+      groups.findById.mockResolvedValue(group as never);
+      await expect(service.loadGroupPolicies("owner", "group")).rejects.toThrow();
+    }
+    expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     authorizations.listForPrincipals.mockResolvedValue([]);

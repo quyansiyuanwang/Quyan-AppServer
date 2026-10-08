@@ -39,7 +39,11 @@ describe("legacy policy backfill planning", () => {
     if (first.kind !== "migrate" || second.kind !== "migrate") throw Error("Expected migration");
     expect(first.parsed.documentHash).toBe(second.parsed.documentHash);
     expect(first.parsed.document.Statement[0].Action).toContain(actionForPermission(Permission.USER_READ));
-    expect(first.parsed.document.Statement[0].Resource).toEqual(["acs:quyan:*:owner:account"]);
+    expect(first.parsed.document.Statement[0].Resource).toEqual([
+      "acs:quyan:*:owner:account",
+      "acs:quyan:*:owner:group/*",
+      "acs:quyan:*:owner:user/*",
+    ]);
   });
   it.each([["unknown:permission"], ["user:read", 12], null, "invalid-json"])(
     "reports unmapped/corrupt permissions without dropping them %#",

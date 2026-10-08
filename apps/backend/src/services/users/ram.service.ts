@@ -725,6 +725,7 @@ export class RamService {
       const group = await this.groupRepository.findById(data.groupId);
       if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
       this.assertSameAccount(accountOwnerId, group.accountOwnerId);
+      await this.assertGroupDelegation(actorUserId, data.groupId);
     }
 
     // 仅 AccessKey 或无密码时生成随机密码
@@ -783,6 +784,7 @@ export class RamService {
       const group = await this.groupRepository.findById(data.groupId);
       if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
       this.assertSameAccount(accountOwnerId, group.accountOwnerId);
+      await this.assertGroupDelegation(actorUserId, data.groupId);
     }
 
     const updateData: Record<string, unknown> = {};
@@ -1024,6 +1026,8 @@ export class RamService {
     const role = await this.ramRoleRepository.findRoleById(roleId);
     if (!role) throw new NotFoundError("角色不存在", undefined, { messageKey: "ram.roleNotFound" });
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+    await this.assertAuthorizationPrincipal(accountOwnerId, "user", userId);
+    await this.assertRecoveryTarget(actorUserId, "user", userId);
     await this.ramRoleRepository.unbindRoleFromUser(roleId, userId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
       subject: "角色已从用户解绑",
@@ -1058,6 +1062,8 @@ export class RamService {
     const role = await this.ramRoleRepository.findRoleById(roleId);
     if (!role) throw new NotFoundError("角色不存在", undefined, { messageKey: "ram.roleNotFound" });
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
+    await this.assertAuthorizationPrincipal(accountOwnerId, "group", groupId);
+    await this.assertRecoveryTarget(actorUserId, "group", groupId);
     await this.ramRoleRepository.unbindRoleFromGroup(roleId, groupId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
       subject: "角色已从用户组解绑",
@@ -1258,6 +1264,17 @@ export class RamService {
     };
   }
 
+  private async assertGroupDelegation(actorUserId: string, groupId: string): Promise<void> {
+    if (env.security.iamAuthorizationMode !== "enforce") return;
+    const owner = await this.getAccountOwnerId(actorUserId);
+    for (const policy of await IamAuthorizationService.getInstance().loadGroupPolicies(owner, groupId)) {
+      const document = projectScopedPolicyForDelegation(policy);
+      if (document && !(await this.checkPolicyDelegation(actorUserId, document)).allowed)
+        throw new ForbiddenError("Group membership delegation denied", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+    }
+  }
   private async assertRoleDelegation(
     actorUserId: string,
     roleId: string,

@@ -7,6 +7,10 @@ import {
   ramAccountResourceResolver,
   ramAuthorizationResourceResolver,
   ramResourceGroupResourceResolver,
+  ramPolicyBindingResourceResolver,
+  ramRoleUserBindingResourceResolver,
+  ramRoleGroupBindingResourceResolver,
+  ramDefaultPolicyVersionResourceResolver,
 } from "../../../src/iam/request/resource-resolvers";
 import { getIamPrincipal } from "../../../src/iam/request/principal-context";
 import { legacyPermissionsToPolicy } from "../../../src/iam/legacy-policy";
@@ -17,6 +21,43 @@ const principal: IamPrincipal = {
   subjectType: "sub_user",
 };
 describe("IAM resource trust boundaries", () => {
+  it("resolves both sides of policy and role bindings and fails closed on either invalid target", async () => {
+    const context = (body: object, params = {}) => ({ principal, request: { body, params } as never });
+    expect(
+      await ramPolicyBindingResourceResolver(
+        context({ policyId: "policy", targetType: "user", targetId: "target", accountOwnerId: "foreign" }),
+      ),
+    ).toEqual(["acs:quyan:*:owner:policy/policy", "acs:quyan:*:owner:user/target"]);
+    for (const targetType of ["service", "account", undefined])
+      expect(
+        await ramPolicyBindingResourceResolver(context({ policyId: "policy", targetType, targetId: "target" })),
+      ).toBeUndefined();
+    expect(
+      await ramPolicyBindingResourceResolver(context({ policyId: "*", targetType: "role", targetId: "target" })),
+    ).toBeUndefined();
+    expect(await ramRoleUserBindingResourceResolver(context({ userId: "user" }, { roleId: "role" }))).toEqual([
+      "acs:quyan:*:owner:role/role",
+      "acs:quyan:*:owner:user/user",
+    ]);
+    expect(await ramRoleGroupBindingResourceResolver(context({}, { roleId: "role", groupId: "group" }))).toEqual([
+      "acs:quyan:*:owner:role/role",
+      "acs:quyan:*:owner:group/group",
+    ]);
+    expect(await ramRoleUserBindingResourceResolver(context({ userId: "*" }, { roleId: "role" }))).toBeUndefined();
+  });
+  it("checks both policy and exact version when changing the default", async () => {
+    const context = (versionId: unknown) => ({
+      principal,
+      request: { params: { policyId: "policy" }, body: { versionId } } as never,
+    });
+    expect(await ramDefaultPolicyVersionResourceResolver(context("version"))).toEqual([
+      "acs:quyan:*:owner:policy/policy",
+      "acs:quyan:*:owner:policy-version/policy/version",
+    ]);
+    expect(await ramDefaultPolicyVersionResourceResolver(context("*"))).toBeUndefined();
+    expect(await ramDefaultPolicyVersionResourceResolver(context(undefined))).toBeUndefined();
+  });
+
   it("maps every legacy permission once without action collisions", () => {
     const actions = ALL_PERMISSIONS.map(actionForPermission);
     expect(new Set(actions).size).toBe(ALL_PERMISSIONS.length);
