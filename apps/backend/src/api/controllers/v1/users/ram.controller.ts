@@ -94,7 +94,11 @@ export class RamController extends Controller {
   @Get("users")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM用户列表成功")
-  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadUser",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async listUsers(@Request() request: TypedRequest): Promise<GetRamUsersResponse> {
     return this.ramService.listRamUsers(request.user!.userId);
   }
@@ -103,7 +107,11 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM可见用户组列表成功")
   @Middlewares(validateQuery(ramGroupListQuerySchema))
-  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadUser",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async listVisibleGroups(
     @Request() request: TypedRequest,
     @Query() page?: number,
@@ -123,7 +131,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateBody(createRamUserBodySchema),
   )
-  @CheckPermission(Permission.RAM_USER_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_USER_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:CreateUser",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async createUser(@Body() body: CreateRamUserDto, @Request() request: TypedRequest): Promise<RamUserDto> {
     const password = passwordEncryptionService.resolvePassword(body.password, body.passwordCredential);
     return this.ramService.createRamUser(request.user!.userId, { ...body, password });
@@ -140,7 +152,11 @@ export class RamController extends Controller {
     validateParams(ramUserIdParamsSchema),
     validateBody(updateRamUserBodySchema),
   )
-  @CheckPermission(Permission.RAM_USER_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_USER_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:UpdateUser",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async updateUser(
     @Path() userId: string,
     @Body() body: UpdateRamUserDto,
@@ -159,7 +175,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateParams(ramUserIdParamsSchema),
   )
-  @CheckPermission(Permission.RAM_USER_DELETE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_USER_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:DeleteUser",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async deleteUser(
     @Path() userId: string,
     @Request() request: TypedRequest,
@@ -171,7 +191,11 @@ export class RamController extends Controller {
   @Get("roles")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM角色列表成功")
-  @CheckPermission(Permission.RAM_ROLE_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_ROLE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:role:Read",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async listRoles(@Request() request: TypedRequest): Promise<GetRamRolesResponse> {
     return this.ramService.listRoles(request.user!.userId);
   }
@@ -186,7 +210,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateBody(createRamRoleBodySchema),
   )
-  @CheckPermission(Permission.RAM_ROLE_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_ROLE_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:role:Create",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async createRole(@Body() body: CreateRamRoleDto, @Request() request: TypedRequest): Promise<RamRoleDto> {
     return this.ramService.createRole(request.user!.userId, body);
   }
@@ -202,7 +230,11 @@ export class RamController extends Controller {
     validateParams(ramRoleIdParamsSchema),
     validateBody(updateRamRoleBodySchema),
   )
-  @CheckPermission(Permission.RAM_ROLE_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_ROLE_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:role:Update",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async updateRole(
     @Path() roleId: string,
     @Body() body: UpdateRamRoleDto,
@@ -221,7 +253,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateParams(ramRoleIdParamsSchema),
   )
-  @CheckPermission(Permission.RAM_ROLE_DELETE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_ROLE_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:role:Delete",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async deleteRole(
     @Path() roleId: string,
     @Request() request: TypedRequest,
@@ -234,7 +270,11 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM角色绑定成功")
   @Middlewares(validateParams(ramRoleIdParamsSchema))
-  @CheckPermission(Permission.RAM_BINDING_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_BINDING_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:binding:Read",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async listRoleBindings(
     @Path() roleId: string,
     @Request() request: TypedRequest,
@@ -254,7 +294,11 @@ export class RamController extends Controller {
     validateParams(ramRoleIdParamsSchema),
     validateBody(bindRamRoleToUserBodySchema),
   )
-  @CheckPermission(Permission.RAM_BINDING_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_BINDING_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:binding:Create",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async bindRoleToUser(
     @Path() roleId: string,
     @Body() body: BindRamRoleToUserDto,
@@ -274,7 +318,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateParams(ramRoleIdParamsSchema.merge(ramUserIdParamsSchema)),
   )
-  @CheckPermission(Permission.RAM_BINDING_DELETE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_BINDING_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:binding:Delete",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async unbindRoleFromUser(
     @Path() roleId: string,
     @Path() userId: string,
@@ -295,7 +343,11 @@ export class RamController extends Controller {
     validateParams(ramRoleIdParamsSchema),
     validateBody(bindRamRoleToGroupBodySchema),
   )
-  @CheckPermission(Permission.RAM_BINDING_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_BINDING_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:binding:Create",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async bindRoleToGroup(
     @Path() roleId: string,
     @Body() body: BindRamRoleToGroupDto,
@@ -315,7 +367,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateParams(ramRoleIdParamsSchema.extend({ groupId: bindRamRoleToGroupBodySchema.shape.groupId })),
   )
-  @CheckPermission(Permission.RAM_BINDING_DELETE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_BINDING_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:binding:Delete",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async unbindRoleFromGroup(
     @Path() roleId: string,
     @Path() groupId: string,
@@ -330,7 +386,11 @@ export class RamController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "扮演RAM角色成功")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(assumeRamRoleBodySchema))
-  @CheckPermission(Permission.RAM_ASSUME_ROLE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_ASSUME_ROLE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:AssumeRole",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async assumeRole(
     @Body() body: AssumeRamRoleDto,
     @Request() request: TypedRequest,
@@ -341,7 +401,11 @@ export class RamController extends Controller {
   @Get("sessions")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM角色会话成功")
-  @CheckPermission(Permission.RAM_SESSION_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_SESSION_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:session:Read",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async listSessions(
     @Request() request: TypedRequest,
     @Query() principalUserId?: string,
@@ -359,7 +423,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateParams(ramSessionIdParamsSchema),
   )
-  @CheckPermission(Permission.RAM_SESSION_REVOKE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_SESSION_REVOKE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:session:Revoke",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async revokeSession(
     @Path() sessionId: string,
     @Request() request: TypedRequest,
@@ -373,7 +441,11 @@ export class RamController extends Controller {
   @Get("policies")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取权限策略列表成功")
-  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async listPolicies(@Request() request: TypedRequest): Promise<GetRamPoliciesResponse> {
     return this.ramService.listPolicies(request.user!.userId);
   }
@@ -388,7 +460,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateBody(createRamPolicyBodySchema),
   )
-  @CheckPermission(Permission.RAM_POLICY_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:CreatePolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async createPolicy(@Body() body: CreateRamPolicyDto, @Request() request: TypedRequest): Promise<RamPolicyDto> {
     return this.ramService.createPolicy(request.user!.userId, body);
   }
@@ -404,7 +480,11 @@ export class RamController extends Controller {
     validateParams(ramPolicyIdParamsSchema),
     validateBody(updateRamPolicyBodySchema),
   )
-  @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:UpdatePolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async updatePolicy(
     @Path() policyId: string,
     @Body() body: UpdateRamPolicyDto,
@@ -423,7 +503,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateParams(ramPolicyIdParamsSchema),
   )
-  @CheckPermission(Permission.RAM_POLICY_DELETE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:DeletePolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async deletePolicy(
     @Path() policyId: string,
     @Request() request: TypedRequest,
@@ -436,7 +520,11 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取权限策略绑定列表成功")
   @Middlewares(validateParams(ramPolicyIdParamsSchema))
-  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async listPolicyAttachments(
     @Path() policyId: string,
     @Request() request: TypedRequest,
@@ -454,7 +542,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateBody(attachPolicyBodySchema),
   )
-  @CheckPermission(Permission.RAM_POLICY_ATTACH, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_ATTACH, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:AttachPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async attachPolicy(
     @Body() body: AttachPolicyBodyDto,
     @Request() request: TypedRequest,
@@ -473,7 +565,11 @@ export class RamController extends Controller {
     replayProtectionMiddleware,
     validateBody(detachPolicyBodySchema),
   )
-  @CheckPermission(Permission.RAM_POLICY_DETACH, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_DETACH, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:DetachPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async detachPolicy(
     @Body() body: AttachPolicyBodyDto,
     @Request() request: TypedRequest,
@@ -485,7 +581,10 @@ export class RamController extends Controller {
   @Post("policies/validate")
   @Security("jwt")
   @Middlewares(validateBody(validateIamPolicyBodySchema))
-  @CheckPermission([Permission.RAM_POLICY_CREATE, Permission.RAM_POLICY_UPDATE], PermissionCheckMode.ANY, "jwt")
+  @CheckPermission([Permission.RAM_POLICY_CREATE, Permission.RAM_POLICY_UPDATE], PermissionCheckMode.ANY, "jwt", [
+    { action: "quyan:ram:CreatePolicy", resourceKind: "account", resource: ramAccountResourceResolver },
+    { action: "quyan:ram:UpdatePolicy", resourceKind: "account", resource: ramAccountResourceResolver },
+  ])
   public async validatePolicy(@Body() body: ValidateIamPolicyDto): Promise<ValidateIamPolicyResponseDto> {
     return this.ramService.validatePolicy(body.document);
   }
@@ -510,7 +609,11 @@ export class RamController extends Controller {
   @Get("policies/{policyId}/versions")
   @Security("jwt")
   @Middlewares(validateParams(ramPolicyIdParamsSchema), validateQuery(ramPolicyVersionsQuerySchema))
-  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async listPolicyVersions(
     @Path() policyId: string,
     @Request() request: TypedRequest,
@@ -530,7 +633,11 @@ export class RamController extends Controller {
     validateParams(ramPolicyIdParamsSchema),
     validateBody(createRamPolicyVersionBodySchema),
   )
-  @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:UpdatePolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async createPolicyVersion(
     @Path() policyId: string,
     @Body() body: CreateRamPolicyVersionDto,
@@ -549,7 +656,11 @@ export class RamController extends Controller {
     validateParams(ramPolicyIdParamsSchema),
     validateBody(setDefaultRamPolicyVersionBodySchema),
   )
-  @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:UpdatePolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async setDefaultPolicyVersion(
     @Path() policyId: string,
     @Body() body: SetDefaultRamPolicyVersionDto,
@@ -565,7 +676,11 @@ export class RamController extends Controller {
 
   @Get("iam/actions")
   @Security("jwt")
-  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async getIamActions(): Promise<string[]> {
     return [...this.ramService.getIamActionCatalog()];
   }
@@ -576,7 +691,11 @@ export class RamController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取用户有效权限成功")
   @Middlewares(validateQuery(authorizationQuerySchema))
-  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadUser",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   public async getUserEffectivePermissions(
     @Request() request: TypedRequest,
     @Query() userId: string,

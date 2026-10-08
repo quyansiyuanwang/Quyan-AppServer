@@ -6,7 +6,8 @@ import { SecurityScheme } from "@/middleware/auth/auth_guard";
 import { getRequestContext } from "../request-context";
 import { env } from "@/config/env";
 import { validateAccountStatus } from "@/util/auth/account-status";
-import { authorizeLegacyPermissions } from "@/iam/middleware/legacy-permission-bridge";
+import { authorizeLegacyPermissions, validateLegacyIamDefinitions } from "@/iam/middleware/legacy-permission-bridge";
+import type { LegacyIamDefinitions } from "@/iam/middleware/legacy-permission-bridge";
 import { copyFunctionMetadata } from "../decorator-metadata";
 
 const logger = getLogger("PermissionDecorator", LogCategory.SECURITY);
@@ -41,7 +42,9 @@ export function CheckPermission(
   permissions: Permission | Permission[],
   mode: PermissionCheckMode = PermissionCheckMode.ALL,
   securityScheme: SecurityScheme,
+  iamDefinitions?: LegacyIamDefinitions,
 ): MethodDecorator {
+  validateLegacyIamDefinitions(Array.isArray(permissions) ? permissions : [permissions], iamDefinitions);
   return function (target: any, propertyKey: string | symbol, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
 
@@ -71,7 +74,14 @@ export function CheckPermission(
         try {
           if (mode !== PermissionCheckMode.ALL && mode !== PermissionCheckMode.ANY)
             throw new Error("Unknown permission check mode");
-          if (!(await authorizeLegacyPermissions(request, permissionList, mode === PermissionCheckMode.ANY)))
+          if (
+            !(await authorizeLegacyPermissions(
+              request,
+              permissionList,
+              mode === PermissionCheckMode.ANY,
+              iamDefinitions,
+            ))
+          )
             throw new ForbiddenError("IAM/legacy permission denied", undefined, {
               messageKey: "permission.insufficientPermission",
             });

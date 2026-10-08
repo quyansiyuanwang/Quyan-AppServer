@@ -46,6 +46,29 @@ describe("IAM import-aware route inventory", () => {
     expect(entry.actions).toEqual(["quyan:user:Read"]);
     expect(entry.resourceKind).toBe("account");
   });
+  it("recognizes rollout-safe explicit definitions on permission decorators", () => {
+    const migrated = legacy.replace(
+      '"jwt") item',
+      '"jwt",{action:"quyan:user:Read",resourceKind:"account",resource:accountResource}) item',
+    );
+    expect(inventory(migrated)[0]).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:user:Read"],
+      resourceKind: "account",
+      issues: [],
+    });
+    expect(inventory(migrated.replace('action:"quyan:user:Read"', 'action:"quyan:ram:ReadUser"'))[0].issues).toContain(
+      "IAM action must match its legacy Permission mapping",
+    );
+    const multiple =
+      '@Get("item") @Security("jwt") @CheckPermission([Permission.RAM_POLICY_CREATE,Permission.RAM_POLICY_UPDATE],PermissionCheckMode.ANY,"jwt",[{action:"quyan:ram:CreatePolicy",resourceKind:"account",resource:accountResource},{action:"quyan:ram:UpdatePolicy",resourceKind:"account",resource:accountResource}]) item() {}';
+    expect(inventory(multiple)[0]).toMatchObject({ coverage: "explicit", issues: [] });
+    expect(
+      inventory(
+        multiple.replace(',{action:"quyan:ram:UpdatePolicy",resourceKind:"account",resource:accountResource}', ""),
+      )[0].issues,
+    ).toContain("IAM metadata must cover every legacy permission");
+  });
   it("handles class security, method overrides, NoSecurity and local-or-jwt", () => {
     const routes = inventory(
       '@Get("one") @RequirePermission(Permission.USER_READ) one() {} @Get("two") @NoSecurity() two() {} @Get("three") @Security("local-or-jwt") @RequirePermission(Permission.USER_READ,"local-or-jwt") three() {}',

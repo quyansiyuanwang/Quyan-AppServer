@@ -107,6 +107,44 @@ export function collectIamRoutes(sources: readonly SourceFile[], backendRoot: st
         if (isJwtRoute(entry)) {
           let hasLegacy = false,
             hasExplicit = false;
+
+          const addExplicitDefinition = (definition: Node | undefined, expectedAction?: string) => {
+            if (!definition || !Node.isObjectLiteralExpression(definition)) {
+              issues.push("IAM definition must be a static object");
+              return;
+            }
+            const properties = new Map(
+              definition
+                .getProperties()
+                .filter(Node.isPropertyAssignment)
+                .map((item) => [item.getName(), item.getInitializer()]),
+            );
+            const action = literal(properties.get("action")),
+              kind = literal(properties.get("resourceKind")),
+              resolver = properties.get("resource");
+            if (definition.getProperties().some(Node.isSpreadAssignment))
+              issues.push("IAM definitions cannot contain spreads");
+            if (!action || !isKnownIamAction(action)) issues.push("IAM action must be a static Action Catalog entry");
+            if (!kind || !IAM_RESOURCE_KINDS.some((value) => value === kind))
+              issues.push("IAM resourceKind is missing or unsupported");
+            if (!resolver || (!Node.isIdentifier(resolver) && !Node.isPropertyAccessExpression(resolver)))
+              issues.push("IAM resource must reference a named server resolver");
+            if (expectedAction && action !== expectedAction)
+              issues.push("IAM action must match its legacy Permission mapping");
+            if (action) entry.actions.push(action);
+            entry.resourceKind = kind;
+            entry.resolver = resolver?.getText();
+            if (
+              (!expectedAction || action === expectedAction) &&
+              action &&
+              isKnownIamAction(action) &&
+              kind &&
+              IAM_RESOURCE_KINDS.some((value) => value === kind) &&
+              resolver &&
+              (Node.isIdentifier(resolver) || Node.isPropertyAccessExpression(resolver))
+            )
+              hasExplicit = true;
+          };
           for (const definition of decorators.filter(
             (item) => item.module === permissionModule && legacyNames.has(item.name),
           )) {
@@ -151,6 +189,13 @@ export function collectIamRoutes(sources: readonly SourceFile[], backendRoot: st
             }
             entry.actions.push(...permissions.map((value) => actionForPermission(value!)));
             hasLegacy = true;
+            const metadata = definition.name === "CheckPermission" ? definition.args[3] : undefined;
+            if (metadata) {
+              const entries = Node.isArrayLiteralExpression(metadata) ? metadata.getElements() : [metadata];
+              if (entries.length !== permissions.length) issues.push("IAM metadata must cover every legacy permission");
+              else
+                entries.forEach((item, index) => addExplicitDefinition(item, actionForPermission(permissions[index]!)));
+            }
           }
           const middlewares = [...classDecorators, ...decorators].filter(
             (item) => tsoaModules.has(item.module) && item.name === "Middlewares",
@@ -159,39 +204,7 @@ export function collectIamRoutes(sources: readonly SourceFile[], backendRoot: st
             if (!Node.isCallExpression(middleware)) continue;
             const symbol = imported(middleware.getExpression(), source, backendRoot);
             if (symbol?.module !== iamModule || symbol.name !== "iamAuthorizationMiddleware") continue;
-            const definition = middleware.getArguments()[0];
-            if (!definition || !Node.isObjectLiteralExpression(definition)) {
-              issues.push("IAM definition must be a static object");
-              continue;
-            }
-            const properties = new Map(
-              definition
-                .getProperties()
-                .filter(Node.isPropertyAssignment)
-                .map((item) => [item.getName(), item.getInitializer()]),
-            );
-            const action = literal(properties.get("action")),
-              kind = literal(properties.get("resourceKind")),
-              resolver = properties.get("resource");
-            if (definition.getProperties().some(Node.isSpreadAssignment))
-              issues.push("IAM definitions cannot contain spreads");
-            if (!action || !isKnownIamAction(action)) issues.push("IAM action must be a static Action Catalog entry");
-            if (!kind || !IAM_RESOURCE_KINDS.some((value) => value === kind))
-              issues.push("IAM resourceKind is missing or unsupported");
-            if (!resolver || (!Node.isIdentifier(resolver) && !Node.isPropertyAccessExpression(resolver)))
-              issues.push("IAM resource must reference a named server resolver");
-            if (action) entry.actions.push(action);
-            entry.resourceKind = kind;
-            entry.resolver = resolver?.getText();
-            if (
-              action &&
-              isKnownIamAction(action) &&
-              kind &&
-              IAM_RESOURCE_KINDS.some((value) => value === kind) &&
-              resolver &&
-              (Node.isIdentifier(resolver) || Node.isPropertyAccessExpression(resolver))
-            )
-              hasExplicit = true;
+            addExplicitDefinition(middleware.getArguments()[0]);
           }
           entry.coverage = hasExplicit ? "explicit" : hasLegacy ? "legacy" : "missing";
           if (!hasExplicit && hasLegacy) entry.resourceKind = "account";

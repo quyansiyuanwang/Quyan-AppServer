@@ -30,7 +30,10 @@ vi.mock("../../../src/util/logger", () => ({
   getLogger: () => ({ warn: vi.fn() }),
 }));
 import { iamAuthorizationMiddleware } from "../../../src/iam/middleware/iam-authorization.middleware";
-import { authorizeLegacyPermissions } from "../../../src/iam/middleware/legacy-permission-bridge";
+import {
+  authorizeLegacyPermissions,
+  validateLegacyIamDefinitions,
+} from "../../../src/iam/middleware/legacy-permission-bridge";
 import { parseIamPolicy } from "../../../src/iam/parser/policy-parser";
 import { ramAccountResourceResolver } from "../../../src/iam/request/resource-resolvers";
 const request = () =>
@@ -183,6 +186,102 @@ describe("IAM middleware and rollout bridge", () => {
     );
     mocks.loadPolicies.mockRejectedValue(Error("offline"));
     expect(await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false)).toBe(true);
+  });
+  it("uses declared resources in enforce mode instead of repeating account-level checks", async () => {
+    mocks.mode = "enforce";
+    mocks.loadPolicies.mockResolvedValue([
+      {
+        policyId: "scoped",
+        document: parseIamPolicy({
+          Version: "1",
+          Statement: {
+            Effect: "Allow",
+            Action: "quyan:ram:UpdateUser",
+            Resource: "acs:quyan:*:owner:user/target",
+          },
+        }).document,
+      },
+    ]);
+    const req = request();
+    expect(
+      await authorizeLegacyPermissions(req, [Permission.RAM_USER_UPDATE], false, {
+        action: "quyan:ram:UpdateUser",
+        resourceKind: "single-resource",
+        resource: () => "acs:quyan:*:owner:user/target",
+      }),
+    ).toBe(true);
+    expect((req as { iamDecisions?: { resource: string }[] }).iamDecisions?.[0].resource).toBe(
+      "acs:quyan:*:owner:user/target",
+    );
+    expect(await authorizeLegacyPermissions(request(), [Permission.RAM_USER_UPDATE], false)).toBe(false);
+    expect(mocks.legacy).not.toHaveBeenCalled();
+  });
+  it("preserves rollback modes for declared resources, including resolver failure in shadow", async () => {
+    const resource = vi.fn(() => undefined);
+    const definition = { action: "quyan:ram:CreateUser", resourceKind: "single-resource" as const, resource };
+    expect(await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false, definition)).toBe(true);
+    expect(resource).not.toHaveBeenCalled();
+    mocks.mode = "shadow";
+    expect(await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false, definition)).toBe(true);
+    expect(resource).toHaveBeenCalledOnce();
+    mocks.mode = "enforce";
+    await expect(
+      authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false, definition),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("checks the whole batch in the rollout bridge and keeps multi-permission ANY semantics", async () => {
+    mocks.mode = "enforce";
+    mocks.loadPolicies.mockResolvedValue([
+      {
+        policyId: "scoped",
+        document: parseIamPolicy({
+          Version: "1",
+          Statement: [
+            { Effect: "Allow", Action: "quyan:ram:CreateUser", Resource: "*" },
+            { Effect: "Deny", Action: "quyan:ram:CreateUser", Resource: "acs:quyan:*:owner:user/blocked" },
+          ],
+        }).document,
+      },
+    ]);
+    expect(
+      await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false, {
+        action: "quyan:ram:CreateUser",
+        resourceKind: "batch",
+        resource: () => ["acs:quyan:*:owner:user/ok", "acs:quyan:*:owner:user/blocked"],
+      }),
+    ).toBe(false);
+    const definitions = [
+      { action: "quyan:ram:CreateUser", resourceKind: "account" as const, resource: ramAccountResourceResolver },
+      { action: "quyan:ram:ReadUser", resourceKind: "account" as const, resource: ramAccountResourceResolver },
+    ];
+    expect(
+      await authorizeLegacyPermissions(
+        request(),
+        [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ],
+        true,
+        definitions,
+      ),
+    ).toBe(true);
+    expect(
+      await authorizeLegacyPermissions(
+        request(),
+        [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ],
+        false,
+        definitions,
+      ),
+    ).toBe(false);
+  });
+  it("rejects mismatched actions and incomplete permission metadata at definition time", () => {
+    const definition = {
+      action: "quyan:ram:CreateUser",
+      resourceKind: "account" as const,
+      resource: ramAccountResourceResolver,
+    };
+    expect(() => validateLegacyIamDefinitions([Permission.RAM_USER_UPDATE], definition)).toThrow();
+    expect(() =>
+      validateLegacyIamDefinitions([Permission.RAM_USER_CREATE, Permission.RAM_USER_READ], definition),
+    ).toThrow();
+    expect(() => validateLegacyIamDefinitions([Permission.RAM_USER_CREATE], [])).toThrow();
   });
   it("enforces ALL and ANY semantics through IAM policies", async () => {
     mocks.mode = "enforce";
