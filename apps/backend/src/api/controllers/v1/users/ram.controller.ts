@@ -22,6 +22,8 @@ import type {
   CheckIamDelegationResponseDto,
   DiagnoseIamPolicyDto,
   DiagnoseIamPolicyResponseDto,
+  GenerateIamPolicyDraftDto,
+  GenerateIamPolicyDraftResponseDto,
   ValidateIamPolicyDto,
   ValidateIamPolicyResponseDto,
   SimulateIamPolicyDto,
@@ -34,6 +36,7 @@ import type {
 } from "@/api/dto/users/ram.dto";
 import {
   diagnoseIamPolicyBodySchema,
+  generateIamPolicyDraftBodySchema,
   validateIamPolicyBodySchema,
   createRamPolicyVersionBodySchema,
   setDefaultRamPolicyVersionBodySchema,
@@ -824,6 +827,39 @@ export class RamController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DiagnoseIamPolicyResponseDto> {
     return this.ramService.diagnosePolicy(request.user!.userId, body.documentText, body.policyKind);
+  }
+
+  @Post("policies/ai/draft")
+  @Security("jwt")
+  @ReplayProtected()
+  @Middlewares(replayProtectionMiddleware, validateBody(generateIamPolicyDraftBodySchema))
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:GeneratePolicyDraft",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async generatePolicyDraft(
+    @Body() body: GenerateIamPolicyDraftDto,
+    @Request() request: TypedRequest,
+  ): Promise<GenerateIamPolicyDraftResponseDto> {
+    const abortController = new AbortController();
+    const abortIfDisconnected = () => {
+      if (!request.res?.writableEnded) abortController.abort();
+    };
+    request.once("aborted", abortIfDisconnected);
+    request.res?.once("close", abortIfDisconnected);
+    try {
+      return await this.ramService.generatePolicyDraft(request.user!.userId, body, {
+        ipAddress: request.ip,
+        requestId: request.res?.locals.requestId,
+        signal: abortController.signal,
+      });
+    } finally {
+      request.off("aborted", abortIfDisconnected);
+      request.res?.off("close", abortIfDisconnected);
+    }
   }
 
   @Post("policies/validate")

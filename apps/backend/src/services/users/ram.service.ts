@@ -1,3 +1,4 @@
+import type { ChatTextGenerationOptions } from "@/services/chat/chat.service";
 import {
   parseIamTrustPolicy,
   evaluateIamTrustPolicy,
@@ -16,6 +17,7 @@ import {
   addRamResourceGroupMemberBodySchema,
   iamAuthorizationQuerySchema,
   assumeRamRoleBodySchema,
+  generateIamPolicyDraftBodySchema,
 } from "@/api/schema/users/ram.schema";
 import { iamAuthorizationScopeKey } from "@/iam/authorization-scope";
 import { projectScopedPolicyForDelegation } from "@/iam/delegation/scoped-policy";
@@ -54,6 +56,7 @@ import type { RamPolicyWithVersion, UpdateRamPolicyInput } from "@/store/users/r
 import { iamVersionPaginationSchema } from "@/iam/policy-version-pagination";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
+import { IamPolicyDraftService } from "@/iam/ai/policy-draft.service";
 import {
   IAM_ACTION_CATALOG,
   getIamResourcePatternTypes,
@@ -88,6 +91,8 @@ import type {
   CreateRamResourceGroupDto,
   RamAuthorizationDto,
   RamResourceGroupDto,
+  GenerateIamPolicyDraftDto,
+  GenerateIamPolicyDraftResponseDto,
 } from "@/api/dto/users/ram.dto";
 
 const DEFAULT_ROLE_SESSION_DURATION_SECONDS = 3600;
@@ -1382,6 +1387,27 @@ export class RamService {
   async diagnosePolicy(actorUserId: string, documentText: string, policyKind: "identity" | "trust" = "identity") {
     return diagnoseIamPolicy(documentText, await this.getAccountOwnerId(actorUserId), policyKind);
   }
+  async generatePolicyDraft(
+    actorUserId: string,
+    data: GenerateIamPolicyDraftDto,
+    metadata: Pick<ChatTextGenerationOptions, "ipAddress" | "requestId" | "signal"> = {},
+  ): Promise<GenerateIamPolicyDraftResponseDto> {
+    const validated = generateIamPolicyDraftBodySchema.safeParse(data);
+    if (!validated.success)
+      throw new BadRequestError("Invalid draft request", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "policyDraft" },
+      });
+    data = validated.data;
+    const accountOwnerId = await this.getAccountOwnerId(actorUserId);
+    const draftService = IamPolicyDraftService.getInstance();
+    const delegationCheck =
+      data.policyKind === "trust"
+        ? undefined
+        : async (document: unknown) => this.checkPolicyDelegation(actorUserId, document as IamPolicyDocument);
+    return draftService.generate(actorUserId, accountOwnerId, data, delegationCheck, metadata);
+  }
+
   async validatePolicy(document: IamPolicyDocument) {
     let parsed;
     try {

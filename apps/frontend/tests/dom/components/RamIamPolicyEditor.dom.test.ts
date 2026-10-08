@@ -64,6 +64,7 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
+          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-alert': alertStub,
           'el-button': buttonStub,
@@ -113,6 +114,7 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
+          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-alert': alertStub,
           'el-button': buttonStub,
@@ -149,6 +151,7 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
+          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-select': selectStub,
           'el-option': optionStub,
@@ -191,6 +194,7 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
+          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-alert': alertStub,
           'el-button': buttonStub,
@@ -234,6 +238,7 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
+          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-select': selectStub,
           'el-option': optionStub,

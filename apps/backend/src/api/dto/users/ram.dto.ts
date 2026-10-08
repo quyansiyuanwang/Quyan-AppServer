@@ -7,9 +7,11 @@ import type {
   IamDelegationResult,
   IamAuthorizationContract,
   IamResourceGroupContract,
+  IamPolicyDraftRequest,
+  IamPolicyDraftResponse,
 } from "@quyan/shared";
-import type { Permission } from "@/constant/permission";
 import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-encryption.dto";
+import type { Permission } from "@/constant/permission";
 
 export interface RamUserDto {
   id: string;
@@ -287,3 +289,6 @@ export interface CreateRamResourceGroupDto {
 export interface AddRamResourceGroupMemberDto {
   resourceArn: string;
 }
+
+export type GenerateIamPolicyDraftDto = IamPolicyDraftRequest;
+export type GenerateIamPolicyDraftResponseDto = IamPolicyDraftResponse;

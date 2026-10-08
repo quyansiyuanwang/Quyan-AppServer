@@ -531,6 +531,26 @@ const en = {
     configureMachineFirst: 'Configure one remote Agent machine before creating a workspace.',
   },
   RamManagement: {
+    aiDraftTitle: 'AI policy draft',
+    aiDraftHint:
+      'Generation uses your selected model and your own relay token, with normal model billing. It only returns a draft and cannot save, publish or attach it. Applying still requires validation and a separate save. Your instruction and any selected draft are sent to the model; do not enter credentials.',
+    aiDraftInstruction: 'Describe allowed or denied operations, resources and conditions',
+    aiDraftModel: 'Model ID (must be allowed by the token)',
+    aiDraftTokenId: 'Your relay token ID (not its secret)',
+    aiDraftIncludeCurrent: 'Send the current JSON draft to AI for revision',
+    aiDraftGenerate: 'Generate draft',
+    aiDraftFailed:
+      'Draft generation failed. Check IAM permission, model, token status, balance and limits before retrying.',
+    aiDraftRisk: 'Risk level',
+    aiDraftDelegation: 'Delegation check',
+    aiDraftMissingInformation: 'Missing information or checks',
+    aiDraftApply: 'Apply to editor',
+    aiRisk: { low: 'Low', medium: 'Medium', high: 'High' },
+    aiDelegation: {
+      'not-evaluated': 'Not evaluated',
+      allowed: 'Currently proven',
+      denied: 'Not proven; publication prohibited',
+    },
     visualJsonMode: "JSON editor",
     visualMode: "Visual editor",
     visualDraftHint: "Both editors create the same policy draft. Server validation and delegation checks are required before saving.",
