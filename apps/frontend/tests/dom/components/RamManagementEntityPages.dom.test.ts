@@ -6,7 +6,9 @@ const { api } = vi.hoisted(() => ({
   api: {
     listRolesPage: vi.fn(),
     listPoliciesPage: vi.fn(),
-    listUsers: vi.fn(),
+    listUsersPage: vi.fn(),
+    listSessionsPage: vi.fn(),
+    getUserEffectivePermissions: vi.fn(),
     listVisibleGroupPage: vi.fn(),
     listRoleBindings: vi.fn(),
   },
@@ -45,6 +47,8 @@ vi.mock('@/views/management/ram-management/context', () => ({
 }))
 import Roles from '@/views/management/ram-management/components/RamManagementRolesTab.vue'
 import Policies from '@/views/management/ram-management/components/RamManagementPoliciesTab.vue'
+import Users from '@/views/management/ram-management/components/RamManagementUsersTab.vue'
+import Sessions from '@/views/management/ram-management/components/RamManagementSessionsTab.vue'
 import Bindings from '@/views/management/ram-management/components/RamManagementBindingsTab.vue'
 const role = (id: string) => ({
   id,
@@ -72,8 +76,17 @@ const stubs = {
   RamIamRoleTrustEditor: true,
 }
 const mounts: ReturnType<typeof mount>[] = []
-const host = async (section: 'roles' | 'policies' | 'bindings') => {
-  const component = section === 'roles' ? Roles : section === 'policies' ? Policies : Bindings
+const host = async (section: 'roles' | 'policies' | 'bindings' | 'users' | 'sessions') => {
+  const component =
+    section === 'roles'
+      ? Roles
+      : section === 'policies'
+        ? Policies
+        : section === 'users'
+          ? Users
+          : section === 'sessions'
+            ? Sessions
+            : Bindings
   const wrapper = mount(
     defineComponent({
       setup() {
@@ -92,7 +105,8 @@ beforeEach(() => {
   vi.resetAllMocks()
   api.listRolesPage.mockResolvedValue(page([]))
   api.listPoliciesPage.mockResolvedValue(page([]))
-  api.listUsers.mockResolvedValue([])
+  api.listUsersPage.mockResolvedValue(page([]))
+  api.listSessionsPage.mockResolvedValue(page([]))
   api.listVisibleGroupPage.mockResolvedValue(page([]))
   api.listRoleBindings.mockResolvedValue([])
 })
@@ -180,5 +194,47 @@ describe('RAM role and policy candidate pages', () => {
     await context.loadGroups()
     expect(context.groups.value).toEqual([])
     expect(context.groupPage.failed.value).toBe(true)
+  })
+  it('pages users and clears selections, attachment targets and stale permission explanations', async () => {
+    api.listUsersPage
+      .mockResolvedValueOnce(page([{ id: 'first', username: 'first' }], 1, true))
+      .mockResolvedValueOnce(page([{ id: 'second', username: 'second' }], 2))
+    const view = await host('users')
+    context.authUserId.value = 'first'
+    let finish!: (result: unknown) => void
+    api.getUserEffectivePermissions.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const old = context.loadEffectivePermissions()
+    context.bindMode.value = 'user'
+    context.bindTargetId.value = 'first'
+    context.attachForm.targetType = 'user'
+    context.attachForm.targetId = 'first'
+    await view.get('[data-test="page-next"]').trigger('click')
+    await flushPromises()
+    finish({ ramUsername: 'first' })
+    await old
+    expect(api.listUsersPage).toHaveBeenLastCalledWith({ page: 2, pageSize: 50 })
+    expect(context.users.value.map((item) => item.id)).toEqual(['second'])
+    expect(context.effectivePerms.value).toBeNull()
+    expect(context.authUserId.value).toBe('')
+    expect(context.bindTargetId.value).toBe('')
+    expect(context.attachForm.targetId).toBe('')
+  })
+  it('advances empty filtered session pages and clears stale sessions after denial', async () => {
+    api.listSessionsPage
+      .mockResolvedValueOnce(page([], 1, true))
+      .mockResolvedValueOnce(page([{ id: 'later' }], 2))
+      .mockRejectedValueOnce(new Error('denied'))
+    const view = await host('sessions')
+    await view.get('[data-test="page-next"]').trigger('click')
+    await flushPromises()
+    expect(api.listSessionsPage).toHaveBeenLastCalledWith({ page: 2, pageSize: 50 })
+    expect(context.sessions.value.map((item) => item.id)).toEqual(['later'])
+    await context.loadSessions()
+    expect(context.sessions.value).toEqual([])
+    expect(context.sessionPage.failed.value).toBe(true)
   })
 })

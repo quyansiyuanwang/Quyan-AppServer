@@ -23,6 +23,22 @@
       </el-button>
     </div>
 
+    <el-alert
+      v-if="canReadUsers && userPage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      v-if="canReadUsers"
+      :page="userPage.page.value"
+      :page-size="userPage.pageSize.value"
+      :has-next="userPage.hasNext.value"
+      :loading="userPage.loading.value"
+      @previous="loadUsers(userPage.page.value - 1)"
+      @next="loadUsers(userPage.page.value + 1)"
+      @size="resizeUsersPage"
+    />
     <div v-if="authUserId && effectivePerms" class="auth-summary">
       <el-alert
         v-if="effectivePerms.authorizationMode === 'enforce'"
@@ -83,6 +99,7 @@
 </template>
 
 <script setup lang="ts">
+import RamIamPageControls from './RamIamPageControls.vue'
 import { ref } from 'vue'
 import RamIamResourceGroups from './RamIamResourceGroups.vue'
 import RamIamScopedAuthorizations from './RamIamScopedAuthorizations.vue'
@@ -100,5 +117,9 @@ const {
   loadEffectivePermissions,
   permissionBreakdownSource,
   users,
+  userPage,
+  canReadUsers,
+  loadUsers,
+  resizeUsersPage,
 } = useRamManagementContext()
 </script>

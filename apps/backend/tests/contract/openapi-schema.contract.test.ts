@@ -233,6 +233,8 @@ describe("RAM IAM policy API contract", () => {
     ["/v1/ram/roles/page", "get"],
     ["/v1/ram/policies/page", "get"],
     ["/v1/ram/groups/page", "get"],
+    ["/v1/ram/users/page", "get"],
+    ["/v1/ram/sessions/page", "get"],
     ["/v1/ram/authorizations", "get"],
     ["/v1/ram/authorizations", "post"],
     ["/v1/ram/authorizations/{authorizationId}", "delete"],

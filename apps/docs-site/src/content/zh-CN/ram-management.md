@@ -247,6 +247,8 @@ API `POST /v1/ram/policies/ai/draft` 需要 JWT 和重放保护。提交 instruc
 
 创建 RAM 用户、绑定角色和附加策略的用户组选项改用 `GET /v1/ram/groups/page`，支持 page、pageSize 和 keyword，并返回 items 与 hasNext。enforce 模式下，该列表需要账户目标上的 `quyan:group:Read`，每个选项还需要对应 group ARN 的读取权限；用户读取权限不能替代组读取权限。列表先按账户和历史组等级限制候选，再执行 IAM 过滤，组人数只统计本账户用户。仅真实主账户的恢复身份可看到其无账户归属的恢复组；子用户、AccessKey 和角色会话不继承该例外。三个表单都有用户组翻页控件，换页或加载失败后会清除旧的组目标。legacy/shadow 保留历史 RAM 用户读取入口和组可见规则，分页不会改变这些模式的历史授权。
 
+RAM 用户与角色会话列表使用 `GET /v1/ram/users/page` 和 `GET /v1/ram/sessions/page`，会话接口还可按 principalUserId 筛选。enforce 模式分别检查具体 user 与 role-session ARN 的读取权限；账户列表 Allow 不会自动变成每条记录的 Allow。用户候选先限定主账户，明确声明外账户归属的记录不会通过历史 parentUserId 回退进入当前账户；会话只返回未撤销、未过期、有效且关联主体与角色归属一致的记录。用户列表搜索仅筛选当前页，角色绑定、策略附加与有效权限查询的用户选项均可翻页；换页后清除原选择及权限解释。旧数组接口在 enforce 模式返回已过滤的默认首页，legacy/shadow 保留历史数组结果。
+
 ## 在管理页面创建范围授权
 
 打开 RAM 的“授权”页面，可以分页查看资源组、成员及授权关系。点击资源组的“用于授权”会将该组 ID 带入范围授权表单；主体和策略填写从相应管理列表复制的 ID。范围支持 account、resource-group 和 resource：资源组范围填写资源组 ID，单资源范围填写本账户 ARN，账户范围不提交额外资源字段。

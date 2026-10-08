@@ -1,6 +1,8 @@
 import type { BalanceAccount, Prisma, User } from "@prisma/client";
 
 export interface UserListFilters {
+  /** Trusted account boundary; never copied from an HTTP query. */
+  accountOwnerId?: string;
   keyword?: string;
   userId?: string;
   groupId?: string;

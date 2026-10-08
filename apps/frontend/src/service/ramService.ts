@@ -41,6 +41,12 @@ export class RamService {
     return this.instance
   }
 
+  async listUsersPage(query: { page: number; pageSize: number }) {
+    const result = await ramApi.listUsersPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async listUsers() {
     const result = await ramApi.listUsers({})
     if (result?.code === CustomCode.OK && result.data) return result.data
@@ -144,6 +150,12 @@ export class RamService {
 
   async assumeRole(data: AssumeRamRoleDto) {
     const result = await ramApi.assumeRole({ body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async listSessionsPage(query: { page: number; pageSize: number; principalUserId?: string }) {
+    const result = await ramApi.listSessionsPage({ params: query })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }

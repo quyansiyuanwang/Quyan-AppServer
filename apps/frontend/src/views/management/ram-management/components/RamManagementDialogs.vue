@@ -248,6 +248,23 @@
           />
         </el-select>
         <el-alert
+          v-if="bindMode === 'user' && userPage.failed.value"
+          :title="i18ns.t('RamManagement.scopedLoadFailed')"
+          type="error"
+          :closable="false"
+        />
+        <RamIamPageControls
+          v-if="bindMode === 'user'"
+          :page="userPage.page.value"
+          :page-size="userPage.pageSize.value"
+          :has-next="userPage.hasNext.value"
+          :loading="userPage.loading.value"
+          @previous="loadUsers(userPage.page.value - 1)"
+          @next="loadUsers(userPage.page.value + 1)"
+          @size="resizeUsersPage"
+        />
+
+        <el-alert
           v-if="bindMode === 'group' && groupPage.failed.value"
           :title="i18ns.t('RamManagement.scopedLoadFailed')"
           type="error"
@@ -375,6 +392,23 @@
             />
           </el-select>
           <el-alert
+            v-if="attachForm.targetType === 'user' && userPage.failed.value"
+            :title="i18ns.t('RamManagement.scopedLoadFailed')"
+            type="error"
+            :closable="false"
+          />
+          <RamIamPageControls
+            v-if="attachForm.targetType === 'user'"
+            :page="userPage.page.value"
+            :page-size="userPage.pageSize.value"
+            :has-next="userPage.hasNext.value"
+            :loading="userPage.loading.value"
+            @previous="loadUsers(userPage.page.value - 1)"
+            @next="loadUsers(userPage.page.value + 1)"
+            @size="resizeUsersPage"
+          />
+
+          <el-alert
             v-if="attachForm.targetType === 'group' && groupPage.failed.value"
             :title="i18ns.t('RamManagement.scopedLoadFailed')"
             type="error"
@@ -482,6 +516,9 @@ const {
   loadRoles,
   groupPage,
   loadGroups,
+  userPage,
+  loadUsers,
+  resizeUsersPage,
   resizeGroupsPage,
   resizeRolesPage,
   passwordDialogVisible,

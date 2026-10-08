@@ -61,4 +61,9 @@ export interface RamRoleStore {
   findActiveRoleSession(sessionId: string): Promise<ActiveRamRoleSession | null>;
   revokeRoleSession(sessionId: string): Promise<RamRoleSession>;
   listActiveRoleSessions(accountOwnerId: string, subjectUserId?: string): Promise<ActiveRamRoleSession[]>;
+  listActiveRoleSessionsPage(
+    accountOwnerId: string,
+    pagination: IamManagementPage,
+    subjectUserId?: string,
+  ): Promise<IamManagementPageResult<ActiveRamRoleSession>>;
 }

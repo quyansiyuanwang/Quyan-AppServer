@@ -17,6 +17,13 @@ export class UserRepository implements UserStore {
     const userType = filters.userType?.trim();
 
     const andConditions: Prisma.UserWhereInput[] = [];
+    if (filters.accountOwnerId)
+      andConditions.push({
+        OR: [
+          { accountOwnerId: filters.accountOwnerId },
+          { accountOwnerId: null, parentUserId: filters.accountOwnerId },
+        ],
+      });
 
     if (keyword)
       andConditions.push({

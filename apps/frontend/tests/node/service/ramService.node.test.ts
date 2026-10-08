@@ -14,6 +14,27 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 describe('RAM service IAM document operations', () => {
+  it('uses generated user and session page endpoints and passes the principal filter', async () => {
+    const query = { page: 3, pageSize: 25 },
+      data = { items: [], ...query, hasNext: true }
+    requestMock.get.mockResolvedValue({ code: CustomCode.OK, data })
+    expect(await ramService.listUsersPage(query)).toEqual(data)
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListUsersPage' }),
+      { params: query },
+      undefined,
+    )
+    expect(await ramService.listSessionsPage({ ...query, principalUserId: 'actor' })).toEqual(data)
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListSessionsPage' }),
+      { params: { ...query, principalUserId: 'actor' } },
+      undefined,
+    )
+    requestMock.get.mockResolvedValue({ code: CustomCode.PERMISSION_DENIED })
+    await expect(ramService.listUsersPage(query)).rejects.toThrow()
+    await expect(ramService.listSessionsPage(query)).rejects.toThrow()
+  })
+
   it('loads paged group options without falling back to the unbounded list on denial', async () => {
     const query = { page: 2, pageSize: 25, keyword: 'team' }
     const data = { items: [], page: 2, pageSize: 25, hasNext: true }

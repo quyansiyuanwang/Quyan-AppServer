@@ -22,6 +22,10 @@ export const ramRoleIdParamsSchema = z.object({
   roleId: z.string().trim().min(1),
 });
 
+export const ramSessionPageQuerySchema = iamManagementPaginationSchema.extend({
+  principalUserId: z.string().trim().min(1).max(128).optional(),
+});
+
 export const ramSessionIdParamsSchema = z.object({
   sessionId: z.string().trim().min(1),
 });

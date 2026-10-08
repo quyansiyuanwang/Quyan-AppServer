@@ -49,19 +49,23 @@ export function useRamManagement(section: RamManagementSection) {
       })
   })
   const permissionStore = usePermissionStore()
-  const users = ref<RamUserDto[]>([])
+  const userPage = useIamManagementPage((query) => ramService.listUsersPage(query))
+  const sessionPage = useIamManagementPage((query) => ramService.listSessionsPage(query))
+  const users = userPage.items
   const rolePage = useIamManagementPage((query) => ramService.listRolesPage(query))
   const groupPage = useIamManagementPage((query) => ramService.listVisibleGroupPage(query))
   const policyPage = useIamManagementPage((query) => ramService.listPoliciesPage(query))
   const roles = rolePage.items
   const bindings = ref<RamRoleBindingDto[]>([])
-  const sessions = ref<RamRoleSessionDto[]>([])
+  const sessions = sessionPage.items
   const groups = groupPage.items
   const selectedRoleId = ref('')
   const selectedRole = ref<RamRoleDto | null>(null)
   const submitting = ref(false)
   const loading = reactive({
-    users: false,
+    get users() {
+      return userPage.loading.value
+    },
     get groups() {
       return groupPage.loading.value
     },
@@ -69,7 +73,9 @@ export function useRamManagement(section: RamManagementSection) {
       return rolePage.loading.value
     },
     bindings: false,
-    sessions: false,
+    get sessions() {
+      return sessionPage.loading.value
+    },
     get policies() {
       return policyPage.loading.value
     },
@@ -109,6 +115,7 @@ export function useRamManagement(section: RamManagementSection) {
   const policyAttachments = ref<RamPolicyAttachmentDto[]>([])
   const authUserId = ref('')
   const effectivePerms = ref<EffectivePermissionDto | null>(null)
+  let effectivePermissionSequence = 0
   const attachForm = reactive({ targetType: 'user' as 'user' | 'role' | 'group', targetId: '' })
 
   const userForm = reactive({
@@ -358,17 +365,22 @@ export function useRamManagement(section: RamManagementSection) {
     return `${Math.floor(diff / 86400000)}d`
   }
 
-  const loadUsers = async () => {
+  const loadUsers = async (targetPage = userPage.page.value) => {
+    selectedUsers.value = []
+    authUserId.value = ''
+    effectivePerms.value = null
+    effectivePermissionSequence++
+    if (bindMode.value === 'user') bindTargetId.value = ''
+    if (attachForm.targetType === 'user') attachForm.targetId = ''
     if (!canReadUsers.value) {
-      users.value = []
+      userPage.clear()
       return
     }
-    loading.users = true
-    try {
-      users.value = await ramService.listUsers()
-    } finally {
-      loading.users = false
-    }
+    await userPage.load(targetPage)
+  }
+  const resizeUsersPage = (size: number) => {
+    userPage.pageSize.value = size
+    void loadUsers(1)
   }
 
   const loadRoles = async (targetPage = rolePage.page.value) => {
@@ -434,17 +446,16 @@ export function useRamManagement(section: RamManagementSection) {
     }
   }
 
-  const loadSessions = async () => {
+  const loadSessions = async (targetPage = sessionPage.page.value) => {
     if (!canReadSessions.value) {
-      sessions.value = []
+      sessionPage.clear()
       return
     }
-    loading.sessions = true
-    try {
-      sessions.value = await ramService.listSessions()
-    } finally {
-      loading.sessions = false
-    }
+    await sessionPage.load(targetPage)
+  }
+  const resizeSessionsPage = (size: number) => {
+    sessionPage.pageSize.value = size
+    void loadSessions(1)
   }
 
   const loadPolicies = async (targetPage = policyPage.page.value) => {
@@ -932,11 +943,17 @@ export function useRamManagement(section: RamManagementSection) {
   }
 
   const loadEffectivePermissions = async () => {
-    if (!authUserId.value) return
+    const ticket = ++effectivePermissionSequence,
+      userId = authUserId.value
+    effectivePerms.value = null
+    if (!userId) return
     try {
-      effectivePerms.value = await ramService.getUserEffectivePermissions(authUserId.value)
+      const result = await ramService.getUserEffectivePermissions(userId)
+      if (ticket === effectivePermissionSequence && userId === authUserId.value)
+        effectivePerms.value = result
     } catch (error: any) {
-      showRequestErrorNotice(error, i18ns.t('loadFailed'))
+      if (ticket === effectivePermissionSequence)
+        showRequestErrorNotice(error, i18ns.t('loadFailed'))
     }
   }
 
@@ -1020,6 +1037,10 @@ export function useRamManagement(section: RamManagementSection) {
     resizePoliciesPage,
     loadSessions,
     loadUsers,
+    userPage,
+    sessionPage,
+    resizeUsersPage,
+    resizeSessionsPage,
     loading,
     openBindDialog,
     openPolicyAttachments,

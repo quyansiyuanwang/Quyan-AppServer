@@ -19,6 +19,7 @@ import {
   iamAuthorizationQuerySchema,
   assumeRamRoleBodySchema,
   ramGroupPageQuerySchema,
+  ramSessionPageQuerySchema,
   generateIamPolicyDraftBodySchema,
 } from "@/api/schema/users/ram.schema";
 import { iamAuthorizationScopeKey } from "@/iam/authorization-scope";
@@ -89,6 +90,8 @@ import type {
   RamPolicyPageDto,
   RamRoleSessionDto,
   RamUserDto,
+  RamUserPageDto,
+  RamRoleSessionPageDto,
   UpdateRamPolicyDto,
   UpdateRamRoleDto,
   UpdateRamUserDto,
@@ -275,7 +278,7 @@ export class RamService {
     actorUserId: string,
     owner: string,
     action: string,
-    type: "authorization" | "resource-group" | "role" | "policy",
+    type: "authorization" | "resource-group" | "role" | "policy" | "user" | "role-session",
     items: T[],
   ): Promise<T[]> {
     const { principal, context } = await this.actorIamContext(actorUserId);
@@ -766,7 +769,41 @@ export class RamService {
     };
   }
 
+  async listRamUserPage(
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<RamUserPageDto> {
+    const parsed = iamManagementPaginationSchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid RAM user page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const actor = await this.getActor(actorUserId),
+      owner = this.resolveAccountOwnerId(actor);
+    const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
+    const isAdmin = actorGroup?.username === env.security.superAdminGroupUsername;
+    const { page, pageSize } = parsed.data;
+    const filters = { accountOwnerId: owner, userType: "ram_user", skip: (page - 1) * pageSize, take: pageSize + 1 };
+    const candidates =
+      isAdmin || (env.security.iamAuthorizationMode === "enforce" && !actorGroup)
+        ? await this.userRepository.listNonDeletedPaginated(filters)
+        : await this.userRepository.listNonDeletedByGroupLevelGtePaginated(actorGroup?.level ?? 0, filters);
+    const items = candidates.slice(0, pageSize);
+    const records =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await this.filterIamEntityPage(actorUserId, owner, "quyan:ram:ReadUser", "user", items)
+        : items;
+    return {
+      items: records.map((user) => this.mapUserToDto(user as AccountScopedUser)),
+      page,
+      pageSize,
+      hasNext: candidates.length > pageSize,
+    };
+  }
+
   async listRamUsers(actorUserId: string): Promise<RamUserDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return (await this.listRamUserPage(actorUserId)).items;
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const actor = await this.getActor(actorUserId);
     const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
@@ -1390,7 +1427,29 @@ export class RamService {
     };
   }
 
+  async listRoleSessionPage(
+    actorUserId: string,
+    query: { page?: number; pageSize?: number; principalUserId?: string } = {},
+  ): Promise<RamRoleSessionPageDto> {
+    const parsed = ramSessionPageQuerySchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid role session page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const { page, pageSize, principalUserId } = parsed.data;
+    const result = await this.ramRoleRepository.listActiveRoleSessionsPage(owner, { page, pageSize }, principalUserId);
+    const records =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await this.filterIamEntityPage(actorUserId, owner, "quyan:ram:session:Read", "role-session", result.items)
+        : result.items;
+    return { ...result, items: records.map((session) => this.mapSessionToDto(session)) };
+  }
+
   async listRoleSessions(actorUserId: string, principalUserId?: string): Promise<RamRoleSessionDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listRoleSessionPage(actorUserId, { principalUserId })).items;
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const sessions = await this.ramRoleRepository.listActiveRoleSessions(accountOwnerId, principalUserId);
     return sessions.map((session) => this.mapSessionToDto(session));

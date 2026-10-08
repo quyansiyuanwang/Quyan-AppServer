@@ -226,4 +226,29 @@ export class RamRoleRepository implements RamRoleStore {
       orderBy: { createTime: "desc" },
     });
   }
+  async listActiveRoleSessionsPage(accountOwnerId: string, pagination: IamManagementPage, subjectUserId?: string) {
+    const candidates = await prisma.ramRoleSession.findMany({
+      where: {
+        accountOwnerId,
+        subjectUserId,
+        status: AccountStatus.ACTIVE,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+        role: { accountOwnerId },
+        subjectUser: {
+          status: { gte: AccountStatus.DISABLED },
+          OR: [{ id: accountOwnerId }, { accountOwnerId }, { accountOwnerId: null, parentUserId: accountOwnerId }],
+        },
+      },
+      include: { role: true },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: (pagination.page - 1) * pagination.pageSize,
+      take: pagination.pageSize + 1,
+    });
+    return {
+      items: candidates.slice(0, pagination.pageSize),
+      ...pagination,
+      hasNext: candidates.length > pagination.pageSize,
+    };
+  }
 }

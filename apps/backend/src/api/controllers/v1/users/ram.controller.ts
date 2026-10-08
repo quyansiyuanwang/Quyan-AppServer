@@ -42,6 +42,8 @@ import type {
   RamResourceGroupMemberPageDto,
   RamResourceGroupDto,
   RamVisibleGroupPageDto,
+  RamUserPageDto,
+  RamRoleSessionPageDto,
 } from "@/api/dto/users/ram.dto";
 import {
   diagnoseIamPolicyBodySchema,
@@ -119,6 +121,7 @@ import {
   detachPolicyBodySchema,
   ramGroupListQuerySchema,
   ramGroupPageQuerySchema,
+  ramSessionPageQuerySchema,
   ramPolicyIdParamsSchema,
   ramRoleIdParamsSchema,
   ramSessionIdParamsSchema,
@@ -138,6 +141,22 @@ import { passwordEncryptionService } from "@/services/auth/password-encryption.s
 @Tags("RAM")
 export class RamController extends Controller {
   private ramService = RamService.getInstance();
+
+  @Get("users/page")
+  @Security("jwt")
+  @Middlewares(validateQuery(iamManagementPaginationSchema))
+  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadUser",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async listUsersPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamUserPageDto> {
+    return this.ramService.listRamUserPage(request.user!.userId, { page, pageSize });
+  }
 
   @Get("users")
   @Security("jwt")
@@ -514,6 +533,23 @@ export class RamController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<AssumeRamRoleResponseDto> {
     return this.ramService.assumeRole(request.user!.userId, body);
+  }
+
+  @Get("sessions/page")
+  @Security("jwt")
+  @Middlewares(validateQuery(ramSessionPageQuerySchema))
+  @CheckPermission(Permission.RAM_SESSION_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:session:Read",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async listSessionsPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() principalUserId?: string,
+  ): Promise<RamRoleSessionPageDto> {
+    return this.ramService.listRoleSessionPage(request.user!.userId, { page, pageSize, principalUserId });
   }
 
   @Get("sessions")

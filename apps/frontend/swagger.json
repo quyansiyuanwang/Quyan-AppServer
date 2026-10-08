@@ -2631,6 +2631,51 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/ram/users/page": {
+			"get": {
+				"operationId": "RamControllerListUsersPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamUserPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/users": {
 			"get": {
 				"operationId": "RamControllerListUsers",
@@ -3501,6 +3546,59 @@
 					}
 				},
 				"X-Replay-Protected": true
+			}
+		},
+		"/v1/ram/sessions/page": {
+			"get": {
+				"operationId": "RamControllerListSessionsPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamRoleSessionPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "principalUserId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/ram/sessions": {
@@ -37064,6 +37162,38 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamManagementPageResult_RamUserDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamUserDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamUserPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamUserDto_"
+			},
 			"GetRamUsersResponse": {
 				"items": {
 					"$ref": "#/components/schemas/RamUserDto"
@@ -37687,6 +37817,38 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"IamManagementPageResult_RamRoleSessionDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamRoleSessionDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamRoleSessionPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamRoleSessionDto_"
 			},
 			"GetRamRoleSessionsResponse": {
 				"items": {
