@@ -194,11 +194,11 @@ const drawerTitle = computed(
 )
 const drawerSize = computed(() => (isDesktop.value ? '56%' : '92%'))
 
-const ticketFormRules: FormRules<TicketFormModel> = {
+const ticketFormRules = computed<FormRules<TicketFormModel>>(() => ({
   type: [{ required: true, message: i18ns.t('required'), trigger: 'change' }],
   title: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
   description: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
-}
+}))
 
 function isTerminalStatus(status?: TicketWorkflowStatus) {
   return status === 'rejected' || status === 'completed'

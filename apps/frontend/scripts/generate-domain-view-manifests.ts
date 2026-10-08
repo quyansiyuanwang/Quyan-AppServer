@@ -3,6 +3,7 @@ import path from 'node:path'
 import ts from 'typescript'
 import { fileURLToPath } from 'node:url'
 import { format } from 'prettier'
+import { generateLocaleManifest, type LocaleRouteReference } from './i18n/manifest'
 
 type RouteViewReference = { routeName: string; feature: string; viewPath: string }
 
@@ -145,6 +146,126 @@ const inferGeneratedGroup = (routeName: string): string | undefined => {
 const resolveGroup = (routeName: string, groups: Map<string, string>): string | undefined =>
   groups.get(routeName) ?? inferGeneratedGroup(routeName)
 
+/** Locale pages include direct/optional imports and product barrel exports. */
+export const readLocaleRouteReferences = (): LocaleRouteReference[] => {
+  const source = fs.readFileSync(routesFile, 'utf8')
+  const ast = ts.createSourceFile(routesFile, source, ts.ScriptTarget.Latest, true)
+  const groups = readRouteGroups()
+  const references: LocaleRouteReference[] = []
+  const importPaths = (node: ts.Node): string[] => {
+    const paths: string[] = []
+    const visit = (child: ts.Node) => {
+      if (
+        ts.isCallExpression(child) &&
+        child.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        child.arguments[0] &&
+        ts.isStringLiteral(child.arguments[0])
+      )
+        paths.push(child.arguments[0].text)
+      ts.forEachChild(child, visit)
+    }
+    visit(node)
+    return paths
+  }
+  const helperImports = new Map<string, string[]>()
+  for (const statement of ast.statements)
+    if (ts.isVariableStatement(statement))
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name) && declaration.initializer)
+          helperImports.set(declaration.name.text, importPaths(declaration.initializer))
+      }
+  const resolve = (specifier: string) => path.join(srcRoot, specifier.replace(/^@\//, ''))
+  const visit = (node: ts.Node) => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const hasPath = node.properties.some(
+        (property) =>
+          ts.isPropertyAssignment(property) &&
+          ts.isIdentifier(property.name) &&
+          property.name.text === 'path',
+      )
+      const routeName = hasPath ? stringProperty(node, 'name') : undefined
+      const component = node.properties.find(
+        (property) =>
+          ts.isPropertyAssignment(property) &&
+          ts.isIdentifier(property.name) &&
+          property.name.text === 'component',
+      )
+      if (routeName && !component)
+        references.push({
+          routeName,
+          group: resolveGroup(routeName, groups) ?? 'shared',
+          files: [],
+        })
+      if (routeName && component && ts.isPropertyAssignment(component)) {
+        const group = resolveGroup(routeName, groups)
+        const files: string[] = []
+        const feature = lazyFeatureViewCall(node)
+        if (feature)
+          files.push(
+            path.join(
+              srcRoot,
+              'views',
+              feature.feature === 'misc' ? feature.path : feature.feature + '/' + feature.path,
+            ),
+          )
+        else {
+          for (const specifier of importPaths(component.initializer))
+            if (specifier.startsWith('@/')) files.push(resolve(specifier))
+          const call = unwrap(component.initializer)
+          if (
+            ts.isCallExpression(call) &&
+            ts.isIdentifier(call.expression) &&
+            call.arguments[1] &&
+            ts.isStringLiteral(call.arguments[1])
+          ) {
+            const exportName = call.arguments[1].text
+            for (const specifier of helperImports.get(call.expression.text) ?? []) {
+              const barrel = resolve(specifier) + '.ts'
+              if (!fs.existsSync(barrel)) continue
+              const barrelAst = ts.createSourceFile(
+                barrel,
+                fs.readFileSync(barrel, 'utf8'),
+                ts.ScriptTarget.Latest,
+                true,
+              )
+              for (const statement of barrelAst.statements)
+                if (
+                  ts.isExportDeclaration(statement) &&
+                  statement.moduleSpecifier &&
+                  ts.isStringLiteral(statement.moduleSpecifier) &&
+                  statement.exportClause &&
+                  ts.isNamedExports(statement.exportClause) &&
+                  statement.exportClause.elements.some(
+                    (element) => element.name.text === exportName,
+                  )
+                )
+                  files.push(path.resolve(path.dirname(barrel), statement.moduleSpecifier.text))
+            }
+          }
+        }
+        // Uncatalogued root/layout records are covered by common entry roots.
+        if (group && !files.length)
+          throw new Error('i18n cannot resolve page component: ' + routeName)
+        references.push({ routeName, group: group ?? 'shared', files })
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  for (const statement of ast.statements)
+    if (
+      ts.isVariableStatement(statement) &&
+      statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+    )
+      for (const declaration of statement.declarationList.declarations)
+        if (
+          ts.isIdentifier(declaration.name) &&
+          declaration.name.text === 'routes' &&
+          declaration.initializer
+        )
+          visit(declaration.initializer)
+  return references
+}
+
 const viewPathFor = (reference: RouteViewReference): string =>
   reference.feature === 'misc' ? reference.viewPath : `${reference.feature}/${reference.viewPath}`
 
@@ -213,6 +334,8 @@ export const generateDomainViewManifests = async (): Promise<{ sites: number; vi
     )
   }
 
+  await generateLocaleManifest(srcRoot, readLocaleRouteReferences())
+
   fs.mkdirSync(outputRoot, { recursive: true })
   for (const entry of fs.readdirSync(outputRoot, { withFileTypes: true })) {
     if (entry.isFile() && entry.name.endsWith('.gen.ts'))
@@ -239,9 +362,17 @@ export const generateDomainViewManifests = async (): Promise<{ sites: number; vi
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  void generateDomainViewManifests().then((result) => {
-    console.log(
-      `[domain-views:generate] generated ${result.views} views across ${result.sites} sites`,
-    )
+  const task = process.argv.includes('--check-i18n')
+    ? generateLocaleManifest(srcRoot, readLocaleRouteReferences(), true).then((result) =>
+        console.log('[i18n:check]', result),
+      )
+    : generateDomainViewManifests().then((result) => {
+        console.log(
+          `[domain-views:generate] generated ${result.views} views across ${result.sites} sites`,
+        )
+      })
+  void task.catch((error) => {
+    console.error(error.message)
+    process.exitCode = 1
   })
 }

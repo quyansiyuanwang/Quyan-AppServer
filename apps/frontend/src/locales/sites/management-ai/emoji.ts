@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const emoji: DeepStringify<typeof en> = {
+const emoji = {
   aiRequestLogs: {
     title: '🤖 📝',
     description: '🔎 按身份、结果和正文检索 AI 请求，分段阅读提示词、工具、响应及脱敏失败记录。',
@@ -370,6 +370,6 @@ const emoji: DeepStringify<typeof en> = {
     workspaceStatus: '📊🗂️',
     workspaceSaveFailed: '❌🗂️',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default emoji

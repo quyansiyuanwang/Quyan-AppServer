@@ -58,6 +58,6 @@ const en = {
     updateSuccess: 'API key updated successfully',
     updateFailed: 'Failed to update API key',
   },
-}
+} as const
 
 export default en

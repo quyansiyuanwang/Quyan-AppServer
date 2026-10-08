@@ -127,7 +127,7 @@ const localModel = computed({
   set: (value) => emit('update:model', value),
 })
 
-type PolicyRow = (typeof policyRows)[number]
+type PolicyRow = (typeof policyRows.value)[number]
 type PolicyMode = ContentSafetyAction | 'disabled' | 'inherit'
 
 const getMode = (row: PolicyRow): PolicyMode => {
@@ -154,31 +154,36 @@ const setMode = (row: PolicyRow, value: string | number | boolean | undefined) =
   localModel.value[row.actionKey] = mode
 }
 
-const policyRows: Array<{
-  direction: string
-  enabledKey: 'requestEnabled' | 'responseEnabled'
-  actionKey: 'requestAction' | 'responseAction'
-  maxActionKey: 'requestMaxAction' | 'responseMaxAction'
-  aiKey: 'requestAiEnabled' | 'responseAiEnabled'
-  aiActionKey: 'requestAiAction' | 'responseAiAction'
-}> = [
-  {
-    direction: i18ns.t('contentSafety.request'),
-    enabledKey: 'requestEnabled',
-    actionKey: 'requestAction',
-    maxActionKey: 'requestMaxAction',
-    aiKey: 'requestAiEnabled',
-    aiActionKey: 'requestAiAction',
-  },
-  {
-    direction: i18ns.t('contentSafety.response'),
-    enabledKey: 'responseEnabled',
-    actionKey: 'responseAction',
-    maxActionKey: 'responseMaxAction',
-    aiKey: 'responseAiEnabled',
-    aiActionKey: 'responseAiAction',
-  },
-] as const
+const policyRows = computed<
+  Array<{
+    direction: string
+    enabledKey: 'requestEnabled' | 'responseEnabled'
+    actionKey: 'requestAction' | 'responseAction'
+    maxActionKey: 'requestMaxAction' | 'responseMaxAction'
+    aiKey: 'requestAiEnabled' | 'responseAiEnabled'
+    aiActionKey: 'requestAiAction' | 'responseAiAction'
+  }>
+>(
+  () =>
+    [
+      {
+        direction: i18ns.t('contentSafety.request'),
+        enabledKey: 'requestEnabled',
+        actionKey: 'requestAction',
+        maxActionKey: 'requestMaxAction',
+        aiKey: 'requestAiEnabled',
+        aiActionKey: 'requestAiAction',
+      },
+      {
+        direction: i18ns.t('contentSafety.response'),
+        enabledKey: 'responseEnabled',
+        actionKey: 'responseAction',
+        maxActionKey: 'responseMaxAction',
+        aiKey: 'responseAiEnabled',
+        aiActionKey: 'responseAiAction',
+      },
+    ] as const,
+)
 </script>
 
 <style scoped>

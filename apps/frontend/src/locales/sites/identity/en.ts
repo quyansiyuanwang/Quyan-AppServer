@@ -223,6 +223,6 @@ const en = {
     verifyCodeHint: 'Enter your 6-digit authenticator code, or switch to recovery code.',
     passkeyNeedSecondFactor: 'Passkey verified. Please complete the second verification step.',
   },
-}
+} as const
 
 export default en

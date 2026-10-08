@@ -68,6 +68,6 @@ const en = {
     enterValue: 'Enter Value',
     jsonPlaceholder: 'Enter JSON code here...',
   },
-}
+} as const
 
 export default en

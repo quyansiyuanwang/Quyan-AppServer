@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   productConsole: {
     refresh: '刷新',
     documentation: '查看文档',
@@ -2004,7 +2004,7 @@ const zhCN: DeepStringify<typeof en> = {
     probeAccountBinding: '绑定号池账号',
     probeAccountNoBinding: '使用渠道原有凭据',
     probeAccountBindingHelp:
-      '余额工作流可通过 {{accountToken}} 引用号池会话；绑定和刷新需要号池管理权限。',
+      "余额工作流可通过 {'{{accountToken}}'} 引用号池会话；绑定和刷新需要号池管理权限。",
     probeAccountLegacyWarning: '请手动删除旧登录步骤，否则每次读取余额仍会执行旧登录。',
     probeBatchCredentialNotice:
       '仅复制共享工作流与计费参数，不复制来源凭据或号池绑定；逐项选择支持的格式、模型和账号。',
@@ -2069,7 +2069,7 @@ const zhCN: DeepStringify<typeof en> = {
     'channelProbeEndpointHelpanthropic-messages':
       '请求 /v1/messages，最小请求使用 messages 和 max_tokens。',
     'channelProbeEndpointHelpgemini-generate-content':
-      '请求 /v1beta/models/{model}:generateContent，最小请求使用 contents 和 generationConfig。',
+      "请求 /v1beta/models/{'{model}'}:generateContent，最小请求使用 contents 和 generationConfig。",
     channelProbeCacheMode: '缓存测量',
     channelProbeCacheModeBust: '避免缓存响应',
     channelProbeCacheModeAllow: '允许上游缓存',
@@ -2728,6 +2728,6 @@ const zhCN: DeepStringify<typeof en> = {
     customKeyHint:
       '拥有自定义令牌权限的用户可自行指定令牌值。必须以 sk-rlt- 开头，仅含字母和数字（兼容旧 rlt_），长度 12-200。每个用户最多创建 10 个自定义令牌。',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

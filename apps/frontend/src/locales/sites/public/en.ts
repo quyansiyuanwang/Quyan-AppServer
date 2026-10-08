@@ -112,7 +112,7 @@ const ticket = {
     high: 'High',
     urgent: 'Urgent',
   },
-}
+} as const
 
 const en = {
   ticket,
@@ -220,6 +220,6 @@ const en = {
     exportScopeUser: 'Current user policy',
     exportScopeSystem: 'System policy',
   },
-}
+} as const
 
 export default en

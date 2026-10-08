@@ -38,7 +38,7 @@ const form = reactive<CreateCarpoolPackageTemplateRequest>({
   formationDeadlineHours: 72,
   monthlyPassTemplateId: '',
 })
-const rules: FormRules = {
+const rules = computed<FormRules>(() => ({
   name: [{ required: true, message: i18ns.t('carpool.packages.ruleName'), trigger: 'blur' }],
   salePrice: [
     {
@@ -70,7 +70,7 @@ const rules: FormRules = {
   monthlyPassTemplateId: [
     { required: true, message: i18ns.t('carpool.packages.ruleTemplate'), trigger: 'change' },
   ],
-}
+}))
 const load = async () => {
   loading.value = true
   try {

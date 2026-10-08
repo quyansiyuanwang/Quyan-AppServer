@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const ticket: DeepStringify<typeof en>['ticket'] = {
+const ticket = {
   pageEyebrow: '💬 🧰',
   pageTitle: '💡 🐞 💬',
   pageDescription: '📝 💡 🐞 👀 📈 🤝',
@@ -107,9 +107,9 @@ const ticket: DeepStringify<typeof en>['ticket'] = {
     high: '🟠',
     urgent: '🔴',
   },
-}
+} as const satisfies DeepStringify<typeof en>['ticket']
 
-const emoji: DeepStringify<typeof en> = {
+const emoji = {
   ticket,
   contentSafety: {
     title: '🛡️',
@@ -211,6 +211,6 @@ const emoji: DeepStringify<typeof en> = {
     exportScopeUser: '👤 📤',
     exportScopeSystem: '🖧 📤',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default emoji

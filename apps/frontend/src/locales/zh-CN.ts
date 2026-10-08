@@ -25,7 +25,7 @@ import management_terminal from './sites/management-terminal/zh-CN'
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   ...base,
   ...shared,
   ...publicSite,
@@ -49,6 +49,6 @@ const zhCN: DeepStringify<typeof en> = {
   ...management_core,
   ...management_developer,
   ...management_terminal,
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

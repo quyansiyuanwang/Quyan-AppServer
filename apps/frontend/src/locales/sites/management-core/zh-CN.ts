@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   siteOverview: {
     partialFailure: '部分概览数据暂时不可用。',
     unlimited: '不限',
@@ -559,6 +559,8 @@ const zhCN: DeepStringify<typeof en> = {
     showRamGroups: '显示RAM角色',
   },
   PermissionManagement: {
+    inspect: '检查权限',
+    diagnosticsExplanation: '检查最终有效权限，并说明每项授权或拒绝的来源。',
     title: '权限管理',
     name: '名称',
     groupId: '用户组ID',
@@ -1373,6 +1375,9 @@ const zhCN: DeepStringify<typeof en> = {
     },
   },
   oauthClient: {
+    nameRequired: '请输入应用名称',
+    redirectUrisRequired: '请添加至少一个回调地址',
+    regenerateSecretConfirm: '确认重新生成客户端密钥吗？原密钥将立即失效。',
     management: 'OAuth 应用管理',
     reviewManagement: 'OAuth 应用审核',
     description: '注册 OAuth 2.0 应用、维护回调地址，并为第三方接入管理客户端凭据。',
@@ -1481,11 +1486,11 @@ const zhCN: DeepStringify<typeof en> = {
       notification:
         '`/v1/notification/preferences`、`/v1/notification/webhooks`、`/v1/notification/logs`、`/v1/notification/events`',
       oauthClient:
-        '`GET/POST/PUT/DELETE /v1/oauth-clients`、`POST /v1/oauth-clients/{id}/regenerate-secret`',
+        "`GET/POST/PUT/DELETE /v1/oauth-clients`、`POST /v1/oauth-clients/{'{id}'}/regenerate-secret`",
       accesskey:
         '`GET/POST/DELETE /v1/accesskeys`、`POST /v1/accesskeys/send-accesskey-creation-verification-code`',
       passkey:
-        '`POST /v1/passkey/register/options`、`POST /v1/passkey/register/verify`、`GET /v1/passkey/list`、`DELETE /v1/passkey/{credentialId}`',
+        "`POST /v1/passkey/register/options`、`POST /v1/passkey/register/verify`、`GET /v1/passkey/list`、`DELETE /v1/passkey/{'{credentialId}'}`",
       twoFactor:
         '`GET /v1/users/me/2fa/status`、可信设备管理、2FA 设置/确认/关闭、恢复码重置、passkey policy 更新',
     },
@@ -1689,6 +1694,6 @@ const zhCN: DeepStringify<typeof en> = {
       operationFailed: '操作失败',
     },
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN
