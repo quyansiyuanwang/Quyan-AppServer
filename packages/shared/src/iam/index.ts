@@ -9,3 +9,5 @@ export * from './condition'
 export * from './diagnostic'
 
 export * from './pattern'
+
+export * from './delegation'

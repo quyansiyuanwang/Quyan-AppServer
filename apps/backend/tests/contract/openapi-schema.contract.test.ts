@@ -216,6 +216,7 @@ describe("RAM IAM policy API contract", () => {
   it.each([
     ["/v1/ram/policies/validate", "post"],
     ["/v1/ram/policies/diagnose", "post"],
+    ["/v1/ram/policies/delegation-check", "post"],
     ["/v1/iam/catalog/policy-schema", "get"],
     ["/v1/ram/policies/simulate", "post"],
     ["/v1/ram/policies/{policyId}/versions", "get"],

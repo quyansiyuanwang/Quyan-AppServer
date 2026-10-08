@@ -1,4 +1,10 @@
-import type { IamPolicyDocument, IamStatement, IamEvaluationResult, IamPolicyDiagnosis } from "@quyan/shared";
+import type {
+  IamPolicyDocument,
+  IamStatement,
+  IamEvaluationResult,
+  IamPolicyDiagnosis,
+  IamDelegationResult,
+} from "@quyan/shared";
 import type { Permission } from "@/constant/permission";
 import type { EncryptedPasswordCredentialDto } from "@/api/dto/auth/password-encryption.dto";
 
@@ -148,6 +154,7 @@ export interface SetDefaultRamPolicyVersionDto {
   versionId: string;
   expectedDocumentHash: string;
 }
+export type CheckIamDelegationResponseDto = IamDelegationResult;
 export interface DiagnoseIamPolicyDto {
   documentText: string;
 }

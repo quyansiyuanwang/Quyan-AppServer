@@ -1,3 +1,6 @@
+import { checkIamDelegation } from "@/iam/delegation/delegation-check";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { getRequestContext } from "@/util/request-context";
 import { assertIamPolicyAccount } from "@/iam/parser/policy-account";
 import { diagnoseIamPolicy } from "@/iam/diagnostics/policy-diagnostics";
 import { randomBytes } from "crypto";
@@ -478,6 +481,7 @@ export class RamService {
     if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     this.assertSameAccount(accountOwnerId, user.accountOwnerId || user.parentUserId);
+    await this.assertRoleDelegation(actorUserId, roleId, "user", userId);
     await this.ramRoleRepository.bindRoleToUser(accountOwnerId, roleId, userId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
       subject: "角色已绑定到用户",
@@ -511,6 +515,7 @@ export class RamService {
     if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
     this.assertSameAccount(accountOwnerId, role.accountOwnerId);
     this.assertSameAccount(accountOwnerId, group.accountOwnerId);
+    await this.assertRoleDelegation(actorUserId, roleId, "group", groupId);
     await this.ramRoleRepository.bindRoleToGroup(accountOwnerId, roleId, groupId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_ROLE_BINDING_UPDATED, {
       subject: "角色已绑定到用户组",
@@ -676,7 +681,65 @@ export class RamService {
     };
   }
 
-  private async prepareIamVersion(actorUserId: string, document: IamPolicyDocument) {
+  private async assertRoleDelegation(
+    actorUserId: string,
+    roleId: string,
+    targetType?: string,
+    targetId?: string,
+  ): Promise<void> {
+    if (env.security.iamAuthorizationMode !== "enforce") return;
+    const bindings = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId);
+    for (const binding of bindings) {
+      const policy = await this.ramPolicyRepository.findPolicyById(binding.policyId);
+      if (!policy) throw new ForbiddenError("Invalid role policy", undefined, { messageKey: "iam.invalidPolicy" });
+      if (policy.documentFormat === "iam-v1") {
+        if (!policy.defaultVersion)
+          throw new ForbiddenError("Invalid role policy version", undefined, { messageKey: "iam.invalidPolicy" });
+        const document = parseIamPolicy(policy.defaultVersion.document).document;
+        if (targetType && targetId) await this.assertRecoveryTarget(actorUserId, targetType, targetId, document);
+        await this.prepareIamVersion(actorUserId, document);
+      } else await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
+    }
+    if (targetType && targetId) await this.assertRecoveryTarget(actorUserId, targetType, targetId);
+  }
+  private async isRecoveryTarget(owner: string, targetType: string, targetId: string): Promise<boolean> {
+    if (targetType === "user") return targetId === owner;
+    const root = await this.getActor(owner);
+    if (targetType === "group") return Boolean(root.groupId && targetId === root.groupId);
+    if (targetType === "role")
+      return (await this.ramRoleRepository.listRoleBindingsForUser(owner, root.groupId)).some(
+        (binding) => binding.roleId === targetId,
+      );
+    return false;
+  }
+  private async assertRecoveryTarget(
+    actorUserId: string,
+    targetType: string,
+    targetId: string,
+    document?: IamPolicyDocument,
+  ): Promise<void> {
+    if (env.security.iamAuthorizationMode !== "enforce") return;
+    const owner = await this.getAccountOwnerId(actorUserId);
+    if (!(await this.isRecoveryTarget(owner, targetType, targetId))) return;
+    const principal = getRequestContext() ? getIamPrincipal(getRequestContext()!) : undefined;
+    const actingAsOwner = actorUserId === owner && (!getRequestContext() || principal?.subjectType === "root");
+    const hasDeny =
+      document && parseIamPolicy(document).document.Statement.some((statement) => statement.Effect === "Deny");
+    if (!actingAsOwner || hasDeny)
+      throw new ForbiddenError("Account recovery authorization cannot be removed or denied", undefined, {
+        messageKey: "iam.delegationDenied",
+      });
+  }
+  private async assertRecoveryPolicyMutation(
+    actorUserId: string,
+    policyId: string,
+    document?: IamPolicyDocument,
+  ): Promise<void> {
+    if (env.security.iamAuthorizationMode !== "enforce") return;
+    for (const attachment of await this.ramPolicyRepository.listAttachmentsByPolicy(policyId))
+      await this.assertRecoveryTarget(actorUserId, attachment.targetType, attachment.targetId, document);
+  }
+  private async prepareIamVersion(actorUserId: string, document: IamPolicyDocument, policyId?: string) {
     let parsed;
     try {
       parsed = parseIamPolicy(document);
@@ -687,16 +750,39 @@ export class RamService {
       throw new ForbiddenError("IAM document management is disabled outside enforce mode", undefined, {
         messageKey: "iam.rolloutRequired",
       });
-    const actor = await this.getActor(actorUserId);
-    // First release delegates document management only to account owners. General wildcard subset proofs are not safe to approximate.
-    if (actor.userType !== "root" || (actor.accountOwnerId && actor.accountOwnerId !== actor.id))
+    if (policyId) await this.assertRecoveryPolicyMutation(actorUserId, policyId, parsed.document);
+    if (!(await this.checkPolicyDelegation(actorUserId, parsed.document)).allowed)
       throw new ForbiddenError("IAM document delegation denied", undefined, { messageKey: "iam.delegationDenied" });
-    try {
-      assertIamPolicyAccount(parsed.document, actor.accountOwnerId ?? actor.id);
-    } catch {
-      throw new BadRequestError("Invalid policy account", undefined, { messageKey: "iam.invalidPolicy" });
-    }
     return { document: parsed.document, documentHash: parsed.documentHash, createdBy: actorUserId };
+  }
+  async checkPolicyDelegation(actorUserId: string, document: IamPolicyDocument) {
+    const actor = await this.getActor(actorUserId);
+    const owner = this.resolveAccountOwnerId(actor);
+    let parsed;
+    try {
+      parsed = parseIamPolicy(document);
+      assertIamPolicyAccount(parsed.document, owner);
+    } catch {
+      throw new BadRequestError("Invalid policy for delegation", undefined, { messageKey: "iam.invalidPolicy" });
+    }
+    const request = getRequestContext();
+    const principal = request
+      ? getIamPrincipal(request)
+      : {
+          subjectUserId: actor.id,
+          principalUserId: actor.id,
+          accountOwnerId: owner,
+          subjectType: actor.id === owner ? ("root" as const) : ("sub_user" as const),
+        };
+    if (!principal || principal.principalUserId !== actor.id || principal.accountOwnerId !== owner)
+      throw new ForbiddenError("Invalid delegation context", undefined, { messageKey: "iam.delegationDenied" });
+    if (principal.subjectType === "root" && actor.userType === "root" && actor.id === owner)
+      return { allowed: true, issues: [] };
+    const grants = await IamAuthorizationService.getInstance().loadPolicies(principal);
+    return checkIamDelegation(
+      parsed.document,
+      grants.map((policy) => policy.document),
+    );
   }
   async diagnosePolicy(actorUserId: string, documentText: string) {
     return diagnoseIamPolicy(documentText, await this.getAccountOwnerId(actorUserId));
@@ -767,7 +853,7 @@ export class RamService {
       });
     const version = await this.ramPolicyRepository.findVersion(policyId, versionId);
     if (!version) throw new NotFoundError("Policy version not found", undefined, { messageKey: "ram.policyNotFound" });
-    await this.prepareIamVersion(actorUserId, parseIamPolicy(version.document).document);
+    await this.prepareIamVersion(actorUserId, parseIamPolicy(version.document).document, policyId);
     await this.ramPolicyRepository.setDefaultVersion(policyId, versionId, expectedDocumentHash);
   }
   async simulatePolicy(actorUserId: string, principalId: string, action: string, resource: string) {
@@ -834,6 +920,7 @@ export class RamService {
         messageKey: "ram.systemManagedPolicyNotModifiable",
       });
 
+    await this.assertRecoveryPolicyMutation(actorUserId, policyId);
     const updateData: UpdateRamPolicyInput = {};
     if (data.description !== undefined) updateData.description = data.description;
     if (data.document !== undefined && data.permissions !== undefined)
@@ -848,7 +935,7 @@ export class RamService {
       updateData.permissions = await this.assertCanUsePolicyPermissions(actorUserId, data.permissions);
     }
     if (data.document !== undefined) {
-      updateData.iamVersion = await this.prepareIamVersion(actorUserId, data.document);
+      updateData.iamVersion = await this.prepareIamVersion(actorUserId, data.document, policyId);
       updateData.expectedDocumentHash = data.expectedDocumentHash;
       // Preserve legacy shadow permissions for explicit rollback; enforce ignores them for IAM versions.
     }
@@ -867,6 +954,7 @@ export class RamService {
       throw new ForbiddenError("系统托管的产品所有者策略不可删除", undefined, {
         messageKey: "ram.systemManagedPolicyNotDeletable",
       });
+    await this.assertRecoveryPolicyMutation(actorUserId, policyId);
     await this.ramPolicyRepository.softDeletePolicy(policyId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DELETED, {
       subject: "权限策略已删除",
@@ -892,8 +980,17 @@ export class RamService {
         parseIamPolicy(policy.defaultVersion.document).documentHash !== policy.defaultVersion.documentHash
       )
         throw new BadRequestError("Invalid stored policy", undefined, { messageKey: "iam.invalidPolicy" });
+      await this.assertRecoveryTarget(
+        actorUserId,
+        data.targetType,
+        data.targetId,
+        parseIamPolicy(policy.defaultVersion.document).document,
+      );
       await this.prepareIamVersion(actorUserId, parseIamPolicy(policy.defaultVersion.document).document);
-    } else await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
+    } else {
+      await this.assertRecoveryTarget(actorUserId, data.targetType, data.targetId);
+      await this.assertCanUsePolicyPermissions(actorUserId, normalizeJsonStringArray(policy.permissions));
+    }
 
     await this.ramPolicyRepository.attachPolicy(accountOwnerId, data.policyId, data.targetType, data.targetId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_ATTACHED, {
@@ -912,6 +1009,7 @@ export class RamService {
         messageKey: "ram.systemManagedPolicyNotUnbindable",
       });
 
+    await this.assertRecoveryTarget(actorUserId, data.targetType, data.targetId);
     await this.ramPolicyRepository.detachPolicy(data.policyId, data.targetType, data.targetId);
     void this.dispatchNotification(actorUserId, NotificationEvent.RAM_POLICY_DETACHED, {
       subject: "权限策略已解绑",

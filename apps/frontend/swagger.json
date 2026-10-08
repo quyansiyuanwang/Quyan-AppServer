@@ -3757,6 +3757,42 @@
 				}
 			}
 		},
+		"/v1/ram/policies/delegation-check": {
+			"post": {
+				"operationId": "RamControllerCheckPolicyDelegation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CheckIamDelegationResponseDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ValidateIamPolicyDto"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/v1/ram/policies/diagnose": {
 			"post": {
 				"operationId": "RamControllerDiagnosePolicy",
@@ -37175,6 +37211,67 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamDelegationIssue": {
+				"properties": {
+					"code": {
+						"type": "string",
+						"enum": [
+							"proof-limit",
+							"unproven-resource-subset",
+							"unproven-condition-subset",
+							"missing-allow-coverage",
+							"explicit-deny-overlap"
+						]
+					},
+					"statementId": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"code",
+					"statementId",
+					"action"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamDelegationResult": {
+				"properties": {
+					"allowed": {
+						"type": "boolean"
+					},
+					"issues": {
+						"items": {
+							"$ref": "#/components/schemas/IamDelegationIssue"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"allowed",
+					"issues"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"CheckIamDelegationResponseDto": {
+				"$ref": "#/components/schemas/IamDelegationResult"
+			},
+			"ValidateIamPolicyDto": {
+				"properties": {
+					"document": {
+						"$ref": "#/components/schemas/IamPolicyDocumentDto"
+					}
+				},
+				"required": [
+					"document"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"IamDiagnosticCode": {
 				"type": "string",
 				"enum": [
@@ -37371,18 +37468,6 @@
 					"documentHash",
 					"document",
 					"broadWildcard"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"ValidateIamPolicyDto": {
-				"properties": {
-					"document": {
-						"$ref": "#/components/schemas/IamPolicyDocumentDto"
-					}
-				},
-				"required": [
-					"document"
 				],
 				"type": "object",
 				"additionalProperties": false

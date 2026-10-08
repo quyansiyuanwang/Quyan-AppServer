@@ -64,18 +64,34 @@ describe("RAM IAM policy management security", () => {
   );
   it("diagnoses malformed original text through the authenticated Controller without saving it", async () => {
     await prisma.user.update({ where: { id: ownerId }, data: { permissionAdds: [Permission.RAM_POLICY_CREATE] } });
-    const request = { user: { userId: ownerId, status: 1 }, authContext: { principalUserId: ownerId, accountOwnerId: ownerId, subjectType: "root" } } as TypedRequest;
+    const request = {
+      user: { userId: ownerId, status: 1 },
+      authContext: { principalUserId: ownerId, accountOwnerId: ownerId, subjectType: "root" },
+    } as TypedRequest;
     vi.spyOn(requestContext, "getRequestContext").mockReturnValue(request);
-    const result = await new RamController().diagnosePolicy({ documentText: '{\n!' }, request);
+    const result = await new RamController().diagnosePolicy({ documentText: "{\n!" }, request);
     expect(result.valid).toBe(false);
     expect(result.diagnostics[0]).toMatchObject({ code: "json-syntax", line: 2, column: 1 });
     expect(await prisma.ramPolicy.count({ where: { accountOwnerId: ownerId } })).toBe(0);
   });
   it("rejects foreign-account resource policies even when the publisher owns this account", async () => {
-    await expect(service.createPolicy(ownerId, { name: "foreign-resource", document: { Version: "1", Statement: {
-      Effect: "Allow", Action: "quyan:ram:ReadUser", Resource: "acs:quyan:*:" + otherId + ":user/target",
-    } } })).rejects.toMatchObject({ statusCode: 400 });
-    expect((await service.simulatePolicy(ownerId, childId, "quyan:ram:ReadUser", "acs:quyan:*:" + otherId + ":user/target")).decision).toBe("ImplicitDeny");
+    await expect(
+      service.createPolicy(ownerId, {
+        name: "foreign-resource",
+        document: {
+          Version: "1",
+          Statement: {
+            Effect: "Allow",
+            Action: "quyan:ram:ReadUser",
+            Resource: "acs:quyan:*:" + otherId + ":user/target",
+          },
+        },
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(
+      (await service.simulatePolicy(ownerId, childId, "quyan:ram:ReadUser", "acs:quyan:*:" + otherId + ":user/target"))
+        .decision,
+    ).toBe("ImplicitDeny");
     expect(await prisma.ramPolicy.count({ where: { accountOwnerId: ownerId } })).toBe(0);
   });
   it("rejects document validation without either permission", async () => {
@@ -97,6 +113,107 @@ describe("RAM IAM policy management security", () => {
       statusCode: 400,
     });
     expect(await prisma.ramPolicy.count({ where: { accountOwnerId: ownerId } })).toBe(0);
+  });
+  it("allows a sub-user to delegate only covered resource grants and refuses scope expansion", async () => {
+    await prisma.user.update({
+      where: { id: childId },
+      data: { permissionAdds: [Permission.RAM_POLICY_CREATE, Permission.RAM_POLICY_ATTACH] },
+    });
+    const parent = await service.createPolicy(ownerId, {
+      name: "delegator-source",
+      document: {
+        Version: "1",
+        Statement: {
+          Effect: "Allow",
+          Action: "quyan:ram:UpdateUser",
+          Resource: "acs:quyan:*:" + ownerId + ":user/*",
+        },
+      },
+    });
+    await service.attachPolicy(ownerId, { policyId: parent.id, targetType: "user", targetId: childId });
+    const child = await service.createPolicy(childId, {
+      name: "delegated-exact",
+      document: {
+        Version: "1",
+        Statement: {
+          Effect: "Allow",
+          Action: "quyan:ram:UpdateUser",
+          Resource: "acs:quyan:*:" + ownerId + ":user/" + childId,
+        },
+      },
+    });
+    await expect(
+      service.attachPolicy(childId, { policyId: child.id, targetType: "user", targetId: childId }),
+    ).resolves.toBeUndefined();
+    await expect(
+      service.createPolicy(childId, {
+        name: "delegated-broad",
+        document: {
+          Version: "1",
+          Statement: {
+            Effect: "Allow",
+            Action: "quyan:ram:DeleteUser",
+            Resource: "*",
+          },
+        },
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    const before = await prisma.ramPolicyVersion.count({ where: { policyId: child.id } });
+    await expect(
+      service.updatePolicy(childId, child.id, {
+        expectedDocumentHash: child.documentHash,
+        document: {
+          Version: "1",
+          Statement: { Effect: "Allow", Action: "*", Resource: "*" },
+        },
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.ramPolicyVersion.count({ where: { policyId: child.id } })).toBe(before);
+  });
+  it("prevents delegated Deny from locking the owner and prevents sub-user recovery-policy mutations", async () => {
+    const recovery = await service.createPolicy(ownerId, {
+      name: "recovery",
+      document: {
+        Version: "1",
+        Statement: {
+          Effect: "Allow",
+          Action: "*",
+          Resource: "*",
+        },
+      },
+    });
+    await service.attachPolicy(ownerId, { policyId: recovery.id, targetType: "user", targetId: ownerId });
+    const deny = await service.createPolicy(childId, {
+      name: "deny",
+      document: {
+        Version: "1",
+        Statement: {
+          Effect: "Deny",
+          Action: "*",
+          Resource: "*",
+        },
+      },
+    });
+    await expect(
+      service.attachPolicy(childId, { policyId: deny.id, targetType: "user", targetId: ownerId }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      service.attachPolicy(ownerId, { policyId: deny.id, targetType: "user", targetId: ownerId }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      service.updatePolicy(ownerId, recovery.id, {
+        expectedDocumentHash: recovery.documentHash,
+        document: {
+          Version: "1",
+          Statement: { Effect: "Deny", Action: "*", Resource: "*" },
+        },
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.deletePolicy(childId, recovery.id)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      service.detachPolicy(childId, { policyId: recovery.id, targetType: "user", targetId: ownerId }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.ramPolicyAttachment.count({ where: { policyId: recovery.id, status: 1 } })).toBe(1);
   });
   it("persists conditional policies and evaluates server principal context without ignoring missing request attributes", async () => {
     const conditional = await service.createPolicy(ownerId, {
@@ -130,7 +247,7 @@ describe("RAM IAM policy management security", () => {
       reason: "missing-condition-context",
     });
   });
-  it("requires enforce mode for document management and rejects subuser delegation", async () => {
+  it("requires enforce mode for document management and rejects uncovered subuser delegation", async () => {
     env.security.iamAuthorizationMode = "shadow";
     await expect(service.createPolicy(ownerId, { name: "shadow", document })).rejects.toMatchObject({
       statusCode: 403,

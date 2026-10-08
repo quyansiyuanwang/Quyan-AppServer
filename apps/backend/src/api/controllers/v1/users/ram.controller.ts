@@ -18,6 +18,7 @@ import type {
   CreateRamPolicyVersionDto,
   SetDefaultRamPolicyVersionDto,
   RamPolicyVersionPageDto,
+  CheckIamDelegationResponseDto,
   DiagnoseIamPolicyDto,
   DiagnoseIamPolicyResponseDto,
   ValidateIamPolicyDto,
@@ -579,6 +580,20 @@ export class RamController extends Controller {
   ): Promise<{ code: number; message: string }> {
     await this.ramService.detachPolicy(request.user!.userId, body);
     return { code: CustomCode.OK, message: "解绑权限策略成功" };
+  }
+
+  @Post("policies/delegation-check")
+  @Security("jwt")
+  @Middlewares(validateBody(validateIamPolicyBodySchema))
+  @CheckPermission([Permission.RAM_POLICY_CREATE, Permission.RAM_POLICY_UPDATE], PermissionCheckMode.ANY, "jwt", [
+    { action: "quyan:ram:CreatePolicy", resourceKind: "account", resource: ramAccountResourceResolver },
+    { action: "quyan:ram:UpdatePolicy", resourceKind: "account", resource: ramAccountResourceResolver },
+  ])
+  public async checkPolicyDelegation(
+    @Body() body: ValidateIamPolicyDto,
+    @Request() request: TypedRequest,
+  ): Promise<CheckIamDelegationResponseDto> {
+    return this.ramService.checkPolicyDelegation(request.user!.userId, body.document);
   }
 
   @Post("policies/diagnose")
