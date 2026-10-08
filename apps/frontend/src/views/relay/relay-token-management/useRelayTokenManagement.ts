@@ -1179,6 +1179,13 @@ export const useRelayTokenManagement = () => {
     currentPage.value = 1
     clearTokenSelection()
     invalidateAllTokensCache()
+    // Channel names resolve through the target user's own routing catalog, so the
+    // previous user's catalog and rows are dropped before both reloads start.
+    // `loadChannels` flips `channelsLoading` synchronously, which keeps the
+    // channel columns in their loading state instead of rendering raw channel IDs.
+    channels.value = []
+    serverTokens.value = []
+    total.value = 0
     void loadChannels()
     void loadTokens({ forceAllReload: true })
   }
@@ -2623,9 +2630,22 @@ export const useRelayTokenManagement = () => {
 
   const getChannelName = (channelId: string) => channelNameMap.value.get(channelId) || channelId
 
+  // The routing catalog that maps channel IDs to display names is fetched in
+  // parallel with the token list, so a token referencing an automatic proxy pool
+  // can be rendered before its pool name is known. Rendering the raw channel ID
+  // in that window makes the cell visibly "swap" content once the catalog lands,
+  // so unresolved lookups stay in a loading state until the catalog settles.
+  const isChannelNamePending = (channelId: string) =>
+    Boolean(channelId) && channelsLoading.value && !channelNameMap.value.has(channelId)
+
+  const isAutomaticPoolChannelNamePending = (row: RelayTokenDto) =>
+    isChannelNamePending(getAutomaticProxyPoolChannelId(row))
+
   const getAutomaticProxyPoolChannelName = (row: RelayTokenDto) => {
     const channelId = getAutomaticProxyPoolChannelId(row)
-    return channelId ? getChannelName(channelId) : i18ns.t('relay.noChannel')
+    if (!channelId) return i18ns.t('relay.noChannel')
+    if (isAutomaticPoolChannelNamePending(row)) return i18ns.t('relay.channelNameLoading')
+    return getChannelName(channelId)
   }
 
   const getTokenQuotaSnapshot = (row: RelayTokenDto): TokenQuotaSnapshot => {
@@ -3059,6 +3079,7 @@ export const useRelayTokenManagement = () => {
     getSortedChannelConfigs,
     isAutomaticPoolToken,
     getAutomaticProxyPoolChannelName,
+    isAutomaticPoolChannelNamePending,
     getVisibleChannelConfigs,
     getHiddenChannelConfigCount,
     getChannelName,

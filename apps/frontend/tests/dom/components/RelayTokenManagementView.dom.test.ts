@@ -101,6 +101,7 @@ vi.mock('@element-plus/icons-vue', () => ({
   DocumentCopy: defineComponent({ name: 'DocumentCopyIcon', template: '<span />' }),
   Clock: defineComponent({ name: 'ClockIcon', template: '<span />' }),
   Delete: defineComponent({ name: 'DeleteIcon', template: '<span />' }),
+  Loading: defineComponent({ name: 'LoadingIcon', template: '<span />' }),
   Plus: defineComponent({ name: 'PlusIcon', template: '<span />' }),
   QuestionFilled: defineComponent({ name: 'QuestionFilledIcon', template: '<span />' }),
   Refresh: defineComponent({ name: 'RefreshIcon', template: '<span />' }),
@@ -134,6 +135,10 @@ const ElTableStub = defineComponent({
       'tableRows',
       computed(() => props.data as any[]),
     )
+  },
+  methods: {
+    clearSelection() {},
+    toggleRowSelection() {},
   },
   template: '<div class="el-table-stub"><slot /></div>',
 })
@@ -340,6 +345,10 @@ const automaticProxyPool = {
     ],
   },
 } as any
+
+// A pool channel ID the frontend can only turn into a name through the routing
+// catalog, mirroring the CUID identifiers the real service returns.
+const pendingPoolChannelId = 'cmrrme00i00k98phrhjz1fvc0'
 
 const relayToken = {
   id: 'token-1',
@@ -693,6 +702,148 @@ describe('RelayTokenManagementView', () => {
     expect(wrapper.text()).toContain('自动代理池渠道')
     expect(wrapper.text()).toContain('Automatic Pool')
     expect(wrapper.text()).not.toContain('无渠道')
+  })
+
+  it('keeps the desktop routing cell in a loading state instead of showing a raw channel id', async () => {
+    let resolveChannels: ((value: any[]) => void) | undefined
+    listChannelsMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveChannels = resolve
+      }),
+    )
+    getRelayTokensMock.mockResolvedValue({
+      items: [
+        createRelayTokenFixture({
+          routingMode: 'automatic-pool',
+          automaticProxyPoolChannelId: pendingPoolChannelId,
+          channelId: undefined,
+          channelName: undefined,
+          channelConfigs: [],
+        }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // The token list already rendered, but the catalog that resolves the pool name has not.
+    expect(wrapper.text()).toContain('渠道加载中')
+    expect(wrapper.text()).not.toContain(pendingPoolChannelId)
+
+    resolveChannels!([{ ...automaticProxyPool, id: pendingPoolChannelId, name: 'Pending Pool' }])
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Pending Pool')
+    expect(wrapper.text()).not.toContain('渠道加载中')
+    expect(wrapper.text()).not.toContain(pendingPoolChannelId)
+  })
+
+  it('keeps the mobile routing cell in a loading state instead of showing a raw channel id', async () => {
+    deviceModeMock.isDesktop = false
+    deviceModeMock.isMobile = true
+
+    let resolveChannels: ((value: any[]) => void) | undefined
+    listChannelsMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveChannels = resolve
+      }),
+    )
+    getRelayTokensMock.mockResolvedValue({
+      items: [
+        createRelayTokenFixture({
+          routingMode: 'automatic-pool',
+          automaticProxyPoolChannelId: pendingPoolChannelId,
+          channelId: undefined,
+          channelName: undefined,
+          channelConfigs: [],
+        }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('自动代理池渠道')
+    expect(wrapper.text()).toContain('渠道加载中')
+    expect(wrapper.text()).not.toContain(pendingPoolChannelId)
+
+    resolveChannels!([{ ...automaticProxyPool, id: pendingPoolChannelId, name: 'Pending Pool' }])
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Pending Pool')
+    expect(wrapper.text()).not.toContain('渠道加载中')
+    expect(wrapper.text()).not.toContain(pendingPoolChannelId)
+  })
+
+  it('drops the previous target user catalog and rows while the new catalog loads', async () => {
+    getRelayTokensMock.mockResolvedValue({
+      items: [
+        createRelayTokenFixture({
+          routingMode: 'automatic-pool',
+          automaticProxyPoolChannelId: automaticProxyPool.id,
+          channelId: undefined,
+          channelName: undefined,
+          channelConfigs: [],
+        }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Automatic Pool')
+    expect(wrapper.text()).toContain('Token 1')
+    expect(wrapper.text()).not.toContain(automaticProxyPool.id)
+
+    // Switching target users reloads the rows and the catalog for that user; the
+    // catalog request is left pending so the intermediate state can be asserted.
+    let resolveChannels: ((value: any[]) => void) | undefined
+    listChannelsMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveChannels = resolve
+      }),
+    )
+    getRelayTokensMock.mockResolvedValue({
+      items: [
+        createRelayTokenFixture({
+          name: 'Token 2',
+          routingMode: 'automatic-pool',
+          automaticProxyPoolChannelId: pendingPoolChannelId,
+          channelId: undefined,
+          channelName: undefined,
+          channelConfigs: [],
+        }),
+      ],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    })
+
+    const vm = wrapper.vm as any
+    vm.handleTargetUserChange()
+    await flushPromises()
+
+    // Neither the previous user's channel names nor its rows may survive the switch.
+    expect(wrapper.text()).not.toContain('Automatic Pool')
+    expect(wrapper.text()).not.toContain('Token 1')
+    expect(wrapper.text()).toContain('Token 2')
+    expect(wrapper.text()).toContain('渠道加载中')
+    expect(wrapper.text()).not.toContain(pendingPoolChannelId)
+
+    resolveChannels!([{ ...automaticProxyPool, id: pendingPoolChannelId, name: 'Next User Pool' }])
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Next User Pool')
+    expect(wrapper.text()).not.toContain('渠道加载中')
   })
 
   it('hides failover settings in automatic pool mode and preserves them when switching back', async () => {

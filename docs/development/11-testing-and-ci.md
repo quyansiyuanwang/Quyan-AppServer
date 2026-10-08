@@ -22,6 +22,8 @@ pnpm --filter @quyan/frontend run test:dom
 pnpm --filter @quyan/frontend run test:taxonomy
 ```
 
+前端每个测试入口都先执行 `pnpm run domain-views:generate`：`src/router/.gen/**` 是 Git 忽略的生成物，`src/locales/index.ts`、站点插件与部分测试都直接导入它，缺少时套件会在转换阶段整体加载失败；它属于测试的导入前置条件，与后端运行器先生成 Prisma Client 同理。前端的 `test:related` 供 CI 按变更文件运行关联测试，与后端同名脚本对齐。
+
 `pnpm run test` 通过 pnpm 并行启动 backend 与 frontend 测试；应用内部的调度由 Vitest 管理，CLI 测试单独使用 `cargo test --manifest-path apps/cli-native/Cargo.toml`。开发时不要因局部修改默认运行根级全量命令。
 
 ## 分类与并行边界
@@ -56,12 +58,13 @@ worker 启动时接收独立 `DATABASE_URL` 和 Redis DB；每个数据库测试
 后端与前端各自使用 paths filter：普通源码变更运行 related tests；OpenAPI、共享包、Vitest 配置、测试 runtime、锁文件等基础设施变更升级为完整相关项目测试。
 
 - 后端 CI 分为纯单测 job 与运行时 job。运行时 job 提供 MySQL 和 Redis service，生成 OpenAPI/Prisma 前置，再运行数据库和 contract 项目。
-- 前端 CI 缓存生成的 Swagger 与 `src/client`。缓存未命中时才生成 SDK；API 契约或生成代码变更会运行完整前端套件。
+- 前端 CI 缓存生成的 Swagger 与 `src/client`。缓存未命中时才生成 SDK；API 契约或生成代码变更会运行完整前端套件。related tests 通过前端的 `test:related` 脚本运行，脚本自身生成 `src/router/.gen/**`，因此 CI 只需准备 `src/client`。
 - CI 不共享本地开发数据库、Redis DB 或生产凭据。测试环境变量只能指向隔离的测试资源。
 
 ## 故障处理
 
 - `Cannot find module '.prisma/client/default'`：使用仓库测试命令运行；运行器会先生成 Prisma Client。若单独执行 Vitest，先运行 `pnpm --filter @quyan/backend run db:generate`。
+- `Failed to resolve import "@/router/.gen/i18n/manifest.gen"`：`src/router/.gen/**` 未生成。改用前端测试脚本（`test`、`test:node`、`test:dom`、`test:related`）运行，它们会先执行 `domain-views:generate`；直接调用 Vitest 时先运行 `pnpm --filter @quyan/frontend run domain-views:generate`。
 - 数据库测试中断：运行 `pnpm --filter @quyan/backend run test:db:clean`，不要手工删除未知数据库。
 - Redis 不可用：本地未启用 Redis 清理时可继续运行不依赖 Redis 的数据库测试；CI 及显式 Redis 清理模式会快速失败。
 - 分类校验失败：按文件真实依赖移动测试，保持目录与后缀约定；DOM 测试补充 jsdom 文件注释。
