@@ -627,6 +627,7 @@ const en = {
     overview: 'RAM Overview',
     overviewDescription:
       'Manage RAM resources by identity, permission, and session responsibility.',
+    pageSearchPlaceholder: 'Filter this page...',
     searchPlaceholder: 'Search...',
     users: 'Sub-users',
     roles: 'Roles',

@@ -307,7 +307,7 @@
     <div v-if="showAttachForm" class="attach-form">
       <el-form label-width="100px" size="small">
         <el-form-item :label="i18ns.t('RamManagement.targetType')">
-          <el-radio-group v-model="attachForm.targetType">
+          <el-radio-group v-model="attachForm.targetType" @change="attachForm.targetId = ''">
             <el-radio value="user">{{ i18ns.t('RamManagement.user') }}</el-radio>
             <el-radio value="role">{{ i18ns.t('RamManagement.roles') }}</el-radio>
             <el-radio value="group">{{ i18ns.t('RamManagement.group') }}</el-radio>
@@ -322,6 +322,22 @@
               :value="option.id"
             />
           </el-select>
+          <el-alert
+            v-if="attachForm.targetType === 'role' && rolePage.failed.value"
+            :title="i18ns.t('RamManagement.scopedLoadFailed')"
+            type="error"
+            :closable="false"
+          />
+          <RamIamPageControls
+            v-if="attachForm.targetType === 'role'"
+            :page="rolePage.page.value"
+            :page-size="rolePage.pageSize.value"
+            :has-next="rolePage.hasNext.value"
+            :loading="rolePage.loading.value || submitting"
+            @previous="loadRoles(rolePage.page.value - 1)"
+            @next="loadRoles(rolePage.page.value + 1)"
+            @size="resizeRolesPage"
+          />
         </el-form-item>
         <div class="form-footer">
           <el-button size="small" @click="showAttachForm = false">{{
@@ -361,6 +377,7 @@
 </template>
 
 <script setup lang="ts">
+import RamIamPageControls from './RamIamPageControls.vue'
 import { Plus } from '@element-plus/icons-vue'
 import PermissionEditorPanel from '@/components/permission/PermissionEditorPanel.vue'
 import RamIamPolicyEditor from './RamIamPolicyEditor.vue'
@@ -392,6 +409,9 @@ const {
   editingUser,
   groups,
   loading,
+  rolePage,
+  loadRoles,
+  resizeRolesPage,
   passwordDialogVisible,
   permissionTree,
   policyAttachments,

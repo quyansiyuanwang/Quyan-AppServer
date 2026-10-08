@@ -303,3 +303,6 @@ export type GenerateIamPolicyDraftResponseDto = IamPolicyDraftResponse;
 export type RamAuthorizationPageDto = IamManagementPageResult<IamAuthorizationContract>;
 export type RamResourceGroupPageDto = IamManagementPageResult<IamResourceGroupSummary>;
 export type RamResourceGroupMemberPageDto = IamManagementPageResult<IamResourceGroupMemberContract>;
+
+export type RamRolePageDto = IamManagementPageResult<RamRoleDto>;
+export type RamPolicyPageDto = IamManagementPageResult<RamPolicyDto>;

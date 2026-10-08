@@ -1,3 +1,5 @@
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import type { RamRolePageDto, RamPolicyPageDto } from "@/api/dto/users/ram.dto";
 import {
   Body,
   Controller,
@@ -227,6 +229,22 @@ export class RamController extends Controller {
   ): Promise<{ code: number; message: string }> {
     await this.ramService.deleteRamUser(request.user!.userId, userId);
     return { code: CustomCode.OK, message: "删除RAM用户成功" };
+  }
+
+  @Get("roles/page")
+  @Security("jwt")
+  @Middlewares(validateQuery(iamManagementPaginationSchema))
+  @CheckPermission(Permission.RAM_ROLE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:role:Read",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async listRolesPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamRolePageDto> {
+    return this.ramService.listRolesPage(request.user!.userId, { page, pageSize });
   }
 
   @Get("roles")
@@ -506,6 +524,22 @@ export class RamController extends Controller {
   }
 
   // ── 权限策略 ──
+
+  @Get("policies/page")
+  @Security("jwt")
+  @Middlewares(validateQuery(iamManagementPaginationSchema))
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
+  public async listPoliciesPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamPolicyPageDto> {
+    return this.ramService.listPoliciesPage(request.user!.userId, { page, pageSize });
+  }
 
   @Get("policies")
   @Security("jwt")

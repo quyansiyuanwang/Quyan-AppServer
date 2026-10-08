@@ -8,12 +8,12 @@
         <el-button @click="iamSimulationVisible = true">{{
           i18ns.t('RamManagement.simulatePolicy')
         }}</el-button>
-        <el-button :icon="Refresh" @click="loadPolicies">{{ i18ns.t('refresh') }}</el-button>
+        <el-button :icon="Refresh" @click="loadPolicies()">{{ i18ns.t('refresh') }}</el-button>
       </div>
       <el-input
         v-model="policySearch"
         :prefix-icon="Search"
-        :placeholder="i18ns.t('RamManagement.searchPlaceholder')"
+        :placeholder="i18ns.t('RamManagement.pageSearchPlaceholder')"
         clearable
         style="width: 280px"
       />
@@ -84,11 +84,28 @@
       </el-table-column>
     </el-table>
 
-    <el-empty v-else :description="i18ns.t('message.error.forbidden')" />
+    <el-alert
+      v-if="canReadPolicies && policyPage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      v-if="canReadPolicies"
+      :page="policyPage.page.value"
+      :page-size="policyPage.pageSize.value"
+      :has-next="policyPage.hasNext.value"
+      :loading="policyPage.loading.value"
+      @previous="loadPolicies(policyPage.page.value - 1)"
+      @next="loadPolicies(policyPage.page.value + 1)"
+      @size="resizePoliciesPage"
+    />
+    <el-empty v-if="!canReadPolicies" :description="i18ns.t('message.error.forbidden')" />
   </section>
 </template>
 
 <script setup lang="ts">
+import RamIamPageControls from './RamIamPageControls.vue'
 import { Plus, Refresh, Search } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
@@ -104,6 +121,8 @@ const {
   filteredPolicies,
   loading,
   loadPolicies,
+  policyPage,
+  resizePoliciesPage,
   openPolicyAttachments,
   openPolicyDialog,
   policySearch,

@@ -1,3 +1,4 @@
+import type { IamManagementPage } from "@/iam/management-pagination";
 import { ConflictError } from "@/util/errors";
 import { AccountStatus } from "@/util/auth/account-status";
 import { prisma } from "@/config/database";
@@ -45,6 +46,20 @@ export class RamRoleRepository implements RamRoleStore {
 
   async listRoles(accountOwnerId: string): Promise<RamRole[]> {
     return prisma.ramRole.findMany({ where: { accountOwnerId, ...ACTIVE_WHERE }, orderBy: { createTime: "desc" } });
+  }
+
+  async listRolesPage(accountOwnerId: string, pagination: IamManagementPage) {
+    const candidates = await prisma.ramRole.findMany({
+      where: { accountOwnerId, ...ACTIVE_WHERE },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: (pagination.page - 1) * pagination.pageSize,
+      take: pagination.pageSize + 1,
+    });
+    return {
+      items: candidates.slice(0, pagination.pageSize),
+      ...pagination,
+      hasNext: candidates.length > pagination.pageSize,
+    };
   }
 
   async updateRole(roleId: string, data: UpdateRamRoleInput): Promise<RamRole> {

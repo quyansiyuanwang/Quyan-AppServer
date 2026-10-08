@@ -82,6 +82,8 @@ import type {
   RamPolicyDto,
   RamRoleBindingDto,
   RamRoleDto,
+  RamRolePageDto,
+  RamPolicyPageDto,
   RamRoleSessionDto,
   RamUserDto,
   UpdateRamPolicyDto,
@@ -257,12 +259,22 @@ export class RamService {
     actorUserId: string,
     owner: string,
     action: string,
-    type: "authorization" | "resource-group",
+    type: "authorization" | "resource-group" | "role" | "policy",
     items: T[],
   ): Promise<T[]> {
     const request = getRequestContext();
-    if (!request) return items; // Internal callers still receive only an account-scoped, bounded page.
-    const principal = getIamPrincipal(request);
+    if (!request) return items; // Existing internal management queries are account-scoped and bounded.
+    return this.filterIamEntityPage(actorUserId, owner, action, type, items);
+  }
+  /** Entity pages enforce row grants for HTTP and internal callers alike. */
+  private async filterIamEntityPage<T extends { id: string }>(
+    actorUserId: string,
+    owner: string,
+    action: string,
+    type: "authorization" | "resource-group" | "role" | "policy",
+    items: T[],
+  ): Promise<T[]> {
+    const { principal, context } = await this.actorIamContext(actorUserId);
     if (!principal || principal.principalUserId !== actorUserId || principal.accountOwnerId !== owner)
       throw new ForbiddenError("Invalid IAM list context", undefined, {
         messageKey: "permission.insufficientPermission",
@@ -271,8 +283,9 @@ export class RamService {
       principal,
       action,
       items,
-      context: requestConditionContext(request, principal),
-      resource: (item) => "acs:quyan:*:" + owner + ":" + type + "/" + item.id,
+      context,
+      resource: (item) =>
+        buildAcsResource({ service: "quyan", region: "*", accountId: owner, path: type + "/" + item.id }),
     });
   }
   async listAuthorizations(
@@ -906,7 +919,25 @@ export class RamService {
     });
   }
 
+  async listRolesPage(actorUserId: string, query: { page?: number; pageSize?: number } = {}): Promise<RamRolePageDto> {
+    const parsed = iamManagementPaginationSchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid IAM entity page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const page = await this.ramRoleRepository.listRolesPage(owner, parsed.data);
+    const records =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await this.filterIamEntityPage(actorUserId, owner, "quyan:ram:role:Read", "role", page.items)
+        : page.items;
+    const permissions = await this.aggregateRolePermissionsFromPolicies(records.map((record) => record.id));
+    return { ...page, items: records.map((record) => this.mapRoleToDto(record, permissions.get(record.id) ?? [])) };
+  }
+
   async listRoles(actorUserId: string): Promise<RamRoleDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return (await this.listRolesPage(actorUserId)).items;
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const roles = await this.ramRoleRepository.listRoles(accountOwnerId);
     const roleIds = roles.map((r) => r.id);
@@ -1619,7 +1650,27 @@ export class RamService {
     return IAM_ACTION_CATALOG;
   }
 
+  async listPoliciesPage(
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<RamPolicyPageDto> {
+    const parsed = iamManagementPaginationSchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid IAM entity page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const page = await this.ramPolicyRepository.listPoliciesPage(owner, parsed.data);
+    const records =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await this.filterIamEntityPage(actorUserId, owner, "quyan:ram:ReadPolicy", "policy", page.items)
+        : page.items;
+    return { ...page, items: records.map((record) => this.mapPolicyToDto(record)) };
+  }
+
   async listPolicies(actorUserId: string): Promise<RamPolicyDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return (await this.listPoliciesPage(actorUserId)).items;
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const policies = await this.ramPolicyRepository.listPolicies(accountOwnerId);
     return policies.map((p) => this.mapPolicyToDto(p));

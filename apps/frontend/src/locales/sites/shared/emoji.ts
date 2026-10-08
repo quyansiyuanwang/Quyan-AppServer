@@ -581,6 +581,7 @@ const emoji = {
     title: '🔐 👥',
     overview: '🔐 📋',
     overviewDescription: '👤 + 🛂 + 🕒',
+    pageSearchPlaceholder: '🔍 筛选当前页...',
     searchPlaceholder: '🔍',
     users: '👤',
     roles: '🎭',

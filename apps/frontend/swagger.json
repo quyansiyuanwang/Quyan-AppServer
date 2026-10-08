@@ -2853,6 +2853,51 @@
 				}
 			}
 		},
+		"/v1/ram/roles/page": {
+			"get": {
+				"operationId": "RamControllerListRolesPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamRolePageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/roles": {
 			"get": {
 				"operationId": "RamControllerListRoles",
@@ -3492,6 +3537,51 @@
 					"purpose": "stepup",
 					"method": "code"
 				}
+			}
+		},
+		"/v1/ram/policies/page": {
+			"get": {
+				"operationId": "RamControllerListPoliciesPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamPolicyPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
 			}
 		},
 		"/v1/ram/policies": {
@@ -37111,6 +37201,38 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamManagementPageResult_RamRoleDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamRoleDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamRolePageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamRoleDto_"
+			},
 			"GetRamRolesResponse": {
 				"items": {
 					"$ref": "#/components/schemas/RamRoleDto"
@@ -37888,6 +38010,38 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"IamManagementPageResult_RamPolicyDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamPolicyDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamPolicyPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamPolicyDto_"
 			},
 			"GetRamPoliciesResponse": {
 				"items": {

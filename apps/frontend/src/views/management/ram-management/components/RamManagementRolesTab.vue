@@ -18,7 +18,7 @@
       <el-input
         v-model="roleSearch"
         :prefix-icon="Search"
-        :placeholder="i18ns.t('RamManagement.searchPlaceholder')"
+        :placeholder="i18ns.t('RamManagement.pageSearchPlaceholder')"
         clearable
         style="width: 280px"
       />
@@ -85,13 +85,32 @@
       </el-table-column>
     </el-table>
 
-    <RamIamRoleTrustEditor :role="trustRole" @close="trustRole = null" @saved="loadRoles" />
+    <el-alert
+      v-if="canReadRoles && rolePage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      v-if="canReadRoles"
+      :page="rolePage.page.value"
+      :page-size="rolePage.pageSize.value"
+      :has-next="rolePage.hasNext.value"
+      :loading="rolePage.loading.value"
+      @previous="loadRoles(rolePage.page.value - 1)"
+      @next="loadRoles(rolePage.page.value + 1)"
+      @size="resizeRolesPage"
+    />
+    <p v-if="canReadRoles">{{ i18ns.t('RamManagement.scopedPageHint') }}</p>
+
+    <RamIamRoleTrustEditor :role="trustRole" @close="trustRole = null" @saved="loadRoles()" />
     <el-empty v-if="!canReadRoles" :description="i18ns.t('message.error.forbidden')" />
   </section>
 </template>
 
 <script setup lang="ts">
 import { shallowRef } from 'vue'
+import RamIamPageControls from './RamIamPageControls.vue'
 import RamIamRoleTrustEditor from './RamIamRoleTrustEditor.vue'
 import { Delete, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import type { RamRoleDto } from '@/client/types.gen'
@@ -111,6 +130,8 @@ const {
   loading,
   loadGroups,
   loadRoles,
+  rolePage,
+  resizeRolesPage,
   loadUsers,
   openBindDialog,
   openRoleDialog,

@@ -76,6 +76,12 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async listRolesPage(query: { page: number; pageSize: number }) {
+    const result = await ramApi.listRolesPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async listRoles() {
     const result = await ramApi.listRoles({})
     if (result?.code === CustomCode.OK && result.data) return result.data
@@ -155,6 +161,12 @@ export class RamService {
   }
 
   // ── 权限策略 ──
+
+  async listPoliciesPage(query: { page: number; pageSize: number }) {
+    const result = await ramApi.listPoliciesPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
 
   async listPolicies() {
     const result = await ramApi.listPolicies({})

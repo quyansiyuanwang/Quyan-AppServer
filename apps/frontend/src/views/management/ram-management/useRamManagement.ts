@@ -6,6 +6,7 @@ import { useRoute } from 'vue-router'
 import { policyAuthorizationPayload, useIamPolicyEditor } from './useIamPolicyEditor'
 import { useIamPolicyTools } from './useIamPolicyTools'
 import { useIamPolicyVersions } from './useIamPolicyVersions'
+import { useIamManagementPage } from './useIamManagementPage'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type { FormInstance, FormRules } from 'element-plus/es'
 import { Refresh } from '@element-plus/icons-vue'
@@ -50,7 +51,9 @@ export function useRamManagement(section: RamManagementSection) {
   })
   const permissionStore = usePermissionStore()
   const users = ref<RamUserDto[]>([])
-  const roles = ref<RamRoleDto[]>([])
+  const rolePage = useIamManagementPage((query) => ramService.listRolesPage(query))
+  const policyPage = useIamManagementPage((query) => ramService.listPoliciesPage(query))
+  const roles = rolePage.items
   const bindings = ref<RamRoleBindingDto[]>([])
   const sessions = ref<RamRoleSessionDto[]>([])
   const groups = ref<GroupDto[]>([])
@@ -59,10 +62,14 @@ export function useRamManagement(section: RamManagementSection) {
   const submitting = ref(false)
   const loading = reactive({
     users: false,
-    roles: false,
+    get roles() {
+      return rolePage.loading.value
+    },
     bindings: false,
     sessions: false,
-    policies: false,
+    get policies() {
+      return policyPage.loading.value
+    },
     attachments: false,
   })
 
@@ -95,7 +102,7 @@ export function useRamManagement(section: RamManagementSection) {
   const selectedUsers = ref<RamUserDto[]>([])
   const selectedRoles = ref<RamRoleDto[]>([])
 
-  const policies = ref<RamPolicyDto[]>([])
+  const policies = policyPage.items
   const policyAttachments = ref<RamPolicyAttachmentDto[]>([])
   const authUserId = ref('')
   const effectivePerms = ref<EffectivePermissionDto | null>(null)
@@ -361,21 +368,34 @@ export function useRamManagement(section: RamManagementSection) {
     }
   }
 
-  const loadRoles = async () => {
+  const loadRoles = async (targetPage = rolePage.page.value) => {
+    selectedRoles.value = []
+    const previousId = selectedRoleId.value
+    selectedRoleId.value = ''
+    selectedRole.value = null
+    bindings.value = []
+    loading.bindings = false
+    bindingSequence++
+    if (attachForm.targetType === 'role') attachForm.targetId = ''
     if (!canReadRoles.value) {
-      roles.value = []
-      selectedRoleId.value = ''
+      rolePage.clear()
       return
     }
-    loading.roles = true
-    try {
-      roles.value = await ramService.listRoles()
-      if (!selectedRoleId.value && roles.value[0]) {
-        selectedRoleId.value = roles.value[0].id
-      }
-    } finally {
-      loading.roles = false
-    }
+    if (!(await rolePage.load(targetPage))) return
+    const current = roles.value.find((role) => role.id === previousId) ?? roles.value[0]
+    selectedRoleId.value = current?.id ?? ''
+    selectedRole.value = current ?? null
+    if (
+      attachForm.targetType === 'role' &&
+      !roles.value.some((role) => role.id === attachForm.targetId)
+    )
+      attachForm.targetId = ''
+    if (section === 'bindings') await loadBindings()
+  }
+
+  const resizeRolesPage = (size: number) => {
+    rolePage.pageSize.value = size
+    void loadRoles(1)
   }
 
   const loadGroups = async () => {
@@ -387,16 +407,21 @@ export function useRamManagement(section: RamManagementSection) {
     groups.value = Array.isArray(data) ? data : ((data as any).groups ?? [])
   }
 
+  let bindingSequence = 0
   const loadBindings = async () => {
-    if (!canReadBindings.value || !selectedRoleId.value) {
-      bindings.value = []
+    const ticket = ++bindingSequence
+    const roleId = selectedRoleId.value
+    bindings.value = []
+    if (!canReadBindings.value || !roleId) {
+      loading.bindings = false
       return
     }
     loading.bindings = true
     try {
-      bindings.value = await ramService.listRoleBindings(selectedRoleId.value)
+      const result = await ramService.listRoleBindings(roleId)
+      if (ticket === bindingSequence && roleId === selectedRoleId.value) bindings.value = result
     } finally {
-      loading.bindings = false
+      if (ticket === bindingSequence) loading.bindings = false
     }
   }
 
@@ -413,17 +438,17 @@ export function useRamManagement(section: RamManagementSection) {
     }
   }
 
-  const loadPolicies = async () => {
+  const loadPolicies = async (targetPage = policyPage.page.value) => {
     if (!canReadPolicies.value) {
-      policies.value = []
+      policyPage.clear()
       return
     }
-    loading.policies = true
-    try {
-      policies.value = await ramService.listPolicies()
-    } finally {
-      loading.policies = false
-    }
+    await policyPage.load(targetPage)
+  }
+
+  const resizePoliciesPage = (size: number) => {
+    policyPage.pageSize.value = size
+    void loadPolicies(1)
   }
 
   const iamPolicyVersions = useIamPolicyVersions({
@@ -437,7 +462,6 @@ export function useRamManagement(section: RamManagementSection) {
       if (section === 'roles') await Promise.all([loadRoles(), loadUsers(), loadGroups()])
       if (section === 'bindings') {
         await Promise.all([loadRoles(), loadUsers(), loadGroups()])
-        await loadBindings()
       }
       if (section === 'policies') await loadPolicies()
       if (section === 'authorization') await loadUsers()
@@ -979,6 +1003,10 @@ export function useRamManagement(section: RamManagementSection) {
     loadPolicyAttachments,
     loadPolicies,
     loadRoles,
+    rolePage,
+    policyPage,
+    resizeRolesPage,
+    resizePoliciesPage,
     loadSessions,
     loadUsers,
     loading,

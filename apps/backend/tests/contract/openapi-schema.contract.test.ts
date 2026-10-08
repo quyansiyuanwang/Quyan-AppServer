@@ -214,7 +214,24 @@ describe("OpenAPI Schema Contract", () => {
 
 describe("RAM IAM policy API contract", () => {
   it.each([
+    ["roles", "RamRoleDto"],
+    ["policies", "RamPolicyDto"],
+  ])("keeps %s candidate pagination distinct from an authorized total", (resource, dto) => {
+    const operation = openApi.paths["/v1/ram/" + resource + "/page"]?.get;
+    expect(operation?.parameters?.map((parameter) => parameter.name)).toEqual(["page", "pageSize"]);
+    const schema = openApi.components?.schemas?.["IamManagementPageResult_" + dto + "_"] as {
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+    expect(schema.required).toEqual(["items", "page", "pageSize", "hasNext"]);
+    expect(schema.properties).not.toHaveProperty("total");
+    expect(schema.properties.items).toMatchObject({ type: "array", items: { $ref: "#/components/schemas/" + dto } });
+  });
+
+  it.each([
     ["/v1/ram/roles/{roleId}/trust-policy", "put"],
+    ["/v1/ram/roles/page", "get"],
+    ["/v1/ram/policies/page", "get"],
     ["/v1/ram/authorizations", "get"],
     ["/v1/ram/authorizations", "post"],
     ["/v1/ram/authorizations/{authorizationId}", "delete"],

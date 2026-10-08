@@ -14,6 +14,27 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 describe('RAM service IAM document operations', () => {
+  it('loads role and policy candidate pages through the generated descriptors', async () => {
+    const query = { page: 2, pageSize: 25 }
+    const data = { items: [], ...query, hasNext: true }
+    requestMock.get.mockResolvedValue({ code: CustomCode.OK, data })
+    expect(await ramService.listRolesPage(query)).toEqual(data)
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListRolesPage' }),
+      { params: query },
+      undefined,
+    )
+    expect(await ramService.listPoliciesPage(query)).toEqual(data)
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListPoliciesPage' }),
+      { params: query },
+      undefined,
+    )
+    requestMock.get.mockResolvedValue({ code: CustomCode.PERMISSION_DENIED })
+    await expect(ramService.listRolesPage(query)).rejects.toThrow()
+    await expect(ramService.listPoliciesPage(query)).rejects.toThrow()
+  })
+
   it('uses paged descriptors and dedicated scoped authorization mutations', async () => {
     const page = { items: [], page: 2, pageSize: 25, hasNext: true }
     requestMock.get.mockResolvedValue({ code: CustomCode.OK, data: page })

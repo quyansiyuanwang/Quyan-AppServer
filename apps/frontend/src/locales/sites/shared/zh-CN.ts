@@ -596,6 +596,7 @@ const zhCN = {
     title: 'RAM 访问控制',
     overview: 'RAM 概览',
     overviewDescription: '按身份、权限和会话职责管理 RAM 资源。',
+    pageSearchPlaceholder: '筛选当前页...',
     searchPlaceholder: '搜索...',
     users: '子用户',
     roles: '角色',
