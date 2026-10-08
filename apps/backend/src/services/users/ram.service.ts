@@ -18,6 +18,7 @@ import {
   addRamResourceGroupMemberBodySchema,
   iamAuthorizationQuerySchema,
   assumeRamRoleBodySchema,
+  ramGroupPageQuerySchema,
   generateIamPolicyDraftBodySchema,
 } from "@/api/schema/users/ram.schema";
 import { iamAuthorizationScopeKey } from "@/iam/authorization-scope";
@@ -38,6 +39,7 @@ import { JWTAccessIns } from "@/util/auth";
 import { isValidPermission } from "@/util/permission/validation";
 import { PermissionService } from "@/services/users/permission.service";
 import { UserRepository } from "@/store/users/user.repository";
+import { GroupService } from "@/services/users/group.service";
 import { GroupRepository } from "@/store/users/group.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
@@ -78,6 +80,7 @@ import type {
   CreateRamUserDto,
   EffectivePermissionDto,
   RamGroupDto,
+  RamVisibleGroupPageDto,
   RamPolicyAttachmentDto,
   RamPolicyDto,
   RamRoleBindingDto,
@@ -122,6 +125,7 @@ export class RamService {
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
     private readonly authorizationRepository: RamAuthorizationStore = RamAuthorizationRepository.getInstance(),
     private readonly resourceGroupRepository: RamResourceGroupStore = RamResourceGroupRepository.getInstance(),
+    private readonly groupManagementService: Pick<GroupService, "getVisibleGroupsPage"> = GroupService.getInstance(),
   ) {}
 
   private static instance: RamService;
@@ -781,10 +785,60 @@ export class RamService {
       .map((user) => this.mapUserToDto(user as AccountScopedUser));
   }
 
+  async listVisibleGroupPage(
+    actorUserId: string,
+    options: { page?: number; pageSize?: number; keyword?: string } = {},
+  ): Promise<RamVisibleGroupPageDto> {
+    const parsed = ramGroupPageQuerySchema.safeParse(options);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid RAM group page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const { page, pageSize, keyword } = parsed.data;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.groupManagementService.getVisibleGroupsPage({ actorUserId, page, pageSize, keyword });
+      const items = result.groups.map((group) => {
+        if (!group.createdAt || !group.updatedAt)
+          throw new ForbiddenError("Invalid group summary", undefined, {
+            messageKey: "permission.insufficientPermission",
+          });
+        return { ...group, createdAt: group.createdAt, updatedAt: group.updatedAt };
+      });
+      return { items, page: result.page, pageSize: result.pageSize, hasNext: result.hasMore };
+    }
+    const actor = await this.getActor(actorUserId);
+    const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
+    const candidates = await this.groupRepository.listActiveWithUserCountPaginated({
+      ...(actorGroup?.username === env.security.superAdminGroupUsername ? {} : { minLevel: actorGroup?.level ?? 0 }),
+      keyword,
+      skip: (page - 1) * pageSize,
+      take: pageSize + 1,
+    });
+    return {
+      items: candidates.slice(0, pageSize).map((group) => ({
+        id: group.id,
+        username: group.username,
+        name: group.name,
+        permissions: normalizeJsonStringArray(group.permissions),
+        level: group.level,
+        description: group.description,
+        userCount: group._count.users,
+        createdAt: group.createTime.toISOString(),
+        updatedAt: group.updateTime.toISOString(),
+      })),
+      page,
+      pageSize,
+      hasNext: candidates.length > pageSize,
+    };
+  }
+
   async listVisibleGroups(
     actorUserId: string,
     options?: { page?: number; pageSize?: number; keyword?: string },
   ): Promise<RamGroupDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listVisibleGroupPage(actorUserId, options)).items;
     const actor = await this.getActor(actorUserId);
     const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
     const isAdmin = actorGroup?.username === env.security.superAdminGroupUsername;

@@ -14,6 +14,21 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 describe('RAM service IAM document operations', () => {
+  it('loads paged group options without falling back to the unbounded list on denial', async () => {
+    const query = { page: 2, pageSize: 25, keyword: 'team' }
+    const data = { items: [], page: 2, pageSize: 25, hasNext: true }
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data })
+    expect(await ramService.listVisibleGroupPage(query)).toEqual(data)
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListVisibleGroupPage' }),
+      { params: query },
+      undefined,
+    )
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.PERMISSION_DENIED })
+    await expect(ramService.listVisibleGroupPage(query)).rejects.toThrow()
+    expect(requestMock.get).toHaveBeenCalledTimes(2)
+  })
+
   it('loads role and policy candidate pages through the generated descriptors', async () => {
     const query = { page: 2, pageSize: 25 }
     const data = { items: [], ...query, hasNext: true }

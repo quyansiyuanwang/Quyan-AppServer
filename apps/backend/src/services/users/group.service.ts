@@ -19,6 +19,11 @@ import { PermissionService } from "@/services/users/permission.service";
 import { buildAcsResource, IAM_MANAGEMENT_PAGINATION, type IamPrincipal, type Permission } from "@quyan/shared";
 
 export class GroupService {
+  private static instance: GroupService;
+  static getInstance(): GroupService {
+    return (this.instance ??= new GroupService());
+  }
+
   constructor(
     private readonly groupRepository: GroupStore = GroupRepository.getInstance(),
     private readonly userRepository: UserStore = UserRepository.getInstance(),

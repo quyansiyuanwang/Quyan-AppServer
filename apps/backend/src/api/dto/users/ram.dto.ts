@@ -306,3 +306,5 @@ export type RamResourceGroupMemberPageDto = IamManagementPageResult<IamResourceG
 
 export type RamRolePageDto = IamManagementPageResult<RamRoleDto>;
 export type RamPolicyPageDto = IamManagementPageResult<RamPolicyDto>;
+
+export type RamVisibleGroupPageDto = IamManagementPageResult<RamGroupDto>;

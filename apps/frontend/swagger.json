@@ -2697,6 +2697,59 @@
 				}
 			}
 		},
+		"/v1/ram/groups/page": {
+			"get": {
+				"operationId": "RamControllerListVisibleGroupPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamVisibleGroupPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/groups": {
 			"get": {
 				"operationId": "RamControllerListVisibleGroups",
@@ -37064,6 +37117,38 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"IamManagementPageResult_RamGroupDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamGroupDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamVisibleGroupPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamGroupDto_"
 			},
 			"GetRamGroupsResponse": {
 				"items": {

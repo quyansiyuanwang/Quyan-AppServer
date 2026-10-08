@@ -171,6 +171,10 @@ export const detachPolicyBodySchema = z.object({
   targetId: z.string().trim().min(1),
 });
 
+export const ramGroupPageQuerySchema = iamManagementPaginationSchema.extend({
+  keyword: z.string().trim().max(100).optional(),
+});
+
 export const ramGroupListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),

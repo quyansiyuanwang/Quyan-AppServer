@@ -77,7 +77,13 @@
         </template>
 
         <el-form-item :label="i18ns.t('RamManagement.userGroup')" prop="groupId">
-          <el-select v-model="userForm.groupId" filterable clearable style="width: 100%">
+          <el-select
+            v-model="userForm.groupId"
+            :disabled="loading.groups || submitting"
+            filterable
+            clearable
+            style="width: 100%"
+          >
             <el-option
               v-for="group in groups"
               :key="group.id"
@@ -85,6 +91,22 @@
               :value="group.id"
             />
           </el-select>
+          <el-alert
+            v-if="groupPage.failed.value"
+            :title="i18ns.t('RamManagement.scopedLoadFailed')"
+            type="error"
+            :closable="false"
+          />
+          <RamIamPageControls
+            :page="groupPage.page.value"
+            :page-size="groupPage.pageSize.value"
+            :has-next="groupPage.hasNext.value"
+            :loading="groupPage.loading.value || submitting"
+            @previous="loadGroups(groupPage.page.value - 1)"
+            @next="loadGroups(groupPage.page.value + 1)"
+            @size="resizeGroupsPage"
+          />
+
           <div class="text-secondary field-hint">{{ i18ns.t('RamManagement.userGroupHint') }}</div>
         </el-form-item>
       </template>
@@ -212,7 +234,12 @@
           bindMode === 'user' ? i18ns.t('RamManagement.user') : i18ns.t('RamManagement.group')
         "
       >
-        <el-select v-model="bindTargetId" filterable style="width: 100%">
+        <el-select
+          v-model="bindTargetId"
+          :disabled="submitting || (bindMode === 'group' && loading.groups)"
+          filterable
+          style="width: 100%"
+        >
           <el-option
             v-for="option in bindOptions"
             :key="option.id"
@@ -220,6 +247,22 @@
             :value="option.id"
           />
         </el-select>
+        <el-alert
+          v-if="bindMode === 'group' && groupPage.failed.value"
+          :title="i18ns.t('RamManagement.scopedLoadFailed')"
+          type="error"
+          :closable="false"
+        />
+        <RamIamPageControls
+          v-if="bindMode === 'group'"
+          :page="groupPage.page.value"
+          :page-size="groupPage.pageSize.value"
+          :has-next="groupPage.hasNext.value"
+          :loading="groupPage.loading.value || submitting"
+          @previous="loadGroups(groupPage.page.value - 1)"
+          @next="loadGroups(groupPage.page.value + 1)"
+          @size="resizeGroupsPage"
+        />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -314,7 +357,16 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="i18ns.t('RamManagement.targetName')">
-          <el-select v-model="attachForm.targetId" filterable style="width: 100%">
+          <el-select
+            v-model="attachForm.targetId"
+            :disabled="
+              submitting ||
+              (attachForm.targetType === 'group' && loading.groups) ||
+              (attachForm.targetType === 'role' && loading.roles)
+            "
+            filterable
+            style="width: 100%"
+          >
             <el-option
               v-for="option in attachTargetOptions"
               :key="option.id"
@@ -322,6 +374,23 @@
               :value="option.id"
             />
           </el-select>
+          <el-alert
+            v-if="attachForm.targetType === 'group' && groupPage.failed.value"
+            :title="i18ns.t('RamManagement.scopedLoadFailed')"
+            type="error"
+            :closable="false"
+          />
+          <RamIamPageControls
+            v-if="attachForm.targetType === 'group'"
+            :page="groupPage.page.value"
+            :page-size="groupPage.pageSize.value"
+            :has-next="groupPage.hasNext.value"
+            :loading="groupPage.loading.value || submitting"
+            @previous="loadGroups(groupPage.page.value - 1)"
+            @next="loadGroups(groupPage.page.value + 1)"
+            @size="resizeGroupsPage"
+          />
+
           <el-alert
             v-if="attachForm.targetType === 'role' && rolePage.failed.value"
             :title="i18ns.t('RamManagement.scopedLoadFailed')"
@@ -411,6 +480,9 @@ const {
   loading,
   rolePage,
   loadRoles,
+  groupPage,
+  loadGroups,
+  resizeGroupsPage,
   resizeRolesPage,
   passwordDialogVisible,
   permissionTree,

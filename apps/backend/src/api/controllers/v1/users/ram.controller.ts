@@ -1,3 +1,6 @@
+import { env } from "@/config/env";
+import { ForbiddenError } from "@/util/errors";
+import { authorizeLegacyPermissions } from "@/iam/middleware/legacy-permission-bridge";
 import { iamManagementPaginationSchema } from "@/iam/management-pagination";
 import type { RamRolePageDto, RamPolicyPageDto } from "@/api/dto/users/ram.dto";
 import {
@@ -38,6 +41,7 @@ import type {
   RamResourceGroupPageDto,
   RamResourceGroupMemberPageDto,
   RamResourceGroupDto,
+  RamVisibleGroupPageDto,
 } from "@/api/dto/users/ram.dto";
 import {
   diagnoseIamPolicyBodySchema,
@@ -114,6 +118,7 @@ import {
   createRamUserBodySchema,
   detachPolicyBodySchema,
   ramGroupListQuerySchema,
+  ramGroupPageQuerySchema,
   ramPolicyIdParamsSchema,
   ramRoleIdParamsSchema,
   ramSessionIdParamsSchema,
@@ -146,21 +151,47 @@ export class RamController extends Controller {
     return this.ramService.listRamUsers(request.user!.userId);
   }
 
+  private async assertRamGroupListEntry(request: TypedRequest): Promise<void> {
+    const permission =
+      env.security.iamAuthorizationMode === "enforce" ? Permission.GROUP_READ : Permission.RAM_USER_READ;
+    if (!(await authorizeLegacyPermissions(request, [permission], false)))
+      throw new ForbiddenError("RAM group collection read denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+  }
+
+  @Get("groups/page")
+  @Security("jwt")
+  @Middlewares(validateQuery(ramGroupPageQuerySchema))
+  @CheckPermission([Permission.RAM_USER_READ, Permission.GROUP_READ], PermissionCheckMode.ANY, "jwt", [
+    { action: "quyan:ram:ReadUser", resourceKind: "account", resource: ramAccountResourceResolver },
+    { action: "quyan:group:Read", resourceKind: "account", resource: ramAccountResourceResolver },
+  ])
+  public async listVisibleGroupPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() keyword?: string,
+  ): Promise<RamVisibleGroupPageDto> {
+    await this.assertRamGroupListEntry(request);
+    return this.ramService.listVisibleGroupPage(request.user!.userId, { page, pageSize, keyword });
+  }
+
   @Get("groups")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM可见用户组列表成功")
   @Middlewares(validateQuery(ramGroupListQuerySchema))
-  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadUser",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @CheckPermission([Permission.RAM_USER_READ, Permission.GROUP_READ], PermissionCheckMode.ANY, "jwt", [
+    { action: "quyan:ram:ReadUser", resourceKind: "account", resource: ramAccountResourceResolver },
+    { action: "quyan:group:Read", resourceKind: "account", resource: ramAccountResourceResolver },
+  ])
   public async listVisibleGroups(
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
   ): Promise<GetRamGroupsResponse> {
+    await this.assertRamGroupListEntry(request);
     return this.ramService.listVisibleGroups(request.user!.userId, { page, pageSize, keyword });
   }
 

@@ -245,6 +245,8 @@ API `POST /v1/ram/policies/ai/draft` 需要 JWT 和重放保护。提交 instruc
 
 角色与策略列表同样使用服务端候选分页：`GET /v1/ram/roles/page` 与 `GET /v1/ram/policies/page` 返回 items、page、pageSize、hasNext。enforce 模式下，账户列表权限用于打开列表，每个具体角色/策略还需要独立的读取权限；具体 Deny 会隐藏相应记录及其策略内容。列表搜索只筛选当前页。角色绑定页面及策略附加表单中的角色选项可以翻页，换页会清除失效的选择；增删改后刷新当前页。旧数组接口在 enforce 模式仅返回已过滤的默认首页，需遍历全部可见记录的客户端应改用分页接口。
 
+创建 RAM 用户、绑定角色和附加策略的用户组选项改用 `GET /v1/ram/groups/page`，支持 page、pageSize 和 keyword，并返回 items 与 hasNext。enforce 模式下，该列表需要账户目标上的 `quyan:group:Read`，每个选项还需要对应 group ARN 的读取权限；用户读取权限不能替代组读取权限。列表先按账户和历史组等级限制候选，再执行 IAM 过滤，组人数只统计本账户用户。仅真实主账户的恢复身份可看到其无账户归属的恢复组；子用户、AccessKey 和角色会话不继承该例外。三个表单都有用户组翻页控件，换页或加载失败后会清除旧的组目标。legacy/shadow 保留历史 RAM 用户读取入口和组可见规则，分页不会改变这些模式的历史授权。
+
 ## 在管理页面创建范围授权
 
 打开 RAM 的“授权”页面，可以分页查看资源组、成员及授权关系。点击资源组的“用于授权”会将该组 ID 带入范围授权表单；主体和策略填写从相应管理列表复制的 ID。范围支持 account、resource-group 和 resource：资源组范围填写资源组 ID，单资源范围填写本账户 ARN，账户范围不提交额外资源字段。

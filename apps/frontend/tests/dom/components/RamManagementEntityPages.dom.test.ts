@@ -7,7 +7,7 @@ const { api } = vi.hoisted(() => ({
     listRolesPage: vi.fn(),
     listPoliciesPage: vi.fn(),
     listUsers: vi.fn(),
-    listGroups: vi.fn(),
+    listVisibleGroupPage: vi.fn(),
     listRoleBindings: vi.fn(),
   },
 }))
@@ -93,7 +93,7 @@ beforeEach(() => {
   api.listRolesPage.mockResolvedValue(page([]))
   api.listPoliciesPage.mockResolvedValue(page([]))
   api.listUsers.mockResolvedValue([])
-  api.listGroups.mockResolvedValue([])
+  api.listVisibleGroupPage.mockResolvedValue(page([]))
   api.listRoleBindings.mockResolvedValue([])
 })
 afterEach(() => {
@@ -158,5 +158,27 @@ describe('RAM role and policy candidate pages', () => {
     await context.loadRoles(2)
     expect(context.attachTargetOptions.value.map((item) => item.id)).toEqual(['second'])
     expect(context.attachForm.targetId).toBe('')
+  })
+  it('pages group options and clears targets that could otherwise refer to an old page', async () => {
+    api.listVisibleGroupPage
+      .mockResolvedValueOnce(page([{ id: 'first', name: 'First' }], 1, true))
+      .mockResolvedValueOnce(page([{ id: 'second', name: 'Second' }], 2))
+    await host('roles')
+    context.bindMode.value = 'group'
+    context.bindTargetId.value = 'first'
+    context.attachForm.targetType = 'group'
+    context.attachForm.targetId = 'first'
+    context.userForm.groupId = 'first'
+    await context.loadGroups(2)
+    expect(api.listVisibleGroupPage).toHaveBeenLastCalledWith({ page: 2, pageSize: 50 })
+    expect(context.bindOptions.value.map((item) => item.id)).toEqual(['second'])
+    expect(context.attachTargetOptions.value.map((item) => item.id)).toEqual(['second'])
+    expect(context.bindTargetId.value).toBe('')
+    expect(context.attachForm.targetId).toBe('')
+    expect(context.userForm.groupId).toBe('')
+    api.listVisibleGroupPage.mockRejectedValueOnce(new Error('denied'))
+    await context.loadGroups()
+    expect(context.groups.value).toEqual([])
+    expect(context.groupPage.failed.value).toBe(true)
   })
 })

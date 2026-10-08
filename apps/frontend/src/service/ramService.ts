@@ -314,6 +314,12 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async listVisibleGroupPage(query: { page: number; pageSize: number; keyword?: string }) {
+    const result = await ramApi.listVisibleGroupPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async listGroups(params?: { keyword?: string; page?: number; pageSize?: number }) {
     const result = await ramApi.listVisibleGroups({ params: params || {} })
     if (result?.code === CustomCode.OK && result.data) return result.data

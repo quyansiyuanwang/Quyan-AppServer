@@ -14,7 +14,6 @@ import { getPermissionLabel, getPermissionTooltip } from '@/constant/permission-
 import { Permission } from '@/constant/permission'
 import type {
   EffectivePermissionDto,
-  GroupDto,
   Permission as ClientPermission,
   RamPolicyAttachmentDto,
   RamPolicyDto,
@@ -52,16 +51,20 @@ export function useRamManagement(section: RamManagementSection) {
   const permissionStore = usePermissionStore()
   const users = ref<RamUserDto[]>([])
   const rolePage = useIamManagementPage((query) => ramService.listRolesPage(query))
+  const groupPage = useIamManagementPage((query) => ramService.listVisibleGroupPage(query))
   const policyPage = useIamManagementPage((query) => ramService.listPoliciesPage(query))
   const roles = rolePage.items
   const bindings = ref<RamRoleBindingDto[]>([])
   const sessions = ref<RamRoleSessionDto[]>([])
-  const groups = ref<GroupDto[]>([])
+  const groups = groupPage.items
   const selectedRoleId = ref('')
   const selectedRole = ref<RamRoleDto | null>(null)
   const submitting = ref(false)
   const loading = reactive({
     users: false,
+    get groups() {
+      return groupPage.loading.value
+    },
     get roles() {
       return rolePage.loading.value
     },
@@ -398,13 +401,19 @@ export function useRamManagement(section: RamManagementSection) {
     void loadRoles(1)
   }
 
-  const loadGroups = async () => {
+  const loadGroups = async (targetPage = groupPage.page.value) => {
+    if (!editingUser.value) userForm.groupId = ''
+    if (bindMode.value === 'group') bindTargetId.value = ''
+    if (attachForm.targetType === 'group') attachForm.targetId = ''
     if (!canReadUsers.value && !canReadBindings.value && !canReadPolicies.value) {
-      groups.value = []
+      groupPage.clear()
       return
     }
-    const data = await ramService.listGroups()
-    groups.value = Array.isArray(data) ? data : ((data as any).groups ?? [])
+    await groupPage.load(targetPage)
+  }
+  const resizeGroupsPage = (size: number) => {
+    groupPage.pageSize.value = size
+    void loadGroups(1)
   }
 
   let bindingSequence = 0
@@ -1000,6 +1009,8 @@ export function useRamManagement(section: RamManagementSection) {
     loadBindings,
     loadEffectivePermissions,
     loadGroups,
+    groupPage,
+    resizeGroupsPage,
     loadPolicyAttachments,
     loadPolicies,
     loadRoles,
