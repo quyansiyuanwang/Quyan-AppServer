@@ -1,4 +1,5 @@
 import { computed, ref, watch } from 'vue'
+import type { IamDiagnostic } from '@quyan/shared'
 import type {
   IamPolicyDocument,
   Permission,
@@ -6,32 +7,6 @@ import type {
   ValidateIamPolicyResponseDto,
 } from '@/client/types.gen'
 import { ramService } from '@/service/ramService'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-function isStringList(value: unknown): value is string | string[] {
-  return (
-    typeof value === 'string' ||
-    (Array.isArray(value) && value.every((item) => typeof item === 'string'))
-  )
-}
-// Only narrow the transport type. Unknown fields and all policy semantics are validated by the server.
-function isPolicyDocument(value: unknown): value is IamPolicyDocument {
-  if (!isRecord(value) || value.Version !== '1') return false
-  const statements = Array.isArray(value.Statement) ? value.Statement : [value.Statement]
-  return (
-    statements.length > 0 &&
-    statements.every(
-      (statement) =>
-        isRecord(statement) &&
-        (statement.Effect === 'Allow' || statement.Effect === 'Deny') &&
-        isStringList(statement.Action) &&
-        isStringList(statement.Resource) &&
-        (statement.Sid === undefined || typeof statement.Sid === 'string'),
-    )
-  )
-}
 
 export function policyAuthorizationPayload(
   policy: RamPolicyDto | null,
@@ -50,6 +25,7 @@ export function useIamPolicyEditor() {
   const policyFormat = ref<'legacy' | 'iam'>('legacy')
   const policyDocumentText = ref('')
   const policyValidation = ref<ValidateIamPolicyResponseDto | null>(null)
+  const policyDiagnostics = ref<IamDiagnostic[]>([])
   const validatingPolicy = ref(false)
   const policyValidationFailed = ref(false)
   let revision = 0
@@ -61,6 +37,7 @@ export function useIamPolicyEditor() {
     () => {
       revision++
       policyValidation.value = null
+    policyDiagnostics.value = []
       policyValidationFailed.value = false
     },
     { flush: 'sync' },
@@ -76,6 +53,7 @@ export function useIamPolicyEditor() {
     requestSequence++
     validatingPolicy.value = false
     policyValidation.value = null
+    policyDiagnostics.value = []
     policyValidationFailed.value = false
     validatedRevision = -1
     policyFormat.value = policy?.document ? 'iam' : 'legacy'
@@ -87,14 +65,20 @@ export function useIamPolicyEditor() {
     const currentRequest = ++requestSequence
     validatingPolicy.value = true
     policyValidation.value = null
+    policyDiagnostics.value = []
     policyValidationFailed.value = false
     try {
-      const document: unknown = JSON.parse(policyDocumentText.value)
-      if (!isPolicyDocument(document)) throw new Error('Invalid policy document structure')
-      const result = await ramService.validatePolicy(document)
+      const result = await ramService.diagnosePolicy(policyDocumentText.value)
       if (currentRevision !== revision || currentRequest !== requestSequence) return undefined
-      if (!result.valid) throw new Error('Policy validation failed')
-      policyValidation.value = result
+      policyDiagnostics.value = result.diagnostics
+      if (!result.valid || !result.document || !result.documentHash ||
+          result.diagnostics.some((diagnostic) => diagnostic.severity === 'error'))
+        throw new Error('Policy validation failed')
+      policyValidation.value = {
+        valid: true, document: result.document, documentHash: result.documentHash,
+        broadWildcard: result.document.Statement.some((statement) =>
+          statement.Action.includes('*') && statement.Resource.includes('*')),
+      }
       validatedRevision = revision
       return result.document
     } catch {
@@ -117,6 +101,7 @@ export function useIamPolicyEditor() {
     policyFormat,
     policyDocumentText,
     policyValidation,
+    policyDiagnostics,
     validatingPolicy,
     policyValidationFailed,
     hasPolicyDeny,

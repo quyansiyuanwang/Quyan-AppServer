@@ -1,3 +1,4 @@
+import { createIamCatalogControllerApi } from '@/client/services/iam-catalog-controller.gen'
 import { createRamControllerApi } from '@/client/services/ram-controller.gen'
 import type {
   AssumeRamRoleDto,
@@ -19,6 +20,8 @@ import { useRequestStore } from '@/stores/request'
 import { cacheObject } from '@/utils/common'
 import { toServiceError } from '@/utils/error-utils'
 import { passwordEncryptionService } from '@/service/passwordEncryptionService'
+
+const catalogApi = cacheObject(() => createIamCatalogControllerApi(useRequestStore().getAxios()))
 
 const ramApi = cacheObject(() => createRamControllerApi(useRequestStore().getAxios()))
 
@@ -181,6 +184,18 @@ export class RamService {
 
   async simulatePolicy(data: SimulateIamPolicyDto) {
     const result = await ramApi.simulatePolicy({ body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async diagnosePolicy(documentText: string) {
+    const result = await ramApi.diagnosePolicy({ body: { documentText } })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
+  async getPolicySchema() {
+    const result = await catalogApi.getPolicySchema({})
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }

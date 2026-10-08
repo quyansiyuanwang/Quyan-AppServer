@@ -5,11 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useIamPolicyTools } from '@/views/management/ram-management/useIamPolicyTools'
 import { useIamPolicyEditor } from '@/views/management/ram-management/useIamPolicyEditor'
 
-const { validatePolicy, getIamActions } = vi.hoisted(() => ({
-  validatePolicy: vi.fn(),
+const { diagnosePolicy, getIamActions, getPolicySchema } = vi.hoisted(() => ({
+  diagnosePolicy: vi.fn(),
   getIamActions: vi.fn(),
+  getPolicySchema: vi.fn(),
 }))
-vi.mock('@/service/ramService', () => ({ ramService: { validatePolicy, getIamActions } }))
+vi.mock('@/service/ramService', () => ({ ramService: { diagnosePolicy, getIamActions, getPolicySchema } }))
 vi.mock('@/locales', () => ({ i18ns: { t: (key: string) => key } }))
 let context: ReturnType<typeof useIamPolicyEditor> &
   ReturnType<typeof useIamPolicyTools> & {
@@ -69,19 +70,21 @@ describe('IAM policy editor controls and warnings', () => {
       },
     })
     const document = { Version: '1', Statement: { Effect: 'Deny', Action: '*', Resource: '*' } }
-    validatePolicy.mockResolvedValue({
+    diagnosePolicy.mockResolvedValue({
       valid: true,
-      document,
+      document: { ...document, Statement: [document.Statement] },
+      diagnostics: [],
       documentHash: 'h1',
       broadWildcard: true,
     })
     await wrapper.get('textarea').setValue(JSON.stringify(document))
     await wrapper.get('button').trigger('click')
     await flushPromises()
-    expect(validatePolicy).toHaveBeenCalledWith(document)
+    expect(diagnosePolicy).toHaveBeenCalledWith(JSON.stringify(document))
     expect(wrapper.text()).toContain('RamManagement.policyValid')
     expect(wrapper.text()).toContain('RamManagement.iamDenyWarning')
     expect(wrapper.text()).toContain('RamManagement.iamWildcardWarning')
+    diagnosePolicy.mockResolvedValueOnce({ valid: false, diagnostics: [], delegation: 'not-evaluated' })
     await wrapper.get('textarea').setValue('{')
     expect(wrapper.text()).not.toContain('RamManagement.policyValid')
     expect(wrapper.text()).not.toContain('RamManagement.iamDenyWarning')
@@ -134,7 +137,51 @@ describe('IAM policy editor controls and warnings', () => {
     expect(textarea.element.selectionStart).toBe(start + 'quyan:ram:CreateUser'.length)
     expect(textarea.element.selectionEnd).toBe(textarea.element.selectionStart)
     expect(context.policyValidation.value).toBeNull()
-    expect(validatePolicy).not.toHaveBeenCalled()
+    expect(diagnosePolicy).not.toHaveBeenCalled()
     wrapper.unmount()
   })
+  it('groups diagnostics and focuses their original source position, clearing stale errors after editing', async () => {
+    context = { ...useIamPolicyEditor(), ...useIamPolicyTools(), submitting: ref(false), canReadPolicies: ref(false) }
+    const wrapper = mount(RamIamPolicyEditor, { global: { stubs: { 'el-input': inputStub, 'el-alert': alertStub, 'el-button': buttonStub, 'el-tag': tagStub } } })
+    const diagnostic = { severity: 'error', code: 'json-syntax', path: '/Statement', line: 2, column: 2, messageKey: 'RamManagement.diagnosticMessages.json-syntax' }
+    diagnosePolicy.mockResolvedValueOnce({ valid: false, diagnostics: [diagnostic], delegation: 'not-evaluated' })
+    await wrapper.get('textarea').setValue('{\n ]')
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-severity]')).toHaveLength(4)
+    expect(wrapper.text()).toContain('/Statement')
+    await wrapper.get('[data-code="json-syntax"]').trigger('click')
+    expect(wrapper.get('textarea').element.selectionStart).toBe(3)
+    await wrapper.get('textarea').setValue('{}')
+    expect(wrapper.find('[data-code="json-syntax"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+  it('downloads the catalog Schema and reports download failures without changing policy text', async () => {
+    context = { ...useIamPolicyEditor(), ...useIamPolicyTools(), submitting: ref(false), canReadPolicies: ref(true) }
+    getIamActions.mockResolvedValue([])
+    getPolicySchema.mockRejectedValueOnce(new Error('Denied'))
+    const wrapper = mount(RamIamPolicyEditor, { global: { stubs: { 'el-input': inputStub, 'el-select': selectStub, 'el-option': optionStub, 'el-alert': alertStub, 'el-button': buttonStub, 'el-tag': tagStub } } })
+    await flushPromises()
+    await wrapper.get('textarea').setValue('original draft')
+    const download = wrapper.findAll('button').find((button) => button.text() === 'RamManagement.downloadPolicySchema')!
+    await download.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('RamManagement.policySchemaFailed')
+    expect(context.policyDocumentText.value).toBe('original draft')
+    const create = vi.fn(() => 'blob:test-policy-schema'), revoke = vi.fn()
+    const previousCreate = URL.createObjectURL, previousRevoke = URL.revokeObjectURL
+    URL.createObjectURL = create
+    URL.revokeObjectURL = revoke
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      getPolicySchema.mockResolvedValueOnce({ title: 'Policy schema' })
+      await download.trigger('click')
+      await flushPromises()
+      expect(create).toHaveBeenCalledOnce()
+      expect(click).toHaveBeenCalledOnce()
+      expect(revoke).toHaveBeenCalledWith('blob:test-policy-schema')
+      expect(wrapper.text()).not.toContain('RamManagement.policySchemaFailed')
+    } finally { URL.createObjectURL = previousCreate; URL.revokeObjectURL = previousRevoke; click.mockRestore(); wrapper.unmount() }
+  })
+
 })

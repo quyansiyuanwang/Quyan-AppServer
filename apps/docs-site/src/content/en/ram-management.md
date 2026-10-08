@@ -121,6 +121,8 @@ Send original JSON text to `POST /v1/ram/policies/diagnose` using `documentText`
 
 `GET /v1/iam/catalog/policy-schema` publishes JSON Schema generated from the same validator for editors and AI drafts. It includes current production actions, resource templates, implemented condition keys and limits. Custom catalog and account-ownership semantics still require server diagnosis. Schema access requires policy read permission; diagnosis requires policy create or update permission. Successful validation only confirms the current document syntax: `delegation: "not-evaluated"` explicitly means publication/delegation authority has not been proven. Saving and attaching still enforce the existing authorization checks.
 
+The JSON editor sends original text when you choose Validate JSON, grouping results as errors, security warnings, warnings and suggestions. Click a diagnostic to focus its source position. Editing immediately invalidates previous diagnostics and validation. Format validated JSON first validates on the server, then formats the normalized document. Download JSON Schema exports the current contract for external AI draft assistance.
+
 ### APIs and permissions
 
 - `POST /v1/ram/policies`: submit name plus either document or legacy permissions, never both.

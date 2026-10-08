@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   insertIamAction,
+  iamDiagnosticOffset,
   useIamPolicyTools,
 } from '@/views/management/ram-management/useIamPolicyTools'
 import type { SimulateIamPolicyResponseDto } from '@/client/types.gen'
@@ -91,5 +92,15 @@ describe('IAM simulation input and response boundaries', () => {
       expect(state.iamSimulationResult.value).toBeNull()
       expect(state.iamSimulating.value).toBe(false)
     }
+  })
+})
+
+describe('diagnostic cursor offsets', () => {
+  it('handles LF, CRLF, non-ASCII UTF-16 columns and invalid positions', () => {
+    expect(iamDiagnosticOffset('甲\r\n乙\r\n丙', 2, 1)).toBe(3)
+    expect(iamDiagnosticOffset('abc\ndef', 2, 2)).toBe(5)
+    expect(iamDiagnosticOffset('abc', 1, 99)).toBe(3)
+    expect(iamDiagnosticOffset('abc', 99, 1)).toBe(3)
+    expect(iamDiagnosticOffset('abc', 0, 1)).toBe(0)
   })
 })

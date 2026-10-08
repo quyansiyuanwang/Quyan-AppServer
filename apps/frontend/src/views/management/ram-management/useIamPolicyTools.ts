@@ -1,3 +1,18 @@
+/** Convert one-based diagnostic positions to a UTF-16 textarea cursor offset. */
+export function iamDiagnosticOffset(text: string, line: number, column: number): number {
+  if (!Number.isInteger(line) || !Number.isInteger(column) || line < 1 || column < 1) return 0
+  const lines = text.split(/\r\n|\r|\n/)
+  if (line > lines.length) return text.length
+  let offset = 0
+  const newline = /\r\n|\r|\n/g
+  for (let i = 1; i < line; i++) {
+    const match = newline.exec(text)
+    if (!match) return text.length
+    offset = match.index + match[0].length
+  }
+  return offset + Math.min(column - 1, lines[line - 1]!.length)
+}
+
 import { reactive, ref, watch } from 'vue'
 import type { SimulateIamPolicyResponseDto } from '@/client/types.gen'
 import { ramService } from '@/service/ramService'

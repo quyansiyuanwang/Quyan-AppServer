@@ -5,13 +5,13 @@ import {
   useIamPolicyEditor,
 } from '@/views/management/ram-management/useIamPolicyEditor'
 
-const { validatePolicy } = vi.hoisted(() => ({ validatePolicy: vi.fn() }))
-vi.mock('@/service/ramService', () => ({ ramService: { validatePolicy } }))
+const { diagnosePolicy } = vi.hoisted(() => ({ diagnosePolicy: vi.fn() }))
+vi.mock('@/service/ramService', () => ({ ramService: { diagnosePolicy } }))
 const document: IamPolicyDocument = {
   Version: '1',
   Statement: { Effect: 'Allow', Action: 'quyan:ram:ReadUser', Resource: '*' },
 }
-const valid = { valid: true, document, documentHash: 'hash-1', broadWildcard: false }
+const valid = { valid: true, diagnostics: [], delegation: 'not-evaluated', document: { ...document, Statement: [document.Statement] }, documentHash: 'hash-1', broadWildcard: false }
 const policy: RamPolicyDto = {
   id: 'p1',
   accountOwnerId: 'a1',
@@ -34,34 +34,53 @@ describe('IAM document editor validation', () => {
     const editor = useIamPolicyEditor()
     editor.initializePolicyEditor(policy)
     const normalized = { ...document, Statement: [document.Statement] }
-    validatePolicy.mockResolvedValue({ ...valid, document: normalized })
+    diagnosePolicy.mockResolvedValue({ ...valid, document: normalized })
     expect(await editor.validatePolicyDocument()).toEqual(normalized)
     expect(await editor.getValidatedPolicyDocument()).toEqual(normalized)
-    expect(validatePolicy).toHaveBeenCalledTimes(1)
+    expect(diagnosePolicy).toHaveBeenCalledTimes(1)
     editor.policyDocumentText.value += ' '
     expect(editor.policyValidation.value).toBeNull()
     await editor.getValidatedPolicyDocument()
-    expect(validatePolicy).toHaveBeenCalledTimes(2)
+    expect(diagnosePolicy).toHaveBeenCalledTimes(2)
   })
   it.each([
     '{',
     '{"Version":"2","Statement":[]}',
     '{"Version":"1","Statement":{"Effect":"Maybe","Action":"*","Resource":"*"}}',
   ])('blocks malformed editor input %s', async (text) => {
+    diagnosePolicy.mockResolvedValue({ valid: false, diagnostics: [], delegation: 'not-evaluated' })
     const editor = useIamPolicyEditor()
     editor.policyDocumentText.value = text
     expect(await editor.validatePolicyDocument()).toBeUndefined()
     expect(editor.policyValidationFailed.value).toBe(true)
-    expect(validatePolicy).not.toHaveBeenCalled()
+    expect(diagnosePolicy).toHaveBeenCalledWith(text)
   })
   it('sends unsupported fields unchanged to the authoritative server validator', async () => {
     const editor = useIamPolicyEditor()
     const unsupported = { ...document, Condition: { unsupported: true } }
     editor.policyDocumentText.value = JSON.stringify(unsupported)
-    validatePolicy.mockRejectedValue(new Error('Unsupported field'))
+    diagnosePolicy.mockRejectedValue(new Error('Unsupported field'))
     expect(await editor.validatePolicyDocument()).toBeUndefined()
-    expect(validatePolicy).toHaveBeenCalledWith(unsupported)
+    expect(diagnosePolicy).toHaveBeenCalledWith(JSON.stringify(unsupported))
     expect(editor.policyValidationFailed.value).toBe(true)
+    expect(editor.policyValidation.value).toBeNull()
+  })
+  it('retains source diagnostics for invalid input and clears them immediately after editing', async () => {
+    const diagnostic = { code: 'json-syntax', severity: 'error', path: '', line: 1, column: 2, messageKey: 'RamManagement.diagnosticMessages.json-syntax' }
+    diagnosePolicy.mockResolvedValue({ valid: false, diagnostics: [diagnostic], delegation: 'not-evaluated' })
+    const editor = useIamPolicyEditor()
+    editor.policyDocumentText.value = '{'
+    await editor.validatePolicyDocument()
+    expect(editor.policyDiagnostics.value).toEqual([diagnostic])
+    expect(editor.policyValidation.value).toBeNull()
+    editor.policyDocumentText.value = '{}'
+    expect(editor.policyDiagnostics.value).toEqual([])
+  })
+  it('fails closed when a supposedly valid response contains an error diagnostic', async () => {
+    diagnosePolicy.mockResolvedValue({ ...valid, diagnostics: [{ severity: 'error' }] })
+    const editor = useIamPolicyEditor()
+    editor.initializePolicyEditor(policy)
+    expect(await editor.getValidatedPolicyDocument()).toBeUndefined()
     expect(editor.policyValidation.value).toBeNull()
   })
   it('discards validation responses when text or format changed while awaiting the server', async () => {
@@ -69,7 +88,7 @@ describe('IAM document editor validation', () => {
       const editor = useIamPolicyEditor()
       editor.initializePolicyEditor(policy)
       let finish!: (value: typeof valid) => void
-      validatePolicy.mockImplementationOnce(
+      diagnosePolicy.mockImplementationOnce(
         () =>
           new Promise((resolve) => {
             finish = resolve
@@ -87,19 +106,19 @@ describe('IAM document editor validation', () => {
     const editor = useIamPolicyEditor()
     editor.initializePolicyEditor(policy)
     let finish!: (value: typeof valid) => void
-    validatePolicy.mockImplementationOnce(
+    diagnosePolicy.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve
         }),
     )
     const first = editor.validatePolicyDocument()
-    validatePolicy.mockResolvedValueOnce(valid)
+    diagnosePolicy.mockResolvedValueOnce(valid)
     await editor.validatePolicyDocument()
     finish({ ...valid, documentHash: 'stale' })
     expect(await first).toBeUndefined()
     expect(editor.policyValidation.value?.documentHash).toBe('hash-1')
-    validatePolicy.mockImplementationOnce(
+    diagnosePolicy.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           finish = resolve
@@ -116,7 +135,7 @@ describe('IAM document editor validation', () => {
   it('shows Deny and broad-scope warnings only for the currently validated document', async () => {
     const editor = useIamPolicyEditor()
     editor.initializePolicyEditor(policy)
-    validatePolicy.mockResolvedValue({
+    diagnosePolicy.mockResolvedValue({
       ...valid,
       broadWildcard: true,
       document: { ...document, Statement: [{ Effect: 'Deny', Action: '*', Resource: '*' }] },

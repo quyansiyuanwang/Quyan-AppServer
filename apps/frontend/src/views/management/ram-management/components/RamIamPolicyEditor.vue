@@ -41,10 +41,14 @@
       <el-button :loading="validatingPolicy" :disabled="submitting" @click="validatePolicyDocument">
         {{ i18ns.t('RamManagement.validatePolicy') }}
       </el-button>
+      <el-button :disabled="submitting || validatingPolicy" @click="formatDocument">{{ i18ns.t('RamManagement.formatPolicy') }}</el-button>
+      <el-button v-if="canReadPolicies" :loading="schemaDownloading" :disabled="submitting" @click="downloadSchema">{{ i18ns.t('RamManagement.downloadPolicySchema') }}</el-button>
       <el-tag v-if="policyValidation" type="success">{{
         i18ns.t('RamManagement.policyValid')
       }}</el-tag>
     </div>
+    <RamIamPolicyDiagnostics :diagnostics="policyDiagnostics" @select="focusDiagnostic" />
+    <el-alert v-if="schemaDownloadFailed" :title="i18ns.t('RamManagement.policySchemaFailed')" type="error" :closable="false" />
     <el-alert
       v-if="policyValidationFailed"
       :title="i18ns.t('RamManagement.policyValidationFailed')"
@@ -72,7 +76,10 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
 import type { InputInstance } from 'element-plus/es'
-import { insertIamAction } from '../useIamPolicyTools'
+import type { IamDiagnostic } from '@quyan/shared'
+import RamIamPolicyDiagnostics from './RamIamPolicyDiagnostics.vue'
+import { ramService } from '@/service/ramService'
+import { iamDiagnosticOffset, insertIamAction } from '../useIamPolicyTools'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
 
@@ -84,13 +91,45 @@ const {
   canReadPolicies,
   policyDocumentText,
   policyValidation,
+  policyDiagnostics,
   policyValidationFailed,
   validatingPolicy,
   hasPolicyDeny,
   validatePolicyDocument,
+  getValidatedPolicyDocument,
   submitting,
 } = useRamManagementContext()
 const documentInput = ref<InputInstance>()
+const schemaDownloading = ref(false)
+const schemaDownloadFailed = ref(false)
+const focusDiagnostic = (diagnostic: IamDiagnostic) => {
+  const textarea = documentInput.value?.textarea
+  if (!textarea) return
+  const offset = iamDiagnosticOffset(policyDocumentText.value, diagnostic.line, diagnostic.column)
+  textarea.focus()
+  textarea.setSelectionRange(offset, offset)
+}
+const formatDocument = async () => {
+  const document = await getValidatedPolicyDocument()
+  if (document) policyDocumentText.value = JSON.stringify(document, null, 2)
+}
+const downloadSchema = async () => {
+  schemaDownloading.value = true
+  schemaDownloadFailed.value = false
+  let url: string | undefined
+  try {
+    const schema = await ramService.getPolicySchema()
+    url = URL.createObjectURL(new Blob([JSON.stringify(schema, null, 2)], { type: 'application/schema+json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'quyan-identity-policy.schema.json'
+    link.click()
+  } catch { schemaDownloadFailed.value = true }
+  finally {
+    if (url) URL.revokeObjectURL(url)
+    schemaDownloading.value = false
+  }
+}
 onMounted(() => {
   if (canReadPolicies.value) void loadIamActions()
 })

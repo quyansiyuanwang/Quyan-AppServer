@@ -121,6 +121,8 @@ RAM 管理操作当前使用账户级 Resource：`acs:quyan:*:<主账号ID>:acco
 
 `GET /v1/iam/catalog/policy-schema` 提供从同一策略校验器生成的 JSON Schema，供编辑器和 AI 构造草稿。Schema 包含当前生产 Action、资源模板、已实现条件键和限制；目录及账户归属等自定义语义仍须经过服务端诊断。获取 Schema 需要策略读取权限，诊断需要策略创建或更新任一权限。验证通过只说明文档符合当前语法，返回的 `delegation: "not-evaluated"` 表示尚未证明操作者可以发布或委派；保存和绑定继续执行已有授权检查。
 
+JSON 编辑器的“校验 JSON”会提交原始文本，并按错误、安全警告、警告和建议分组展示诊断；点击诊断可定位到对应文本位置。编辑内容后原有诊断和校验结果立即失效。“格式化已校验 JSON”先完成服务端校验，再格式化规范化后的文档；“下载 JSON Schema”可将当前规范提供给外部 AI 辅助编写草稿。
+
 ### API 和权限
 
 - `POST /v1/ram/policies`：提供 name 和 document，或旧 permissions；不可同时提交两种格式。

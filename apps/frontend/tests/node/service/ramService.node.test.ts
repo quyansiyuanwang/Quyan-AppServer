@@ -55,6 +55,21 @@ describe('RAM service IAM document operations', () => {
     await expect(ramService.setDefaultPolicyVersion('policy-1', body)).rejects.toThrow()
   })
 
+  it('sends raw JSON unchanged through the diagnosis endpoint', async () => {
+    const raw = '{"Version":"1",}'
+    const data = { valid: false, diagnostics: [{ code: 'json-syntax', line: 1, column: 16 }], delegation: 'not-evaluated' }
+    requestMock.post.mockResolvedValueOnce({ code: CustomCode.OK, data })
+    expect(await ramService.diagnosePolicy(raw)).toEqual(data)
+    expect(requestMock.post).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'RamControllerDiagnosePolicy' }), { body: { documentText: raw } }, undefined,
+    )
+  })
+  it('uses the generated catalog descriptor for the policy Schema', async () => {
+    const data = { title: 'Policy', additionalProperties: false }
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data })
+    expect(await ramService.getPolicySchema()).toEqual(data)
+    expect(requestMock.get).toHaveBeenCalledWith(expect.objectContaining({ name: 'IamCatalogControllerGetPolicySchema' }), {}, undefined)
+  })
   it('validates through the generated RAM endpoint', async () => {
     const data = { valid: true, document, documentHash: 'h1', broadWildcard: false }
     requestMock.post.mockResolvedValueOnce({ code: CustomCode.OK, data })
