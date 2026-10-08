@@ -22,6 +22,7 @@
 | [14-domain-deployment.md](./14-domain-deployment.md)       | 多域名、反代、Cookie 与 CORS 运维部署                         |
 | [15-cli.md](./15-cli.md)                                   | Quyan CLI 架构、凭证边界与验证                                |
 | [16-local-development.md](./16-local-development.md)       | 本地启动模式、免特权 localhost、setup/doctor 与故障排查       |
+| [17-iam-policy-migration.md](./17-iam-policy-migration.md) | IAM 策略版本、账户范围回填、回滚边界与上线门禁 |
 
 ## 专题审计
 
@@ -47,6 +48,7 @@
 - **如何配置多域名与认证 Cookie** → [14-domain-deployment.md](./14-domain-deployment.md)
 - **如何开发和验证 CLI** → [15-cli.md](./15-cli.md)
 - **如何本地启动与排查** → [16-local-development.md](./16-local-development.md)
+- **如何回填 IAM 策略与准备授权切换** → [17-iam-policy-migration.md](./17-iam-policy-migration.md)
 - **开源前如何检查安全配置** → [SECURITY.md](../../SECURITY.md)
 
 ### 常用命令速查
