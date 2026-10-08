@@ -351,6 +351,7 @@
     :title="i18ns.t('RamManagement.policyAttachments')"
     direction="rtl"
     size="650px"
+    @closed="closePolicyAttachments"
   >
     <div class="section-toolbar">
       <el-button
@@ -475,6 +476,30 @@
       </el-table-column>
     </el-table>
 
+    <el-alert
+      v-if="attachmentPage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      :page="attachmentPage.page.value"
+      :page-size="attachmentPage.pageSize.value"
+      :has-next="attachmentPage.hasNext.value"
+      :loading="attachmentPage.loading.value || submitting"
+      @previous="
+        selectedPolicy && loadPolicyAttachments(selectedPolicy.id, attachmentPage.page.value - 1)
+      "
+      @next="
+        selectedPolicy && loadPolicyAttachments(selectedPolicy.id, attachmentPage.page.value + 1)
+      "
+      @size="resizeAttachmentsPage"
+    />
+    <el-button
+      v-if="attachmentPage.failed.value"
+      @click="selectedPolicy && loadPolicyAttachments(selectedPolicy.id)"
+      >{{ i18ns.t('refresh') }}</el-button
+    >
     <el-empty v-if="policyAttachments.length === 0 && !loading.attachments" />
   </el-drawer>
 </template>
@@ -494,6 +519,11 @@ const {
   attachDrawerVisible,
   attachForm,
   attachTargetOptions,
+  attachmentPage,
+  loadPolicyAttachments,
+  resizeAttachmentsPage,
+  closePolicyAttachments,
+  selectedPolicy,
   bindDialogVisible,
   bindMode,
   bindOptions,

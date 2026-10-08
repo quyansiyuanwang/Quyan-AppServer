@@ -15,7 +15,6 @@ import { Permission } from '@/constant/permission'
 import type {
   EffectivePermissionDto,
   Permission as ClientPermission,
-  RamPolicyAttachmentDto,
   RamPolicyDto,
   RamRoleBindingDto,
   RamRoleDto,
@@ -84,7 +83,9 @@ export function useRamManagement(section: RamManagementSection) {
     get policies() {
       return policyPage.loading.value
     },
-    attachments: false,
+    get attachments() {
+      return attachmentPage.loading.value
+    },
   })
 
   const userDialogVisible = ref(false)
@@ -97,6 +98,9 @@ export function useRamManagement(section: RamManagementSection) {
   const editingRole = ref<RamRoleDto | null>(null)
   const editingPolicy = ref<RamPolicyDto | null>(null)
   const selectedPolicy = ref<RamPolicyDto | null>(null)
+  const attachmentPage = useIamManagementPage((query) =>
+    ramService.listPolicyAttachmentsPage(selectedPolicy.value!.id, query),
+  )
   const accessKeyDialogVisible = ref(false)
   const createdAccessKeySecret = ref('')
   const createdAccessKeyName = ref('')
@@ -117,7 +121,7 @@ export function useRamManagement(section: RamManagementSection) {
   const selectedRoles = ref<RamRoleDto[]>([])
 
   const policies = policyPage.items
-  const policyAttachments = ref<RamPolicyAttachmentDto[]>([])
+  const policyAttachments = attachmentPage.items
   const authUserId = ref('')
   const effectivePerms = ref<EffectivePermissionDto | null>(null)
   let effectivePermissionSequence = 0
@@ -304,7 +308,7 @@ export function useRamManagement(section: RamManagementSection) {
     return group?.name || group?.username || binding.principalId
   }
 
-  const getAttachmentTargetName = (attachment: RamPolicyAttachmentDto) => {
+  const getAttachmentTargetName = (attachment: (typeof policyAttachments.value)[number]) => {
     if (attachment.targetName) return attachment.targetName
 
     if (attachment.targetType === 'user') {
@@ -885,18 +889,30 @@ export function useRamManagement(section: RamManagementSection) {
 
   const openPolicyAttachments = async (policy: RamPolicyDto) => {
     selectedPolicy.value = policy
+    attachmentPage.clear()
     showAttachForm.value = false
     attachDrawerVisible.value = true
     await Promise.all([loadPolicyAttachments(policy.id), loadUsers(), loadRoles(), loadGroups()])
   }
 
-  const loadPolicyAttachments = async (policyId: string) => {
-    loading.attachments = true
-    try {
-      policyAttachments.value = await ramService.listPolicyAttachments(policyId)
-    } finally {
-      loading.attachments = false
+  const loadPolicyAttachments = async (
+    policyId: string,
+    targetPage = attachmentPage.page.value,
+  ) => {
+    if (!selectedPolicy.value || selectedPolicy.value.id !== policyId) {
+      attachmentPage.clear()
+      return
     }
+    await attachmentPage.load(targetPage)
+  }
+  const resizeAttachmentsPage = (size: number) => {
+    attachmentPage.pageSize.value = size
+    if (selectedPolicy.value) void loadPolicyAttachments(selectedPolicy.value.id, 1)
+  }
+  const closePolicyAttachments = () => {
+    attachmentPage.clear()
+    selectedPolicy.value = null
+    attachForm.targetId = ''
   }
 
   const submitAttach = async () => {
@@ -919,7 +935,7 @@ export function useRamManagement(section: RamManagementSection) {
     }
   }
 
-  const detachAttachment = async (attachment: RamPolicyAttachmentDto) => {
+  const detachAttachment = async (attachment: (typeof policyAttachments.value)[number]) => {
     if (!canDetachPolicies.value) return
     try {
       await ElMessageBox.confirm(i18ns.t('RamManagement.confirmDetachPolicy'), i18ns.t('warning'), {
@@ -1033,6 +1049,9 @@ export function useRamManagement(section: RamManagementSection) {
     groupPage,
     resizeGroupsPage,
     loadPolicyAttachments,
+    attachmentPage,
+    resizeAttachmentsPage,
+    closePolicyAttachments,
     loadPolicies,
     loadRoles,
     rolePage,

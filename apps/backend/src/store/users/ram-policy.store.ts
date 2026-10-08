@@ -73,6 +73,11 @@ export interface RamPolicyStore {
   attachPolicy(accountOwnerId: string, policyId: string, targetType: string, targetId: string): Promise<void>;
   detachPolicy(policyId: string, targetType: string, targetId: string): Promise<void>;
   listAttachmentsByPolicy(policyId: string): Promise<PolicyAttachmentRecord[]>;
+  listAttachmentPage(
+    accountOwnerId: string,
+    policyId: string,
+    pagination: IamManagementPage,
+  ): Promise<IamManagementPageResult<PolicyAttachmentRecord>>;
   listAttachmentsByTarget(targetType: string, targetId: string): Promise<PolicyAttachmentRecord[]>;
   listPoliciesForTarget(targetType: string, targetId: string): Promise<PolicyBindingInfo[]>;
   listPoliciesForTargets(targetType: string, targetIds: string[]): Promise<PolicyBindingInfoWithTarget[]>;

@@ -9,6 +9,7 @@ const { api } = vi.hoisted(() => ({
     listUsersPage: vi.fn(),
     listSessionsPage: vi.fn(),
     getUserEffectivePermissions: vi.fn(),
+    listPolicyAttachmentsPage: vi.fn(),
     listVisibleGroupPage: vi.fn(),
     listRoleBindingsPage: vi.fn(),
   },
@@ -109,6 +110,7 @@ beforeEach(() => {
   api.listSessionsPage.mockResolvedValue(page([]))
   api.listVisibleGroupPage.mockResolvedValue(page([]))
   api.listRoleBindingsPage.mockResolvedValue(page([]))
+  api.listPolicyAttachmentsPage.mockResolvedValue(page([]))
 })
 afterEach(() => {
   for (const wrapper of mounts.splice(0)) wrapper.unmount()
@@ -254,5 +256,48 @@ describe('RAM role and policy candidate pages', () => {
     await flushPromises()
     expect(api.listRoleBindingsPage).toHaveBeenLastCalledWith('second', { page: 1, pageSize: 50 })
     expect(context.bindings.value).toEqual([])
+  })
+  it('pages attachment relations and discards results after switching or closing the parent policy', async () => {
+    await host('policies')
+    api.listPolicyAttachmentsPage
+      .mockResolvedValueOnce(page([], 1, true))
+      .mockResolvedValueOnce(page([{ id: 'attachment' }], 2))
+    const policy = (id: string) => ({
+      id,
+      name: id,
+      accountOwnerId: 'owner',
+      permissions: [],
+      type: 'custom',
+      status: 1,
+      createTime: '',
+      updateTime: '',
+    })
+    await context.openPolicyAttachments(policy('first'))
+    await context.loadPolicyAttachments('first', 2)
+    expect(api.listPolicyAttachmentsPage).toHaveBeenLastCalledWith('first', {
+      page: 2,
+      pageSize: 50,
+    })
+    expect(context.policyAttachments.value.map((item) => item.id)).toEqual(['attachment'])
+    let finish!: (result: unknown) => void
+    api.listPolicyAttachmentsPage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    const old = context.loadPolicyAttachments('first')
+    await context.openPolicyAttachments(policy('second'))
+    finish(page([{ id: 'stale' }], 2))
+    await old
+    expect(context.selectedPolicy.value?.id).toBe('second')
+    expect(context.policyAttachments.value).toEqual([])
+    expect(api.listPolicyAttachmentsPage).toHaveBeenLastCalledWith('second', {
+      page: 1,
+      pageSize: 50,
+    })
+    context.closePolicyAttachments()
+    expect(context.selectedPolicy.value).toBeNull()
+    expect(context.attachmentPage.page.value).toBe(1)
+    expect(context.policyAttachments.value).toEqual([])
   })
 })

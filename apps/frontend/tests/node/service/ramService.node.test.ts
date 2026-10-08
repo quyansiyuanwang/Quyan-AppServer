@@ -14,6 +14,21 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 describe('RAM service IAM document operations', () => {
+  it('loads an attachment page through its policy path without a fallback on denial', async () => {
+    const query = { page: 2, pageSize: 25 },
+      data = { items: [], ...query, hasNext: true }
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data })
+    expect(await ramService.listPolicyAttachmentsPage('policy', query)).toEqual(data)
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListPolicyAttachmentsPage' }),
+      { path: { policyId: 'policy' }, params: query },
+      undefined,
+    )
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.PERMISSION_DENIED })
+    await expect(ramService.listPolicyAttachmentsPage('policy', query)).rejects.toThrow()
+    expect(requestMock.get).toHaveBeenCalledTimes(2)
+  })
+
   it('paginates bindings on their parent role with an optional same-account user filter', async () => {
     const query = { page: 2, pageSize: 25, userId: 'user' },
       data = { items: [], page: 2, pageSize: 25, hasNext: true }

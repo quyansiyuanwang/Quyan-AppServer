@@ -232,6 +232,36 @@ export class RamPolicyRepository implements RamPolicyStore {
     return mapped;
   }
 
+  /** Do not resolve target names before the caller validates ownership and target read access. */
+  async listAttachmentPage(accountOwnerId: string, policyId: string, pagination: IamManagementPage) {
+    const candidates = await prisma.ramPolicyAttachment.findMany({
+      where: {
+        accountOwnerId,
+        policyId,
+        ...ACTIVE_WHERE,
+        targetType: { in: ["user", "group", "role"] },
+        policy: { accountOwnerId, ...ACTIVE_WHERE },
+      },
+      include: { policy: { select: { name: true } } },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: (pagination.page - 1) * pagination.pageSize,
+      take: pagination.pageSize + 1,
+    });
+    return {
+      ...pagination,
+      hasNext: candidates.length > pagination.pageSize,
+      items: candidates.slice(0, pagination.pageSize).map((row) => ({
+        id: row.id,
+        policyId: row.policyId,
+        policyName: row.policy.name,
+        targetType: row.targetType,
+        targetId: row.targetId,
+        targetName: null,
+        createTime: row.createTime,
+      })),
+    };
+  }
+
   async listAttachmentsByTarget(targetType: string, targetId: string): Promise<PolicyAttachmentRecord[]> {
     const rows = await prisma.ramPolicyAttachment.findMany({
       where: { targetType, targetId, ...ACTIVE_WHERE, policy: ACTIVE_WHERE },

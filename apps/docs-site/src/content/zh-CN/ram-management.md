@@ -251,6 +251,8 @@ RAM 用户与角色会话列表使用 `GET /v1/ram/users/page` 和 `GET /v1/ram/
 
 角色绑定列表使用 `GET /v1/ram/roles/{roleId}/bindings/page`，接受 page、pageSize 与可选 userId。候选按直接用户绑定、用户组绑定的顺序分页，每类按创建时间与 ID 稳定排序。enforce 模式要求 `quyan:ram:binding:Read` 同时覆盖父 role ARN 和每条关系的 user/group ARN；仅父角色 Allow 不会暴露绑定主体，目标 Deny 会隐藏该行。候选查询排除外账户、失效目标及归属不一致的关系；userId 也必须属于本账户。角色切换会重置绑定页码并丢弃旧响应。旧数组接口在 enforce 模式返回默认已过滤首页，legacy/shadow 保留历史行为。
 
+策略附加抽屉使用 `GET /v1/ram/policies/{policyId}/attachments/page`。enforce 模式要求父 policy ARN 的 `quyan:ram:ReadPolicy`；每条关系还需其目标对应的 `quyan:ram:ReadUser`、`quyan:group:Read` 或 `quyan:ram:role:Read`。策略读取权限不会自动公开目标名称。候选先按账户、有效策略及有效关系限定，目标不存在、失效或属于外账户时不返回。空过滤页可继续下一页；切换策略或关闭抽屉会清除旧记录与迟到响应。旧数组接口在 enforce 模式返回默认过滤首页；legacy/shadow 保留历史数组接口。
+
 ## 在管理页面创建范围授权
 
 打开 RAM 的“授权”页面，可以分页查看资源组、成员及授权关系。点击资源组的“用于授权”会将该组 ID 带入范围授权表单；主体和策略填写从相应管理列表复制的 ID。范围支持 account、resource-group 和 resource：资源组范围填写资源组 ID，单资源范围填写本账户 ARN，账户范围不提交额外资源字段。

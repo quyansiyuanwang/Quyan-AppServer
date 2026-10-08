@@ -84,6 +84,7 @@ import type {
   RamGroupDto,
   RamVisibleGroupPageDto,
   RamPolicyAttachmentDto,
+  RamPolicyAttachmentPageDto,
   RamPolicyDto,
   RamRoleBindingDto,
   RamRoleBindingPageDto,
@@ -1990,7 +1991,100 @@ export class RamService {
     });
   }
 
+  async listPolicyAttachmentPage(
+    actorUserId: string,
+    policyId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<RamPolicyAttachmentPageDto> {
+    const parsed = iamManagementPaginationSchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid policy attachment page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const owner = await this.getAccountOwnerId(actorUserId),
+      policy = await this.ramPolicyRepository.findPolicyById(policyId);
+    if (!policy) throw new NotFoundError("Policy missing", undefined, { messageKey: "ram.policyNotFound" });
+    this.assertSameAccount(owner, policy.accountOwnerId);
+    const iam = env.security.iamAuthorizationMode === "enforce" ? await this.actorIamContext(actorUserId) : undefined;
+    const authorization = IamAuthorizationService.getInstance();
+    if (iam) {
+      const parent = await authorization.authorize({
+        ...iam,
+        action: "quyan:ram:ReadPolicy",
+        resource: buildAcsResource({ service: "quyan", region: "*", accountId: owner, path: "policy/" + policyId }),
+      });
+      if (parent.decision !== "Allow")
+        throw new ForbiddenError("Policy attachment collection denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+    }
+    const result = await this.ramPolicyRepository.listAttachmentPage(owner, policyId, parsed.data);
+    const candidates = await Promise.all(
+      result.items.map(async (record) => {
+        const target =
+          record.targetType === "user"
+            ? await this.userRepository.findById(record.targetId)
+            : record.targetType === "group"
+              ? await this.groupRepository.findById(record.targetId)
+              : record.targetType === "role"
+                ? await this.ramRoleRepository.findRoleById(record.targetId)
+                : undefined;
+        if (!target || (record.targetType === "user" ? target.status < 0 : target.status !== 1)) return undefined;
+        const targetOwner =
+          record.targetType === "user"
+            ? target.accountOwnerId || ("parentUserId" in target ? target.parentUserId : undefined) || target.id
+            : target.accountOwnerId;
+        if (targetOwner !== owner) return undefined;
+        const name =
+          record.targetType === "user"
+            ? ("displayName" in target && target.displayName) ||
+              ("ramUsername" in target && target.ramUsername) ||
+              ("username" in target && target.username) ||
+              target.id
+            : target.name || ("username" in target && target.username) || target.id;
+        return { ...record, targetName: name as string };
+      }),
+    );
+    const valid = candidates.filter((item): item is NonNullable<typeof item> => Boolean(item));
+    let records = valid;
+    if (iam) {
+      const visible = new Set<string>();
+      for (const [type, action] of [
+        ["user", "quyan:ram:ReadUser"],
+        ["group", "quyan:group:Read"],
+        ["role", "quyan:ram:role:Read"],
+      ] as const) {
+        const items = valid.filter((record) => record.targetType === type);
+        const allowed = await authorization.filterAuthorizedPage({
+          ...iam,
+          action,
+          items,
+          resource: (record) =>
+            buildAcsResource({ service: "quyan", region: "*", accountId: owner, path: type + "/" + record.targetId }),
+        });
+        allowed.forEach((record) => visible.add(record.id));
+      }
+      records = valid.filter((record) => visible.has(record.id));
+    }
+    return {
+      ...result,
+      items: records.map((record) => ({
+        id: record.id,
+        accountOwnerId: owner,
+        policyId: record.policyId,
+        policyName: record.policyName,
+        targetType: record.targetType,
+        targetId: record.targetId,
+        targetName: record.targetName,
+        createTime: record.createTime.toISOString(),
+      })),
+    };
+  }
+
   async listPolicyAttachments(actorUserId: string, policyId: string): Promise<RamPolicyAttachmentDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listPolicyAttachmentPage(actorUserId, policyId)).items;
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const policy = await this.ramPolicyRepository.findPolicyById(policyId);
     if (!policy) throw new NotFoundError("权限策略不存在", undefined, { messageKey: "ram.policyNotFound" });

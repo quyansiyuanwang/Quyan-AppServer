@@ -263,6 +263,12 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async listPolicyAttachmentsPage(policyId: string, query: { page: number; pageSize: number }) {
+    const result = await ramApi.listPolicyAttachmentsPage({ path: { policyId }, params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async listPolicyAttachments(policyId: string) {
     const result = await ramApi.listPolicyAttachments({ path: { policyId } })
     if (result?.code === CustomCode.OK && result.data) return result.data

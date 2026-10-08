@@ -45,6 +45,7 @@ import type {
   RamUserPageDto,
   RamRoleSessionPageDto,
   RamRoleBindingPageDto,
+  RamPolicyAttachmentPageDto,
 } from "@/api/dto/users/ram.dto";
 import {
   diagnoseIamPolicyBodySchema,
@@ -704,6 +705,23 @@ export class RamController extends Controller {
   ): Promise<{ code: number; message: string }> {
     await this.ramService.deletePolicy(request.user!.userId, policyId);
     return { code: CustomCode.OK, message: "删除权限策略成功" };
+  }
+
+  @Get("policies/{policyId}/attachments/page")
+  @Security("jwt")
+  @Middlewares(validateParams(ramPolicyIdParamsSchema), validateQuery(iamManagementPaginationSchema))
+  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:ReadPolicy",
+    resourceKind: "single-resource",
+    resource: ramPolicyResourceResolver,
+  })
+  public async listPolicyAttachmentsPage(
+    @Path() policyId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamPolicyAttachmentPageDto> {
+    return this.ramService.listPolicyAttachmentPage(request.user!.userId, policyId, { page, pageSize });
   }
 
   @Get("policies/{policyId}/attachments")
