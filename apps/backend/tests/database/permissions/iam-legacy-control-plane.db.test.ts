@@ -168,4 +168,49 @@ describe("legacy permission endpoints authorize concrete IAM targets", () => {
       await run({ userId: second }, {}, (req) => controller.setUserPermissions(req, second, {}));
     }
   });
+  it("does not let Add-only configuration replace a grant with Deny or drop existing grants", async () => {
+    await grant("quyan:permission:Add", arn("user", first));
+    await prisma.user.update({ where: { id: first }, data: { permissionAdds: [Permission.RAM_USER_READ] } });
+    for (const body of [{ permissionAdds: [] }, { permissionRemoves: [Permission.RAM_USER_READ] }])
+      await expect(
+        run({ userId: first }, body, (req) => controller.setUserPermissions(req, first, body)),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: first } })).permissionAdds).toEqual([
+      Permission.RAM_USER_READ,
+    ]);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: first } })).permissionRemoves).toEqual([]);
+    await grant("quyan:permission:Remove", arn("user", first), "Deny");
+    await expect(
+      run({ userId: first }, { permissionAdds: [] }, (req) =>
+        controller.setUserPermissions(req, first, { permissionAdds: [] }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("lets a Remove-only actor reduce access but never restore a removed Deny", async () => {
+    await grant("quyan:permission:Remove", arn("user", first));
+    await prisma.user.update({ where: { id: first }, data: { permissionAdds: [Permission.RAM_USER_READ] } });
+    await run({ userId: first }, { permissionAdds: [], permissionRemoves: [Permission.RAM_USER_READ] }, (req) =>
+      controller.setUserPermissions(req, first, { permissionAdds: [], permissionRemoves: [Permission.RAM_USER_READ] }),
+    );
+    await grant("quyan:ram:ReadUser", ["acs:quyan:*:" + owner + ":account", "acs:quyan:*:" + owner + ":user/*"]);
+    await expect(
+      run({ userId: first }, { permissionRemoves: [] }, (req) =>
+        controller.setUserPermissions(req, first, { permissionRemoves: [] }),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await grant("quyan:permission:Add", arn("user", first));
+    await run({ userId: first }, { permissionRemoves: [] }, (req) =>
+      controller.setUserPermissions(req, first, { permissionRemoves: [] }),
+    );
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: first } })).permissionRemoves).toEqual([]);
+  });
+  it("keeps the historical Add gate for replacement in legacy and shadow", async () => {
+    await prisma.user.update({ where: { id: actor }, data: { permissionAdds: [Permission.PERMISSION_REMOVE] } });
+    for (const mode of ["legacy", "shadow"] as const) {
+      env.security.iamAuthorizationMode = mode;
+      await expect(
+        run({ userId: first }, {}, (req) => controller.setUserPermissions(req, first, {})),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    }
+  });
 });

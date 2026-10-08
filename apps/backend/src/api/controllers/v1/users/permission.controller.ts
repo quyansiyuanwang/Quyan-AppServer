@@ -14,6 +14,7 @@ import {
   Middlewares,
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
+import { env } from "@/config/env";
 import { permissionService } from "@/services/users/permission.service";
 import type {
   SetUserPermissionDTO,
@@ -132,11 +133,10 @@ export class PermissionController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @CheckPermission(Permission.PERMISSION_ADD, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:permission:Add",
-    resourceKind: "single-resource",
-    resource: ramUserResourceResolver,
-  })
+  @CheckPermission([Permission.PERMISSION_ADD, Permission.PERMISSION_REMOVE], PermissionCheckMode.ANY, "jwt", [
+    { action: "quyan:permission:Add", resourceKind: "single-resource", resource: ramUserResourceResolver },
+    { action: "quyan:permission:Remove", resourceKind: "single-resource", resource: ramUserResourceResolver },
+  ])
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -150,6 +150,13 @@ export class PermissionController extends Controller {
     @Body() body: SetUserPermissionDTO,
   ): Promise<BaseResponse> {
     const currentUserId = request.user!.userId;
+    if (
+      env.security.iamAuthorizationMode !== "enforce" &&
+      !(await authorizeLegacyPermissions(request, [Permission.PERMISSION_ADD], false))
+    )
+      throw new ForbiddenError("Legacy permission configuration requires Add", CustomCode.PERMISSION_DENIED, {
+        messageKey: "permission.insufficientAddPermission",
+      });
     await permissionService.setUserPermissionConfig(currentUserId, userId, body, request);
     setResponseMessageKey(request, "permission.userConfigUpdated");
 

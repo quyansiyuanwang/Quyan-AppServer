@@ -2,6 +2,8 @@ import { checkIamDelegation } from "@/iam/delegation/delegation-check";
 import { projectScopedPolicyForDelegation } from "@/iam/delegation/scoped-policy";
 import { legacyPermissionsToPolicy } from "@/iam/legacy-policy";
 import { principalConditionContext } from "@/iam/request/condition-context";
+import { accountEntityResourceResolver } from "@/iam/request/resource-resolvers";
+import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { getRequestContext } from "@/util/request-context";
 import { actionForPermission, buildAcsResource } from "@quyan/shared";
@@ -576,6 +578,50 @@ export class PermissionService {
         );
       }
       updateData.permissionRemoves = Array.from(new Set(permissionRemoves));
+    }
+
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const authenticatedRequest = (request ?? getRequestContext()) as TypedRequest | undefined;
+      if (authenticatedRequest) {
+        const principal = getIamPrincipal(authenticatedRequest);
+        if (!principal || principal.principalUserId !== operatorUserId || principal.subjectUserId !== operatorUserId)
+          throw new ForbiddenError("Permission configuration actor does not match authentication", undefined, {
+            messageKey: "permission.insufficientPermission",
+          });
+        const afterAdds = new Set<Permission>(updateData.permissionAdds ?? beforeAdds);
+        const afterRemoves = new Set<Permission>(updateData.permissionRemoves ?? beforeRemoves);
+        const previousAdds = new Set(beforeAdds),
+          previousRemoves = new Set(beforeRemoves);
+        const restoresAccess =
+          [...afterAdds].some((permission) => !previousAdds.has(permission)) ||
+          beforeRemoves.some((permission) => !afterRemoves.has(permission));
+        const reducesAccess =
+          beforeAdds.some((permission) => !afterAdds.has(permission)) ||
+          [...afterRemoves].some((permission) => !previousRemoves.has(permission));
+        const required = [
+          ...(restoresAccess ? [Permission.PERMISSION_ADD] : []),
+          ...(reducesAccess ? [Permission.PERMISSION_REMOVE] : []),
+        ];
+        if (required.length) {
+          const { authorizeLegacyPermissions } = await import("@/iam/middleware/legacy-permission-bridge");
+          const resource = accountEntityResourceResolver("user", () => userId);
+          if (
+            !(await authorizeLegacyPermissions(
+              authenticatedRequest,
+              required,
+              false,
+              required.map((permission) => ({
+                action: actionForPermission(permission),
+                resourceKind: "single-resource" as const,
+                resource,
+              })),
+            ))
+          )
+            throw new ForbiddenError("Permission configuration mutation action denied", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
+        }
+      }
     }
 
     await this.userRepository.updateById(userId, updateData);
