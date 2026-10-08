@@ -53,7 +53,7 @@ describe("source-aware policy diagnosis", () => {
     ],
     [{ Resource: "invalid" }, "invalid-resource", "/Statement/Resource"],
     [{ Effect: "Maybe" }, "invalid-field", "/Statement/Effect"],
-    [{ NotAction: "*" }, "unknown-field", "/Statement/NotAction"],
+    [{ NotAction: "*" }, "invalid-action-selector", "/Statement/NotAction"],
   ])("reports semantic schema errors with precise pointers %#", (statement, code, pointer) => {
     const result = diagnoseIamPolicy(text(statement));
     expect(result.valid).toBe(false);

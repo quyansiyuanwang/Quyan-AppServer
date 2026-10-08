@@ -115,6 +115,27 @@ describe("AI policy drafting admission", () => {
       expect(delegationCheck).not.toHaveBeenCalled();
     },
   );
+  it("returns an expanded NotAction draft with warnings and proves the complete snapshot", async () => {
+    generateTextForUser.mockResolvedValue(
+      JSON.stringify({
+        Version: "1",
+        Statement: {
+          Effect: "Allow",
+          NotAction: "quyan:ram:DeleteUser",
+          Resource: "acs:quyan:*:owner:user/one",
+        },
+      }),
+    );
+    const result = await service.generate("child", "owner", input, delegationCheck);
+    expect([result.document?.Statement].flat()[0]).toHaveProperty("Action");
+    expect(JSON.stringify(result.document)).not.toContain("NotAction");
+    expect(result.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "not-action-snapshot", severity: "security-warning" }),
+    );
+    expect(result.riskLevel).toBe("high");
+    expect(delegationCheck).toHaveBeenCalledWith(result.document);
+    expect(Object.keys(result)).not.toContain("policyId");
+  });
   it("accepts an exact fenced response and a direct policy without losing the original JSON diagnostics", async () => {
     generateTextForUser.mockResolvedValue("```json\n" + JSON.stringify(document) + "\n```");
     expect((await service.generate("child", "owner", input, delegationCheck)).document).toBeDefined();

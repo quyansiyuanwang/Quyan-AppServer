@@ -14,7 +14,7 @@ export function getIamPolicyJsonSchema(policyKind: "identity" | "trust" = "ident
     description:
       policyKind === "trust"
         ? "Role trust requires exact RAM Principal, AssumeRole Action, role Resource and supported Condition. Server validation and delegation checks are mandatory."
-        : "Effect, Action, Resource and supported Condition clauses. Server diagnosis and delegation checks are required before publishing.",
+        : "Effect, exactly one of Action/NotAction, Resource and supported Condition clauses. NotAction is compiled to a finite resource-compatible catalog snapshot. Server diagnosis and delegation checks are required before publishing.",
     "x-quyan-policy-kind": policyKind,
     "x-quyan-server-validation-required": true,
     "x-quyan-limits": IAM_POLICY_LIMITS,

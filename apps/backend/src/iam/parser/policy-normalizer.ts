@@ -1,3 +1,4 @@
+import { resolveIamStatementActions } from "@quyan/shared";
 import type { IamPolicyDocument, NormalizedIamPolicyDocument } from "@quyan/shared";
 const patterns = (value: string | string[]) =>
   [...new Set((Array.isArray(value) ? value : [value]).map((item) => item.trim()))].sort();
@@ -27,7 +28,7 @@ export function normalizeIamPolicy(policy: IamPolicyDocument): NormalizedIamPoli
         }
       : {}),
     Effect: statement.Effect,
-    Action: patterns(statement.Action),
+    Action: patterns(resolveIamStatementActions(statement)),
     Resource: patterns(statement.Resource),
   }));
   const unique = [...new Map(statements.map((statement) => [JSON.stringify(statement), statement])).entries()];

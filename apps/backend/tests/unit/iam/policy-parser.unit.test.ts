@@ -40,14 +40,11 @@ describe("IAM strict parser", () => {
     expect(a.documentHash).toBe(b.documentHash);
     expect(a.documentHash).toMatch(/^[a-f0-9]{64}$/);
   });
-  it.each(["Condition", "Principal", "NotAction", "NotResource", "unknown"])(
-    "rejects unsupported field %s",
-    (field) => {
-      expect(() => parseIamPolicy({ ...policy, Statement: { ...statement, [field]: {} } })).toThrow(
-        IamPolicyValidationError,
-      );
-    },
-  );
+  it.each(["Condition", "Principal", "NotResource", "unknown"])("rejects unsupported field %s", (field) => {
+    expect(() => parseIamPolicy({ ...policy, Statement: { ...statement, [field]: {} } })).toThrow(
+      IamPolicyValidationError,
+    );
+  });
   it.each([
     { ...policy, Version: "2012-10-17" },
     { ...policy, Extra: 1 },

@@ -707,7 +707,7 @@ const en = {
     iamManagementHint:
       'Saving IAM documents requires the relevant action and server enforce mode. Delegated grants must be a provable subset of your current access; validation alone does not grant permission to save.',
     iamDocumentPlaceholder:
-      'Enter a policy with Version: "1" and Statement containing Effect, Action and Resource.',
+      'Enter Version: "1" and Statement with Effect, exactly one of Action/NotAction, and Resource.',
     validatePolicy: 'Validate JSON',
     policyDiagnostics: "Policy diagnosis",
     diagnosticPosition: "Line {line}, column {column}",
@@ -724,11 +724,13 @@ const en = {
       "invalid-version": "Only policy Version \"1\" is supported.",
       "invalid-field": "The field has an invalid type or value.",
       "unknown-action": "This Action is not registered by this platform.",
+      "invalid-action-selector": "Specify exactly one of Action or NotAction.",
       "invalid-resource": "The resource does not match the ACS ARN syntax.",
       "invalid-condition": "The condition key, operator or value is not supported.",
       "invalid-principal": "The principal must be an exact RAM user ARN.",
       "cross-account-principal": "The principal belongs to another account.",
       "broad-action": "This Allow uses an Action wildcard. Review its scope.",
+      "not-action-snapshot": "NotAction expands to the current resource-compatible Action snapshot. Review the expanded scope before publishing.",
       "broad-resource": "This Allow covers all resources or accounts. Review its scope.",
       "iam-management": "This policy grants IAM management operations. Review delegation authority.",
       "duplicate-statement": "This statement duplicates another statement.",

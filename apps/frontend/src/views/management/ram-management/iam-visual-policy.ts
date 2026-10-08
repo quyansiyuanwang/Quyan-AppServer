@@ -68,6 +68,8 @@ export function importVisualPolicy(document: IamPolicyDocument): VisualStatement
       )
     )
       throw Error('Unsupported statement')
+    if (!('Action' in statement) || 'NotAction' in statement)
+      throw Error('Diagnose NotAction before visual import')
     const actions = array(statement.Action)
     const services = new Set(matchedActions(actions).map((action) => action.service))
     const conditions = Object.entries(statement.Condition ?? {}).flatMap(([operator, clause]) =>

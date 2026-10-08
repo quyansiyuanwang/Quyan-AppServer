@@ -37241,19 +37241,6 @@
 					"Effect": {
 						"$ref": "#/components/schemas/IamEffect"
 					},
-					"Action": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"items": {
-									"type": "string"
-								},
-								"type": "array"
-							}
-						]
-					},
 					"Resource": {
 						"anyOf": [
 							{
@@ -37270,14 +37257,27 @@
 					"Condition": {
 						"$ref": "#/components/schemas/IamCondition"
 					},
+					"Action": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
 					"Principal": {
 						"$ref": "#/components/schemas/IamPrincipalSelector"
 					}
 				},
 				"required": [
 					"Effect",
-					"Action",
 					"Resource",
+					"Action",
 					"Principal"
 				],
 				"type": "object",
@@ -37487,26 +37487,13 @@
 				},
 				"type": "array"
 			},
-			"IamStatement": {
+			"IamActionStatement": {
 				"properties": {
 					"Sid": {
 						"type": "string"
 					},
 					"Effect": {
 						"$ref": "#/components/schemas/IamEffect"
-					},
-					"Action": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"items": {
-									"type": "string"
-								},
-								"type": "array"
-							}
-						]
 					},
 					"Resource": {
 						"anyOf": [
@@ -37523,15 +37510,85 @@
 					},
 					"Condition": {
 						"$ref": "#/components/schemas/IamCondition"
+					},
+					"Action": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
 					}
 				},
 				"required": [
 					"Effect",
-					"Action",
-					"Resource"
+					"Resource",
+					"Action"
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"IamNotActionStatement": {
+				"properties": {
+					"Sid": {
+						"type": "string"
+					},
+					"Effect": {
+						"$ref": "#/components/schemas/IamEffect"
+					},
+					"Resource": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					},
+					"Condition": {
+						"$ref": "#/components/schemas/IamCondition"
+					},
+					"NotAction": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"items": {
+									"type": "string"
+								},
+								"type": "array"
+							}
+						]
+					}
+				},
+				"required": [
+					"Effect",
+					"Resource",
+					"NotAction"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamStatement": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/IamActionStatement"
+					},
+					{
+						"$ref": "#/components/schemas/IamNotActionStatement"
+					}
+				],
+				"description": "Exactly one selector; NotAction is compiled to a finite catalog snapshot before persistence."
 			},
 			"IamPolicyDocument": {
 				"properties": {
@@ -38410,11 +38467,13 @@
 					"invalid-version",
 					"invalid-field",
 					"unknown-action",
+					"invalid-action-selector",
 					"invalid-resource",
 					"invalid-condition",
 					"invalid-principal",
 					"cross-account-principal",
 					"broad-action",
+					"not-action-snapshot",
 					"broad-resource",
 					"iam-management",
 					"duplicate-statement",

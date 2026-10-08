@@ -259,3 +259,31 @@ describe("RAM IAM policy API contract", () => {
     expect(schema.properties).not.toHaveProperty("principal");
   });
 });
+
+describe("IAM selector and diagnosis wire contracts", () => {
+  it("keeps Action and NotAction as closed alternatives while trust requires explicit Action", () => {
+    const schemas = openApi.components!.schemas!;
+    expect(schemas.IamStatement).toMatchObject({
+      anyOf: [
+        { $ref: "#/components/schemas/IamActionStatement" },
+        { $ref: "#/components/schemas/IamNotActionStatement" },
+      ],
+    });
+    expect(schemas.IamActionStatement).toMatchObject({
+      required: expect.arrayContaining(["Action", "Resource", "Effect"]),
+      additionalProperties: false,
+    });
+    expect(schemas.IamNotActionStatement).toMatchObject({
+      required: expect.arrayContaining(["NotAction", "Resource", "Effect"]),
+      additionalProperties: false,
+    });
+    const trust = schemas.IamTrustStatement as { required: string[]; properties: Record<string, unknown> };
+    expect(trust.required).toEqual(expect.arrayContaining(["Action", "Principal"]));
+    expect(trust.properties).not.toHaveProperty("NotAction");
+  });
+  it("publishes the original-selector diagnostics used by editors and AI drafts", () => {
+    expect(openApi.components!.schemas!.IamDiagnosticCode).toMatchObject({
+      enum: expect.arrayContaining(["invalid-action-selector", "not-action-snapshot"]),
+    });
+  });
+});

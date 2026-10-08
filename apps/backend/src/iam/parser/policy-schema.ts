@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { IAM_ACTION_CATALOG, getIamActionDefinition, getIamResourcePatternTypes } from "@quyan/shared";
+import {
+  IAM_ACTION_CATALOG,
+  getIamActionDefinition,
+  getIamResourcePatternTypes,
+  resolveIamStatementActions,
+} from "@quyan/shared";
 import { iamConditionSchema } from "../condition/condition-schema";
 import { matchIamPattern } from "../evaluator/wildcard-matcher";
 export const IAM_POLICY_LIMITS = Object.freeze({
@@ -31,7 +36,7 @@ const resource = pattern
   .refine((value) => getIamResourcePatternTypes(value).length > 0, "Unregistered platform resource");
 const oneOrMany = (schema: typeof pattern | typeof action | typeof resource) =>
   z.union([schema, z.array(schema).min(1).max(IAM_POLICY_LIMITS.patterns)]);
-export const iamStatementFieldsSchema = z
+const commonStatementFieldsSchema = z
   .object({
     Sid: z
       .string()
@@ -41,31 +46,44 @@ export const iamStatementFieldsSchema = z
       .regex(/^[A-Za-z0-9_-]+$/)
       .optional(),
     Effect: z.enum(["Allow", "Deny"]),
-    Action: oneOrMany(action),
     Resource: oneOrMany(resource),
     Condition: iamConditionSchema.optional(),
   })
   .strict();
-export const iamStatementSchema = iamStatementFieldsSchema.superRefine((statement, context) => {
-  const actions = [statement.Action].flat();
-  const resources = [statement.Resource].flat();
-  resources.forEach((resource, index) => {
-    const types = getIamResourcePatternTypes(resource);
-    if (!types.length) return;
-    const compatible = IAM_ACTION_CATALOG.some(
-      (action) =>
-        actions.some((pattern) => matchIamPattern(pattern, action)) &&
-        types.some((type) => getIamActionDefinition(action)!.resourceTypes.includes(type.id)),
-    );
-    if (!compatible)
+export const iamStatementFieldsSchema = commonStatementFieldsSchema.extend({ Action: oneOrMany(action) }).strict();
+const iamNotActionStatementFieldsSchema = commonStatementFieldsSchema.extend({ NotAction: oneOrMany(action) }).strict();
+export const iamStatementSchema = z
+  .union([iamStatementFieldsSchema, iamNotActionStatementFieldsSchema])
+  .superRefine((statement, context) => {
+    const actions = resolveIamStatementActions(statement);
+    if (!actions.length || actions.length > IAM_POLICY_LIMITS.patterns) {
       context.addIssue({
         code: "custom",
-        path: Array.isArray(statement.Resource) ? ["Resource", index] : ["Resource"],
-        message:
-          statement.Effect === "Deny" ? "Unreachable Deny resource type" : "Action and resource types are incompatible",
+        path: ["NotAction"],
+        message: "NotAction expansion is empty or exceeds capacity",
       });
+      return;
+    }
+    const resources = [statement.Resource].flat();
+    resources.forEach((resource, index) => {
+      const types = getIamResourcePatternTypes(resource);
+      if (!types.length) return;
+      const compatible = IAM_ACTION_CATALOG.some(
+        (action) =>
+          actions.some((pattern) => matchIamPattern(pattern, action)) &&
+          types.some((type) => getIamActionDefinition(action)!.resourceTypes.includes(type.id)),
+      );
+      if (!compatible)
+        context.addIssue({
+          code: "custom",
+          path: Array.isArray(statement.Resource) ? ["Resource", index] : ["Resource"],
+          message:
+            statement.Effect === "Deny"
+              ? "Unreachable Deny resource type"
+              : "Action and resource types are incompatible",
+        });
+    });
   });
-});
 export const iamPolicyDocumentSchema = z
   .object({
     Version: z.literal("1"),

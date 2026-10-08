@@ -5,7 +5,7 @@ import { IAM_POLICY_LIMITS, iamPolicyDocumentSchema } from "./policy-schema";
 import { normalizeIamPolicy } from "./policy-normalizer";
 
 export class IamPolicyValidationError extends Error {
-  constructor() {
+  constructor(readonly reason?: "document-limit") {
     super("Invalid IAM policy document");
     this.name = "IamPolicyValidationError";
   }
@@ -64,5 +64,7 @@ export function parseIamPolicy(input: unknown): ParsedIamPolicy {
   if (!parsed.success) throw new IamPolicyValidationError();
   const document = normalizeIamPolicy(parsed.data);
   const canonicalJson = JSON.stringify(document);
+  // A compact NotAction must not persist an oversized expanded document.
+  if (Buffer.byteLength(canonicalJson) > IAM_POLICY_LIMITS.bytes) throw new IamPolicyValidationError("document-limit");
   return { document, canonicalJson, documentHash: createHash("sha256").update(canonicalJson).digest("hex") };
 }

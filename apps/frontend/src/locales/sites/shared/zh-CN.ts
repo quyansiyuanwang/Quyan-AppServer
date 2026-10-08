@@ -673,7 +673,7 @@ const zhCN = {
     iamManagementHint:
       '保存 IAM 文档需要相应操作权限和服务端 enforce 模式；委派必须可证明属于自己现有授权的子集。校验通过不代表具备保存权限。',
     iamDocumentPlaceholder:
-      '输入包含 Version: "1" 和 Statement 的策略；声明需包含 Effect、Action、Resource。',
+      '输入 Version: "1" 和 Statement；声明需包含 Effect、Action/NotAction 二选一、Resource。',
     validatePolicy: '校验 JSON',
     policyDiagnostics: "策略诊断",
     diagnosticPosition: "第 {line} 行，第 {column} 列",
@@ -690,11 +690,13 @@ const zhCN = {
       "invalid-version": "仅支持策略版本 \"1\"。",
       "invalid-field": "字段类型或值无效。",
       "unknown-action": "此 Action 未在本平台注册。",
+      "invalid-action-selector": "Action 与 NotAction 必须且只能填写其中一个。",
       "invalid-resource": "资源不符合 ACS ARN 语法。",
       "invalid-condition": "条件键、运算符或条件值无效。",
       "invalid-principal": "主体必须为准确的 RAM 用户 ARN。",
       "cross-account-principal": "主体属于其他账户。",
       "broad-action": "此 Allow 使用 Action 通配符，请检查授权范围。",
+      "not-action-snapshot": "NotAction 将展开为当前兼容资源的明确 Action，发布前请检查展开范围。",
       "broad-resource": "此 Allow 覆盖所有资源或账户，请检查授权范围。",
       "iam-management": "此策略授予 IAM 管理操作，请检查委派权限。",
       "duplicate-statement": "此语句与另一语句重复。",

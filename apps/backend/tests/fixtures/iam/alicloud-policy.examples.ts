@@ -5,7 +5,7 @@ import type { IamPolicyDocument } from "@quyan/shared";
  * of the production Quyan Action Catalog and must not be used for live route
  * metadata or authorization simulation.
  */
-export const alicloudDnsPolicyExample: IamPolicyDocument = {
+export const alicloudDnsPolicyExample = {
   Version: "1",
   Statement: [
     {
@@ -29,4 +29,4 @@ export const alicloudDnsPolicyExample: IamPolicyDocument = {
       Resource: "*",
     },
   ],
-};
+} satisfies IamPolicyDocument;

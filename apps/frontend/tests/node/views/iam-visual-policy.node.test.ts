@@ -58,6 +58,35 @@ describe('IAM visual policy round trip', () => {
       } as unknown as IamPolicyDocument),
     ).toThrow()
   })
+  it('imports a diagnosed exact snapshot while refusing an unvalidated complement', () => {
+    const raw: IamPolicyDocument = {
+      Version: '1',
+      Statement: {
+        Effect: 'Allow',
+        NotAction: 'quyan:ram:DeleteUser',
+        Resource: 'acs:quyan:*:owner:user/first',
+      },
+    }
+    expect(() => importVisualPolicy(raw)).toThrow()
+    const snapshot: IamPolicyDocument = {
+      Version: '1',
+      Statement: {
+        Effect: 'Allow',
+        Action: ['quyan:ram:ReadUser', 'quyan:ram:UpdateUser'],
+        Resource: 'acs:quyan:*:owner:user/first',
+      },
+    }
+    expect(exportVisualPolicy(importVisualPolicy(snapshot))).toEqual({
+      Version: '1',
+      Statement: [
+        {
+          Effect: 'Allow',
+          Action: ['quyan:ram:ReadUser', 'quyan:ram:UpdateUser'],
+          Resource: ['acs:quyan:*:owner:user/first'],
+        },
+      ],
+    })
+  })
   it('refuses incomplete statements, duplicate conditions, objects and malformed JSON values', () => {
     expect(() => exportVisualPolicy([newVisualStatement()])).toThrow()
     expect(() => exportVisualPolicy([])).toThrow()
