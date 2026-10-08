@@ -213,4 +213,64 @@ describe("IAM identity policy loading", () => {
       service.authorizeMany({ principal, action: "alidns:AddDomainRecord", resources: [] }),
     ).rejects.toThrow();
   });
+  it("loads policies once for a page and filters both explicit and implicit denial without changing row order", async () => {
+    policies.listPoliciesForTarget.mockResolvedValue([
+      binding("allow", "Allow", "alidns:AddDomainRecord"),
+      {
+        ...binding("deny", "Deny", "alidns:AddDomainRecord"),
+        ...parseIamPolicy({
+          Version: "1",
+          Statement: {
+            Effect: "Deny",
+            Action: "alidns:AddDomainRecord",
+            Resource: "acs:alidns:*:*:domain/blocked.cn",
+          },
+        }),
+      },
+    ]);
+    const items = [{ domain: "first.cn" }, { domain: "blocked.cn" }, { domain: "last.cn" }];
+    const result = await service.filterAuthorizedPage({
+      principal,
+      action: "alidns:AddDomainRecord",
+      items,
+      resource: (row) => "acs:alidns:*:owner:domain/" + row.domain,
+    });
+    expect(result).toEqual([items[0], items[2]]);
+    expect(items).toHaveLength(3);
+    expect(users.findByIdWithGroup).toHaveBeenCalledOnce();
+    policies.listPoliciesForTarget.mockResolvedValue([]);
+    expect(
+      await service.filterAuthorizedPage({
+        principal,
+        action: "alidns:AddDomainRecord",
+        items,
+        resource: (row) => "acs:alidns:*:owner:domain/" + row.domain,
+      }),
+    ).toEqual([]);
+  });
+  it("rejects invalid page resources and capacity overflow and handles empty database pages", async () => {
+    expect(
+      await service.filterAuthorizedPage({
+        principal,
+        action: "alidns:AddDomainRecord",
+        items: [],
+        resource: () => undefined,
+      }),
+    ).toEqual([]);
+    await expect(
+      service.filterAuthorizedPage({
+        principal,
+        action: "alidns:AddDomainRecord",
+        items: [1, 2],
+        resource: (row) => (row === 1 ? "acs:alidns:*:owner:domain/ok.cn" : undefined),
+      }),
+    ).rejects.toThrow();
+    await expect(
+      service.authorizeMany({ principal, action: "alidns:AddDomainRecord", resources: new Array(501).fill("*") }),
+    ).rejects.toThrow();
+    await expect(
+      service.authorizeMany({ principal, action: "alidns:AddDomainRecord", resources: new Array(2) }),
+    ).rejects.toThrow();
+    expect(users.findByIdWithGroup).not.toHaveBeenCalled();
+  });
 });

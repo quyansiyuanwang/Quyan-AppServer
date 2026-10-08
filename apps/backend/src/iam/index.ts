@@ -7,3 +7,4 @@ export * from "./request/resource-resolvers";
 export * from "./request/authorization-definition";
 export * from "./middleware/iam-authorization.middleware";
 export * from "./iam-authorization.service";
+export * from "./authorization-limits";

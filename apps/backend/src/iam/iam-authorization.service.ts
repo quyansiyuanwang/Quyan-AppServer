@@ -1,3 +1,5 @@
+import { isKnownIamAction } from "@quyan/shared";
+import { IAM_AUTHORIZATION_LIMITS, isSafeIamResourceBatch } from "./authorization-limits";
 import type { IamEvaluationResult, IamPrincipal } from "@quyan/shared";
 import { UserRepository } from "@/store/users/user.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
@@ -108,8 +110,23 @@ export class IamAuthorizationService {
     action: string;
     resources: readonly string[];
   }): Promise<IamEvaluationResult[]> {
-    if (!input.resources.length || input.resources.length > 500) throw deny();
+    if (!isKnownIamAction(input.action) || !isSafeIamResourceBatch(input.resources)) throw deny();
     const policies = await this.loadPolicies(input.principal);
     return input.resources.map((resource) => evaluatePolicies(policies, { action: input.action, resource }));
+  }
+  /** Apply to an already account-scoped database page. Do not expose an unfiltered total as an authorized total. */
+  async filterAuthorizedPage<T>(input: {
+    principal: IamPrincipal;
+    action: string;
+    items: readonly T[];
+    resource: (item: T) => string | undefined;
+  }): Promise<T[]> {
+    if (!isKnownIamAction(input.action) || input.items.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest)
+      throw deny();
+    if (!input.items.length) return [];
+    const resources = input.items.map(input.resource);
+    if (!isSafeIamResourceBatch(resources)) throw deny();
+    const results = await this.authorizeMany({ principal: input.principal, action: input.action, resources });
+    return input.items.filter((_, index) => results[index].decision === "Allow");
   }
 }

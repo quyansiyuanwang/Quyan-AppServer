@@ -62,3 +62,11 @@ The switch must be deliberate. Never automatically fall back from enforce on mis
     pnpm --filter @quyan/backend type-check
 
 Changes to Controller/DTO/schema additionally require the full OpenAPI generation pipeline and affected frontend type checking. No full test/build/precommit is required for a scoped implementation checkpoint.
+
+## Batch writes and paginated resource reads
+
+Explicit IAM middleware accepts resourceKind "batch" and a named server resolver returning every concrete resource. It rejects an empty, sparse, malformed or over-capacity batch before evaluation (maximum 500 targets). All targets use one policy snapshot; any explicit or implicit Deny blocks the entire downstream handler. Every resolved decision is retained and audited with batch size/index. A partial evaluation response or policy-loading failure cannot authorize a write. Business services still verify target ownership and use transactions for their mutations.
+
+Use accountEntityBatchResourceResolver for validated user/group/role/relay-channel IDs: it constructs each ARN with the authentication account, never a client account value, and rejects the whole list if one ID is unresolved. This factory does not establish database ownership.
+
+List services can pass an already account-scoped database page to IamAuthorizationService.filterAuthorizedPage. It loads policies once, preserves allowed row order, and removes both explicit and implicit denial. Invalid resource resolution fails the page rather than dropping an unresolved row silently. Apply database pagination before this step; do not load an unbounded collection or expose its unfiltered total as an authorized count. These helpers are migration building blocks; existing list/batch business endpoints must be integrated and tested individually.

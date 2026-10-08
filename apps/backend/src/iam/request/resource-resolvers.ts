@@ -1,3 +1,4 @@
+import { IAM_AUTHORIZATION_LIMITS } from "../authorization-limits";
 import { domainToASCII } from "node:url";
 import { buildAcsResource } from "@quyan/shared";
 import type { IamPrincipal } from "@quyan/shared";
@@ -7,6 +8,9 @@ export interface ResourceResolverContext {
   principal: IamPrincipal;
 }
 export type ResourceResolver = (context: ResourceResolverContext) => string | undefined | Promise<string | undefined>;
+export type BatchResourceResolver = (
+  context: ResourceResolverContext,
+) => readonly string[] | undefined | Promise<readonly string[] | undefined>;
 export const ramAccountResourceResolver: ResourceResolver = ({ principal }) =>
   buildAcsResource({ service: "quyan", region: "*", accountId: principal.accountOwnerId, path: "account" });
 export function normalizeDomainName(input: unknown): string | undefined {
@@ -49,5 +53,30 @@ export function accountEntityResourceResolver(
       accountId: principal.accountOwnerId,
       path: kind + "/" + id,
     });
+  };
+}
+
+/** Reject the entire batch when any identifier is invalid; never omit an unresolved target. */
+export function accountEntityBatchResourceResolver(
+  kind: "user" | "group" | "role" | "relay-channel",
+  readIds: (request: TypedRequest<unknown>) => unknown,
+): BatchResourceResolver {
+  return ({ request, principal }) => {
+    const ids = readIds(request);
+    if (
+      !Array.isArray(ids) ||
+      !ids.length ||
+      ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+      Array.from(ids).some((id) => typeof id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(id))
+    )
+      return undefined;
+    return ids.map((id) =>
+      buildAcsResource({
+        service: "quyan",
+        region: "*",
+        accountId: principal.accountOwnerId,
+        path: kind + "/" + id,
+      }),
+    );
   };
 }

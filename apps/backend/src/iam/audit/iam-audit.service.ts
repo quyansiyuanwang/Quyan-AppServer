@@ -11,6 +11,8 @@ export function auditIamDecision(input: {
   evaluationLatencyMs: number;
   authorizationMode: IamAuthorizationMode;
   legacyAllowed?: boolean;
+  batchSize?: number;
+  batchIndex?: number;
 }): void {
   const { principal, result } = input;
   logger.info("IAM decision", {
@@ -29,6 +31,7 @@ export function auditIamDecision(input: {
     matchedStatementIds: result.matchedStatements.map((statement) => statement.policyId + ":" + statement.statementId),
     evaluationLatencyMs: input.evaluationLatencyMs,
     authorizationMode: input.authorizationMode,
+    ...(input.batchSize === undefined ? {} : { batchSize: input.batchSize, batchIndex: input.batchIndex }),
     ...(input.legacyAllowed === undefined
       ? {}
       : {

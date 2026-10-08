@@ -100,6 +100,69 @@ describe("IAM middleware and rollout bridge", () => {
       expect(next.mock.calls[0][0].message).not.toContain("sensitive-policy");
     }
   });
+  it("authorizes every resource in one batch and blocks the entire mutation on any Deny", async () => {
+    for (const last of [allow, deny, { ...deny, decision: "ExplicitDeny", reason: "explicit-deny" } as const]) {
+      const service = mockDeep<IamAuthorizationService>();
+      service.authorizeMany.mockResolvedValue([
+        { ...allow, matchedStatements: [] },
+        { ...last, matchedStatements: [] },
+      ]);
+      const req = request(),
+        mutation = vi.fn(),
+        errors = vi.fn();
+      const resources = ["acs:quyan:*:owner:user/one", "acs:quyan:*:owner:user/two"];
+      await iamAuthorizationMiddleware(
+        { action: "quyan:ram:UpdateUser", resourceKind: "batch", resource: () => resources },
+        service,
+      )(req, {} as never, (error) => (error ? errors(error) : mutation()));
+      expect(service.authorizeMany).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ resources }));
+      expect(service.authorize).not.toHaveBeenCalled();
+      expect((req as { iamDecisions?: unknown[] }).iamDecisions).toHaveLength(2);
+      if (last.decision === "Allow") expect(mutation).toHaveBeenCalledOnce();
+      else {
+        expect(mutation).not.toHaveBeenCalled();
+        expect(errors.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
+      }
+      expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ batchSize: 2, batchIndex: 1 }));
+    }
+  });
+  it.each([
+    undefined,
+    [],
+    ["acs:quyan:*:owner:user/one", undefined],
+    ["not-an-arn"],
+    new Array(2),
+    new Array(501).fill("*"),
+  ])("rejects unresolved, malformed, sparse and excessive batches before policy evaluation %#", async (resources) => {
+    const service = mockDeep<IamAuthorizationService>(),
+      next = vi.fn();
+    await iamAuthorizationMiddleware(
+      { action: "quyan:ram:UpdateUser", resourceKind: "batch", resource: () => resources as never },
+      service,
+    )(request(), {} as never, next);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
+    expect(service.authorizeMany).not.toHaveBeenCalled();
+  });
+  it("fails closed if evaluation is incomplete or policy loading throws", async () => {
+    const service = mockDeep<IamAuthorizationService>();
+    const middleware = iamAuthorizationMiddleware(
+      {
+        action: "quyan:ram:UpdateUser",
+        resourceKind: "batch",
+        resource: () => ["acs:quyan:*:owner:user/one", "acs:quyan:*:owner:user/two"],
+      },
+      service,
+    );
+    const next = vi.fn();
+    service.authorizeMany.mockResolvedValue([{ ...allow, matchedStatements: [] }]);
+    await middleware(request(), {} as never, next);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
+    next.mockClear();
+    service.authorizeMany.mockRejectedValue(new Error("Policy storage unavailable"));
+    await middleware(request(), {} as never, next);
+    expect(next.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(mocks.legacy).not.toHaveBeenCalled();
+  });
   it("does not call legacy as fallback when policy loading fails in enforce mode", async () => {
     mocks.mode = "enforce";
     mocks.loadPolicies.mockRejectedValue(Error("offline"));

@@ -27,6 +27,19 @@ describe("IAM import-aware route inventory", () => {
       issues: [],
     });
   });
+  it("accepts batch metadata only with a named server resolver", () => {
+    const [entry] = inventory(
+      explicit
+        .replace('resourceKind:"single-resource"', 'resourceKind:"batch"')
+        .replace("resource:domainResource", "resource:batchResources"),
+    );
+    expect(entry).toMatchObject({
+      coverage: "explicit",
+      resourceKind: "batch",
+      resolver: "batchResources",
+      issues: [],
+    });
+  });
   it("derives bridge actions from the sole legacy permission map", () => {
     const [entry] = inventory(legacy);
     expect(entry.coverage).toBe("legacy");

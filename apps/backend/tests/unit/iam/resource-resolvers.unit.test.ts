@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, IAM_ACTION_CATALOG, actionForPermission, buildAcsResource } from "@quyan/shared";
 import type { IamPrincipal } from "@quyan/shared";
 import {
+  accountEntityBatchResourceResolver,
   domainResourceResolver,
   normalizeDomainName,
   ramAccountResourceResolver,
@@ -45,6 +46,25 @@ describe("IAM resource trust boundaries", () => {
       "acs:alidns:*:owner:domain/example.cn",
     );
     expect(await ramAccountResourceResolver(context)).toBe("acs:quyan:*:owner:account");
+  });
+  it("constructs every batch target with trusted ownership and rejects a partially invalid batch", async () => {
+    const resolve = accountEntityBatchResourceResolver("user", (req) => (req.body as { ids: unknown }).ids);
+    const context = (ids: unknown) => ({ principal, request: { body: { ids, accountId: "victim" } } as never });
+    expect(await resolve(context(["one", "two"]))).toEqual([
+      "acs:quyan:*:owner:user/one",
+      "acs:quyan:*:owner:user/two",
+    ]);
+    for (const ids of [
+      [],
+      null,
+      "one",
+      ["one", "*"],
+      ["one", "../two"],
+      ["one", null],
+      new Array(2),
+      new Array(501).fill("one"),
+    ])
+      expect(await resolve(context(ids))).toBeUndefined();
   });
   it("requires authentication-enriched principal context", () => {
     expect(
