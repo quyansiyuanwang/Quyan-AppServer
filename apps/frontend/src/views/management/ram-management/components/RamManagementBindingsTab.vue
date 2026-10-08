@@ -6,7 +6,7 @@
         filterable
         :placeholder="i18ns.t('RamManagement.selectRole')"
         style="width: 280px"
-        @change="loadBindings"
+        @change="changeBindingRole"
       >
         <el-option v-for="role in roles" :key="role.id" :label="role.name" :value="role.id" />
       </el-select>
@@ -57,6 +57,22 @@
       </el-table-column>
     </el-table>
 
+    <el-alert
+      v-if="canReadBindings && bindingPage.failed.value"
+      :title="i18ns.t('RamManagement.scopedLoadFailed')"
+      type="error"
+      :closable="false"
+    />
+    <RamIamPageControls
+      v-if="canReadBindings"
+      :page="bindingPage.page.value"
+      :page-size="bindingPage.pageSize.value"
+      :has-next="bindingPage.hasNext.value"
+      :loading="bindingPage.loading.value"
+      @previous="loadBindings(bindingPage.page.value - 1)"
+      @next="loadBindings(bindingPage.page.value + 1)"
+      @size="resizeBindingsPage"
+    />
     <el-empty v-if="!canReadBindings" :description="i18ns.t('message.error.forbidden')" />
   </section>
 </template>
@@ -73,6 +89,9 @@ const {
   canReadBindings,
   getBindingTargetName,
   loadBindings,
+  bindingPage,
+  resizeBindingsPage,
+  changeBindingRole,
   loadGroups,
   loadRoles,
   rolePage,

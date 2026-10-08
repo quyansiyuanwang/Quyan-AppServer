@@ -167,6 +167,77 @@ export class RamRoleRepository implements RamRoleStore {
     });
   }
 
+  /** Stable source order: direct user bindings, then group bindings; each source is time/id ordered. */
+  async listRoleBindingPage(
+    accountOwnerId: string,
+    roleId: string,
+    pagination: IamManagementPage,
+    target?: { userId: string; groupId?: string | null },
+  ) {
+    const { page, pageSize } = pagination,
+      skip = (page - 1) * pageSize;
+    const userWhere: Prisma.RamUserRoleBindingWhereInput = {
+      accountOwnerId,
+      roleId,
+      ...ACTIVE_WHERE,
+      ...(target ? { userId: target.userId } : {}),
+      role: { accountOwnerId, ...ACTIVE_WHERE },
+      user: {
+        status: { gte: AccountStatus.DISABLED },
+        OR: [{ id: accountOwnerId }, { accountOwnerId }, { accountOwnerId: null, parentUserId: accountOwnerId }],
+      },
+    };
+    const groupWhere: Prisma.RamGroupRoleBindingWhereInput = {
+      accountOwnerId,
+      roleId,
+      ...ACTIVE_WHERE,
+      ...(target ? { groupId: target.groupId ?? "" } : {}),
+      role: { accountOwnerId, ...ACTIVE_WHERE },
+      group: { accountOwnerId, ...ACTIVE_WHERE },
+    };
+    const userCount = await prisma.ramUserRoleBinding.count({ where: userWhere });
+    const users =
+      skip < userCount
+        ? await prisma.ramUserRoleBinding.findMany({
+            where: userWhere,
+            include: { role: true },
+            skip,
+            take: pageSize + 1,
+            orderBy: [{ createTime: "desc" }, { id: "asc" }],
+          })
+        : [];
+    const remaining = pageSize + 1 - users.length;
+    const groups =
+      remaining > 0
+        ? await prisma.ramGroupRoleBinding.findMany({
+            where: groupWhere,
+            include: { role: true },
+            skip: Math.max(0, skip - userCount),
+            take: remaining,
+            orderBy: [{ createTime: "desc" }, { id: "asc" }],
+          })
+        : [];
+    const candidates: RamRoleBindingRecord[] = [
+      ...users.map((binding) => ({
+        id: binding.id,
+        roleId,
+        roleName: binding.role.name,
+        permissions: [],
+        source: "user" as const,
+        principalId: binding.userId,
+      })),
+      ...groups.map((binding) => ({
+        id: binding.id,
+        roleId,
+        roleName: binding.role.name,
+        permissions: [],
+        source: "group" as const,
+        principalId: binding.groupId,
+      })),
+    ];
+    return { items: candidates.slice(0, pageSize), page, pageSize, hasNext: candidates.length > pageSize };
+  }
+
   async createRoleSession(data: {
     accountOwnerId: string;
     subjectUserId: string;

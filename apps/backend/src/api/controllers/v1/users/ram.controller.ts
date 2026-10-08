@@ -44,6 +44,7 @@ import type {
   RamVisibleGroupPageDto,
   RamUserPageDto,
   RamRoleSessionPageDto,
+  RamRoleBindingPageDto,
 } from "@/api/dto/users/ram.dto";
 import {
   diagnoseIamPolicyBodySchema,
@@ -122,6 +123,7 @@ import {
   ramGroupListQuerySchema,
   ramGroupPageQuerySchema,
   ramSessionPageQuerySchema,
+  ramRoleBindingPageQuerySchema,
   ramPolicyIdParamsSchema,
   ramRoleIdParamsSchema,
   ramSessionIdParamsSchema,
@@ -401,6 +403,24 @@ export class RamController extends Controller {
   ): Promise<{ code: number; message: string }> {
     await this.ramService.deleteRole(request.user!.userId, roleId);
     return { code: CustomCode.OK, message: "删除RAM角色成功" };
+  }
+
+  @Get("roles/{roleId}/bindings/page")
+  @Security("jwt")
+  @Middlewares(validateParams(ramRoleIdParamsSchema), validateQuery(ramRoleBindingPageQuerySchema))
+  @CheckPermission(Permission.RAM_BINDING_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:binding:Read",
+    resourceKind: "single-resource",
+    resource: ramRoleResourceResolver,
+  })
+  public async listRoleBindingsPage(
+    @Path() roleId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() userId?: string,
+  ): Promise<RamRoleBindingPageDto> {
+    return this.ramService.listRoleBindingPage(request.user!.userId, roleId, { page, pageSize, userId });
   }
 
   @Get("roles/{roleId}/bindings")

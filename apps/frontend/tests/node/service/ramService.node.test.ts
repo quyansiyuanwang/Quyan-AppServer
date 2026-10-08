@@ -14,6 +14,20 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 describe('RAM service IAM document operations', () => {
+  it('paginates bindings on their parent role with an optional same-account user filter', async () => {
+    const query = { page: 2, pageSize: 25, userId: 'user' },
+      data = { items: [], page: 2, pageSize: 25, hasNext: true }
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data })
+    expect(await ramService.listRoleBindingsPage('role', query)).toEqual(data)
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListRoleBindingsPage' }),
+      { path: { roleId: 'role' }, params: query },
+      undefined,
+    )
+    requestMock.get.mockResolvedValueOnce({ code: CustomCode.PERMISSION_DENIED })
+    await expect(ramService.listRoleBindingsPage('role', query)).rejects.toThrow()
+  })
+
   it('uses generated user and session page endpoints and passes the principal filter', async () => {
     const query = { page: 3, pageSize: 25 },
       data = { items: [], ...query, hasNext: true }

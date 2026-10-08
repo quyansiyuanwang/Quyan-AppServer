@@ -20,6 +20,7 @@ import {
   assumeRamRoleBodySchema,
   ramGroupPageQuerySchema,
   ramSessionPageQuerySchema,
+  ramRoleBindingPageQuerySchema,
   generateIamPolicyDraftBodySchema,
 } from "@/api/schema/users/ram.schema";
 import { iamAuthorizationScopeKey } from "@/iam/authorization-scope";
@@ -85,6 +86,7 @@ import type {
   RamPolicyAttachmentDto,
   RamPolicyDto,
   RamRoleBindingDto,
+  RamRoleBindingPageDto,
   RamRoleDto,
   RamRolePageDto,
   RamPolicyPageDto,
@@ -1286,7 +1288,69 @@ export class RamService {
     });
   }
 
+  async listRoleBindingPage(
+    actorUserId: string,
+    roleId: string,
+    query: { page?: number; pageSize?: number; userId?: string } = {},
+  ): Promise<RamRoleBindingPageDto> {
+    const parsed = ramRoleBindingPageQuerySchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid role binding page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const owner = await this.getAccountOwnerId(actorUserId),
+      role = await this.ramRoleRepository.findRoleById(roleId);
+    if (!role) throw new NotFoundError("Role missing", undefined, { messageKey: "ram.roleNotFound" });
+    this.assertSameAccount(owner, role.accountOwnerId);
+    const { page, pageSize, userId } = parsed.data;
+    const targetUser = userId ? await this.userRepository.findById(userId) : undefined;
+    if (userId && !targetUser) throw new NotFoundError("User missing", undefined, { messageKey: "user.notFound" });
+    if (targetUser)
+      this.assertSameAccount(owner, targetUser.accountOwnerId || targetUser.parentUserId || targetUser.id);
+    const result = await this.ramRoleRepository.listRoleBindingPage(
+      owner,
+      roleId,
+      { page, pageSize },
+      targetUser ? { userId: targetUser.id, groupId: targetUser.groupId } : undefined,
+    );
+    let records = result.items;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const { principal, context } = await this.actorIamContext(actorUserId),
+        authorization = IamAuthorizationService.getInstance();
+      const parent = await authorization.authorize({
+        principal,
+        action: "quyan:ram:binding:Read",
+        context,
+        resource: buildAcsResource({ service: "quyan", region: "*", accountId: owner, path: "role/" + roleId }),
+      });
+      if (parent.decision !== "Allow")
+        throw new ForbiddenError("Role binding collection denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      records = await authorization.filterAuthorizedPage({
+        principal,
+        action: "quyan:ram:binding:Read",
+        context,
+        items: records,
+        resource: (binding) =>
+          buildAcsResource({
+            service: "quyan",
+            region: "*",
+            accountId: owner,
+            path: binding.source + "/" + binding.principalId,
+          }),
+      });
+    }
+    const permissions = records.length
+      ? ((await this.aggregateRolePermissionsFromPolicies([roleId])).get(roleId) ?? [])
+      : [];
+    return { ...result, items: records.map((binding) => this.mapBindingToDto({ ...binding, permissions })) };
+  }
+
   async listRoleBindings(actorUserId: string, roleId: string, userId?: string): Promise<RamRoleBindingDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listRoleBindingPage(actorUserId, roleId, { userId })).items;
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const role = await this.ramRoleRepository.findRoleById(roleId);
     if (!role) throw new NotFoundError("角色不存在", undefined, { messageKey: "ram.roleNotFound" });

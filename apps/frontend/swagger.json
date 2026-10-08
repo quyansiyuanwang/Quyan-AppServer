@@ -3216,6 +3216,67 @@
 				}
 			}
 		},
+		"/v1/ram/roles/{roleId}/bindings/page": {
+			"get": {
+				"operationId": "RamControllerListRoleBindingsPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamRoleBindingPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "roleId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "userId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/ram/roles/{roleId}/bindings": {
 			"get": {
 				"operationId": "RamControllerListRoleBindings",
@@ -37703,6 +37764,38 @@
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"IamManagementPageResult_RamRoleBindingDto_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/RamRoleBindingDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamRoleBindingPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_RamRoleBindingDto_"
 			},
 			"GetRamRoleBindingsResponse": {
 				"items": {

@@ -56,10 +56,13 @@ export function useRamManagement(section: RamManagementSection) {
   const groupPage = useIamManagementPage((query) => ramService.listVisibleGroupPage(query))
   const policyPage = useIamManagementPage((query) => ramService.listPoliciesPage(query))
   const roles = rolePage.items
-  const bindings = ref<RamRoleBindingDto[]>([])
   const sessions = sessionPage.items
   const groups = groupPage.items
   const selectedRoleId = ref('')
+  const bindingPage = useIamManagementPage((query) =>
+    ramService.listRoleBindingsPage(selectedRoleId.value, query),
+  )
+  const bindings = bindingPage.items
   const selectedRole = ref<RamRoleDto | null>(null)
   const submitting = ref(false)
   const loading = reactive({
@@ -72,7 +75,9 @@ export function useRamManagement(section: RamManagementSection) {
     get roles() {
       return rolePage.loading.value
     },
-    bindings: false,
+    get bindings() {
+      return bindingPage.loading.value
+    },
     get sessions() {
       return sessionPage.loading.value
     },
@@ -388,9 +393,7 @@ export function useRamManagement(section: RamManagementSection) {
     const previousId = selectedRoleId.value
     selectedRoleId.value = ''
     selectedRole.value = null
-    bindings.value = []
-    loading.bindings = false
-    bindingSequence++
+    bindingPage.clear()
     if (attachForm.targetType === 'role') attachForm.targetId = ''
     if (!canReadRoles.value) {
       rolePage.clear()
@@ -428,22 +431,20 @@ export function useRamManagement(section: RamManagementSection) {
     void loadGroups(1)
   }
 
-  let bindingSequence = 0
-  const loadBindings = async () => {
-    const ticket = ++bindingSequence
-    const roleId = selectedRoleId.value
-    bindings.value = []
-    if (!canReadBindings.value || !roleId) {
-      loading.bindings = false
+  const loadBindings = async (targetPage = bindingPage.page.value) => {
+    if (!canReadBindings.value || !selectedRoleId.value) {
+      bindingPage.clear()
       return
     }
-    loading.bindings = true
-    try {
-      const result = await ramService.listRoleBindings(roleId)
-      if (ticket === bindingSequence && roleId === selectedRoleId.value) bindings.value = result
-    } finally {
-      if (ticket === bindingSequence) loading.bindings = false
-    }
+    await bindingPage.load(targetPage)
+  }
+  const resizeBindingsPage = (size: number) => {
+    bindingPage.pageSize.value = size
+    void loadBindings(1)
+  }
+  const changeBindingRole = () => {
+    bindingPage.clear()
+    void loadBindings(1)
   }
 
   const loadSessions = async (targetPage = sessionPage.page.value) => {
@@ -495,7 +496,7 @@ export function useRamManagement(section: RamManagementSection) {
     if (!role) return
     selectedRole.value = role
     selectedRoleId.value = role.id
-    void loadBindings()
+    changeBindingRole()
   }
 
   const openUserDialog = (user?: RamUserDto) => {
@@ -1024,6 +1025,9 @@ export function useRamManagement(section: RamManagementSection) {
     getPermTooltip,
     groups,
     loadBindings,
+    bindingPage,
+    resizeBindingsPage,
+    changeBindingRole,
     loadEffectivePermissions,
     loadGroups,
     groupPage,

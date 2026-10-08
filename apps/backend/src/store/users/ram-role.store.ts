@@ -50,6 +50,12 @@ export interface RamRoleStore {
   unbindRoleFromGroup(roleId: string, groupId: string): Promise<void>;
   listRoleBindingsForUser(userId: string, groupId?: string | null): Promise<RamRoleBindingRecord[]>;
   listRoleBindingsByRole(roleId: string): Promise<RamRoleWithBindings | null>;
+  listRoleBindingPage(
+    accountOwnerId: string,
+    roleId: string,
+    pagination: IamManagementPage,
+    target?: { userId: string; groupId?: string | null },
+  ): Promise<IamManagementPageResult<RamRoleBindingRecord>>;
   createRoleSession(data: {
     accountOwnerId: string;
     subjectUserId: string;

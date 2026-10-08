@@ -118,6 +118,15 @@ export class RamService {
     throw toServiceError(result)
   }
 
+  async listRoleBindingsPage(
+    roleId: string,
+    query: { page: number; pageSize: number; userId?: string },
+  ) {
+    const result = await ramApi.listRoleBindingsPage({ path: { roleId }, params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+
   async listRoleBindings(roleId: string, userId?: string) {
     const result = await ramApi.listRoleBindings({ path: { roleId }, params: { userId } })
     if (result?.code === CustomCode.OK && result.data) return result.data

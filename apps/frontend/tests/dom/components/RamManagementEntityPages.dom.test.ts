@@ -10,7 +10,7 @@ const { api } = vi.hoisted(() => ({
     listSessionsPage: vi.fn(),
     getUserEffectivePermissions: vi.fn(),
     listVisibleGroupPage: vi.fn(),
-    listRoleBindings: vi.fn(),
+    listRoleBindingsPage: vi.fn(),
   },
 }))
 vi.mock('@/service/ramService', () => ({ ramService: api }))
@@ -108,7 +108,7 @@ beforeEach(() => {
   api.listUsersPage.mockResolvedValue(page([]))
   api.listSessionsPage.mockResolvedValue(page([]))
   api.listVisibleGroupPage.mockResolvedValue(page([]))
-  api.listRoleBindings.mockResolvedValue([])
+  api.listRoleBindingsPage.mockResolvedValue(page([]))
 })
 afterEach(() => {
   for (const wrapper of mounts.splice(0)) wrapper.unmount()
@@ -147,8 +147,8 @@ describe('RAM role and policy candidate pages', () => {
       .mockResolvedValueOnce(page([role('first')], 1, true))
       .mockResolvedValueOnce(page([role('second')], 2))
     const view = await host('bindings')
-    let finish!: (rows: unknown[]) => void
-    api.listRoleBindings.mockReturnValueOnce(
+    let finish!: (result: unknown) => void
+    api.listRoleBindingsPage.mockReturnValueOnce(
       new Promise((resolve) => {
         finish = resolve
       }),
@@ -156,8 +156,8 @@ describe('RAM role and policy candidate pages', () => {
     const old = context.loadBindings()
     await view.get('[data-test="page-next"]').trigger('click')
     await flushPromises()
-    expect(api.listRoleBindings).toHaveBeenLastCalledWith('second')
-    finish([{ id: 'stale-binding' }])
+    expect(api.listRoleBindingsPage).toHaveBeenLastCalledWith('second', { page: 1, pageSize: 50 })
+    finish(page([{ id: 'stale-binding' }]))
     await old
     expect(context.selectedRoleId.value).toBe('second')
     expect(context.bindings.value).toEqual([])
@@ -236,5 +236,23 @@ describe('RAM role and policy candidate pages', () => {
     await context.loadSessions()
     expect(context.sessions.value).toEqual([])
     expect(context.sessionPage.failed.value).toBe(true)
+  })
+  it('continues an empty binding page and resets to page one after changing its parent role', async () => {
+    api.listRolesPage.mockResolvedValue(page([role('first'), role('second')]))
+    api.listRoleBindingsPage
+      .mockResolvedValueOnce(page([], 1, true))
+      .mockResolvedValueOnce(page([{ id: 'visible-binding' }], 2))
+    const view = await host('bindings')
+    const controls = view.findAllComponents({ name: 'RamIamPageControls' })
+    const bindingControls = controls[controls.length - 1]!
+    bindingControls.vm.$emit('next')
+    await flushPromises()
+    expect(api.listRoleBindingsPage).toHaveBeenLastCalledWith('first', { page: 2, pageSize: 50 })
+    expect(context.bindings.value.map((item) => item.id)).toEqual(['visible-binding'])
+    context.selectedRoleId.value = 'second'
+    context.changeBindingRole()
+    await flushPromises()
+    expect(api.listRoleBindingsPage).toHaveBeenLastCalledWith('second', { page: 1, pageSize: 50 })
+    expect(context.bindings.value).toEqual([])
   })
 })

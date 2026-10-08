@@ -311,3 +311,5 @@ export type RamVisibleGroupPageDto = IamManagementPageResult<RamGroupDto>;
 
 export type RamUserPageDto = IamManagementPageResult<RamUserDto>;
 export type RamRoleSessionPageDto = IamManagementPageResult<RamRoleSessionDto>;
+
+export type RamRoleBindingPageDto = IamManagementPageResult<RamRoleBindingDto>;
