@@ -1,5 +1,8 @@
 <template>
   <section class="ram-section">
+    <RamIamResourceGroups @select="selectedResourceGroup = { id: $event }" />
+    <RamIamScopedAuthorizations :selected-resource-group="selectedResourceGroup" />
+    <el-divider />
     <div class="section-toolbar">
       <el-select
         v-model="authUserId"
@@ -74,8 +77,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
+import RamIamResourceGroups from './RamIamResourceGroups.vue'
+import RamIamScopedAuthorizations from './RamIamScopedAuthorizations.vue'
 import { i18ns } from '@/locales'
 import { useRamManagementContext } from '../context'
+
+const selectedResourceGroup = ref<{ id: string }>()
 
 const {
   Refresh,

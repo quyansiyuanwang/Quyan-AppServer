@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CustomCode } from '@/constant/custom-code'
 const { requestMock } = vi.hoisted(() => ({
-  requestMock: { get: vi.fn(), post: vi.fn(), put: vi.fn() },
+  requestMock: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }))
 vi.mock('@/stores/request', () => ({ useRequestStore: () => ({ getAxios: () => requestMock }) }))
 vi.mock('@/service/passwordEncryptionService', () => ({ passwordEncryptionService: {} }))
@@ -14,6 +14,67 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 describe('RAM service IAM document operations', () => {
+  it('uses paged descriptors and dedicated scoped authorization mutations', async () => {
+    const page = { items: [], page: 2, pageSize: 25, hasNext: true }
+    requestMock.get.mockResolvedValue({ code: CustomCode.OK, data: page })
+    await ramService.listAuthorizationPage({ page: 2, pageSize: 25, principalId: 'user-1' })
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListAuthorizationPage' }),
+      { params: { page: 2, pageSize: 25, principalId: 'user-1' } },
+      undefined,
+    )
+    await ramService.listResourceGroupPage({ page: 2, pageSize: 25 })
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListResourceGroupPage' }),
+      { params: { page: 2, pageSize: 25 } },
+      undefined,
+    )
+    await ramService.listResourceGroupMemberPage('group-1', { page: 2, pageSize: 25 })
+    expect(requestMock.get).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerListResourceGroupMemberPage' }),
+      { path: { groupId: 'group-1' }, params: { page: 2, pageSize: 25 } },
+      undefined,
+    )
+    requestMock.post.mockResolvedValue({ code: CustomCode.OK, data: { id: 'authorization-1' } })
+    const body = {
+      principalType: 'user' as const,
+      principalId: 'user-1',
+      policyId: 'policy-1',
+      scopeType: 'resource-group' as const,
+      scopeResourceId: 'group-1',
+    }
+    await ramService.createAuthorization(body)
+    expect(requestMock.post).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerCreateAuthorization' }),
+      { body },
+      undefined,
+    )
+    await ramService.createResourceGroup({ name: 'Development' })
+    expect(requestMock.post).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerCreateResourceGroup' }),
+      { body: { name: 'Development' } },
+      undefined,
+    )
+    await ramService.addResourceGroupMember('group-1', 'acs:quyan:*:owner:user/one')
+    expect(requestMock.post).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerAddResourceGroupMember' }),
+      { path: { groupId: 'group-1' }, body: { resourceArn: 'acs:quyan:*:owner:user/one' } },
+      undefined,
+    )
+    requestMock.delete.mockResolvedValue({ code: CustomCode.OK })
+    await ramService.deleteAuthorization('authorization-1')
+    expect(requestMock.delete).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerDeleteAuthorization' }),
+      { path: { authorizationId: 'authorization-1' } },
+      undefined,
+    )
+    await ramService.removeResourceGroupMember('group-1', 'member-1')
+    expect(requestMock.delete).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'RamControllerRemoveResourceGroupMember' }),
+      { path: { groupId: 'group-1', memberId: 'member-1' } },
+      undefined,
+    )
+  })
   it('requests a billed AI draft through the generated replay-protected descriptor only', async () => {
     const body = { instruction: 'Read one user', model: 'model-id', relayTokenId: 'token-id' }
     const data = {

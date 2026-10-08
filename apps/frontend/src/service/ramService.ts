@@ -2,6 +2,8 @@ import { createIamCatalogControllerApi } from '@/client/services/iam-catalog-con
 import { createRamControllerApi } from '@/client/services/ram-controller.gen'
 import type {
   GenerateIamPolicyDraftDto,
+  CreateRamAuthorizationDto,
+  CreateRamResourceGroupDto,
   AssumeRamRoleDto,
   AttachPolicyBodyDto,
   BindRamRoleToGroupDto,
@@ -243,6 +245,52 @@ export class RamService {
   async detachPolicy(data: AttachPolicyBodyDto) {
     const result = await ramApi.detachPolicy({ body: data })
     if (result?.code === CustomCode.OK) return true
+    throw toServiceError(result)
+  }
+
+  async listAuthorizationPage(query: {
+    page: number
+    pageSize: number
+    principalType?: string
+    principalId?: string
+  }) {
+    const result = await ramApi.listAuthorizationPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async createAuthorization(data: CreateRamAuthorizationDto) {
+    const result = await ramApi.createAuthorization({ body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async deleteAuthorization(authorizationId: string) {
+    const result = await ramApi.deleteAuthorization({ path: { authorizationId } })
+    if (result?.code === CustomCode.OK) return
+    throw toServiceError(result)
+  }
+  async listResourceGroupPage(query: { page: number; pageSize: number }) {
+    const result = await ramApi.listResourceGroupPage({ params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async createResourceGroup(data: CreateRamResourceGroupDto) {
+    const result = await ramApi.createResourceGroup({ body: data })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async listResourceGroupMemberPage(groupId: string, query: { page: number; pageSize: number }) {
+    const result = await ramApi.listResourceGroupMemberPage({ path: { groupId }, params: query })
+    if (result?.code === CustomCode.OK && result.data) return result.data
+    throw toServiceError(result)
+  }
+  async addResourceGroupMember(groupId: string, resourceArn: string) {
+    const result = await ramApi.addResourceGroupMember({ path: { groupId }, body: { resourceArn } })
+    if (result?.code === CustomCode.OK) return
+    throw toServiceError(result)
+  }
+  async removeResourceGroupMember(groupId: string, memberId: string) {
+    const result = await ramApi.removeResourceGroupMember({ path: { groupId, memberId } })
+    if (result?.code === CustomCode.OK) return
     throw toServiceError(result)
   }
 
