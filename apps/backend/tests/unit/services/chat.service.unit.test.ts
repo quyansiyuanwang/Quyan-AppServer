@@ -262,6 +262,106 @@ describe("ChatService", () => {
     expect(messageRepo.replaceFrom).not.toHaveBeenCalled();
   });
 
+  function configureStatelessGeneration() {
+    relayTokenRepository.findByIdWithChannel.mockResolvedValue({
+      id: "token-1",
+      userId: "user-1",
+      status: 1,
+      channelId: "channel-1",
+      allowedModels: null,
+      upstreamUrl: "https://upstream.example.com",
+      upstreamApiKey: "fixture-only",
+      channel: { id: "channel-1", name: "main", multiplier: 1, allowedFormats: null },
+    });
+    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+      {
+        model: "gpt-4o-mini",
+        provider: null,
+        pricingType: "token-based",
+        fixedPrice: null,
+        inputPrice: 1000,
+        outputPrice: 2000,
+        cacheCreationMultiplier: 1.25,
+        cacheReadMultiplier: 0.1,
+        supportedFormats: "openai",
+      },
+    ]);
+    usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
+    usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
+    relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
+    aiProvider.streamChat.mockReturnValue(createChatStream());
+  }
+  it("generates bounded text through user-owned model routing and billing without persisting prompts or messages", async () => {
+    configureStatelessGeneration();
+    expect(
+      await service.generateTextForUser("user-1", "policy draft fixture", "gpt-4o-mini", "token-1", {
+        maxOutputCharacters: 100,
+        path: "/iam-fixture/draft",
+        requestId: "draft-fixture",
+      }),
+    ).toBe("hello");
+    expect(conversationRepo.findById).not.toHaveBeenCalled();
+    expect(conversationRepo.create).not.toHaveBeenCalled();
+    expect(messageRepo.create).not.toHaveBeenCalled();
+    expect(messageRepo.findByConversationId).not.toHaveBeenCalled();
+    expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        relayTokenId: "token-1",
+        requestId: "draft-fixture",
+        path: "/iam-fixture/draft",
+      }),
+    );
+  });
+  it("preserves whitespace-only chunks in structured generation", async () => {
+    configureStatelessGeneration();
+    async function* structured() {
+      yield { content: '{"value":"', done: false };
+      yield { content: " ", done: false };
+      yield { content: '"}', done: false };
+      yield { done: true, inputTokens: 1, outputTokens: 1 };
+    }
+    aiProvider.streamChat.mockReturnValue(structured());
+    expect(
+      await service.generateTextForUser("user-1", "fixture", "gpt-4o-mini", "token-1", { maxOutputCharacters: 100 }),
+    ).toBe('{"value":" "}');
+  });
+  it("refuses oversized or partial generations after finalizing usage and never returns a partial draft", async () => {
+    configureStatelessGeneration();
+    await expect(
+      service.generateTextForUser("user-1", "fixture", "gpt-4o-mini", "token-1", { maxOutputCharacters: 4 }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(usageChargeService.chargeUsage).toHaveBeenCalled();
+    expect(messageRepo.create).not.toHaveBeenCalled();
+    aiProvider.streamChat.mockReturnValue(createPartialFailingStream(new Error("fixture provider failure")));
+    await expect(
+      service.generateTextForUser("user-1", "fixture", "gpt-4o-mini", "token-1", { maxOutputCharacters: 100 }),
+    ).rejects.toThrow("fixture provider failure");
+  });
+  it("refuses foreign relay tokens, invalid limits and cancellation before a model call", async () => {
+    configureStatelessGeneration();
+    relayTokenRepository.findByIdWithChannel.mockResolvedValue({ id: "token-1", userId: "foreign" });
+    await expect(
+      service.generateTextForUser("user-1", "fixture", "gpt-4o-mini", "token-1", { maxOutputCharacters: 100 }),
+    ).rejects.toThrow(ForbiddenError);
+    await expect(
+      service.generateTextForUser("user-1", "fixture", "gpt-4o-mini", "token-1", { maxOutputCharacters: 0 }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      service.generateTextForUser("user-1", "fixture", "gpt-4o-mini", "token-1", {
+        maxOutputCharacters: 100,
+        signal: AbortSignal.abort(),
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    for (const extra of [{ status: 0 }, { status: 1, expiresAt: new Date(0) }]) {
+      relayTokenRepository.findByIdWithChannel.mockResolvedValue({ id: "token-1", userId: "user-1", ...extra });
+      await expect(
+        service.generateTextForUser("user-1", "fixture", "gpt-4o-mini", "token-1", { maxOutputCharacters: 100 }),
+      ).rejects.toThrow(ForbiddenError);
+    }
+    expect(aiProvider.streamChat).not.toHaveBeenCalled();
+  });
+
   it("throws ForbiddenError when creating conversation with invalid relay token", async () => {
     relayTokenRepository.findById.mockResolvedValue(null);
 

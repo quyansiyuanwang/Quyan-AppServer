@@ -986,6 +986,7 @@ const en = {
     modelRequired: "Model is required",
     modelNotConfigured: "Model is not configured",
     replaceTargetInvalid: "The message to replace must be a user message in this conversation",
+    generationOutputTooLarge: "Generated content exceeds the allowed size",
     upstreamNoVisibleResponse: "Upstream completed without a visible response",
   },
   ojSubmitter: {

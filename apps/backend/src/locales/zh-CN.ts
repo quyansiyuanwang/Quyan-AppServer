@@ -987,6 +987,7 @@ const zhCN = {
     modelRequired: "必须指定模型",
     modelNotConfigured: "模型未配置",
     replaceTargetInvalid: "要替换的消息必须是本会话中的用户消息",
+    generationOutputTooLarge: "生成内容超过允许的大小",
     upstreamNoVisibleResponse: "上游结束但未返回可见响应",
   },
   ojSubmitter: {
