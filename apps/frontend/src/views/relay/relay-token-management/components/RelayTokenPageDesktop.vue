@@ -257,12 +257,24 @@
                     ></template
                   >
                   <template v-else-if="state.isAutomaticPoolToken(row)">
-                    <el-tag size="small" type="success" effect="plain">
-                      {{ state.getAutomaticProxyPoolChannelName(row) }}
+                    <el-tag
+                      v-if="state.isAutomaticPoolChannelNamePending(row)"
+                      size="small"
+                      type="success"
+                      effect="plain"
+                      class="channel-config-loading-tag"
+                    >
+                      <el-icon class="is-loading"><Loading /></el-icon>
+                      {{ i18ns.t('relay.channelNameLoading') }}
                     </el-tag>
-                    <div class="summary-line channel-config-meta">
-                      {{ i18ns.t('relay.routingModeAutomaticPool') }}
-                    </div>
+                    <template v-else>
+                      <el-tag size="small" type="success" effect="plain">
+                        {{ state.getAutomaticProxyPoolChannelName(row) }}
+                      </el-tag>
+                      <div class="summary-line channel-config-meta">
+                        {{ i18ns.t('relay.routingModeAutomaticPool') }}
+                      </div>
+                    </template>
                   </template>
                   <template v-else>
                     <div
@@ -843,7 +855,7 @@
 </template>
 
 <script setup lang="ts">
-import { Clock, Refresh } from '@element-plus/icons-vue'
+import { Clock, Loading, Refresh } from '@element-plus/icons-vue'
 import { Permission } from '@/constant/permission'
 import { MANAGED_STATUS } from '@/constant/status'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'

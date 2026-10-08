@@ -99,9 +99,16 @@
                 <template #default="{ row }">{{ formatAllowedModels(row.allowedModels) }}</template>
               </el-table-column>
               <el-table-column :label="i18ns.t('monthlyPass.allowedChannels')" min-width="220">
-                <template #default="{ row }">{{
-                  formatAllowedChannels(row.allowedChannels)
-                }}</template>
+                <template #default="{ row }">
+                  <span
+                    v-if="isAllowedChannelsLabelPending(row.allowedChannels)"
+                    class="monthly-pass-loading-label"
+                  >
+                    <el-icon class="is-loading"><Loading /></el-icon>
+                    {{ i18ns.t('relay.channelNameLoading') }}
+                  </span>
+                  <template v-else>{{ formatAllowedChannels(row.allowedChannels) }}</template>
+                </template>
               </el-table-column>
               <el-table-column :label="i18ns.t('monthlyPass.status')" width="100">
                 <template #default="{ row }">
@@ -228,7 +235,14 @@
                 </div>
                 <div class="monthly-mobile-field full">
                   <span class="label">{{ i18ns.t('monthlyPass.allowedChannels') }}</span>
-                  <span class="value">{{ formatAllowedChannels(row.allowedChannels) }}</span>
+                  <span
+                    v-if="isAllowedChannelsLabelPending(row.allowedChannels)"
+                    class="value monthly-pass-loading-label"
+                  >
+                    <el-icon class="is-loading"><Loading /></el-icon>
+                    {{ i18ns.t('relay.channelNameLoading') }}
+                  </span>
+                  <span v-else class="value">{{ formatAllowedChannels(row.allowedChannels) }}</span>
                 </div>
                 <div class="monthly-mobile-field full" v-if="row.description">
                   <span class="label">{{ i18ns.t('monthlyPass.description') }}</span>
@@ -661,6 +675,7 @@
 
 <script setup lang="ts">
 import { i18ns } from '@/locales'
+import { Loading } from '@element-plus/icons-vue'
 import { useMonthlyPassManagementContext } from '../context'
 
 const state = useMonthlyPassManagementContext()
@@ -710,6 +725,7 @@ const {
   canUnpublishTemplate,
   formatAllowedModels,
   formatAllowedChannels,
+  isAllowedChannelsLabelPending,
   formatPurchaseLimit,
   getTemplateQuotaWindowSource,
   getUserPassQuotaWindowSource,

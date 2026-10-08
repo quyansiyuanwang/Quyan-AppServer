@@ -206,6 +206,17 @@
                   >
                     {{ i18ns.t('relay.invalidOrderedAutomaticPool') }}
                   </el-tag>
+                  <template v-else-if="state.isAutomaticPoolChannelNamePending(row)">
+                    <el-tag
+                      size="small"
+                      type="success"
+                      effect="plain"
+                      class="channel-config-loading-tag"
+                    >
+                      <el-icon class="is-loading"><Loading /></el-icon>
+                      {{ i18ns.t('relay.channelNameLoading') }}
+                    </el-tag>
+                  </template>
                   <template v-else>{{ state.formatChannelSummary(row) }}</template>
                 </span>
                 <span class="hint">{{ state.formatMobileChannelMeta(row) }}</span>
@@ -425,7 +436,7 @@
 </template>
 
 <script setup lang="ts">
-import { Refresh } from '@element-plus/icons-vue'
+import { Loading, Refresh } from '@element-plus/icons-vue'
 import { Permission } from '@/constant/permission'
 import { MANAGED_STATUS } from '@/constant/status'
 import PermissionWrapper from '@/components/common/PermissionWrapper.vue'

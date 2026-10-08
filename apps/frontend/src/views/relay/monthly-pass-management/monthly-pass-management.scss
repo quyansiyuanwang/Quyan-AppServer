@@ -367,6 +367,14 @@
   word-break: break-word;
 }
 
+// Placeholder shown while the channel directory that resolves channel names is
+// still loading; keeps the cell from printing a raw channel ID first.
+.monthly-pass-loading-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .monthly-mobile-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
