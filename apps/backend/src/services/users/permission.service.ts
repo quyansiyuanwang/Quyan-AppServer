@@ -1,3 +1,6 @@
+import { checkIamDelegation } from "@/iam/delegation/delegation-check";
+import { projectScopedPolicyForDelegation } from "@/iam/delegation/scoped-policy";
+import { legacyPermissionsToPolicy } from "@/iam/legacy-policy";
 import { principalConditionContext } from "@/iam/request/condition-context";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { getRequestContext } from "@/util/request-context";
@@ -84,13 +87,42 @@ export class PermissionService {
     if (!operatorUser)
       throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
 
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const owner = operatorUser.accountOwnerId || operatorUser.id;
+      const request = getRequestContext();
+      const principal = request
+        ? getIamPrincipal(request)
+        : {
+            subjectUserId: operatorUser.id,
+            principalUserId: operatorUser.id,
+            accountOwnerId: owner,
+            subjectType: operatorUser.id === owner ? ("root" as const) : ("sub_user" as const),
+          };
+      if (!principal || principal.principalUserId !== operatorUser.id || principal.accountOwnerId !== owner)
+        throw new ForbiddenError("Invalid legacy delegation context", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+      if (principal.subjectType === "root" && operatorUser.userType === "root" && operatorUser.id === owner) return;
+      const candidate = legacyPermissionsToPolicy(permissions, owner);
+      if (!candidate) return;
+      const grants = await IamAuthorizationService.getInstance().loadPolicies(principal);
+      const result = checkIamDelegation(
+        candidate,
+        grants.flatMap((policy) => {
+          const projected = projectScopedPolicyForDelegation(policy);
+          return projected ? [projected] : [];
+        }),
+      );
+      if (!result.allowed)
+        throw new ForbiddenError("Legacy permission exceeds current IAM scope", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+      return;
+    }
+
     if (operatorUser.groupId) {
       const operatorGroup = await this.groupRepository.findById(operatorUser.groupId);
-      if (
-        operatorGroup?.username === env.security.superAdminGroupUsername &&
-        env.security.iamAuthorizationMode !== "enforce"
-      )
-        return;
+      if (operatorGroup?.username === env.security.superAdminGroupUsername) return;
     }
 
     const operatorPermissions = await this.getUserFullPermissions(operatorUserId);
@@ -372,6 +404,14 @@ export class PermissionService {
     if (!target)
       throw new BadRequestError("目标用户不存在", undefined, { messageKey: "permission.targetUserNotFound" });
 
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const owner = operator.accountOwnerId || operator.id;
+      if ((target.accountOwnerId || target.id) !== owner || (target.id === owner && operator.id !== owner))
+        throw new ForbiddenError("Legacy permission target crosses account or recovery scope", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+    }
+
     // 检查组等级：level越高权限越低，不能修改level小于或等于自己的用户（权限大于或等于自己）
     if ((target.group?.level ?? Infinity) <= (operator.group?.level ?? -1))
       throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限", undefined, {
@@ -528,6 +568,13 @@ export class PermissionService {
     if (hasPermissionRemoves) {
       const permissionRemoves = config.permissionRemoves ?? [];
       this.validatePermissions(permissionRemoves);
+      if (env.security.iamAuthorizationMode === "enforce") {
+        const retainedDenies = new Set(permissionRemoves);
+        await this.assertCanGrantPermissions(
+          operatorUserId,
+          beforeRemoves.filter((permission) => !retainedDenies.has(permission)),
+        );
+      }
       updateData.permissionRemoves = Array.from(new Set(permissionRemoves));
     }
 
@@ -581,6 +628,8 @@ export class PermissionService {
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
 
+    if (env.security.iamAuthorizationMode === "enforce")
+      await this.assertCanGrantPermissions(operatorUserId, beforeRemoves);
     await this.userRepository.updateById(userId, {
       permissionAdds: [],
       permissionRemoves: [],
@@ -636,6 +685,20 @@ export class PermissionService {
 
     const group = await this.groupRepository.findById(groupId);
     if (!group) throw new BadRequestError("用户组不存在", undefined, { messageKey: "permission.groupNotFound" });
+
+    if (env.security.iamAuthorizationMode === "enforce" && operatorUserId) {
+      const operator = await this.userRepository.findById(operatorUserId);
+      const owner = operator?.accountOwnerId || operator?.id;
+      const recovery =
+        operator?.userType === "root" &&
+        operator.id === owner &&
+        operator.groupId === group.id &&
+        group.username === env.security.superAdminGroupUsername;
+      if (!owner || (!recovery && group.accountOwnerId !== owner))
+        throw new ForbiddenError("Legacy group permission target crosses account scope", undefined, {
+          messageKey: "iam.delegationDenied",
+        });
+    }
 
     const beforePermissions = this.parsePermissionJson(group.permissions);
     const afterPermissions = Array.from(new Set(permissions));

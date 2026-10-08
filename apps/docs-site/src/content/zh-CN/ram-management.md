@@ -252,3 +252,5 @@ API `POST /v1/ram/policies/ai/draft` 需要 JWT 和重放保护。提交 instruc
 enforce 模式下，“有效权限”的最终列表与用户权限接口共用 IAM 求值，只把账户目标上 Allow 的旧 Action 投影成全局 Permission；具体资源上的 Allow 不会被扩大。Explicit Deny 会从最终投影中排除对应权限。查看自己时采用当前认证身份与角色会话，查看其他主体时不借用操作者的会话。AccessKey 的主体类型条件也参与当前身份投影。来源数组保留历史解释用途，可能不覆盖 JSON-only 策略的全部授权；确认某个 ARN 的权限应使用模拟器。legacy/shadow 的历史展示保持兼容。
 
 角色列表提供“角色信任策略”入口，打开后编辑独立信任 JSON，下载 trust Schema、查看原始文本诊断，或生成 trust 类型 AI 草稿。AI 应用仍只修改待编辑文本。发布先进行服务端信任诊断，再确认对新会话准入的影响，提交角色已有的 trustPolicyHash 防止覆盖并发更改。语法诊断不能证明发布权限；服务端继续检查真实同账户主体、专用 UpdateRoleTrustPolicy、AssumeRole 委派和角色有效授权。发布失败保留草稿供审阅，遇到版本冲突需重新加载角色；已有会话需要单独撤销。
+
+将旧 Permission 授予用户或用户组时，enforce 会把它转换为本账户内所有已登记资源范围，再证明操作者能够委派完整范围。菜单中的账户目标 Allow 不能证明可授予所有具体资源。删除 permissionRemoves 中的 Deny 或清空配置可能恢复原本被拒绝的能力，因此也必须通过恢复权限的委派证明。账户范围与恢复身份校验在服务端执行；legacy/shadow 保持迁移兼容行为。
