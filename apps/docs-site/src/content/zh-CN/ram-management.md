@@ -240,3 +240,5 @@ API `POST /v1/ram/policies/ai/draft` 需要 JWT 和重放保护。提交 instruc
 勾选草稿模式时，评估器只使用输入草稿，不叠加用户已绑定的身份授权；取消勾选则继续模拟已绑定策略。两者必须分别比较：草稿 Allow 不能证明发布委派通过，也不能覆盖绑定后的其他 Deny。模拟 `quyan:ram:AssumeRole` 仍会联合评估目标角色已保存的信任策略。当前只支持身份草稿，不模拟假设的角色信任变更。
 
 通过 `POST /v1/ram/policies/simulate` 的可选 documentText 字段提交原始草稿。重复 JSON 键、未知字段、跨账户文档和非法语法均拒绝；请求资源须在本账户。命中记录使用 `simulation:draft` 标识，不表示已创建真实策略。模拟使用所选主体的可信身份属性和当前时间，不虚构来源 IP 或 HTTPS 条件；缺少必须的条件上下文时拒绝，不能将结果视为真实请求的最终授权。
+
+管理客户端可使用 `GET /v1/ram/authorizations/page` 与 `GET /v1/ram/resource-groups/page` 获得 items、page、pageSize、hasNext；资源组摘要不会附带全部成员。通过 `GET /v1/ram/resource-groups/{groupId}/members` 单独分页读取成员，需要该具体资源组的列表权限。每页默认 50 条、最多 100 条；授权和资源组候选页先限制账户，再过滤资源权限，因此空页仍可能 hasNext 为 true，应允许继续下一页。hasNext 表示还有候选页，不是授权记录总数。旧列表 API 保持兼容，新管理界面应使用分页接口。

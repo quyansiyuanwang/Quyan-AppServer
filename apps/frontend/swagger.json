@@ -3808,6 +3808,214 @@
 				}
 			}
 		},
+		"/v1/ram/authorizations/page": {
+			"get": {
+				"operationId": "RamControllerListAuthorizationPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamAuthorizationPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "principalType",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "principalId",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/ram/resource-groups/page": {
+			"get": {
+				"operationId": "RamControllerListResourceGroupPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/ram/resource-groups/{groupId}/members": {
+			"get": {
+				"operationId": "RamControllerListResourceGroupMemberPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupMemberPageDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "groupId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			},
+			"post": {
+				"operationId": "RamControllerAddResourceGroupMember",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/RamResourceGroupDto"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"RAM"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "groupId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AddRamResourceGroupMemberDto"
+							}
+						}
+					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
+				}
+			}
+		},
 		"/v1/ram/authorizations": {
 			"get": {
 				"operationId": "RamControllerListAuthorizations",
@@ -4042,57 +4250,6 @@
 						"application/json": {
 							"schema": {
 								"$ref": "#/components/schemas/CreateRamResourceGroupDto"
-							}
-						}
-					}
-				},
-				"X-Replay-Protected": true,
-				"X-Two-Factor-Challenge": {
-					"required": true,
-					"purpose": "stepup",
-					"method": "code"
-				}
-			}
-		},
-		"/v1/ram/resource-groups/{groupId}/members": {
-			"post": {
-				"operationId": "RamControllerAddResourceGroupMember",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/RamResourceGroupDto"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"RAM"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "groupId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/AddRamResourceGroupMemberDto"
 							}
 						}
 					}
@@ -37877,51 +38034,112 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"RamAuthorizationDto": {
-				"$ref": "#/components/schemas/IamAuthorizationContract"
-			},
-			"CreateRamAuthorizationDto": {
+			"IamManagementPageResult_IamAuthorizationContract_": {
 				"properties": {
-					"principalType": {
-						"type": "string",
-						"enum": [
-							"user",
-							"group",
-							"role"
-						]
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/IamAuthorizationContract"
+						},
+						"type": "array"
 					},
-					"principalId": {
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamAuthorizationPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_IamAuthorizationContract_"
+			},
+			"Pick_IamResourceGroupContract.Exclude_keyofIamResourceGroupContract.members__": {
+				"properties": {
+					"id": {
 						"type": "string"
 					},
-					"policyId": {
+					"status": {
+						"type": "number",
+						"format": "double"
+					},
+					"createTime": {
 						"type": "string"
 					},
-					"scopeType": {
-						"type": "string",
-						"enum": [
-							"account",
-							"resource-group",
-							"resource"
-						]
-					},
-					"scopeResourceId": {
+					"updateTime": {
 						"type": "string"
 					},
-					"scopeArn": {
+					"name": {
 						"type": "string"
 					},
 					"description": {
 						"type": "string"
+					},
+					"accountOwnerId": {
+						"type": "string"
 					}
 				},
 				"required": [
-					"principalType",
-					"principalId",
-					"policyId",
-					"scopeType"
+					"id",
+					"status",
+					"createTime",
+					"updateTime",
+					"name",
+					"accountOwnerId"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_IamResourceGroupContract.members_": {
+				"$ref": "#/components/schemas/Pick_IamResourceGroupContract.Exclude_keyofIamResourceGroupContract.members__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"IamResourceGroupSummary": {
+				"$ref": "#/components/schemas/Omit_IamResourceGroupContract.members_"
+			},
+			"IamManagementPageResult_IamResourceGroupSummary_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/IamResourceGroupSummary"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
 				],
 				"type": "object",
 				"additionalProperties": false
+			},
+			"RamResourceGroupPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_IamResourceGroupSummary_"
 			},
 			"IamResourceGroupMemberContract": {
 				"properties": {
@@ -37964,6 +38182,84 @@
 					"status",
 					"createTime",
 					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"IamManagementPageResult_IamResourceGroupMemberContract_": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/IamResourceGroupMemberContract"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"RamResourceGroupMemberPageDto": {
+				"$ref": "#/components/schemas/IamManagementPageResult_IamResourceGroupMemberContract_"
+			},
+			"RamAuthorizationDto": {
+				"$ref": "#/components/schemas/IamAuthorizationContract"
+			},
+			"CreateRamAuthorizationDto": {
+				"properties": {
+					"principalType": {
+						"type": "string",
+						"enum": [
+							"user",
+							"group",
+							"role"
+						]
+					},
+					"principalId": {
+						"type": "string"
+					},
+					"policyId": {
+						"type": "string"
+					},
+					"scopeType": {
+						"type": "string",
+						"enum": [
+							"account",
+							"resource-group",
+							"resource"
+						]
+					},
+					"scopeResourceId": {
+						"type": "string"
+					},
+					"scopeArn": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"principalType",
+					"principalId",
+					"policyId",
+					"scopeType"
 				],
 				"type": "object",
 				"additionalProperties": false

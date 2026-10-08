@@ -32,6 +32,9 @@ import type {
   CreateRamAuthorizationDto,
   CreateRamResourceGroupDto,
   RamAuthorizationDto,
+  RamAuthorizationPageDto,
+  RamResourceGroupPageDto,
+  RamResourceGroupMemberPageDto,
   RamResourceGroupDto,
 } from "@/api/dto/users/ram.dto";
 import {
@@ -641,6 +644,61 @@ export class RamController extends Controller {
   ): Promise<{ code: number; message: string }> {
     await this.ramService.detachPolicy(request.user!.userId, body);
     return { code: CustomCode.OK, message: "解绑权限策略成功" };
+  }
+
+  @Get("authorizations/page")
+  @Security("jwt")
+  @Middlewares(validateQuery(iamAuthorizationQuerySchema))
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:ListAuthorizations",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listAuthorizationPage(
+    @Request() request: TypedRequest,
+    @Query() principalType?: string,
+    @Query() principalId?: string,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamAuthorizationPageDto> {
+    return this.ramService.listAuthorizationPage(request.user!.userId, { principalType, principalId, page, pageSize });
+  }
+  @Get("resource-groups/page")
+  @Security("jwt")
+  @Middlewares(validateQuery(iamResourceGroupQuerySchema))
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:ListResourceGroups",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listResourceGroupPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamResourceGroupPageDto> {
+    return this.ramService.listResourceGroupPage(request.user!.userId, { page, pageSize });
+  }
+  @Get("resource-groups/{groupId}/members")
+  @Security("jwt")
+  @Middlewares(validateParams(resourceGroupIdParamsSchema), validateQuery(iamResourceGroupQuerySchema))
+  @Middlewares(
+    iamAuthorizationMiddleware({
+      action: "quyan:ram:ListResourceGroups",
+      resourceKind: "single-resource",
+      resource: ramResourceGroupResourceResolver,
+    }),
+  )
+  public async listResourceGroupMemberPage(
+    @Path() groupId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RamResourceGroupMemberPageDto> {
+    return this.ramService.listResourceGroupMemberPage(request.user!.userId, groupId, { page, pageSize });
   }
 
   @Get("authorizations")

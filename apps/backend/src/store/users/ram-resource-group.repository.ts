@@ -23,6 +23,32 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
       take: page.pageSize,
     });
   }
+  async listSummaryPage(accountOwnerId: string, page: IamManagementPage) {
+    const records = await prisma.ramResourceGroup.findMany({
+      where: { accountOwnerId, status: AccountStatus.ACTIVE },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      skip: (page.page - 1) * page.pageSize,
+      take: page.pageSize + 1,
+    });
+    return { items: records.slice(0, page.pageSize), ...page, hasNext: records.length > page.pageSize };
+  }
+  async listMemberPage(accountOwnerId: string, groupId: string, page: IamManagementPage) {
+    const records = await prisma.ramResourceGroupMember.findMany({
+      where: {
+        accountOwnerId,
+        resourceGroupId: groupId,
+        status: AccountStatus.ACTIVE,
+        resourceGroup: { accountOwnerId, status: AccountStatus.ACTIVE },
+      },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      skip: (page.page - 1) * page.pageSize,
+      take: page.pageSize + 1,
+    });
+    return { items: records.slice(0, page.pageSize), ...page, hasNext: records.length > page.pageSize };
+  }
+  findSummaryById(id: string) {
+    return prisma.ramResourceGroup.findFirst({ where: { id, status: AccountStatus.ACTIVE } });
+  }
   create(data: CreateRamResourceGroupInput) {
     return prisma.ramResourceGroup.create({
       data: { ...data, status: AccountStatus.ACTIVE, description: data.description ?? null },

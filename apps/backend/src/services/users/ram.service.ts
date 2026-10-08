@@ -91,6 +91,9 @@ import type {
   CreateRamAuthorizationDto,
   CreateRamResourceGroupDto,
   RamAuthorizationDto,
+  RamAuthorizationPageDto,
+  RamResourceGroupPageDto,
+  RamResourceGroupMemberPageDto,
   RamResourceGroupDto,
   GenerateIamPolicyDraftDto,
   GenerateIamPolicyDraftResponseDto,
@@ -291,6 +294,88 @@ export class RamService {
     return (
       await this.filterManagementPage(actorUserId, owner, "quyan:ram:ListAuthorizations", "authorization", records)
     ).map((record) => this.mapAuthorization(record));
+  }
+  async listAuthorizationPage(
+    actorUserId: string,
+    query: { principalType?: string; principalId?: string; page?: number; pageSize?: number } = {},
+  ): Promise<RamAuthorizationPageDto> {
+    const parsed = iamAuthorizationQuerySchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid authorization query", undefined, {
+        messageKey: "iam.authorizationScopeInvalid",
+      });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const result = await this.authorizationRepository.listPage(owner, parsed.data);
+    const records = await this.filterManagementPage(
+      actorUserId,
+      owner,
+      "quyan:ram:ListAuthorizations",
+      "authorization",
+      result.items,
+    );
+    return { ...result, items: records.map((record) => this.mapAuthorization(record)) };
+  }
+  async listResourceGroupPage(
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<RamResourceGroupPageDto> {
+    const parsed = iamManagementPaginationSchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid resource group query", undefined, {
+        messageKey: "iam.authorizationScopeInvalid",
+      });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const result = await this.resourceGroupRepository.listSummaryPage(owner, parsed.data);
+    const records = await this.filterManagementPage(
+      actorUserId,
+      owner,
+      "quyan:ram:ListResourceGroups",
+      "resource-group",
+      result.items,
+    );
+    return {
+      ...result,
+      items: records.map((record) => ({
+        id: record.id,
+        accountOwnerId: record.accountOwnerId,
+        name: record.name,
+        description: record.description,
+        status: record.status,
+        createTime: record.createTime.toISOString(),
+        updateTime: record.updateTime.toISOString(),
+      })),
+    };
+  }
+  async listResourceGroupMemberPage(
+    actorUserId: string,
+    groupId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<RamResourceGroupMemberPageDto> {
+    const parsed = iamManagementPaginationSchema.safeParse(query);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid resource group query", undefined, {
+        messageKey: "iam.authorizationScopeInvalid",
+      });
+    const owner = await this.getAccountOwnerId(actorUserId);
+    const group = await this.resourceGroupRepository.findSummaryById(groupId);
+    if (!group)
+      throw new NotFoundError("Resource group missing", undefined, { messageKey: "iam.resourceGroupNotFound" });
+    this.assertSameAccount(owner, group.accountOwnerId);
+    const result = await this.resourceGroupRepository.listMemberPage(owner, groupId, parsed.data);
+    return {
+      ...result,
+      items: result.items.map((member) => ({
+        id: member.id,
+        resourceGroupId: member.resourceGroupId,
+        resourceArn: member.resourceArn,
+        service: member.service,
+        resourceType: member.resourceType,
+        resourceId: member.resourceId,
+        status: member.status,
+        createTime: member.createTime.toISOString(),
+        updateTime: member.updateTime.toISOString(),
+      })),
+    };
   }
   async createAuthorization(actorUserId: string, data: CreateRamAuthorizationDto): Promise<RamAuthorizationDto> {
     const validatedInput = createIamAuthorizationBodySchema.safeParse(data);

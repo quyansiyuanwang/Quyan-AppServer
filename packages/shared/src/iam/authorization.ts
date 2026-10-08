@@ -38,3 +38,17 @@ export interface IamResourceGroupContract {
   updateTime: string
   members: IamResourceGroupMemberContract[]
 }
+
+/** Bounded candidate pages: IAM filtering can yield an empty page with hasNext=true. */
+export const IAM_MANAGEMENT_PAGINATION = Object.freeze({
+  defaultPageSize: 50,
+  maxPageSize: 100,
+  maxPage: 10000,
+})
+export interface IamManagementPageResult<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  hasNext: boolean
+}
+export type IamResourceGroupSummary = Omit<IamResourceGroupContract, 'members'>

@@ -1,3 +1,4 @@
+import type { IamManagementPageResult } from "@quyan/shared";
 import type { IamManagementPage } from "@/iam/management-pagination";
 import type { RamAuthorization } from "@prisma/client";
 import type { RamPolicyWithVersion } from "./ram-policy.store";
@@ -29,6 +30,10 @@ export interface RamAuthorizationStore {
     principalId?: string,
     page?: IamManagementPage,
   ): Promise<RamAuthorization[]>;
+  listPage(
+    accountOwnerId: string,
+    query: IamManagementPage & { principalType?: string; principalId?: string },
+  ): Promise<IamManagementPageResult<RamAuthorization>>;
   listForPrincipals(
     accountOwnerId: string,
     targets: readonly IamAuthorizationTarget[],

@@ -96,6 +96,25 @@ export class RamAuthorizationRepository implements RamAuthorizationStore {
       take: page.pageSize,
     });
   }
+  async listPage(accountOwnerId: string, query: IamManagementPage & { principalType?: string; principalId?: string }) {
+    const records = await prisma.ramAuthorization.findMany({
+      where: {
+        accountOwnerId,
+        status: AccountStatus.ACTIVE,
+        ...(query.principalType ? { principalType: query.principalType } : {}),
+        ...(query.principalId ? { principalId: query.principalId } : {}),
+      },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize + 1,
+    });
+    return {
+      items: records.slice(0, query.pageSize),
+      page: query.page,
+      pageSize: query.pageSize,
+      hasNext: records.length > query.pageSize,
+    };
+  }
   listForPrincipals(accountOwnerId: string, targets: readonly IamAuthorizationTarget[]) {
     if (!targets.length) return Promise.resolve([]);
     return prisma.ramAuthorization.findMany({

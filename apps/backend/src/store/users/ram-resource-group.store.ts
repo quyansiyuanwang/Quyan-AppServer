@@ -1,3 +1,4 @@
+import type { IamManagementPageResult } from "@quyan/shared";
 import type { IamManagementPage } from "@/iam/management-pagination";
 import type { RamResourceGroup, RamResourceGroupMember } from "@prisma/client";
 export type RamResourceGroupWithMembers = RamResourceGroup & { members: RamResourceGroupMember[] };
@@ -17,6 +18,13 @@ export interface CreateRamResourceGroupMemberInput {
 }
 export interface RamResourceGroupStore {
   list(accountOwnerId: string, page?: IamManagementPage): Promise<RamResourceGroupWithMembers[]>;
+  listSummaryPage(accountOwnerId: string, page: IamManagementPage): Promise<IamManagementPageResult<RamResourceGroup>>;
+  listMemberPage(
+    accountOwnerId: string,
+    groupId: string,
+    page: IamManagementPage,
+  ): Promise<IamManagementPageResult<RamResourceGroupMember>>;
+  findSummaryById(id: string): Promise<RamResourceGroup | null>;
   create(data: CreateRamResourceGroupInput): Promise<RamResourceGroup>;
   findById(id: string): Promise<RamResourceGroupWithMembers | null>;
   addMember(data: CreateRamResourceGroupMemberInput): Promise<RamResourceGroupMember>;
