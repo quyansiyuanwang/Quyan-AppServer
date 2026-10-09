@@ -8,6 +8,7 @@ import {
   developerProjectApiKeyArn,
   developerStatusMonitorArn,
   developerPushChannelArn,
+  developerPushDeliveryArn,
   developerKvKeyFromArnSegment,
 } from "@/iam/resources/developer-resources";
 import {
@@ -17,6 +18,7 @@ import {
   developerProjectApiKeyResourceResolver,
   developerStatusMonitorResourceResolver,
   developerPushChannelResourceResolver,
+  developerPushDeliveryResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
@@ -149,6 +151,43 @@ describe("developer item resource identities", () => {
     expect(
       evaluatePolicies([{ policyId: "fixture", document }], {
         action: "quyan:developer:RevokeProjectApiKey",
+        resource: arn,
+      }).decision,
+    ).toBe("ImplicitDeny");
+  });
+  it("separates delivery visibility from channel access and list access from detail", async () => {
+    const arn = developerPushDeliveryArn("owner", "project", "delivery-1");
+    expect(arn).toBe("acs:developer:*:owner:push-delivery/project/delivery-1");
+    expect(
+      await developerPushDeliveryResourceResolver({
+        principal,
+        request: { params: { projectId: "project", id: "delivery-1" }, body: { accountId: "foreign" } } as never,
+      }),
+    ).toBe(arn);
+    for (const id of ["*", "bad/id", " delivery-1 ", undefined])
+      expect(
+        await developerPushDeliveryResourceResolver({
+          principal,
+          request: { params: { projectId: "project", id } } as never,
+        }),
+      ).toBeUndefined();
+    expect(isIamActionResourceCompatible("quyan:developer:GetPushDelivery", arn)).toBe(true);
+    expect(
+      isIamActionResourceCompatible(
+        "quyan:developer:GetPushDelivery",
+        developerPushChannelArn("owner", "project", "channel"),
+      ),
+    ).toBe(false);
+    for (const action of ["GetPushDelivery", "ListPushDeliveries"])
+      expect(getIamActionDefinition("quyan:developer:" + action)?.sensitive).toBe(true);
+    expect(getIamResourceType(arn)?.identifierSegments).toBe(2);
+    const document = parseIamPolicy({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:developer:ListPushDeliveries", Resource: arn },
+    }).document;
+    expect(
+      evaluatePolicies([{ policyId: "fixture", document }], {
+        action: "quyan:developer:GetPushDelivery",
         resource: arn,
       }).decision,
     ).toBe("ImplicitDeny");

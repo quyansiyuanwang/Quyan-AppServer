@@ -23,7 +23,7 @@ Content-Type: application/json
 }
 ```
 
-The response reports success, an error summary, attempt count, and next retry time for each channel. One failed channel does not block the others. Reuse a stable `idempotencyKey` for retries of the same business event to avoid duplicate notifications. Titles are limited to 200 characters, bodies to 10,000 characters, and a request to 20 channels.
+The response reports success, a safe failure classification, attempt count, and next retry time for each channel. One failed channel does not block the others. Reuse a stable `idempotencyKey` for retries of the same business event to avoid duplicate notifications. Titles are limited to 200 characters, bodies to 10,000 characters, and a request to 20 channels.
 
 ## Project Channel resource authorization
 
@@ -45,4 +45,15 @@ The server rechecks the authorized channel snapshot and Secret target within a t
 
 `GET /v1/developer/projects/{projectId}/push-channels/page` accepts page/pageSize and returns items, page, pageSize, hasNext, and each item's resourceArn. Candidates are restricted to an active same-account project before per-channel evaluation. No unauthorized total is returned; empty pages may have a next page. The old array endpoint returns only the default first page in enforce. Channels support resource groups; removal changes scope on the next request. Paused channels remain manageable, while inactive resources, wrong-project IDs, and foreign accounts are rejected.
 
-These rules cover JWT project channel management. Product credentials, dispatch, scheduled retries, and delivery-record access retain their separate validation paths; legacy/shadow keep individual project ownership constraints.
+These rules cover JWT project channel management. Product credentials, dispatch, scheduled retries, and product-instance delivery-record access retain their separate validation paths; legacy/shadow keep individual project ownership constraints.
+
+## Project Delivery record resource authorization
+
+JWT project management supports per-record authority using `acs:developer:*:<accountId>:push-delivery/<projectId>/<deliveryId>`. `quyan:developer:ListPushDeliveries` controls each record's list visibility; `GetPushDelivery` controls a specific record's detail. Listing does not imply detail access, and channel configuration grants do not imply delivery visibility. Both Actions are sensitive reads.
+
+- `GET /v1/developer/projects/{projectId}/push-deliveries/page` accepts page/pageSize and returns items, page, pageSize, and hasNext. Candidates are restricted to active same-account projects, channels, and records before per-resource evaluation. No unauthorized total is returned. Empty pages may have a next page; continue according to hasNext. The old array endpoint returns only the default first page in enforce.
+- `GET /v1/developer/projects/{projectId}/push-deliveries/{id}` returns authorized status, channel ID, attempts, retry time, creation/update times, and resourceArn. It does not dispatch or retry a message.
+
+Management responses contain no message title/body, idempotency key, channel endpoint, or raw provider error. Failed records expose the safe classification `failureReason: "dispatch_failed"`. To prevent URLs, tokens, or message contents in historical errors from leaking, all delivery responses—including legacy/shadow and product dispatch responses—no longer populate the old error field. Clients should use status and failureReason. New dispatch failures store only a fixed identifier, not provider exception text.
+
+Records support resource groups; member removal changes scope on the next request. A record and its channel must belong to the same project and account. Paused channels retain history access; inactive resources, wrong projects, case-aliased IDs, or noncanonical historical foreign keys are rejected or omitted without stopping traversal of later pages. Deleting a channel also deletes its deliveries, so their group memberships no longer grant access. legacy/shadow retain personal array ownership constraints; product-instance APIs retain their independent principal and permission checks.

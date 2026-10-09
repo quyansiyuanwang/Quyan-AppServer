@@ -37,6 +37,7 @@ import {
   developerProjectApiKeyResourceResolver,
   developerStatusMonitorResourceResolver,
   developerPushChannelResourceResolver,
+  developerPushDeliveryResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import type {
@@ -56,6 +57,7 @@ import type {
   DeveloperPushChannelDto,
   DeveloperPushChannelPageDto,
   DeveloperPushDeliveryDto,
+  DeveloperPushDeliveryPageDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
   DeveloperShortLinkPageDto,
@@ -680,13 +682,57 @@ export class DeveloperProjectController extends Controller {
     return this.management.listPushChannels(projectId, request.user!.userId);
   }
 
+  @Get("{projectId}/push-deliveries/page")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListPushDeliveries",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
+  public async listPushDeliveriesPage(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<DeveloperPushDeliveryPageDto> {
+    return this.management.listPushDeliveriesPage(projectId, request.user!.userId, { page, pageSize });
+  }
+
   @Get("{projectId}/push-deliveries")
-  @Middlewares(validateParams(projectIdParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListPushDeliveries",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
   public async listPushDeliveries(
     @Path() projectId: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperPushDeliveryDto[]> {
-    return this.service.listPushDeliveries(projectId, request.user!.userId);
+    return this.management.listPushDeliveries(projectId, request.user!.userId);
+  }
+
+  @Get("{projectId}/push-deliveries/{id}")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateParams(developerItemIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:GetPushDelivery",
+      resourceKind: "single-resource",
+      resource: developerPushDeliveryResourceResolver,
+    }),
+  )
+  public async getPushDelivery(
+    @Path() projectId: string,
+    @Path() id: string,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperPushDeliveryDto> {
+    return this.management.getPushDelivery(projectId, id, request.user!.userId);
   }
 
   @Post("{projectId}/push-channels")

@@ -12,6 +12,7 @@ import {
   developerShortLinkArn,
   developerStatusMonitorArn,
   developerPushChannelArn,
+  developerPushDeliveryArn,
   type DeveloperItemResourceType,
 } from "@/iam/resources/developer-resources";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -25,6 +26,7 @@ import {
   DeveloperPushChannelRepository,
   type ResolvedPushSecretBinding,
 } from "@/store/developer/developer-push-channel.repository";
+import { DeveloperPushDeliveryRepository } from "@/store/developer/developer-push-delivery.repository";
 import {
   requiresPushSecretAuthority,
   pushChannelSecretReferenceDto,
@@ -57,6 +59,8 @@ import type {
   DeveloperPushSecretReferenceDto,
   DeveloperPushChannelDto,
   DeveloperPushChannelPageDto,
+  DeveloperPushDeliveryDto,
+  DeveloperPushDeliveryPageDto,
 } from "@/api/dto/developer/developer.dto";
 
 /** JWT management has its own IAM boundary; project-key/public/scheduler calls retain their separate guards. */
@@ -67,6 +71,7 @@ export class DeveloperProjectManagementService {
     private readonly users = UserRepository.getInstance(),
     private readonly iam = IamAuthorizationService.getInstance(),
     private readonly channels = DeveloperPushChannelRepository.getInstance(),
+    private readonly deliveries = DeveloperPushDeliveryRepository.getInstance(),
   ) {}
   static getInstance() {
     return (this.instance ??= new DeveloperProjectManagementService());
@@ -363,7 +368,10 @@ export class DeveloperProjectManagementService {
     actorUserId: string,
     action: string,
     query: { page?: number; pageSize?: number },
-    candidates: (owner: string, options: { skip: number; take: number }) => Promise<T[]>,
+    candidates: (
+      owner: string,
+      options: { skip: number; take: number },
+    ) => Promise<T[] | { rows: T[]; eligibility: boolean[] }>,
     resource: (accountOwnerId: string, item: T) => string,
   ) {
     const pagination = iamManagementPaginationSchema.safeParse(query);
@@ -384,9 +392,22 @@ export class DeveloperProjectManagementService {
         });
       owner = project.userId;
     } else await this.projects.getProject(projectId, actorUserId);
-    const rows = await candidates(owner, { skip: (page - 1) * pageSize, take: pageSize + 1 });
+    const source = await candidates(owner, { skip: (page - 1) * pageSize, take: pageSize + 1 });
+    const rows = Array.isArray(source) ? source : source.rows;
+    const eligibility = Array.isArray(source) ? undefined : source.eligibility;
+    if (
+      !Array.isArray(rows) ||
+      (!Array.isArray(source) &&
+        (!Array.isArray(eligibility) ||
+          eligibility.length !== rows.length ||
+          !eligibility.every((value) => typeof value === "boolean")))
+    )
+      throw new ForbiddenError("Invalid resource candidate eligibility", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
     let items = rows
       .slice(0, pageSize)
+      .filter((_, index) => !eligibility || eligibility[index] === true)
       .map((item) => ({ ...item, resourceArn: resource(identity.principal.accountOwnerId, item) }));
     if (mode !== "legacy") {
       try {
@@ -812,5 +833,39 @@ export class DeveloperProjectManagementService {
     if (env.security.iamAuthorizationMode === "enforce")
       return this.channels.delete(projectId, target.owner, channelId);
     return this.projects.deletePushChannel(projectId, channelId, target.owner);
+  }
+  async listPushDeliveriesPage(
+    projectId: string,
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<DeveloperPushDeliveryPageDto> {
+    return this.resourcePage<DeveloperPushDeliveryDto>(
+      projectId,
+      actorUserId,
+      "quyan:developer:ListPushDeliveries",
+      query,
+      (owner, options) => this.deliveries.listCandidates(projectId, owner, options),
+      (accountOwnerId, item) => developerPushDeliveryArn(accountOwnerId, projectId, item.id),
+    );
+  }
+  async listPushDeliveries(projectId: string, actorUserId: string): Promise<DeveloperPushDeliveryDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listPushDeliveriesPage(projectId, actorUserId)).items;
+    const items = await this.projects.listPushDeliveries(projectId, actorUserId);
+    await this.shadowResourceRows(actorUserId, "quyan:developer:ListPushDeliveries", items, (owner, item) =>
+      developerPushDeliveryArn(owner, projectId, item.id),
+    );
+    return items;
+  }
+  async getPushDelivery(projectId: string, deliveryId: string, actorUserId: string): Promise<DeveloperPushDeliveryDto> {
+    const target = await this.itemTarget(
+      "quyan:developer:GetPushDelivery",
+      projectId,
+      actorUserId,
+      "push-delivery",
+      deliveryId,
+    );
+    const item = await this.deliveries.get(projectId, target.owner, deliveryId);
+    return { ...item, resourceArn: target.resourceArn };
   }
 }

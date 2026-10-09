@@ -64,6 +64,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('developer', 'project-api-key', 2),
   resource('developer', 'status-monitor', 2),
   resource('developer', 'push-channel', 2),
+  resource('developer', 'push-delivery', 2),
   resource('article', 'article'),
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
@@ -227,6 +228,16 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: 'Write',
       resourceTypes: ['developer/push-channel'],
     },
+    {
+      operation: 'ListPushDeliveries',
+      accessLevel: 'List',
+      resourceTypes: ['developer/project', 'developer/push-delivery'],
+    },
+    {
+      operation: 'GetPushDelivery',
+      accessLevel: 'Read',
+      resourceTypes: ['developer/push-delivery'],
+    },
     { operation: 'UseSecret', accessLevel: 'Write', resourceTypes: ['developer/secret'] },
     { operation: 'GetProjectUsage', accessLevel: 'Read', resourceTypes: ['developer/project'] },
     { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },
@@ -242,7 +253,9 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
         definition.accessLevel === 'Write' ||
         definition.operation === 'GetShortLinkStats' ||
         definition.operation === 'ListProjectApiKeys' ||
-        definition.operation === 'ListPushChannels',
+        definition.operation === 'ListPushChannels' ||
+        definition.operation === 'ListPushDeliveries' ||
+        definition.operation === 'GetPushDelivery',
       authorizationStage: 'declared',
     }),
   ),

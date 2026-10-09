@@ -301,11 +301,21 @@ export interface SendDeveloperPushDto {
   idempotencyKey?: string;
 }
 
+export interface DeveloperPushDeliveryPageDto {
+  items: DeveloperPushDeliveryDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperPushDeliveryDto {
+  resourceArn?: string;
   id: string;
   channelId: string;
   success: boolean;
+  /** @deprecated Raw provider error text is no longer returned. Use status and failureReason. */
   error?: string;
+  failureReason?: "dispatch_failed";
   status: string;
   attemptCount: number;
   nextRetryAt?: string;

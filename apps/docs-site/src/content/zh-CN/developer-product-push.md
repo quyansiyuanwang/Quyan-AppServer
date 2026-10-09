@@ -23,7 +23,7 @@ Content-Type: application/json
 }
 ```
 
-响应逐渠道返回成功状态、错误摘要、尝试次数和后续重试时间。一个渠道失败不会阻止其他渠道投递；建议对同一业务事件稳定复用 `idempotencyKey`，避免网络重试产生重复通知。标题最长 200 字符，正文最长 10,000 字符，单次最多选择 20 个渠道。
+响应逐渠道返回成功状态、安全失败分类、尝试次数和后续重试时间。一个渠道失败不会阻止其他渠道投递；建议对同一业务事件稳定复用 `idempotencyKey`，避免网络重试产生重复通知。标题最长 200 字符，正文最长 10,000 字符，单次最多选择 20 个渠道。
 
 ## 项目渠道资源授权
 
@@ -45,4 +45,15 @@ Content-Type: application/json
 
 `GET /v1/developer/projects/{projectId}/push-channels/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext 和每项 resourceArn。候选先限定当前账户的有效项目，再逐渠道授权；不返回未授权总数，空页仍可能有下一页。enforce 下旧数组接口只返回默认第一页。渠道可以加入资源组，移除后下一次请求即按新范围判断；暂停渠道仍可管理，禁用资源、跨项目 ID 和跨账户请求被拒绝。
 
-这些规则适用于 JWT 项目渠道管理。产品实例凭据、发送、定时重试和投递记录访问保留各自的校验路径；legacy/shadow 模式保留个人项目归属约束。
+这些规则适用于 JWT 项目渠道管理。产品实例凭据、发送、定时重试和产品实例投递记录访问保留各自的校验路径；legacy/shadow 模式保留个人项目归属约束。
+
+## 项目投递记录资源授权
+
+JWT 项目管理支持按单条投递记录授权，资源为 `acs:developer:*:<accountId>:push-delivery/<projectId>/<deliveryId>`。`quyan:developer:ListPushDeliveries` 控制每条记录的列表可见性，`GetPushDelivery` 控制指定记录的详情；列表权限不自动包含详情，渠道配置权限也不会扩大为投递记录权限。这两项均为敏感读取操作。
+
+- `GET /v1/developer/projects/{projectId}/push-deliveries/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext。先限定当前账户的有效项目、渠道和记录，再逐资源评估；不返回未授权总数。空页仍可能有下一页，应按 hasNext 继续遍历。enforce 下旧数组接口只返回默认第一页。
+- `GET /v1/developer/projects/{projectId}/push-deliveries/{id}` 返回已授权记录的状态、渠道 ID、尝试次数、重试时间、创建和更新时间，以及 resourceArn。不会触发发送或重试。
+
+管理响应不包含消息标题、正文、幂等键、渠道地址或上游原始错误。失败记录通过 `failureReason: "dispatch_failed"` 提供安全分类。为避免历史错误文本中的 URL、Token 或消息内容泄露，所有投递响应（包括 legacy/shadow 与产品发送响应）均不再填充旧 error 字段；客户端应使用 status 与 failureReason。新投递失败只保存固定错误标识，不保存上游异常文本。
+
+指定记录可以加入资源组，移除成员后下一次请求即按新范围判断。记录及其渠道必须属于同一项目和当前账户；暂停渠道仍可查看历史记录，禁用资源、错误项目、大小写不一致的 ID 或历史关联字段则被拒绝或从列表移除，但不会中断后续分页。删除渠道会连带删除其投递记录，相关资源组成员不再提供授权。legacy/shadow 保留个人项目的数组归属约束；产品实例接口继续使用其独立主体与权限校验。

@@ -79,7 +79,8 @@ export type DeveloperItemResourceType =
   | "short-link"
   | "project-api-key"
   | "status-monitor"
-  | "push-channel";
+  | "push-channel"
+  | "push-delivery";
 export function developerItemArn(
   type: DeveloperItemResourceType,
   accountOwnerId: string,
@@ -99,6 +100,8 @@ export function developerItemArn(
       return developerStatusMonitorArn(accountOwnerId, projectId, itemId);
     case "push-channel":
       return developerPushChannelArn(accountOwnerId, projectId, itemId);
+    case "push-delivery":
+      return developerPushDeliveryArn(accountOwnerId, projectId, itemId);
   }
 }
 
@@ -141,5 +144,19 @@ export function developerPushChannelArn(accountOwnerId: string, projectId: strin
     region: "*",
     accountId: accountOwnerId,
     path: "push-channel/" + projectId + "/" + channelId,
+  });
+}
+
+export function developerPushDeliveryArn(accountOwnerId: string, projectId: string, deliveryId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, deliveryId)
+  )
+    throw new Error("Invalid push delivery identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "push-delivery/" + projectId + "/" + deliveryId,
   });
 }

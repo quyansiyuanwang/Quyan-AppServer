@@ -323,3 +323,7 @@ Status Monitors use `acs:developer:*:<accountId>:status-monitor/<projectId>/<mon
 ## Project Push Channel resource authorization
 
 Channels use `acs:developer:*:<accountId>:push-channel/<projectId>/<channelId>`. Creation is project-scoped, sensitive configuration listing filters individual channels, and updates and deletion are independent grants. Binding a managed Secret, or changing a destination or enabling a channel while retaining the reference, additionally requires `quyan:developer:UseSecret` on the exact Secret ARN. Ordinary channel management or Secret writes do not imply this capability. Management does not decrypt; transaction-time checks prevent concurrent replacements from inheriting stale authorization. See [Push Aggregation](./developer-product-push) for pagination, resource groups, and mode boundaries.
+
+## Project Delivery record authorization
+
+Delivery records use `acs:developer:*:<accountId>:push-delivery/<projectId>/<deliveryId>`. ListPushDeliveries and GetPushDelivery independently control lists and details; channel management does not imply record access. Row filtering and resource groups verify the record and channel share an active project and account. No message body or raw error is returned. Failures expose a fixed failureReason; the old error field is no longer populated, preventing historical credential disclosure. See [Push Aggregation](./developer-product-push) for APIs, pagination, and deletion effects.

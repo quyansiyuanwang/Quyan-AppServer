@@ -104,6 +104,29 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         });
         return project?.id === id;
       }
+      case "developer/push-delivery": {
+        const record = await prisma.developerPushDelivery.findFirst({
+          where: {
+            id: childId,
+            projectId: id,
+            ...active,
+            project: { ...active, user: { ...active, ...userOwner } },
+            channel: { projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          },
+          select: { id: true, projectId: true, channelId: true },
+        });
+        if (!record || record.id !== childId || record.projectId !== id) return false;
+        const channel = await prisma.developerPushChannel.findFirst({
+          where: {
+            id: record.channelId,
+            projectId: id,
+            ...active,
+            project: { ...active, user: { ...active, ...userOwner } },
+          },
+          select: { id: true, projectId: true },
+        });
+        return channel?.id === record.channelId && channel.projectId === id;
+      }
       case "developer/push-channel": {
         const record = await prisma.developerPushChannel.findFirst({
           where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },

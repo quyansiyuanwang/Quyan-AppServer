@@ -323,3 +323,7 @@ KV 和密钥可作为资源组成员，移除成员后下一次请求即失去�
 ## 项目推送渠道资源授权
 
 渠道使用 `acs:developer:*:<accountId>:push-channel/<projectId>/<channelId>`。创建在项目范围控制，敏感配置列表逐渠道过滤，修改与删除独立授权。托管密钥绑定、保留引用修改地址或启用渠道，还需要在确切 Secret ARN 上授予 `quyan:developer:UseSecret`；普通渠道管理或密钥写入权限不会隐式获得此能力。管理流程不解密，事务内核实配置快照与密钥目标，拒绝并发替换沿用旧授权。分页、资源组和模式边界见 [推送聚合](./developer-product-push)。
+
+## 项目投递记录授权
+
+投递记录使用 `acs:developer:*:<accountId>:push-delivery/<projectId>/<deliveryId>`。`ListPushDeliveries` 与 `GetPushDelivery` 独立控制列表和详情，渠道管理权限不包含记录访问。逐项列表过滤与资源组都验证记录及渠道属于同一有效项目和账户，不返回消息正文或原始错误。失败记录提供固定 failureReason，旧 error 字段不再填充，以防历史错误泄露凭据；完整接口、分页和删除影响见 [推送聚合](./developer-product-push)。

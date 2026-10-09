@@ -1,3 +1,4 @@
+import { toDeveloperPushDeliveryDto } from "./developer-push-delivery.mapping";
 import {
   readStoredPushSecretReference,
   pushChannelSecretReferenceDto,
@@ -786,6 +787,13 @@ export class DeveloperProjectRepository {
         const item = await prisma.developerShortLink.findFirst({
           where: { id: itemId, projectId },
           select: { projectId: true, id: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+      case "push-delivery": {
+        const item = await prisma.developerPushDelivery.findFirst({
+          where: { id: itemId, projectId },
+          select: { id: true, projectId: true },
         });
         return item ? { projectId: item.projectId, itemId: item.id } : undefined;
       }
@@ -2274,17 +2282,7 @@ export class DeveloperProjectRepository {
     createTime: Date;
     updateTime: Date;
   }): DeveloperPushDeliveryDto {
-    return {
-      id: delivery.id,
-      channelId: delivery.channelId,
-      success: delivery.deliveryStatus === "success",
-      error: delivery.errorMessage ?? undefined,
-      status: delivery.deliveryStatus,
-      attemptCount: delivery.attemptCount,
-      nextRetryAt: asIso(delivery.nextRetryAt),
-      createTime: delivery.createTime.toISOString(),
-      updateTime: delivery.updateTime.toISOString(),
-    };
+    return toDeveloperPushDeliveryDto(delivery);
   }
 
   async listPushDeliveries(projectId: string, userId: string): Promise<DeveloperPushDeliveryDto[]> {
@@ -2357,7 +2355,8 @@ export class DeveloperProjectRepository {
       });
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
-      const message = error instanceof Error ? error.message.slice(0, 500) : "推送失败";
+      // Provider errors can contain credential-bearing URLs or payloads; do not persist/reflect their text.
+      const message = "push-dispatch-failed";
       return this.updatePushDelivery(delivery.id, {
         deliveryStatus: "failed",
         attemptCount: { increment: 1 },

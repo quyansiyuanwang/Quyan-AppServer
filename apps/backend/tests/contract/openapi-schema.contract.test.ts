@@ -255,6 +255,7 @@ describe("RAM IAM policy API contract", () => {
       ["/v1/developer/projects/{projectId}/keys/page", "DeveloperApiKeyPageDto"],
       ["/v1/developer/projects/{projectId}/monitors/page", "DeveloperStatusMonitorPageDto"],
       ["/v1/developer/projects/{projectId}/push-channels/page", "DeveloperPushChannelPageDto"],
+      ["/v1/developer/projects/{projectId}/push-deliveries/page", "DeveloperPushDeliveryPageDto"],
     ]) {
       const operation = openApi.paths[route]?.get;
       expect(operation?.security).toContainEqual({ jwt: [] });
@@ -272,6 +273,7 @@ describe("RAM IAM policy API contract", () => {
       "DeveloperShortLinkStatsDto",
       "DeveloperStatusMonitorDto",
       "DeveloperPushChannelDto",
+      "DeveloperPushDeliveryDto",
     ]) {
       const schema = openApi.components?.schemas?.[dto] as { properties: Record<string, unknown>; required: string[] };
       expect(schema.properties.resourceArn).toMatchObject({ type: "string" });
@@ -279,6 +281,19 @@ describe("RAM IAM policy API contract", () => {
       for (const field of ["ciphertext", "iv", "authTag", "config"])
         expect(schema.properties).not.toHaveProperty(field);
     }
+  });
+  it("exposes JWT delivery detail metadata with a bounded public failure reason", () => {
+    expect(openApi.paths["/v1/developer/projects/{projectId}/push-deliveries/{id}"]?.get?.security).toContainEqual({
+      jwt: [],
+    });
+    const schema = openApi.components?.schemas?.DeveloperPushDeliveryDto as {
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+    expect(schema.properties.failureReason).toMatchObject({ type: "string", enum: ["dispatch_failed"] });
+    expect(schema.required).not.toContain("failureReason");
+    for (const field of ["title", "content", "errorMessage", "idempotencyKey", "endpoint", "config"])
+      expect(schema.properties).not.toHaveProperty(field);
   });
   it("omits raw credential and hash fields from project key page items", () => {
     const schema = openApi.components?.schemas?.DeveloperApiKeyPageDto as {
