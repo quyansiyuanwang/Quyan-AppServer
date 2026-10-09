@@ -13,6 +13,7 @@ vi.mock("../../../src/store/notification/notification-preference.repository");
 vi.mock("../../../src/services/notification/notification-preference-iam.service");
 vi.mock("../../../src/services/notification/notification-inbox-iam.service");
 vi.mock("../../../src/services/notification/notification-history-iam.service");
+vi.mock("../../../src/services/notification/notification-webhook-iam.service");
 vi.mock("../../../src/services/users/permission.service");
 vi.mock("../../../src/services/notification/notification.service");
 vi.mock("../../../src/services/notification/notification-preference-initializer.service");

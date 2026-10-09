@@ -17,7 +17,7 @@ Use this page to manage how the system contacts you about important events, and 
 - The resource is the executing user's own identity: `acs:quyan:*:<accountId>:user/<userId>`. The server derives the account and user from authenticated context; supplying another user or ARN cannot change the target.
 - An explicit Deny for this resource overrides Allow. Group and role policies can participate; an assumed role uses its valid session permissions rather than the caller's direct policies.
 - The first authorized read may create default preferences; later reads synchronize newly introduced events. Events you explicitly unsubscribed from do not become subscribed again merely because they are already known. Inactive or disabled identities, role sessions and preference records cannot be read or modified.
-- These operations cover reading and saving preferences. Webhooks and delivery tests retain their respective existing permission checks. Delivery history and event catalog permissions are described below.
+- These operations cover reading and saving preferences. Webhook, delivery history and event catalog permissions are described below. Delivery tests still require legacy notification-management permission.
 
 ## In-app inbox permissions
 
@@ -30,6 +30,14 @@ Signed-in users can view their own inbox and mark messages as read. In IAM enfor
 - Messages are filtered by authorization before pagination. Total, unread, and opened-but-unconfirmed counts include only visible messages.
 - When selecting message IDs to mark as read, every target must be authorized. A missing, inactive, or denied target prevents the entire batch from updating. Duplicate IDs count once, and already-read messages do not count again.
 - Mark-all and email-open confirmation update only authorized messages belonging to the executing user. Denied messages remain unchanged. Fetching an email image does not bypass confirmation authorization.
+
+## Webhook permissions
+
+- In IAM enforce mode, listing, creating, updating and deleting use `quyan:notification:ListWebhooks`, `quyan:notification:CreateWebhook`, `quyan:notification:UpdateWebhook` and `quyan:notification:DeleteWebhook` respectively. Each requires an explicit grant; signing in alone does not grant access. Legacy notification-management permission maps to these operations; other Actions in JSON policies do not expand automatically.
+- Creation targets the executing user's own `acs:quyan:*:<accountId>:user/<userId>`. An authorized creation can initialize missing notification preferences while preserving existing preferences and subscriptions. Creating a Webhook does not grant permission to read or update preferences.
+- Existing Webhooks use `acs:notification:*:<accountId>:webhook/<userId>/<webhookId>` and can be individually authorized or scoped through resource groups. Only the executing user's targets are accessible; wildcard grants cannot switch to another user.
+- Lists return only authorized Webhooks, with explicit Deny taking precedence. Signing secrets are never returned; `hasSecret` only indicates whether one is configured. An explicit `null` clears the secret; omitting the field preserves it.
+- Inactive identities, preferences or role sessions cannot manage Webhooks. If a target changes after authorization, refresh and retry. Deleting a target disables it. Delivery tests still separately require legacy notification-management permission.
 
 ## Delivery history and event catalog permissions
 

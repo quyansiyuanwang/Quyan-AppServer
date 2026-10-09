@@ -134,7 +134,7 @@ export class NotificationPreferenceRepository {
 
   async updateWebhook(id: string, userId: string, data: NotificationWebhookUpdateInput): Promise<NotificationWebhook> {
     return prisma.notificationWebhook.update({
-      where: { id },
+      where: { id, userId, status: 1 },
       data: {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.url !== undefined && { url: data.url }),
@@ -145,10 +145,10 @@ export class NotificationPreferenceRepository {
     });
   }
 
-  async deleteWebhook(id: string, _userId: string): Promise<void> {
+  async deleteWebhook(id: string, userId: string): Promise<void> {
     // Soft-delete
     await prisma.notificationWebhook.update({
-      where: { id },
+      where: { id, userId, status: 1 },
       data: { status: 0 },
     });
   }

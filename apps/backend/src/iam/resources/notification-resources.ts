@@ -22,3 +22,14 @@ export function notificationDeliveryLogArn(accountOwnerId: string, userId: strin
     path: "delivery-log/" + userId + "/" + logId,
   });
 }
+
+export function notificationWebhookArn(accountOwnerId: string, userId: string, webhookId: string): string {
+  if (!isCanonicalNotificationId(userId) || !isCanonicalNotificationId(webhookId))
+    throw new Error("Invalid webhook identity");
+  return buildAcsResource({
+    service: "notification",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "webhook/" + userId + "/" + webhookId,
+  });
+}

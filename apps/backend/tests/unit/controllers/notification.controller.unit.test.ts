@@ -141,7 +141,10 @@ describe("NotificationController", () => {
 
       const result = await controller.listWebhooks(makeRequest());
 
-      expect(serviceMock.listWebhooks).toHaveBeenCalledWith("user-1");
+      expect(serviceMock.listWebhooks).toHaveBeenCalledWith(
+        "user-1",
+        expect.objectContaining({ user: expect.objectContaining({ userId: "user-1" }) }),
+      );
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe("wh-1");
     });

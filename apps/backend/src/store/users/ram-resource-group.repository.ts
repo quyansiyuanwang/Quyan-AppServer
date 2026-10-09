@@ -96,6 +96,38 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
             where: { id, accountOwnerId, ...active, revokedAt: null, expiresAt: { gt: new Date() } },
           }),
         );
+      case "notification/webhook": {
+        const webhook = await prisma.notificationWebhook.findUnique({
+          where: { id: childId },
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            preferenceId: true,
+            preference: { select: { id: true, userId: true, status: true } },
+          },
+        });
+        if (
+          !webhook ||
+          webhook.id !== childId ||
+          webhook.userId !== id ||
+          webhook.status !== AccountStatus.ACTIVE ||
+          webhook.preferenceId !== webhook.preference.id ||
+          webhook.preference.userId !== id ||
+          webhook.preference.status !== AccountStatus.ACTIVE
+        )
+          return false;
+        const user = await prisma.user.findUnique({
+          where: { id },
+          select: { id: true, status: true, accountOwnerId: true },
+        });
+        return Boolean(
+          user &&
+            user.id === id &&
+            user.status === AccountStatus.ACTIVE &&
+            (user.accountOwnerId || user.id) === accountOwnerId,
+        );
+      }
       case "notification/delivery-log": {
         const log = await prisma.notificationLog.findUnique({
           where: { id: childId },

@@ -36,6 +36,11 @@ export class NotificationPreferenceInitializerService {
     };
   }
 
+  /** Defaults only; request repositories initialize atomically with the authorized resource creation. */
+  async getInitializationDefaults() {
+    return this.initializationDefaults(await this.configService.getNotificationConfig());
+  }
+
   async getOrInitialize(userId: string) {
     const existing = await this.repository.findByUserId(userId);
     if (!existing) {

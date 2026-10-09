@@ -47,6 +47,8 @@ import {
 } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
+import { notificationWebhookResourceResolver } from "@/iam/request/notification-resource-resolvers";
+
 @Route("v1/notification")
 @Tags("Notification / Event Center")
 @Security("jwt")
@@ -84,15 +86,25 @@ export class NotificationController extends Controller {
   /** List all webhooks for the current user */
   @Get("webhooks")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:notification:ListWebhooks",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listWebhooks(@Request() request: TypedRequest): Promise<NotificationWebhookDto[]> {
-    return this.service.listWebhooks(request.user!.userId);
+    return this.service.listWebhooks(request.user!.userId, request);
   }
 
   /** Create a new webhook */
   @Post("webhooks")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
+  @CheckPermission(Permission.NOTIFICATION_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:notification:CreateWebhook",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(createNotificationWebhookBodySchema))
   public async createWebhook(
     @Body() body: CreateNotificationWebhookDto,
@@ -104,7 +116,11 @@ export class NotificationController extends Controller {
   /** Update an existing webhook */
   @Put("webhooks/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
+  @CheckPermission(Permission.NOTIFICATION_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:notification:UpdateWebhook",
+    resourceKind: "single-resource",
+    resource: notificationWebhookResourceResolver,
+  })
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(webhookIdParamsSchema),
@@ -121,7 +137,11 @@ export class NotificationController extends Controller {
   /** Delete a webhook */
   @Delete("webhooks/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
+  @CheckPermission(Permission.NOTIFICATION_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:notification:DeleteWebhook",
+    resourceKind: "single-resource",
+    resource: notificationWebhookResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(webhookIdParamsSchema))
   public async deleteWebhook(@Path() id: string, @Request() request: TypedRequest): Promise<{ success: boolean }> {
     await this.service.deleteWebhook(id, request.user!.userId, request);

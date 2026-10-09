@@ -72,6 +72,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
   resource('notification', 'delivery-log', 2),
+  resource('notification', 'webhook', 2),
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
 // actions remain marked legacy until each business domain declares its targets.
@@ -384,6 +385,24 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: false,
       authorizationStage: 'declared',
       defaultAuthorizationScope: 'self',
+    }),
+  ),
+  ...[
+    { operation: 'ListWebhooks', accessLevel: 'List', resourceTypes: ['notification/webhook'] },
+    { operation: 'CreateWebhook', accessLevel: 'Write', resourceTypes: ['quyan/user'] },
+    { operation: 'UpdateWebhook', accessLevel: 'Write', resourceTypes: ['notification/webhook'] },
+    { operation: 'DeleteWebhook', accessLevel: 'Write', resourceTypes: ['notification/webhook'] },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:notification:' + definition.operation,
+      service: 'notification',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.NOTIFICATION_MANAGE,
     }),
   ),
   {
