@@ -1,3 +1,6 @@
+import { env } from "@/config/env";
+import { aiResourceContext, aiAbortError } from "@/services/infrastructure/ai-resource.service";
+import { setTimeout as delay } from "node:timers/promises";
 import { randomUUID } from "crypto";
 import { LockBackendUnavailableError, TooManyRequestsError } from "@/util/errors";
 import logger from "@/util/logger";
@@ -24,7 +27,13 @@ export class RelayConcurrencyService {
   }
 
   async acquire(params: AcquireConcurrencyParams): Promise<RelayConcurrencyLease> {
-    const { userId, scope, maxConcurrency, queueTimeout, enableQueue, slotTtlSeconds } = params;
+    const { userId, scope, maxConcurrency, enableQueue, slotTtlSeconds } = params;
+    const root = aiResourceContext.getStore();
+    const signal = root?.signal;
+    if (signal?.aborted) throw aiAbortError();
+    const queueTimeout = root
+      ? Math.max(0, Math.min(params.queueTimeout, env.aiResources.queueTimeoutMs - root.waitedMs))
+      : params.queueTimeout;
     const baseKey = RelayConcurrencyService.getConcurrencyKey(userId, scope);
     const ownerToken = `${userId}:${randomUUID()}`;
     const ttlMs = slotTtlSeconds * 1000;
@@ -43,6 +52,10 @@ export class RelayConcurrencyService {
         throw new TooManyRequestsError("Too many concurrent requests to upstream", undefined, undefined, {
           messageKey: "relayProxy.concurrencyLimitExceeded",
         });
+      if (signal?.aborted) {
+        await this.redis.deleteIfValueMatches(slotKey, ownerToken);
+        throw aiAbortError();
+      }
       return { key: baseKey, baseKey, slotKey, scope, source: "redis", ownerToken, ttlMs, ttlSeconds: slotTtlSeconds };
     }
 
@@ -55,75 +68,87 @@ export class RelayConcurrencyService {
     const deadline = Date.now() + queueTimeout;
     const startWaitTime = Date.now();
     let waitLogged = false;
-    while (true) {
-      const slotKey = await this.redis.tryAcquireQueuedSemaphoreSlot(
-        baseKey,
-        maxConcurrency,
-        ownerToken,
-        ttlMs,
-        ticket,
-      );
-      if (slotKey === null) {
-        await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
-        throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
-          messageKey: "relayProxy.concurrencyBackendUnavailable",
-        });
-      }
-      if (slotKey !== "wait" && slotKey !== "stale") {
-        const waitTime = Date.now() - startWaitTime;
-        if (waitTime > 1000)
-          logger.info("Concurrency slot acquired after waiting", {
+    let acquired = false;
+    try {
+      while (true) {
+        if (signal?.aborted) throw aiAbortError();
+        const slotKey = await this.redis.tryAcquireQueuedSemaphoreSlot(
+          baseKey,
+          maxConcurrency,
+          ownerToken,
+          ttlMs,
+          ticket,
+        );
+        if (slotKey === null) {
+          await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
+          throw new LockBackendUnavailableError("Relay concurrency coordination backend unavailable", undefined, {
+            messageKey: "relayProxy.concurrencyBackendUnavailable",
+          });
+        }
+        if (slotKey !== "wait" && slotKey !== "stale") {
+          if (signal?.aborted) {
+            await this.redis.deleteIfValueMatches(slotKey, ownerToken);
+            throw aiAbortError();
+          }
+          const waitTime = Date.now() - startWaitTime;
+          if (waitTime > 1000)
+            logger.info("Concurrency slot acquired after waiting", {
+              userId,
+              scope,
+              waitTimeMs: waitTime,
+              waitTimeSec: `${(waitTime / 1000).toFixed(1)}s`,
+              maxConcurrency,
+            });
+          acquired = true;
+          return {
+            key: baseKey,
+            baseKey,
+            slotKey,
+            scope,
+            source: "redis",
+            ownerToken,
+            ttlMs,
+            ttlSeconds: slotTtlSeconds,
+          };
+        }
+        if (slotKey === "stale") {
+          await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
+          throw new TooManyRequestsError("Request queue timeout waiting for upstream slot", undefined, undefined, {
+            messageKey: "relayProxy.queueTimeout",
+          });
+        }
+        if (!waitLogged) {
+          logger.info("Request queued - waiting for concurrency slot", {
+            userId,
+            scope,
+            maxConcurrency,
+            queueTimeoutMs: queueTimeout,
+            baseKey,
+            ticket,
+          });
+          waitLogged = true;
+        }
+        if (Date.now() >= deadline) {
+          const waitTime = Date.now() - startWaitTime;
+          await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
+          logger.warn("Request queue timeout", {
             userId,
             scope,
             waitTimeMs: waitTime,
             waitTimeSec: `${(waitTime / 1000).toFixed(1)}s`,
             maxConcurrency,
+            baseKey,
+            ticket,
           });
-        return {
-          key: baseKey,
-          baseKey,
-          slotKey,
-          scope,
-          source: "redis",
-          ownerToken,
-          ttlMs,
-          ttlSeconds: slotTtlSeconds,
-        };
+          throw new TooManyRequestsError("Request queue timeout waiting for upstream slot", undefined, undefined, {
+            messageKey: "relayProxy.queueTimeout",
+          });
+        }
+        await delay(100, undefined, { signal });
       }
-      if (slotKey === "stale") {
-        await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
-        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot", undefined, undefined, {
-          messageKey: "relayProxy.queueTimeout",
-        });
-      }
-      if (!waitLogged) {
-        logger.info("Request queued - waiting for concurrency slot", {
-          userId,
-          scope,
-          maxConcurrency,
-          queueTimeoutMs: queueTimeout,
-          baseKey,
-          ticket,
-        });
-        waitLogged = true;
-      }
-      if (Date.now() >= deadline) {
-        const waitTime = Date.now() - startWaitTime;
-        await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
-        logger.warn("Request queue timeout", {
-          userId,
-          scope,
-          waitTimeMs: waitTime,
-          waitTimeSec: `${(waitTime / 1000).toFixed(1)}s`,
-          maxConcurrency,
-          baseKey,
-          ticket,
-        });
-        throw new TooManyRequestsError("Request queue timeout waiting for upstream slot", undefined, undefined, {
-          messageKey: "relayProxy.queueTimeout",
-        });
-      }
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    } finally {
+      if (root) root.waitedMs += Date.now() - startWaitTime;
+      if (!acquired) await this.redis.cancelSemaphoreQueueTicket(baseKey, ticket, ownerToken).catch(() => null);
     }
   }
 

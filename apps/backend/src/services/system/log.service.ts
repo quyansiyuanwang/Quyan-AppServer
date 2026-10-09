@@ -1,3 +1,6 @@
+import { ApiRoutePathPrefix } from "@/build/route-paths";
+import { env } from "@/config/env";
+import { budgetAuditPayload } from "@/util/ai-request-log-payload";
 import { Request, Response } from "express";
 import { APILogRepository, CreateAPILogParams } from "@/store/system/apilog";
 import type { APILogStore } from "@/store/system/apilog.store";
@@ -280,6 +283,15 @@ export class LogService {
       // 跳过配置的状态码（如 401 token 过期）
       if (SKIP_LOGGING_STATUS_CODES.includes(res.statusCode)) return;
 
+      // AI error traffic also reaches the generic API logger. Bound before cloning/serializing it.
+      const isAIPath = this.matchesAnyConfiguredPath(requestPathname, [
+        ApiRoutePathPrefix.RelayProxy,
+        ApiRoutePathPrefix.V1Chat,
+        ApiRoutePathPrefix.V1Support,
+      ]);
+      const requestBody = isAIPath ? budgetAuditPayload(req.body, env.aiRequestLog.requestBodyBytes).value : req.body;
+      if (isAIPath && responseBody !== undefined)
+        responseBody = budgetAuditPayload(responseBody, env.aiRequestLog.responseBodyBytes).value;
       const shouldExcludeResponse = this.matchesAnyConfiguredPath(requestPathname, EXCLUDE_RESPONSE_PATHS);
       const responseSizeBytes = this.getResponseSizeBytes(res, responseBody);
       const responseContentType = res.getHeader?.("content-type");
@@ -341,8 +353,8 @@ export class LogService {
             ? this.truncateRequestParams(this.filterSensitiveData(req.query), MAX_REQUEST_PARAMS_SIZE)
             : null,
         bodyParams:
-          Object.keys(req.body || {}).length > 0
-            ? this.truncateRequestParams(this.filterSensitiveData(req.body), MAX_REQUEST_PARAMS_SIZE)
+          Object.keys(requestBody || {}).length > 0
+            ? this.truncateRequestParams(this.filterSensitiveData(requestBody), MAX_REQUEST_PARAMS_SIZE)
             : null,
         requestHeaders: filteredRequestHeaders,
         ipAddress: this.getClientIP(req),

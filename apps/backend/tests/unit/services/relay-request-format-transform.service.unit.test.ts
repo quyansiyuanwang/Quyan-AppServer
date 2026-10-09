@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { env } from "@/config/env";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   convertRelayRequest,
   RelayFormatTransformError,
@@ -6,6 +7,8 @@ import {
 } from "../../../src/services/relay/relay-request-format-transform.service";
 
 describe("relay request format conversion", () => {
+  const originalStreaming = { ...env.aiResources.streaming };
+  afterEach(() => Object.assign(env.aiResources.streaming, originalStreaming));
   const anthropic = {
     model: "test-model",
     max_tokens: 128,
@@ -63,6 +66,28 @@ describe("relay request format conversion", () => {
     );
 
     expect(converted.input[0]).toMatchObject({ reasoning_content: "I need to call the tool first." });
+  });
+
+  it("applies frame budgets per event, and configured retention increases take effect", async () => {
+    env.aiResources.streaming.frameLimitBytes = 256;
+    env.aiResources.streaming.retainedLimitBytes = 1024;
+    const frame = "data: " + JSON.stringify({ choices: [{ delta: { content: "hello" } }] }) + "\n\n";
+    const convert = async () => {
+      const transform = new RelaySseFormatTransform("openai-chat-completions", "openai-responses");
+      const reading = (async () => {
+        for await (const data of transform) {
+          void data;
+        }
+      })();
+      transform.end(frame.repeat(100) + "data: [DONE]\n\n");
+      await reading;
+    };
+    await expect(convert()).resolves.toBeUndefined();
+    env.aiResources.streaming.retainedLimitBytes = 100;
+    await expect(convert()).rejects.toThrow("retention limit");
+    env.aiResources.streaming.retainedLimitBytes = 1024;
+    env.aiResources.streaming.frameLimitBytes = 32;
+    await expect(convert()).rejects.toThrow("conversion limit");
   });
 
   it("decodes UTF-8 and SSE events split across chunks", async () => {

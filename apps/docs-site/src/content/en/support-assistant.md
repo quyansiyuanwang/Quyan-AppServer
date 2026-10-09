@@ -48,3 +48,9 @@ Upstream API keys can only be written, replaced, or cleared; read APIs never ret
 - `relay-token-management`
 - `ai-relay-quickstart`
 - `my-tickets`
+
+## Service capacity and stream failures
+
+Support AI shares server resource budgets with chat and relay requests. Busy requests may receive HTTP 429; retry later. Output limits or upstream failures can interrupt an answer without a success-completion marker. User-funded relay usage is still settled according to relay usage records; a stream failure does not imply a free request.
+
+Input and conversation context are governed by `CHAT_INPUT_LIMIT_KB`, `CHAT_CONTEXT_MAX_MESSAGES`, and `CHAT_CONTEXT_LIMIT_KB`. Over-budget requests are rejected without silently deleting or shortening history; clear the support conversation before trying again if needed. Agent prompts and tool results also count toward the context budget.

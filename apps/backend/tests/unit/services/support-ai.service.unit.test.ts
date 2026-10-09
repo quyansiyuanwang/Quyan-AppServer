@@ -25,9 +25,11 @@ const SupportAiServiceCtor = SupportAiService as unknown as new (...args: any[])
 
 const supportKnowledgeConfig = env.integrations.supportKnowledge as { url: string; cacheTtlSeconds: number };
 const originalSupportKnowledgeConfig = { ...supportKnowledgeConfig };
+const originalChatLimits = { ...env.chat.resourceLimits };
 
 afterEach(() => {
   Object.assign(supportKnowledgeConfig, originalSupportKnowledgeConfig);
+  Object.assign(env.chat.resourceLimits, originalChatLimits);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -47,10 +49,69 @@ const createService = () => {
     usageRepository,
     relayTokenService,
   );
-  return { service, configService, aiProvider, redisService, relayTokenService };
+  return { service, configService, aiProvider, redisService, relayTokenService, usageRepository };
 };
 
 describe("SupportAiService conversation retention", () => {
+  it("rejects configured input/history limits before any conversation write, without trimming", async () => {
+    const { service, redisService, aiProvider } = createService();
+    env.chat.resourceLimits.inputLimitBytes = 4;
+    await expect(service.assertMessageBudget("user-1", { content: "hello" })).rejects.toMatchObject({
+      statusCode: 413,
+    });
+    env.chat.resourceLimits.inputLimitBytes = 64 * 1024;
+    env.chat.resourceLimits.contextMaxMessages = 2;
+    redisService.get.mockResolvedValue(
+      JSON.stringify({
+        messages: [
+          { role: "user", content: "first" },
+          { role: "assistant", content: "second" },
+        ],
+      }),
+    );
+    await expect(service.assertMessageBudget("user-1", { content: "third" })).rejects.toMatchObject({
+      statusCode: 413,
+    });
+    expect(redisService.set).not.toHaveBeenCalled();
+    expect(aiProvider.streamChat).not.toHaveBeenCalled();
+    env.chat.resourceLimits.contextMaxMessages = 20;
+    await expect(service.assertMessageBudget("user-1", { content: "third" })).resolves.toBeUndefined();
+    expect((await service.getConversation("user-1")).messages).toHaveLength(2);
+  });
+
+  it("settles partial provider output once and never marks a failed answer complete", async () => {
+    const { service, redisService, aiProvider, usageRepository } = createService();
+    vi.spyOn(service, "getConfig").mockResolvedValue(config);
+    vi.spyOn(service as any, "decrypt").mockReturnValue("upstream-key");
+    vi.spyOn(service as any, "values").mockResolvedValue({});
+    redisService.get.mockResolvedValue(null);
+    aiProvider.streamChat
+      .mockReturnValueOnce(
+        (async function* () {
+          yield { done: false, content: '{"tool":"final"}' };
+          yield { done: true, inputTokens: 10, outputTokens: 3 };
+        })(),
+      )
+      .mockReturnValueOnce(
+        (async function* () {
+          yield { done: false, content: "partial answer" };
+          throw new Error("fixture upstream failure");
+        })(),
+      );
+    const events: unknown[] = [];
+    await expect(
+      (async () => {
+        for await (const event of service.stream("user-1", { content: "help" })) events.push(event);
+      })(),
+    ).rejects.toThrow("fixture upstream failure");
+    expect(events).toContainEqual({ type: "delta", content: "partial answer" });
+    expect(events).not.toContainEqual({ type: "complete", done: true });
+    expect(usageRepository.create).toHaveBeenCalledOnce();
+    expect(usageRepository.create).toHaveBeenCalledWith(expect.objectContaining({ outputTokens: 7 }));
+    const saved = JSON.parse(redisService.set.mock.calls.at(-1)?.[1]);
+    expect(saved.messages).toEqual([{ role: "user", content: "help" }]);
+  });
+
   it("uses a hashed manifest and only downloads knowledge chunks when its version changes", async () => {
     const { service } = createService();
     supportKnowledgeConfig.url = "https://docs.example.test/support-knowledge.json";
@@ -410,7 +471,7 @@ describe("SupportAiService conversation retention", () => {
       "upstream-key",
       config.upstreamUrl,
       config.requestFormat,
-      undefined,
+      expect.any(AbortSignal),
       { maxOutputTokens: config.maxOutputTokens },
     );
     expect(JSON.stringify(redisService.set.mock.calls)).not.toContain("Untrusted browser history");

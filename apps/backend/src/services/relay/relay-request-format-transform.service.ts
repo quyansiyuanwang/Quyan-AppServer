@@ -1,8 +1,8 @@
+import { env } from "@/config/env";
 import type { RelayConvertibleRequestFormat, RelayRequestFormatTransform } from "@quyan/shared";
 import { Transform } from "stream";
 
 type JsonObject = Record<string, any>;
-const SSE_CONVERSION_LIMITS = { eventChars: 1024 * 1024, retainedChars: 128 * 1024, blocks: 128 } as const;
 
 export class RelayFormatTransformError extends Error {
   constructor(message: string) {
@@ -447,11 +447,15 @@ export class RelaySseFormatTransform extends Transform {
   _transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null) => void) {
     try {
       this.pending += this.decoder.decode(chunk, { stream: true });
-      if (this.pending.length > SSE_CONVERSION_LIMITS.eventChars)
-        throw new RelayFormatTransformError("Upstream SSE event exceeds conversion limit");
       const events = this.pending.split(/\r?\n\r?\n/);
       this.pending = events.pop() || "";
-      for (const event of events) this.push(this.convertEvent(event));
+      for (const event of events) {
+        if (Buffer.byteLength(event) > env.aiResources.streaming.frameLimitBytes)
+          throw new RelayFormatTransformError("Upstream SSE event exceeds conversion limit");
+        this.push(this.convertEvent(event));
+      }
+      if (Buffer.byteLength(this.pending) > env.aiResources.streaming.frameLimitBytes)
+        throw new RelayFormatTransformError("Upstream SSE event exceeds conversion limit");
       callback();
     } catch (error) {
       callback(error instanceof Error ? error : new Error(String(error)));
@@ -460,6 +464,9 @@ export class RelaySseFormatTransform extends Transform {
 
   _flush(callback: (error?: Error | null) => void) {
     try {
+      this.pending += this.decoder.decode();
+      if (Buffer.byteLength(this.pending) > env.aiResources.streaming.frameLimitBytes)
+        throw new RelayFormatTransformError("Upstream SSE event exceeds conversion limit");
       if (this.pending) this.push(this.convertEvent(this.pending));
       callback();
     } catch (error) {
@@ -534,8 +541,8 @@ export class RelaySseFormatTransform extends Transform {
     return this.chat({ role: "assistant", content: "" });
   }
   private retain(fragment: string): void {
-    this.bufferedChars += fragment.length;
-    if (this.bufferedChars > SSE_CONVERSION_LIMITS.retainedChars)
+    this.bufferedChars += Buffer.byteLength(fragment);
+    if (this.bufferedChars > env.aiResources.streaming.retainedLimitBytes)
       throw new RelayFormatTransformError("Converted stream output exceeds retention limit");
   }
   private textDelta(fragment: string): string {
@@ -581,7 +588,7 @@ export class RelaySseFormatTransform extends Transform {
     let output = "";
     if (!tool) {
       if (!id || !name) throw new RelayFormatTransformError("Stream tool metadata is missing");
-      if (this.tools.size >= SSE_CONVERSION_LIMITS.blocks)
+      if (this.tools.size >= env.aiResources.streaming.maxBlocks)
         throw new RelayFormatTransformError("Stream tool count exceeds conversion limit");
       this.retain(id + name);
       tool = { index: this.nextIndex++, id, name, args: "" };

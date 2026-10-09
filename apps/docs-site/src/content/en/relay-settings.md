@@ -360,3 +360,7 @@ Administrators can review channel status, add multiple providers in the channel 
 - `relay-token-management`
 - `upstream-status`
 - `server-configuration`
+
+## Deployment protection and audit content
+
+Environment configuration can also limit total AI concurrency, queueing, RSS, uploads, responses and audit capacity. These limits are independent of per-user and image limits in the management page. Audit bodies may be sanitized and truncated. Write backlogs first omit bodies; a still-full queue may drop audit records with operational warnings. Audit logs are not billing records. Restart the backend after changing deployment configuration.

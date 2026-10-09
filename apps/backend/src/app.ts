@@ -1,3 +1,4 @@
+import { aiResourceGuard } from "./middleware/ai-resource-guard";
 import { ChinaHolidayCalendarService } from "./services/relay/china-holiday-calendar.service";
 import express from "express";
 import cors from "cors";
@@ -94,6 +95,8 @@ export function createApp() {
     next();
   });
 
+  app.use(aiResourceGuard);
+
   // ── 实际字节计数守卫（两层防护）────────────────────────────────────────
   // 第一层：检查 Content-Length 头（快速拒绝诚实客户端的超大请求）
   // 第二层：监听 data 事件计算实际到达字节，防止伪造 Content-Length 的攻击
@@ -149,8 +152,11 @@ export function createApp() {
   });
 
   // 内存监控：使用独立定时器，与请求周期解耦，避免在每次请求上调用 process.memoryUsage()
-  // 2v2g 服务器实际可用约 500MB，堆内存超过 1.2GB 时告警
-  startMemoryMonitor({ intervalMs: 60000, warningThresholdMb: 1200 });
+  // RSS includes external buffers; use the same configurable high watermark as AI admission.
+  startMemoryMonitor({
+    intervalMs: 60000,
+    warningThresholdMb: env.aiResources.memory.highWatermarkBytes / 1024 / 1024,
+  });
 
   app.use(localeMiddleware);
 

@@ -33,7 +33,7 @@ export function startMemoryMonitor(options: {
       heapUsagePercent: `${heapUsagePercent.toFixed(1)}%`,
     };
 
-    if (heapUsedMb > options.warningThresholdMb) logger.warn("High memory usage detected", logData);
+    if (rssMb > options.warningThresholdMb) logger.warn("High memory usage detected", logData);
     else logger.info("Memory usage", logData);
   }, options.intervalMs);
 

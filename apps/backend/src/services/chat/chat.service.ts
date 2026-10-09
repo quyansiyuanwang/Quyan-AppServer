@@ -1,3 +1,7 @@
+import { env } from "@/config/env";
+import { CHAT_MESSAGE_STORAGE_LIMIT_BYTES } from "@/constant/chat";
+import { aiContentTooLarge } from "@/util/streaming/bounded-text";
+import { withAIGenerator } from "@/services/infrastructure/ai-resource.service";
 import { ConversationRepository } from "@/store/chat/conversation.repository";
 import { MessageRepository } from "@/store/chat/message.repository";
 import type { ConversationStore } from "@/store/chat/conversation.store";
@@ -287,6 +291,28 @@ export class ChatService {
     await this.messageRepo.deleteFrom(messageId);
   }
 
+  public async assertContextBudget(
+    conversationId: string,
+    userId: string,
+    content: string,
+    replaceMessageId?: string,
+  ): Promise<void> {
+    await this.getConversation(conversationId, userId);
+    const limits = env.chat.resourceLimits;
+    const bytes = Buffer.byteLength(content);
+    if (bytes > limits.inputLimitBytes || bytes > CHAT_MESSAGE_STORAGE_LIMIT_BYTES) throw aiContentTooLarge();
+    let before: PrismaMessage | undefined;
+    if (replaceMessageId) {
+      const target = await this.messageRepo.findById(replaceMessageId);
+      if (!target || target.conversationId !== conversationId || target.role !== "user")
+        throw new BadRequestError("Invalid replacement target", undefined, { messageKey: "chat.replaceTargetInvalid" });
+      before = target;
+    }
+    const size = await this.messageRepo.getContextSize(conversationId, before);
+    if (size.count + 1 > limits.contextMaxMessages || size.bytes + bytes > limits.contextLimitBytes)
+      throw aiContentTooLarge();
+  }
+
   async *sendMessage(
     conversationId: string,
     userId: string,
@@ -296,6 +322,31 @@ export class ChatService {
     requestMeta?: ChatRequestMeta,
     replaceMessageId?: string,
   ): AsyncGenerator<Extract<ChatStreamEvent, { type: "delta" | "complete" }>> {
+    yield* withAIGenerator(
+      (signal) =>
+        this.sendMessageInternal(
+          conversationId,
+          userId,
+          content,
+          model,
+          relayTokenId,
+          { ...requestMeta, signal },
+          replaceMessageId,
+        ),
+      requestMeta?.signal,
+    );
+  }
+
+  private async *sendMessageInternal(
+    conversationId: string,
+    userId: string,
+    content: string,
+    model: string,
+    relayTokenId?: string,
+    requestMeta?: ChatRequestMeta,
+    replaceMessageId?: string,
+  ): AsyncGenerator<Extract<ChatStreamEvent, { type: "delta" | "complete" }>> {
+    await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
     const conversation = await this.getConversation(conversationId, userId);
 
     const tokenId = relayTokenId || conversation.relayTokenId;
@@ -354,6 +405,7 @@ export class ChatService {
         messageKey: "relayProxy.tokenModelNotAllowed",
       });
 
+    await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
     if (replaceMessageId) {
       const message = await this.messageRepo.findById(replaceMessageId);
       if (!message || message.conversationId !== conversationId || message.role !== "user")
@@ -363,10 +415,28 @@ export class ChatService {
       await this.messageRepo.replaceFrom(replaceMessageId, content);
     } else await this.messageRepo.create({ conversationId, role: "user", content });
 
-    const history = await this.messageRepo.findByConversationId(conversationId);
+    const history = await this.messageRepo.findContext(conversationId, env.chat.resourceLimits.contextMaxMessages);
+    if (
+      history.length > env.chat.resourceLimits.contextMaxMessages ||
+      history.reduce((sum, item) => sum + Buffer.byteLength(item.content), 0) >
+        env.chat.resourceLimits.contextLimitBytes
+    )
+      throw aiContentTooLarge();
     const messages = history.map((m) => ({ role: m.role, content: m.content }));
+    const historyBytes = history.reduce((bytes, message) => bytes + Buffer.byteLength(message.content), 0);
+    const assertAnswerBudget = (bytes: number) => {
+      const limits = env.chat.resourceLimits;
+      if (
+        bytes > limits.outputLimitBytes ||
+        bytes > CHAT_MESSAGE_STORAGE_LIMIT_BYTES ||
+        history.length + 1 > limits.contextMaxMessages ||
+        historyBytes + bytes > limits.contextLimitBytes
+      )
+        throw aiContentTooLarge();
+    };
 
     let assistantContent = "";
+    let assistantBytes = 0;
     let inputTokens = 0;
     let outputTokens = 0;
     let cacheCreationTokens = 0;
@@ -451,8 +521,11 @@ export class ChatService {
               if (responseSafety.action === "unreachable") throw new ContentSafetyBlockedError();
               chunk.content = responseSafety.text;
             }
+            const nextBytes = assistantBytes + Buffer.byteLength(chunk.content);
+            assertAnswerBudget(nextBytes);
+            assistantBytes = nextBytes;
             assistantContent += chunk.content;
-            if (auditResponse) bufferedAuditedResponse += chunk.content;
+            if (auditResponse) bufferedAuditedResponse = assistantContent;
             else yield { type: "delta", content: chunk.content, done: false };
           }
           if (chunk.done) {
@@ -494,7 +567,9 @@ export class ChatService {
               channelId: candidate.channel.id,
             });
             if (audited.action === "unreachable") throw new ContentSafetyBlockedError();
-            assistantContent = assistantContent.slice(0, -bufferedAuditedResponse.length) + audited.text;
+            assertAnswerBudget(Buffer.byteLength(audited.text));
+            assistantContent = audited.text;
+            assistantBytes = Buffer.byteLength(assistantContent);
             bufferedAuditedResponse = audited.text;
           }
           yield { type: "delta", content: bufferedAuditedResponse, done: false };
@@ -574,6 +649,10 @@ export class ChatService {
     if (totalOutputTime <= 0) totalOutputTime = Math.max(0, Date.now() - streamStartAt);
     if (timeToFirstByte <= 0) timeToFirstByte = Math.max(0, (firstChunkAt || Date.now()) - streamStartAt);
 
+    if ((failed || stopped) && assistantContent) {
+      if (!inputTokens) inputTokens = Math.ceil(messages.reduce((sum, message) => sum + message.content.length, 0) / 4);
+      if (!outputTokens) outputTokens = Math.ceil(assistantContent.length / 4);
+    }
     const totalTokens = inputTokens + outputTokens;
     const relayConfig = await this.relayConfigRepository.findLatestActive();
 

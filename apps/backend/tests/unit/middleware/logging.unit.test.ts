@@ -97,7 +97,8 @@ describe("loggingMiddleware response capture", () => {
       _closedEarly: false,
     });
     expect(responseBody._size).toBeGreaterThan(2 * 1024 * 1024);
-    expect(responseBody._preview.length).toBeGreaterThan(1024 * 1024);
+    expect(responseBody).not.toHaveProperty("_preview");
+    expect(responseBody._reason).toBe("incomplete-content");
   });
 
   it("persists a dedicated AI audit log when relay context is present", async () => {

@@ -97,6 +97,11 @@ export function compositeStreamResponse(response: any, rules: CompositeTransform
       else response.on(event, listener);
       return wrapped;
     },
+    off: (event: string, listener: (...args: any[]) => void) => {
+      if (event === "drain" && input) input.off(event, listener);
+      else response.off(event, listener);
+      return wrapped;
+    },
     once: (event: string, listener: (...args: any[]) => void) => {
       if (event === "drain" && input) input.once(event, listener);
       else response.once(event, listener);

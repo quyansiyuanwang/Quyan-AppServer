@@ -422,3 +422,32 @@ pm2 startOrReload ecosystem.config.cjs --env production --update-env
 服务器不执行 `pnpm install`，不执行 `prisma generate`，也不执行 bcrypt/sharp 的编译。`.env` 和 `logs` 保留在部署根目录，不随运行包覆盖。
 
 当前服务器环境为 x86_64 glibc Linux + OpenSSL 3.x，适用于 `debian-openssl-3.0.x` Prisma Query Engine。Alpine/musl、ARM 或旧 OpenSSL 环境必须先调整 CI 构建目标。
+
+## 2 核 2 GB：AI 资源预算
+
+后端、MySQL 和 Redis 同机时，先使用 `apps/backend/.env.example` 的 AI 资源段：
+执行 3 个根请求、等待 4 个、等待 10 秒；RSS 512 MiB 暂停新增 AI、448 MiB 恢复；
+文本/图片缓冲响应各 16 MiB，图片并发 1。建议值不是未经压测的容量承诺。
+
+配置启动时加载、严格校验并冻结；修改后重启后端。现有生产 `.env` 不会自动覆盖，
+尤其应核对旧的 `RELAY_MAX_UPSTREAM_RESPONSE_BODY_MB`、图片排队时间和上传容量。
+无需数据库迁移。所有 MB/KB 按 1024 换算。并发及队列额度是**每后端进程**的内存保护，
+不要在保持这组预算的同时盲目增加 PM2 实例；Redis 仍单独协调用户和图片并发。
+
+- `AI_MAX_ACTIVE_REQUESTS` / `AI_MAX_QUEUED_REQUESTS` / `AI_QUEUE_TIMEOUT_MS` 控制准入；
+  等待人数设为 0 表示不排队。超载、RSS 高水位或排队超时返回 429，客户端应退避重试。
+- `AI_MEMORY_SAMPLE_INTERVAL_MS` 与两个 RSS 阈值控制共享采样和滞回；恢复阈值必须低于高水位。
+  RSS 包括原生 Buffer 等堆外内存，不要只根据 JS heap 调参。
+- `AI_SSE_TEXT_FRAME_LIMIT_KB` 限制单个文本帧，`AI_SSE_CONVERSION_*` 限制协议转换保留量；
+  `AI_TEXT_OUTPUT_LIMIT_KB` 限制通用 Provider 输出，图片帧从图片响应容量派生。
+- `CHAT_INPUT_LIMIT_KB` / `CHAT_OUTPUT_LIMIT_KB` / `CHAT_CONTEXT_MAX_MESSAGES` / `CHAT_CONTEXT_LIMIT_KB`
+  控制聊天输入、输出及上下文。建议输出 60 KiB；当前单条数据库正文为 TEXT，最大 65535 字节。
+  输入超限在开始 SSE 前返回 413；不静默删除历史，流中超限不发送成功完成标记。
+- `AI_REQUEST_LOG_*` 控制正文捕获和日志写入并发、待写记录数、待写总字节；数据库慢时先省略正文，
+  仍满则丢弃并告警。不能从审计正文缺失推断请求未执行或未结算。
+- `AI_HTTP_MAX_*` 控制共享连接池；空闲数不得大于单上游数，单上游数不得大于总数。
+  `RELAY_CHANNEL_PROBE_MAX_CONCURRENCY=1` 使后台探针在有空闲总额度时运行。
+
+上线先观察正常负载 RSS、429 比例、审计队列丢弃告警和模型响应大小。稳定后每次只调整一类预算，
+用突发请求、慢客户端、慢日志数据库重复测试；结束后确认额度与队列归零。
+若正常启动 RSS 已超过阈值，先调查基础占用，再按整机剩余内存调整高/低水位，不能直接关闭保护。

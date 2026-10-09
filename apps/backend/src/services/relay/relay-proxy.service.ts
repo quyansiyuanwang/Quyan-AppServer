@@ -1,3 +1,4 @@
+import { withAIWork, aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import { filterBlockedAutomaticPoolCandidates } from "./relay-candidate-exclusions";
 import { relayConvertedRequestPath } from "./utils/relay-request-format.util";
 import { compositeSafetyService } from "./relay-composite-safety.service";
@@ -35,8 +36,7 @@ import type { RelayTokenWithRelations } from "@/store/relay/relay-token.store";
 const httpsAgent = new https.Agent({
   keepAlive: true,
   keepAliveMsecs: 30000,
-  maxSockets: 10, // Reduced from 100 - prevents too many concurrent connections
-  maxFreeSockets: 2, // Reduced from 10 - limits idle connections
+  ...env.aiResources.http,
   timeout: 60000,
   scheduling: "lifo", // Use LIFO to reuse recent connections
 });
@@ -44,8 +44,7 @@ const httpsAgent = new https.Agent({
 const httpAgent = new http.Agent({
   keepAlive: true,
   keepAliveMsecs: 30000,
-  maxSockets: 10, // Reduced from 100
-  maxFreeSockets: 2, // Reduced from 10
+  ...env.aiResources.http,
   timeout: 60000,
   scheduling: "lifo",
 });
@@ -56,7 +55,7 @@ const directUpstreamAgents: UpstreamAgents = { httpAgent, httpsAgent };
 const createUpstreamAgents = (useProxy: boolean, proxyConfig: { enabled: boolean; url: string }): UpstreamAgents => {
   if (!useProxy || !proxyConfig.enabled || !proxyConfig.url) return directUpstreamAgents;
   try {
-    const proxyAgent = new ProxyAgent({ getProxyForUrl: () => proxyConfig.url });
+    const proxyAgent = new ProxyAgent({ ...env.aiResources.http, getProxyForUrl: () => proxyConfig.url });
     return { httpAgent: proxyAgent as unknown as http.Agent, httpsAgent: proxyAgent as unknown as https.Agent };
   } catch {
     return directUpstreamAgents;
@@ -304,6 +303,10 @@ export class RelayProxyService {
       contentSafetyService: compositeSafetyService(this.contentSafetyService, getCompositeContext(req)),
       relayProxyRepository: this.relayProxyRepository,
       systemPreflightBufferLimitBytes: relayConfig.preflightBufferLimitBytes,
+      streamFrameLimitBytes:
+        req && this.isImageRequest(req, resolveRelayRequestFormat(req))
+          ? env.relay.resourceGuard.imageResponseBodyLimitMb * 1024 * 1024
+          : env.aiResources.streaming.frameLimitBytes,
       finalizeStreamUsage: async (token, data) => {
         try {
           return await this.finalizeStreamUsage(token, data);
@@ -2499,7 +2502,7 @@ export class RelayProxyService {
                 ? Buffer.from(stream)
                 : Buffer.from(JSON.stringify(stream) ?? "");
       const truncated = serializedBody.length > maxBytes;
-      const buffer = truncated ? serializedBody.subarray(0, maxBytes) : serializedBody;
+      const buffer = truncated ? Buffer.from(serializedBody.subarray(0, maxBytes)) : serializedBody;
 
       if (serializedBody.length > 0) onFirstChunk?.();
 
@@ -2518,15 +2521,17 @@ export class RelayProxyService {
 
       if (bufferedBytes >= maxBytes) {
         truncated = true;
-        continue;
+        (stream as Readable).destroy?.();
+        break;
       }
 
       const remaining = maxBytes - bufferedBytes;
       if (bufferChunk.length > remaining) {
-        chunks.push(bufferChunk.subarray(0, remaining));
+        chunks.push(Buffer.from(bufferChunk.subarray(0, remaining)));
         bufferedBytes += remaining;
         truncated = true;
-        continue;
+        (stream as Readable).destroy?.();
+        break;
       }
 
       chunks.push(bufferChunk);
@@ -2726,36 +2731,38 @@ export class RelayProxyService {
     req: any,
     res?: any,
   ): Promise<{ status: number; headers: any; data: any }> {
-    const response = req.res ?? res;
-    setAIRequestLogContext(response, {
-      executionPending: true,
-      outcome: "pending",
-      failureStage: "request",
-      isStreaming: req.body?.stream === true,
-      userId: relayToken.userId,
-      username: relayToken.user?.username ?? null,
-      relayTokenId: relayToken.id,
-      relayTokenName: relayToken.name ?? null,
-      authenticationState: "authenticated",
-    });
-    try {
-      const result =
-        relayToken.routingMode === "composite"
-          ? await this.forwardCompositeRequest(relayToken, req, res)
-          : await this.forwardRequestInternal(relayToken, req, res);
-      const audit = getAIRequestLogContext(response);
+    return withAIWork(async () => {
+      const response = req.res ?? res;
       setAIRequestLogContext(response, {
-        executionPending: false,
-        outcome: result.status >= 400 ? "failed" : "success",
-        failureStage: result.status >= 400 ? (audit?.failureStage ?? "upstream") : null,
-        errorSummary: result.status >= 400 ? (audit?.errorSummary ?? "Upstream request failed") : null,
+        executionPending: true,
+        outcome: "pending",
+        failureStage: "request",
+        isStreaming: req.body?.stream === true,
+        userId: relayToken.userId,
+        username: relayToken.user?.username ?? null,
+        relayTokenId: relayToken.id,
+        relayTokenName: relayToken.name ?? null,
+        authenticationState: "authenticated",
       });
-      return result;
-    } catch (error) {
-      recordAIRequestFailure(response, error);
-      setAIRequestLogContext(response, { executionPending: false });
-      throw error;
-    }
+      try {
+        const result =
+          relayToken.routingMode === "composite"
+            ? await this.forwardCompositeRequest(relayToken, req, res)
+            : await this.forwardRequestInternal(relayToken, req, res);
+        const audit = getAIRequestLogContext(response);
+        setAIRequestLogContext(response, {
+          executionPending: false,
+          outcome: result.status >= 400 ? "failed" : "success",
+          failureStage: result.status >= 400 ? (audit?.failureStage ?? "upstream") : null,
+          errorSummary: result.status >= 400 ? (audit?.errorSummary ?? "Upstream request failed") : null,
+        });
+        return result;
+      } catch (error) {
+        recordAIRequestFailure(response, error);
+        setAIRequestLogContext(response, { executionPending: false });
+        throw error;
+      }
+    });
   }
 
   private async compositionAllows(token: RelayTokenAvailabilityInput, ...names: string[]): Promise<boolean> {
@@ -3119,7 +3126,8 @@ export class RelayProxyService {
           const rules = getCompositeTransforms(input);
           const outgoing = compositeStreamResponse(response, rules);
           const request = cloneCompositeRequest(input, {
-            body: Buffer.isBuffer(input.body) ? Buffer.from(input.body) : structuredClone(input.body),
+            // Raw ingress buffers are immutable; only mutable structured branch bodies need cloning.
+            body: Buffer.isBuffer(input.body) ? input.body : structuredClone(input.body),
             res: outgoing,
           });
           const attemptContext = forkCompositeContext(execution);
@@ -3458,6 +3466,7 @@ export class RelayProxyService {
           let timeMultiplier = 1;
           let upstreamResponseSucceeded = false;
           let upstreamRequestStarted = false;
+          let requestAgents = directUpstreamAgents;
           beginAIRequestAttempt(req.res ?? res);
 
           try {
@@ -3560,7 +3569,7 @@ export class RelayProxyService {
               relayProxyConfig = await this.configService.getRelayProxyConfig();
               relayProxyConfigLoaded = true;
             }
-            const requestAgents = createUpstreamAgents(channel.useProxy === true, relayProxyConfig);
+            requestAgents = createUpstreamAgents(channel.useProxy === true, relayProxyConfig);
             const upstreamUrl = upstreamConfig.upstreamUrl;
             let upstreamApiKey = upstreamConfig.upstreamApiKey;
             channelMultiplier =
@@ -3952,7 +3961,7 @@ export class RelayProxyService {
             // maxBodyLength: multipart 用 multipartBodyLimitMb，JSON 用 5MB（与 express.json limit 一致）
             const maxBodyLimitBytes = Buffer.isBuffer(convertedBody)
               ? resourceGuard.multipartBodyLimitMb * 1024 * 1024
-              : 5 * 1024 * 1024;
+              : env.runtime.requestSizeLimits.jsonBodyLimitMb * 1024 * 1024;
             upstreamRequestStarted = true;
             setAIRequestLogContext(req.res ?? res, { failureStage: "upstream" });
             let firstPayloadTime: number | null = null;
@@ -3966,7 +3975,7 @@ export class RelayProxyService {
               () => (
                 consumeCompositeAttempt(req),
                 axios({
-                  signal: getCompositeContext(req)?.signal,
+                  signal: getCompositeContext(req)?.signal ?? aiResourceContext.getStore()?.signal,
                   method: req.method,
                   url: fullUpstreamUrl,
                   headers,
@@ -4578,6 +4587,11 @@ export class RelayProxyService {
             }
 
             throw error;
+          } finally {
+            if (requestAgents !== directUpstreamAgents) {
+              requestAgents.httpAgent.destroy();
+              if (requestAgents.httpsAgent !== requestAgents.httpAgent) requestAgents.httpsAgent.destroy();
+            }
           }
         } // end inner channel retry loop
 

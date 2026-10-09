@@ -41,3 +41,7 @@ This section explains how to use conversations on desktop and mobile.
 
 - On small screens, the list moves into a drawer.
 - The top bar provides quick create and navigation actions.
+
+## Long conversations and capacity limits
+
+Chat checks input size, context message count, total context bytes and answer capacity. Oversized content is rejected explicitly; old context is not silently discarded. An oversized input does not start a response stream; an oversized answer stops without a success-completion marker. Partial answers may still be saved as failed or stopped and settled for incurred usage. Limits depend on server configuration and storage capacity. Retry later when the service is busy.

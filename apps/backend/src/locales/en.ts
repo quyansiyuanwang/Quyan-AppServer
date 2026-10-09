@@ -759,6 +759,8 @@ const en = {
     priorityUnique: "priority must be unique",
   },
   relayProxy: {
+    aiCapacityExceeded: "AI server capacity is temporarily exhausted; please retry later",
+    aiContentTooLarge: "AI content exceeds the configured resource limit",
     multipartModelRewriteFailed: "Unable to safely rewrite multipart model field",
     concurrencyBackendUnavailable: "Relay concurrency coordination backend unavailable",
     queueTimeout: "Request queue timeout waiting for upstream slot",

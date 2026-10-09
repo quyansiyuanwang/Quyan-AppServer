@@ -48,3 +48,9 @@ AI 只能提供指引，不能替你修改账户、权限、计费或基础设�
 - `relay-token-management`
 - `ai-relay-quickstart`
 - `my-tickets`
+
+## 服务容量与流式失败
+
+客服 AI 与聊天、中转共享服务器资源预算；繁忙时可能返回 429，请稍后重试。输出容量或上游异常可能中断回答，此时不会显示成功完成标记。用户自付中转仍按实际中转用量记录结算，不能把流式失败视为免费请求。
+
+输入与会话上下文分别受 `CHAT_INPUT_LIMIT_KB`、`CHAT_CONTEXT_MAX_MESSAGES` 和 `CHAT_CONTEXT_LIMIT_KB` 控制。超过预算会明确拒绝，不会自动删除或截短旧消息；可主动清空客服会话后再试。Agent 的提示词与工具结果也计入上下文预算。

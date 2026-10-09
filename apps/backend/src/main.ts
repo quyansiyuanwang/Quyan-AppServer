@@ -1,3 +1,4 @@
+import { AIResourceService } from "./services/infrastructure/ai-resource.service";
 import { ChinaHolidayCalendarService } from "./services/relay/china-holiday-calendar.service";
 import { createApp, setupService } from "./app";
 import { disconnectDatabase } from "./config/database";
@@ -84,6 +85,7 @@ const gracefulShutdown = async (signal: string) => {
     await remoteTerminalGatewayBootstrap.close();
     agentRuntimeGateway.close();
     await closeHttpServer();
+    AIResourceService.getInstance().stop();
     await disposeRequestLogService();
     await RedisService.getInstance().close();
     await disconnectDatabase();

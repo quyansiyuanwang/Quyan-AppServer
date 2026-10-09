@@ -98,13 +98,14 @@ export const readRelayStreamBodyLimited = async (
     onChunk?.(chunk);
     if (total >= maxBytes) {
       truncated = true;
-      continue;
+      break;
     }
     const remaining = maxBytes - total;
     if (chunk.length > remaining) {
-      chunks.push(chunk.subarray(0, remaining));
+      chunks.push(Buffer.from(chunk.subarray(0, remaining)));
       total += remaining;
       truncated = true;
+      break;
     } else {
       chunks.push(chunk);
       total += chunk.length;

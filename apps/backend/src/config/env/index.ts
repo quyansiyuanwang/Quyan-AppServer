@@ -1,3 +1,4 @@
+import { buildAiResourcesConfig, buildChatResourceConfig, buildAiRequestLogConfig } from "./ai-resources";
 import { buildAuthConfig } from "./auth";
 import { deepFreeze } from "./common";
 import { buildDatabaseConfig } from "./database";
@@ -20,6 +21,9 @@ assertEnvironment(envSnapshot);
 const runtime = buildRuntimeConfig(envSnapshot);
 const resolvedEnvironment = {
   runtime,
+  aiResources: buildAiResourcesConfig(envSnapshot),
+  chat: buildChatResourceConfig(envSnapshot),
+  aiRequestLog: buildAiRequestLogConfig(envSnapshot),
   database: buildDatabaseConfig(envSnapshot),
   auth: buildAuthConfig(envSnapshot, runtime),
   security: buildSecurityConfig(envSnapshot),

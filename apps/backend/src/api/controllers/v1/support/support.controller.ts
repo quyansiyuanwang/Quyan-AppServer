@@ -96,6 +96,7 @@ export class SupportController extends Controller {
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async messages(@Body() body: SendSupportMessageDto, @Request() request: TypedRequest): Promise<void> {
+    await this.supportService.assertMessageBudget(request.user!.userId, body);
     const response = request.res!;
     const abortController = new AbortController();
     const abort = () => abortController.abort();
@@ -105,8 +106,8 @@ export class SupportController extends Controller {
     response.once("close", abort);
     try {
       for await (const event of this.supportService.stream(request.user!.userId, body, request, abortController.signal))
-        if (!response.writableEnded && !response.destroyed) this.sseService.sendChunk(response, event);
-      if (!response.writableEnded && !response.destroyed) this.sseService.sendDone(response);
+        if (!response.writableEnded && !response.destroyed) await this.sseService.sendChunk(response, event);
+      if (!response.writableEnded && !response.destroyed) await this.sseService.sendDone(response);
     } finally {
       request.off("aborted", abort);
       response.off("close", abort);

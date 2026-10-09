@@ -41,7 +41,7 @@ describe("memory monitor runtime", () => {
 
     const { startMemoryMonitor } = await import("../../../src/middleware/memory-monitor");
 
-    const result = startMemoryMonitor({ intervalMs: 5000, warningThresholdMb: 80 });
+    const result = startMemoryMonitor({ intervalMs: 5000, warningThresholdMb: 160 });
 
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
     expect(timer.unref).toHaveBeenCalledTimes(1);

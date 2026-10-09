@@ -1,3 +1,5 @@
+import { env } from "@/config/env";
+import { aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-executor.service";
 import axios from "axios";
 import http from "http";
@@ -126,7 +128,7 @@ export class RelayImageForwarderService {
 
     consumeCompositeAttempt(req);
     const response = await axios({
-      signal: getCompositeContext(req)?.signal,
+      signal: getCompositeContext(req)?.signal ?? aiResourceContext.getStore()?.signal,
       method: req.method,
       url: upstreamUrl,
       headers: cleanHeaders,
@@ -149,9 +151,17 @@ export class RelayImageForwarderService {
     const responseStream = response.data as Readable;
 
     if (isErrorResponse) {
-      const { buffer, truncated } = await host.readStreamBodyLimited(responseStream, 100 * 1024, () => {
-        if (firstByteTime === null) firstByteTime = Date.now();
-      });
+      const { buffer, truncated } = await host.readStreamBodyLimited(
+        responseStream,
+        env.aiRequestLog.responseBodyBytes,
+        () => {
+          if (firstByteTime === null) firstByteTime = Date.now();
+        },
+      );
+      if (truncated)
+        throw new PayloadTooLargeError("Upstream error body exceeds resource budget", undefined, {
+          messageKey: "relayProxy.aiContentTooLarge",
+        });
       const upstreamData = host.parseBufferedUpstreamBody(buffer, upstreamHeaders);
       const upstreamMessage = host.extractUpstreamErrorMessage(upstreamData, statusCode);
 
@@ -259,17 +269,20 @@ export class RelayImageForwarderService {
     });
 
     const clientCloseHandler = () => {
+      if (res.writableEnded) return;
       clientDisconnected = true;
       if (typeof (responseStream as any).destroy === "function") (responseStream as any).destroy();
     };
 
-    req.once("close", clientCloseHandler);
+    req.once("aborted", clientCloseHandler);
+    res.once("close", clientCloseHandler);
     res.writeHead(statusCode, host.withRequestIdHeader(req, host.sanitizeResponseHeaders(upstreamHeaders)));
 
     try {
       await pipeline(responseStream, byteCounter, res);
     } finally {
-      req.off("close", clientCloseHandler);
+      req.off("aborted", clientCloseHandler);
+      res.off("close", clientCloseHandler);
     }
 
     if (!clientDisconnected)

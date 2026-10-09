@@ -1,8 +1,9 @@
+import { env } from "@/config/env";
 export const AI_REQUEST_LOG_PREFIX = "/relay/proxy";
 
 export const AI_REQUEST_LOG_LIMITS = {
-  requestBodyBytes: 1024 * 1024,
-  responseBodyBytes: 2 * 1024 * 1024,
+  requestBodyBytes: env.aiRequestLog.requestBodyBytes,
+  responseBodyBytes: env.aiRequestLog.responseBodyBytes,
   contentChunkBytes: 32 * 1024,
   contentPageItems: 20,
   maxPageItems: 100,

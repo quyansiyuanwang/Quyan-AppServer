@@ -1,3 +1,4 @@
+import { AIResourceService, aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
 import type { Prisma, RelayChannel } from "@prisma/client";
@@ -95,7 +96,7 @@ const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_TTL_MS = 2 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_PREFIX = "relay:channel-probe-run:v1";
 const GROUP_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
-const MAX_CONCURRENT_PROBE_RUNS = 4;
+
 // Upstream billing ledgers are commonly eventually consistent. Keep both
 // snapshots outside the actual model request by a small, deterministic window
 // while the channel write lock is held, so an in-app request cannot distort a
@@ -1611,28 +1612,41 @@ export class RelayChannelProbeService {
     if (this.scheduling) return;
     this.scheduling = true;
     try {
-      const availableSlots = MAX_CONCURRENT_PROBE_RUNS - this.activeRunIds.size;
+      const availableSlots = env.relay.channelProbe.maxConcurrency - this.activeRunIds.size;
       if (availableSlots <= 0) return;
       const now = new Date();
       // Inspect more than the immediate capacity so a queued job in an active
       // group never prevents an independent group from starting.
       const candidates = await this.repository.findClaimableRuns(now, availableSlots * 8);
       for (const candidate of candidates) {
-        if (this.activeRunIds.size >= MAX_CONCURRENT_PROBE_RUNS) break;
+        if (this.activeRunIds.size >= env.relay.channelProbe.maxConcurrency) break;
         const scope = getProbeSchedulingScope(candidate.relayChannelId, candidate.profile?.probeGroup);
         if (this.activeRunIds.has(candidate.id) || this.activeSchedulingScopes.has(scope)) continue;
 
+        const resource = AIResourceService.getInstance().tryAcquire();
+        if (!resource) break;
         const owner = randomUUID();
-        const claimed = await this.repository.claimRun(candidate.id, owner, now, new Date(Date.now() + RUN_LEASE_MS));
-        if (!claimed.count) continue;
+        let claimed;
+        try {
+          claimed = await this.repository.claimRun(candidate.id, owner, now, new Date(Date.now() + RUN_LEASE_MS));
+        } catch (error) {
+          resource.release();
+          throw error;
+        }
+        if (!claimed.count) {
+          resource.release();
+          continue;
+        }
 
         this.activeRunIds.add(candidate.id);
         this.activeSchedulingScopes.add(scope);
-        void this.executeRun(candidate.id, owner)
+        void aiResourceContext
+          .run(resource, () => this.executeRun(candidate.id, owner))
           .catch((error) =>
             logger.error("Relay channel probe worker crashed", { runId: candidate.id, error: this.safeError(error) }),
           )
           .finally(() => {
+            resource.release();
             this.activeRunIds.delete(candidate.id);
             this.activeSchedulingScopes.delete(scope);
             void this.schedulePendingRuns();

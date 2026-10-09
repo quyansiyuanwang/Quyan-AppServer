@@ -36,6 +36,17 @@ describe("AIProviderService", () => {
     vi.restoreAllMocks();
   });
 
+  it("closes rejected upstream streams before releasing resources", async () => {
+    const destroy = vi.fn();
+    mockedPost.mockRejectedValue({ response: { status: 503, data: { destroy } } });
+    await expect(
+      collectChunks(
+        AIProviderService.getInstance().streamChat([], "gpt-4o", "fixture", "https://upstream.example.test"),
+      ),
+    ).rejects.toMatchObject({ response: { status: 503 } });
+    expect(destroy).toHaveBeenCalledOnce();
+  });
+
   it("detects provider by model prefix", () => {
     const service = AIProviderService.getInstance();
 
