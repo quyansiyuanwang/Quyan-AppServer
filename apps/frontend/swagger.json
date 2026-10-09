@@ -25233,6 +25233,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -25254,6 +25274,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25281,6 +25321,126 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/v1/developer/projects/{projectId}": {
+			"get": {
+				"operationId": "DeveloperProjectControllerGetProject",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/usage": {
 			"get": {
 				"operationId": "DeveloperProjectControllerGetUsageSummary",
@@ -25291,6 +25451,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperQuotaSummaryDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25326,6 +25506,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperProjectDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25378,6 +25578,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -25408,6 +25628,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperApiKeyDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25469,6 +25709,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -25516,6 +25776,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -25548,6 +25828,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25589,6 +25889,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperKvValueDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25656,6 +25976,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -25703,6 +26043,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -25733,6 +26093,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25779,6 +26159,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperShortLinkDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25846,6 +26246,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -25887,6 +26307,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperShortLinkStatsDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -25936,6 +26376,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -25966,6 +26426,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperSecretDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -26027,6 +26507,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -26074,6 +26574,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -26104,6 +26624,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -26150,6 +26690,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -26217,6 +26777,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -26258,6 +26838,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperStatusMonitorDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -26308,6 +26908,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -26338,6 +26958,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -26390,6 +27030,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -26422,6 +27082,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/DeveloperPushChannelDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -26486,6 +27166,26 @@
 										"success"
 									],
 									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -35938,6 +36638,88 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"CustomCode": {
+				"description": "业务自定义状态码",
+				"enum": [
+					0,
+					1001,
+					1002,
+					1003,
+					1004,
+					1005,
+					1006,
+					1007,
+					1008,
+					1009,
+					1010,
+					1011,
+					1012,
+					1013,
+					1014,
+					1015,
+					1429,
+					1016,
+					1017,
+					1018,
+					1019,
+					1020,
+					1021,
+					1022,
+					1023,
+					1024,
+					1025,
+					1026,
+					1027,
+					1028,
+					1029,
+					1030,
+					1031,
+					1032,
+					1033,
+					1034,
+					1035,
+					1036,
+					1037,
+					1038,
+					1039,
+					1040,
+					1041,
+					1042,
+					1043,
+					1044,
+					1045,
+					1046,
+					1047,
+					1048
+				],
+				"type": "number"
+			},
+			"Record_string.any_": {
+				"properties": {},
+				"additionalProperties": {},
+				"type": "object",
+				"description": "Construct a type with a set of properties K of type T"
+			},
+			"ErrorResponse": {
+				"description": "错误响应格式\n用于所有错误情况（4xx, 5xx）",
+				"properties": {
+					"code": {
+						"$ref": "#/components/schemas/CustomCode"
+					},
+					"message": {
+						"type": "string"
+					},
+					"fields": {
+						"$ref": "#/components/schemas/Record_string.any_"
+					}
+				},
+				"required": [
+					"code",
+					"message"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"RelayTokenUsageSummaryDto": {
 				"properties": {
 					"relayTokenId": {
@@ -36171,12 +36953,6 @@
 				"type": "object",
 				"additionalProperties": false
 			},
-			"Record_string.any_": {
-				"properties": {},
-				"additionalProperties": {},
-				"type": "object",
-				"description": "Construct a type with a set of properties K of type T"
-			},
 			"TwoFactorTrustClearResponse": {
 				"properties": {
 					"message": {
@@ -36380,82 +37156,6 @@
 			"GetAllUsersResponse": {
 				"$ref": "#/components/schemas/GetAllUsersData",
 				"description": "获取用户详情响应"
-			},
-			"CustomCode": {
-				"description": "业务自定义状态码",
-				"enum": [
-					0,
-					1001,
-					1002,
-					1003,
-					1004,
-					1005,
-					1006,
-					1007,
-					1008,
-					1009,
-					1010,
-					1011,
-					1012,
-					1013,
-					1014,
-					1015,
-					1429,
-					1016,
-					1017,
-					1018,
-					1019,
-					1020,
-					1021,
-					1022,
-					1023,
-					1024,
-					1025,
-					1026,
-					1027,
-					1028,
-					1029,
-					1030,
-					1031,
-					1032,
-					1033,
-					1034,
-					1035,
-					1036,
-					1037,
-					1038,
-					1039,
-					1040,
-					1041,
-					1042,
-					1043,
-					1044,
-					1045,
-					1046,
-					1047,
-					1048
-				],
-				"type": "number"
-			},
-			"ErrorResponse": {
-				"description": "错误响应格式\n用于所有错误情况（4xx, 5xx）",
-				"properties": {
-					"code": {
-						"$ref": "#/components/schemas/CustomCode"
-					},
-					"message": {
-						"type": "string"
-					},
-					"fields": {
-						"$ref": "#/components/schemas/Record_string.any_"
-					}
-				},
-				"required": [
-					"code",
-					"message"
-				],
-				"type": "object",
-				"additionalProperties": false
 			},
 			"GetUserByIdResponse": {
 				"$ref": "#/components/schemas/UserDto"
@@ -60188,6 +60888,36 @@
 					"statusPagePublished",
 					"createTime",
 					"updateTime"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"DeveloperProjectPageDto": {
+				"description": "Candidate pagination precedes IAM filtering; no unfiltered total is exposed.",
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperProjectDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
 				],
 				"type": "object",
 				"additionalProperties": false

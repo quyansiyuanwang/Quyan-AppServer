@@ -49,6 +49,15 @@ describe("IAM service and resource catalog", () => {
     );
     expect(IAM_AUTHENTICATED_SELF_ACTIONS.every((action) => !action.includes("*"))).toBe(true);
   });
+  it("declares real project actions without an implicit self-service project grant", () => {
+    expect(getIamActionDefinition("quyan:developer:CreateProject")).toMatchObject({
+      accessLevel: "Write",
+      resourceTypes: ["quyan/user"],
+    });
+    for (const action of ["GetProject", "GetProjectUsage", "UpdateStatusPage"])
+      expect(getIamActionDefinition("quyan:developer:" + action)?.resourceTypes).toEqual(["developer/project"]);
+    expect(IAM_AUTHENTICATED_SELF_ACTIONS.some((action) => action.startsWith("quyan:developer:"))).toBe(false);
+  });
   it("derives API links, ignores invalid metadata and deduplicates deterministically", () => {
     const route = {
       key: "PUT /v1/ram/users/{userId}",

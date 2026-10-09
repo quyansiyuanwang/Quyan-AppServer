@@ -242,6 +242,41 @@ export class DeveloperProjectRepository {
     return projects.map((project) => this.toProjectDto(project));
   }
 
+  async findProjectInAccount(projectId: string, accountOwnerId: string) {
+    return prisma.developerProject.findFirst({
+      where: {
+        id: projectId,
+        status: 1,
+        user: { status: 1, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+      },
+      select: { id: true, userId: true },
+    });
+  }
+
+  async listProjectCandidates(options: { accountOwnerId?: string; userId?: string; skip: number; take: number }) {
+    if (!options.accountOwnerId && !options.userId)
+      throw new ForbiddenError("Project candidate boundary missing", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const projects = await prisma.developerProject.findMany({
+      where: {
+        status: 1,
+        ...(options.accountOwnerId
+          ? {
+              user: {
+                status: 1,
+                OR: [{ accountOwnerId: options.accountOwnerId }, { id: options.accountOwnerId, accountOwnerId: null }],
+              },
+            }
+          : { userId: options.userId }),
+      },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return projects.map((project) => ({ userId: project.userId, item: this.toProjectDto(project) }));
+  }
+
   async getProject(projectId: string, userId: string): Promise<DeveloperProjectDto> {
     return this.toProjectDto(await this.assertProjectOwner(projectId, userId));
   }

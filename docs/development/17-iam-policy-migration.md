@@ -129,3 +129,9 @@ Role trust JSON currently has optimistic hashes and mutation audit; an immutable
 User update/delete, role delete, session revoke and policy update/delete/versions use named concrete resolvers. Binding requests evaluate both entities with ALL batch semantics. Default-version changes evaluate the policy plus exact version ARN. User group assignment requires group resource access and subset proof for direct, scoped and role-derived group grants. Services retain database ownership and account-recovery checks.
 
 Legacy permission conversion now derives account-contained resource templates from the action catalog to preserve historical target breadth. This does not reinterpret user-authored IAM account statements or mutate immutable versions. Review and publish replacement versions for earlier backfilled account-only documents when needed; a changed backfill hash is a review failure, not automatic widening.
+
+## Developer project management migration
+
+The JWT project management service is separate from public, scheduler and project-key paths. Core routes declare real Catalog actions, a trusted user creation target and concrete developer/project resources. Enforce resolves the stored project's active same-account owner before forwarding existing repository operations; it does not reinterpret the acting principal as the owner.
+
+Collection middleware validates identity, current sessions, policy data and the named collection boundary. It does not manufacture a collection-wide Allow. The management service performs account-isolated candidate pagination and ListProjects evaluation for every returned project; empty filtered pages may have hasNext, with no unfiltered total. The old array endpoint returns the enforce default first page. Shadow compares old individually owned rows and leaves legacy ownership enforcement intact.

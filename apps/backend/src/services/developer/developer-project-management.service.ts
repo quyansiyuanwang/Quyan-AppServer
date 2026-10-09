@@ -1,0 +1,258 @@
+import { performance } from "node:perf_hooks";
+import { buildAcsResource, type IamPrincipal } from "@quyan/shared";
+import { env } from "@/config/env";
+import { IamAuthorizationService } from "@/iam/iam-authorization.service";
+import { auditIamDecision } from "@/iam/audit/iam-audit.service";
+import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { principalConditionContext, requestConditionContext } from "@/iam/request/condition-context";
+import { getRequestContext } from "@/util/request-context";
+import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
+import { getLogger, LogCategory } from "@/util/logger";
+import { UserRepository } from "@/store/users/user.repository";
+import { DeveloperProjectRepository } from "@/store/developer/developer-project.repository";
+import type {
+  CreateDeveloperProjectDto,
+  DeveloperProjectDto,
+  DeveloperProjectPageDto,
+  UpdateDeveloperStatusPageDto,
+} from "@/api/dto/developer/developer.dto";
+
+/** JWT management has its own IAM boundary; project-key/public/scheduler calls retain their separate guards. */
+export class DeveloperProjectManagementService {
+  private static instance: DeveloperProjectManagementService;
+  private constructor(
+    private readonly projects = DeveloperProjectRepository.getInstance(),
+    private readonly users = UserRepository.getInstance(),
+    private readonly iam = IamAuthorizationService.getInstance(),
+  ) {}
+  static getInstance() {
+    return (this.instance ??= new DeveloperProjectManagementService());
+  }
+
+  private async actorContext(actorUserId: string) {
+    const actor = await this.users.findById(actorUserId);
+    const request = getRequestContext();
+    const accountOwnerId = actor?.accountOwnerId || actor?.id;
+    const principal: IamPrincipal | undefined = request
+      ? getIamPrincipal(request)
+      : actor && accountOwnerId
+        ? {
+            subjectUserId: actor.id,
+            principalUserId: actor.id,
+            accountOwnerId,
+            subjectType: actor.userType === "root" && actor.id === accountOwnerId ? "root" : "sub_user",
+          }
+        : undefined;
+    if (
+      !actor ||
+      actor.status !== 1 ||
+      !principal ||
+      principal.subjectUserId !== actor.id ||
+      principal.principalUserId !== actor.id ||
+      principal.accountOwnerId !== accountOwnerId
+    )
+      throw new ForbiddenError("Invalid project management identity", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    return {
+      principal,
+      request,
+      context: request ? requestConditionContext(request, principal) : principalConditionContext(principal),
+    };
+  }
+  private resource(accountOwnerId: string, projectId: string) {
+    return buildAcsResource({
+      service: "developer",
+      region: "*",
+      accountId: accountOwnerId,
+      path: "project/" + projectId,
+    });
+  }
+  private recordDecision(
+    identity: Awaited<ReturnType<DeveloperProjectManagementService["actorContext"]>>,
+    action: string,
+    resource: string,
+    result: ReturnType<typeof evaluatePolicies>,
+    start: number,
+    legacyAllowed: boolean,
+  ) {
+    if (identity.request) (identity.request.iamDecisions ??= []).push({ ...result, action, resource });
+    auditIamDecision({
+      requestId: identity.request?.res?.locals.requestId,
+      principal: identity.principal,
+      action,
+      resource,
+      result,
+      evaluationLatencyMs: performance.now() - start,
+      authorizationMode: env.security.iamAuthorizationMode,
+      ...(env.security.iamAuthorizationMode === "shadow" ? { legacyAllowed } : {}),
+    });
+  }
+
+  async listProjects(actorUserId: string): Promise<DeveloperProjectDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return (await this.listProjectsPage(actorUserId)).items;
+    const items = await this.projects.listProjects(actorUserId);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        const identity = await this.actorContext(actorUserId);
+        await this.filterProjectRows(
+          identity,
+          items.map((item) => ({ item, userId: actorUserId })),
+          actorUserId,
+        );
+      } catch {
+        getLogger("DeveloperProjectIam", LogCategory.SECURITY).warn("Project list shadow evaluation failed", {
+          reason: "iam-evaluation-unavailable",
+          principalUserId: actorUserId,
+        });
+      }
+    }
+    return items;
+  }
+  private async filterProjectRows(
+    identity: Awaited<ReturnType<DeveloperProjectManagementService["actorContext"]>>,
+    candidates: readonly { item: DeveloperProjectDto; userId: string }[],
+    actorUserId: string,
+  ): Promise<DeveloperProjectDto[]> {
+    const start = performance.now(),
+      policies = await this.iam.loadPolicies(identity.principal);
+    const allowed: DeveloperProjectDto[] = [];
+    for (const candidate of candidates) {
+      const resource = this.resource(identity.principal.accountOwnerId, candidate.item.id);
+      const result = evaluatePolicies(policies, {
+        action: "quyan:developer:ListProjects",
+        resource,
+        context: identity.context,
+      });
+      this.recordDecision(
+        identity,
+        "quyan:developer:ListProjects",
+        resource,
+        result,
+        start,
+        candidate.userId === actorUserId,
+      );
+      if (result.decision === "Allow") allowed.push(candidate.item);
+    }
+    return allowed;
+  }
+  async listProjectsPage(
+    actorUserId: string,
+    options: { page?: number; pageSize?: number } = {},
+  ): Promise<DeveloperProjectPageDto> {
+    const pagination = iamManagementPaginationSchema.safeParse(options);
+    if (!pagination.success)
+      throw new BadRequestError("Invalid project pagination", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const { page, pageSize } = pagination.data;
+    const identity = await this.actorContext(actorUserId),
+      mode = env.security.iamAuthorizationMode;
+    const candidates = await this.projects.listProjectCandidates({
+      ...(mode === "enforce" ? { accountOwnerId: identity.principal.accountOwnerId } : { userId: actorUserId }),
+      skip: (page - 1) * pageSize,
+      take: pageSize + 1,
+    });
+    const visible = candidates.slice(0, pageSize);
+    let items = visible.map((candidate) => candidate.item);
+    if (mode !== "legacy") {
+      try {
+        const allowed = await this.filterProjectRows(identity, visible, actorUserId);
+        if (mode === "enforce") items = allowed;
+      } catch (error) {
+        if (mode !== "shadow") throw error;
+        getLogger("DeveloperProjectIam", LogCategory.SECURITY).warn("Project list shadow evaluation failed", {
+          reason: "iam-evaluation-unavailable",
+          principalUserId: actorUserId,
+        });
+      }
+    }
+    return { items, page, pageSize, hasNext: candidates.length > pageSize };
+  }
+
+  private async projectOwner(action: string, projectId: string, actorUserId: string): Promise<string> {
+    const mode = env.security.iamAuthorizationMode;
+    if (mode === "legacy") return actorUserId;
+    try {
+      const identity = await this.actorContext(actorUserId);
+      const project = await this.projects.findProjectInAccount(projectId, identity.principal.accountOwnerId);
+      if (!project)
+        throw new NotFoundError("Project is outside the active account", undefined, {
+          messageKey: "developerProject.projectNotFound",
+        });
+      const start = performance.now(),
+        resource = this.resource(identity.principal.accountOwnerId, project.id);
+      const result = await this.iam.authorize({
+        principal: identity.principal,
+        action,
+        resource,
+        context: identity.context,
+      });
+      this.recordDecision(identity, action, resource, result, start, project.userId === actorUserId);
+      if (mode === "enforce") {
+        if (result.decision !== "Allow")
+          throw new ForbiddenError("Project action denied", undefined, {
+            messageKey: "permission.insufficientPermission",
+          });
+        return project.userId;
+      }
+    } catch (error) {
+      if (mode !== "shadow") throw error;
+      getLogger("DeveloperProjectIam", LogCategory.SECURITY).warn("Project action shadow evaluation failed", {
+        action,
+        reason: "iam-evaluation-unavailable",
+        principalUserId: actorUserId,
+      });
+    }
+    return actorUserId;
+  }
+  async createProject(actorUserId: string, body: CreateDeveloperProjectDto) {
+    if (env.security.iamAuthorizationMode !== "legacy") {
+      const mode = env.security.iamAuthorizationMode;
+      try {
+        const identity = await this.actorContext(actorUserId),
+          start = performance.now();
+        const resource = buildAcsResource({
+          service: "quyan",
+          region: "*",
+          accountId: identity.principal.accountOwnerId,
+          path: "user/" + actorUserId,
+        });
+        const result = await this.iam.authorize({
+          principal: identity.principal,
+          action: "quyan:developer:CreateProject",
+          resource,
+          context: identity.context,
+        });
+        this.recordDecision(identity, "quyan:developer:CreateProject", resource, result, start, true);
+        if (mode === "enforce" && result.decision !== "Allow")
+          throw new ForbiddenError("Project creation denied", undefined, {
+            messageKey: "permission.insufficientPermission",
+          });
+      } catch (error) {
+        if (mode !== "shadow") throw error;
+        getLogger("DeveloperProjectIam", LogCategory.SECURITY).warn("Project create shadow evaluation failed", {
+          action: "quyan:developer:CreateProject",
+          reason: "iam-evaluation-unavailable",
+          principalUserId: actorUserId,
+        });
+      }
+    }
+    return this.projects.createProject(actorUserId, body);
+  }
+  async getProject(projectId: string, actorUserId: string) {
+    const owner = await this.projectOwner("quyan:developer:GetProject", projectId, actorUserId);
+    return this.projects.getProject(projectId, owner);
+  }
+  async getQuotaSummary(projectId: string, actorUserId: string) {
+    const owner = await this.projectOwner("quyan:developer:GetProjectUsage", projectId, actorUserId);
+    return this.projects.getQuotaSummary(projectId, owner);
+  }
+  async updateStatusPage(projectId: string, actorUserId: string, body: UpdateDeveloperStatusPageDto) {
+    const owner = await this.projectOwner("quyan:developer:UpdateStatusPage", projectId, actorUserId);
+    return this.projects.updateStatusPage(projectId, owner, body);
+  }
+}

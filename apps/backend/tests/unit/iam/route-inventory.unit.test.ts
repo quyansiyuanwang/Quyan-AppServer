@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Project } from "ts-morph";
 import { collectIamRoutes, routeCoverageRegressions, summarizeIamRoutes } from "../../../scripts/iam/route-inventory";
 const imports =
-  'import { Route, Get, Security, Middlewares, NoSecurity } from "@tsoa/runtime"; import { Permission } from "@quyan/shared"; import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator"; import { iamAuthorizationMiddleware, iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";';
+  'import { Route, Get, Security, Middlewares, NoSecurity } from "@tsoa/runtime"; import { Permission } from "@quyan/shared"; import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator"; import { iamAuthorizationMiddleware, iamAuthenticatedAuthorizationMiddleware, iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";';
 function inventory(method: string, classDecorators = "") {
   const project = new Project({ useInMemoryFileSystem: true });
   const source = project.createSourceFile(
@@ -37,6 +37,13 @@ describe("IAM import-aware route inventory", () => {
     expect(
       inventory(bridged.replace('action:"quyan:ram:CreateUser"', 'action:"alidns:AddDomainRecord"'))[0].issues,
     ).toContain("IAM action must be a static Action Catalog entry");
+  });
+  it("recognizes declared collection metadata without turning it into account-wide authorization", () => {
+    const collection = explicit
+      .replace("iamAuthorizationMiddleware", "iamCollectionAuthorizationMiddleware")
+      .replace('resourceKind:"single-resource"', 'resourceKind:"collection"')
+      .replace('action:"quyan:ram:CreateUser"', 'action:"quyan:developer:ListProjects"');
+    expect(inventory(collection)[0]).toMatchObject({ coverage: "explicit", resourceKind: "collection", issues: [] });
   });
   it("accepts batch metadata only with a named server resolver", () => {
     const [entry] = inventory(

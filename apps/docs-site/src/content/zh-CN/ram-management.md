@@ -276,3 +276,11 @@ enforce 模式下，“有效权限”的最终列表与用户权限接口共用
 身份策略的 `NotAction` 采用保守快照语义：服务端只从当前生产目录中选择与声明资源类型兼容、且未被排除的操作，再转换为不含通配符的明确 `Action` 列表。诊断在原始 `NotAction` 位置给出提示；Allow 的展开范围需通过完整委派证明。缺少选择器、同时填写 Action/NotAction、未知操作、展开为空或超出策略容量均拒绝。保存的不可变版本及 hash 对应展开后的 JSON，目录新增操作不会自动加入已有版本；要扩大范围需重新校验并创建版本。JSON 编辑器可输入 NotAction，可视化编辑器在服务端诊断后导入展开后的操作。角色信任策略继续只接受明确 AssumeRole Action。
 
 用户权限配置替换在 enforce 下按实际变化检查操作：新增附加权限或移除 Deny 需要目标用户上的 Add；撤销附加权限或新增 Deny 需要 Remove，混合变化需要两者。Add-only 管理者不能通过配置替换实施移除操作；Remove-only 管理者不能恢复被拒绝的权限。恢复能力仍须通过委派证明。legacy/shadow 保留该接口原来的 Add 入口要求。
+
+## 开发者项目资源授权
+
+项目管理 API 使用 `acs:developer:*:<accountId>:project/<projectId>`。`quyan:developer:GetProject`、`GetProjectUsage` 和 `UpdateStatusPage` 分别控制项目详情、用量和状态页发布，操作相互独立。enforce 模式下可授权同账户主体管理指定项目，项目仍保留原所有者；跨账户、禁用项目或禁用所有者不能通过 ARN 中的 ID 获得访问。
+
+`GET /v1/developer/projects/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext。先查询当前账户的分页候选，再按 `quyan:developer:ListProjects` 逐项目过滤；只有具体项目的 Allow 也能看到该项目，无需账户级 Allow。空页可能仍有后续页，不返回未授权项目的 total。旧数组接口在 enforce 仅返回默认第一页，遍历请使用 page 接口。新 `GET /v1/developer/projects/{projectId}` 返回被授权项目的详情。
+
+创建项目需要 `quyan:developer:CreateProject` 对当前认证用户的 `acs:quyan:*:<accountId>:user/<userId>` 授权，创建结果仍归该用户。个人基础自助权限不会自动授予项目管理能力。legacy/shadow 保留原来的个人项目所有权检查；shadow 记录差异，enforce 不会因评估失败回退放行。

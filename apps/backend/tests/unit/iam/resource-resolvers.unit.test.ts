@@ -5,6 +5,7 @@ import {
   accountEntityBatchResourceResolver,
   accountEntityResourceResolver,
   ramAccountResourceResolver,
+  developerProjectResourceResolver,
   iamAuthenticatedUserResourceResolver,
   iamPermissionCheckUserResourceResolver,
   ramEffectivePermissionsUserResourceResolver,
@@ -24,6 +25,22 @@ const principal: IamPrincipal = {
   subjectType: "sub_user",
 };
 describe("IAM resource trust boundaries", () => {
+  it("uses the project path and authenticated account, rejecting client resource patterns", async () => {
+    expect(
+      await developerProjectResourceResolver({
+        principal,
+        request: {
+          params: { projectId: "project-1" },
+          body: { accountId: "foreign" },
+          headers: { "x-action": "*" },
+        } as never,
+      }),
+    ).toBe("acs:developer:*:owner:project/project-1");
+    for (const projectId of ["*", "", undefined, ["project-1"], "bad/id"])
+      expect(
+        await developerProjectResourceResolver({ principal, request: { params: { projectId } } as never }),
+      ).toBeUndefined();
+  });
   it("builds self resources only from authenticated identity and check targets from validated body IDs", async () => {
     const request = {
       body: { userId: "other", accountId: "foreign" },

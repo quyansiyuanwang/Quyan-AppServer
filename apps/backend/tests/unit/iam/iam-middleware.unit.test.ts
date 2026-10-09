@@ -32,6 +32,7 @@ vi.mock("../../../src/util/logger", () => ({
 import {
   iamAuthorizationMiddleware,
   iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
 } from "../../../src/iam/middleware/iam-authorization.middleware";
 import {
   authorizeLegacyPermissions,
@@ -97,6 +98,49 @@ describe("IAM middleware and rollout bridge", () => {
       if (mode === "shadow") expect(next).toHaveBeenCalledExactlyOnceWith();
       else expect(next.mock.calls[0][0]).toBeInstanceOf(Error);
     }
+  });
+  it("validates collection identity and policies without inventing a blanket row Allow", async () => {
+    mocks.mode = "enforce";
+    const service = mockDeep<IamAuthorizationService>(),
+      next = vi.fn();
+    service.loadPolicies.mockResolvedValue([]);
+    await iamCollectionAuthorizationMiddleware(
+      {
+        action: "quyan:developer:ListProjects",
+        resourceKind: "collection",
+        resource: () => "acs:quyan:*:owner:user/child",
+      },
+      service,
+    )(request(), {} as never, next);
+    expect(next).toHaveBeenCalledExactlyOnceWith();
+    expect(service.loadPolicies).toHaveBeenCalledTimes(1);
+    expect(service.authorize).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+  });
+  it("rejects invalid collection boundaries and provider failures in enforce", async () => {
+    mocks.mode = "enforce";
+    for (const boundary of [undefined, "*", "acs:quyan:*:foreign:user/child", "acs:unknown:*:owner:item/x"]) {
+      const service = mockDeep<IamAuthorizationService>(),
+        next = vi.fn();
+      await iamCollectionAuthorizationMiddleware(
+        { action: "quyan:developer:ListProjects", resourceKind: "collection", resource: () => boundary },
+        service,
+      )(request(), {} as never, next);
+      expect(next.mock.calls[0][0].statusCode).toBe(403);
+      expect(service.loadPolicies).not.toHaveBeenCalled();
+    }
+    const service = mockDeep<IamAuthorizationService>(),
+      next = vi.fn();
+    service.loadPolicies.mockRejectedValue(new Error("provider-unavailable"));
+    await iamCollectionAuthorizationMiddleware(
+      {
+        action: "quyan:developer:ListProjects",
+        resourceKind: "collection",
+        resource: () => "acs:quyan:*:owner:user/child",
+      },
+      service,
+    )(request(), {} as never, next);
+    expect(next.mock.calls[0][0]).toBeInstanceOf(Error);
   });
   it("uses only server action metadata, records decision and invokes next once", async () => {
     const service = mockDeep<IamAuthorizationService>();

@@ -30,6 +30,14 @@ export interface DeveloperProjectDto {
   updateTime: string;
 }
 
+/** Candidate pagination precedes IAM filtering; no unfiltered total is exposed. */
+export interface DeveloperProjectPageDto {
+  items: DeveloperProjectDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperQuotaSummaryDto {
   dailyFreeQuota: number;
   overageEnabled: boolean;

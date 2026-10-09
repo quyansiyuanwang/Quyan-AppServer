@@ -135,6 +135,28 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
 export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.freeze([
   ...ALL_PERMISSIONS.map(fromPermission),
   ...[
+    {
+      operation: 'ListProjects',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/user', 'developer/project'],
+    },
+    { operation: 'CreateProject', accessLevel: 'Write', resourceTypes: ['quyan/user'] },
+    { operation: 'GetProject', accessLevel: 'Read', resourceTypes: ['developer/project'] },
+    { operation: 'GetProjectUsage', accessLevel: 'Read', resourceTypes: ['developer/project'] },
+    { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:developer:' + definition.operation,
+      service: 'developer',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+      sensitive: definition.accessLevel === 'Write',
+      authorizationStage: 'declared',
+    }),
+  ),
+  ...[
     { operation: 'GetHeartbeatConfig', accessLevel: 'Read' },
     { operation: 'SendHeartbeat', accessLevel: 'Write' },
     { operation: 'StopHeartbeat', accessLevel: 'Write' },

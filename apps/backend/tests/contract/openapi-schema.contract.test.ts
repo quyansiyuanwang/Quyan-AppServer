@@ -213,6 +213,25 @@ describe("OpenAPI Schema Contract", () => {
 });
 
 describe("RAM IAM policy API contract", () => {
+  it("retains replay markers on core project writes after IAM middleware integration", () => {
+    for (const [route, method] of [
+      ["/v1/developer/projects", "post"],
+      ["/v1/developer/projects/{projectId}/status-page", "put"],
+    ] as const)
+      expect(openApi.paths[route]?.[method]).toHaveProperty("X-Replay-Protected", true);
+  });
+  it("exposes project candidate pagination without an unfiltered total", () => {
+    const operation = openApi.paths["/v1/developer/projects/page"]?.get;
+    expect(operation?.security).toContainEqual({ jwt: [] });
+    expect(operation?.parameters?.map((parameter) => parameter.name)).toEqual(["page", "pageSize"]);
+    const schema = openApi.components?.schemas?.DeveloperProjectPageDto as {
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+    expect(schema.required).toEqual(["items", "page", "pageSize", "hasNext"]);
+    expect(schema.properties).not.toHaveProperty("total");
+    expect(openApi.paths["/v1/developer/projects/{projectId}"]?.get?.security).toContainEqual({ jwt: [] });
+  });
   it("makes the catalog self-service marker optional and restricts its values", () => {
     const schema = openApi.components?.schemas?.IamActionDefinition as {
       properties: Record<string, unknown>;

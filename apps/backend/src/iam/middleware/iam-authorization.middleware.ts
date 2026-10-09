@@ -1,6 +1,7 @@
 import { env } from "@/config/env";
 import { getLogger, LogCategory } from "@/util/logger";
 import { isSafeIamResourceBatch } from "../authorization-limits";
+import { isValidIamResource, isIamResourceInAccount } from "@quyan/shared";
 import { performance } from "node:perf_hooks";
 import type { RequestHandler } from "express";
 import { IamAuthorizationService } from "../iam-authorization.service";
@@ -40,6 +41,52 @@ export function iamAuthenticatedAuthorizationMiddleware(
       }
       next(error);
     });
+  };
+}
+
+/** Collection access returns only individually authorized rows, including an empty page.
+ * The declared resource identifies the trusted collection boundary, not a blanket Allow.
+ * The service must apply database account isolation, pagination and per-row evaluation.
+ */
+export function iamCollectionAuthorizationMiddleware(
+  definition: IamAuthorizationDefinition & { resourceKind: "collection" },
+  service = IamAuthorizationService.getInstance(),
+): RequestHandler {
+  assertIamAuthorizationDefinition(definition);
+  if (definition.resourceKind !== "collection") throw new Error("Collection middleware requires collection metadata");
+  return async (req, _res, next) => {
+    const mode = env.security.iamAuthorizationMode;
+    if (mode === "legacy") return next();
+    try {
+      const request = req as TypedRequest,
+        principal = getIamPrincipal(request);
+      if (!principal)
+        throw new UnauthorizedError("IAM collection principal missing", undefined, {
+          messageKey: "permission.loginRequired",
+        });
+      const boundary = await definition.resource({ request, principal });
+      if (
+        typeof boundary !== "string" ||
+        boundary === "*" ||
+        !isValidIamResource(boundary) ||
+        !isIamResourceInAccount(boundary, principal.accountOwnerId)
+      )
+        throw new ForbiddenError("IAM collection boundary unresolved", undefined, {
+          messageKey: "iam.resourceResolutionFailed",
+        });
+      // Validate current identity/session and policy documents before the collection handler runs.
+      await service.loadPolicies(principal);
+      next();
+    } catch (error) {
+      if (mode === "shadow") {
+        getLogger("IamCollectionBridge", LogCategory.SECURITY).warn("IAM collection shadow evaluation failed", {
+          action: definition.action,
+          reason: "iam-collection-unavailable",
+        });
+        return next();
+      }
+      next(error);
+    }
   };
 }
 

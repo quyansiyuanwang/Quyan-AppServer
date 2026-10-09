@@ -8,13 +8,28 @@ import {
   Post,
   Put,
   Request,
+  Query,
   Route,
+  Response,
   Security,
   Tags,
 } from "@tsoa/runtime";
+import type { RequestHandler } from "express";
+import { HttpStatusCode } from "axios";
+import type { ErrorResponse } from "@/api/response";
 import type { TypedRequest } from "@/types/express";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
-import { validateBody, validateParams } from "@/middleware/validation";
+import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
+import { DeveloperProjectManagementService } from "@/services/developer/developer-project-management.service";
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import {
+  developerProjectResourceResolver,
+  iamAuthenticatedUserResourceResolver,
+} from "@/iam/request/resource-resolvers";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import type {
   CreateDeveloperApiKeyDto,
@@ -25,6 +40,7 @@ import type {
   DeveloperApiKeyDto,
   DeveloperKvValueDto,
   DeveloperProjectDto,
+  DeveloperProjectPageDto,
   DeveloperQuotaSummaryDto,
   DeveloperPushChannelDto,
   DeveloperPushDeliveryDto,
@@ -59,44 +75,104 @@ import {
 @Route("v1/developer/projects")
 @Tags("Developer Projects")
 @Security("jwt")
+@Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+@Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
 export class DeveloperProjectController extends Controller {
   private readonly service = DeveloperProjectService.getInstance();
+  private readonly management = DeveloperProjectManagementService.getInstance();
 
   @Get()
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProjects",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async list(@Request() request: TypedRequest): Promise<DeveloperProjectDto[]> {
-    return this.service.listProjects(request.user!.userId);
+    return this.management.listProjects(request.user!.userId);
+  }
+
+  @Get("page")
+  @Middlewares(
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProjects",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
+  public async listPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<DeveloperProjectPageDto> {
+    return this.management.listProjectsPage(request.user!.userId, { page, pageSize });
+  }
+
+  @Get("{projectId}")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:GetProject",
+      resourceKind: "single-resource",
+      resource: developerProjectResourceResolver,
+    }),
+  )
+  public async getProject(@Path() projectId: string, @Request() request: TypedRequest): Promise<DeveloperProjectDto> {
+    return this.management.getProject(projectId, request.user!.userId);
   }
 
   @Post()
-  @Middlewares(replayProtectionMiddleware, validateBody(createProjectBodySchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateBody(createProjectBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:CreateProject",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async create(
     @Body() body: CreateDeveloperProjectDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperProjectDto> {
-    return this.service.createProject(request.user!.userId, body);
+    return this.management.createProject(request.user!.userId, body);
   }
 
   @Get("{projectId}/usage")
-  @Middlewares(validateParams(projectIdParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:GetProjectUsage",
+      resourceKind: "single-resource",
+      resource: developerProjectResourceResolver,
+    }),
+  )
   public async getUsageSummary(
     @Path() projectId: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperQuotaSummaryDto> {
-    return this.service.getQuotaSummary(projectId, request.user!.userId);
+    return this.management.getQuotaSummary(projectId, request.user!.userId);
   }
 
   @Put("{projectId}/status-page")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
     validateBody(updateStatusPageBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:UpdateStatusPage",
+      resourceKind: "single-resource",
+      resource: developerProjectResourceResolver,
+    }),
   )
   public async updateStatusPage(
     @Path() projectId: string,
     @Body() body: UpdateDeveloperStatusPageDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperProjectDto> {
-    return this.service.updateStatusPage(projectId, request.user!.userId, body);
+    return this.management.updateStatusPage(projectId, request.user!.userId, body);
   }
 
   @Get("{projectId}/keys")

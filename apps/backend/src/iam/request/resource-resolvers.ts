@@ -10,6 +10,18 @@ export type ResourceResolver = (context: ResourceResolverContext) => string | un
 export type BatchResourceResolver = (
   context: ResourceResolverContext,
 ) => readonly string[] | undefined | Promise<readonly string[] | undefined>;
+/** Project IDs come from validated paths; stored project ownership is checked in the service. */
+export const developerProjectResourceResolver: ResourceResolver = ({ request, principal }) => {
+  const id = request.params.projectId;
+  if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return undefined;
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: principal.accountOwnerId,
+    path: "project/" + id,
+  });
+};
+
 export const ramAccountResourceResolver: ResourceResolver = ({ principal }) =>
   buildAcsResource({ service: "quyan", region: "*", accountId: principal.accountOwnerId, path: "account" });
 /** Resolver factories require already-validated, server-owned identifiers. Ownership checks remain in services. */

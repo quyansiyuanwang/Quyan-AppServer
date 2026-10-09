@@ -205,7 +205,11 @@ export function collectIamRoutes(sources: readonly SourceFile[], backendRoot: st
             const symbol = imported(middleware.getExpression(), source, backendRoot);
             if (
               symbol?.module !== iamModule ||
-              !["iamAuthorizationMiddleware", "iamAuthenticatedAuthorizationMiddleware"].includes(symbol.name)
+              ![
+                "iamAuthorizationMiddleware",
+                "iamAuthenticatedAuthorizationMiddleware",
+                "iamCollectionAuthorizationMiddleware",
+              ].includes(symbol.name)
             )
               continue;
             addExplicitDefinition(middleware.getArguments()[0]);
