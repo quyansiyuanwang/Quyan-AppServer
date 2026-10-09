@@ -36,6 +36,7 @@ import {
 } from "@/api/schema/article/article.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
 import { articleResourceResolver, articleReorderResourceResolver } from "@/iam/request/article-resource-resolvers";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 
 @Route("v1/articles")
@@ -45,7 +46,11 @@ export class ArticleController extends Controller {
 
   @Post("")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ARTICLE_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Create",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(createArticleBodySchema))
   public async createArticle(@Body() body: CreateArticleDto, @Request() request: TypedRequest): Promise<ArticleDto> {
     return this.service.createArticle(body, request.user!.userId, request);

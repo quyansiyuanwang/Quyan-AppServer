@@ -1,5 +1,9 @@
-import type { ReorderArticleItem, UpdateArticleDto } from "@/api/dto/article/article.dto";
-import { reorderArticlesBodySchema, updateArticleBodySchema } from "@/api/schema/article/article.schema";
+import type { CreateArticleDto, ReorderArticleItem, UpdateArticleDto } from "@/api/dto/article/article.dto";
+import {
+  createArticleBodySchema,
+  reorderArticlesBodySchema,
+  updateArticleBodySchema,
+} from "@/api/schema/article/article.schema";
 import { BadRequestError } from "@/util/errors";
 /** Public access and a nonempty permission requirement cannot coexist, regardless of the authorization model. */
 export function assertArticlePublicAccess(isPublic: boolean, requirePermission?: string): void {
@@ -8,6 +12,14 @@ export function assertArticlePublicAccess(isPublic: boolean, requirePermission?:
       messageKey: "article.publicCannotRequirePermissions",
     });
 }
+/** Creation never accepts caller-supplied publication, identity, default state or counters. */
+export function normalizeArticleCreate(input: unknown): CreateArticleDto {
+  const parsed = createArticleBodySchema.safeParse(input);
+  if (!parsed.success)
+    throw new BadRequestError("Invalid article creation", undefined, { messageKey: "errors.validationFailed" });
+  return parsed.data;
+}
+
 /** Reuse HTTP validation for internal calls and strip fields outside the edit contract before persistence/audit. */
 export function normalizeArticleUpdate(input: unknown): UpdateArticleDto {
   const parsed = updateArticleBodySchema.safeParse(input);

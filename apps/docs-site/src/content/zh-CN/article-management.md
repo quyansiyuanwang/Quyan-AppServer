@@ -43,6 +43,25 @@
 | 删除文章                      | `ARTICLE_DELETE`  |
 | 发布 / 取消发布               | `ARTICLE_PUBLISH` |
 
+## 创建权限与账户范围
+
+IAM enforce 模式下，新建文章使用 `quyan:article:Create`，授权资源为可信当前账户 `acs:quyan:*:<accountId>:account`。创建前尚不存在文章 ID，因此指定已有文章 ARN 的授权不会赋予创建权限，指定资源／资源组范围的授权也不会自动扩大为账户创建权限。
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:article:Create",
+    "Resource": "acs:quyan:*:account-id:account"
+  }
+}
+```
+
+请替换实际账户标识。作者固定为当前执行用户，包括 AccessKey 和角色会话；角色会话只使用角色授权，不继承调用用户自己的创建权限。服务端仅接受标题、slug、分类、摘要、正文、公开设置和访问权限条件，新文章始终为草稿，不会由创建请求设置为全站默认文章或覆盖状态／计数。创建权限不包含后续编辑、删除、发布或默认文章管理权限。
+
+slug 在全站唯一，包括已停用文章。公开文章不能同时设置非空访问权限条件。写入时会再次检查作者与账户的有效状态及归属；发生变化时请求拒绝，数据库并发冲突需刷新后重试。legacy／shadow 模式继续执行历史创建权限检查，输入字段隔离和草稿初始状态保持一致。
+
 ## 资源级发布授权
 
 IAM enforce 模式下，发布与撤回共用敏感原生 Action `quyan:article:Publish`，目标为具体文章资源：

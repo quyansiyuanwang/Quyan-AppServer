@@ -3,8 +3,8 @@ import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { MANAGED_STATUS } from "@/constant/status";
 import { isCanonicalArticleId } from "@/iam/resources/article-resources";
-import type { UpdateArticleDto } from "@/api/dto/article/article.dto";
-import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
+import type { CreateArticleDto, UpdateArticleDto } from "@/api/dto/article/article.dto";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 
 const managementSelect = {
   id: true,
@@ -28,6 +28,59 @@ export class ArticleManagementRepository {
   private static instance: ArticleManagementRepository;
   static getInstance() {
     return (this.instance ??= new ArticleManagementRepository());
+  }
+  /** The article has no ARN yet: persist only after rechecking the trusted actor and parent account. */
+  async create(changes: CreateArticleDto, accountOwnerId: string, actorUserId: string) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const actor = await tx.user.findFirst({
+            where: { id: actorUserId, status: MANAGED_STATUS.ENABLED },
+            select: { id: true, accountOwnerId: true },
+          });
+          const owner = await tx.user.findFirst({
+            where: { id: accountOwnerId, status: MANAGED_STATUS.ENABLED },
+            select: { id: true, accountOwnerId: true },
+          });
+          // Exact equality is required even when MySQL collation accepts a case alias.
+          if (
+            !actor ||
+            actor.id !== actorUserId ||
+            (actor.accountOwnerId || actor.id) !== accountOwnerId ||
+            !owner ||
+            owner.id !== accountOwnerId ||
+            (owner.accountOwnerId || owner.id) !== accountOwnerId
+          )
+            throw new ForbiddenError("Article creation account or actor unavailable", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
+          const existing = await tx.article.findFirst({ where: { slug: changes.slug }, select: { id: true } });
+          if (existing)
+            throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
+          return tx.article.create({
+            data: {
+              title: changes.title,
+              slug: changes.slug,
+              category: changes.category,
+              summary: changes.summary,
+              content: changes.content,
+              isPublic: changes.isPublic,
+              requirePermission: changes.requirePermission,
+              authorId: actorUserId,
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === "P2002")
+          throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
+        if (error.code === "P2034")
+          throw new ConflictError("Article creation conflicted", undefined, { messageKey: "errors.conflict" });
+      }
+      throw error;
+    }
   }
   async findTarget(
     id: string,

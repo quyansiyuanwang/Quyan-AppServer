@@ -108,6 +108,8 @@ const businessResources: Partial<Record<Permission, string[]>> = {
   [Permission.RELAY_CHANNEL_UPDATE]: ['relay/channel'],
   [Permission.RELAY_CHANNEL_DELETE]: ['relay/channel'],
   [Permission.RELAY_CHANNEL_EXPORT]: ['relay/channel'],
+  // Creation authorizes the trusted parent account before an article identity exists.
+  [Permission.ARTICLE_CREATE]: [],
   [Permission.ARTICLE_READ]: ['article/article'],
   [Permission.ARTICLE_UPDATE]: ['article/article'],
   [Permission.ARTICLE_DELETE]: ['article/article'],
@@ -139,6 +141,7 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
       ...(resources?.includes('article/article') ? ['quyan:ResourceOwnerId'] : []),
     ],
     sensitive:
+      permission === Permission.ARTICLE_CREATE ||
       permission === Permission.ARTICLE_PUBLISH ||
       permission === Permission.ARTICLE_UPDATE ||
       permission === Permission.ARTICLE_DELETE ||

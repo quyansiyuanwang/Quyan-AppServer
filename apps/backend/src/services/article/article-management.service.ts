@@ -1,11 +1,17 @@
 import type { Article } from "@prisma/client";
-import type { ReorderArticleItem, UpdateArticleDto } from "@/api/dto/article/article.dto";
-import { assertArticlePublicAccess, normalizeArticleReorder, normalizeArticleUpdate } from "./article-validation";
-import { Permission, actionForPermission } from "@quyan/shared";
+import type { CreateArticleDto, ReorderArticleItem, UpdateArticleDto } from "@/api/dto/article/article.dto";
+import {
+  assertArticlePublicAccess,
+  normalizeArticleCreate,
+  normalizeArticleReorder,
+  normalizeArticleUpdate,
+} from "./article-validation";
+import { Permission, actionForPermission, type IamPrincipal } from "@quyan/shared";
 import type { TypedRequest } from "@/types/express";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { auditIamDecision } from "@/iam/audit/iam-audit.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { requestConditionContext } from "@/iam/request/condition-context";
 import { articleArn } from "@/iam/resources/article-resources";
 import { ArticleManagementRepository } from "@/store/content/article-management.repository";
@@ -21,18 +27,16 @@ export class ArticleManagementService {
   static getInstance() {
     return (this.instance ??= new ArticleManagementService());
   }
-  private async authorizedTarget(id: string, actorUserId: string, request: TypedRequest, permission: Permission) {
+  private principalForActor(actorUserId: string, request: TypedRequest): IamPrincipal {
     const principal = getIamPrincipal(request);
     if (!principal || principal.subjectUserId !== actorUserId || principal.principalUserId !== actorUserId)
       throw new ForbiddenError("Invalid article management identity", undefined, {
         messageKey: "permission.insufficientPermission",
       });
-    const target = await this.repository.findTarget(id, principal.accountOwnerId);
-    if (!target)
-      throw new NotFoundError("Article management target unavailable", undefined, { messageKey: "article.notFound" });
-    const action = actionForPermission(permission),
-      resource = articleArn(principal.accountOwnerId, target.id),
-      start = performance.now();
+    return principal;
+  }
+  private async authorizeResource(principal: IamPrincipal, action: string, resource: string, request: TypedRequest) {
+    const start = performance.now();
     const result = await this.iam.authorize({
       principal,
       action,
@@ -53,7 +57,31 @@ export class ArticleManagementService {
       throw new ForbiddenError("Article management denied", undefined, {
         messageKey: "permission.insufficientPermission",
       });
+  }
+  private async authorizedTarget(id: string, actorUserId: string, request: TypedRequest, permission: Permission) {
+    const principal = this.principalForActor(actorUserId, request);
+    const target = await this.repository.findTarget(id, principal.accountOwnerId);
+    if (!target)
+      throw new NotFoundError("Article management target unavailable", undefined, { messageKey: "article.notFound" });
+    await this.authorizeResource(
+      principal,
+      actionForPermission(permission),
+      articleArn(principal.accountOwnerId, target.id),
+      request,
+    );
     return { target, principal };
+  }
+  async create(input: CreateArticleDto, actorUserId: string, request: TypedRequest): Promise<Article> {
+    const principal = this.principalForActor(actorUserId, request);
+    const resource = await ramAccountResourceResolver({ request, principal });
+    if (!resource)
+      throw new ForbiddenError("Article parent account unavailable", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    await this.authorizeResource(principal, actionForPermission(Permission.ARTICLE_CREATE), resource, request);
+    const changes = normalizeArticleCreate(input);
+    assertArticlePublicAccess(changes.isPublic ?? false, changes.requirePermission);
+    return this.repository.create(changes, principal.accountOwnerId, actorUserId);
   }
   async transition(
     id: string,

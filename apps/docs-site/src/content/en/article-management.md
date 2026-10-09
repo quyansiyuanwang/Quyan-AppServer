@@ -43,6 +43,25 @@ Use this page to maintain site articles and knowledge content.
 | Delete article                     | `ARTICLE_DELETE`    |
 | Publish / unpublish                | `ARTICLE_PUBLISH`   |
 
+## Creation and account scope
+
+In IAM enforce mode, article creation uses `quyan:article:Create` on the trusted current account, `acs:quyan:*:<accountId>:account`. An article ID does not exist before creation: a grant for an existing article ARN does not grant creation, and resource or resource-group authorizations do not automatically expand into account creation permission.
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:article:Create",
+    "Resource": "acs:quyan:*:account-id:account"
+  }
+}
+```
+
+Replace the account ID with your actual account. The author is always the executing user, including AccessKey and role-session requests. A role session uses role grants, not the caller's own creation permission. Only title, slug, category, summary, content, public visibility and access requirements are accepted. New articles always start as drafts; creation cannot select the site default or override managed status or counters. Creation does not grant subsequent editing, deletion, publishing or default-article management.
+
+Slugs are globally unique, including inactive articles. A public article cannot have a nonempty permission requirement. Persistence rechecks active authorship and account ownership: changed identities are denied, while database concurrency conflicts require refreshing and retrying. Legacy/shadow modes retain their previous creation permission checks, with the same input isolation and draft defaults.
+
 ## Resource-scoped publishing
 
 In IAM enforce mode, publishing and retracting use the same sensitive native Action, `quyan:article:Publish`, on an exact article resource:

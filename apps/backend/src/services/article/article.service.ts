@@ -20,7 +20,7 @@ import type { Request } from "express";
 import type { TypedRequest } from "@/types/express";
 import { env } from "@/config/env";
 import { ArticleManagementService } from "./article-management.service";
-import { assertArticlePublicAccess, normalizeArticleUpdate } from "./article-validation";
+import { assertArticlePublicAccess, normalizeArticleCreate, normalizeArticleUpdate } from "./article-validation";
 
 export class ArticleService {
   private static instance: ArticleService;
@@ -44,15 +44,12 @@ export class ArticleService {
   }
 
   async createArticle(dto: CreateArticleDto, authorId: string, request: Request): Promise<ArticleDto> {
-    const existing = await this.repository.findBySlug(dto.slug);
-    if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
-
-    assertArticlePublicAccess(dto.isPublic ?? false, dto.requirePermission);
-
-    const article = await this.repository.create({
-      ...dto,
-      authorId,
-    });
+    const changes = normalizeArticleCreate(dto);
+    assertArticlePublicAccess(changes.isPublic ?? false, changes.requirePermission);
+    const article =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await ArticleManagementService.getInstance().create(changes, authorId, request as TypedRequest)
+        : await this.createLegacyArticle(changes, authorId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_CREATE,
@@ -113,6 +110,12 @@ export class ArticleService {
       ipAddress: this.getClientIP(request),
       userAgent: request.headers["user-agent"],
     });
+  }
+
+  private async createLegacyArticle(dto: CreateArticleDto, authorId: string) {
+    const existing = await this.repository.findBySlug(dto.slug);
+    if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
+    return this.repository.create({ ...dto, authorId });
   }
 
   private async updateLegacyArticle(id: string, dto: UpdateArticleDto, userId: string) {
