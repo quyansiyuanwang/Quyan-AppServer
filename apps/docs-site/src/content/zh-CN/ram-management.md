@@ -319,3 +319,7 @@ KV 和密钥可作为资源组成员，移除成员后下一次请求即失去�
 ## 状态监控资源授权
 
 状态监控使用 `acs:developer:*:<accountId>:status-monitor/<projectId>/<monitorId>`。创建在项目 ARN 上授权，列表逐项过滤；修改、删除和手动 HTTP 检查为独立 Action，修改或列表权限不自动包含检查。enforce 支持同账户指定监控项委派和资源组范围，拒绝跨账户、错误项目及已禁用资源，保留 SSRF 校验。分页返回 hasNext 而非未授权总数，空页仍可继续；详情与 JSON 可用的操作名称见 [状态监控](./developer-product-status)。
+
+## 项目推送渠道资源授权
+
+渠道使用 `acs:developer:*:<accountId>:push-channel/<projectId>/<channelId>`。创建在项目范围控制，敏感配置列表逐渠道过滤，修改与删除独立授权。托管密钥绑定、保留引用修改地址或启用渠道，还需要在确切 Secret ARN 上授予 `quyan:developer:UseSecret`；普通渠道管理或密钥写入权限不会隐式获得此能力。管理流程不解密，事务内核实配置快照与密钥目标，拒绝并发替换沿用旧授权。分页、资源组和模式边界见 [推送聚合](./developer-product-push)。

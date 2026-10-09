@@ -260,13 +260,21 @@ export interface CreateDeveloperPushChannelDto {
   secretReference?: DeveloperPushSecretReferenceDto;
 }
 
-/** A write-only credential stored by a selected Secret Management instance. */
+/** Metadata reference to a credential in a selected Secret Management instance; no secret value is returned. */
 export interface DeveloperPushSecretReferenceDto {
   secretInstanceId: string;
   alias: string;
 }
 
+export interface DeveloperPushChannelPageDto {
+  items: DeveloperPushChannelDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperPushChannelDto {
+  resourceArn?: string;
   id: string;
   name: string;
   type: string;

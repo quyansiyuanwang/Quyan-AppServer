@@ -319,3 +319,7 @@ Resource identifiers must exactly match the stored letter case. Even when the da
 ## Status Monitor resource authorization
 
 Status Monitors use `acs:developer:*:<accountId>:status-monitor/<projectId>/<monitorId>`. Creation is authorized on the project ARN, while listing filters individual monitors. Update, deletion, and manual HTTP checks are independent Actions; modification or listing does not imply checking. Enforce supports same-account single-monitor delegation and resource-group scope, rejects foreign accounts, wrong projects, and inactive resources, and retains SSRF validation. Pages expose hasNext rather than an unauthorized total, and empty pages remain traversable. See [Status Monitoring](./developer-product-status) for the available JSON Action names and details.
+
+## Project Push Channel resource authorization
+
+Channels use `acs:developer:*:<accountId>:push-channel/<projectId>/<channelId>`. Creation is project-scoped, sensitive configuration listing filters individual channels, and updates and deletion are independent grants. Binding a managed Secret, or changing a destination or enabling a channel while retaining the reference, additionally requires `quyan:developer:UseSecret` on the exact Secret ARN. Ordinary channel management or Secret writes do not imply this capability. Management does not decrypt; transaction-time checks prevent concurrent replacements from inheriting stale authorization. See [Push Aggregation](./developer-product-push) for pagination, resource groups, and mode boundaries.

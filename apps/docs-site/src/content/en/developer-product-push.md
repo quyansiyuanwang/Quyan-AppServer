@@ -1,6 +1,6 @@
 # Push Aggregation
 
-Push Aggregation delivers one business message to generic webhooks, DingTalk bots, Feishu bots, or WeCom bots. Channels are isolated by instance and can reference a Secret Vault alias for credentials. Credentials are neither stored in delivery logs nor returned by the Console.
+Push Aggregation delivers one business message to generic webhooks, DingTalk bots, Feishu bots, or WeCom bots. Channels are isolated by instance and can reference a Secret Vault alias for credentials. Managed Secret plaintext is not returned in channel-management responses.
 
 ## Configure channels
 
@@ -23,4 +23,26 @@ Content-Type: application/json
 }
 ```
 
-The response reports success, a sanitized error, attempt count, and next retry time for each channel. One failed channel does not block the others. Reuse a stable `idempotencyKey` for retries of the same business event to avoid duplicate notifications. Titles are limited to 200 characters, bodies to 10,000 characters, and a request to 20 channels.
+The response reports success, an error summary, attempt count, and next retry time for each channel. One failed channel does not block the others. Reuse a stable `idempotencyKey` for retries of the same business event to avoid duplicate notifications. Titles are limited to 200 characters, bodies to 10,000 characters, and a request to 20 channels.
+
+## Project Channel resource authorization
+
+In IAM enforce mode, JWT project management can delegate one channel. Its ARN is `acs:developer:*:<accountId>:push-channel/<projectId>/<channelId>`. accountId comes from authentication context, and IDs must exactly match stored letter case.
+
+- `quyan:developer:CreatePushChannel` controls creation on a specified project ARN without automatically granting visibility, modification, or deletion of the new channel.
+- `quyan:developer:ListPushChannels` controls configuration visibility per channel. This is sensitive access: an endpoint may contain credentials entered by you. Prefer managed Secret references and grant configuration access carefully.
+- `quyan:developer:UpdatePushChannel` and `DeletePushChannel` separately control modification and deletion, without granting message dispatch or delivery-log access.
+
+### Separate credential-use authority
+
+Selecting or replacing a managed Secret, or changing the destination or re-enabling a channel while retaining its reference, also requires `quyan:developer:UseSecret` on `acs:developer:*:<accountId>:secret/<vaultProjectId>/<ALIAS>`. Channel management, Secret metadata, or Secret writes do not satisfy this requirement. A matching Deny still wins. This high-risk capability permits configuring the credential for an external request destination; it is not an endpoint for obtaining plaintext.
+
+The reference must belong to an active Secret instance of the channel project's stored owner, with an active alias and backing project. Management queries reference metadata only, without decryption or changing last-used time. Renaming or disabling a channel does not require Secret-use authority. Removing the reference while changing the destination is atomic and does not retain the old credential. Broken legacy references require reselection before changing the destination or enabling the channel.
+
+The server rechecks the authorized channel snapshot and Secret target within a transaction. Concurrent changes to configuration, references, or instance backing projects cause a safe failure; requests are not automatically retried with stale authorization. Writes retain HTTP(S)/SSRF validation.
+
+### Lists and authorization scope
+
+`GET /v1/developer/projects/{projectId}/push-channels/page` accepts page/pageSize and returns items, page, pageSize, hasNext, and each item's resourceArn. Candidates are restricted to an active same-account project before per-channel evaluation. No unauthorized total is returned; empty pages may have a next page. The old array endpoint returns only the default first page in enforce. Channels support resource groups; removal changes scope on the next request. Paused channels remain manageable, while inactive resources, wrong-project IDs, and foreign accounts are rejected.
+
+These rules cover JWT project channel management. Product credentials, dispatch, scheduled retries, and delivery-record access retain their separate validation paths; legacy/shadow keep individual project ownership constraints.

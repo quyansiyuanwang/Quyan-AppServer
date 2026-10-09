@@ -229,6 +229,9 @@ describe("RAM IAM policy API contract", () => {
       ["/v1/developer/projects/{projectId}/monitors/{id}", "put"],
       ["/v1/developer/projects/{projectId}/monitors/{id}", "delete"],
       ["/v1/developer/projects/{projectId}/monitors/{id}/check", "post"],
+      ["/v1/developer/projects/{projectId}/push-channels", "post"],
+      ["/v1/developer/projects/{projectId}/push-channels/{id}", "put"],
+      ["/v1/developer/projects/{projectId}/push-channels/{id}", "delete"],
     ] as const)
       expect(openApi.paths[route]?.[method]).toHaveProperty("X-Replay-Protected", true);
   });
@@ -251,6 +254,7 @@ describe("RAM IAM policy API contract", () => {
       ["/v1/developer/projects/{projectId}/short-links/page", "DeveloperShortLinkPageDto"],
       ["/v1/developer/projects/{projectId}/keys/page", "DeveloperApiKeyPageDto"],
       ["/v1/developer/projects/{projectId}/monitors/page", "DeveloperStatusMonitorPageDto"],
+      ["/v1/developer/projects/{projectId}/push-channels/page", "DeveloperPushChannelPageDto"],
     ]) {
       const operation = openApi.paths[route]?.get;
       expect(operation?.security).toContainEqual({ jwt: [] });
@@ -267,11 +271,13 @@ describe("RAM IAM policy API contract", () => {
       "DeveloperShortLinkDto",
       "DeveloperShortLinkStatsDto",
       "DeveloperStatusMonitorDto",
+      "DeveloperPushChannelDto",
     ]) {
       const schema = openApi.components?.schemas?.[dto] as { properties: Record<string, unknown>; required: string[] };
       expect(schema.properties.resourceArn).toMatchObject({ type: "string" });
       expect(schema.required).not.toContain("resourceArn");
-      for (const field of ["ciphertext", "iv", "authTag"]) expect(schema.properties).not.toHaveProperty(field);
+      for (const field of ["ciphertext", "iv", "authTag", "config"])
+        expect(schema.properties).not.toHaveProperty(field);
     }
   });
   it("omits raw credential and hash fields from project key page items", () => {

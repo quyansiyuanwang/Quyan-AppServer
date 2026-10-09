@@ -73,7 +73,13 @@ export function developerShortLinkArn(accountOwnerId: string, projectId: string,
     path: "short-link/" + projectId + "/" + linkId,
   });
 }
-export type DeveloperItemResourceType = "kv-item" | "secret" | "short-link" | "project-api-key" | "status-monitor";
+export type DeveloperItemResourceType =
+  | "kv-item"
+  | "secret"
+  | "short-link"
+  | "project-api-key"
+  | "status-monitor"
+  | "push-channel";
 export function developerItemArn(
   type: DeveloperItemResourceType,
   accountOwnerId: string,
@@ -91,6 +97,8 @@ export function developerItemArn(
       return developerProjectApiKeyArn(accountOwnerId, projectId, itemId);
     case "status-monitor":
       return developerStatusMonitorArn(accountOwnerId, projectId, itemId);
+    case "push-channel":
+      return developerPushChannelArn(accountOwnerId, projectId, itemId);
   }
 }
 
@@ -119,5 +127,19 @@ export function developerStatusMonitorArn(accountOwnerId: string, projectId: str
     region: "*",
     accountId: accountOwnerId,
     path: "status-monitor/" + projectId + "/" + monitorId,
+  });
+}
+
+export function developerPushChannelArn(accountOwnerId: string, projectId: string, channelId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, channelId)
+  )
+    throw new Error("Invalid push channel identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "push-channel/" + projectId + "/" + channelId,
   });
 }

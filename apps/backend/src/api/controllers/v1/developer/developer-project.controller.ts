@@ -36,6 +36,7 @@ import {
   developerShortLinkResourceResolver,
   developerProjectApiKeyResourceResolver,
   developerStatusMonitorResourceResolver,
+  developerPushChannelResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import type {
@@ -53,6 +54,7 @@ import type {
   DeveloperProjectPageDto,
   DeveloperQuotaSummaryDto,
   DeveloperPushChannelDto,
+  DeveloperPushChannelPageDto,
   DeveloperPushDeliveryDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
@@ -73,7 +75,6 @@ import {
   createPushChannelBodySchema,
   createShortLinkBodySchema,
   createStatusMonitorBodySchema,
-  idParamsSchema,
   developerItemIdParamsSchema,
   kvKeyParamsSchema,
   secretAliasParamsSchema,
@@ -644,13 +645,39 @@ export class DeveloperProjectController extends Controller {
     return this.management.checkStatusMonitor(projectId, id, request.user!.userId);
   }
 
+  @Get("{projectId}/push-channels/page")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListPushChannels",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
+  public async listPushChannelsPage(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<DeveloperPushChannelPageDto> {
+    return this.management.listPushChannelsPage(projectId, request.user!.userId, { page, pageSize });
+  }
+
   @Get("{projectId}/push-channels")
-  @Middlewares(validateParams(projectIdParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListPushChannels",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
   public async listPushChannels(
     @Path() projectId: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperPushChannelDto[]> {
-    return this.service.listPushChannels(projectId, request.user!.userId);
+    return this.management.listPushChannels(projectId, request.user!.userId);
   }
 
   @Get("{projectId}/push-deliveries")
@@ -664,24 +691,34 @@ export class DeveloperProjectController extends Controller {
 
   @Post("{projectId}/push-channels")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
     validateBody(createPushChannelBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:CreatePushChannel",
+      resourceKind: "single-resource",
+      resource: developerProjectResourceResolver,
+    }),
   )
   public async createPushChannel(
     @Path() projectId: string,
     @Body() body: CreateDeveloperPushChannelDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperPushChannelDto> {
-    return this.service.createPushChannel(projectId, request.user!.userId, body);
+    return this.management.createPushChannel(projectId, request.user!.userId, body);
   }
 
   @Put("{projectId}/push-channels/{id}")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
-    validateParams(idParamsSchema),
+    validateParams(developerItemIdParamsSchema),
     validateBody(updatePushChannelBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:UpdatePushChannel",
+      resourceKind: "single-resource",
+      resource: developerPushChannelResourceResolver,
+    }),
   )
   public async updatePushChannel(
     @Path() projectId: string,
@@ -689,17 +726,26 @@ export class DeveloperProjectController extends Controller {
     @Body() body: UpdateDeveloperPushChannelDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperPushChannelDto> {
-    return this.service.updatePushChannel(projectId, id, request.user!.userId, body);
+    return this.management.updatePushChannel(projectId, id, request.user!.userId, body);
   }
 
   @Delete("{projectId}/push-channels/{id}")
-  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateParams(projectIdParamsSchema),
+    validateParams(developerItemIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:DeletePushChannel",
+      resourceKind: "single-resource",
+      resource: developerPushChannelResourceResolver,
+    }),
+  )
   public async deletePushChannel(
     @Path() projectId: string,
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    await this.service.deletePushChannel(projectId, id, request.user!.userId);
+    await this.management.deletePushChannel(projectId, id, request.user!.userId);
     return { success: true };
   }
 }

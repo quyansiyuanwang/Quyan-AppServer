@@ -11,6 +11,7 @@ import {
   developerProjectApiKeyArn,
   developerShortLinkArn,
   developerStatusMonitorArn,
+  developerPushChannelArn,
   type DeveloperItemResourceType,
 } from "@/iam/resources/developer-resources";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -20,6 +21,15 @@ import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import { UserRepository } from "@/store/users/user.repository";
 import { DeveloperProjectRepository } from "@/store/developer/developer-project.repository";
+import {
+  DeveloperPushChannelRepository,
+  type ResolvedPushSecretBinding,
+} from "@/store/developer/developer-push-channel.repository";
+import {
+  requiresPushSecretAuthority,
+  pushChannelSecretReferenceDto,
+  readStoredPushSecretReference,
+} from "@/store/developer/developer-push-channel.mapping";
 import type {
   CreateDeveloperProjectDto,
   DeveloperProjectDto,
@@ -42,6 +52,11 @@ import type {
   DeveloperStatusMonitorPageDto,
   CreateDeveloperStatusMonitorDto,
   UpdateDeveloperStatusMonitorDto,
+  CreateDeveloperPushChannelDto,
+  UpdateDeveloperPushChannelDto,
+  DeveloperPushSecretReferenceDto,
+  DeveloperPushChannelDto,
+  DeveloperPushChannelPageDto,
 } from "@/api/dto/developer/developer.dto";
 
 /** JWT management has its own IAM boundary; project-key/public/scheduler calls retain their separate guards. */
@@ -51,6 +66,7 @@ export class DeveloperProjectManagementService {
     private readonly projects = DeveloperProjectRepository.getInstance(),
     private readonly users = UserRepository.getInstance(),
     private readonly iam = IamAuthorizationService.getInstance(),
+    private readonly channels = DeveloperPushChannelRepository.getInstance(),
   ) {}
   static getInstance() {
     return (this.instance ??= new DeveloperProjectManagementService());
@@ -666,5 +682,135 @@ export class DeveloperProjectManagementService {
       activeOnly: env.security.iamAuthorizationMode === "enforce",
     });
     return { ...item, resourceArn: target.resourceArn };
+  }
+  async listPushChannelsPage(
+    projectId: string,
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<DeveloperPushChannelPageDto> {
+    return this.resourcePage<DeveloperPushChannelDto>(
+      projectId,
+      actorUserId,
+      "quyan:developer:ListPushChannels",
+      query,
+      (owner, options) => this.channels.listCandidates(projectId, owner, options),
+      (accountOwnerId, item) => developerPushChannelArn(accountOwnerId, projectId, item.id),
+    );
+  }
+  async listPushChannels(projectId: string, actorUserId: string): Promise<DeveloperPushChannelDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listPushChannelsPage(projectId, actorUserId)).items;
+    const items = await this.projects.listPushChannels(projectId, actorUserId);
+    await this.shadowResourceRows(actorUserId, "quyan:developer:ListPushChannels", items, (owner, item) =>
+      developerPushChannelArn(owner, projectId, item.id),
+    );
+    return items;
+  }
+  private async channelSecretGrant(
+    owner: string,
+    actorUserId: string,
+    reference: DeveloperPushSecretReferenceDto,
+    expectedProjectId?: string,
+  ): Promise<ResolvedPushSecretBinding | undefined> {
+    const mode = env.security.iamAuthorizationMode;
+    if (mode === "legacy") return undefined;
+    try {
+      const binding = await this.channels.findSecretBinding(owner, reference);
+      if (expectedProjectId && binding.secretProjectId !== expectedProjectId)
+        throw new ForbiddenError("Stored Secret binding no longer matches its instance", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const target = await this.itemTarget(
+        "quyan:developer:UseSecret",
+        binding.secretProjectId,
+        actorUserId,
+        "secret",
+        binding.alias,
+      );
+      if (mode === "enforce" && target.owner !== owner)
+        throw new ForbiddenError("Secret binding owner mismatch", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      return binding;
+    } catch (error) {
+      if (mode !== "shadow") throw error;
+      getLogger("DeveloperProjectIam", LogCategory.SECURITY).warn("Push Secret shadow evaluation failed", {
+        action: "quyan:developer:UseSecret",
+        principalUserId: actorUserId,
+        reason: "iam-evaluation-unavailable",
+      });
+      return undefined;
+    }
+  }
+  async createPushChannel(
+    projectId: string,
+    actorUserId: string,
+    body: CreateDeveloperPushChannelDto,
+  ): Promise<DeveloperPushChannelDto> {
+    const owner = await this.projectOwner("quyan:developer:CreatePushChannel", projectId, actorUserId);
+    const binding = body.secretReference
+      ? await this.channelSecretGrant(owner, actorUserId, body.secretReference)
+      : undefined;
+    if (env.security.iamAuthorizationMode !== "enforce") return this.projects.createPushChannel(projectId, owner, body);
+    const identity = await this.actorContext(actorUserId);
+    const item = await this.channels.create(projectId, owner, body, binding);
+    return { ...item, resourceArn: developerPushChannelArn(identity.principal.accountOwnerId, projectId, item.id) };
+  }
+  async updatePushChannel(
+    projectId: string,
+    channelId: string,
+    actorUserId: string,
+    body: UpdateDeveloperPushChannelDto,
+  ): Promise<DeveloperPushChannelDto> {
+    const target = await this.itemTarget(
+      "quyan:developer:UpdatePushChannel",
+      projectId,
+      actorUserId,
+      "push-channel",
+      channelId,
+    );
+    if (env.security.iamAuthorizationMode === "legacy")
+      return this.projects.updatePushChannel(projectId, channelId, target.owner, body);
+    let snapshot: Awaited<ReturnType<DeveloperPushChannelRepository["snapshot"]>>;
+    let binding: ResolvedPushSecretBinding | undefined;
+    try {
+      snapshot = await this.channels.snapshot(projectId, target.owner, channelId);
+      if (requiresPushSecretAuthority(body, snapshot)) {
+        const reference = body.secretReference ?? pushChannelSecretReferenceDto(snapshot);
+        if (!reference)
+          throw new ForbiddenError("Credential binding must be reselected", undefined, {
+            messageKey: "permission.insufficientPermission",
+          });
+        const expectedProjectId =
+          body.secretReference === undefined
+            ? readStoredPushSecretReference(snapshot.config)?.secretProjectId
+            : undefined;
+        binding = await this.channelSecretGrant(target.owner, actorUserId, reference, expectedProjectId);
+      }
+    } catch (error) {
+      if (env.security.iamAuthorizationMode !== "shadow") throw error;
+      getLogger("DeveloperProjectIam", LogCategory.SECURITY).warn("Push channel shadow evaluation failed", {
+        action: "quyan:developer:UpdatePushChannel",
+        principalUserId: actorUserId,
+        reason: "iam-evaluation-unavailable",
+      });
+      return this.projects.updatePushChannel(projectId, channelId, target.owner, body);
+    }
+    if (env.security.iamAuthorizationMode === "shadow")
+      return this.projects.updatePushChannel(projectId, channelId, target.owner, body);
+    const item = await this.channels.update(snapshot, target.owner, body, binding);
+    return { ...item, resourceArn: target.resourceArn };
+  }
+  async deletePushChannel(projectId: string, channelId: string, actorUserId: string): Promise<void> {
+    const target = await this.itemTarget(
+      "quyan:developer:DeletePushChannel",
+      projectId,
+      actorUserId,
+      "push-channel",
+      channelId,
+    );
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.channels.delete(projectId, target.owner, channelId);
+    return this.projects.deletePushChannel(projectId, channelId, target.owner);
   }
 }

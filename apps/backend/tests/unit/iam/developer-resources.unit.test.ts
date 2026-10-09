@@ -7,6 +7,7 @@ import {
   developerShortLinkArn,
   developerProjectApiKeyArn,
   developerStatusMonitorArn,
+  developerPushChannelArn,
   developerKvKeyFromArnSegment,
 } from "@/iam/resources/developer-resources";
 import {
@@ -15,6 +16,7 @@ import {
   developerShortLinkResourceResolver,
   developerProjectApiKeyResourceResolver,
   developerStatusMonitorResourceResolver,
+  developerPushChannelResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
@@ -148,6 +150,43 @@ describe("developer item resource identities", () => {
       evaluatePolicies([{ policyId: "fixture", document }], {
         action: "quyan:developer:RevokeProjectApiKey",
         resource: arn,
+      }).decision,
+    ).toBe("ImplicitDeny");
+  });
+  it("uses concrete channel resources without implicit Secret-use authority", async () => {
+    const arn = developerPushChannelArn("owner", "project", "channel-1");
+    expect(arn).toBe("acs:developer:*:owner:push-channel/project/channel-1");
+    expect(
+      await developerPushChannelResourceResolver({
+        principal,
+        request: { params: { projectId: "project", id: "channel-1" }, body: { accountId: "foreign" } } as never,
+      }),
+    ).toBe(arn);
+    for (const id of ["*", "bad/id", " channel-1 ", undefined])
+      expect(
+        await developerPushChannelResourceResolver({
+          principal,
+          request: { params: { projectId: "project", id } } as never,
+        }),
+      ).toBeUndefined();
+    expect(isIamActionResourceCompatible("quyan:developer:CreatePushChannel", arn)).toBe(false);
+    expect(
+      isIamActionResourceCompatible("quyan:developer:CreatePushChannel", developerProjectArn("owner", "project")),
+    ).toBe(true);
+    expect(isIamActionResourceCompatible("quyan:developer:UseSecret", arn)).toBe(false);
+    expect(getIamActionDefinition("quyan:developer:UseSecret")).toMatchObject({
+      sensitive: true,
+      resourceTypes: ["developer/secret"],
+    });
+    expect(getIamActionDefinition("quyan:developer:ListPushChannels")?.sensitive).toBe(true);
+    const document = parseIamPolicy({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:developer:UpdatePushChannel", Resource: arn },
+    }).document;
+    expect(
+      evaluatePolicies([{ policyId: "fixture", document }], {
+        action: "quyan:developer:UseSecret",
+        resource: developerSecretArn("owner", "project", "TOKEN"),
       }).decision,
     ).toBe("ImplicitDeny");
   });

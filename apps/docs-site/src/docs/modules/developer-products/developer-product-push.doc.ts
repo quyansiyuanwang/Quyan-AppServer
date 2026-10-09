@@ -9,6 +9,7 @@ export default defineDocsPage({
     en: 'Deliver messages through configured channels.',
     'zh-CN': '通过配置好的渠道投递消息。',
   },
-  tags: ['push'],
+  tags: ['push', 'iam', 'secret'],
+  updatedAt: '2026-10-09',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

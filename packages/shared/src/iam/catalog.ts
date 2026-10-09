@@ -63,6 +63,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('developer', 'short-link', 2),
   resource('developer', 'project-api-key', 2),
   resource('developer', 'status-monitor', 2),
+  resource('developer', 'push-channel', 2),
   resource('article', 'article'),
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
@@ -210,6 +211,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: 'Write',
       resourceTypes: ['developer/status-monitor'],
     },
+    {
+      operation: 'ListPushChannels',
+      accessLevel: 'List',
+      resourceTypes: ['developer/project', 'developer/push-channel'],
+    },
+    { operation: 'CreatePushChannel', accessLevel: 'Write', resourceTypes: ['developer/project'] },
+    {
+      operation: 'UpdatePushChannel',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/push-channel'],
+    },
+    {
+      operation: 'DeletePushChannel',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/push-channel'],
+    },
+    { operation: 'UseSecret', accessLevel: 'Write', resourceTypes: ['developer/secret'] },
     { operation: 'GetProjectUsage', accessLevel: 'Read', resourceTypes: ['developer/project'] },
     { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },
   ].map(
@@ -223,7 +241,8 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive:
         definition.accessLevel === 'Write' ||
         definition.operation === 'GetShortLinkStats' ||
-        definition.operation === 'ListProjectApiKeys',
+        definition.operation === 'ListProjectApiKeys' ||
+        definition.operation === 'ListPushChannels',
       authorizationStage: 'declared',
     }),
   ),

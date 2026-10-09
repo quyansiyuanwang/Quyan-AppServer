@@ -1,3 +1,9 @@
+import {
+  readStoredPushSecretReference,
+  pushChannelSecretReferenceDto,
+  toDeveloperPushChannelDto,
+  type StoredPushSecretReference,
+} from "./developer-push-channel.mapping";
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import type { DeveloperItemResourceType } from "@/iam/resources/developer-resources";
@@ -88,11 +94,6 @@ type QuotaReceipt = {
   usageId: string;
   userId: string;
   chargeAmount: number;
-};
-
-type StoredPushSecretReference = {
-  secretInstanceId: string;
-  secretProjectId: string;
 };
 
 type BaiduIpLocationResponse = {
@@ -785,6 +786,13 @@ export class DeveloperProjectRepository {
         const item = await prisma.developerShortLink.findFirst({
           where: { id: itemId, projectId },
           select: { projectId: true, id: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+      case "push-channel": {
+        const item = await prisma.developerPushChannel.findFirst({
+          where: { id: itemId, projectId },
+          select: { id: true, projectId: true },
         });
         return item ? { projectId: item.projectId, itemId: item.id } : undefined;
       }
@@ -2102,10 +2110,7 @@ export class DeveloperProjectRepository {
   }
 
   private readPushSecretReference(config: unknown): StoredPushSecretReference | undefined {
-    if (!config || typeof config !== "object" || Array.isArray(config)) return undefined;
-    const value = config as Record<string, unknown>;
-    if (typeof value.secretInstanceId !== "string" || typeof value.secretProjectId !== "string") return undefined;
-    return { secretInstanceId: value.secretInstanceId, secretProjectId: value.secretProjectId };
+    return readStoredPushSecretReference(config);
   }
 
   private async resolvePushSecretReference(
@@ -2133,9 +2138,7 @@ export class DeveloperProjectRepository {
     secretAlias: string | null;
     config: Prisma.JsonValue | null;
   }): DeveloperPushSecretReferenceDto | undefined {
-    const reference = this.readPushSecretReference(channel.config);
-    if (!reference || !channel.secretAlias) return undefined;
-    return { secretInstanceId: reference.secretInstanceId, alias: channel.secretAlias };
+    return pushChannelSecretReferenceDto(channel);
   }
 
   private async resolveStoredPushSecret(reference: StoredPushSecretReference, alias: string): Promise<string> {
@@ -2186,17 +2189,7 @@ export class DeveloperProjectRepository {
     createTime: Date;
     updateTime: Date;
   }): DeveloperPushChannelDto {
-    return {
-      id: channel.id,
-      name: channel.name,
-      type: channel.type,
-      endpoint: channel.endpoint ?? "",
-      secretReference: this.pushChannelSecretReferenceDto(channel),
-      secretAlias: channel.secretAlias ?? undefined,
-      enabled: channel.enabled,
-      createTime: channel.createTime.toISOString(),
-      updateTime: channel.updateTime.toISOString(),
-    };
+    return toDeveloperPushChannelDto(channel);
   }
 
   async listPushChannels(projectId: string, userId: string): Promise<DeveloperPushChannelDto[]> {
