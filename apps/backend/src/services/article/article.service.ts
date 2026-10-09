@@ -17,6 +17,9 @@ import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { Permission } from "@/constant/permission";
 import { extractClientIp } from "@/util/ip-extractor";
 import type { Request } from "express";
+import type { TypedRequest } from "@/types/express";
+import { env } from "@/config/env";
+import { ArticlePublicationService } from "./article-publication.service";
 
 export class ArticleService {
   private static instance: ArticleService;
@@ -131,16 +134,7 @@ export class ArticleService {
   }
 
   async publishArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
-    const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
-
-    if (article.publishStatus === "published")
-      throw new BadRequestError("Article is already published", undefined, { messageKey: "article.alreadyPublished" });
-
-    const updated = await this.repository.update(id, {
-      publishStatus: "published",
-      publishedAt: new Date(),
-    });
+    const updated = await this.transitionPublication(id, userId, request, "published");
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_PUBLISH,
@@ -159,15 +153,7 @@ export class ArticleService {
   }
 
   async unpublishArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
-    const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
-
-    if (article.publishStatus === "draft")
-      throw new BadRequestError("Article is already a draft", undefined, { messageKey: "article.alreadyDraft" });
-
-    const updated = await this.repository.update(id, {
-      publishStatus: "draft",
-    });
+    const updated = await this.transitionPublication(id, userId, request, "draft");
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_UNPUBLISH,
@@ -183,6 +169,21 @@ export class ArticleService {
     });
 
     return this.toArticleDto(updated);
+  }
+
+  private async transitionPublication(id: string, userId: string, request: Request, next: "draft" | "published") {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return ArticlePublicationService.getInstance().transition(id, userId, request as TypedRequest, next);
+    const article = await this.repository.findById(id);
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
+    if (article.publishStatus === next)
+      throw new BadRequestError("Article publication state is unchanged", undefined, {
+        messageKey: next === "published" ? "article.alreadyPublished" : "article.alreadyDraft",
+      });
+    return this.repository.update(id, {
+      publishStatus: next,
+      ...(next === "published" ? { publishedAt: new Date() } : {}),
+    });
   }
 
   async getArticle(id: string, userId: string): Promise<ArticleDto> {

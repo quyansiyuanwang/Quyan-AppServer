@@ -35,6 +35,7 @@ import {
   updateArticleBodySchema,
 } from "@/api/schema/article/article.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
+import { articleResourceResolver } from "@/iam/request/article-resource-resolvers";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 
 @Route("v1/articles")
@@ -151,7 +152,11 @@ export class ArticleController extends Controller {
 
   @Post("{id}/publish")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_PUBLISH, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ARTICLE_PUBLISH, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Publish",
+    resourceKind: "single-resource",
+    resource: articleResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(articleIdParamsSchema))
   public async publishArticle(@Path() id: string, @Request() request: TypedRequest): Promise<ArticleDto> {
     return this.service.publishArticle(id, request.user!.userId, request);
@@ -159,7 +164,11 @@ export class ArticleController extends Controller {
 
   @Post("{id}/unpublish")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_PUBLISH, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ARTICLE_PUBLISH, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Publish",
+    resourceKind: "single-resource",
+    resource: articleResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(articleIdParamsSchema))
   public async unpublishArticle(@Path() id: string, @Request() request: TypedRequest): Promise<ArticleDto> {
     return this.service.unpublishArticle(id, request.user!.userId, request);

@@ -423,3 +423,12 @@ describe("IAM selector and diagnosis wire contracts", () => {
     });
   });
 });
+
+describe("article publication wire contracts", () => {
+  it.each(["publish", "unpublish"])("keeps %s authenticated and returns the existing article DTO", (operation) => {
+    const route = openApi.paths["/v1/articles/{id}/" + operation].post!;
+    expect(route.security).toEqual(expect.arrayContaining([expect.objectContaining({ jwt: [] })]));
+    expect(route.parameters).toEqual(expect.arrayContaining([expect.objectContaining({ name: "id", in: "path" })]));
+    expect(JSON.stringify(route.responses)).toContain("#/components/schemas/ArticleDto");
+  });
+});

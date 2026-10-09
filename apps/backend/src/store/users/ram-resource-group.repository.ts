@@ -1,3 +1,4 @@
+import { ArticlePublicationRepository } from "@/store/content/article-publication.repository";
 import { developerKvKeyFromArnSegment } from "@/iam/resources/developer-resources";
 import { developerSecretAliasSchema } from "@/api/schema/developer/developer.schema";
 import { lockRamResourceGroup } from "./ram-resource-group-lock";
@@ -96,7 +97,7 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
           }),
         );
       case "article/article":
-        return Boolean(await prisma.article.findFirst({ where: { id, ...active, author: userOwner } }));
+        return Boolean(await ArticlePublicationRepository.getInstance().findTarget(id, accountOwnerId));
       case "developer/project": {
         const project = await prisma.developerProject.findFirst({
           where: { id, ...active, user: { ...active, ...userOwner } },

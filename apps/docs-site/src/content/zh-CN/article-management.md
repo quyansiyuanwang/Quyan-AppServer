@@ -43,6 +43,31 @@
 | 删除文章                      | `ARTICLE_DELETE`  |
 | 发布 / 取消发布               | `ARTICLE_PUBLISH` |
 
+## 资源级发布授权
+
+IAM enforce 模式下，发布与撤回共用敏感原生 Action `quyan:article:Publish`，目标为具体文章资源：
+
+`acs:article:*:<accountId>:article/<articleId>`
+
+可以授权管理同账户其他作者的文章，也可以限定资源组范围。即使策略使用通配符，其他账户的文章、已停用文章／作者／账户，以及非规范资源标识仍会被拒绝。显式 Deny 优先于 Allow；移除资源组成员后，下一次请求立即按新范围判断。
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "quyan:article:Publish",
+      "Resource": "acs:article:*:account-id:article/article-id"
+    }
+  ]
+}
+```
+
+请替换为实际账户与文章标识。仅指定账户 ARN 不代表授权账户下的文章。历史 `ARTICLE_PUBLISH` 权限保留账户级兼容范围；legacy／shadow 模式仍执行历史权限检查。
+
+发布可能使已设为公开的文章可以匿名访问，确认前应检查正文、公开状态与访问限制。发布响应沿用完整文章 DTO，包含正文。写入前服务端再次检查有效归属及已授权的发布快照；状态或公开设置变化时，需要刷新后重新授权。该权限不代表可以新建、编辑、删除文章或修改全站默认文章。迁移期间，文章列表及菜单仍有独立权限要求；公开阅读行为不变。
+
 ## 说明
 
 - 文章阅读侧通常对应 `home-articles` 页面。

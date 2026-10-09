@@ -109,6 +109,7 @@ const businessResources: Partial<Record<Permission, string[]>> = {
   [Permission.ARTICLE_READ]: ['article/article'],
   [Permission.ARTICLE_UPDATE]: ['article/article'],
   [Permission.ARTICLE_DELETE]: ['article/article'],
+  [Permission.ARTICLE_PUBLISH]: ['article/article'],
 }
 const fromPermission = (permission: Permission): IamActionDefinition => {
   const action = actionForPermission(permission)
@@ -132,7 +133,9 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
     resourceTypes: ['quyan/account', ...(resources ?? [])],
     apiRoutes: [],
     conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
-    sensitive: /ram:|permission:|impersonate|secret|password|key/i.test(permission),
+    sensitive:
+      permission === Permission.ARTICLE_PUBLISH ||
+      /ram:|permission:|impersonate|secret|password|key/i.test(permission),
     authorizationStage: resources ? 'declared' : 'legacy',
     ...(permission === Permission.PERMISSION_VIEW
       ? { defaultAuthorizationScope: 'self' as const }
