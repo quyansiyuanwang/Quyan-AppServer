@@ -11,7 +11,7 @@ import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { Permission } from "@/constant/permission";
 import { PermissionList, UserPermissionConfig, UserFullPermissions, PermissionCheckResult } from "@/models/permission";
-import { BadRequestError, ForbiddenError } from "@/util/errors";
+import { BadRequestError, ForbiddenError, ConflictError } from "@/util/errors";
 import { isValidPermission } from "@/util/permission/validation";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
@@ -20,8 +20,8 @@ import { GroupRepository } from "@/store/users/group.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
 import { env } from "@/config/env";
-import type { UserStore, UserWithGroup } from "@/store/users/user.store";
-import type { GroupStore } from "@/store/users/group.store";
+import type { UserStore, UserWithGroup, UserPermissionSnapshot } from "@/store/users/user.store";
+import type { GroupStore, GroupPermissionSnapshot } from "@/store/users/group.store";
 import type { RamRoleStore } from "@/store/users/ram-role.store";
 import type { RamPolicyStore } from "@/store/users/ram-policy.store";
 import type { Request } from "express";
@@ -390,7 +390,10 @@ export class PermissionService {
    * @param targetUserId 目标用户ID
    * @throws ForbiddenError 如果不允许修改
    */
-  async canModifyUserPermissions(operatorUserId: string, targetUserId: string): Promise<void> {
+  async canModifyUserPermissions(
+    operatorUserId: string,
+    targetUserId: string,
+  ): Promise<{ operator: UserWithGroup; user: UserWithGroup }> {
     // 检查是否修改自己的权限
     if (operatorUserId === targetUserId)
       throw new ForbiddenError("不允许修改自己的权限", undefined, { messageKey: "permission.cannotModifySelf" });
@@ -419,6 +422,7 @@ export class PermissionService {
       throw new ForbiddenError("无权修改等级大于或等于自己的用户的权限", undefined, {
         messageKey: "permission.cannotModifyPeer",
       });
+    return { operator, user: target };
   }
 
   /**
@@ -438,21 +442,12 @@ export class PermissionService {
     await this.assertCanGrantPermissions(operatorUserId, permissions);
 
     // 安全检查：检查是否可以修改目标用户的权限
-    await this.canModifyUserPermissions(operatorUserId, userId);
-
-    const [user, operator] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userRepository.findById(operatorUserId),
-    ]);
-
-    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator)
-      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    const { user, operator } = await this.canModifyUserPermissions(operatorUserId, userId);
 
     const currentAdds = this.parsePermissionJson(user.permissionAdds);
     const updatedAdds = Array.from(new Set([...currentAdds, ...permissions]));
 
-    await this.userRepository.updateById(userId, {
+    await this.commitUserPermissionSnapshot(user, {
       permissionAdds: updatedAdds,
     });
 
@@ -491,21 +486,12 @@ export class PermissionService {
     this.validatePermissions(permissions);
 
     // 安全检查：检查是否可以修改目标用户的权限
-    await this.canModifyUserPermissions(operatorUserId, userId);
-
-    const [user, operator] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userRepository.findById(operatorUserId),
-    ]);
-
-    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator)
-      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    const { user, operator } = await this.canModifyUserPermissions(operatorUserId, userId);
 
     const currentRemoves = this.parsePermissionJson(user.permissionRemoves);
     const updatedRemoves = Array.from(new Set([...currentRemoves, ...permissions]));
 
-    await this.userRepository.updateById(userId, {
+    await this.commitUserPermissionSnapshot(user, {
       permissionRemoves: updatedRemoves,
     });
 
@@ -542,16 +528,7 @@ export class PermissionService {
     request?: Request,
   ): Promise<void> {
     // 安全检查：检查是否可以修改目标用户的权限
-    await this.canModifyUserPermissions(operatorUserId, userId);
-
-    const [user, operator] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userRepository.findById(operatorUserId),
-    ]);
-
-    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator)
-      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    const { user, operator } = await this.canModifyUserPermissions(operatorUserId, userId);
 
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
@@ -624,7 +601,7 @@ export class PermissionService {
       }
     }
 
-    await this.userRepository.updateById(userId, updateData);
+    await this.commitUserPermissionSnapshot(user, updateData);
 
     // 记录业务日志
     const changes: any = { before: {}, after: {} };
@@ -660,23 +637,14 @@ export class PermissionService {
    */
   async clearUserPermissionConfig(operatorUserId: string, userId: string, request?: Request): Promise<void> {
     // 安全检查：检查是否可以修改目标用户的权限
-    await this.canModifyUserPermissions(operatorUserId, userId);
-
-    const [user, operator] = await Promise.all([
-      this.userRepository.findById(userId),
-      this.userRepository.findById(operatorUserId),
-    ]);
-
-    if (!user) throw new BadRequestError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
-    if (!operator)
-      throw new BadRequestError("操作者用户不存在", undefined, { messageKey: "permission.operatorNotFound" });
+    const { user, operator } = await this.canModifyUserPermissions(operatorUserId, userId);
 
     const beforeAdds = this.parsePermissionJson(user.permissionAdds);
     const beforeRemoves = this.parsePermissionJson(user.permissionRemoves);
 
     if (env.security.iamAuthorizationMode === "enforce")
       await this.assertCanGrantPermissions(operatorUserId, beforeRemoves);
-    await this.userRepository.updateById(userId, {
+    await this.commitUserPermissionSnapshot(user, {
       permissionAdds: [],
       permissionRemoves: [],
     });
@@ -698,6 +666,16 @@ export class PermissionService {
       userAgent: request?.headers["user-agent"],
       requestId: request?.headers["x-request-id"] as string | undefined,
     });
+  }
+
+  private async commitUserPermissionSnapshot(
+    expected: UserPermissionSnapshot,
+    data: { permissionAdds?: string[]; permissionRemoves?: string[] },
+  ): Promise<void> {
+    if (!(await this.userRepository.compareAndSetPermissions(expected, data)))
+      throw new ConflictError("Permission state changed after authorization", undefined, {
+        messageKey: "iam.versionConflict",
+      });
   }
 
   /** Legacy unowned recovery groups are visible only to their real account owner. */
@@ -752,11 +730,17 @@ export class PermissionService {
     permissions: Permission[],
     operatorUserId?: string,
     request?: Request,
+    expected?: GroupPermissionSnapshot,
   ): Promise<void> {
     this.validatePermissions(permissions);
     if (operatorUserId) await this.assertCanGrantPermissions(operatorUserId, permissions);
 
-    const group = await this.groupRepository.findById(groupId);
+    // Controllers pass the exact snapshot used for their hierarchy and Add/Remove checks.
+    const group = expected ?? (await this.groupRepository.findById(groupId));
+    if (group && group.id !== groupId)
+      throw new ConflictError("Group permission snapshot does not match target", undefined, {
+        messageKey: "iam.versionConflict",
+      });
     if (!group) throw new BadRequestError("用户组不存在", undefined, { messageKey: "permission.groupNotFound" });
 
     if (operatorUserId) await this.assertGroupPermissionAccountScope(group, operatorUserId);
@@ -764,9 +748,10 @@ export class PermissionService {
     const beforePermissions = this.parsePermissionJson(group.permissions);
     const afterPermissions = Array.from(new Set(permissions));
 
-    await this.groupRepository.updateById(groupId, {
-      permissions: afterPermissions,
-    });
+    if (!(await this.groupRepository.compareAndSetPermissions(group, afterPermissions)))
+      throw new ConflictError("Group permission state changed after authorization", undefined, {
+        messageKey: "iam.versionConflict",
+      });
 
     // 记录业务日志（如果提供了操作者ID）
     if (operatorUserId) {

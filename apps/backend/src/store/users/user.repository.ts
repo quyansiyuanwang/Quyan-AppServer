@@ -1,6 +1,12 @@
 import { prisma } from "@/config/database";
-import type { Prisma, User, BalanceAccount } from "@prisma/client";
-import type { UserStore, UserWithGroup, UserListFilters, PaginatedUserListFilters } from "./user.store";
+import { Prisma, type User, type BalanceAccount } from "@prisma/client";
+import type {
+  UserStore,
+  UserWithGroup,
+  UserListFilters,
+  PaginatedUserListFilters,
+  UserPermissionSnapshot,
+} from "./user.store";
 import { AccountStatus } from "@/util/auth/account-status";
 import { Permission } from "@/constant/permission";
 
@@ -225,6 +231,42 @@ export class UserRepository implements UserStore {
 
   async countAll(): Promise<number> {
     return prisma.user.count();
+  }
+
+  async compareAndSetPermissions(
+    expected: UserPermissionSnapshot,
+    data: { permissionAdds?: string[]; permissionRemoves?: string[] },
+  ): Promise<boolean> {
+    const result = await prisma.user.updateMany({
+      where: {
+        id: expected.id,
+        updateTime: expected.updateTime,
+        accountOwnerId: expected.accountOwnerId,
+        parentUserId: expected.parentUserId,
+        groupId: expected.groupId,
+        userType: expected.userType,
+        status: expected.status,
+        permissionAdds: { equals: expected.permissionAdds ?? Prisma.JsonNull },
+        permissionRemoves: { equals: expected.permissionRemoves ?? Prisma.JsonNull },
+        group: expected.group
+          ? {
+              is: {
+                id: expected.group.id,
+                updateTime: expected.group.updateTime,
+                level: expected.group.level,
+                status: expected.group.status,
+                accountOwnerId: expected.group.accountOwnerId,
+              },
+            }
+          : null,
+      },
+      data: {
+        ...data,
+        // Guarantee that even same-millisecond competing writes cannot reuse a snapshot.
+        updateTime: new Date(Math.max(Date.now(), expected.updateTime.getTime() + 1)),
+      },
+    });
+    return result.count === 1;
   }
 
   async updateById(id: string, data: Prisma.UserUncheckedUpdateInput): Promise<User> {

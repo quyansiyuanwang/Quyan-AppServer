@@ -32,6 +32,12 @@ export interface GroupQueryStore {
   countAll(): Promise<number>;
 }
 
+/** Server-owned state shared by diff authorization and the conditional write. */
+export type GroupPermissionSnapshot = Pick<
+  Group,
+  "id" | "updateTime" | "accountOwnerId" | "status" | "level" | "username" | "name" | "permissions"
+>;
+
 export interface GroupMutationStore {
   createWithUserCount(data: Prisma.GroupUncheckedCreateInput): Promise<GroupWithUserCount>;
   updateById(id: string, data: Prisma.GroupUncheckedUpdateInput): Promise<Group>;
@@ -40,6 +46,7 @@ export interface GroupMutationStore {
     data: Prisma.GroupUncheckedUpdateInput,
     accountOwnerId?: string,
   ): Promise<GroupWithUserCount>;
+  compareAndSetPermissions(expected: GroupPermissionSnapshot, permissions: string[]): Promise<boolean>;
   softDelete(id: string): Promise<Group>;
 }
 

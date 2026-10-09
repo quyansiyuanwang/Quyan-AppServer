@@ -360,7 +360,9 @@ export class PermissionController extends Controller {
     @Body() body: AddPermissionsDTO,
   ): Promise<BaseResponse> {
     const currentUserId = request.user!.userId;
-    const currentPerm = await permissionService.getGroupPermissions(groupId);
+    const targetGroup = await GroupRepository.getInstance().findById(groupId);
+    if (!targetGroup) throw new NotFoundError("用户组不存在", undefined, { messageKey: "permission.groupNotFound" });
+    const currentPerm = permissionService.parsePermissionJson(targetGroup.permissions);
     const diffs = diff(currentPerm, body.permissions);
 
     const hasAddPerm =
@@ -388,9 +390,6 @@ export class PermissionController extends Controller {
 
     // 层级检查：非管理员不能修改同级或更高级别组的权限
     const userService = new UserService();
-    const groupRepo = GroupRepository.getInstance();
-    const targetGroup = await groupRepo.findById(groupId);
-    if (!targetGroup) throw new NotFoundError("用户组不存在", undefined, { messageKey: "permission.groupNotFound" });
     const isAdmin = await userService.isAdmin(currentUserId);
     if (!isAdmin) {
       const actorLevel = await userService.getUserGroupLevel(currentUserId);
@@ -400,7 +399,7 @@ export class PermissionController extends Controller {
         });
     }
 
-    await permissionService.setGroupPermissions(groupId, body.permissions, currentUserId, request);
+    await permissionService.setGroupPermissions(groupId, body.permissions, currentUserId, request, targetGroup);
     setResponseMessageKey(request, "permission.groupPermissionsUpdated");
 
     return {

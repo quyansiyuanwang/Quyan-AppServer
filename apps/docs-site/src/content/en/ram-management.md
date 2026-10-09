@@ -90,6 +90,8 @@ Select a user to view their complete effective permissions.
 - **Always-require endpoints**: Deleting users, roles, policies, and detaching policies require fresh 2FA (the trusted-device window is ignored).
 - **Notifications**: All RAM mutating operations dispatch security notification events. Ensure your notification preferences include RAM events.
 
+When adding or removing user permissions, clearing overrides, or replacing group permissions, a change to the checked permissions, group hierarchy, or account ownership returns **409 Conflict** instead of overwriting a concurrent update. Reload the current target, review both grants and revocations, and submit again. A failed request has not taken effect; do not automatically retry stale content.
+
 ## Common workflows
 
 1. **Create a RAM user**: RAM Users → Create User → fill in username, RAM username, and choose console/API access → Submit.

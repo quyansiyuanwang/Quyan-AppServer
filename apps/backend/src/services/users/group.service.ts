@@ -4,7 +4,12 @@ import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { BadRequestError, NotFoundError, ForbiddenError } from "@/util/errors";
 import { GroupRepository } from "@/store/users/group.repository";
 import { UserRepository } from "@/store/users/user.repository";
-import type { GroupStore, GroupWithUserCount, GroupListFilters } from "@/store/users/group.store";
+import type {
+  GroupStore,
+  GroupWithUserCount,
+  GroupListFilters,
+  GroupPermissionSnapshot,
+} from "@/store/users/group.store";
 import type { UserStore } from "@/store/users/user.store";
 import type { Request } from "express";
 import { env } from "@/config/env";
@@ -332,6 +337,13 @@ export class GroupService {
     });
   }
 
+  async getGroupPermissionSnapshot(groupId: string, actorUserId: string) {
+    const group = await this.groupRepository.findById(groupId);
+    if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
+    await this.assertIamTargetAccount(group, actorUserId);
+    return group;
+  }
+
   async getGroupPermissions(groupId: string, actorUserId?: string): Promise<string[]> {
     const group = await this.groupRepository.findById(groupId);
     if (!group) throw new NotFoundError("用户组不存在", undefined, { messageKey: "group.notFound" });
@@ -345,12 +357,14 @@ export class GroupService {
     permissions: string[],
     actorUserId: string,
     request?: Request,
+    expected?: GroupPermissionSnapshot,
   ): Promise<void> {
     await PermissionService.getInstance().setGroupPermissions(
       groupId,
       permissions as Permission[],
       actorUserId,
       request,
+      expected,
     );
   }
 }

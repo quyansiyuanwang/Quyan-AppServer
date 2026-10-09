@@ -43,9 +43,28 @@ export interface UserQueryStore {
   findActiveUsernameById(id: string): Promise<string | null>;
 }
 
+/** Snapshot used by permission checks; writes must compare this exact state. */
+export type UserPermissionSnapshot = Pick<
+  UserWithGroup,
+  | "id"
+  | "updateTime"
+  | "accountOwnerId"
+  | "parentUserId"
+  | "groupId"
+  | "userType"
+  | "status"
+  | "permissionAdds"
+  | "permissionRemoves"
+  | "group"
+>;
+
 export interface UserMutationStore {
   create(data: Prisma.UserUncheckedCreateInput): Promise<User>;
   updateById(id: string, data: Prisma.UserUncheckedUpdateInput): Promise<User>;
+  compareAndSetPermissions(
+    expected: UserPermissionSnapshot,
+    data: { permissionAdds?: string[]; permissionRemoves?: string[] },
+  ): Promise<boolean>;
   softDelete(id: string): Promise<User>;
 }
 

@@ -18,6 +18,7 @@ import {
 import { HttpStatusCode } from "axios";
 import { env } from "@/config/env";
 import { IAM_MANAGEMENT_PAGINATION } from "@quyan/shared";
+import { permissionService } from "@/services/users/permission.service";
 import { GroupService } from "@/services/users/group.service";
 import { authorizeLegacyPermissions } from "@/iam/middleware/legacy-permission-bridge";
 import { ramAccountResourceResolver, ramGroupResourceResolver } from "@/iam/request/resource-resolvers";
@@ -250,12 +251,12 @@ export class GroupController extends Controller {
   ): Promise<{ message: string }> {
     const currentUserId = request.user!.userId;
     const isAdmin = await this.userService.isAdmin(currentUserId);
-    const targetGroup = await this.groupService.getGroupById(groupId, request.user!.userId);
+    const targetGroup = await this.groupService.getGroupPermissionSnapshot(groupId, currentUserId);
     if (!targetGroup) throw new ForbiddenError("用户组不存在", undefined, { messageKey: "group.notFound" });
 
-    const currentPermissions = await this.groupService.getGroupPermissions(groupId, request.user!.userId);
+    const currentPermissions = permissionService.parsePermissionJson(targetGroup.permissions);
     const requestedPermissions = new Set(body.permissions);
-    const currentPermissionsSet = new Set(currentPermissions);
+    const currentPermissionsSet = new Set<string>(currentPermissions);
     const hasAddedPermissions = body.permissions.some((permission) => !currentPermissionsSet.has(permission));
     const hasRemovedPermissions = currentPermissions.some((permission) => !requestedPermissions.has(permission));
     const [canAddPermissions, canRemovePermissions] = await Promise.all([
@@ -290,7 +291,7 @@ export class GroupController extends Controller {
         });
     }
 
-    await this.groupService.setGroupPermissions(groupId, body.permissions, currentUserId, request);
+    await this.groupService.setGroupPermissions(groupId, body.permissions, currentUserId, request, targetGroup);
     setResponseMessageKey(request, "group.permissionsUpdated");
     return { message: "权限更新成功" };
   }

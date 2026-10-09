@@ -1,6 +1,12 @@
 import { prisma } from "@/config/database";
-import type { Group, Prisma } from "@prisma/client";
-import type { GroupStore, GroupWithUserCount, GroupListFilters, PaginatedGroupListFilters } from "./group.store";
+import { Prisma, type Group } from "@prisma/client";
+import type {
+  GroupStore,
+  GroupWithUserCount,
+  GroupListFilters,
+  PaginatedGroupListFilters,
+  GroupPermissionSnapshot,
+} from "./group.store";
 import { RECORD_STATUS } from "@/constant/status";
 import { Permission } from "@/constant/permission";
 
@@ -154,6 +160,25 @@ export class GroupRepository implements GroupStore {
 
   async countAll(): Promise<number> {
     return prisma.group.count();
+  }
+
+  async compareAndSetPermissions(expected: GroupPermissionSnapshot, permissions: string[]): Promise<boolean> {
+    const result = await prisma.group.updateMany({
+      where: {
+        id: expected.id,
+        updateTime: expected.updateTime,
+        accountOwnerId: expected.accountOwnerId,
+        status: expected.status,
+        level: expected.level,
+        username: expected.username,
+        permissions: { equals: expected.permissions ?? Prisma.JsonNull },
+      },
+      data: {
+        permissions,
+        updateTime: new Date(Math.max(Date.now(), expected.updateTime.getTime() + 1)),
+      },
+    });
+    return result.count === 1;
   }
 
   async updateById(id: string, data: Prisma.GroupUncheckedUpdateInput): Promise<Group> {
