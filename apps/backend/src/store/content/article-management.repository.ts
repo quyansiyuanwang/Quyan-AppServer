@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { MANAGED_STATUS } from "@/constant/status";
 import { isCanonicalArticleId } from "@/iam/resources/article-resources";
 import type { UpdateArticleDto } from "@/api/dto/article/article.dto";
@@ -33,10 +34,24 @@ export class ArticleManagementRepository {
     accountOwnerId: string,
     client: ArticleManagementClient = prisma,
   ): Promise<ArticleManagementTarget | undefined> {
-    if (!isCanonicalArticleId(id)) return undefined;
-    const article = await client.article.findFirst({
+    return (await this.findTargets([id], accountOwnerId, client))?.[0];
+  }
+  /** Bounded scalar batch projection; maintain requested order without accepting SQL collation aliases. */
+  async findTargets(
+    ids: readonly string[],
+    accountOwnerId: string,
+    client: ArticleManagementClient = prisma,
+  ): Promise<ArticleManagementTarget[] | undefined> {
+    if (
+      !ids.length ||
+      ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+      new Set(ids).size !== ids.length ||
+      !Array.from(ids).every(isCanonicalArticleId)
+    )
+      return undefined;
+    const records = await client.article.findMany({
       where: {
-        id,
+        id: { in: [...ids] },
         status: MANAGED_STATUS.ENABLED,
         author: {
           status: MANAGED_STATUS.ENABLED,
@@ -44,29 +59,39 @@ export class ArticleManagementRepository {
         },
       },
       select: managementSelect,
+      orderBy: { id: "asc" },
     });
-    if (!article || article.id !== id) return undefined;
-    const author = await client.user.findFirst({
-      where: { id: article.authorId, status: MANAGED_STATUS.ENABLED },
+    if (records.length !== ids.length) return undefined;
+    const authors = await client.user.findMany({
+      where: { id: { in: [...new Set(records.map((row) => row.authorId))] }, status: MANAGED_STATUS.ENABLED },
       select: { id: true, accountOwnerId: true },
     });
     const owner = await client.user.findFirst({
       where: { id: accountOwnerId, status: MANAGED_STATUS.ENABLED },
       select: { id: true },
     });
-    if (
-      !author ||
-      author.id !== article.authorId ||
-      (author.accountOwnerId || author.id) !== accountOwnerId ||
-      owner?.id !== accountOwnerId
-    )
-      return undefined;
-    return article;
+    if (owner?.id !== accountOwnerId) return undefined;
+    const canonicalAuthors = new Set(
+      authors.filter((author) => (author.accountOwnerId || author.id) === accountOwnerId).map((author) => author.id),
+    );
+    const byId = new Map(records.map((row) => [row.id, row]));
+    const ordered = ids.map((id) => byId.get(id));
+    if (ordered.some((row) => !row || !canonicalAuthors.has(row.authorId))) return undefined;
+    return ordered as ArticleManagementTarget[];
   }
   /** All management mutations share a live actor/ownership check and exact authorized snapshot. */
   async assertAuthorizedTarget(
     tx: ArticleManagementClient,
     target: ArticleManagementTarget,
+    accountOwnerId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    await this.assertAuthorizedTargets(tx, [target], accountOwnerId, actorUserId);
+  }
+  /** Recheck every target before the first write; the transaction rolls back the whole batch on any later failure. */
+  async assertAuthorizedTargets(
+    tx: ArticleManagementClient,
+    targets: readonly ArticleManagementTarget[],
     accountOwnerId: string,
     actorUserId: string,
   ): Promise<void> {
@@ -78,20 +103,28 @@ export class ArticleManagementRepository {
       throw new ForbiddenError("Article management actor unavailable", undefined, {
         messageKey: "permission.insufficientPermission",
       });
-    const current = await this.findTarget(target.id, accountOwnerId, tx);
-    if (
-      !current ||
-      current.authorId !== target.authorId ||
-      current.slug !== target.slug ||
-      current.isDefault !== target.isDefault ||
-      current.sortOrder !== target.sortOrder ||
-      current.publishStatus !== target.publishStatus ||
-      current.publishedAt?.getTime() !== target.publishedAt?.getTime() ||
-      current.isPublic !== target.isPublic ||
-      current.requirePermission !== target.requirePermission ||
-      current.updateTime.getTime() !== target.updateTime.getTime()
-    )
-      throw unavailable();
+    const currentTargets = await this.findTargets(
+      targets.map((target) => target.id),
+      accountOwnerId,
+      tx,
+    );
+    if (!currentTargets) throw unavailable();
+    targets.forEach((target, index) => {
+      const current = currentTargets[index];
+      if (
+        !current ||
+        current.authorId !== target.authorId ||
+        current.slug !== target.slug ||
+        current.isDefault !== target.isDefault ||
+        current.sortOrder !== target.sortOrder ||
+        current.publishStatus !== target.publishStatus ||
+        current.publishedAt?.getTime() !== target.publishedAt?.getTime() ||
+        current.isPublic !== target.isPublic ||
+        current.requirePermission !== target.requirePermission ||
+        current.updateTime.getTime() !== target.updateTime.getTime()
+      )
+        throw unavailable();
+    });
   }
   async transition(
     target: ArticleManagementTarget,
@@ -156,6 +189,31 @@ export class ArticleManagementRepository {
           data: { status: MANAGED_STATUS.DELETED },
           select: { id: true, title: true },
         });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+  async reorder(
+    items: readonly { target: ArticleManagementTarget; sortOrder: number }[],
+    accountOwnerId: string,
+    actorUserId: string,
+  ): Promise<void> {
+    await prisma.$transaction(
+      async (tx) => {
+        await this.assertAuthorizedTargets(
+          tx,
+          items.map((item) => item.target),
+          accountOwnerId,
+          actorUserId,
+        );
+        // Use a deterministic write order to avoid inconsistent lock ordering across overlapping batches.
+        for (const item of [...items].sort((left, right) =>
+          left.target.id < right.target.id ? -1 : left.target.id > right.target.id ? 1 : 0,
+        ))
+          await tx.article.update({
+            where: { id: item.target.id, status: MANAGED_STATUS.ENABLED },
+            data: { sortOrder: item.sortOrder },
+          });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );

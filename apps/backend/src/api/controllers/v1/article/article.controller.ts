@@ -35,7 +35,7 @@ import {
   updateArticleBodySchema,
 } from "@/api/schema/article/article.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
-import { articleResourceResolver } from "@/iam/request/article-resource-resolvers";
+import { articleResourceResolver, articleReorderResourceResolver } from "@/iam/request/article-resource-resolvers";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 
 @Route("v1/articles")
@@ -119,7 +119,11 @@ export class ArticleController extends Controller {
   /** Reorder articles by updating their sortOrder */
   @Put("reorder")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Update",
+    resourceKind: "batch",
+    resource: articleReorderResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(reorderArticlesBodySchema))
   public async reorderArticles(
     @Body() body: ReorderArticlesDto,

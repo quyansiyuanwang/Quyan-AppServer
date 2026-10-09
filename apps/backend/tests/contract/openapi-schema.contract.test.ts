@@ -441,3 +441,13 @@ describe("article mutation wire contracts", () => {
     expect(operation.responses).toHaveProperty("200");
   });
 });
+
+describe("article reorder wire contract", () => {
+  it("retains the authenticated body-only batch endpoint and success response", () => {
+    const route = openApi.paths["/v1/articles/reorder"].put!;
+    expect(route.security).toEqual(expect.arrayContaining([expect.objectContaining({ jwt: [] })]));
+    expect(route.parameters ?? []).not.toEqual(expect.arrayContaining([expect.objectContaining({ in: "path" })]));
+    expect(route.responses).toHaveProperty("200");
+    expect(openApi.components?.schemas?.ReorderArticlesDto).toMatchObject({ required: ["items"] });
+  });
+});

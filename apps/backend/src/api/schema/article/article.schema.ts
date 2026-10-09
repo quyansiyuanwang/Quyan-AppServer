@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
+import { isCanonicalArticleId } from "@/iam/resources/article-resources";
 
 const slugRegex = /^[a-z0-9_-]+$/;
 
@@ -31,10 +33,21 @@ export const updateArticleBodySchema = z.object({
 });
 
 const reorderArticleItemSchema = z.object({
-  id: z.string().trim().min(1),
-  sortOrder: z.coerce.number().int().min(0),
+  id: z.string().trim().refine(isCanonicalArticleId),
+  sortOrder: z.coerce.number().int().min(0).max(2_147_483_647),
 });
 
 export const reorderArticlesBodySchema = z.object({
-  items: z.array(reorderArticleItemSchema).min(1).max(500),
+  items: z
+    .array(reorderArticleItemSchema)
+    .min(1)
+    .max(IAM_AUTHORIZATION_LIMITS.resourcesPerRequest)
+    .superRefine((items, context) => {
+      const seen = new Set<string>();
+      items.forEach((item, index) => {
+        if (seen.has(item.id))
+          context.addIssue({ code: "custom", path: [index, "id"], message: "Duplicate article identifier" });
+        seen.add(item.id);
+      });
+    }),
 });

@@ -76,6 +76,12 @@ Editing does not grant publication, deletion or site-default management. The edi
 
 Deletion marks the selected article unavailable; it neither deletes another article nor clears other articles' default flags. The deleted article immediately stops being eligible for resource-group grants. Legacy/shadow modes retain historical permissions and author-only editing/deletion; resource-scoped delegation is enforced after switching to enforce. List/menu permissions remain separate while migration continues.
 
+## Atomic resource-scoped reordering
+
+In enforce mode, reordering requires `quyan:article:Update` on **every** requested article. The server resolves all stored article identities within your account, evaluates the full batch, rechecks every authorized snapshot, then writes all ordering changes in one transaction. A denied, missing, inactive, foreign-account or changed member rejects the whole operation; a later database failure rolls back earlier writes.
+
+Submit each article ID only once and provide a nonnegative integer order within the database integer range. A request is bounded by the server IAM batch limit (currently 500 resources). Resource-group membership and trusted request Conditions apply separately to every member. Reorder changes only ordering, not author, content, visibility, publication or default selection. It retains the historical edit permission in legacy/shadow mode; listing and site-wide default management remain separate concerns.
+
 ## Notes
 
 - The reading-side page is usually `home-articles`.

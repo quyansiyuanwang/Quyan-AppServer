@@ -1,6 +1,6 @@
 import type { Article } from "@prisma/client";
-import type { UpdateArticleDto } from "@/api/dto/article/article.dto";
-import { assertArticlePublicAccess, normalizeArticleUpdate } from "./article-validation";
+import type { ReorderArticleItem, UpdateArticleDto } from "@/api/dto/article/article.dto";
+import { assertArticlePublicAccess, normalizeArticleReorder, normalizeArticleUpdate } from "./article-validation";
 import { Permission, actionForPermission } from "@quyan/shared";
 import type { TypedRequest } from "@/types/express";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -82,5 +82,57 @@ export class ArticleManagementService {
   async delete(id: string, actorUserId: string, request: TypedRequest) {
     const { target, principal } = await this.authorizedTarget(id, actorUserId, request, Permission.ARTICLE_DELETE);
     return this.repository.delete(target, principal.accountOwnerId, actorUserId);
+  }
+  async reorder(input: ReorderArticleItem[], actorUserId: string, request: TypedRequest): Promise<void> {
+    const principal = getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== actorUserId || principal.principalUserId !== actorUserId)
+      throw new ForbiddenError("Invalid article reorder identity", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const items = normalizeArticleReorder(input);
+    const targets = await this.repository.findTargets(
+      items.map((item) => item.id),
+      principal.accountOwnerId,
+    );
+    if (!targets)
+      throw new NotFoundError("Article reorder targets unavailable", undefined, { messageKey: "article.notFound" });
+    const action = actionForPermission(Permission.ARTICLE_UPDATE),
+      resources = targets.map((target) => articleArn(principal.accountOwnerId, target.id)),
+      start = performance.now();
+    const results = await this.iam.authorizeMany({
+      principal,
+      action,
+      resources,
+      context: requestConditionContext(request, principal),
+    });
+    if (results.length !== resources.length || Array.from(results).some((result) => !result))
+      throw new ForbiddenError("Article reorder decision batch unavailable", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    // Preserve all decisions for audit, including denied elements; no mutation runs until ALL are Allow.
+    results.forEach((result, index) => {
+      const resource = resources[index];
+      (request.iamDecisions ??= []).push({ ...result, action, resource });
+      auditIamDecision({
+        requestId: request.res?.locals.requestId,
+        principal,
+        action,
+        resource,
+        result,
+        evaluationLatencyMs: performance.now() - start,
+        authorizationMode: "enforce",
+        batchSize: resources.length,
+        batchIndex: index,
+      });
+    });
+    if (results.some((result) => result.decision !== "Allow"))
+      throw new ForbiddenError("Article reorder batch denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    await this.repository.reorder(
+      items.map((item, index) => ({ target: targets[index], sortOrder: item.sortOrder })),
+      principal.accountOwnerId,
+      actorUserId,
+    );
   }
 }

@@ -458,7 +458,9 @@ export class ArticleService {
   }
 
   async reorderArticles(items: ReorderArticleItem[], userId: string, request: Request): Promise<void> {
-    await this.repository.batchUpdateSortOrder(items);
+    if (env.security.iamAuthorizationMode === "enforce")
+      await ArticleManagementService.getInstance().reorder(items, userId, request as TypedRequest);
+    else await this.repository.batchUpdateSortOrder(items);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_UPDATE,
