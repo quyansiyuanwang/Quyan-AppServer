@@ -31,8 +31,15 @@ import { GroupRepository } from "@/store/users/group.repository";
 import type { ValidationErrorResponse, BaseResponse } from "@/api/dto/common/common.dto";
 import { ForbiddenError, NotFoundError } from "@/util/errors";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { authorizeLegacyPermissions } from "@/iam/middleware/legacy-permission-bridge";
-import { ramUserResourceResolver, ramGroupResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  ramUserResourceResolver,
+  ramGroupResourceResolver,
+  ramAccountResourceResolver,
+  iamAuthenticatedUserResourceResolver,
+  iamPermissionCheckUserResourceResolver,
+} from "@/iam/request/resource-resolvers";
 import { CustomCode } from "@/constant/custom-code";
 import type { TypedRequest } from "@/types/express";
 import { diff } from "@/util/function-tools";
@@ -65,9 +72,24 @@ export class PermissionController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:permission:Manage",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getAllPermissions(@Request() request: TypedRequest): Promise<AllPermissionsDTO> {
     const currentUserId = request.user!.userId;
-    const hasViewPermission = await permissionService.hasPermission(currentUserId, Permission.PERMISSION_VIEW);
+    if (!(await permissionService.canReadUserPermissionQuery(request, currentUserId)))
+      throw new ForbiddenError("Self permission inspection denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const hasViewPermission = await authorizeLegacyPermissions(request, [Permission.PERMISSION_VIEW], false, {
+      action: "quyan:permission:Manage",
+      resourceKind: "account",
+      resource: ramAccountResourceResolver,
+    });
 
     let permissionList: string[];
 
@@ -102,16 +124,21 @@ export class PermissionController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "用户不存在")
-  @Middlewares(validateParams(permissionUserIdParamsSchema))
+  @Middlewares(
+    validateParams(permissionUserIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:permission:Manage",
+      resourceKind: "single-resource",
+      resource: ramUserResourceResolver,
+    }),
+  )
   public async getUserPermissions(
     @Path() userId: string,
     @Request() request: TypedRequest,
   ): Promise<UserFullPermissionsDTO> {
     const currentUserId = request.user?.userId;
     const tarUserId = !userId ? currentUserId! : userId;
-    const isSelf = currentUserId === tarUserId;
-
-    if (!isSelf && !(await permissionService.hasPermission(currentUserId!, Permission.PERMISSION_VIEW)))
+    if (!(await permissionService.canReadUserPermissionQuery(request, tarUserId)))
       throw new NotFoundError("用户不存在", undefined, { messageKey: "permission.userNotFound" });
 
     const permissions = await permissionService.getUserFullPermissions(tarUserId);
@@ -289,17 +316,20 @@ export class PermissionController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @Middlewares(validateBody(checkPermissionsBodySchema))
+  @Middlewares(
+    validateBody(checkPermissionsBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:permission:Manage",
+      resourceKind: "single-resource",
+      resource: iamPermissionCheckUserResourceResolver,
+    }),
+  )
   public async checkPermissions(
     @Request() request: TypedRequest,
     @Body() body: CheckPermissionsDTO,
   ): Promise<PermissionCheckResultDTO> {
-    const currentUserId = request.user!.userId;
-    if (body.userId !== currentUserId) {
-      const hasView = await permissionService.hasPermission(currentUserId, Permission.PERMISSION_VIEW);
-      if (!hasView)
-        throw new ForbiddenError("权限不足", undefined, { messageKey: "permission.insufficientPermission" });
-    }
+    if (!(await permissionService.canReadUserPermissionQuery(request, body.userId)))
+      throw new ForbiddenError("权限不足", undefined, { messageKey: "permission.insufficientPermission" });
     return await permissionService.checkUserPermissions(body.userId, body.permissions);
   }
 

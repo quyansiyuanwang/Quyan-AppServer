@@ -7,7 +7,7 @@ import type { RamAuthorizationStore, IamAuthorizationTarget } from "@/store/user
 import type { RamResourceGroupStore } from "@/store/users/ram-resource-group.store";
 import { assertIamPolicyAccount } from "./parser/policy-account";
 import { isIamResourceInAccount } from "@quyan/shared";
-import { isKnownIamAction } from "@quyan/shared";
+import { isKnownIamAction, actionForPermission, buildAcsResource, Permission } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS, isSafeIamResourceBatch } from "./authorization-limits";
 import type { IamEvaluationResult, IamPrincipal, IamConditionContext } from "@quyan/shared";
 import { UserRepository } from "@/store/users/user.repository";
@@ -98,6 +98,29 @@ export class IamAuthorizationService {
     if (!assumedSession && user.group?.status === 1 && user.groupId)
       targets.push({ principalType: "group", principalId: user.groupId });
     targets.push(...[...roleIds].map((principalId) => ({ principalType: "role", principalId })));
+    // Authenticated identities can inspect their own permission projection. This grants
+    // no account/group/admin view; explicit Deny and validated role-session policies still apply.
+    result.push({
+      policyId: "system:self-permissions:" + user.id,
+      document: {
+        Version: "1",
+        Statement: [
+          {
+            Sid: "ReadAuthenticatedSelfPermissions",
+            Effect: "Allow",
+            Action: [actionForPermission(Permission.PERMISSION_VIEW)],
+            Resource: [
+              buildAcsResource({
+                service: "quyan",
+                region: "*",
+                accountId: principal.accountOwnerId,
+                path: "user/" + user.id,
+              }),
+            ],
+          },
+        ],
+      },
+    });
     return result.concat(await this.loadAttachedPolicies(principal.accountOwnerId, attached, targets));
   }
   /** Used for delegation proofs without creating a session or importing the caller's own grants. */

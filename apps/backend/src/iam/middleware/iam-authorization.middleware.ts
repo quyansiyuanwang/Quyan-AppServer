@@ -1,3 +1,5 @@
+import { env } from "@/config/env";
+import { getLogger, LogCategory } from "@/util/logger";
 import { isSafeIamResourceBatch } from "../authorization-limits";
 import { performance } from "node:perf_hooks";
 import type { RequestHandler } from "express";
@@ -13,6 +15,38 @@ import type { TypedRequest } from "@/types/express";
 export function iamAuthorizationMiddleware(
   definition: IamAuthorizationDefinition,
   service = IamAuthorizationService.getInstance(),
+): RequestHandler {
+  return createIamAuthorizationMiddleware(definition, service, "enforce");
+}
+
+/** Rollout bridge for existing authenticated-only endpoints; legacy business guards still run. */
+export function iamAuthenticatedAuthorizationMiddleware(
+  definition: IamAuthorizationDefinition,
+  service = IamAuthorizationService.getInstance(),
+): RequestHandler {
+  assertIamAuthorizationDefinition(definition);
+  return (req, res, next) => {
+    const mode = env.security.iamAuthorizationMode;
+    if (mode === "legacy") return next();
+    const middleware = createIamAuthorizationMiddleware(definition, service, mode);
+    return middleware(req, res, (error?: unknown) => {
+      if (mode === "shadow") {
+        if (error)
+          getLogger("IamAuthenticatedBridge", LogCategory.SECURITY).warn("IAM shadow evaluation denied", {
+            action: definition.action,
+            reason: "iam-evaluation-denied-or-unavailable",
+          });
+        return next();
+      }
+      next(error);
+    });
+  };
+}
+
+function createIamAuthorizationMiddleware(
+  definition: IamAuthorizationDefinition,
+  service: IamAuthorizationService,
+  mode: "enforce" | "shadow",
 ): RequestHandler {
   assertIamAuthorizationDefinition(definition);
   return async (req, _res, next) => {
@@ -48,7 +82,8 @@ export function iamAuthorizationMiddleware(
           resource,
           result,
           evaluationLatencyMs,
-          authorizationMode: "enforce",
+          authorizationMode: mode,
+          ...(mode === "shadow" ? { legacyAllowed: true } : {}),
           ...(definition.resourceKind === "batch" ? { batchSize: resources.length, batchIndex: index } : {}),
         });
       });

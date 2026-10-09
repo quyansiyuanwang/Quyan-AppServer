@@ -103,6 +103,50 @@ describe("IAM identity policy loading", () => {
     policies.listPoliciesForTarget.mockResolvedValue([]);
     policies.listPoliciesForTargets.mockResolvedValue([]);
   });
+  it("grants only self permission inspection without account or administrative visibility", async () => {
+    for (const subjectType of ["root", "sub_user", "access_key", "service"] as const) {
+      const identity = { ...principal, subjectType };
+      expect(
+        (
+          await service.authorize({
+            principal: identity,
+            action: "quyan:permission:Manage",
+            resource: "acs:quyan:*:owner:user/child",
+          })
+        ).decision,
+      ).toBe("Allow");
+      for (const resource of [
+        "acs:quyan:*:owner:account",
+        "acs:quyan:*:owner:user/other",
+        "acs:quyan:*:owner:group/group",
+        "*",
+      ])
+        expect(
+          (await service.authorize({ principal: identity, action: "quyan:permission:Manage", resource })).decision,
+        ).toBe("ImplicitDeny");
+      expect(
+        (
+          await service.authorize({
+            principal: identity,
+            action: "quyan:permission:Add",
+            resource: "acs:quyan:*:owner:user/child",
+          })
+        ).decision,
+      ).toBe("ImplicitDeny");
+    }
+  });
+  it("lets explicit Deny override the authenticated self baseline", async () => {
+    policies.listPoliciesForTarget.mockResolvedValue([binding("deny-self-view", "Deny", "quyan:permission:Manage")]);
+    expect(
+      (
+        await service.authorize({
+          principal,
+          action: "quyan:permission:Manage",
+          resource: "acs:quyan:*:owner:user/child",
+        })
+      ).decision,
+    ).toBe("ExplicitDeny");
+  });
   it("merges direct/group/role policies and keeps Deny globally dominant", async () => {
     roles.listRoleBindingsForUser.mockResolvedValue([{ roleId: "role", permissions: [] } as never]);
     policies.listPoliciesForTarget.mockImplementation(async (type) =>
@@ -221,7 +265,7 @@ describe("IAM identity policy loading", () => {
       group: { id: "group", status: 1, permissions: [Permission.RAM_USER_DELETE] },
     } as never);
     const rolePolicies = await service.loadPolicies(assumed);
-    expect(rolePolicies.map((policy) => policy.policyId)).toEqual(["assumed"]);
+    expect(rolePolicies.map((policy) => policy.policyId)).toEqual(["system:self-permissions:child", "assumed"]);
     expect(roles.listRoleBindingsForUser).not.toHaveBeenCalled();
     expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
     expect(policies.listPoliciesForTargets).toHaveBeenCalledWith("role", ["role"]);

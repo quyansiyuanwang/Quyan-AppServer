@@ -29,7 +29,10 @@ vi.mock("../../../src/util/logger", () => ({
   LogCategory: { SECURITY: "security" },
   getLogger: () => ({ warn: vi.fn() }),
 }));
-import { iamAuthorizationMiddleware } from "../../../src/iam/middleware/iam-authorization.middleware";
+import {
+  iamAuthorizationMiddleware,
+  iamAuthenticatedAuthorizationMiddleware,
+} from "../../../src/iam/middleware/iam-authorization.middleware";
 import {
   authorizeLegacyPermissions,
   validateLegacyIamDefinitions,
@@ -55,6 +58,45 @@ describe("IAM middleware and rollout bridge", () => {
       missingPermissions: [],
     });
     mocks.loadPolicies.mockResolvedValue([]);
+  });
+  it("keeps authenticated-only legacy enforcement while shadow records and enforce blocks Deny", async () => {
+    for (const mode of ["legacy", "shadow", "enforce"] as const) {
+      vi.clearAllMocks();
+      mocks.mode = mode;
+      const service = mockDeep<IamAuthorizationService>(),
+        next = vi.fn();
+      service.authorize.mockResolvedValue({ ...deny, matchedStatements: [] });
+      await iamAuthenticatedAuthorizationMiddleware(
+        {
+          action: "quyan:permission:Manage",
+          resourceKind: "single-resource",
+          resource: () => "acs:quyan:*:owner:user/child",
+        },
+        service,
+      )(request(), {} as never, next);
+      if (mode === "enforce") expect(next.mock.calls[0][0].statusCode).toBe(403);
+      else expect(next).toHaveBeenCalledExactlyOnceWith();
+      if (mode === "legacy") expect(service.authorize).not.toHaveBeenCalled();
+      else expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ authorizationMode: mode }));
+    }
+  });
+  it("never falls back to authenticated access in enforce after provider failure", async () => {
+    const service = mockDeep<IamAuthorizationService>();
+    service.authorize.mockRejectedValue(new Error("provider-unavailable"));
+    for (const mode of ["shadow", "enforce"] as const) {
+      mocks.mode = mode;
+      const next = vi.fn();
+      await iamAuthenticatedAuthorizationMiddleware(
+        {
+          action: "quyan:permission:Manage",
+          resourceKind: "single-resource",
+          resource: () => "acs:quyan:*:owner:user/child",
+        },
+        service,
+      )(request(), {} as never, next);
+      if (mode === "shadow") expect(next).toHaveBeenCalledExactlyOnceWith();
+      else expect(next.mock.calls[0][0]).toBeInstanceOf(Error);
+    }
   });
   it("uses only server action metadata, records decision and invokes next once", async () => {
     const service = mockDeep<IamAuthorizationService>();

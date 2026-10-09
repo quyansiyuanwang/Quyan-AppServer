@@ -11,7 +11,7 @@ import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { Permission } from "@/constant/permission";
 import { PermissionList, UserPermissionConfig, UserFullPermissions, PermissionCheckResult } from "@/models/permission";
-import { BadRequestError, ForbiddenError, ConflictError } from "@/util/errors";
+import { BadRequestError, ForbiddenError, ConflictError, UnauthorizedError } from "@/util/errors";
 import { isValidPermission } from "@/util/permission/validation";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
@@ -259,6 +259,31 @@ export class PermissionService {
       assumedRole,
       effectivePermissions: Array.from(effectivePermissionsSet),
     };
+  }
+
+  /** Self inspection is a baseline; inspecting another identity requires its exact IAM resource. */
+  async canReadUserPermissionQuery(request: TypedRequest, userId: string): Promise<boolean> {
+    const currentUserId = request.user?.userId;
+    if (!currentUserId)
+      throw new UnauthorizedError("Permission query identity missing", undefined, {
+        messageKey: "permission.loginRequired",
+      });
+    if (env.security.iamAuthorizationMode !== "enforce")
+      return currentUserId === userId || this.hasPermission(currentUserId, Permission.PERMISSION_VIEW);
+    const principal = getIamPrincipal(request);
+    if (!principal)
+      throw new UnauthorizedError("Permission query principal missing", undefined, {
+        messageKey: "permission.loginRequired",
+      });
+    const target = await this.userRepository.findById(userId);
+    if (!target || target.status !== 1 || (target.accountOwnerId || target.id) !== principal.accountOwnerId)
+      return false;
+    const { authorizeLegacyPermissions } = await import("@/iam/middleware/legacy-permission-bridge");
+    return authorizeLegacyPermissions(request, [Permission.PERMISSION_VIEW], false, {
+      action: actionForPermission(Permission.PERMISSION_VIEW),
+      resourceKind: "single-resource",
+      resource: accountEntityResourceResolver("user", () => userId),
+    });
   }
 
   /**

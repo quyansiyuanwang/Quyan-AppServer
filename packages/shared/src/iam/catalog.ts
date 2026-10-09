@@ -115,7 +115,9 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
     operation,
     accessLevel: /^(List|Search)/.test(parts[parts.length - 1] ?? '')
       ? 'List'
-      : /^(Read|Get|Describe|View)$/.test(parts[parts.length - 1] ?? '') || /^Read/.test(operation)
+      : permission === Permission.PERMISSION_VIEW ||
+          /^(Read|Get|Describe|View)$/.test(parts[parts.length - 1] ?? '') ||
+          /^Read/.test(operation)
         ? 'Read'
         : 'Write',
     resourceTypes: ['quyan/account', ...(resources ?? [])],

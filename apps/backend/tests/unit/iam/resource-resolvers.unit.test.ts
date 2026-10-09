@@ -5,6 +5,8 @@ import {
   accountEntityBatchResourceResolver,
   accountEntityResourceResolver,
   ramAccountResourceResolver,
+  iamAuthenticatedUserResourceResolver,
+  iamPermissionCheckUserResourceResolver,
   ramEffectivePermissionsUserResourceResolver,
   ramAuthorizationResourceResolver,
   ramResourceGroupResourceResolver,
@@ -22,6 +24,19 @@ const principal: IamPrincipal = {
   subjectType: "sub_user",
 };
 describe("IAM resource trust boundaries", () => {
+  it("builds self resources only from authenticated identity and check targets from validated body IDs", async () => {
+    const request = {
+      body: { userId: "other", accountId: "foreign" },
+      params: { userId: "other" },
+      headers: { "x-user-id": "other", "x-action": "*" },
+    } as never;
+    expect(await iamAuthenticatedUserResourceResolver({ principal, request })).toBe("acs:quyan:*:owner:user/child");
+    expect(await iamPermissionCheckUserResourceResolver({ principal, request })).toBe("acs:quyan:*:owner:user/other");
+    for (const userId of ["*", undefined, [], "bad/id"])
+      expect(
+        await iamPermissionCheckUserResourceResolver({ principal, request: { body: { userId } } as never }),
+      ).toBeUndefined();
+  });
   it("resolves the inspected user's ARN from validated query input without trusting an account override", async () => {
     expect(
       await ramEffectivePermissionsUserResourceResolver({

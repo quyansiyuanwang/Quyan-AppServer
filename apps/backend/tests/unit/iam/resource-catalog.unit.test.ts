@@ -29,6 +29,7 @@ describe("IAM service and resource catalog", () => {
       authorizationStage: "declared",
     });
     expect(getIamActionDefinition("quyan:ram:ReadUser")?.accessLevel).toBe("Read");
+    expect(getIamActionDefinition("quyan:permission:Manage")?.accessLevel).toBe("Read");
   });
   it("derives API links, ignores invalid metadata and deduplicates deterministically", () => {
     const route = {

@@ -203,7 +203,11 @@ export function collectIamRoutes(sources: readonly SourceFile[], backendRoot: st
           for (const middleware of middlewares.flatMap((item) => item.args)) {
             if (!Node.isCallExpression(middleware)) continue;
             const symbol = imported(middleware.getExpression(), source, backendRoot);
-            if (symbol?.module !== iamModule || symbol.name !== "iamAuthorizationMiddleware") continue;
+            if (
+              symbol?.module !== iamModule ||
+              !["iamAuthorizationMiddleware", "iamAuthenticatedAuthorizationMiddleware"].includes(symbol.name)
+            )
+              continue;
             addExplicitDefinition(middleware.getArguments()[0]);
           }
           entry.coverage = hasExplicit ? "explicit" : hasLegacy ? "legacy" : "missing";
