@@ -73,7 +73,7 @@ export function developerShortLinkArn(accountOwnerId: string, projectId: string,
     path: "short-link/" + projectId + "/" + linkId,
   });
 }
-export type DeveloperItemResourceType = "kv-item" | "secret" | "short-link";
+export type DeveloperItemResourceType = "kv-item" | "secret" | "short-link" | "project-api-key";
 export function developerItemArn(
   type: DeveloperItemResourceType,
   accountOwnerId: string,
@@ -87,5 +87,21 @@ export function developerItemArn(
       return developerSecretArn(accountOwnerId, projectId, itemId);
     case "short-link":
       return developerShortLinkArn(accountOwnerId, projectId, itemId);
+    case "project-api-key":
+      return developerProjectApiKeyArn(accountOwnerId, projectId, itemId);
   }
+}
+
+export function developerProjectApiKeyArn(accountOwnerId: string, projectId: string, keyId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, keyId)
+  )
+    throw new Error("Invalid project API key identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "project-api-key/" + projectId + "/" + keyId,
+  });
 }

@@ -67,7 +67,15 @@ export interface DeveloperQuotaOverrideDto {
   updateTime: string;
 }
 
+export interface DeveloperApiKeyPageDto {
+  items: Array<Omit<DeveloperApiKeyDto, "key">>;
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperApiKeyDto {
+  resourceArn?: string;
   id: string;
   name: string;
   keyPrefix: string;

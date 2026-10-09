@@ -8,6 +8,7 @@ import { iamManagementPaginationSchema } from "@/iam/management-pagination";
 import { developerProjectArn, developerKvArn, developerSecretArn } from "@/iam/request/developer-resource-resolvers";
 import {
   developerItemArn,
+  developerProjectApiKeyArn,
   developerShortLinkArn,
   type DeveloperItemResourceType,
 } from "@/iam/resources/developer-resources";
@@ -34,6 +35,8 @@ import type {
   DeveloperShortLinkDto,
   DeveloperShortLinkPageDto,
   DeveloperShortLinkStatsDto,
+  DeveloperApiKeyDto,
+  DeveloperApiKeyPageDto,
 } from "@/api/dto/developer/developer.dto";
 
 /** JWT management has its own IAM boundary; project-key/public/scheduler calls retain their separate guards. */
@@ -530,5 +533,40 @@ export class DeveloperProjectManagementService {
       activeOnly: env.security.iamAuthorizationMode === "enforce",
     });
     return { ...item, resourceArn: target.resourceArn };
+  }
+  async listProjectApiKeysPage(
+    projectId: string,
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<DeveloperApiKeyPageDto> {
+    return this.resourcePage<Omit<DeveloperApiKeyDto, "key">>(
+      projectId,
+      actorUserId,
+      "quyan:developer:ListProjectApiKeys",
+      query,
+      (owner, options) => this.projects.listProjectApiKeyCandidates(projectId, owner, options),
+      (accountOwnerId, item) => developerProjectApiKeyArn(accountOwnerId, projectId, item.id),
+    );
+  }
+  async listProjectApiKeys(projectId: string, actorUserId: string): Promise<DeveloperApiKeyDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listProjectApiKeysPage(projectId, actorUserId)).items;
+    const items = await this.projects.listProjectApiKeys(projectId, actorUserId);
+    await this.shadowResourceRows(actorUserId, "quyan:developer:ListProjectApiKeys", items, (accountOwnerId, item) =>
+      developerProjectApiKeyArn(accountOwnerId, projectId, item.id),
+    );
+    return items;
+  }
+  async revokeProjectApiKey(projectId: string, keyId: string, actorUserId: string): Promise<void> {
+    const target = await this.itemTarget(
+      "quyan:developer:RevokeProjectApiKey",
+      projectId,
+      actorUserId,
+      "project-api-key",
+      keyId,
+    );
+    await this.projects.revokeProjectApiKey(projectId, keyId, target.owner, {
+      activeOnly: env.security.iamAuthorizationMode === "enforce",
+    });
   }
 }

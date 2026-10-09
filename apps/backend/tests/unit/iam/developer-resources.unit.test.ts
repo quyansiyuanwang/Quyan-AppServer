@@ -5,12 +5,14 @@ import {
   developerKvArn,
   developerSecretArn,
   developerShortLinkArn,
+  developerProjectApiKeyArn,
   developerKvKeyFromArnSegment,
 } from "@/iam/resources/developer-resources";
 import {
   developerKvResourceResolver,
   developerSecretResourceResolver,
   developerShortLinkResourceResolver,
+  developerProjectApiKeyResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
@@ -110,6 +112,39 @@ describe("developer item resource identities", () => {
     expect(
       evaluatePolicies([{ policyId: "fixture", document }], {
         action: "quyan:developer:GetShortLinkStats",
+        resource: arn,
+      }).decision,
+    ).toBe("ImplicitDeny");
+  });
+  it("uses the credential record ID rather than key material and isolates revoke from metadata list", async () => {
+    const arn = developerProjectApiKeyArn("owner", "project", "credential-1");
+    expect(arn).toBe("acs:developer:*:owner:project-api-key/project/credential-1");
+    expect(
+      await developerProjectApiKeyResourceResolver({
+        principal,
+        request: {
+          params: { projectId: "project", id: "credential-1" },
+          body: { key: "fixture-ignored", accountId: "foreign" },
+        } as never,
+      }),
+    ).toBe(arn);
+    expect(
+      await developerProjectApiKeyResourceResolver({
+        principal,
+        request: { params: { projectId: "project", id: "*" } } as never,
+      }),
+    ).toBeUndefined();
+    expect(getIamActionDefinition("quyan:developer:ListProjectApiKeys")?.sensitive).toBe(true);
+    expect(getIamActionDefinition("quyan:developer:RevokeProjectApiKey")?.resourceTypes).toEqual([
+      "developer/project-api-key",
+    ]);
+    const document = parseIamPolicy({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:developer:ListProjectApiKeys", Resource: arn },
+    }).document;
+    expect(
+      evaluatePolicies([{ policyId: "fixture", document }], {
+        action: "quyan:developer:RevokeProjectApiKey",
         resource: arn,
       }).decision,
     ).toBe("ImplicitDeny");

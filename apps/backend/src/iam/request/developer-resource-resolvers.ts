@@ -9,6 +9,7 @@ import {
   developerKvArn,
   developerSecretArn,
   developerShortLinkArn,
+  developerProjectApiKeyArn,
   isCanonicalDeveloperIdentifier,
 } from "../resources/developer-resources";
 export { developerProjectArn, developerKvArn, developerSecretArn } from "../resources/developer-resources";
@@ -49,4 +50,14 @@ export const developerShortLinkResourceResolver: ResourceResolver = ({ request, 
   )
     return undefined;
   return developerShortLinkArn(principal.accountOwnerId, projectId, id);
+};
+
+export const developerProjectApiKeyResourceResolver: ResourceResolver = ({ request, principal }) => {
+  const { projectId, id } = request.params;
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, id)
+  )
+    return undefined;
+  return developerProjectApiKeyArn(principal.accountOwnerId, projectId, id);
 };

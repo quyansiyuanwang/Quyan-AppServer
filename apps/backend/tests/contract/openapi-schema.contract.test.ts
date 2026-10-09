@@ -224,6 +224,7 @@ describe("RAM IAM policy API contract", () => {
       ["/v1/developer/projects/{projectId}/short-links", "post"],
       ["/v1/developer/projects/{projectId}/short-links/{id}", "put"],
       ["/v1/developer/projects/{projectId}/short-links/{id}", "delete"],
+      ["/v1/developer/projects/{projectId}/keys/{id}", "delete"],
     ] as const)
       expect(openApi.paths[route]?.[method]).toHaveProperty("X-Replay-Protected", true);
   });
@@ -244,6 +245,7 @@ describe("RAM IAM policy API contract", () => {
       ["/v1/developer/projects/{projectId}/kv/entries/page", "DeveloperKvPageDto"],
       ["/v1/developer/projects/{projectId}/secrets/page", "DeveloperSecretPageDto"],
       ["/v1/developer/projects/{projectId}/short-links/page", "DeveloperShortLinkPageDto"],
+      ["/v1/developer/projects/{projectId}/keys/page", "DeveloperApiKeyPageDto"],
     ]) {
       const operation = openApi.paths[route]?.get;
       expect(operation?.security).toContainEqual({ jwt: [] });
@@ -265,6 +267,22 @@ describe("RAM IAM policy API contract", () => {
       expect(schema.required).not.toContain("resourceArn");
       for (const field of ["ciphertext", "iv", "authTag"]) expect(schema.properties).not.toHaveProperty(field);
     }
+  });
+  it("omits raw credential and hash fields from project key page items", () => {
+    const schema = openApi.components?.schemas?.DeveloperApiKeyPageDto as {
+      properties: { items: { items: { $ref?: string; properties?: Record<string, unknown> } } };
+    };
+    const item = schema.properties.items.items;
+    let resolved = item as { $ref?: string; properties: Record<string, unknown> };
+    const visited = new Set<string>();
+    while (resolved.$ref) {
+      expect(visited.has(resolved.$ref)).toBe(false);
+      visited.add(resolved.$ref);
+      resolved = resolveLocalRef(openApi, resolved.$ref) as typeof resolved;
+      expect(resolved).toBeDefined();
+    }
+    expect(resolved.properties).toHaveProperty("resourceArn");
+    for (const field of ["key", "keyHash", "legacyKeyHash"]) expect(resolved.properties).not.toHaveProperty(field);
   });
   it("makes the catalog self-service marker optional and restricts its values", () => {
     const schema = openApi.components?.schemas?.IamActionDefinition as {

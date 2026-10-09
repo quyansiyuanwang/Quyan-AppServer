@@ -61,6 +61,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('developer', 'kv-item', 2),
   resource('developer', 'secret', 2),
   resource('developer', 'short-link', 2),
+  resource('developer', 'project-api-key', 2),
   resource('article', 'article'),
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
@@ -173,6 +174,16 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: 'Read',
       resourceTypes: ['developer/short-link'],
     },
+    {
+      operation: 'ListProjectApiKeys',
+      accessLevel: 'List',
+      resourceTypes: ['developer/project', 'developer/project-api-key'],
+    },
+    {
+      operation: 'RevokeProjectApiKey',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/project-api-key'],
+    },
     { operation: 'GetProjectUsage', accessLevel: 'Read', resourceTypes: ['developer/project'] },
     { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },
   ].map(
@@ -183,7 +194,10 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       apiRoutes: [],
       conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
-      sensitive: definition.accessLevel === 'Write' || definition.operation === 'GetShortLinkStats',
+      sensitive:
+        definition.accessLevel === 'Write' ||
+        definition.operation === 'GetShortLinkStats' ||
+        definition.operation === 'ListProjectApiKeys',
       authorizationStage: 'declared',
     }),
   ),

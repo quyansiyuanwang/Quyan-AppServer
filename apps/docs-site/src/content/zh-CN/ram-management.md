@@ -305,3 +305,11 @@ KV 和密钥可作为资源组成员，移除成员后下一次请求即失去�
 短链接使用 `acs:developer:*:<accountId>:short-link/<projectId>/<linkId>`。`quyan:developer:CreateShortLink` 在项目范围控制创建，`ListShortLinks`、`UpdateShortLink`、`DeleteShortLink` 和 `GetShortLinkStats` 在单个链接范围控制管理；统计访问包含访客明细，需要独立授予。创建及项目列表权限不会自动扩大为所有链接权限。
 
 `GET /v1/developer/projects/{projectId}/short-links/page` 支持分页候选和逐资源过滤；返回 resourceArn、hasNext，没有未授权总数，空页可继续遍历。enforce 下旧数组接口只返回默认第一页。具体链接也可用于资源组授权；跨项目链接 ID、跨账户、禁用资源或禁用项目所有者均被拒绝。暂停与到期的链接仍支持授权管理。详情见 [短链接](./developer-product-short-link)。
+
+## 项目 API Key 元数据与撤销
+
+项目 API Key 使用 `acs:developer:*:<accountId>:project-api-key/<projectId>/<keyId>`，标识的是凭据记录 ID，不包含完整 Key 或哈希。`quyan:developer:ListProjectApiKeys` 控制逐项元数据查看，`RevokeProjectApiKey` 控制指定凭据撤销；列表授权不自动授予撤销，项目范围的列表授权也不会自动覆盖子资源。
+
+`GET /v1/developer/projects/{projectId}/keys/page` 返回 items、page、pageSize、hasNext。候选先限定同账户有效项目中的未撤销凭据，再逐项评估。响应包含 resourceArn、名称、前缀、scopes 等元数据，不返回完整 Key、keyHash 或 legacyKeyHash；空页可有后续页，没有 total。enforce 下旧数组接口只返回默认第一页。过期但未撤销的凭据仍能查看元数据或撤销，撤销后立即停止项目 Key 认证，也不再参与资源组授权。
+
+同账户可只委派某一凭据的查看或撤销，跨账户、跨项目 ID 和禁用资源均被拒绝。legacy/shadow 保留原个人项目所有权。签发项目 Key 使用独立的 scopes 规则；本节的查看和撤销 Action 不提供凭据签发权限。

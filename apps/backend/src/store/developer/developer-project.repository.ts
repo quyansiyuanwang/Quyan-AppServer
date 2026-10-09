@@ -455,10 +455,42 @@ export class DeveloperProjectRepository {
     return keys.map((key) => this.toApiKeyDto(key));
   }
 
-  async revokeProjectApiKey(projectId: string, keyId: string, userId: string): Promise<void> {
+  /** Metadata only: raw keys and hashes never enter the IAM candidate projection. */
+  async listProjectApiKeyCandidates(
+    projectId: string,
+    userId: string,
+    options: { skip: number; take: number },
+  ): Promise<Array<Omit<DeveloperApiKeyDto, "key">>> {
+    const keys = await prisma.developerProjectApiKey.findMany({
+      where: { projectId, status: 1, project: { userId, status: 1, user: { status: 1 } } },
+      select: {
+        id: true,
+        name: true,
+        keyPrefix: true,
+        scopes: true,
+        expiresAt: true,
+        lastUsedAt: true,
+        requestCount: true,
+      },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return keys.map((key) => this.toApiKeyDto(key));
+  }
+  async revokeProjectApiKey(
+    projectId: string,
+    keyId: string,
+    userId: string,
+    options: { activeOnly?: boolean } = {},
+  ): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
     const result = await prisma.developerProjectApiKey.updateMany({
-      where: { id: keyId, projectId },
+      where: {
+        id: keyId,
+        projectId,
+        ...(options.activeOnly ? { status: 1, project: { userId, status: 1, user: { status: 1 } } } : {}),
+      },
       data: { status: 0 },
     });
     if (!result.count)

@@ -34,6 +34,7 @@ import {
   developerKvResourceResolver,
   developerSecretResourceResolver,
   developerShortLinkResourceResolver,
+  developerProjectApiKeyResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import type {
@@ -43,6 +44,7 @@ import type {
   CreateDeveloperStatusMonitorDto,
   CreateShortLinkDto,
   DeveloperApiKeyDto,
+  DeveloperApiKeyPageDto,
   DeveloperKvValueDto,
   DeveloperKvPageDto,
   DeveloperSecretPageDto,
@@ -185,10 +187,36 @@ export class DeveloperProjectController extends Controller {
     return this.management.updateStatusPage(projectId, request.user!.userId, body);
   }
 
+  @Get("{projectId}/keys/page")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProjectApiKeys",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
+  public async listKeysPage(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<DeveloperApiKeyPageDto> {
+    return this.management.listProjectApiKeysPage(projectId, request.user!.userId, { page, pageSize });
+  }
+
   @Get("{projectId}/keys")
-  @Middlewares(validateParams(projectIdParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProjectApiKeys",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
   public async listKeys(@Path() projectId: string, @Request() request: TypedRequest): Promise<DeveloperApiKeyDto[]> {
-    return this.service.listProjectApiKeys(projectId, request.user!.userId);
+    return this.management.listProjectApiKeys(projectId, request.user!.userId);
   }
 
   @Post("{projectId}/keys")
@@ -206,13 +234,22 @@ export class DeveloperProjectController extends Controller {
   }
 
   @Delete("{projectId}/keys/{id}")
-  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateParams(projectIdParamsSchema),
+    validateParams(developerItemIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:RevokeProjectApiKey",
+      resourceKind: "single-resource",
+      resource: developerProjectApiKeyResourceResolver,
+    }),
+  )
   public async revokeKey(
     @Path() projectId: string,
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    await this.service.revokeProjectApiKey(projectId, id, request.user!.userId);
+    await this.management.revokeProjectApiKey(projectId, id, request.user!.userId);
     return { success: true };
   }
 

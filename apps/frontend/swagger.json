@@ -25562,6 +25562,79 @@
 				"X-Replay-Protected": true
 			}
 		},
+		"/v1/developer/projects/{projectId}/keys/page": {
+			"get": {
+				"operationId": "DeveloperProjectControllerListKeysPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeveloperApiKeyPageDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Developer Projects"
+				],
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "projectId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/developer/projects/{projectId}/keys": {
 			"get": {
 				"operationId": "DeveloperProjectControllerListKeys",
@@ -61230,8 +61303,85 @@
 					"push:send"
 				]
 			},
+			"Pick_DeveloperApiKeyDto.Exclude_keyofDeveloperApiKeyDto.key__": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
+					},
+					"requestCount": {
+						"type": "number",
+						"format": "double"
+					},
+					"lastUsedAt": {
+						"type": "string"
+					},
+					"resourceArn": {
+						"type": "string"
+					},
+					"keyPrefix": {
+						"type": "string"
+					},
+					"scopes": {
+						"items": {
+							"$ref": "#/components/schemas/DeveloperApiKeyScope"
+						},
+						"type": "array"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"requestCount",
+					"keyPrefix",
+					"scopes"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"Omit_DeveloperApiKeyDto.key_": {
+				"$ref": "#/components/schemas/Pick_DeveloperApiKeyDto.Exclude_keyofDeveloperApiKeyDto.key__",
+				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"DeveloperApiKeyPageDto": {
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/Omit_DeveloperApiKeyDto.key_"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"DeveloperApiKeyDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string"
+					},
 					"id": {
 						"type": "string"
 					},
