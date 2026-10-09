@@ -72,14 +72,19 @@ export async function authorizeLegacyPermissions(
         messageKey: "iam.resourceResolutionFailed",
       });
     const policies = await IamAuthorizationService.getInstance().loadPolicies(principal);
-    const { evaluatePolicies } = await import("../evaluator/policy-evaluator");
     const context = requestConditionContext(request, principal);
-    const groups = resolved.map((definition) => ({
-      ...definition,
-      results: definition.resources.map((resource) =>
-        evaluatePolicies(policies, { action: definition.action, resource, context }),
-      ),
-    }));
+    const groups = await Promise.all(
+      resolved.map(async (definition) => ({
+        ...definition,
+        results: await IamAuthorizationService.getInstance().evaluateLoadedPolicies({
+          principal,
+          policies,
+          action: definition.action,
+          resources: definition.resources,
+          context,
+        }),
+      })),
+    );
     for (const group of groups)
       group.results.forEach((result, index) => {
         const resource = group.resources[index],

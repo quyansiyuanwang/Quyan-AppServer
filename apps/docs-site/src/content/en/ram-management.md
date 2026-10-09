@@ -115,6 +115,8 @@ Evaluation is **matching explicit Deny > matching Allow > implicit Deny**. Both 
 
 `Condition` supports string, numeric, date, boolean, IPv4/IPv6, and existence operators. `GET /v1/iam/catalog/condition-keys` lists types, operators, and availability. Supported context includes source IP, current time, User-Agent, HTTPS status, and principal ID/type/account. Resource tags, resource groups, and MFA are unavailable and rejected when submitted. User-Agent is client-controlled and should not be the only security check.
 
+Migrated article-resource operations support `quyan:ResourceOwnerId`, the stored author user ID—not the account ID in the ARN. The server reads live article and author ownership; submitted attributes cannot override it. Only Actions whose catalog entry supports this key may use it. Incompatible Actions, including wildcards expanding into other services, are rejected. Saved-policy and JSON-draft simulations use the same trusted resource attributes; missing, deleted, foreign-account, and case-alias articles fail closed.
+
 Operators and keys combine with AND; multiple values for one key use OR. `StringLike` supports `*` and `?`; Action/Resource still support only `*`. `IpAddress` excludes network boundary addresses; `IpAddressIncludeBorder` includes them. Apart from explicit `Null` checks, missing context required by a matching statement fails closed, including conditional Deny statements. Simulation does not supply real IP/HTTPS attributes and returns `missing-condition-context` instead of inventing values.
 
 ### Service and resource catalog

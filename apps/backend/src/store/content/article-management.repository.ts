@@ -42,13 +42,26 @@ export class ArticleManagementRepository {
     accountOwnerId: string,
     client: ArticleManagementClient = prisma,
   ): Promise<ArticleManagementTarget[] | undefined> {
+    if (!ids.length) return undefined;
+    const available = await this.findAvailableTargets(ids, accountOwnerId, client);
+    const byId = new Map(available.map((row) => [row.id, row]));
+    const ordered = ids.map((id) => byId.get(id));
+    if (ordered.some((row) => !row)) return undefined;
+    return ordered as ArticleManagementTarget[];
+  }
+  /** Independent metadata projection for list/condition evaluation: invalid siblings do not hide valid rows. */
+  async findAvailableTargets(
+    ids: readonly string[],
+    accountOwnerId: string,
+    client: ArticleManagementClient = prisma,
+  ): Promise<ArticleManagementTarget[]> {
     if (
       !ids.length ||
       ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
       new Set(ids).size !== ids.length ||
       !Array.from(ids).every(isCanonicalArticleId)
     )
-      return undefined;
+      return [];
     const records = await client.article.findMany({
       where: {
         id: { in: [...ids] },
@@ -61,7 +74,7 @@ export class ArticleManagementRepository {
       select: managementSelect,
       orderBy: { id: "asc" },
     });
-    if (records.length !== ids.length) return undefined;
+
     const authors = await client.user.findMany({
       where: { id: { in: [...new Set(records.map((row) => row.authorId))] }, status: MANAGED_STATUS.ENABLED },
       select: { id: true, accountOwnerId: true },
@@ -70,14 +83,12 @@ export class ArticleManagementRepository {
       where: { id: accountOwnerId, status: MANAGED_STATUS.ENABLED },
       select: { id: true },
     });
-    if (owner?.id !== accountOwnerId) return undefined;
+    if (owner?.id !== accountOwnerId) return [];
     const canonicalAuthors = new Set(
       authors.filter((author) => (author.accountOwnerId || author.id) === accountOwnerId).map((author) => author.id),
     );
-    const byId = new Map(records.map((row) => [row.id, row]));
-    const ordered = ids.map((id) => byId.get(id));
-    if (ordered.some((row) => !row || !canonicalAuthors.has(row.authorId))) return undefined;
-    return ordered as ArticleManagementTarget[];
+    const requested = new Set(ids);
+    return records.filter((row) => requested.has(row.id) && canonicalAuthors.has(row.authorId));
   }
   /** All management mutations share a live actor/ownership check and exact authorized snapshot. */
   async assertAuthorizedTarget(

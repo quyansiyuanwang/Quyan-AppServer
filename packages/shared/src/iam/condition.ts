@@ -73,6 +73,7 @@ export const IAM_CONDITION_KEY_CATALOG: readonly IamConditionKeyDefinition[] = O
   key('quyan:PrincipalType', 'string', 'principal'),
   key('quyan:PrincipalAccount', 'string', 'principal'),
   key('quyan:EpochTime', 'number', 'request'),
+  key('quyan:ResourceOwnerId', 'string', 'resource'),
   key('quyan:ResourceGroupId', 'string', 'resource', false),
   key('quyan:ResourceTag/<key>', 'string', 'resource', false),
   key('acs:MFAPresent', 'boolean', 'principal', false),
@@ -82,4 +83,11 @@ export function getIamConditionKey(key: string): IamConditionKeyDefinition | und
 }
 export const IAM_SUPPORTED_CONDITION_KEYS: readonly string[] = Object.freeze(
   IAM_CONDITION_KEY_CATALOG.filter((key) => key.supported).map((key) => key.key),
+)
+
+/** Request/principal keys are global; resource keys require an Action-specific provider. */
+export const IAM_GLOBAL_CONDITION_KEYS: readonly string[] = Object.freeze(
+  IAM_CONDITION_KEY_CATALOG.filter((key) => key.supported && key.source !== 'resource').map(
+    (key) => key.key,
+  ),
 )

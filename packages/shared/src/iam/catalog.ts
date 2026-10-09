@@ -1,4 +1,4 @@
-import { IAM_SUPPORTED_CONDITION_KEYS } from './condition'
+import { IAM_GLOBAL_CONDITION_KEYS } from './condition'
 import { ALL_PERMISSIONS, Permission } from '../permission'
 import { actionForPermission } from './legacy-permission-map'
 
@@ -134,7 +134,10 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
         : 'Write',
     resourceTypes: ['quyan/account', ...(resources ?? [])],
     apiRoutes: [],
-    conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+    conditionKeys: [
+      ...IAM_GLOBAL_CONDITION_KEYS,
+      ...(resources?.includes('article/article') ? ['quyan:ResourceOwnerId'] : []),
+    ],
     sensitive:
       permission === Permission.ARTICLE_PUBLISH ||
       permission === Permission.ARTICLE_UPDATE ||
@@ -255,7 +258,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       service: 'developer',
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       apiRoutes: [],
-      conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive:
         definition.accessLevel === 'Write' ||
         definition.operation === 'GetShortLinkStats' ||
@@ -278,7 +281,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       resourceTypes: ['quyan/user'],
       apiRoutes: [],
-      conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: false,
       authorizationStage: 'declared',
       defaultAuthorizationScope: 'self',
@@ -336,7 +339,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       service: 'ram',
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       apiRoutes: [],
-      conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: true,
       authorizationStage: 'declared',
     }),
@@ -348,7 +351,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     accessLevel: 'Write',
     resourceTypes: ['article/article'],
     apiRoutes: [],
-    conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS, 'quyan:ResourceOwnerId'],
     sensitive: true,
     authorizationStage: 'declared',
     legacyPermission: Permission.ARTICLE_UPDATE,
@@ -360,7 +363,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     accessLevel: 'Read',
     resourceTypes: ['quyan/account'],
     apiRoutes: [],
-    conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,
     authorizationStage: 'declared',
   },

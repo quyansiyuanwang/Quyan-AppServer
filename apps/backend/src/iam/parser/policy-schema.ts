@@ -64,6 +64,16 @@ export const iamStatementSchema = z
       });
       return;
     }
+    const conditionKeys = Object.values(statement.Condition ?? {}).flatMap((clause) => Object.keys(clause));
+    for (const key of new Set(conditionKeys))
+      if (
+        IAM_ACTION_CATALOG.some(
+          (action) =>
+            actions.some((pattern) => matchIamPattern(pattern, action)) &&
+            !getIamActionDefinition(action)!.conditionKeys.includes(key),
+        )
+      )
+        context.addIssue({ code: "custom", path: ["Condition"], message: "Condition key is incompatible with Action" });
     const resources = [statement.Resource].flat();
     resources.forEach((resource, index) => {
       const types = getIamResourcePatternTypes(resource);

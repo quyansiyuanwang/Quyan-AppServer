@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Permission } from "@quyan/shared";
+import type { IamConditionContext } from "@quyan/shared";
+import { evaluatePolicies } from "../../../src/iam/evaluator/policy-evaluator";
+import type { IamPolicyInput } from "../../../src/iam/evaluator/policy-evaluator";
 import { mockDeep } from "vitest-mock-extended";
 import type { IamAuthorizationService } from "../../../src/iam/iam-authorization.service";
 const mocks = vi.hoisted(() => ({
@@ -19,7 +22,22 @@ vi.mock("../../../src/config/env", () => ({
   },
 }));
 vi.mock("../../../src/iam/iam-authorization.service", () => ({
-  IamAuthorizationService: { getInstance: () => ({ authorize: mocks.authorize, loadPolicies: mocks.loadPolicies }) },
+  IamAuthorizationService: {
+    getInstance: () => ({
+      authorize: mocks.authorize,
+      loadPolicies: mocks.loadPolicies,
+      // The bridge test double retains real policy evaluation; trusted resource providers have dedicated coverage.
+      evaluateLoadedPolicies: async (input: {
+        action: string;
+        resources: string[];
+        policies: IamPolicyInput[];
+        context?: IamConditionContext;
+      }) =>
+        input.resources.map((resource) =>
+          evaluatePolicies(input.policies, { action: input.action, resource, context: input.context }),
+        ),
+    }),
+  },
 }));
 vi.mock("../../../src/services/users/permission.service", () => ({
   PermissionService: { getInstance: () => ({ checkUserPermissions: mocks.legacy }) },

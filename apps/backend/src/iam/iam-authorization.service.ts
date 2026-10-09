@@ -19,7 +19,7 @@ import type { PolicyBindingInfo, RamPolicyStore } from "@/store/users/ram-policy
 import { ForbiddenError } from "@/util/errors";
 import { legacyPermissionsToPolicy } from "./legacy-policy";
 import { parseIamPolicy } from "./parser/policy-parser";
-import { principalConditionContext } from "./request/condition-context";
+import { IamResourceConditionService } from "./condition/resource-condition.service";
 import { evaluatePolicies } from "./evaluator/policy-evaluator";
 import type { IamPolicyInput } from "./evaluator/policy-evaluator";
 
@@ -36,6 +36,7 @@ export class IamAuthorizationService {
     private readonly authorizations: RamAuthorizationStore = RamAuthorizationRepository.getInstance(),
     private readonly resourceGroups: RamResourceGroupStore = RamResourceGroupRepository.getInstance(),
     private readonly groups: GroupStore = GroupRepository.getInstance(),
+    private readonly resourceConditions = IamResourceConditionService.getInstance(),
   ) {}
   static getInstance(): IamAuthorizationService {
     return (this.instance ??= new IamAuthorizationService());
@@ -252,12 +253,15 @@ export class IamAuthorizationService {
     resource: string;
     context?: IamConditionContext;
   }): Promise<IamEvaluationResult> {
-    if (!isIamResourceInAccount(input.resource, input.principal.accountOwnerId))
+    if (!isKnownIamAction(input.action) || !isIamResourceInAccount(input.resource, input.principal.accountOwnerId))
       return { decision: "ImplicitDeny", reason: "invalid-request", matchedStatements: [] };
-    return evaluatePolicies(await this.loadPolicies(input.principal), {
-      ...input,
-      context: { ...principalConditionContext(input.principal), ...input.context },
-    });
+    return (
+      await this.evaluateLoadedPolicies({
+        ...input,
+        resources: [input.resource],
+        policies: await this.loadPolicies(input.principal),
+      })
+    )[0];
   }
   /** Batch mutations must authorize every resource before any write; list services can use this same evaluator. */
   async authorizeMany(input: {
@@ -273,8 +277,28 @@ export class IamAuthorizationService {
     )
       throw deny();
     const policies = await this.loadPolicies(input.principal);
-    const context = { ...principalConditionContext(input.principal), ...input.context };
-    return input.resources.map((resource) => evaluatePolicies(policies, { action: input.action, resource, context }));
+    return this.evaluateLoadedPolicies({ ...input, policies });
+  }
+  /** Shared live and draft boundary: request attributes cannot impersonate the principal or resource owner. */
+  async evaluateLoadedPolicies(input: {
+    principal: IamPrincipal;
+    policies: readonly IamPolicyInput[];
+    action: string;
+    resources: readonly string[];
+    context?: IamConditionContext;
+  }): Promise<IamEvaluationResult[]> {
+    if (
+      !isKnownIamAction(input.action) ||
+      !isSafeIamResourceBatch(input.resources) ||
+      input.resources.some((resource) => !isIamResourceInAccount(resource, input.principal.accountOwnerId))
+    )
+      throw deny();
+    const contexts = await this.resourceConditions.contexts(input);
+    return input.resources.map((resource, index) =>
+      contexts[index] === undefined
+        ? { decision: "ImplicitDeny", reason: "invalid-request", matchedStatements: [] }
+        : evaluatePolicies(input.policies, { action: input.action, resource, context: contexts[index] }),
+    );
   }
   /** Apply to an already account-scoped database page. Do not expose an unfiltered total as an authorized total. */
   async filterAuthorizedPage<T>(input: {

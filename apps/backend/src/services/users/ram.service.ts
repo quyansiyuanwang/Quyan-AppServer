@@ -1,4 +1,5 @@
-import { evaluateIdentityPolicyDraft } from "@/iam/simulation/draft-simulation";
+import { isIamResourceInAccount } from "@quyan/shared";
+import { parseIdentityPolicyDraft } from "@/iam/simulation/draft-simulation";
 import type { ChatTextGenerationOptions } from "@/services/chat/chat.service";
 import {
   parseIamTrustPolicy,
@@ -1790,14 +1791,19 @@ export class RamService {
       accountOwnerId: owner,
       subjectType: user.id === owner ? ("root" as const) : ("sub_user" as const),
     };
-    const identity =
-      documentText === undefined
+    const draft = documentText === undefined ? undefined : parseIdentityPolicyDraft(documentText, owner);
+    const identity = !isIamResourceInAccount(resource, owner)
+      ? { decision: "ImplicitDeny" as const, reason: "invalid-request" as const, matchedStatements: [] }
+      : draft === undefined
         ? await IamAuthorizationService.getInstance().authorize({ principal, action, resource })
-        : evaluateIdentityPolicyDraft(documentText, owner, {
-            action,
-            resource,
-            context: principalConditionContext(principal),
-          });
+        : (
+            await IamAuthorizationService.getInstance().evaluateLoadedPolicies({
+              principal,
+              action,
+              resources: [resource],
+              policies: [{ policyId: "simulation:draft", document: draft }],
+            })
+          )[0];
     if (action !== IAM_ASSUME_ROLE_ACTION) return identity;
     if (getIamResourceType(resource)?.id !== "quyan/role" || resource.split(":")[4].includes("*"))
       return { decision: "ImplicitDeny" as const, reason: "invalid-request" as const, matchedStatements: [] };

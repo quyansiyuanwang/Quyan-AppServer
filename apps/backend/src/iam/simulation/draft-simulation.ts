@@ -10,6 +10,12 @@ export function evaluateIdentityPolicyDraft(
   accountOwnerId: string,
   request: IamEvaluationRequest,
 ): IamEvaluationResult {
+  const document = parseIdentityPolicyDraft(documentText, accountOwnerId);
+  if (!isIamResourceInAccount(request.resource, accountOwnerId))
+    return { decision: "ImplicitDeny", reason: "invalid-request", matchedStatements: [] };
+  return evaluatePolicies([{ policyId: "simulation:draft", document }], request);
+}
+export function parseIdentityPolicyDraft(documentText: string, accountOwnerId: string) {
   let parsed;
   try {
     parsed = parseIamPolicy(documentText);
@@ -17,7 +23,5 @@ export function evaluateIdentityPolicyDraft(
   } catch {
     throw new BadRequestError("Invalid IAM simulation draft", undefined, { messageKey: "iam.invalidPolicy" });
   }
-  if (!isIamResourceInAccount(request.resource, accountOwnerId))
-    return { decision: "ImplicitDeny", reason: "invalid-request", matchedStatements: [] };
-  return evaluatePolicies([{ policyId: "simulation:draft", document: parsed.document }], request);
+  return parsed.document;
 }

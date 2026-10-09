@@ -8,6 +8,9 @@ import { mockDeep } from "vitest-mock-extended";
 import type { UserStore } from "../../../src/store/users/user.store";
 import type { RamRoleStore } from "../../../src/store/users/ram-role.store";
 import type { RamPolicyStore } from "../../../src/store/users/ram-policy.store";
+vi.mock("../../../src/store/content/article-management.repository", () => ({
+  ArticleManagementRepository: { getInstance: () => ({ findAvailableTargets: vi.fn().mockResolvedValue([]) }) },
+}));
 vi.mock("../../../src/store/users/user.repository", () => ({ UserRepository: { getInstance: vi.fn() } }));
 vi.mock("../../../src/store/users/ram-role.repository", () => ({ RamRoleRepository: { getInstance: vi.fn() } }));
 vi.mock("../../../src/store/users/ram-policy.repository", () => ({ RamPolicyRepository: { getInstance: vi.fn() } }));
