@@ -8,7 +8,7 @@ import {
   type AIRequestLogOmissionReason,
 } from "@/constant/ai-request-log";
 import type { AIRequestLogAttemptDto } from "@/api/dto/relay/ai-request-log.dto";
-import { auditUtf8Slice, safeAttemptExcerpt } from "@/util/ai-request-log-payload";
+import { auditUtf8Slice, safeAttemptDiagnostic } from "@/util/ai-request-log-payload";
 
 export interface AIRequestLogAuditContext {
   requestId?: string;
@@ -93,9 +93,12 @@ export function recordAIRequestAttempt(
     0,
     Math.min(AI_REQUEST_LOG_LIMITS.attemptErrorBytes, AI_REQUEST_LOG_LIMITS.totalAttemptErrorBytes - usedBytes),
   );
-  const full = input.success ? "" : safeAttemptExcerpt(input.error ?? "Upstream request failed");
+  const diagnostic = input.success
+    ? { text: "", truncated: false }
+    : safeAttemptDiagnostic(input.error ?? "Upstream request failed");
+  const full = diagnostic.text;
   const errorExcerpt = auditUtf8Slice(full, 0, available).text;
-  const truncated = Buffer.byteLength(full) > available;
+  const truncated = diagnostic.truncated || Buffer.byteLength(full) > available;
   setAIRequestLogContext(response, {
     attempts: [
       ...attempts,

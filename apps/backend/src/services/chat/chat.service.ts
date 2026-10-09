@@ -1,4 +1,5 @@
-import { env } from "@/config/env";
+import { withContentSafetyGenerator, resetContentSafetyAttempt } from "@/services/system/content-safety-attempt";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { CHAT_MESSAGE_STORAGE_LIMIT_BYTES } from "@/constant/chat";
 import { aiContentTooLarge } from "@/util/streaming/bounded-text";
 import { withAIGenerator } from "@/services/infrastructure/ai-resource.service";
@@ -298,7 +299,7 @@ export class ChatService {
     replaceMessageId?: string,
   ): Promise<void> {
     await this.getConversation(conversationId, userId);
-    const limits = env.chat.resourceLimits;
+    const limits = getAIResourceConfig().chat.resourceLimits;
     const bytes = Buffer.byteLength(content);
     if (bytes > limits.inputLimitBytes || bytes > CHAT_MESSAGE_STORAGE_LIMIT_BYTES) throw aiContentTooLarge();
     let before: PrismaMessage | undefined;
@@ -309,7 +310,10 @@ export class ChatService {
       before = target;
     }
     const size = await this.messageRepo.getContextSize(conversationId, before);
-    if (size.count + 1 > limits.contextMaxMessages || size.bytes + bytes > limits.contextLimitBytes)
+    if (
+      (limits.contextMaxMessages > 0 && size.count + 1 > limits.contextMaxMessages) ||
+      size.bytes + bytes > limits.contextLimitBytes
+    )
       throw aiContentTooLarge();
   }
 
@@ -324,14 +328,16 @@ export class ChatService {
   ): AsyncGenerator<Extract<ChatStreamEvent, { type: "delta" | "complete" }>> {
     yield* withAIGenerator(
       (signal) =>
-        this.sendMessageInternal(
-          conversationId,
-          userId,
-          content,
-          model,
-          relayTokenId,
-          { ...requestMeta, signal },
-          replaceMessageId,
+        withContentSafetyGenerator(() =>
+          this.sendMessageInternal(
+            conversationId,
+            userId,
+            content,
+            model,
+            relayTokenId,
+            { ...requestMeta, signal },
+            replaceMessageId,
+          ),
         ),
       requestMeta?.signal,
     );
@@ -360,6 +366,8 @@ export class ChatService {
     if (!requestedModel)
       throw new BadRequestError("Model is required", undefined, { messageKey: "chat.modelRequired" });
 
+    if (typeof this.contentSafetyService.prepareAttempt === "function")
+      await this.contentSafetyService.prepareAttempt({ userId, tokenConfig: token.contentSafetyConfig as any });
     const requestSafety = await this.contentSafetyService.evaluate("request", content, {
       userId,
       tokenConfig: token.contentSafetyConfig as any,
@@ -380,12 +388,11 @@ export class ChatService {
       if (requestSafety.action === "unreachable") throw new ContentSafetyBlockedError();
       content = requestSafety.text;
     }
-    const effectiveSafety =
+    let effectiveSafety =
       typeof (this.contentSafetyService as any).getEffectivePolicy === "function"
         ? await this.contentSafetyService.getEffectivePolicy(userId, token.contentSafetyConfig as any)
         : await this.contentSafetyService.getPublicConfig();
-    const auditResponse = Boolean(effectiveSafety.responseEnabled && effectiveSafety.responseAiEnabled);
-    let bufferedAuditedResponse = "";
+    let auditResponse = Boolean(effectiveSafety.responseEnabled && effectiveSafety.responseAiEnabled);
 
     const configuredModels = await this.modelPricingRepository.listActiveOrderedByModel();
 
@@ -415,21 +422,25 @@ export class ChatService {
       await this.messageRepo.replaceFrom(replaceMessageId, content);
     } else await this.messageRepo.create({ conversationId, role: "user", content });
 
-    const history = await this.messageRepo.findContext(conversationId, env.chat.resourceLimits.contextMaxMessages);
+    const history = await this.messageRepo.findContext(
+      conversationId,
+      getAIResourceConfig().chat.resourceLimits.contextMaxMessages,
+    );
     if (
-      history.length > env.chat.resourceLimits.contextMaxMessages ||
+      (getAIResourceConfig().chat.resourceLimits.contextMaxMessages > 0 &&
+        history.length > getAIResourceConfig().chat.resourceLimits.contextMaxMessages) ||
       history.reduce((sum, item) => sum + Buffer.byteLength(item.content), 0) >
-        env.chat.resourceLimits.contextLimitBytes
+        getAIResourceConfig().chat.resourceLimits.contextLimitBytes
     )
       throw aiContentTooLarge();
     const messages = history.map((m) => ({ role: m.role, content: m.content }));
     const historyBytes = history.reduce((bytes, message) => bytes + Buffer.byteLength(message.content), 0);
     const assertAnswerBudget = (bytes: number) => {
-      const limits = env.chat.resourceLimits;
+      const limits = getAIResourceConfig().chat.resourceLimits;
       if (
         bytes > limits.outputLimitBytes ||
         bytes > CHAT_MESSAGE_STORAGE_LIMIT_BYTES ||
-        history.length + 1 > limits.contextMaxMessages ||
+        (limits.contextMaxMessages > 0 && history.length + 1 > limits.contextMaxMessages) ||
         historyBytes + bytes > limits.contextLimitBytes
       )
         throw aiContentTooLarge();
@@ -483,6 +494,40 @@ export class ChatService {
 
       effectiveCandidate = candidate;
       try {
+        if (attemptIndex > 0) {
+          resetContentSafetyAttempt();
+          effectiveSafety =
+            typeof this.contentSafetyService.prepareAttempt === "function"
+              ? await this.contentSafetyService.prepareAttempt({
+                  userId,
+                  tokenConfig: token.contentSafetyConfig as any,
+                })
+              : typeof this.contentSafetyService.getEffectivePolicy === "function"
+                ? await this.contentSafetyService.getEffectivePolicy(userId, token.contentSafetyConfig as any)
+                : await this.contentSafetyService.getPublicConfig();
+          auditResponse = Boolean(effectiveSafety.responseEnabled && effectiveSafety.responseAiEnabled);
+          const safety = await this.contentSafetyService.evaluate("request", content, {
+            userId,
+            tokenConfig: token.contentSafetyConfig as any,
+          });
+          auditInputTokens += safety.auditInputTokens;
+          auditOutputTokens += safety.auditOutputTokens;
+          auditCost += safety.auditCost;
+          auditDurationMs += safety.auditDurationMs;
+          if (safety.matched) {
+            await this.contentSafetyService.recordIncident({
+              userId,
+              relayTokenId: token.id,
+              requestId: usageRequestId,
+              direction: "request",
+              evaluation: safety,
+              model: selectedModelName,
+              channelId: candidate.channel.id,
+            });
+            if (safety.action === "unreachable") throw new ContentSafetyBlockedError();
+            messages[messages.length - 1] = { ...messages[messages.length - 1]!, content: safety.text };
+          }
+        }
         const streamRequestFormat =
           candidate.requestFormat === "openai-chat-completions" ? "openai" : candidate.requestFormat;
         const stream = requestMeta?.signal
@@ -525,8 +570,7 @@ export class ChatService {
             assertAnswerBudget(nextBytes);
             assistantBytes = nextBytes;
             assistantContent += chunk.content;
-            if (auditResponse) bufferedAuditedResponse = assistantContent;
-            else yield { type: "delta", content: chunk.content, done: false };
+            if (!auditResponse) yield { type: "delta", content: chunk.content, done: false };
           }
           if (chunk.done) {
             inputTokens = chunk.inputTokens || 0;
@@ -547,8 +591,8 @@ export class ChatService {
           failed = attemptIndex === attemptCandidates.length - 1;
           if (attemptIndex < attemptCandidates.length - 1) continue;
         }
-        if (auditResponse && bufferedAuditedResponse) {
-          const audited = await this.contentSafetyService.evaluate("response", bufferedAuditedResponse, {
+        if (auditResponse && assistantContent) {
+          const audited = await this.contentSafetyService.evaluate("response", assistantContent, {
             userId,
             tokenConfig: token.contentSafetyConfig as any,
           });
@@ -570,9 +614,8 @@ export class ChatService {
             assertAnswerBudget(Buffer.byteLength(audited.text));
             assistantContent = audited.text;
             assistantBytes = Buffer.byteLength(assistantContent);
-            bufferedAuditedResponse = audited.text;
           }
-          yield { type: "delta", content: bufferedAuditedResponse, done: false };
+          yield { type: "delta", content: assistantContent, done: false };
         }
         totalOutputTime = Math.max(0, totalOutputTime - auditDurationMs);
         timeToFirstByte = Math.max(0, timeToFirstByte - auditDurationMs);

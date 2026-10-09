@@ -1,9 +1,8 @@
-import { env } from "@/config/env";
+import { getAIHttpAgents } from "@/services/infrastructure/ai-http-agent-pool";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-executor.service";
 import axios from "axios";
-import http from "http";
-import https from "https";
 import { Readable, Transform } from "stream";
 import { pipeline } from "stream/promises";
 import type { RelayToken } from "@prisma/client";
@@ -21,11 +20,6 @@ import type {
 } from "./types/relay-proxy.types";
 import type { ContextLengthMultiplierRule } from "./context-length-multiplier.service";
 
-type UpstreamAgents = RelayUpstreamAgents;
-const directUpstreamAgents: UpstreamAgents = {
-  httpAgent: new http.Agent({ keepAlive: true }),
-  httpsAgent: new https.Agent({ keepAlive: true }),
-};
 import { DEFAULT_CACHE_CREATION_MULTIPLIER, DEFAULT_CACHE_READ_MULTIPLIER } from "@/constant/pricing";
 
 export interface RelayImageForwarderHost {
@@ -76,7 +70,7 @@ export class RelayImageForwarderService {
       params.retryStatusCodes,
       params.inputTokensIncludeCacheRead,
       params.originalRequestedModel,
-      params.requestAgents || directUpstreamAgents,
+      params.requestAgents || getAIHttpAgents(),
       host,
     );
   }
@@ -107,7 +101,7 @@ export class RelayImageForwarderService {
     retryStatusCodes: string[],
     inputTokensIncludeCacheRead: boolean,
     originalRequestedModel: string | undefined,
-    requestAgents: UpstreamAgents,
+    requestAgents: RelayUpstreamAgents,
     host: RelayImageForwarderHost,
   ): Promise<ImageForwardResult> {
     const bodyData = host.buildForwardBodyBuffer(convertedBody);
@@ -153,7 +147,7 @@ export class RelayImageForwarderService {
     if (isErrorResponse) {
       const { buffer, truncated } = await host.readStreamBodyLimited(
         responseStream,
-        env.aiRequestLog.responseBodyBytes,
+        getAIResourceConfig().aiRequestLog.responseBodyBytes,
         () => {
           if (firstByteTime === null) firstByteTime = Date.now();
         },

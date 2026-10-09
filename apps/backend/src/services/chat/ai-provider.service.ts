@@ -1,29 +1,13 @@
-import { env } from "@/config/env";
+import { getAIHttpAgents } from "@/services/infrastructure/ai-http-agent-pool";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { AIResourceService, withAIGenerator } from "@/services/infrastructure/ai-resource.service";
 import { boundedTextLines, aiContentTooLarge } from "@/util/streaming/bounded-text";
 import axios from "axios";
-import https from "https";
-import http from "http";
 import { extractTokenUsageMetrics, normalizeTokenBreakdown } from "@/util/token-usage.util";
 import type { RelayRequestFormat } from "@/util/relay";
 import { getLogger, LogCategory } from "@/util/logger";
 
 const logger = getLogger("AIProvider", LogCategory.BUSINESS);
-
-// Reuse HTTP agents for connection pooling
-const httpsAgent = new https.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  ...env.aiResources.http,
-  timeout: 60000,
-});
-
-const httpAgent = new http.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  ...env.aiResources.http,
-  timeout: 60000,
-});
 
 interface ChatMessage {
   role: string;
@@ -252,7 +236,7 @@ export class AIProviderService {
     for await (const chunk of stream) {
       if (!chunk.done) {
         outputBytes += Buffer.byteLength(chunk.content);
-        if (outputBytes > env.aiResources.streaming.outputLimitBytes) throw aiContentTooLarge();
+        if (outputBytes > getAIResourceConfig().aiResources.streaming.outputLimitBytes) throw aiContentTooLarge();
       }
       yield chunk;
     }
@@ -298,8 +282,7 @@ export class AIProviderService {
             ...AIResourceService.getInstance().hopHeaders(url, `Bearer ${apiKey}`),
           },
           responseType: "stream",
-          httpAgent,
-          httpsAgent,
+          ...getAIHttpAgents(),
           signal,
         },
       );
@@ -323,8 +306,7 @@ export class AIProviderService {
             ...AIResourceService.getInstance().hopHeaders(url, `Bearer ${apiKey}`),
           },
           responseType: "stream",
-          httpAgent,
-          httpsAgent,
+          ...getAIHttpAgents(),
           signal,
         },
       );
@@ -421,7 +403,10 @@ export class AIProviderService {
       }
     };
 
-    for await (const rawLine of boundedTextLines(response.data, env.aiResources.streaming.frameLimitBytes)) {
+    for await (const rawLine of boundedTextLines(
+      response.data,
+      getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+    )) {
       const line = rawLine.trim();
       if (!line) continue;
       for await (const out of processDataLine(line)) {
@@ -500,8 +485,7 @@ export class AIProviderService {
           ...AIResourceService.getInstance().hopHeaders(url, `Bearer ${apiKey}`),
         },
         responseType: "stream",
-        httpAgent,
-        httpsAgent,
+        ...getAIHttpAgents(),
         signal,
       },
     );
@@ -567,7 +551,10 @@ export class AIProviderService {
       }
     };
 
-    for await (const rawLine of boundedTextLines(response.data, env.aiResources.streaming.frameLimitBytes)) {
+    for await (const rawLine of boundedTextLines(
+      response.data,
+      getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+    )) {
       const line = rawLine.trim();
       if (!line) continue;
       for await (const out of processDataLine(line)) {
@@ -620,8 +607,7 @@ export class AIProviderService {
           ),
         },
         responseType: "stream",
-        httpAgent,
-        httpsAgent,
+        ...getAIHttpAgents(),
         signal,
       },
     );
@@ -683,7 +669,10 @@ export class AIProviderService {
       }
     };
 
-    for await (const rawLine of boundedTextLines(response.data, env.aiResources.streaming.frameLimitBytes)) {
+    for await (const rawLine of boundedTextLines(
+      response.data,
+      getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+    )) {
       const line = rawLine.trim();
       if (!line) continue;
       for await (const out of processDataLine(line)) {

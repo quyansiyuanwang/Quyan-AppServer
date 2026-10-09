@@ -47,6 +47,20 @@ export class RelayProxyController extends Controller {
       if (!headersToSkip.includes(key.toLowerCase())) this.setHeader(key, value as string);
     });
 
+    if (result.rawBody && request.res) {
+      const response = request.res;
+      response.status(result.status);
+      for (const [name, value] of Object.entries(result.headers))
+        if (!headersToSkip.includes(name.toLowerCase()) && name.toLowerCase() !== "content-encoding")
+          response.setHeader(name, value as string);
+      // Audit uses the already parsed object; the wire response reuses immutable upstream bytes.
+      response.locals.responseBody = result.data;
+      response.locals.responseBodyCaptured = true;
+      response.locals.preparedAuditBody = true;
+      response.locals.responseCaptureState = { totalBytes: result.rawBody.length };
+      response.end(result.rawBody);
+      return undefined;
+    }
     return result.data;
   }
 

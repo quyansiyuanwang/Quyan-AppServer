@@ -1,3 +1,4 @@
+import { publishTestAIResources } from "../../util/ai-resource-config";
 import { env } from "@/config/env";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -8,7 +9,10 @@ import {
 
 describe("relay request format conversion", () => {
   const originalStreaming = { ...env.aiResources.streaming };
-  afterEach(() => Object.assign(env.aiResources.streaming, originalStreaming));
+  afterEach(() => {
+    Object.assign(env.aiResources.streaming, originalStreaming);
+    publishTestAIResources();
+  });
   const anthropic = {
     model: "test-model",
     max_tokens: 128,
@@ -70,7 +74,9 @@ describe("relay request format conversion", () => {
 
   it("applies frame budgets per event, and configured retention increases take effect", async () => {
     env.aiResources.streaming.frameLimitBytes = 256;
+    publishTestAIResources();
     env.aiResources.streaming.retainedLimitBytes = 1024;
+    publishTestAIResources();
     const frame = "data: " + JSON.stringify({ choices: [{ delta: { content: "hello" } }] }) + "\n\n";
     const convert = async () => {
       const transform = new RelaySseFormatTransform("openai-chat-completions", "openai-responses");
@@ -84,10 +90,13 @@ describe("relay request format conversion", () => {
     };
     await expect(convert()).resolves.toBeUndefined();
     env.aiResources.streaming.retainedLimitBytes = 100;
+    publishTestAIResources();
     await expect(convert()).rejects.toThrow("retention limit");
     env.aiResources.streaming.retainedLimitBytes = 1024;
+    publishTestAIResources();
     env.aiResources.streaming.frameLimitBytes = 32;
-    await expect(convert()).rejects.toThrow("conversion limit");
+    publishTestAIResources();
+    await expect(convert()).rejects.toThrow("resource budget");
   });
 
   it("decodes UTF-8 and SSE events split across chunks", async () => {
@@ -164,5 +173,12 @@ describe("relay request format conversion", () => {
     expect(output).toContain("lookup");
     expect(output).toContain("input_json_delta");
     expect(output).toContain('"stop_reason":"tool_use"');
+  });
+  it("does not retain complete answers for target protocols that only need deltas", async () => {
+    env.aiResources.streaming.retainedLimitBytes = 16;
+    publishTestAIResources();
+    const frame = "data: " + JSON.stringify({ choices: [{ delta: { content: "hello" } }] }) + "\n\n";
+    const output = await convertStream("openai-chat-completions", "anthropic", frame.repeat(100) + "data: [DONE]\n\n");
+    expect(output).toContain("message_stop");
   });
 });

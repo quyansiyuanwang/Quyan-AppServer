@@ -30,7 +30,7 @@ export class MessageRepository implements MessageStore {
       where: { conversationId, status: RECORD_STATUS.ACTIVE },
       orderBy: [{ createTime: "asc" }, { id: "asc" }],
       select: { role: true, content: true },
-      take: maxMessages + 1,
+      ...(maxMessages > 0 ? { take: maxMessages + 1 } : {}),
     });
   }
 

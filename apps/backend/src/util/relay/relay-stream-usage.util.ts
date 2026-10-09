@@ -119,12 +119,14 @@ export const consumeRelayStreamUsageLine = (
   if (trimmedLine.startsWith("data:")) {
     const data = trimmedLine.slice("data:".length).trimStart();
     if (!data || data === "[DONE]") return;
+    if (!onVisibleOutput && !/"(?:usage|usageMetadata|[^"\n]*\\u[^"\n]*)"\s*:/.test(data)) return;
     try {
       json = JSON.parse(data);
     } catch {
       return;
     }
   } else if (requestFormat === "gemini" && (trimmedLine.startsWith("{") || trimmedLine.startsWith("["))) {
+    if (!onVisibleOutput && !/"(?:usage|usageMetadata|[^"\n]*\\u[^"\n]*)"\s*:/.test(trimmedLine)) return;
     try {
       json = JSON.parse(trimmedLine);
     } catch {
@@ -134,9 +136,57 @@ export const consumeRelayStreamUsageLine = (
     return;
   }
 
+  consumeRelayStreamUsageValue(json, requestFormat, tracker, onVisibleOutput);
+};
+
+export const consumeRelayStreamUsageValue = (
+  json: any,
+  requestFormat: RelayRequestFormat,
+  tracker: RelayStreamUsageTracker,
+  onVisibleOutput?: () => void,
+): void => {
   if (hasVisibleStreamEvent(json, requestFormat)) onVisibleOutput?.();
   tracker.apply(json?.message?.usage);
   tracker.apply(json?.usage);
   tracker.apply(json?.response?.usage);
   tracker.apply(json?.usageMetadata);
 };
+
+/** One framed event; multiline SSE data fields share a single JSON parse. */
+export function parseRelayStreamEvent(text: string, requestFormat: RelayRequestFormat): any {
+  let raw = "";
+  let offset = 0;
+  while (offset < text.length) {
+    const newline = text.indexOf("\n", offset);
+    const end = newline < 0 ? text.length : newline;
+    const line = text.slice(offset, end).replace(/\r$/, "");
+    if (line.startsWith("data:")) raw += (raw ? "\n" : "") + line.slice(5).trimStart();
+    offset = end + 1;
+  }
+  if (!raw && requestFormat === "gemini") raw = text.trim();
+  if (!raw || raw === "[DONE]") return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+export function relayFrameNeedsUsage(frame: Buffer | string): boolean {
+  return frame.includes('"usage"') || frame.includes('"usageMetadata"') || frame.includes("\\u");
+}
+/** Scan one already-decoded bounded response without allocating an event array. */
+export function* relayDecodedFrames(text: string, delimiter: "sse" | "line"): Generator<string> {
+  let offset = 0,
+    start = 0;
+  while (offset < text.length) {
+    const newline = text.indexOf("\n", offset);
+    if (newline < 0) break;
+    const blank = newline === offset || (newline === offset + 1 && text[offset] === "\r");
+    offset = newline + 1;
+    if (blank || delimiter === "line") {
+      yield text.slice(start, offset);
+      start = offset;
+    }
+  }
+  if (start < text.length) yield text.slice(start);
+}

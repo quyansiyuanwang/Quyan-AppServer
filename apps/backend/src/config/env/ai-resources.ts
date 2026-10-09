@@ -52,7 +52,7 @@ export function buildChatResourceConfig(source: EnvSnapshot) {
     resourceLimits: {
       inputLimitBytes: resourceInteger(source, "CHAT_INPUT_LIMIT_KB", 64) * KIB,
       outputLimitBytes: resourceInteger(source, "CHAT_OUTPUT_LIMIT_KB", 60) * KIB,
-      contextMaxMessages: resourceInteger(source, "CHAT_CONTEXT_MAX_MESSAGES", 200),
+      contextMaxMessages: resourceInteger(source, "CHAT_CONTEXT_MAX_MESSAGES", 200, 0),
       contextLimitBytes: resourceInteger(source, "CHAT_CONTEXT_LIMIT_KB", 512) * KIB,
     },
   };

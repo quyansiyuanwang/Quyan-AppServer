@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { env } from "@/config/env";
 import { AIRequestLogWriter } from "@/services/relay/ai-request-log-writer";
+import { AIResourceService, aiResourceContext } from "@/services/infrastructure/ai-resource.service";
+import { contentSafetyAttemptContext, withContentSafetyAttempt } from "@/services/system/content-safety-attempt";
+import { AI_RESOURCE_DEFAULTS } from "@/config/ai-resource-policy";
 import { budgetAuditPayload } from "@/util/ai-request-log-payload";
 
 describe("bounded AI audit", () => {
@@ -54,5 +57,22 @@ describe("bounded AI audit", () => {
     expect(Buffer.byteLength(serialized)).toBeLessThanOrEqual(1024);
     expect(serialized).not.toContain("fixture-secret");
     expect(payload.truncated).toBe(true);
+  });
+  it("does not carry request resource or rule snapshots into queued database writes", async () => {
+    const resources = new AIResourceService(AI_RESOURCE_DEFAULTS.aiResources, () => 0);
+    const lease = resources.tryAcquire()!;
+    const writer = new AIRequestLogWriter(AI_RESOURCE_DEFAULTS.aiRequestLog);
+    let captured: unknown[] = [];
+    await aiResourceContext.run(lease, () =>
+      withContentSafetyAttempt(
+        () =>
+          writer.enqueue("snapshot", 1, async () => {
+            captured = [aiResourceContext.getStore(), contentSafetyAttemptContext.getStore()];
+          })!,
+      ),
+    );
+    expect(captured).toEqual([undefined, undefined]);
+    lease.release();
+    resources.stop();
   });
 });

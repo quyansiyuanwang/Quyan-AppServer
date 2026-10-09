@@ -1,7 +1,14 @@
-import { StringDecoder } from "node:string_decoder";
-import { env } from "@/config/env";
+import { BoundedByteFrames } from "@/util/streaming/bounded-byte-frames";
+import {
+  consumeRelayStreamUsageValue,
+  parseRelayStreamEvent,
+  relayFrameNeedsUsage,
+  relayDecodedFrames,
+} from "@/util/relay/relay-stream-usage.util";
+import { withContentSafetyAttempt } from "@/services/system/content-safety-attempt";
+import { getAIHttpAgents } from "@/services/infrastructure/ai-http-agent-pool";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { aiResourceContext, aiAbortError } from "@/services/infrastructure/ai-resource.service";
-import { BoundedTextLines } from "@/util/streaming/bounded-text";
 import { writeWithBackpressure } from "@/util/streaming/backpressure";
 import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-executor.service";
 import { beginAIRequestAttempt, recordAIRequestAttempt, recordAIRequestFailure } from "@/util/ai-request-log-context";
@@ -12,7 +19,7 @@ import type { RelayProxyStore } from "@/store/relay/relay-proxy.store";
 import { trackErrorForIp } from "@/middleware/error-tracker";
 import { BadRequestError, ContentSafetyBlockedError, GatewayTimeoutError, PayloadTooLargeError } from "@/util/errors";
 import { DEFAULT_CACHE_CREATION_MULTIPLIER, DEFAULT_CACHE_READ_MULTIPLIER } from "@/constant/pricing";
-import { consumeRelayStreamUsageLine, RelayStreamUsageTracker } from "@/util/relay";
+import { RelayStreamUsageTracker } from "@/util/relay";
 import { convertRelayError, RelaySseFormatTransform } from "./relay-request-format-transform.service";
 import { shouldRetryRelayUpstreamFailure } from "@/util/relay";
 import {
@@ -54,16 +61,6 @@ export interface RelayStreamForwarderHost {
   forwardStreamRequest?: (...args: any[]) => Promise<StreamForwardResult>;
 }
 
-const directUpstreamAgents: RelayUpstreamAgents = {
-  httpAgent: new http.Agent({ keepAlive: true, ...env.aiResources.http, timeout: 60000, scheduling: "lifo" }),
-  httpsAgent: new https.Agent({
-    keepAlive: true,
-    ...env.aiResources.http,
-    timeout: 60000,
-    scheduling: "lifo",
-  }),
-};
-
 const buildRelayForwardBodyBuffer = (body: unknown): Buffer =>
   Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body ?? {}));
 
@@ -77,10 +74,12 @@ export class RelayStreamForwarderService {
     params: RelayStreamForwardParams,
     host: Omit<RelayStreamForwarderHost, "forwardStreamRequest">,
   ): Promise<StreamForwardResult> {
-    const requestAgents = params.requestAgents || directUpstreamAgents;
+    const requestAgents = params.requestAgents || getAIHttpAgents();
+    const wireBody = params.bodyBuffer;
     const forwardHost: RelayStreamForwarderHost = {
       ...host,
-      forwardStreamRequest: (...args: any[]) => this.forwardLegacy.apply(this, [...args, forwardHost] as any),
+      forwardStreamRequest: (...args: any[]) =>
+        withContentSafetyAttempt(() => this.forwardLegacy.apply(this, [...args, forwardHost, undefined, true] as any)),
     };
     return this.forwardLegacy(
       params.relayToken,
@@ -116,6 +115,7 @@ export class RelayStreamForwarderService {
       params.responseAiEnabled ?? false,
       params.auditStats,
       forwardHost,
+      wireBody,
     );
   }
 
@@ -149,17 +149,58 @@ export class RelayStreamForwarderService {
     responseTransform?: { sourceFormat: RelayConvertibleRequestFormat; targetFormat: RelayConvertibleRequestFormat },
     tokenNormalizerConfig: RelayTokenNormalizerConfig = normalizeRelayTokenNormalizerConfig(undefined),
     tokenNormalizerRetried = false,
-    requestAgents: RelayUpstreamAgents = directUpstreamAgents,
+    requestAgents: RelayUpstreamAgents = getAIHttpAgents(),
     responseAiEnabled = false,
     auditStats?: { inputTokens: number; outputTokens: number; cost: number; durationMs: number },
     host: RelayStreamForwarderHost = undefined as unknown as RelayStreamForwarderHost,
+    serializedBody?: Buffer,
+    retryRequestSafety = false,
   ): Promise<StreamForwardResult> {
+    if (typeof host.contentSafetyService.prepareAttempt === "function") {
+      const policy = await host.contentSafetyService.prepareAttempt({
+        userId: relayToken.userId,
+        tokenConfig: relayToken.contentSafetyConfig as any,
+      });
+      responseAiEnabled = Boolean(policy.responseEnabled && policy.responseAiEnabled);
+    }
     const url = new URL(upstreamUrl);
     const isHttps = url.protocol === "https:";
     const httpModule = isHttps ? https : http;
 
     // 序列化一次，复用同一个 Buffer（避免两次 JSON.stringify）
-    const bodyData = buildRelayForwardBodyBuffer(convertedBody);
+    let bodyData = serializedBody ?? buildRelayForwardBodyBuffer(convertedBody);
+    const stats = auditStats || { inputTokens: 0, outputTokens: 0, cost: 0, durationMs: 0 };
+    if (retryRequestSafety) {
+      const safety = await host.contentSafetyService.evaluate("request", bodyData.toString("utf8"), {
+        userId: relayToken.userId,
+        tokenConfig: relayToken.contentSafetyConfig as any,
+      });
+      stats.inputTokens += safety.auditInputTokens;
+      stats.outputTokens += safety.auditOutputTokens;
+      stats.cost += safety.auditCost;
+      stats.durationMs += safety.auditDurationMs;
+      if (safety.matched) {
+        await host.contentSafetyService.recordIncident({
+          userId: relayToken.userId,
+          relayTokenId: relayToken.id,
+          requestId: host.getLogicalRequestId(req),
+          direction: "request",
+          evaluation: safety,
+          model: selectedModelName,
+          channelId: executionChannelId,
+          request: req,
+        });
+        if (safety.action === "unreachable") throw new ContentSafetyBlockedError();
+        if (safety.action === "blackhole") {
+          try {
+            convertedBody = JSON.parse(safety.text);
+            bodyData = Buffer.from(safety.text);
+          } catch {
+            throw new ContentSafetyBlockedError();
+          }
+        }
+      }
+    }
 
     const streamUsage = new RelayStreamUsageTracker(Math.ceil(bodyData.length / 4), inputTokensIncludeCacheRead);
 
@@ -179,12 +220,12 @@ export class RelayStreamForwarderService {
       auditRecorded = true;
       recordAIRequestAttempt(auditResponse, { success, statusCode, durationMs: Date.now() - startTime, error });
     };
-    const stats = auditStats || { inputTokens: 0, outputTokens: 0, cost: 0, durationMs: 0 };
     let firstByteTime: number | null = null;
 
     let clientDisconnected = false; // 标记客户端是否已断开
 
-    return new Promise((resolve, reject) => {
+    let cleanupListeners = () => {};
+    return new Promise<StreamForwardResult>((resolve, reject) => {
       let timedOut = false;
       let proxyReq: http.ClientRequest;
       let failActiveStream: ((error: Error) => void) | undefined;
@@ -209,12 +250,16 @@ export class RelayStreamForwarderService {
           const responseHeaders = { ...proxyRes.headers };
           delete responseHeaders["content-length"];
           delete responseHeaders["transfer-encoding"];
+          const frameDelimiter =
+            requestFormat === "gemini" && !String(responseHeaders["content-type"] ?? "").includes("text/event-stream")
+              ? ("line" as const)
+              : ("sse" as const);
 
           // For error responses we buffer the whole body so we can build a
           // normalized error message; we do NOT pipe chunks straight through.
           if (isStreamErrorResponse) {
             const rawChunks: Buffer[] = [];
-            const maxErrorBodyBytes = env.aiRequestLog.responseBodyBytes;
+            const maxErrorBodyBytes = getAIResourceConfig().aiRequestLog.responseBodyBytes;
             let totalSize = 0;
 
             proxyRes.on("data", (chunk: Buffer) => {
@@ -238,7 +283,11 @@ export class RelayStreamForwarderService {
 
             proxyRes.on("end", async () => {
               try {
-                auditAttempt(false, streamStatusCode, Buffer.concat(rawChunks).toString("utf8"));
+                const errorText = (
+                  rawChunks.length === 1 ? rawChunks[0]! : Buffer.concat(rawChunks, totalSize)
+                ).toString("utf8");
+                rawChunks.length = 0;
+                auditAttempt(false, streamStatusCode, errorText);
 
                 if (autoInjectedStreamUsageOption && !res.headersSent && [400, 422].includes(streamStatusCode)) {
                   const retryBody = host.removeAutoInjectedOpenAIStreamUsageOption(convertedBody);
@@ -291,8 +340,7 @@ export class RelayStreamForwarderService {
                 // Parse upstream body for error message extraction
                 let upstreamData: any = null;
                 try {
-                  const bodyText = Buffer.concat(rawChunks).toString();
-                  upstreamData = JSON.parse(bodyText);
+                  upstreamData = JSON.parse(errorText);
                 } catch {
                   // not JSON – leave null
                 }
@@ -493,17 +541,36 @@ export class RelayStreamForwarderService {
             const rawChunks: Buffer[] = [];
             let rawSize = 0;
             let blockedBySafety = false;
-            const maxAuditBytes = env.aiResources.streaming.outputLimitBytes;
-            const safetyUsageParser = new BoundedTextLines(
-              host.streamFrameLimitBytes ?? env.aiResources.streaming.frameLimitBytes,
+            let auditSettled = false;
+            const maxAuditBytes = getAIResourceConfig().aiResources.streaming.outputLimitBytes;
+            const safetyFrames = new BoundedByteFrames(
+              host.streamFrameLimitBytes ?? getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+              frameDelimiter,
             );
+            const observeUsage = (text: string) => {
+              for (const frame of relayDecodedFrames(text, frameDelimiter)) {
+                if (relayFrameNeedsUsage(frame))
+                  consumeRelayStreamUsageValue(parseRelayStreamEvent(frame, requestFormat), requestFormat, streamUsage);
+              }
+            };
+            const failAudit = (error: Error) => {
+              if (auditSettled) return;
+              auditSettled = true;
+              rawChunks.length = 0;
+              safetyFrames.clear();
+              auditAttempt(false, streamStatusCode, error);
+              recordAIRequestFailure(auditResponse, error);
+              destroyRelayUpstreamResponse(proxyRes, error);
+              if (!res.writableEnded) res.end();
+              reject(error);
+            };
+            failActiveStream = failAudit;
             proxyRes.on("data", (chunk: Buffer) => {
+              if (auditSettled) return;
               if (firstByteTime === null) firstByteTime = Date.now();
               rawSize += chunk.length;
               if (rawSize > maxAuditBytes) {
-                rawChunks.length = 0;
-                destroyRelayUpstreamResponse(
-                  proxyRes,
+                failAudit(
                   new PayloadTooLargeError("Response exceeds content safety buffer limit", undefined, {
                     messageKey: "relay.streamBufferTooLarge",
                   }),
@@ -512,27 +579,30 @@ export class RelayStreamForwarderService {
               }
               rawChunks.push(chunk);
               try {
-                for (const line of safetyUsageParser.feed(chunk))
-                  consumeRelayStreamUsageLine(line, requestFormat, streamUsage);
+                // Validate frame capacity without decoding or parsing each network chunk.
+                for (const frame of safetyFrames.feed(chunk)) {
+                  void frame;
+                }
               } catch (error) {
-                rawChunks.length = 0;
-                destroyRelayUpstreamResponse(proxyRes, error as Error);
+                failAudit(error instanceof Error ? error : new Error("Invalid upstream frame"));
               }
             });
             proxyRes.on("end", async () => {
+              if (auditSettled) return;
               try {
                 if (rawSize > maxAuditBytes) {
                   blockedBySafety = true;
                   throw new ContentSafetyBlockedError();
                 }
-                for (const line of safetyUsageParser.finish())
-                  consumeRelayStreamUsageLine(line, requestFormat, streamUsage);
-                const rawBody = Buffer.concat(rawChunks, rawSize);
+                safetyFrames.clear();
+                const rawBody = rawChunks.length === 1 ? rawChunks[0]! : Buffer.concat(rawChunks, rawSize);
                 rawChunks.length = 0;
-                const safety = await host.contentSafetyService.evaluate("response", rawBody.toString("utf8"), {
+                const rawText = rawBody.toString("utf8");
+                const safety = await host.contentSafetyService.evaluate("response", rawText, {
                   userId: relayToken.userId,
                   tokenConfig: relayToken.contentSafetyConfig as any,
                 });
+                if (auditSettled) return;
                 stats.inputTokens += safety.auditInputTokens;
                 stats.outputTokens += safety.auditOutputTokens;
                 stats.cost += safety.auditCost;
@@ -550,6 +620,7 @@ export class RelayStreamForwarderService {
                     request: req,
                   });
                   if (safety.action === "unreachable") {
+                    observeUsage(rawText);
                     recordAIRequestFailure(auditResponse, { name: "ContentSafetyBlockedError" }, "content-safety");
                     blockedBySafety = true;
                     throw new ContentSafetyBlockedError();
@@ -562,10 +633,23 @@ export class RelayStreamForwarderService {
                 const sse = responseTransform
                   ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
                   : null;
-                if (sse) {
-                  sse.end(output);
-                  for await (const data of sse) await writeWithBackpressure(res, data);
-                } else await writeWithBackpressure(res, output);
+                const replaced = safety.matched && safety.action === "blackhole";
+                if (replaced) observeUsage(rawText);
+                try {
+                  if (sse) {
+                    for (const frame of relayDecodedFrames(replaced ? safety.text : rawText, frameDelimiter)) {
+                      const parsed = parseRelayStreamEvent(frame, requestFormat);
+                      if (!replaced) consumeRelayStreamUsageValue(parsed, requestFormat, streamUsage);
+                      const converted = sse.convertFrame(frame, parsed);
+                      if (converted) await writeWithBackpressure(res, converted);
+                    }
+                  } else {
+                    if (!replaced) observeUsage(rawText);
+                    await writeWithBackpressure(res, output);
+                  }
+                } finally {
+                  sse?.destroy();
+                }
                 if (!res.writableEnded) res.end();
                 rawChunks.length = 0;
                 const normalized = streamUsage.normalized();
@@ -645,6 +729,7 @@ export class RelayStreamForwarderService {
                   auditCost: stats.cost,
                   auditDurationMs: stats.durationMs,
                 });
+                auditSettled = true;
                 auditAttempt(true, streamStatusCode);
                 resolve({
                   handled: true,
@@ -655,10 +740,11 @@ export class RelayStreamForwarderService {
                     firstByteTime === null ? undefined : Math.max(0, firstByteTime - startTime - stats.durationMs),
                 });
               } catch (error) {
+                if (auditSettled) return;
                 auditAttempt(false, streamStatusCode, error);
                 recordAIRequestFailure(auditResponse, error);
                 if (!blockedBySafety) {
-                  reject(error);
+                  failAudit(error instanceof Error ? error : new Error("Upstream audit failed"));
                   return;
                 }
                 if (stats.cost > 0 && selectedModelRate) {
@@ -716,6 +802,7 @@ export class RelayStreamForwarderService {
                     }),
                   );
                 }
+                auditSettled = true;
                 resolve({
                   handled: true,
                   success: false,
@@ -725,10 +812,7 @@ export class RelayStreamForwarderService {
                 });
               }
             });
-            proxyRes.on("error", (error) => {
-              if (!res.writableEnded) res.end();
-              reject(error);
-            });
+            proxyRes.on("error", failAudit);
             return;
           }
 
@@ -743,6 +827,13 @@ export class RelayStreamForwarderService {
             responseStarted = true;
             res.writeHead(streamStatusCode, host.withRequestIdHeader(req, responseHeaders));
           };
+          const localSafetyRequired =
+            typeof host.contentSafetyService.hasLocalResponseRules === "function"
+              ? host.contentSafetyService.hasLocalResponseRules({
+                  userId: relayToken.userId,
+                  tokenConfig: relayToken.contentSafetyConfig as any,
+                })
+              : Promise.resolve(true);
           const sseTransform = responseTransform
             ? new RelaySseFormatTransform(responseTransform.sourceFormat, responseTransform.targetFormat)
             : null;
@@ -858,7 +949,10 @@ export class RelayStreamForwarderService {
             auditAttempt(false, streamStatusCode, failure);
             recordAIRequestFailure(auditResponse, failure);
             destroyRelayUpstreamResponse(proxyRes, failure);
-            sseTransform?.destroy(failure);
+            // convertFrame is used directly; report failure through the request promise.
+            sseTransform?.destroy();
+            frames.clear();
+            pendingSafetyFrame = undefined;
             if (!res.writableEnded) res.end();
             const status = clientDisconnected
               ? 499
@@ -889,66 +983,85 @@ export class RelayStreamForwarderService {
             else finish();
           };
           failActiveStream = failStream;
-          const outputPump = sseTransform
-            ? (async () => {
-                for await (const data of sseTransform) await queueOutput(Buffer.from(data));
-              })().catch(failStream)
-            : Promise.resolve();
-          let safetyCarry = "";
-          const safetyDecoder = new StringDecoder("utf8");
-          const usageParser = new BoundedTextLines(
-            host.streamFrameLimitBytes ?? env.aiResources.streaming.frameLimitBytes,
+          let pendingSafetyFrame: { raw: Buffer; text: string; parsed?: unknown } | undefined;
+          const frames = new BoundedByteFrames(
+            host.streamFrameLimitBytes ?? getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+            frameDelimiter,
           );
           let streamChunkPromise: Promise<void> = Promise.resolve();
-
-          const applyUsageLine = (line: string) => {
-            consumeRelayStreamUsageLine(line, requestFormat, streamUsage, () => {});
+          const writeFrame = async (raw: Buffer, text?: string, value?: unknown) => {
+            if (settled || !raw.length) return;
+            if (sseTransform) {
+              const converted = sseTransform.convertFrame((text ?? raw.toString("utf8")).trimEnd(), value);
+              if (converted) await queueOutput(Buffer.from(converted));
+            } else await queueOutput(raw);
           };
-
-          proxyRes.on("data", (chunk) => {
+          const evaluateFrames = async (text: string) => {
+            const evaluation = await host.contentSafetyService.evaluateLocal("response", text, {
+              userId: relayToken.userId,
+              tokenConfig: relayToken.contentSafetyConfig as any,
+            });
+            if (evaluation.matched) {
+              await host.contentSafetyService.recordIncident({
+                userId: relayToken.userId,
+                relayTokenId: relayToken.id,
+                requestId: host.getLogicalRequestId(req),
+                direction: "response",
+                evaluation,
+                model: selectedModelName,
+                channelId: executionChannelId,
+                statusCode: streamStatusCode,
+                request: req,
+              });
+              if (evaluation.action === "unreachable") {
+                recordAIRequestFailure(auditResponse, { name: "ContentSafetyBlockedError" }, "content-safety");
+                throw new ContentSafetyBlockedError();
+              }
+            }
+            return evaluation;
+          };
+          const writeReplacement = async (text: string) => {
+            if (!sseTransform) {
+              await queueOutput(Buffer.from(text));
+              return;
+            }
+            const replacement = new BoundedByteFrames(getAIResourceConfig().aiResources.streaming.frameLimitBytes);
+            for (const frame of replacement.feed(Buffer.from(text))) await writeFrame(frame);
+            const tail = replacement.finish();
+            if (tail) await writeFrame(tail);
+          };
+          const processFrame = async (raw: Buffer) => {
+            const inspect = await localSafetyRequired;
+            const needsUsage = relayFrameNeedsUsage(raw);
+            const text = inspect || sseTransform || needsUsage ? raw.toString("utf8") : undefined;
+            const parsed = needsUsage || sseTransform ? parseRelayStreamEvent(text!, requestFormat) : undefined;
+            if (parsed) consumeRelayStreamUsageValue(parsed, requestFormat, streamUsage);
+            if (!inspect) {
+              await writeFrame(raw, text, parsed);
+              return;
+            }
+            const previous = pendingSafetyFrame;
+            if (previous) {
+              const evaluation = await evaluateFrames(previous.text + text!);
+              if (evaluation.matched && evaluation.action === "blackhole") {
+                pendingSafetyFrame = undefined;
+                await writeReplacement(evaluation.text);
+                return;
+              }
+              await writeFrame(previous.raw, previous.text, previous.parsed);
+            }
+            // Own one pending frame so a small view cannot retain a whole network chunk.
+            pendingSafetyFrame = { raw: Buffer.from(raw), text: text!, parsed };
+          };
+          proxyRes.on("data", (chunk: Buffer) => {
             if (firstByteTime === null) firstByteTime = Date.now();
             proxyRes.pause?.();
             streamChunkPromise = streamChunkPromise
               .then(async () => {
-                let outputChunk = chunk as Buffer;
                 try {
-                  usageParser.feed(outputChunk).forEach(applyUsageLine);
-                  if (settled) return;
-                  const combinedSafetyText = safetyCarry + safetyDecoder.write(outputChunk);
-                  const inspectText =
-                    combinedSafetyText.length > 256 ? combinedSafetyText.slice(0, -256) : combinedSafetyText;
-                  safetyCarry = combinedSafetyText.length > 256 ? combinedSafetyText.slice(-256) : combinedSafetyText;
-                  const safety = await host.contentSafetyService.evaluateLocal("response", inspectText, {
-                    userId: relayToken.userId,
-                    tokenConfig: relayToken.contentSafetyConfig as any,
-                  });
-                  if (safety.matched) {
-                    await host.contentSafetyService.recordIncident({
-                      userId: relayToken.userId,
-                      relayTokenId: relayToken.id,
-                      requestId: host.getLogicalRequestId(req),
-                      direction: "response",
-                      evaluation: safety,
-                      model: selectedModelName,
-                      channelId: executionChannelId,
-                      statusCode: streamStatusCode,
-                      request: req,
-                    });
-                    if (safety.action === "unreachable") {
-                      recordAIRequestFailure(auditResponse, { name: "ContentSafetyBlockedError" }, "content-safety");
-                      failStream(new ContentSafetyBlockedError());
-                      return;
-                    }
-                    if (safety.action === "blackhole") outputChunk = Buffer.from(safety.text + safetyCarry, "utf8");
-                    else outputChunk = Buffer.from(safety.text, "utf8");
-                    safetyCarry = "";
-                  } else {
-                    outputChunk = combinedSafetyText.length > 256 ? Buffer.from(inspectText, "utf8") : Buffer.alloc(0);
-                  }
-                  if (firstByteTime === null) firstByteTime = Date.now();
-                  if (outputChunk.length) {
-                    if (sseTransform) await writeWithBackpressure(sseTransform, outputChunk);
-                    else await queueOutput(outputChunk);
+                  for (const frame of frames.feed(chunk)) {
+                    if (settled) break;
+                    await processFrame(frame);
                   }
                 } catch (error) {
                   failStream(error);
@@ -970,40 +1083,14 @@ export class RelayStreamForwarderService {
                 return;
               }
               if (settled) return;
-              usageParser.finish().forEach(applyUsageLine);
-              safetyCarry += safetyDecoder.end();
-
-              if (safetyCarry && !res.writableEnded && !clientDisconnected) {
-                try {
-                  const tailSafety = await host.contentSafetyService.evaluateLocal("response", safetyCarry, {
-                    userId: relayToken.userId,
-                    tokenConfig: relayToken.contentSafetyConfig as any,
-                  });
-                  if (tailSafety.matched) {
-                    await host.contentSafetyService.recordIncident({
-                      userId: relayToken.userId,
-                      relayTokenId: relayToken.id,
-                      requestId: host.getLogicalRequestId(req),
-                      direction: "response",
-                      evaluation: tailSafety,
-                      model: selectedModelName,
-                      channelId: executionChannelId,
-                      statusCode: streamStatusCode,
-                      request: req,
-                    });
-                    if (tailSafety.action === "unreachable") {
-                      recordAIRequestFailure(auditResponse, { name: "ContentSafetyBlockedError" }, "content-safety");
-                      failStream(new ContentSafetyBlockedError());
-                      return;
-                    }
-                    safetyCarry = tailSafety.action === "blackhole" ? tailSafety.text : safetyCarry;
-                  }
-                  if (sseTransform) await writeWithBackpressure(sseTransform, Buffer.from(safetyCarry, "utf8"));
-                  else await queueOutput(Buffer.from(safetyCarry, "utf8"));
-                } catch (error) {
-                  failStream(error);
-                  return;
-                }
+              const finalFrame = frames.finish();
+              if (finalFrame) await processFrame(finalFrame);
+              if (pendingSafetyFrame && !res.writableEnded && !clientDisconnected) {
+                const pending = pendingSafetyFrame;
+                pendingSafetyFrame = undefined;
+                const evaluation = await evaluateFrames(pending.text);
+                if (evaluation.matched && evaluation.action === "blackhole") await writeReplacement(evaluation.text);
+                else await writeFrame(pending.raw, pending.text, pending.parsed);
               }
 
               if (clientDisconnected) {
@@ -1017,12 +1104,11 @@ export class RelayStreamForwarderService {
                 });
                 return;
               }
+              sseTransform?.destroy();
               startResponse();
 
               // Only end response if client is still connected
               if (!res.writableEnded && !clientDisconnected) {
-                sseTransform?.end();
-                await outputPump;
                 if (settled) return;
                 res.end();
               }
@@ -1133,10 +1219,13 @@ export class RelayStreamForwarderService {
       const cleanup = () => {
         req.off("aborted", clientCloseHandler);
         res.off?.("close", clientCloseHandler);
+        res.off?.("finish", cleanup);
+        proxyReq.off("error", cleanup);
       };
+      cleanupListeners = cleanup;
 
       res.once?.("finish", cleanup);
       proxyReq.once("error", cleanup);
-    });
+    }).finally(() => cleanupListeners());
   }
 }

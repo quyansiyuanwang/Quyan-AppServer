@@ -88,14 +88,17 @@ export function sanitizeAuditPayload(value: unknown, depth = 0, seen = new WeakS
     seen.delete(value);
   }
 }
+export function safeAttemptDiagnostic(value: unknown): { text: string; truncated: boolean } {
+  // Transport errors can include URLs, headers and entire request configs.
+  if (value instanceof Error) return { text: "Upstream request failed", truncated: false };
+  const snapshot = budgetAuditPayload(value, AI_REQUEST_LOG_LIMITS.attemptErrorBytes);
+  return {
+    text: auditText(snapshot.value).replace(/https?:\/\/[^\s"'<>]+/gi, "[upstream address]"),
+    truncated: snapshot.truncated,
+  };
+}
 export function safeAttemptExcerpt(value: unknown): string {
-  // Transport errors can include URLs, headers and entire request configs. Never stringify Error objects.
-  if (value instanceof Error) return "Upstream request failed";
-  const safe = auditText(budgetAuditPayload(value, AI_REQUEST_LOG_LIMITS.attemptErrorBytes).value).replace(
-    /https?:\/\/[^\s"'<>]+/gi,
-    "[upstream address]",
-  );
-  return safe;
+  return safeAttemptDiagnostic(value).text;
 }
 
 /** Budgeted audit snapshot. Never retain an unparsed JSON/SSE prefix containing credentials. */

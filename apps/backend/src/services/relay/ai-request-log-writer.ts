@@ -1,5 +1,10 @@
+import { contentSafetyAttemptContext } from "@/services/system/content-safety-attempt";
 import { aiResourceContext } from "@/services/infrastructure/ai-resource.service";
-import { env } from "@/config/env";
+import {
+  AIResourceConfigService,
+  getCurrentAIResourceConfig,
+} from "@/services/infrastructure/ai-resource-config.service";
+import type { AIResourceSettingsDto } from "@/api/dto/system/ai-resources.dto";
 
 interface Job {
   id: string;
@@ -14,7 +19,12 @@ export class AIRequestLogWriter {
   private bytes = 0;
   private running = 0;
   private dropped = 0;
-  constructor(private readonly config = env.aiRequestLog) {}
+  constructor(private readonly overrideConfig?: AIResourceSettingsDto["aiRequestLog"]) {
+    if (!overrideConfig) AIResourceConfigService.getInstance().subscribe(() => this.drain());
+  }
+  private get config() {
+    return this.overrideConfig ?? getCurrentAIResourceConfig().aiRequestLog;
+  }
   snapshot() {
     return { queued: this.jobs.length, bytes: this.bytes, running: this.running, dropped: this.dropped };
   }
@@ -52,14 +62,16 @@ export class AIRequestLogWriter {
       this.bytes -= job.bytes;
       this.running++;
       void aiResourceContext.exit(() =>
-        Promise.resolve()
-          .then(job.work)
-          .catch(() => {})
-          .finally(() => {
-            this.running--;
-            job.resolve();
-            this.drain();
-          }),
+        contentSafetyAttemptContext.exit(() =>
+          Promise.resolve()
+            .then(job.work)
+            .catch(() => {})
+            .finally(() => {
+              this.running--;
+              job.resolve();
+              this.drain();
+            }),
+        ),
       );
     }
   }

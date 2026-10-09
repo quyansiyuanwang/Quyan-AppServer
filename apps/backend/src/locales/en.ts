@@ -290,6 +290,7 @@ const en = {
     replayProtectionUnavailable: "Replay protection service is temporarily unavailable, please retry later",
   },
   system: {
+    invalidAiResources: "Invalid AI resource configuration",
     configUpdated: "Configuration updated successfully",
     invalidConfirmationPhrase: "Confirmation phrase is invalid",
     errorGroupNotFound: "Error group not found",

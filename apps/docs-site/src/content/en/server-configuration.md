@@ -62,3 +62,9 @@ Use this page to maintain global server-side settings. All write operations requ
 - `ip-monitoring-dashboard`
 - `notification-settings`
 - `relay-settings`
+
+## AI resource protection (advanced)
+
+Groups cover admission and memory, stream parsing and conversion, chat and support, audit, connection pools, images and probes, and compiled rules. Suggested values, units and valid ranges come from the server. Saving the complete configuration retains system-config permissions, step-up verification and replay protection; no restart is needed.
+
+Running requests keep their content budgets; lowering concurrency does not terminate them. Other processes refresh within five seconds. A context count of 0 disables only the count limit; byte and database limits remain. When legacy environment values are detected, management configuration takes precedence after the first save.

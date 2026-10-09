@@ -296,6 +296,7 @@ const zhCN = {
     replayProtectionUnavailable: "防重放保护服务暂时不可用，请稍后重试",
   },
   system: {
+    invalidAiResources: "AI 资源配置无效，请检查整数范围、RSS 水位和连接数关系",
     configUpdated: "配置更新成功",
     invalidConfirmationPhrase: "确认短语不正确",
     errorGroupNotFound: "错误分组不存在",

@@ -39,6 +39,32 @@ export function compositeSafetyService(
   return new Proxy(base, {
     get: (target, key) => {
       if (key === "evaluate" || key === "evaluateLocal") return evaluate(key);
+      if (key === "hasLocalResponseRules")
+        return async () => {
+          const active = await Promise.all(
+            context.path.map((node) =>
+              base.hasLocalResponseRules({ userId: node.userId, tokenConfig: node.contentSafetyConfig as any }),
+            ),
+          );
+          return active.some(Boolean);
+        };
+      if (key === "prepareAttempt")
+        return async (fallback?: any) => {
+          for (const node of context.path)
+            await base.prepareAttempt({ userId: node.userId, tokenConfig: node.contentSafetyConfig as any });
+          const effective = await base.getEffectivePolicy(
+            fallback?.userId ?? context.path[0]!.userId,
+            fallback?.tokenConfig,
+          );
+          const policies = await Promise.all(
+            context.path.map((node) => base.getEffectivePolicy(node.userId, node.contentSafetyConfig as any)),
+          );
+          return {
+            ...effective,
+            responseEnabled: policies.some((p) => p.responseEnabled),
+            responseAiEnabled: policies.some((p) => p.responseEnabled && p.responseAiEnabled),
+          };
+        };
       if (key === "getEffectivePolicy")
         return async (userId: string, config?: any) => {
           const policies = await Promise.all(

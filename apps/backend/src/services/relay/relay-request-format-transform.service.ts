@@ -1,4 +1,5 @@
-import { env } from "@/config/env";
+import { BoundedByteFrames } from "@/util/streaming/bounded-byte-frames";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import type { RelayConvertibleRequestFormat, RelayRequestFormatTransform } from "@quyan/shared";
 import { Transform } from "stream";
 
@@ -434,8 +435,8 @@ export const convertRelayError = (data: any, target: RelayConvertibleRequestForm
 
 /** Bounded incremental SSE parser. It never buffers more than one event. */
 export class RelaySseFormatTransform extends Transform {
-  private pending = "";
-  private readonly decoder = new TextDecoder();
+  private readonly limits = getAIResourceConfig().aiResources.streaming;
+  private readonly frames = new BoundedByteFrames(this.limits.frameLimitBytes);
 
   constructor(
     private readonly source: RelayConvertibleRequestFormat,
@@ -444,34 +445,65 @@ export class RelaySseFormatTransform extends Transform {
     super();
   }
 
-  _transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null) => void) {
+  private frameIterator?: Generator<Buffer>;
+  private transformCallback?: (error?: Error | null) => void;
+  private pumping = false;
+  _read(size: number) {
+    super._read(size);
+    this.pumpFrames();
+  }
+  private pumpFrames() {
+    if (this.pumping || !this.frameIterator) return;
+    this.pumping = true;
     try {
-      this.pending += this.decoder.decode(chunk, { stream: true });
-      const events = this.pending.split(/\r?\n\r?\n/);
-      this.pending = events.pop() || "";
-      for (const event of events) {
-        if (Buffer.byteLength(event) > env.aiResources.streaming.frameLimitBytes)
-          throw new RelayFormatTransformError("Upstream SSE event exceeds conversion limit");
-        this.push(this.convertEvent(event));
+      while (this.frameIterator) {
+        const next = this.frameIterator.next();
+        if (next.done) {
+          this.frameIterator = undefined;
+          const callback = this.transformCallback;
+          this.transformCallback = undefined;
+          callback?.();
+          if (!this.frameIterator) break;
+          continue;
+        }
+        if (!this.push(this.convertFrame(next.value.toString("utf8")))) break;
       }
-      if (Buffer.byteLength(this.pending) > env.aiResources.streaming.frameLimitBytes)
-        throw new RelayFormatTransformError("Upstream SSE event exceeds conversion limit");
+    } catch (error) {
+      this.frameIterator = undefined;
+      const callback = this.transformCallback;
+      this.transformCallback = undefined;
+      callback?.(error instanceof Error ? error : new Error(String(error)));
+    } finally {
+      this.pumping = false;
+    }
+  }
+  _transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null) => void) {
+    this.frameIterator = this.frames.feed(chunk);
+    this.transformCallback = callback;
+    this.pumpFrames();
+  }
+  _flush(callback: (error?: Error | null) => void) {
+    try {
+      const frame = this.frames.finish();
+      if (frame) this.push(this.convertFrame(frame.toString("utf8")));
       callback();
     } catch (error) {
       callback(error instanceof Error ? error : new Error(String(error)));
     }
   }
-
-  _flush(callback: (error?: Error | null) => void) {
-    try {
-      this.pending += this.decoder.decode();
-      if (Buffer.byteLength(this.pending) > env.aiResources.streaming.frameLimitBytes)
-        throw new RelayFormatTransformError("Upstream SSE event exceeds conversion limit");
-      if (this.pending) this.push(this.convertEvent(this.pending));
-      callback();
-    } catch (error) {
-      callback(error instanceof Error ? error : new Error(String(error)));
-    }
+  _destroy(error: Error | null, callback: (error?: Error | null) => void) {
+    this.frameIterator?.return(undefined);
+    this.frameIterator = undefined;
+    this.transformCallback = undefined;
+    this.frames.clear();
+    this.outputText = "";
+    this.tools.clear();
+    this.sourceTools.clear();
+    this.bufferedChars = 0;
+    callback(error);
+  }
+  convertFrame(event: string, parsed?: unknown): string {
+    return this.convertEvent(event.trimEnd(), parsed);
   }
 
   private started = false;
@@ -542,13 +574,15 @@ export class RelaySseFormatTransform extends Transform {
   }
   private retain(fragment: string): void {
     this.bufferedChars += Buffer.byteLength(fragment);
-    if (this.bufferedChars > env.aiResources.streaming.retainedLimitBytes)
+    if (this.bufferedChars > this.limits.retainedLimitBytes)
       throw new RelayFormatTransformError("Converted stream output exceeds retention limit");
   }
   private textDelta(fragment: string): string {
     if (!fragment) return "";
-    this.retain(fragment);
-    this.outputText += fragment;
+    if (this.target === "openai-responses") {
+      this.retain(fragment);
+      this.outputText += fragment;
+    }
     if (this.target === "openai-chat-completions") return this.chat({ content: fragment });
     let output = "";
     if (this.textIndex === undefined) {
@@ -588,7 +622,7 @@ export class RelaySseFormatTransform extends Transform {
     let output = "";
     if (!tool) {
       if (!id || !name) throw new RelayFormatTransformError("Stream tool metadata is missing");
-      if (this.tools.size >= env.aiResources.streaming.maxBlocks)
+      if (this.tools.size >= this.limits.maxBlocks)
         throw new RelayFormatTransformError("Stream tool count exceeds conversion limit");
       this.retain(id + name);
       tool = { index: this.nextIndex++, id, name, args: "" };
@@ -615,8 +649,10 @@ export class RelaySseFormatTransform extends Transform {
           tool_calls: [{ index: sourceIndex, id, type: "function", function: { name, arguments: "" } }],
         });
     }
-    this.retain(fragment);
-    tool.args += fragment;
+    if (this.target === "openai-responses") {
+      this.retain(fragment);
+      tool.args += fragment;
+    }
     if (!fragment) return output;
     if (this.target === "anthropic")
       return (
@@ -718,7 +754,7 @@ export class RelaySseFormatTransform extends Transform {
       })
     );
   }
-  private convertEvent(event: string): string {
+  private convertEvent(event: string, parsed?: unknown): string {
     if (this.source === this.target) return `${event}\n\n`;
     const raw = event
       .split(/\r?\n/)
@@ -728,7 +764,7 @@ export class RelaySseFormatTransform extends Transform {
       .trim();
     if (!raw) return "";
     if (raw === "[DONE]") return this.finish();
-    const value = JSON.parse(raw);
+    const value: any = parsed ?? JSON.parse(raw);
     if (value.error || value.type === "error" || value.type === "response.failed") {
       this.finished = true;
       const error = convertRelayError(value.error ? value : (value.response ?? value), this.target);

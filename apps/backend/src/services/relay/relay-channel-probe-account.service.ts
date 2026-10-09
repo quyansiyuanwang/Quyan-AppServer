@@ -1,3 +1,4 @@
+import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
 import type { RelayChannelProbeAccount } from "@prisma/client";
@@ -236,7 +237,9 @@ export class RelayChannelProbeAccountService {
       if (!credentials || !workflow?.url) throw bad("accountCredentialsRequired");
       let safe: Awaited<ReturnType<typeof assertSafeOutboundUrl>>;
       try {
-        safe = await assertSafeOutboundUrl(interpolateRequiredProbeVariables(workflow.url, credentials) as string);
+        safe = configureAIOutboundAgents(
+          await assertSafeOutboundUrl(interpolateRequiredProbeVariables(workflow.url, credentials) as string),
+        );
       } catch {
         throw bad("accountLoginFailed");
       }
@@ -262,6 +265,9 @@ export class RelayChannelProbeAccountService {
         data = response.data;
       } catch {
         throw bad("accountLoginFailed");
+      } finally {
+        safe.httpAgent.destroy();
+        safe.httpsAgent.destroy();
       }
       const raw = readProbeJsonPath(data, latest.tokenPath);
       if (typeof raw !== "string" || !raw.trim()) throw bad("accountLoginFailed");

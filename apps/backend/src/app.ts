@@ -1,3 +1,4 @@
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { aiResourceGuard } from "./middleware/ai-resource-guard";
 import { ChinaHolidayCalendarService } from "./services/relay/china-holiday-calendar.service";
 import express from "express";
@@ -104,7 +105,9 @@ export function createApp() {
   app.use(
     createRequestSizeGuard({
       maxJsonBytes: requestSizeLimitConfig.jsonBodyLimitMb * 1024 * 1024,
-      maxMultipartBytes: env.relay.resourceGuard.multipartBodyLimitMb * 1024 * 1024,
+      get maxMultipartBytes() {
+        return getAIResourceConfig().relay.resourceGuard.multipartBodyLimitMb * 1024 * 1024;
+      },
       maxArchiveBytes: requestSizeLimitConfig.archiveImportBodyLimitMb * 1024 * 1024,
       maxOtherBytes: requestSizeLimitConfig.otherBodyLimitMb * 1024 * 1024,
     }),
@@ -112,12 +115,11 @@ export function createApp() {
 
   // Keep multipart relay uploads bounded. Large image payloads can otherwise monopolize
   // memory and bandwidth on small instances before route-level guards run.
-  app.use(
-    "/relay/proxy",
+  app.use("/relay/proxy", (req, res, next) =>
     express.raw({
       type: ["multipart/form-data"],
-      limit: `${env.relay.resourceGuard.multipartBodyLimitMb}mb`,
-    }),
+      limit: `${getAIResourceConfig().relay.resourceGuard.multipartBodyLimitMb}mb`,
+    })(req, res, next),
   );
   app.use(
     "/relay/proxy",
@@ -155,7 +157,7 @@ export function createApp() {
   // RSS includes external buffers; use the same configurable high watermark as AI admission.
   startMemoryMonitor({
     intervalMs: 60000,
-    warningThresholdMb: env.aiResources.memory.highWatermarkBytes / 1024 / 1024,
+    warningThresholdMb: getAIResourceConfig().aiResources.memory.highWatermarkBytes / 1024 / 1024,
   });
 
   app.use(localeMiddleware);

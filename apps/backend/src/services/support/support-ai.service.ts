@@ -1,3 +1,4 @@
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { withAIGenerator } from "@/services/infrastructure/ai-resource.service";
 import { aiContentTooLarge } from "@/util/streaming/bounded-text";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
@@ -898,9 +899,9 @@ export class SupportAiService {
   }
 
   private assertContextBudget(messages: AgentMessage[]): void {
-    const limits = env.chat.resourceLimits;
+    const limits = getAIResourceConfig().chat.resourceLimits;
     if (
-      messages.length > limits.contextMaxMessages ||
+      (limits.contextMaxMessages > 0 && messages.length > limits.contextMaxMessages) ||
       messages.reduce((bytes, message) => bytes + Buffer.byteLength(message.content), 0) > limits.contextLimitBytes
     )
       throw aiContentTooLarge();
@@ -911,7 +912,8 @@ export class SupportAiService {
     const content = body.content.trim();
     if (!content)
       throw new BadRequestError("Support message is invalid", undefined, { messageKey: "supportAi.messageInvalid" });
-    if (Buffer.byteLength(content) > env.chat.resourceLimits.inputLimitBytes) throw aiContentTooLarge();
+    if (Buffer.byteLength(content) > getAIResourceConfig().chat.resourceLimits.inputLimitBytes)
+      throw aiContentTooLarge();
     const history = await this.readConversation(userId);
     this.assertContextBudget([...history.messages, { role: "user", content }]);
   }
@@ -1084,9 +1086,10 @@ export class SupportAiService {
         if (!chunk.done && chunk.content) {
           assistantBytes += Buffer.byteLength(chunk.content);
           if (
-            assistantBytes > env.aiResources.streaming.outputLimitBytes ||
-            historyBytes + assistantBytes > env.chat.resourceLimits.contextLimitBytes ||
-            history.length + 1 > env.chat.resourceLimits.contextMaxMessages
+            assistantBytes > getAIResourceConfig().aiResources.streaming.outputLimitBytes ||
+            historyBytes + assistantBytes > getAIResourceConfig().chat.resourceLimits.contextLimitBytes ||
+            (getAIResourceConfig().chat.resourceLimits.contextMaxMessages > 0 &&
+              history.length + 1 > getAIResourceConfig().chat.resourceLimits.contextMaxMessages)
           )
             throw aiContentTooLarge();
           assistantContent += chunk.content;

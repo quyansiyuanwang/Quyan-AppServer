@@ -1,3 +1,4 @@
+import { publishTestAIResources } from "../../util/ai-resource-config";
 import { createHash } from "crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { env } from "../../../src/config/env";
@@ -30,6 +31,7 @@ const originalChatLimits = { ...env.chat.resourceLimits };
 afterEach(() => {
   Object.assign(supportKnowledgeConfig, originalSupportKnowledgeConfig);
   Object.assign(env.chat.resourceLimits, originalChatLimits);
+  publishTestAIResources();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -56,11 +58,14 @@ describe("SupportAiService conversation retention", () => {
   it("rejects configured input/history limits before any conversation write, without trimming", async () => {
     const { service, redisService, aiProvider } = createService();
     env.chat.resourceLimits.inputLimitBytes = 4;
+    publishTestAIResources();
     await expect(service.assertMessageBudget("user-1", { content: "hello" })).rejects.toMatchObject({
       statusCode: 413,
     });
     env.chat.resourceLimits.inputLimitBytes = 64 * 1024;
+    publishTestAIResources();
     env.chat.resourceLimits.contextMaxMessages = 2;
+    publishTestAIResources();
     redisService.get.mockResolvedValue(
       JSON.stringify({
         messages: [
@@ -75,6 +80,7 @@ describe("SupportAiService conversation retention", () => {
     expect(redisService.set).not.toHaveBeenCalled();
     expect(aiProvider.streamChat).not.toHaveBeenCalled();
     env.chat.resourceLimits.contextMaxMessages = 20;
+    publishTestAIResources();
     await expect(service.assertMessageBudget("user-1", { content: "third" })).resolves.toBeUndefined();
     expect((await service.getConversation("user-1")).messages).toHaveLength(2);
   });

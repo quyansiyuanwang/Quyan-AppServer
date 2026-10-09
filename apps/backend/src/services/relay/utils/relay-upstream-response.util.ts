@@ -74,14 +74,18 @@ export const extractRelayUpstreamErrorMessage = (responseData: unknown, fallback
   return fallbackStatus ? `HTTP ${fallbackStatus}` : "Upstream request failed";
 };
 
-export const parseRelayBufferedBody = (body: Buffer, headers: Record<string, unknown>): unknown => {
+export const parseRelayBufferedBody = (
+  body: Buffer,
+  headers: Record<string, unknown>,
+  text = body.toString("utf8"),
+): unknown => {
   if (!body.length) return null;
   const contentType = getUpstreamHeaderValue(headers, "content-type");
-  if (!isRelayJsonContentType(contentType)) return body.toString("utf8");
+  if (!isRelayJsonContentType(contentType)) return text;
   try {
-    return JSON.parse(body.toString("utf8"));
+    return JSON.parse(text);
   } catch {
-    return body.toString("utf8");
+    return text;
   }
 };
 

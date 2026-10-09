@@ -1,5 +1,5 @@
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { ApiRoutePathPrefix } from "@/build/route-paths";
-import { env } from "@/config/env";
 import { budgetAuditPayload } from "@/util/ai-request-log-payload";
 import { Request, Response } from "express";
 import { APILogRepository, CreateAPILogParams } from "@/store/system/apilog";
@@ -289,9 +289,11 @@ export class LogService {
         ApiRoutePathPrefix.V1Chat,
         ApiRoutePathPrefix.V1Support,
       ]);
-      const requestBody = isAIPath ? budgetAuditPayload(req.body, env.aiRequestLog.requestBodyBytes).value : req.body;
+      const requestBody = isAIPath
+        ? budgetAuditPayload(req.body, getAIResourceConfig().aiRequestLog.requestBodyBytes).value
+        : req.body;
       if (isAIPath && responseBody !== undefined)
-        responseBody = budgetAuditPayload(responseBody, env.aiRequestLog.responseBodyBytes).value;
+        responseBody = budgetAuditPayload(responseBody, getAIResourceConfig().aiRequestLog.responseBodyBytes).value;
       const shouldExcludeResponse = this.matchesAnyConfiguredPath(requestPathname, EXCLUDE_RESPONSE_PATHS);
       const responseSizeBytes = this.getResponseSizeBytes(res, responseBody);
       const responseContentType = res.getHeader?.("content-type");

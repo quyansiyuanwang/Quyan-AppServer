@@ -1,4 +1,4 @@
-import { env } from "@/config/env";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { aiResourceContext, aiAbortError } from "@/services/infrastructure/ai-resource.service";
 import { setTimeout as delay } from "node:timers/promises";
 import { randomUUID } from "crypto";
@@ -32,7 +32,7 @@ export class RelayConcurrencyService {
     const signal = root?.signal;
     if (signal?.aborted) throw aiAbortError();
     const queueTimeout = root
-      ? Math.max(0, Math.min(params.queueTimeout, env.aiResources.queueTimeoutMs - root.waitedMs))
+      ? Math.max(0, Math.min(params.queueTimeout, getAIResourceConfig().aiResources.queueTimeoutMs - root.waitedMs))
       : params.queueTimeout;
     const baseKey = RelayConcurrencyService.getConcurrencyKey(userId, scope);
     const ownerToken = `${userId}:${randomUUID()}`;

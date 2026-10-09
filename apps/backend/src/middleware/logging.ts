@@ -200,6 +200,7 @@ function appendResponseChunk(res: Response, chunk: any, encoding?: ResponseChunk
   const buffer = toBuffer(chunk, encoding);
   if (!buffer) return;
 
+  if (res.locals.preparedAuditBody) return;
   if (!res.locals.responseCaptureState)
     res.locals.responseCaptureState = {
       chunks: [] as Buffer[],

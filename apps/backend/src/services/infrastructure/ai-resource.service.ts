@@ -1,3 +1,10 @@
+import {
+  AIResourceConfigService,
+  getCurrentAIResourceConfig,
+  registerAIResourceSnapshotReader,
+} from "./ai-resource-config.service";
+import { sharedAIHttpAgentPool, registerAIHttpAgentReader } from "./ai-http-agent-pool";
+import type { AIResourceSettingsDto } from "@/api/dto/system/ai-resources.dto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomBytes } from "node:crypto";
 import { env } from "@/config/env";
@@ -6,6 +13,8 @@ import { TooManyRequestsError } from "@/util/errors";
 
 export const AI_LEASE_HEADER = "x-appserver-ai-lease";
 export const aiResourceContext = new AsyncLocalStorage<AIResourceLease>();
+registerAIResourceSnapshotReader(() => aiResourceContext.getStore()?.resourceConfig);
+registerAIHttpAgentReader(() => aiResourceContext.getStore()?.agents);
 export const aiCapacityError = () =>
   new TooManyRequestsError("AI resource capacity exhausted", undefined, undefined, {
     messageKey: "relayProxy.aiCapacityExceeded",
@@ -30,6 +39,11 @@ export class AIResourceLease {
   private released = false;
   readonly controller = new AbortController();
   childActive = false;
+  readonly resourceConfig: AIResourceSettingsDto = getCurrentAIResourceConfig();
+  private httpPool?: ReturnType<typeof sharedAIHttpAgentPool.acquire>;
+  get agents() {
+    return (this.httpPool ??= sharedAIHttpAgentPool.acquire(this.resourceConfig.aiResources.http)).agents;
+  }
   readonly tickets = new Set<string>();
   constructor(
     private readonly owner: AIResourceService,
@@ -56,6 +70,8 @@ export class AIResourceLease {
     if (this.released) return;
     if (--this.references > 0) return;
     this.released = true;
+    this.httpPool?.release();
+    this.httpPool = undefined;
     this.owner.finish(this);
   }
 }
@@ -73,11 +89,22 @@ export class AIResourceService {
   private pressured = false;
   private rss = 0;
   constructor(
-    private readonly config = env.aiResources,
+    private readonly overrideConfig?: AIResourceSettingsDto["aiResources"],
     private readonly readRss = () => process.memoryUsage().rss,
   ) {}
+  private get config() {
+    return this.overrideConfig ?? getCurrentAIResourceConfig().aiResources;
+  }
+  private unsubscribe?: () => void;
   start(): void {
     if (this.timer) return;
+    if (!this.overrideConfig && !this.unsubscribe)
+      this.unsubscribe = AIResourceConfigService.getInstance().subscribe(() => {
+        clearInterval(this.timer);
+        this.timer = undefined;
+        sharedAIHttpAgentPool.rotate(getCurrentAIResourceConfig().aiResources.http);
+        this.start();
+      });
     this.sample();
     this.timer = aiResourceContext.exit(() => setInterval(() => this.sample(), this.config.memory.sampleIntervalMs));
     this.timer.unref();
@@ -201,6 +228,8 @@ export class AIResourceService {
     this.timer = undefined;
     for (const waiter of [...this.waiters]) waiter.reject(aiAbortError());
     this.hops.clear();
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
   }
 }
 

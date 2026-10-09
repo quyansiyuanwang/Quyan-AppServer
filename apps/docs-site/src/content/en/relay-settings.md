@@ -361,6 +361,8 @@ Administrators can review channel status, add multiple providers in the channel 
 - `upstream-status`
 - `server-configuration`
 
-## Deployment protection and audit content
+## Server resource protection and audit bodies
 
-Environment configuration can also limit total AI concurrency, queueing, RSS, uploads, responses and audit capacity. These limits are independent of per-user and image limits in the management page. Audit bodies may be sanitized and truncated. Write backlogs first omit bodies; a still-full queue may drop audit records with operational warnings. Audit logs are not billing records. Restart the backend after changing deployment configuration.
+Server Configuration includes an advanced AI Resource Protection panel for live admission, queues, RSS, uploads, responses, audit and connection-pool budgets. Saving applies locally at once; other processes refresh within five seconds. Running requests retain their starting content budgets. Per-user and image-scope concurrency protections still apply.
+
+Legacy resource environment values are used only before management settings are saved. Audit bodies remain sanitized and available; backlog may omit bodies or drop records with warnings. Audit logs do not replace billing records.

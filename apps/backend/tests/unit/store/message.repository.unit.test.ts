@@ -24,4 +24,9 @@ describe("chat context repository budgets", () => {
       expect.objectContaining({ take: 21, select: { role: true, content: true } }),
     );
   });
+  it("does not impose a hidden count limit when the configured count is zero", async () => {
+    mocks.findMany.mockResolvedValue([]);
+    await MessageRepository.getInstance().findContext("fixture-conversation", 0);
+    expect(mocks.findMany.mock.calls[0][0]).not.toHaveProperty("take");
+  });
 });
