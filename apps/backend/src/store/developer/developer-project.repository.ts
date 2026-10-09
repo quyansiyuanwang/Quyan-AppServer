@@ -1,5 +1,6 @@
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import type { DeveloperItemResourceType } from "@/iam/resources/developer-resources";
 import { toCanonicalCredential } from "@quyan/shared";
 import { isIP } from "node:net";
 import nodemailer from "nodemailer";
@@ -688,24 +689,34 @@ export class DeveloperProjectRepository {
     }));
   }
 
-  async setKv(projectId: string, key: string, body: SetKvValueDto): Promise<DeveloperKvValueDto> {
+  async setKv(
+    projectId: string,
+    key: string,
+    body: SetKvValueDto,
+    options: { database?: Prisma.TransactionClient; exactIdentity?: boolean } = {},
+  ): Promise<DeveloperKvValueDto> {
+    const database = options.database ?? prisma;
     const serialized = JSON.stringify(body.value);
     if (Buffer.byteLength(serialized) > MAX_KV_VALUE_BYTES)
       throw new BadRequestError("KV 值超过 64KB 限制", undefined, { messageKey: "developerProject.kvValueTooLarge" });
-    const existing = await prisma.developerKvEntry.findUnique({ where: { projectId_key: { projectId, key } } });
+    const existing = await database.developerKvEntry.findUnique({ where: { projectId_key: { projectId, key } } });
+    if (options.exactIdentity && existing && (existing.key !== key || existing.projectId !== projectId))
+      throw new NotFoundError("Noncanonical KV identity", undefined, { messageKey: "developerProject.kvKeyNotFound" });
     if (!existing) {
-      const count = await prisma.developerKvEntry.count({ where: { projectId, status: 1 } });
+      const count = await database.developerKvEntry.count({ where: { projectId, status: 1 } });
       if (count >= MAX_KV_ENTRIES)
         throw new ForbiddenError("项目 KV 条目数已达上限", undefined, {
           messageKey: "developerProject.kvEntryLimitReached",
         });
     }
     const expiresAt = body.ttlSeconds ? new Date(Date.now() + body.ttlSeconds * 1000) : null;
-    const item = await prisma.developerKvEntry.upsert({
+    const item = await database.developerKvEntry.upsert({
       where: { projectId_key: { projectId, key } },
       create: { projectId, key, value: body.value as any, expiresAt },
       update: { value: body.value as any, expiresAt, version: { increment: 1 }, status: 1 },
     });
+    if (options.exactIdentity && (item.key !== key || item.projectId !== projectId))
+      throw new NotFoundError("KV identity changed", undefined, { messageKey: "developerProject.kvKeyNotFound" });
     return {
       key: item.key,
       value: item.value,
@@ -733,12 +744,12 @@ export class DeveloperProjectRepository {
         projectId,
         key,
         status: 1,
-        project: { userId, status: 1 },
+        project: { userId, status: 1, user: { status: 1 } },
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
-      select: { key: true, value: true, version: true, expiresAt: true, updateTime: true },
+      select: { projectId: true, key: true, value: true, version: true, expiresAt: true, updateTime: true },
     });
-    if (!item)
+    if (!item || item.key !== key || item.projectId !== projectId)
       throw new NotFoundError("KV key unavailable", undefined, { messageKey: "developerProject.kvKeyNotFound" });
     return {
       key: item.key,
@@ -747,6 +758,81 @@ export class DeveloperProjectRepository {
       expiresAt: asIso(item.expiresAt),
       updateTime: item.updateTime.toISOString(),
     };
+  }
+
+  /** Compare the stored identifier because MySQL string equality may be case insensitive. */
+  async findItemIdentity(
+    type: DeveloperItemResourceType,
+    projectId: string,
+    itemId: string,
+  ): Promise<{ projectId: string; itemId: string } | undefined> {
+    switch (type) {
+      case "kv-item": {
+        const item = await prisma.developerKvEntry.findUnique({
+          where: { projectId_key: { projectId, key: itemId } },
+          select: { projectId: true, key: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.key } : undefined;
+      }
+      case "secret": {
+        const item = await prisma.developerSecret.findUnique({
+          where: { projectId_alias: { projectId, alias: itemId } },
+          select: { projectId: true, alias: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.alias } : undefined;
+      }
+      case "short-link": {
+        const item = await prisma.developerShortLink.findFirst({
+          where: { id: itemId, projectId },
+          select: { projectId: true, id: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+      case "project-api-key": {
+        const item = await prisma.developerProjectApiKey.findFirst({
+          where: { id: itemId, projectId },
+          select: { projectId: true, id: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
+    }
+  }
+  async setProjectKvExact(
+    projectId: string,
+    userId: string,
+    key: string,
+    body: SetKvValueDto,
+  ): Promise<DeveloperKvValueDto> {
+    return prisma.$transaction(
+      async (tx) => {
+        const project = await tx.developerProject.findFirst({
+          where: { id: projectId, userId, status: 1, user: { status: 1 } },
+          select: { id: true },
+        });
+        if (!project || project.id !== projectId)
+          throw new NotFoundError("Project identity changed", undefined, {
+            messageKey: "developerProject.projectNotFound",
+          });
+        return this.setKv(projectId, key, body, { database: tx, exactIdentity: true });
+      },
+      { isolationLevel: "Serializable" },
+    );
+  }
+  async deleteProjectKvExact(projectId: string, userId: string, key: string): Promise<void> {
+    await prisma.$transaction(
+      async (tx) => {
+        const item = await tx.developerKvEntry.findFirst({
+          where: { projectId, key, project: { userId, status: 1, user: { status: 1 } } },
+          select: { id: true, key: true, projectId: true },
+        });
+        if (!item || item.key !== key || item.projectId !== projectId)
+          throw new NotFoundError("KV identity unavailable", undefined, {
+            messageKey: "developerProject.kvKeyNotFound",
+          });
+        await tx.developerKvEntry.delete({ where: { id: item.id } });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async listProjectKv(projectId: string, userId: string): Promise<Array<Omit<DeveloperKvValueDto, "value">>> {

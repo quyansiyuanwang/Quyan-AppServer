@@ -313,3 +313,5 @@ KV 和密钥可作为资源组成员，移除成员后下一次请求即失去�
 `GET /v1/developer/projects/{projectId}/keys/page` 返回 items、page、pageSize、hasNext。候选先限定同账户有效项目中的未撤销凭据，再逐项评估。响应包含 resourceArn、名称、前缀、scopes 等元数据，不返回完整 Key、keyHash 或 legacyKeyHash；空页可有后续页，没有 total。enforce 下旧数组接口只返回默认第一页。过期但未撤销的凭据仍能查看元数据或撤销，撤销后立即停止项目 Key 认证，也不再参与资源组授权。
 
 同账户可只委派某一凭据的查看或撤销，跨账户、跨项目 ID 和禁用资源均被拒绝。legacy/shadow 保留原个人项目所有权。签发项目 Key 使用独立的 scopes 规则；本节的查看和撤销 Action 不提供凭据签发权限。
+
+资源标识必须与保存的大小写完全一致。即使数据库把两个键视为同名，enforce 也会拒绝用不同大小写的键或 ID 访问原资源，不能通过改写大小写绕过已有 Deny。KV 写入和删除会在事务中再次检查精确键身份；资源组同样只接纳与实际保存值一致的 ARN。

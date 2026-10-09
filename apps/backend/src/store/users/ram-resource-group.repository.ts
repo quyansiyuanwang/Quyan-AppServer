@@ -97,52 +97,55 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         );
       case "article/article":
         return Boolean(await prisma.article.findFirst({ where: { id, ...active, author: userOwner } }));
-      case "developer/project":
-        return Boolean(await prisma.developerProject.findFirst({ where: { id, ...active, user: userOwner } }));
-      case "developer/project-api-key":
-        return Boolean(
-          await prisma.developerProjectApiKey.findFirst({
-            where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
-            select: { id: true },
-          }),
-        );
-      case "developer/short-link":
-        return Boolean(
-          await prisma.developerShortLink.findFirst({
-            where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
-            select: { id: true },
-          }),
-        );
+      case "developer/project": {
+        const project = await prisma.developerProject.findFirst({
+          where: { id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true },
+        });
+        return project?.id === id;
+      }
+      case "developer/project-api-key": {
+        const record = await prisma.developerProjectApiKey.findFirst({
+          where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true, projectId: true },
+        });
+        return record?.id === childId && record.projectId === id;
+      }
+      case "developer/short-link": {
+        const record = await prisma.developerShortLink.findFirst({
+          where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true, projectId: true },
+        });
+        return record?.id === childId && record.projectId === id;
+      }
       case "developer/kv-item": {
         const key = developerKvKeyFromArnSegment(childId);
         if (!key) return false;
-        return Boolean(
-          await prisma.developerKvEntry.findFirst({
-            where: {
-              projectId: id,
-              key,
-              ...active,
-              project: { ...active, user: { ...active, ...userOwner } },
-              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-            },
-            select: { id: true },
-          }),
-        );
+        const record = await prisma.developerKvEntry.findFirst({
+          where: {
+            projectId: id,
+            key,
+            ...active,
+            project: { ...active, user: { ...active, ...userOwner } },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+          select: { key: true, projectId: true },
+        });
+        return record?.key === key && record.projectId === id;
       }
       case "developer/secret": {
         const alias = developerSecretAliasSchema.safeParse(childId);
         if (!alias.success || alias.data !== childId) return false;
-        return Boolean(
-          await prisma.developerSecret.findFirst({
-            where: {
-              projectId: id,
-              alias: childId,
-              ...active,
-              project: { ...active, user: { ...active, ...userOwner } },
-            },
-            select: { id: true },
-          }),
-        );
+        const record = await prisma.developerSecret.findFirst({
+          where: {
+            projectId: id,
+            alias: childId,
+            ...active,
+            project: { ...active, user: { ...active, ...userOwner } },
+          },
+          select: { alias: true, projectId: true },
+        });
+        return record?.alias === childId && record.projectId === id;
       }
       // Shared/global channels have no account ownership. Only submission-owned channels may join a group.
       case "relay/channel":

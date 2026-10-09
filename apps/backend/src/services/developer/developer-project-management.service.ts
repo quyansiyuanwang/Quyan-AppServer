@@ -199,10 +199,17 @@ export class DeveloperProjectManagementService {
     try {
       const identity = await this.actorContext(actorUserId);
       const project = await this.projects.findProjectInAccount(projectId, identity.principal.accountOwnerId);
-      if (!project)
+      if (!project || project.id !== projectId)
         throw new NotFoundError("Project is outside the active account", undefined, {
           messageKey: "developerProject.projectNotFound",
         });
+      if (mode === "enforce" && target) {
+        const stored = await this.projects.findItemIdentity(target.type, project.id, target.id);
+        if (stored && (stored.projectId !== project.id || stored.itemId !== target.id))
+          throw new NotFoundError("Resource identifier is not canonical", undefined, {
+            messageKey: "developerProject.projectNotFound",
+          });
+      }
       const start = performance.now(),
         resource = target
           ? developerItemArn(target.type, identity.principal.accountOwnerId, project.id, target.id)
@@ -350,7 +357,7 @@ export class DeveloperProjectManagementService {
     let owner = actorUserId;
     if (mode === "enforce") {
       const project = await this.projects.findProjectInAccount(projectId, identity.principal.accountOwnerId);
-      if (!project)
+      if (!project || project.id !== projectId)
         throw new NotFoundError("Project collection is outside the account", undefined, {
           messageKey: "developerProject.projectNotFound",
         });
@@ -415,13 +422,17 @@ export class DeveloperProjectManagementService {
   ): Promise<DeveloperKvValueDto> {
     const target = await this.itemTarget("quyan:developer:SetKv", projectId, actorUserId, "kv-item", key);
     return {
-      ...(await this.projects.setProjectKv(projectId, target.owner, key, body)),
+      ...(env.security.iamAuthorizationMode === "enforce"
+        ? await this.projects.setProjectKvExact(projectId, target.owner, key, body)
+        : await this.projects.setProjectKv(projectId, target.owner, key, body)),
       resourceArn: target.resourceArn,
     };
   }
   async deleteProjectKv(projectId: string, actorUserId: string, key: string): Promise<void> {
     const target = await this.itemTarget("quyan:developer:DeleteKv", projectId, actorUserId, "kv-item", key);
-    return this.projects.deleteProjectKv(projectId, target.owner, key);
+    return env.security.iamAuthorizationMode === "enforce"
+      ? this.projects.deleteProjectKvExact(projectId, target.owner, key)
+      : this.projects.deleteProjectKv(projectId, target.owner, key);
   }
   async listSecretsPage(
     projectId: string,

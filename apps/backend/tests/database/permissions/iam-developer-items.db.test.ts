@@ -8,6 +8,7 @@ import { DeveloperProjectManagementService } from "@/services/developer/develope
 import { DeveloperProjectController } from "@/api/controllers/v1/developer/developer-project.controller";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { developerKvArn, developerSecretArn } from "@/iam/resources/developer-resources";
+import { DeveloperProjectRepository } from "@/store/developer/developer-project.repository";
 import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
 import { setRequestContext } from "@/util/request-context";
 import type { TypedRequest } from "@/types/express";
@@ -100,6 +101,52 @@ const secret = (projectId: string, alias: string) =>
     data: { projectId, alias, ciphertext: "fixture-only", iv: "fixture-only", authTag: "fixture-only", keyVersion: 1 },
   });
 describe("developer item resource authorization", () => {
+  it("rejects case aliases that MySQL equates to a differently authorized stored key", async () => {
+    const target = await project(peer);
+    const row = await kv(target.id, "ProtectedKey");
+    await grant(
+      ["quyan:developer:GetKv", "quyan:developer:SetKv", "quyan:developer:DeleteKv"],
+      "acs:developer:*:" + owner + ":kv-item/" + target.id + "/*",
+    );
+    await grant(
+      ["quyan:developer:GetKv", "quyan:developer:SetKv", "quyan:developer:DeleteKv"],
+      kvArn(target.id, "ProtectedKey"),
+      "Deny",
+    );
+    await expect(run(() => service.getProjectKv(target.id, actor, "protectedkey"))).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(
+      run(() => service.setProjectKv(target.id, actor, "protectedkey", { value: "must-not-write" })),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(run(() => service.deleteProjectKv(target.id, actor, "protectedkey"))).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    const unchanged = await prisma.developerKvEntry.findUniqueOrThrow({ where: { id: row.id } });
+    expect(unchanged).toMatchObject({ key: "ProtectedKey", version: 1, value: { fixture: "ProtectedKey" } });
+    const group = RamResourceGroupRepository.getInstance();
+    expect(await group.resourceExistsInAccount(kvArn(target.id, "protectedkey"), owner)).toBe(false);
+    expect(await group.resourceExistsInAccount(kvArn(target.id, "ProtectedKey"), owner)).toBe(true);
+    await expect(run(() => service.getProject(target.id.toUpperCase(), actor))).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+  it("rechecks an exact KV identity inside transactional writes and deletion", async () => {
+    const target = await project(peer),
+      row = await kv(target.id, "ExistingKey");
+    const repository = DeveloperProjectRepository.getInstance();
+    await expect(repository.setProjectKvExact(target.id, peer, "existingkey", { value: 0 })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    await expect(repository.deleteProjectKvExact(target.id, peer, "existingkey")).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    expect((await prisma.developerKvEntry.findUniqueOrThrow({ where: { id: row.id } })).key).toBe("ExistingKey");
+    await expect(repository.getProjectKvReadOnly(target.id, peer, "existingkey")).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
   it("delegates one peer KV key, preserves ownership and rejects other keys and projects", async () => {
     const first = await project(peer),
       second = await project(peer);
