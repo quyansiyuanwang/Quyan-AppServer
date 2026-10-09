@@ -2092,6 +2092,16 @@
 							}
 						}
 					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "参数验证失败",
 						"content": {
@@ -2138,6 +2148,16 @@
 							}
 						}
 					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "参数验证失败",
 						"content": {
@@ -2174,6 +2194,16 @@
 					},
 					"401": {
 						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -59885,6 +59915,14 @@
 							"legacy",
 							"declared"
 						]
+					},
+					"defaultAuthorizationScope": {
+						"type": "string",
+						"enum": [
+							"self"
+						],
+						"nullable": false,
+						"description": "Baseline grant restricted to the validated authenticated user's own ARN."
 					}
 				},
 				"required": [

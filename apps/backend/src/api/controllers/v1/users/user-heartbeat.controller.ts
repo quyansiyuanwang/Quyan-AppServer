@@ -29,6 +29,8 @@ import {
   type SendHeartbeatResponse,
   type StopHeartbeatResponse,
 } from "@/api/dto/users/user-heartbeat.dto";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import { UserHeartbeatService } from "@/services/users/user-heartbeat.service";
 import { Permission } from "@/constant/permission";
 import { RequirePermission } from "@/util/permission/permission-decorator";
@@ -45,6 +47,14 @@ export class UserHeartbeatController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:GetHeartbeatConfig",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getRuntimeConfig(): Promise<HeartbeatRuntimeConfigDto> {
     return this.heartbeatService.getRuntimeConfig();
   }
@@ -53,6 +63,14 @@ export class UserHeartbeatController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:SendHeartbeat",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async sendHeartbeat(@Request() request: TypedRequest): Promise<SendHeartbeatResponse> {
     return this.heartbeatService.recordHeartbeat(request.user!.userId, request);
   }
@@ -61,6 +79,14 @@ export class UserHeartbeatController extends Controller {
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:StopHeartbeat",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async stopHeartbeat(@Request() request: TypedRequest): Promise<StopHeartbeatResponse> {
     return this.heartbeatService.stopHeartbeat(request.user!.userId, request);
   }

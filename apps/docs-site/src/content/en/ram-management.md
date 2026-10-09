@@ -61,6 +61,8 @@ Select a user to view their complete effective permissions.
 
 Authenticated identities can read their own permission summary. This baseline applies only to their own user resource and grants no account administration. In enforce mode, reading or checking another identity requires an Allow for `quyan:permission:Manage` on that exact user ARN; the target must also be active and belong to the current account. View on an `account` ARN exposes the full permission catalog but does not grant access to every user. View on a specific user does not expose the full catalog. Explicit Deny can block self inspection. AccessKey identities follow the same rules; AssumeRole uses a valid role session and role policies without inheriting the caller's administrative grants. These three query endpoints retain their original permission checks in legacy/shadow and apply resource checks in enforce.
 
+Personal heartbeat operations use the authenticated user's own ARN: `quyan:user:GetHeartbeatConfig`, `quyan:user:SendHeartbeat`, and `quyan:user:StopHeartbeat`. Catalog metadata `defaultAuthorizationScope: "self"` identifies a narrow default self-service Allow. It grants no online-monitor visibility, authority to force other users offline, or cross-account access. To restrict this baseline, publish an explicit Deny matching the Action and user ARN; a conditional Allow does not narrow an existing default Allow. Client-supplied user IDs, account IDs, and Action headers cannot change the heartbeat target.
+
 ## Permission requirements
 
 | Action              | Required permission  |

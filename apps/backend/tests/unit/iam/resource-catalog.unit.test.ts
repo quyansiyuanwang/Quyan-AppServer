@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   ALL_PERMISSIONS,
+  Permission,
   actionForPermission,
   IAM_ACTION_DEFINITIONS,
+  IAM_AUTHENTICATED_SELF_ACTIONS,
   IAM_RESOURCE_TYPE_CATALOG,
   getIamActionDefinition,
 } from "@quyan/shared";
@@ -30,6 +32,22 @@ describe("IAM service and resource catalog", () => {
     });
     expect(getIamActionDefinition("quyan:ram:ReadUser")?.accessLevel).toBe("Read");
     expect(getIamActionDefinition("quyan:permission:Manage")?.accessLevel).toBe("Read");
+  });
+  it("derives the narrow self-service baseline exclusively from registered catalog metadata", () => {
+    expect(IAM_AUTHENTICATED_SELF_ACTIONS).toEqual([
+      "quyan:permission:Manage",
+      "quyan:user:GetHeartbeatConfig",
+      "quyan:user:SendHeartbeat",
+      "quyan:user:StopHeartbeat",
+    ]);
+    for (const action of IAM_AUTHENTICATED_SELF_ACTIONS)
+      expect(getIamActionDefinition(action)?.resourceTypes).toContain("quyan/user");
+    expect(IAM_AUTHENTICATED_SELF_ACTIONS).not.toContain("quyan:permission:Add");
+    expect(IAM_AUTHENTICATED_SELF_ACTIONS).not.toContain(actionForPermission(Permission.USER_ONLINE_MONITOR_READ));
+    expect(IAM_AUTHENTICATED_SELF_ACTIONS).not.toContain(
+      actionForPermission(Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE),
+    );
+    expect(IAM_AUTHENTICATED_SELF_ACTIONS.every((action) => !action.includes("*"))).toBe(true);
   });
   it("derives API links, ignores invalid metadata and deduplicates deterministically", () => {
     const route = {

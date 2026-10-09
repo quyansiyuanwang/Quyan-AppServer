@@ -213,6 +213,22 @@ describe("OpenAPI Schema Contract", () => {
 });
 
 describe("RAM IAM policy API contract", () => {
+  it("makes the catalog self-service marker optional and restricts its values", () => {
+    const schema = openApi.components?.schemas?.IamActionDefinition as {
+      properties: Record<string, unknown>;
+      required: string[];
+    };
+    expect(schema.properties.defaultAuthorizationScope).toMatchObject({ type: "string", enum: ["self"] });
+    expect(schema.required).not.toContain("defaultAuthorizationScope");
+  });
+  it.each([
+    ["/v1/users/me/heartbeat/runtime-config", "get"],
+    ["/v1/users/me/heartbeat", "post"],
+    ["/v1/users/me/heartbeat", "delete"],
+  ] as const)("declares JWT and permission-denied responses for personal heartbeat %s %s", (route, method) => {
+    expect(openApi.paths[route]?.[method]?.security).toContainEqual({ jwt: [] });
+    expect(openApi.paths[route]?.[method]?.responses).toHaveProperty("403");
+  });
   it.each([
     ["roles", "RamRoleDto"],
     ["policies", "RamPolicyDto"],

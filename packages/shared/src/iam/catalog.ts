@@ -12,6 +12,8 @@ export interface IamActionDefinition {
   conditionKeys: string[]
   sensitive: boolean
   authorizationStage: 'legacy' | 'declared'
+  /** Baseline grant restricted to the validated authenticated user's own ARN. */
+  defaultAuthorizationScope?: 'self'
 }
 export interface IamServiceDefinition {
   code: string
@@ -125,10 +127,31 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
     conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
     sensitive: /ram:|permission:|impersonate|secret|password|key/i.test(permission),
     authorizationStage: resources ? 'declared' : 'legacy',
+    ...(permission === Permission.PERMISSION_VIEW
+      ? { defaultAuthorizationScope: 'self' as const }
+      : {}),
   }
 }
 export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.freeze([
   ...ALL_PERMISSIONS.map(fromPermission),
+  ...[
+    { operation: 'GetHeartbeatConfig', accessLevel: 'Read' },
+    { operation: 'SendHeartbeat', accessLevel: 'Write' },
+    { operation: 'StopHeartbeat', accessLevel: 'Write' },
+  ].map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:user:' + definition.operation,
+      service: 'user',
+      operation: definition.operation,
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: ['quyan/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+      sensitive: false,
+      authorizationStage: 'declared',
+      defaultAuthorizationScope: 'self',
+    }),
+  ),
   ...[
     {
       operation: 'ListAuthorizations',
@@ -198,6 +221,12 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
   },
 ])
+/** The sole source for authenticated self-service grants; it never grants account scope. */
+export const IAM_AUTHENTICATED_SELF_ACTIONS: readonly string[] = Object.freeze(
+  IAM_ACTION_DEFINITIONS.filter(
+    (definition) => definition.defaultAuthorizationScope === 'self',
+  ).map((definition) => definition.action),
+)
 const actionDefinitions = new Map(
   IAM_ACTION_DEFINITIONS.map((definition) => [definition.action, definition]),
 )

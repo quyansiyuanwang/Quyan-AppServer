@@ -2,7 +2,7 @@ import type { GroupStore } from "@/store/users/group.store";
 import type { RamAuthorizationStore } from "@/store/users/ram-authorization.store";
 import type { RamResourceGroupStore } from "@/store/users/ram-resource-group.store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Permission } from "@quyan/shared";
+import { Permission, actionForPermission } from "@quyan/shared";
 import type { IamPrincipal } from "@quyan/shared";
 import { mockDeep } from "vitest-mock-extended";
 import type { UserStore } from "../../../src/store/users/user.store";
@@ -135,6 +135,32 @@ describe("IAM identity policy loading", () => {
       ).toBe("ImplicitDeny");
     }
   });
+  it("restricts catalog-defined heartbeat grants to the authenticated user and preserves Deny", async () => {
+    for (const action of ["quyan:user:GetHeartbeatConfig", "quyan:user:SendHeartbeat", "quyan:user:StopHeartbeat"]) {
+      expect((await service.authorize({ principal, action, resource: "acs:quyan:*:owner:user/child" })).decision).toBe(
+        "Allow",
+      );
+      for (const resource of ["acs:quyan:*:owner:account", "acs:quyan:*:owner:user/other"])
+        expect((await service.authorize({ principal, action, resource })).decision).toBe("ImplicitDeny");
+      policies.listPoliciesForTarget.mockResolvedValue([binding("deny-heartbeat", "Deny", action)]);
+      expect((await service.authorize({ principal, action, resource: "acs:quyan:*:owner:user/child" })).decision).toBe(
+        "ExplicitDeny",
+      );
+      policies.listPoliciesForTarget.mockResolvedValue([]);
+    }
+  });
+  it("does not turn personal heartbeats into monitoring or force-offline authority", async () => {
+    for (const permission of [Permission.USER_ONLINE_MONITOR_READ, Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE])
+      expect(
+        (
+          await service.authorize({
+            principal,
+            action: actionForPermission(permission),
+            resource: "acs:quyan:*:owner:account",
+          })
+        ).decision,
+      ).toBe("ImplicitDeny");
+  });
   it("lets explicit Deny override the authenticated self baseline", async () => {
     policies.listPoliciesForTarget.mockResolvedValue([binding("deny-self-view", "Deny", "quyan:permission:Manage")]);
     expect(
@@ -265,7 +291,7 @@ describe("IAM identity policy loading", () => {
       group: { id: "group", status: 1, permissions: [Permission.RAM_USER_DELETE] },
     } as never);
     const rolePolicies = await service.loadPolicies(assumed);
-    expect(rolePolicies.map((policy) => policy.policyId)).toEqual(["system:self-permissions:child", "assumed"]);
+    expect(rolePolicies.map((policy) => policy.policyId)).toEqual(["system:self-service:child", "assumed"]);
     expect(roles.listRoleBindingsForUser).not.toHaveBeenCalled();
     expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
     expect(policies.listPoliciesForTargets).toHaveBeenCalledWith("role", ["role"]);
