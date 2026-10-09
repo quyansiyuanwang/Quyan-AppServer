@@ -11,3 +11,16 @@ Check records include status code, latency, and a sanitized error summary. A tar
 ## Public status page
 
 After publication, the page is available at `/status/{slug}` and shows current state, recent latency, availability, and incident history. Turning publication off removes public access. Publishing has its own RAM action, separate from monitor read, write, and delete actions.
+
+## Monitor resource authorization
+
+In IAM enforce mode, JWT management uses this product's Actions and resources, not Aliyun DNS permissions. A monitor ARN is `acs:developer:*:<accountId>:status-monitor/<projectId>/<monitorId>`. Identifiers must exactly match the stored resource; accountId comes from authentication context.
+
+- `quyan:developer:CreateStatusMonitor`: authorizes creation on the specified project ARN, without automatically granting management of the new monitor.
+- `quyan:developer:ListStatusMonitors`: controls each monitor's configuration and status visibility. Configuration can include request payloads; review sensitive contents before granting access.
+- `quyan:developer:UpdateStatusMonitor` and `DeleteStatusMonitor`: independently control modification and deletion of a specific monitor.
+- `quyan:developer:CheckStatusMonitor`: separately authorizes a manual outbound HTTP check. Listing or modification does not imply this capability.
+
+`GET /v1/developer/projects/{projectId}/monitors/page` accepts page/pageSize and returns items, page, pageSize, and hasNext. Candidates are limited to an active same-account project before per-item evaluation. Responses include resourceArn for policy authoring, without an unauthorized total. Empty pages can have a next page; the old array endpoint returns only the default first page in enforce.
+
+Same-account identities can receive authority on one monitor, and resource groups can contain individual monitors. Removing a member changes scope on the next request. Foreign accounts, wrong projects, case aliases, and inactive resources are rejected; paused monitors remain manageable. Manual checks retain SSRF and per-redirect destination validation and recheck resource availability before dispatch and result persistence. Public status pages, scheduled checks, and product credentials retain their own access boundaries; legacy/shadow keep individual project ownership constraints.

@@ -62,6 +62,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('developer', 'secret', 2),
   resource('developer', 'short-link', 2),
   resource('developer', 'project-api-key', 2),
+  resource('developer', 'status-monitor', 2),
   resource('article', 'article'),
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
@@ -183,6 +184,31 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       operation: 'RevokeProjectApiKey',
       accessLevel: 'Write',
       resourceTypes: ['developer/project-api-key'],
+    },
+    {
+      operation: 'ListStatusMonitors',
+      accessLevel: 'List',
+      resourceTypes: ['developer/project', 'developer/status-monitor'],
+    },
+    {
+      operation: 'CreateStatusMonitor',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/project'],
+    },
+    {
+      operation: 'UpdateStatusMonitor',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/status-monitor'],
+    },
+    {
+      operation: 'DeleteStatusMonitor',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/status-monitor'],
+    },
+    {
+      operation: 'CheckStatusMonitor',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/status-monitor'],
     },
     { operation: 'GetProjectUsage', accessLevel: 'Read', resourceTypes: ['developer/project'] },
     { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },

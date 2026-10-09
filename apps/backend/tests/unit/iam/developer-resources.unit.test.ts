@@ -6,6 +6,7 @@ import {
   developerSecretArn,
   developerShortLinkArn,
   developerProjectApiKeyArn,
+  developerStatusMonitorArn,
   developerKvKeyFromArnSegment,
 } from "@/iam/resources/developer-resources";
 import {
@@ -13,6 +14,7 @@ import {
   developerSecretResourceResolver,
   developerShortLinkResourceResolver,
   developerProjectApiKeyResourceResolver,
+  developerStatusMonitorResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
@@ -145,6 +147,46 @@ describe("developer item resource identities", () => {
     expect(
       evaluatePolicies([{ policyId: "fixture", document }], {
         action: "quyan:developer:RevokeProjectApiKey",
+        resource: arn,
+      }).decision,
+    ).toBe("ImplicitDeny");
+  });
+  it("isolates monitor create, list, mutation and outbound check capabilities", async () => {
+    const arn = developerStatusMonitorArn("owner", "project", "monitor-1");
+    expect(arn).toBe("acs:developer:*:owner:status-monitor/project/monitor-1");
+    expect(
+      await developerStatusMonitorResourceResolver({
+        principal,
+        request: {
+          params: { projectId: "project", id: "monitor-1" },
+          body: { accountId: "foreign", targetUrl: "https://example.com/fixture" },
+        } as never,
+      }),
+    ).toBe(arn);
+    for (const id of ["*", "bad/id", " monitor-1 ", undefined])
+      expect(
+        await developerStatusMonitorResourceResolver({
+          principal,
+          request: { params: { projectId: "project", id } } as never,
+        }),
+      ).toBeUndefined();
+    expect(isIamActionResourceCompatible("quyan:developer:CreateStatusMonitor", arn)).toBe(false);
+    expect(
+      isIamActionResourceCompatible("quyan:developer:CreateStatusMonitor", developerProjectArn("owner", "project")),
+    ).toBe(true);
+    for (const action of ["UpdateStatusMonitor", "DeleteStatusMonitor", "CheckStatusMonitor"])
+      expect(getIamActionDefinition("quyan:developer:" + action)).toMatchObject({
+        accessLevel: "Write",
+        sensitive: true,
+        resourceTypes: ["developer/status-monitor"],
+      });
+    const document = parseIamPolicy({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:developer:ListStatusMonitors", Resource: arn },
+    }).document;
+    expect(
+      evaluatePolicies([{ policyId: "fixture", document }], {
+        action: "quyan:developer:CheckStatusMonitor",
         resource: arn,
       }).decision,
     ).toBe("ImplicitDeny");

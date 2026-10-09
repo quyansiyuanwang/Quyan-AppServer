@@ -315,3 +315,7 @@ Project API keys use `acs:developer:*:<accountId>:project-api-key/<projectId>/<k
 Same-account identities can receive metadata or revocation authority on one credential. Foreign accounts, cross-project IDs, and disabled resources are rejected. legacy/shadow keep individual project ownership. Issuance has independent scopes rules; metadata and revocation Actions do not grant key issuance.
 
 Resource identifiers must exactly match the stored letter case. Even when the database considers two keys equal, enforce rejects differently cased keys or IDs rather than treating them as a different authorized resource. A case change cannot bypass an existing Deny. KV writes and deletion recheck exact identity in a transaction; resource groups also require ARNs matching stored identifiers.
+
+## Status Monitor resource authorization
+
+Status Monitors use `acs:developer:*:<accountId>:status-monitor/<projectId>/<monitorId>`. Creation is authorized on the project ARN, while listing filters individual monitors. Update, deletion, and manual HTTP checks are independent Actions; modification or listing does not imply checking. Enforce supports same-account single-monitor delegation and resource-group scope, rejects foreign accounts, wrong projects, and inactive resources, and retains SSRF validation. Pages expose hasNext rather than an unauthorized total, and empty pages remain traversable. See [Status Monitoring](./developer-product-status) for the available JSON Action names and details.

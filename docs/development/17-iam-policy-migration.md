@@ -157,3 +157,9 @@ Key issuance remains an independent migration item: its fixed project-key scopes
 ## Database identity and IAM case matching
 
 MySQL resource identifier columns currently use case-insensitive collation, while IAM wildcard matching is case-sensitive. Enforce requires the request project/item identifier to equal its stored value before evaluating the resource. KV reads compare returned keys, and KV writes/deletes recheck the stored key in a serializable transaction, rejecting collation aliases instead of creating a second IAM identity. Group membership compares stored project/item identifiers too. This avoids changing database collation or widening valid resource grammar during the rollout.
+
+## Status Monitor management migration
+
+JWT monitor management uses a concrete developer/status-monitor ARN with project ID and stored monitor ID. CreateStatusMonitor authorizes the parent project; ListStatusMonitors evaluates active same-account candidates individually. UpdateStatusMonitor, DeleteStatusMonitor and CheckStatusMonitor are distinct sensitive Write Actions. Listing/configuration writes do not authorize manual HTTP dispatch. The monitor page returns items/page/pageSize/hasNext with optional resourceArn and no total; legacy array reads use the enforce default first page.
+
+The management service preserves the stored project owner and does not reuse JWT authorization for scheduler/public/product-key entry points. Enforce mutations retain active monitor, project and owner constraints after outbound URL validation. Manual checks recheck exact active identity before each redirect dispatch and constrain result persistence in a transaction; loss of target availability does not create history or send notifications. SSRF, request/response configuration, alert timing and product credential guards remain unchanged. Paused monitors remain manageable; resource-group membership checks exact parent/item IDs and live ownership on every load.

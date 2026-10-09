@@ -10,6 +10,7 @@ import {
   developerItemArn,
   developerProjectApiKeyArn,
   developerShortLinkArn,
+  developerStatusMonitorArn,
   type DeveloperItemResourceType,
 } from "@/iam/resources/developer-resources";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -37,6 +38,10 @@ import type {
   DeveloperShortLinkStatsDto,
   DeveloperApiKeyDto,
   DeveloperApiKeyPageDto,
+  DeveloperStatusMonitorDto,
+  DeveloperStatusMonitorPageDto,
+  CreateDeveloperStatusMonitorDto,
+  UpdateDeveloperStatusMonitorDto,
 } from "@/api/dto/developer/developer.dto";
 
 /** JWT management has its own IAM boundary; project-key/public/scheduler calls retain their separate guards. */
@@ -579,5 +584,87 @@ export class DeveloperProjectManagementService {
     await this.projects.revokeProjectApiKey(projectId, keyId, target.owner, {
       activeOnly: env.security.iamAuthorizationMode === "enforce",
     });
+  }
+  async listStatusMonitorsPage(
+    projectId: string,
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<DeveloperStatusMonitorPageDto> {
+    return this.resourcePage<DeveloperStatusMonitorDto>(
+      projectId,
+      actorUserId,
+      "quyan:developer:ListStatusMonitors",
+      query,
+      (owner, options) => this.projects.listStatusMonitorCandidates(projectId, owner, options),
+      (accountOwnerId, item) => developerStatusMonitorArn(accountOwnerId, projectId, item.id),
+    );
+  }
+  async listStatusMonitors(projectId: string, actorUserId: string): Promise<DeveloperStatusMonitorDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listStatusMonitorsPage(projectId, actorUserId)).items;
+    const items = await this.projects.listStatusMonitors(projectId, actorUserId);
+    await this.shadowResourceRows(actorUserId, "quyan:developer:ListStatusMonitors", items, (accountOwnerId, item) =>
+      developerStatusMonitorArn(accountOwnerId, projectId, item.id),
+    );
+    return items;
+  }
+  async createStatusMonitor(
+    projectId: string,
+    actorUserId: string,
+    body: CreateDeveloperStatusMonitorDto,
+  ): Promise<DeveloperStatusMonitorDto> {
+    const identity = await this.actorContext(actorUserId);
+    const owner = await this.projectOwner("quyan:developer:CreateStatusMonitor", projectId, actorUserId);
+    const item = await this.projects.createStatusMonitor(projectId, owner, body, {
+      activeOnly: env.security.iamAuthorizationMode === "enforce",
+    });
+    return { ...item, resourceArn: developerStatusMonitorArn(identity.principal.accountOwnerId, projectId, item.id) };
+  }
+  async updateStatusMonitor(
+    projectId: string,
+    monitorId: string,
+    actorUserId: string,
+    body: UpdateDeveloperStatusMonitorDto,
+  ): Promise<DeveloperStatusMonitorDto> {
+    const target = await this.itemTarget(
+      "quyan:developer:UpdateStatusMonitor",
+      projectId,
+      actorUserId,
+      "status-monitor",
+      monitorId,
+    );
+    const item = await this.projects.updateStatusMonitor(projectId, monitorId, target.owner, body, {
+      activeOnly: env.security.iamAuthorizationMode === "enforce",
+    });
+    return { ...item, resourceArn: target.resourceArn };
+  }
+  async deleteStatusMonitor(projectId: string, monitorId: string, actorUserId: string): Promise<void> {
+    const target = await this.itemTarget(
+      "quyan:developer:DeleteStatusMonitor",
+      projectId,
+      actorUserId,
+      "status-monitor",
+      monitorId,
+    );
+    await this.projects.deleteStatusMonitor(projectId, monitorId, target.owner, {
+      activeOnly: env.security.iamAuthorizationMode === "enforce",
+    });
+  }
+  async checkStatusMonitor(
+    projectId: string,
+    monitorId: string,
+    actorUserId: string,
+  ): Promise<DeveloperStatusMonitorDto> {
+    const target = await this.itemTarget(
+      "quyan:developer:CheckStatusMonitor",
+      projectId,
+      actorUserId,
+      "status-monitor",
+      monitorId,
+    );
+    const item = await this.projects.checkStatusMonitor(projectId, monitorId, target.owner, {
+      activeOnly: env.security.iamAuthorizationMode === "enforce",
+    });
+    return { ...item, resourceArn: target.resourceArn };
   }
 }

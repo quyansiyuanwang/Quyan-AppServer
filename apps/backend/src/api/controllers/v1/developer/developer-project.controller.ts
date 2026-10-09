@@ -35,6 +35,7 @@ import {
   developerSecretResourceResolver,
   developerShortLinkResourceResolver,
   developerProjectApiKeyResourceResolver,
+  developerStatusMonitorResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import type {
@@ -58,6 +59,7 @@ import type {
   DeveloperShortLinkPageDto,
   DeveloperShortLinkStatsDto,
   DeveloperStatusMonitorDto,
+  DeveloperStatusMonitorPageDto,
   SetKvValueDto,
   UpdateDeveloperStatusMonitorDto,
   UpdateDeveloperPushChannelDto,
@@ -528,35 +530,71 @@ export class DeveloperProjectController extends Controller {
     return { success: true };
   }
 
+  @Get("{projectId}/monitors/page")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListStatusMonitors",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
+  public async listMonitorsPage(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<DeveloperStatusMonitorPageDto> {
+    return this.management.listStatusMonitorsPage(projectId, request.user!.userId, { page, pageSize });
+  }
+
   @Get("{projectId}/monitors")
-  @Middlewares(validateParams(projectIdParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListStatusMonitors",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
   public async listMonitors(
     @Path() projectId: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperStatusMonitorDto[]> {
-    return this.service.listStatusMonitors(projectId, request.user!.userId);
+    return this.management.listStatusMonitors(projectId, request.user!.userId);
   }
 
   @Post("{projectId}/monitors")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
     validateBody(createStatusMonitorBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:CreateStatusMonitor",
+      resourceKind: "single-resource",
+      resource: developerProjectResourceResolver,
+    }),
   )
   public async createMonitor(
     @Path() projectId: string,
     @Body() body: CreateDeveloperStatusMonitorDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperStatusMonitorDto> {
-    return this.service.createStatusMonitor(projectId, request.user!.userId, body);
+    return this.management.createStatusMonitor(projectId, request.user!.userId, body);
   }
 
   @Put("{projectId}/monitors/{id}")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
-    validateParams(idParamsSchema),
+    validateParams(developerItemIdParamsSchema),
     validateBody(updateStatusMonitorBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:UpdateStatusMonitor",
+      resourceKind: "single-resource",
+      resource: developerStatusMonitorResourceResolver,
+    }),
   )
   public async updateMonitor(
     @Path() projectId: string,
@@ -564,28 +602,46 @@ export class DeveloperProjectController extends Controller {
     @Body() body: UpdateDeveloperStatusMonitorDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperStatusMonitorDto> {
-    return this.service.updateStatusMonitor(projectId, id, request.user!.userId, body);
+    return this.management.updateStatusMonitor(projectId, id, request.user!.userId, body);
   }
 
   @Delete("{projectId}/monitors/{id}")
-  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateParams(projectIdParamsSchema),
+    validateParams(developerItemIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:DeleteStatusMonitor",
+      resourceKind: "single-resource",
+      resource: developerStatusMonitorResourceResolver,
+    }),
+  )
   public async deleteMonitor(
     @Path() projectId: string,
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    await this.service.deleteStatusMonitor(projectId, id, request.user!.userId);
+    await this.management.deleteStatusMonitor(projectId, id, request.user!.userId);
     return { success: true };
   }
 
   @Post("{projectId}/monitors/{id}/check")
-  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateParams(projectIdParamsSchema),
+    validateParams(developerItemIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:CheckStatusMonitor",
+      resourceKind: "single-resource",
+      resource: developerStatusMonitorResourceResolver,
+    }),
+  )
   public async checkMonitor(
     @Path() projectId: string,
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperStatusMonitorDto> {
-    return this.service.checkStatusMonitor(projectId, id, request.user!.userId);
+    return this.management.checkStatusMonitor(projectId, id, request.user!.userId);
   }
 
   @Get("{projectId}/push-channels")

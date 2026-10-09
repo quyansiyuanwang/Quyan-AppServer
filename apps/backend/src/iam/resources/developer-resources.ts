@@ -73,7 +73,7 @@ export function developerShortLinkArn(accountOwnerId: string, projectId: string,
     path: "short-link/" + projectId + "/" + linkId,
   });
 }
-export type DeveloperItemResourceType = "kv-item" | "secret" | "short-link" | "project-api-key";
+export type DeveloperItemResourceType = "kv-item" | "secret" | "short-link" | "project-api-key" | "status-monitor";
 export function developerItemArn(
   type: DeveloperItemResourceType,
   accountOwnerId: string,
@@ -89,6 +89,8 @@ export function developerItemArn(
       return developerShortLinkArn(accountOwnerId, projectId, itemId);
     case "project-api-key":
       return developerProjectApiKeyArn(accountOwnerId, projectId, itemId);
+    case "status-monitor":
+      return developerStatusMonitorArn(accountOwnerId, projectId, itemId);
   }
 }
 
@@ -103,5 +105,19 @@ export function developerProjectApiKeyArn(accountOwnerId: string, projectId: str
     region: "*",
     accountId: accountOwnerId,
     path: "project-api-key/" + projectId + "/" + keyId,
+  });
+}
+
+export function developerStatusMonitorArn(accountOwnerId: string, projectId: string, monitorId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, monitorId)
+  )
+    throw new Error("Invalid status monitor identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "status-monitor/" + projectId + "/" + monitorId,
   });
 }

@@ -10,6 +10,7 @@ import {
   developerSecretArn,
   developerShortLinkArn,
   developerProjectApiKeyArn,
+  developerStatusMonitorArn,
   isCanonicalDeveloperIdentifier,
 } from "../resources/developer-resources";
 export { developerProjectArn, developerKvArn, developerSecretArn } from "../resources/developer-resources";
@@ -60,4 +61,14 @@ export const developerProjectApiKeyResourceResolver: ResourceResolver = ({ reque
   )
     return undefined;
   return developerProjectApiKeyArn(principal.accountOwnerId, projectId, id);
+};
+
+export const developerStatusMonitorResourceResolver: ResourceResolver = ({ request, principal }) => {
+  const { projectId, id } = request.params;
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, id)
+  )
+    return undefined;
+  return developerStatusMonitorArn(principal.accountOwnerId, projectId, id);
 };

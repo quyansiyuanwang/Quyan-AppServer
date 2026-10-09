@@ -788,6 +788,13 @@ export class DeveloperProjectRepository {
         });
         return item ? { projectId: item.projectId, itemId: item.id } : undefined;
       }
+      case "status-monitor": {
+        const item = await prisma.developerStatusMonitor.findFirst({
+          where: { id: itemId, projectId },
+          select: { id: true, projectId: true },
+        });
+        return item ? { projectId: item.projectId, itemId: item.id } : undefined;
+      }
       case "project-api-key": {
         const item = await prisma.developerProjectApiKey.findFirst({
           where: { id: itemId, projectId },
@@ -1336,6 +1343,7 @@ export class DeveloperProjectRepository {
     projectId: string,
     userId: string,
     body: CreateDeveloperStatusMonitorDto,
+    options: { activeOnly?: boolean } = {},
   ): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
     const target = await assertSafeOutboundUrl(body.targetUrl);
@@ -1345,20 +1353,34 @@ export class DeveloperProjectRepository {
       responseBodyMatchMode: body.responseBodyMatchMode,
       responseBodyMatch: body.responseBodyMatch,
     });
-    const monitor = await prisma.developerStatusMonitor.create({
-      data: {
-        projectId,
-        name: body.name,
-        targetUrl: target.url.toString(),
-        method: configuration.method,
-        requestBody: configuration.requestBody,
-        responseBodyMatchMode: configuration.responseBodyMatchMode,
-        responseBodyMatch: configuration.responseBodyMatch,
-        intervalSec: body.intervalSec ?? 60,
-        alertDelayMinutes: body.alertDelayMinutes ?? 5,
-        successStatusCodes: body.successStatusCodes,
-      },
-    });
+    const data: Prisma.DeveloperStatusMonitorUncheckedCreateInput = {
+      projectId,
+      name: body.name,
+      targetUrl: target.url.toString(),
+      method: configuration.method,
+      requestBody: configuration.requestBody,
+      responseBodyMatchMode: configuration.responseBodyMatchMode,
+      responseBodyMatch: configuration.responseBodyMatch,
+      intervalSec: body.intervalSec ?? 60,
+      alertDelayMinutes: body.alertDelayMinutes ?? 5,
+      successStatusCodes: body.successStatusCodes,
+    };
+    const monitor = options.activeOnly
+      ? await prisma.$transaction(
+          async (tx) => {
+            const project = await tx.developerProject.findFirst({
+              where: { id: projectId, userId, status: 1, user: { status: 1 } },
+              select: { id: true, userId: true },
+            });
+            if (!project || project.id !== projectId || project.userId !== userId)
+              throw new NotFoundError("Project changed before monitor creation", undefined, {
+                messageKey: "developerProject.projectNotFound",
+              });
+            return tx.developerStatusMonitor.create({ data });
+          },
+          { isolationLevel: "Serializable" },
+        )
+      : await prisma.developerStatusMonitor.create({ data });
     return this.monitorDto(monitor);
   }
 
@@ -1402,6 +1424,54 @@ export class DeveloperProjectRepository {
     };
   }
 
+  private activeStatusMonitorWhere(
+    projectId: string,
+    userId: string,
+    id?: string,
+  ): Prisma.DeveloperStatusMonitorWhereInput {
+    return { id, projectId, status: 1, project: { userId, status: 1, user: { status: 1 } } };
+  }
+  async listStatusMonitorCandidates(
+    projectId: string,
+    userId: string,
+    options: { skip: number; take: number },
+  ): Promise<DeveloperStatusMonitorDto[]> {
+    const records = await prisma.developerStatusMonitor.findMany({
+      where: this.activeStatusMonitorWhere(projectId, userId),
+      select: {
+        id: true,
+        name: true,
+        targetUrl: true,
+        method: true,
+        requestBody: true,
+        responseBodyMatchMode: true,
+        responseBodyMatch: true,
+        intervalSec: true,
+        alertDelayMinutes: true,
+        successStatusCodes: true,
+        enabled: true,
+        lastCheckedAt: true,
+        lastStatus: true,
+        downSinceAt: true,
+        downAlertedAt: true,
+      },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return records.map((record) => this.monitorDto(record));
+  }
+  /** Ensures a delayed/manual check cannot dispatch or commit under a stale or aliased target. */
+  private async assertActiveMonitorIdentity(projectId: string, userId: string, monitorId: string): Promise<void> {
+    const record = await prisma.developerStatusMonitor.findFirst({
+      where: this.activeStatusMonitorWhere(projectId, userId, monitorId),
+      select: { id: true, projectId: true },
+    });
+    if (!record || record.id !== monitorId || record.projectId !== projectId)
+      throw new NotFoundError("Monitor target unavailable", undefined, {
+        messageKey: "developerProject.monitorTargetNotFound",
+      });
+  }
   async listStatusMonitors(projectId: string, userId: string): Promise<DeveloperStatusMonitorDto[]> {
     await this.assertProjectOwner(projectId, userId);
     const monitors = await prisma.developerStatusMonitor.findMany({
@@ -1416,10 +1486,14 @@ export class DeveloperProjectRepository {
     monitorId: string,
     userId: string,
     body: UpdateDeveloperStatusMonitorDto,
+    options: { activeOnly?: boolean } = {},
   ): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
-    const existing = await prisma.developerStatusMonitor.findFirst({ where: { id: monitorId, projectId } });
-    if (!existing)
+    const where = options.activeOnly
+      ? this.activeStatusMonitorWhere(projectId, userId, monitorId)
+      : { id: monitorId, projectId };
+    const existing = await prisma.developerStatusMonitor.findFirst({ where });
+    if (!existing || (options.activeOnly && (existing.id !== monitorId || existing.projectId !== projectId)))
       throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
     const clearResponseBodyMatch = body.responseBodyMatchMode === null || body.responseBodyMatch === null;
@@ -1440,7 +1514,7 @@ export class DeveloperProjectRepository {
       responseBodyMatch,
     });
     const result = await prisma.developerStatusMonitor.updateMany({
-      where: { id: monitorId, projectId },
+      where,
       data: {
         name: body.name,
         targetUrl,
@@ -1457,7 +1531,7 @@ export class DeveloperProjectRepository {
     if (!result.count)
       throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
     const monitor = await prisma.developerStatusMonitor.findFirst({
-      where: { id: monitorId, projectId },
+      where,
       include: { project: { select: { userId: true } } },
     });
     if (!monitor)
@@ -1465,39 +1539,63 @@ export class DeveloperProjectRepository {
     return this.monitorDto(monitor);
   }
 
-  async deleteStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<void> {
+  async deleteStatusMonitor(
+    projectId: string,
+    monitorId: string,
+    userId: string,
+    options: { activeOnly?: boolean } = {},
+  ): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
-    const result = await prisma.developerStatusMonitor.deleteMany({ where: { id: monitorId, projectId } });
+    if (options.activeOnly) await this.assertActiveMonitorIdentity(projectId, userId, monitorId);
+    const result = await prisma.developerStatusMonitor.deleteMany({
+      where: options.activeOnly
+        ? this.activeStatusMonitorWhere(projectId, userId, monitorId)
+        : { id: monitorId, projectId },
+    });
     if (!result.count)
       throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
   }
 
-  async checkStatusMonitor(projectId: string, monitorId: string, userId: string): Promise<DeveloperStatusMonitorDto> {
+  async checkStatusMonitor(
+    projectId: string,
+    monitorId: string,
+    userId: string,
+    options: { activeOnly?: boolean } = {},
+  ): Promise<DeveloperStatusMonitorDto> {
     await this.assertProjectOwner(projectId, userId);
     const monitor = await prisma.developerStatusMonitor.findFirst({
-      where: { id: monitorId, projectId },
+      where: options.activeOnly
+        ? this.activeStatusMonitorWhere(projectId, userId, monitorId)
+        : { id: monitorId, projectId },
       include: { project: { select: { userId: true } } },
     });
     if (!monitor)
       throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
-    return this.performStatusCheck(monitor);
+    if (options.activeOnly && (monitor.id !== monitorId || monitor.projectId !== projectId))
+      throw new NotFoundError("Monitor identity mismatch", undefined, {
+        messageKey: "developerProject.monitorTargetNotFound",
+      });
+    return this.performStatusCheck(monitor, options.activeOnly ? { projectId, userId } : undefined);
   }
 
-  private async performStatusCheck(monitor: {
-    id: string;
-    name: string;
-    targetUrl: string;
-    method: string;
-    requestBody?: string | null;
-    responseBodyMatchMode?: string | null;
-    responseBodyMatch?: string | null;
-    successStatusCodes?: unknown;
-    lastStatus?: string | null;
-    alertDelayMinutes?: number;
-    downSinceAt?: Date | null;
-    downAlertedAt?: Date | null;
-    project?: { userId: string };
-  }): Promise<DeveloperStatusMonitorDto> {
+  private async performStatusCheck(
+    monitor: {
+      id: string;
+      name: string;
+      targetUrl: string;
+      method: string;
+      requestBody?: string | null;
+      responseBodyMatchMode?: string | null;
+      responseBodyMatch?: string | null;
+      successStatusCodes?: unknown;
+      lastStatus?: string | null;
+      alertDelayMinutes?: number;
+      downSinceAt?: Date | null;
+      downAlertedAt?: Date | null;
+      project?: { userId: string };
+    },
+    activeTarget?: { projectId: string; userId: string },
+  ): Promise<DeveloperStatusMonitorDto> {
     let lastStatus = "down";
     let statusCode: number | null = null;
     let errorMessage: string | null = null;
@@ -1516,6 +1614,8 @@ export class DeveloperProjectRepository {
             messageKey: "developerProject.monitorRedirectLoop",
           });
         visited.add(currentUrl);
+        if (activeTarget)
+          await this.assertActiveMonitorIdentity(activeTarget.projectId, activeTarget.userId, monitor.id);
         response = await axios.request({
           url: currentUrl,
           method: requestMethod,
@@ -1565,6 +1665,7 @@ export class DeveloperProjectRepository {
       if (statusCodeMatches && !responseBodyMatches)
         errorMessage = `响应体不匹配（${responseBodyMatchMode === "equals" ? "完全匹配" : "包含"}）`;
     } catch (error) {
+      if (activeTarget && error instanceof NotFoundError) throw error;
       lastStatus = "down";
       errorMessage = error instanceof Error ? error.message.slice(0, 500) : "监控请求失败";
     }
@@ -1584,7 +1685,12 @@ export class DeveloperProjectRepository {
     let claimedDownAlert = false;
     const updated = await prisma.$transaction(async (tx) => {
       const result = await tx.developerStatusMonitor.updateMany({
-        where: { id: monitor.id, ...(shouldAlertDown ? { downAlertedAt: null } : {}) },
+        where: {
+          ...(activeTarget
+            ? this.activeStatusMonitorWhere(activeTarget.projectId, activeTarget.userId, monitor.id)
+            : { id: monitor.id }),
+          ...(shouldAlertDown ? { downAlertedAt: null } : {}),
+        },
         data: {
           lastCheckedAt: checkedAt,
           lastStatus,
@@ -1595,7 +1701,11 @@ export class DeveloperProjectRepository {
       if (!result.count && !shouldAlertDown)
         throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
       claimedDownAlert = shouldAlertDown && result.count === 1;
-      const updatedMonitor = await tx.developerStatusMonitor.findFirst({ where: { id: monitor.id } });
+      const updatedMonitor = await tx.developerStatusMonitor.findFirst({
+        where: activeTarget
+          ? this.activeStatusMonitorWhere(activeTarget.projectId, activeTarget.userId, monitor.id)
+          : { id: monitor.id },
+      });
       if (!updatedMonitor)
         throw new NotFoundError("监控目标不存在", undefined, { messageKey: "developerProject.monitorTargetNotFound" });
       await tx.developerStatusCheck.create({

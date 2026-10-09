@@ -225,6 +225,10 @@ describe("RAM IAM policy API contract", () => {
       ["/v1/developer/projects/{projectId}/short-links/{id}", "put"],
       ["/v1/developer/projects/{projectId}/short-links/{id}", "delete"],
       ["/v1/developer/projects/{projectId}/keys/{id}", "delete"],
+      ["/v1/developer/projects/{projectId}/monitors", "post"],
+      ["/v1/developer/projects/{projectId}/monitors/{id}", "put"],
+      ["/v1/developer/projects/{projectId}/monitors/{id}", "delete"],
+      ["/v1/developer/projects/{projectId}/monitors/{id}/check", "post"],
     ] as const)
       expect(openApi.paths[route]?.[method]).toHaveProperty("X-Replay-Protected", true);
   });
@@ -246,6 +250,7 @@ describe("RAM IAM policy API contract", () => {
       ["/v1/developer/projects/{projectId}/secrets/page", "DeveloperSecretPageDto"],
       ["/v1/developer/projects/{projectId}/short-links/page", "DeveloperShortLinkPageDto"],
       ["/v1/developer/projects/{projectId}/keys/page", "DeveloperApiKeyPageDto"],
+      ["/v1/developer/projects/{projectId}/monitors/page", "DeveloperStatusMonitorPageDto"],
     ]) {
       const operation = openApi.paths[route]?.get;
       expect(operation?.security).toContainEqual({ jwt: [] });
@@ -261,6 +266,7 @@ describe("RAM IAM policy API contract", () => {
       "DeveloperSecretDto",
       "DeveloperShortLinkDto",
       "DeveloperShortLinkStatsDto",
+      "DeveloperStatusMonitorDto",
     ]) {
       const schema = openApi.components?.schemas?.[dto] as { properties: Record<string, unknown>; required: string[] };
       expect(schema.properties.resourceArn).toMatchObject({ type: "string" });

@@ -104,6 +104,13 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         });
         return project?.id === id;
       }
+      case "developer/status-monitor": {
+        const record = await prisma.developerStatusMonitor.findFirst({
+          where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true, projectId: true },
+        });
+        return record?.id === childId && record.projectId === id;
+      }
       case "developer/project-api-key": {
         const record = await prisma.developerProjectApiKey.findFirst({
           where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },

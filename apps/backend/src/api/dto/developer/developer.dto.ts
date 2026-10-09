@@ -217,7 +217,15 @@ export interface UpdateDeveloperStatusMonitorDto {
   enabled?: boolean;
 }
 
+export interface DeveloperStatusMonitorPageDto {
+  items: DeveloperStatusMonitorDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperStatusMonitorDto {
+  resourceArn?: string;
   id: string;
   name: string;
   targetUrl: string;
