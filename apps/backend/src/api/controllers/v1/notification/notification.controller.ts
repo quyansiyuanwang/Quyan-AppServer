@@ -41,6 +41,7 @@ import { RequirePermission } from "@/util/permission/permission-decorator";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { Permission } from "@/constant/permission";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 @Route("v1/notification")
@@ -163,35 +164,56 @@ export class NotificationController extends Controller {
   /** Get in-app inbox notifications */
   @Get("inbox")
   @Security("jwt")
-  @Middlewares(validateQuery(notificationInboxQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:notification:ListInbox",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+    validateQuery(notificationInboxQuerySchema),
+  )
   public async getInbox(
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
     @Query() unreadOnly: boolean = false,
     @Request() request: TypedRequest,
   ): Promise<NotificationInboxListDto> {
-    return this.service.getInbox(request.user!.userId, page, pageSize, unreadOnly);
+    return this.service.getInbox(request.user!.userId, page, pageSize, unreadOnly, request);
   }
 
   /** Mark inbox notifications as read */
   @Post("inbox/read")
   @Security("jwt")
   @ReplayProtected()
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:notification:MarkInboxRead",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateBody(markNotificationInboxReadBodySchema))
   public async markInboxRead(
     @Body() body: MarkNotificationInboxReadDto,
     @Request() request: TypedRequest,
   ): Promise<{ success: boolean; count: number }> {
-    return this.service.markInboxRead(request.user!.userId, body);
+    return this.service.markInboxRead(request.user!.userId, body, request);
   }
 
   /** Confirm as read all unread inbox items whose email tracking pixel has been opened */
   @Post("inbox/confirm-pixel-read")
   @Security("jwt")
   @ReplayProtected()
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:notification:ConfirmPixelOpenedInboxRead",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware)
   public async confirmPixelOpenedRead(@Request() request: TypedRequest): Promise<{ success: boolean; count: number }> {
-    return this.service.confirmPixelOpenedRead(request.user!.userId);
+    return this.service.confirmPixelOpenedRead(request.user!.userId, request);
   }
 
   /** Get the list of subscribable event types */

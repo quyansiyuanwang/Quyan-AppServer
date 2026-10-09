@@ -1,15 +1,10 @@
-import { Prisma, type NotificationPreference } from "@prisma/client";
+import type { NotificationPreference, Prisma } from "@prisma/client";
 import { MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
-import { prisma } from "@/config/database";
-import { ConflictError, ForbiddenError } from "@/util/errors";
+import { ConflictError } from "@/util/errors";
+import { notificationAccountTransaction, notificationAuthorizationDenied } from "./notification-account-guard";
 import type { NotificationPreferenceUpdateInput } from "./notification-preference.repository";
 
-type PreferenceClient = Pick<Prisma.TransactionClient, "user" | "ramRoleSession" | "notificationPreference">;
 type PreferenceDefaults = Omit<NotificationPreferenceUpdateInput, "notificationEmail">;
-const denied = () =>
-  new ForbiddenError("Notification preference identity or target unavailable", undefined, {
-    messageKey: "permission.insufficientPermission",
-  });
 const conflict = () =>
   new ConflictError("Notification preference changed concurrently", undefined, {
     messageKey: "errors.conflict",
@@ -30,84 +25,21 @@ export class NotificationPreferenceManagementRepository {
   static getInstance() {
     return (this.instance ??= new NotificationPreferenceManagementRepository());
   }
-  private async actor(client: PreferenceClient, principal: IamPrincipal) {
-    if (principal.subjectUserId !== principal.principalUserId) throw denied();
-    const actor = await client.user.findUnique({
-      where: { id: principal.subjectUserId },
-      select: { id: true, status: true, accountOwnerId: true, email: true },
-    });
-    const owner = await client.user.findUnique({
-      where: { id: principal.accountOwnerId },
-      select: { id: true, status: true, accountOwnerId: true },
-    });
-    if (
-      !actor ||
-      actor.id !== principal.subjectUserId ||
-      actor.status !== MANAGED_STATUS.ENABLED ||
-      (actor.accountOwnerId || actor.id) !== principal.accountOwnerId ||
-      !owner ||
-      owner.id !== principal.accountOwnerId ||
-      owner.status !== MANAGED_STATUS.ENABLED ||
-      (owner.accountOwnerId || owner.id) !== principal.accountOwnerId
-    )
-      throw denied();
-    if (principal.subjectType === "assumed_role" || principal.roleSessionId || principal.assumedRoleId) {
-      if (principal.subjectType !== "assumed_role" || !principal.roleSessionId || !principal.assumedRoleId)
-        throw denied();
-      const session = await client.ramRoleSession.findUnique({
-        where: { id: principal.roleSessionId },
-        include: { role: { select: { id: true, status: true, accountOwnerId: true } } },
-      });
-      if (
-        !session ||
-        session.id !== principal.roleSessionId ||
-        session.status !== MANAGED_STATUS.ENABLED ||
-        session.subjectUserId !== actor.id ||
-        session.accountOwnerId !== principal.accountOwnerId ||
-        session.roleId !== principal.assumedRoleId ||
-        session.revokedAt ||
-        session.expiresAt <= new Date() ||
-        session.role.id !== principal.assumedRoleId ||
-        session.role.status !== MANAGED_STATUS.ENABLED ||
-        session.role.accountOwnerId !== principal.accountOwnerId
-      )
-        throw denied();
-    }
-    return actor;
-  }
-  private async preference(client: PreferenceClient, userId: string) {
+  private async preference(client: Prisma.TransactionClient, userId: string) {
     const preference = await client.notificationPreference.findUnique({ where: { userId } });
-    if (preference && (preference.userId !== userId || preference.status !== MANAGED_STATUS.ENABLED)) throw denied();
+    if (preference && (preference.userId !== userId || preference.status !== MANAGED_STATUS.ENABLED))
+      throw notificationAuthorizationDenied();
     return preference;
   }
-  private async scoped<T>(
-    principal: IamPrincipal,
-    operation: (client: PreferenceClient, email: string | null) => Promise<T>,
-  ) {
-    try {
-      return await prisma.$transaction(
-        async (tx) => {
-          const actor = await this.actor(tx, principal);
-          return operation(tx, actor.email);
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
-    } catch (error) {
-      // Do not retry against a new identity or silently overwrite concurrent initialization.
-      if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2034" || error.code === "P2002"))
-        throw conflict();
-      throw error;
-    }
-  }
   async find(principal: IamPrincipal) {
-    return this.scoped(principal, (tx) => this.preference(tx, principal.subjectUserId));
+    return notificationAccountTransaction(principal, (tx) => this.preference(tx, principal.subjectUserId));
   }
   async synchronize(
     principal: IamPrincipal,
     defaults: PreferenceDefaults | undefined,
     changesFor: (current: NotificationPreference) => NotificationPreferenceUpdateInput | undefined,
   ): Promise<NotificationPreference> {
-    return this.scoped(principal, async (tx, email) => {
+    return notificationAccountTransaction(principal, async (tx, email) => {
       const current = await this.preference(tx, principal.subjectUserId);
       if (!current) {
         if (!defaults) throw conflict();
@@ -127,7 +59,7 @@ export class NotificationPreferenceManagementRepository {
     });
   }
   async update(principal: IamPrincipal, data: NotificationPreferenceUpdateInput): Promise<NotificationPreference> {
-    return this.scoped(principal, async (tx) => {
+    return notificationAccountTransaction(principal, async (tx) => {
       const current = await this.preference(tx, principal.subjectUserId);
       const changes = writeData(data);
       return current

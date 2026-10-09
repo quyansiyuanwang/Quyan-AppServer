@@ -33,6 +33,7 @@ import { NotFoundError } from "@/util/errors";
 import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { normalizeNotificationPreferenceUpdate } from "./notification-preference-validation";
+import { NotificationInboxIamService } from "./notification-inbox-iam.service";
 import { NotificationPreferenceIamService } from "./notification-preference-iam.service";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
@@ -253,13 +254,12 @@ export class NotificationManagementService {
     page: number,
     pageSize: number,
     unreadOnly: boolean,
+    request?: TypedRequest,
   ): Promise<NotificationInboxListDto> {
-    const { items, total, unreadCount, pixelOpenedUnreadCount } = await this.repository.findInboxByUserId(
-      userId,
-      page,
-      pageSize,
-      unreadOnly,
-    );
+    const { items, total, unreadCount, pixelOpenedUnreadCount } =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await NotificationInboxIamService.getInstance().list(userId, page, pageSize, unreadOnly, request)
+        : await this.repository.findInboxByUserId(userId, page, pageSize, unreadOnly);
     return {
       items: items.map((item) => this.toInboxItemDto(item)),
       total,
@@ -270,17 +270,27 @@ export class NotificationManagementService {
     };
   }
 
-  async markInboxRead(userId: string, dto: MarkNotificationInboxReadDto): Promise<{ success: boolean; count: number }> {
-    const count = dto.markAll
-      ? await this.repository.markAllInboxItemsRead(userId)
-      : await this.repository.markInboxItemsRead(userId, dto.ids ?? []);
+  async markInboxRead(
+    userId: string,
+    dto: MarkNotificationInboxReadDto,
+    request?: TypedRequest,
+  ): Promise<{ success: boolean; count: number }> {
+    const count =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await NotificationInboxIamService.getInstance().markRead(userId, dto, request)
+        : dto.markAll
+          ? await this.repository.markAllInboxItemsRead(userId)
+          : await this.repository.markInboxItemsRead(userId, dto.ids ?? []);
 
     return { success: true, count };
   }
 
   /** Promote unread items whose email tracking pixel has been opened to isRead, marking their source as "pixel" */
-  async confirmPixelOpenedRead(userId: string): Promise<{ success: boolean; count: number }> {
-    const count = await this.repository.confirmPixelOpenedInboxItemsRead(userId);
+  async confirmPixelOpenedRead(userId: string, request?: TypedRequest): Promise<{ success: boolean; count: number }> {
+    const count =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await NotificationInboxIamService.getInstance().confirmPixelOpened(userId, request)
+        : await this.repository.confirmPixelOpenedInboxItemsRead(userId);
     return { success: true, count };
   }
 

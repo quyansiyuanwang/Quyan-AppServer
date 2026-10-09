@@ -19,6 +19,18 @@ Use this page to manage how the system contacts you about important events, and 
 - The first authorized read may create default preferences; later reads synchronize newly introduced events. Events you explicitly unsubscribed from do not become subscribed again merely because they are already known. Inactive or disabled identities, role sessions and preference records cannot be read or modified.
 - These fine-grained operations cover only reading and saving preferences. Webhooks, delivery tests and delivery logs retain their respective existing permission checks.
 
+## In-app inbox permissions
+
+Signed-in users can view their own inbox and mark messages as read. In IAM enforce mode, these operations retain a default grant limited to the executing user's messages. Explicit Deny can restrict individual messages.
+
+- Listing messages uses `quyan:notification:ListInbox`.
+- Marking messages as read manually uses `quyan:notification:MarkInboxRead`.
+- Confirming messages opened through an email pixel uses `quyan:notification:ConfirmPixelOpenedInboxRead`.
+- Each message resource is `acs:notification:*:<accountId>:inbox-item/<userId>/<itemId>`. The server determines the account and user; submitting another user's message ID does not grant access.
+- Messages are filtered by authorization before pagination. Total, unread, and opened-but-unconfirmed counts include only visible messages.
+- When selecting message IDs to mark as read, every target must be authorized. A missing, inactive, or denied target prevents the entire batch from updating. Duplicate IDs count once, and already-read messages do not count again.
+- Mark-all and email-open confirmation update only authorized messages belonging to the executing user. Denied messages remain unchanged. Fetching an email image does not bypass confirmation authorization.
+
 ## What you will see
 
 ### Email settings

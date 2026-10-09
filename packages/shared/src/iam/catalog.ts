@@ -12,7 +12,7 @@ export interface IamActionDefinition {
   conditionKeys: string[]
   sensitive: boolean
   authorizationStage: 'legacy' | 'declared'
-  /** Baseline grant restricted to the validated authenticated user's own ARN. */
+  /** Baseline grant restricted to registered authenticated self identity/child ARNs. */
   defaultAuthorizationScope?: 'self'
   /** Registered migration alias only; clients cannot choose the endpoint Action. */
   legacyPermission?: Permission
@@ -28,6 +28,8 @@ export interface IamResourceTypeDefinition {
   type: string
   arnTemplate: string
   identifierSegments: number
+  /** Only explicitly registered user identities or their user-parented children receive self-service defaults. */
+  authenticatedSelfScope?: 'identity' | 'children'
 }
 const resource = (
   service: string,
@@ -50,7 +52,7 @@ const resource = (
 })
 export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = Object.freeze([
   resource('quyan', 'account', 0),
-  resource('quyan', 'user'),
+  { ...resource('quyan', 'user'), authenticatedSelfScope: 'identity' },
   resource('quyan', 'group'),
   resource('quyan', 'role'),
   resource('quyan', 'policy'),
@@ -68,6 +70,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('developer', 'push-channel', 2),
   resource('developer', 'push-delivery', 2),
   resource('article', 'article'),
+  { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
 // actions remain marked legacy until each business domain declares its targets.
@@ -362,6 +365,24 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: true,
       authorizationStage: 'declared',
       legacyPermission: Permission.NOTIFICATION_MANAGE,
+    }),
+  ),
+  ...[
+    { operation: 'ListInbox', accessLevel: 'List' },
+    { operation: 'MarkInboxRead', accessLevel: 'Write' },
+    { operation: 'ConfirmPixelOpenedInboxRead', accessLevel: 'Write' },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:notification:' + definition.operation,
+      service: 'notification',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: ['notification/inbox-item'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: false,
+      authorizationStage: 'declared',
+      defaultAuthorizationScope: 'self',
     }),
   ),
   {

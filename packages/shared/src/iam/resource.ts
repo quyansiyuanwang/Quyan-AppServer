@@ -94,3 +94,31 @@ export function buildAcsResource(input: AcsResourceInput): string {
   if (!getIamResourceType(resource)) throw new Error('Unregistered ACS resource type')
   return resource
 }
+
+/** Policy patterns for the validated user only; resource types must explicitly declare a self scope. */
+export function authenticatedSelfResourcePatterns(
+  accountOwnerId: string,
+  userId: string,
+): string[] {
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(userId)) throw new Error('Invalid self identity')
+  buildAcsResource({
+    service: 'quyan',
+    region: '*',
+    accountId: accountOwnerId,
+    path: 'user/' + userId,
+  })
+  return IAM_RESOURCE_TYPE_CATALOG.filter((type) => type.authenticatedSelfScope).map((type) => {
+    if (
+      (type.authenticatedSelfScope === 'identity' && type.identifierSegments !== 1) ||
+      (type.authenticatedSelfScope === 'children' && type.identifierSegments !== 2)
+    )
+      throw new Error('Invalid registered self resource scope')
+    const pattern = type.arnTemplate
+      .replace('{accountId}', accountOwnerId)
+      .replace('{parentId}', userId)
+      .replace('{resourceId}', type.authenticatedSelfScope === 'identity' ? userId : '*')
+    if (!getIamResourcePatternTypes(pattern).some((candidate) => candidate.id === type.id))
+      throw new Error('Invalid registered self resource pattern')
+    return pattern
+  })
+}

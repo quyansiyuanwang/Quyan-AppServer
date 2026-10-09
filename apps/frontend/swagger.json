@@ -61196,7 +61196,7 @@
 							"self"
 						],
 						"nullable": false,
-						"description": "Baseline grant restricted to the validated authenticated user's own ARN."
+						"description": "Baseline grant restricted to registered authenticated self identity/child ARNs."
 					},
 					"legacyPermission": {
 						"$ref": "#/components/schemas/Permission",
@@ -61257,6 +61257,14 @@
 					"identifierSegments": {
 						"type": "number",
 						"format": "double"
+					},
+					"authenticatedSelfScope": {
+						"type": "string",
+						"enum": [
+							"identity",
+							"children"
+						],
+						"description": "Only explicitly registered user identities or their user-parented children receive self-service defaults."
 					}
 				},
 				"required": [

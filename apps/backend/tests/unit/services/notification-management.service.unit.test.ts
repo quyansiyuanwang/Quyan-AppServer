@@ -10,6 +10,7 @@ import type { Request } from "express";
 
 vi.mock("../../../src/store/notification/notification-preference.repository");
 vi.mock("../../../src/services/notification/notification-preference-iam.service");
+vi.mock("../../../src/services/notification/notification-inbox-iam.service");
 vi.mock("../../../src/services/notification/notification.service");
 vi.mock("../../../src/services/notification/notification-preference-initializer.service");
 vi.mock("../../../src/services/system/businesslog.service");

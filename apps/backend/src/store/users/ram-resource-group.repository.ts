@@ -96,6 +96,19 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
             where: { id, accountOwnerId, ...active, revokedAt: null, expiresAt: { gt: new Date() } },
           }),
         );
+      case "notification/inbox-item": {
+        const item = await prisma.notificationInboxItem.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true, user: { select: { id: true, accountOwnerId: true } } },
+        });
+        return Boolean(
+          item &&
+            item.id === childId &&
+            item.userId === id &&
+            item.user.id === id &&
+            (item.user.accountOwnerId || item.user.id) === accountOwnerId,
+        );
+      }
       case "article/article":
         return Boolean(await ArticleManagementRepository.getInstance().findTarget(id, accountOwnerId));
       case "developer/project": {

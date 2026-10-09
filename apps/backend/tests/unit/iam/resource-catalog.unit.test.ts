@@ -39,9 +39,16 @@ describe("IAM service and resource catalog", () => {
       "quyan:user:GetHeartbeatConfig",
       "quyan:user:SendHeartbeat",
       "quyan:user:StopHeartbeat",
+      "quyan:notification:ListInbox",
+      "quyan:notification:MarkInboxRead",
+      "quyan:notification:ConfirmPixelOpenedInboxRead",
     ]);
     for (const action of IAM_AUTHENTICATED_SELF_ACTIONS)
-      expect(getIamActionDefinition(action)?.resourceTypes).toContain("quyan/user");
+      expect(
+        getIamActionDefinition(action)?.resourceTypes.some((id) =>
+          IAM_RESOURCE_TYPE_CATALOG.some((type) => type.id === id && type.authenticatedSelfScope),
+        ),
+      ).toBe(true);
     expect(IAM_AUTHENTICATED_SELF_ACTIONS).not.toContain("quyan:permission:Add");
     expect(IAM_AUTHENTICATED_SELF_ACTIONS).not.toContain(actionForPermission(Permission.USER_ONLINE_MONITOR_READ));
     expect(IAM_AUTHENTICATED_SELF_ACTIONS).not.toContain(
