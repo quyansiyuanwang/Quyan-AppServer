@@ -29,7 +29,11 @@ import {
   THRESHOLD_EVENTS,
   ALL_NOTIFICATION_EVENTS,
 } from "@/constant/notification-event";
-import { NotFoundError } from "@/util/errors";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { getLogger, LogCategory } from "@/util/logger";
+import { NotificationHistoryIamService } from "./notification-history-iam.service";
+import { ForbiddenError, NotFoundError } from "@/util/errors";
 import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { normalizeNotificationPreferenceUpdate } from "./notification-preference-validation";
@@ -229,8 +233,57 @@ export class NotificationManagementService {
 
   // ─── Logs ──────────────────────────────────────────────────────────────────
 
-  async getLogs(userId: string, page: number, pageSize: number): Promise<NotificationLogListDto> {
-    const { logs, total } = await this.repository.findLogsByUserId(userId, page, pageSize);
+  async getLogs(
+    userId: string,
+    page: number,
+    pageSize: number,
+    request?: TypedRequest,
+  ): Promise<NotificationLogListDto> {
+    let result: Pick<Awaited<ReturnType<NotificationHistoryIamService["list"]>>, "logs" | "total">;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const authorized = await NotificationHistoryIamService.getInstance().list(userId, page, pageSize, request);
+      result = authorized;
+      ({ page, pageSize } = authorized);
+    } else {
+      const permission = await PermissionService.getInstance().checkUserPermissions(
+        userId,
+        [Permission.NOTIFICATION_MANAGE],
+        {
+          assumedRoleSessionId: request?.user?.roleSessionId,
+        },
+      );
+      if (!permission.hasPermission)
+        throw new ForbiddenError("Legacy notification log listing denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      result = await this.repository.findLogsByUserId(userId, page, pageSize);
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          const evaluated = await NotificationHistoryIamService.getInstance().list(
+            userId,
+            page,
+            pageSize,
+            request,
+            true,
+          );
+          if (
+            evaluated.total !== result.total ||
+            evaluated.logs.length !== result.logs.length ||
+            evaluated.logs.some((row, index) => row.id !== result.logs[index]?.id)
+          )
+            getLogger("NotificationHistoryAuthorization", LogCategory.SECURITY).warn(
+              "IAM delivery log listing differs from legacy",
+              { action: "quyan:notification:ListDeliveryLogs", legacyCount: result.total, iamCount: evaluated.total },
+            );
+        } catch {
+          getLogger("NotificationHistoryAuthorization", LogCategory.SECURITY).warn(
+            "IAM delivery log shadow evaluation unavailable",
+            { action: "quyan:notification:ListDeliveryLogs", reason: "iam-list-unavailable" },
+          );
+        }
+      }
+    }
+    const { logs, total } = result;
     return {
       logs: logs.map((log) => ({
         id: log.id,
@@ -296,6 +349,13 @@ export class NotificationManagementService {
 
   // ─── Event List ────────────────────────────────────────────────────────────
 
+  async getAuthorizedEventList(userId: string, request?: TypedRequest): Promise<NotificationEventInfoDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      await NotificationHistoryIamService.getInstance().authorizeEvents(userId, request);
+    return this.getEventList();
+  }
+
+  /** Internal metadata provider; HTTP callers use the authorized workflow. */
   getEventList(): NotificationEventInfoDto[] {
     return ALL_NOTIFICATION_EVENTS.map((event) => ({
       value: event,

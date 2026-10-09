@@ -41,7 +41,10 @@ import { RequirePermission } from "@/util/permission/permission-decorator";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { Permission } from "@/constant/permission";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
-import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 @Route("v1/notification")
@@ -151,14 +154,20 @@ export class NotificationController extends Controller {
   /** Get notification delivery history (paginated) */
   @Get("logs")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
-  @Middlewares(validateQuery(notificationLogsQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:notification:ListDeliveryLogs",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+    validateQuery(notificationLogsQuerySchema),
+  )
   public async getLogs(
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
     @Request() request: TypedRequest,
   ): Promise<NotificationLogListDto> {
-    return this.service.getLogs(request.user!.userId, page, pageSize);
+    return this.service.getLogs(request.user!.userId, page, pageSize, request);
   }
 
   /** Get in-app inbox notifications */
@@ -219,7 +228,14 @@ export class NotificationController extends Controller {
   /** Get the list of subscribable event types */
   @Get("events")
   @Security("jwt")
-  public async getEventList(): Promise<NotificationEventInfoDto[]> {
-    return this.service.getEventList();
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:notification:ListEvents",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
+  public async getEventList(@Request() request: TypedRequest): Promise<NotificationEventInfoDto[]> {
+    return this.service.getAuthorizedEventList(request.user!.userId, request);
   }
 }

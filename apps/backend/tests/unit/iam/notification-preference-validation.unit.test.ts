@@ -55,7 +55,7 @@ describe("notification preference input and compatibility", () => {
       const document = parseIamPolicy(
         legacyPermissionsToPrincipalPolicy([Permission.NOTIFICATION_MANAGE], "account", "actor", Effect),
       ).document;
-      for (const action of actions.slice(1))
+      for (const action of ["quyan:notification:GetPreferences", "quyan:notification:UpdatePreferences"])
         expect(
           evaluatePolicies([{ policyId: "legacy", document }], {
             action,

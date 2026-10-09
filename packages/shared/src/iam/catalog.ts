@@ -71,6 +71,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('developer', 'push-delivery', 2),
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
+  resource('notification', 'delivery-log', 2),
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
 // actions remain marked legacy until each business domain declares its targets.
@@ -385,6 +386,30 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       defaultAuthorizationScope: 'self',
     }),
   ),
+  {
+    action: 'quyan:notification:ListDeliveryLogs',
+    service: 'notification',
+    operation: 'ListDeliveryLogs',
+    accessLevel: 'List',
+    resourceTypes: ['notification/delivery-log'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.NOTIFICATION_MANAGE,
+  },
+  {
+    action: 'quyan:notification:ListEvents',
+    service: 'notification',
+    operation: 'ListEvents',
+    accessLevel: 'List',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: false,
+    authorizationStage: 'declared',
+    defaultAuthorizationScope: 'self',
+  },
   {
     action: 'quyan:article:ListArticles',
     service: 'article',

@@ -6,11 +6,14 @@ import { NotificationPreferenceInitializerService } from "../../../src/services/
 import BusinessLogService from "../../../src/services/system/businesslog.service";
 import { NotificationEvent, ALL_NOTIFICATION_EVENTS, THRESHOLD_EVENTS } from "../../../src/constant/notification-event";
 import { NotFoundError } from "../../../src/util/errors";
+import { PermissionService } from "../../../src/services/users/permission.service";
 import type { Request } from "express";
 
 vi.mock("../../../src/store/notification/notification-preference.repository");
 vi.mock("../../../src/services/notification/notification-preference-iam.service");
 vi.mock("../../../src/services/notification/notification-inbox-iam.service");
+vi.mock("../../../src/services/notification/notification-history-iam.service");
+vi.mock("../../../src/services/users/permission.service");
 vi.mock("../../../src/services/notification/notification.service");
 vi.mock("../../../src/services/notification/notification-preference-initializer.service");
 vi.mock("../../../src/services/system/businesslog.service");
@@ -78,6 +81,9 @@ describe("NotificationManagementService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(PermissionService.getInstance).mockReturnValue({
+      checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }),
+    } as unknown as PermissionService);
     vi.spyOn(NotificationPreferenceRepository, "getInstance").mockReturnValue(
       repoMock as unknown as NotificationPreferenceRepository,
     );

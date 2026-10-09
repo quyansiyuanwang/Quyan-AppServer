@@ -11,3 +11,14 @@ export function notificationInboxItemArn(accountOwnerId: string, userId: string,
     path: "inbox-item/" + userId + "/" + itemId,
   });
 }
+
+export function notificationDeliveryLogArn(accountOwnerId: string, userId: string, logId: string): string {
+  if (!isCanonicalNotificationId(userId) || !isCanonicalNotificationId(logId))
+    throw new Error("Invalid delivery log identity");
+  return buildAcsResource({
+    service: "notification",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "delivery-log/" + userId + "/" + logId,
+  });
+}

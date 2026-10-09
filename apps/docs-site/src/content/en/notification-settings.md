@@ -17,7 +17,7 @@ Use this page to manage how the system contacts you about important events, and 
 - The resource is the executing user's own identity: `acs:quyan:*:<accountId>:user/<userId>`. The server derives the account and user from authenticated context; supplying another user or ARN cannot change the target.
 - An explicit Deny for this resource overrides Allow. Group and role policies can participate; an assumed role uses its valid session permissions rather than the caller's direct policies.
 - The first authorized read may create default preferences; later reads synchronize newly introduced events. Events you explicitly unsubscribed from do not become subscribed again merely because they are already known. Inactive or disabled identities, role sessions and preference records cannot be read or modified.
-- These fine-grained operations cover only reading and saving preferences. Webhooks, delivery tests and delivery logs retain their respective existing permission checks.
+- These operations cover reading and saving preferences. Webhooks and delivery tests retain their respective existing permission checks. Delivery history and event catalog permissions are described below.
 
 ## In-app inbox permissions
 
@@ -30,6 +30,13 @@ Signed-in users can view their own inbox and mark messages as read. In IAM enfor
 - Messages are filtered by authorization before pagination. Total, unread, and opened-but-unconfirmed counts include only visible messages.
 - When selecting message IDs to mark as read, every target must be authorized. A missing, inactive, or denied target prevents the entire batch from updating. Duplicate IDs count once, and already-read messages do not count again.
 - Mark-all and email-open confirmation update only authorized messages belonging to the executing user. Denied messages remain unchanged. Fetching an email image does not bypass confirmation authorization.
+
+## Delivery history and event catalog permissions
+
+- In IAM enforce mode, delivery logs use `quyan:notification:ListDeliveryLogs`. Logs may contain notification content and require a separate grant; signing in does not grant access. Legacy notification-management permission is mapped to this operation for compatibility.
+- Each log resource is `acs:notification:*:<accountId>:delivery-log/<userId>/<logId>`. Queries are limited to the executing user's records. Even a wildcard policy does not allow callers to change the target by supplying another user.
+- Logs are authorized individually before pagination, and totals include only authorized records. Explicit Deny can restrict individual logs or logs in a resource group. A list with no visible records is empty.
+- The event catalog uses `quyan:notification:ListEvents` on the executing user's own `acs:quyan:*:<accountId>:user/<userId>` resource. Authenticated identities retain a default grant to view event types, which explicit Deny can restrict. This action does not grant subscription changes, log access, or test delivery.
 
 ## What you will see
 
