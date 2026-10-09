@@ -150,6 +150,10 @@ export class NotificationWebhookIamService {
     const { principal, target } = await this.target(id, userId, "quyan:notification:UpdateWebhook", request);
     return this.repository.update(principal, target, data);
   }
+  async authorizeTest(id: string, userId: string, request?: TypedRequest) {
+    const { principal, target } = await this.target(id, userId, "quyan:notification:TestWebhook", request);
+    return { principal, target };
+  }
   async delete(id: string, userId: string, request?: TypedRequest) {
     const { principal, target } = await this.target(id, userId, "quyan:notification:DeleteWebhook", request);
     return this.repository.delete(principal, target);

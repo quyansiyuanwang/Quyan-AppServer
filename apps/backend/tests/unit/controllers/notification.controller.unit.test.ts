@@ -221,7 +221,7 @@ describe("NotificationController", () => {
 
       const result = await controller.testWebhook("wh-1", makeRequest());
 
-      expect(serviceMock.testWebhook).toHaveBeenCalledWith("wh-1", "user-1");
+      expect(serviceMock.testWebhook).toHaveBeenCalledWith("wh-1", "user-1", expect.any(Object));
       expect(result.success).toBe(true);
     });
 

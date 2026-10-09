@@ -392,6 +392,8 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     { operation: 'CreateWebhook', accessLevel: 'Write', resourceTypes: ['quyan/user'] },
     { operation: 'UpdateWebhook', accessLevel: 'Write', resourceTypes: ['notification/webhook'] },
     { operation: 'DeleteWebhook', accessLevel: 'Write', resourceTypes: ['notification/webhook'] },
+    { operation: 'TestWebhook', accessLevel: 'Write', resourceTypes: ['notification/webhook'] },
+    { operation: 'TestEmail', accessLevel: 'Write', resourceTypes: ['quyan/user'] },
   ].map(
     (definition): IamActionDefinition => ({
       ...definition,

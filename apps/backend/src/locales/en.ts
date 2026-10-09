@@ -1023,6 +1023,8 @@ const en = {
     deleteDenied: "You are not allowed to delete this script",
   },
   notification: {
+    testDeliveryFailed: "Test delivery failed. Check the destination and delivery configuration.",
+    emailNotConfigured: "Notification email is not configured",
     webhookNotFound: "Webhook not found",
   },
   reurl: {

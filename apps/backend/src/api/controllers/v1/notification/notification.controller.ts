@@ -37,7 +37,6 @@ import {
   markNotificationInboxReadBodySchema,
 } from "@/api/schema/notification/notification.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { Permission } from "@/constant/permission";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
@@ -151,24 +150,32 @@ export class NotificationController extends Controller {
   /** Send a test notification to a webhook */
   @Post("webhooks/{id}/test")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
+  @CheckPermission(Permission.NOTIFICATION_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:notification:TestWebhook",
+    resourceKind: "single-resource",
+    resource: notificationWebhookResourceResolver,
+  })
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateParams(webhookIdParamsSchema))
   public async testWebhook(
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<{ success: boolean; error?: string }> {
-    return this.service.testWebhook(id, request.user!.userId);
+    return this.service.testWebhook(id, request.user!.userId, request);
   }
 
   /** Send a test notification to the user's configured email address */
   @Post("email/test")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
+  @CheckPermission(Permission.NOTIFICATION_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:notification:TestEmail",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async testEmail(@Request() request: TypedRequest): Promise<{ success: boolean; error?: string }> {
-    return this.service.testEmail(request.user!.userId);
+    return this.service.testEmail(request.user!.userId, request);
   }
 
   /** Get notification delivery history (paginated) */

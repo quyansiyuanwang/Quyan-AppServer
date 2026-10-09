@@ -1,3 +1,5 @@
+import { translateMessage, DEFAULT_BACKEND_LOCALE } from "@/locales";
+import { NotificationTestDeliveryIamService } from "./notification-test-delivery-iam.service";
 import type { Request } from "express";
 import { extractClientIp } from "@/util/ip-extractor";
 import { NotificationPreferenceRepository } from "@/store/notification/notification-preference.repository";
@@ -224,10 +226,16 @@ export class NotificationManagementService {
     });
   }
 
-  async testEmail(userId: string): Promise<{ success: boolean; error?: string }> {
+  async testEmail(userId: string, request?: TypedRequest): Promise<{ success: boolean; error?: string }> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return NotificationTestDeliveryIamService.getInstance().email(userId, request);
     const pref = await this.preferenceInitializer.getOrInitialize(userId);
     const email = pref?.notificationEmail;
-    if (!email) return { success: false, error: "未配置通知邮箱" };
+    if (!email)
+      return {
+        success: false,
+        error: translateMessage("notification.emailNotConfigured", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+      };
 
     try {
       await this.notificationService.dispatchAndAwaitEmail(userId, NotificationEvent.BALANCE_LOW, {
@@ -236,12 +244,17 @@ export class NotificationManagementService {
         source: "test",
       });
       return { success: true };
-    } catch (err) {
-      return { success: false, error: (err as Error).message };
+    } catch {
+      return {
+        success: false,
+        error: translateMessage("notification.testDeliveryFailed", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+      };
     }
   }
 
-  async testWebhook(id: string, userId: string): Promise<{ success: boolean; error?: string }> {
+  async testWebhook(id: string, userId: string, request?: TypedRequest): Promise<{ success: boolean; error?: string }> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return NotificationTestDeliveryIamService.getInstance().webhook(id, userId, request);
     const webhook = await this.repository.findWebhookById(id, userId);
     if (!webhook)
       throw new NotFoundError("Webhook not found", undefined, { messageKey: "notification.webhookNotFound" });
@@ -256,8 +269,11 @@ export class NotificationManagementService {
         }),
       );
       return { success: true };
-    } catch (err) {
-      return { success: false, error: (err as Error).message };
+    } catch {
+      return {
+        success: false,
+        error: translateMessage("notification.testDeliveryFailed", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+      };
     }
   }
 

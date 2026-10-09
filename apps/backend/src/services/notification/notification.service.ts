@@ -16,6 +16,14 @@ import {
 import { EmailTemplateRenderer } from "./email-template-renderer";
 import { getLogger, LogCategory } from "@/util/logger";
 
+import type { IamPrincipal } from "@quyan/shared";
+import type { NotificationPreference } from "@prisma/client";
+import { NotificationTestEmailRepository } from "@/store/notification/notification-test-email.repository";
+import {
+  NotificationWebhookManagementRepository,
+  type NotificationWebhookTarget,
+} from "@/store/notification/notification-webhook-management.repository";
+
 const logger = getLogger("NotificationService", LogCategory.BUSINESS);
 
 const COOLDOWN_KEY_PREFIX = "notify:cooldown:";
@@ -185,30 +193,51 @@ export class NotificationService {
     }
   }
 
-  private async sendEmail(email: string, document: NotificationDocument, inboxItemId: string): Promise<void> {
+  private async emailSender() {
     const smtpConfig = await this.configService.getSmtpConfig();
     if (!smtpConfig.host) throw new Error("SMTP 未配置");
-
     const transporter = nodemailer.createTransport({
       host: smtpConfig.host,
       port: smtpConfig.port,
       secure: smtpConfig.secure,
       auth: { user: smtpConfig.user, pass: smtpConfig.password },
     });
-
     const siteConfig = await this.configService.getSiteConfig();
-    const trackingPixelUrl = siteConfig.backendPublicUrl
-      ? `${siteConfig.backendPublicUrl}/v1/notification/pixel/${inboxItemId}`
-      : undefined;
-    const rendered = EmailTemplateRenderer.render(document, { trackingPixelUrl });
-
-    await transporter.sendMail({
-      from: `"${smtpConfig.senderName}" <${smtpConfig.senderEmail}>`,
-      to: email,
-      subject: document.subject,
-      html: rendered.html,
-      text: rendered.text,
-    });
+    return async (email: string, document: NotificationDocument, inboxItemId: string) => {
+      const trackingPixelUrl = siteConfig.backendPublicUrl
+        ? siteConfig.backendPublicUrl + "/v1/notification/pixel/" + inboxItemId
+        : undefined;
+      const rendered = EmailTemplateRenderer.render(document, { trackingPixelUrl });
+      await transporter.sendMail({
+        from: '"' + smtpConfig.senderName + '" <' + smtpConfig.senderEmail + ">",
+        to: email,
+        subject: document.subject,
+        html: rendered.html,
+        text: rendered.text,
+      });
+    };
+  }
+  private async sendEmail(email: string, document: NotificationDocument, inboxItemId: string): Promise<void> {
+    const send = await this.emailSender();
+    await send(email, document, inboxItemId);
+  }
+  /** Request delivery prepares configuration first, then rechecks identity/target before any side effect. */
+  async sendAuthorizedTestEmail(
+    principal: IamPrincipal,
+    expected: NotificationPreference,
+    document: NotificationDocument,
+  ) {
+    const send = await this.emailSender();
+    const target = await NotificationTestEmailRepository.getInstance().prepare(principal, expected, document);
+    await send(target.email, document, target.inboxItemId);
+  }
+  async sendAuthorizedTestWebhook(
+    principal: IamPrincipal,
+    expected: NotificationWebhookTarget,
+    document: NotificationDocument,
+  ) {
+    const target = await NotificationWebhookManagementRepository.getInstance().deliveryTarget(principal, expected);
+    await this.sendWebhook(target, document);
   }
 
   private async sendWebhook(webhook: NotificationWebhook, document: NotificationDocument): Promise<void> {

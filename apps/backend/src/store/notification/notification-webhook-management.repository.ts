@@ -119,6 +119,20 @@ export class NotificationWebhookManagementRepository {
       return expected.map((row) => publicView(byId.get(row.id)!));
     });
   }
+  /** Internal delivery only: credentials never enter DTO or IAM audit results. */
+  async deliveryTarget(principal: IamPrincipal, expected: NotificationWebhookTarget) {
+    return notificationAccountTransaction(principal, async (tx) => {
+      await this.current(tx, principal, [expected]);
+      return tx.notificationWebhook.findUniqueOrThrow({
+        where: {
+          id: expected.id,
+          userId: principal.subjectUserId,
+          preferenceId: expected.preferenceId,
+          status: MANAGED_STATUS.ENABLED,
+        },
+      });
+    });
+  }
   async create(
     principal: IamPrincipal,
     data: NotificationWebhookCreateInput,

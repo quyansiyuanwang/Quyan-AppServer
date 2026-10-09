@@ -1,3 +1,6 @@
+vi.mock("../../../src/services/notification/notification-test-delivery-iam.service");
+vi.mock("../../../src/store/notification/notification-test-email.repository");
+vi.mock("../../../src/store/notification/notification-webhook-management.repository");
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NotificationManagementService } from "../../../src/services/notification/notification-management.service";
 import { NotificationPreferenceRepository } from "../../../src/store/notification/notification-preference.repository";
@@ -343,14 +346,14 @@ describe("NotificationManagementService", () => {
       expect(result.error).toBeUndefined();
     });
 
-    it("sendWebhook 失败时应返回 { success: false, error: message }", async () => {
+    it("sendWebhook 失败时应返回安全投递提示", async () => {
       repoMock.findWebhookById.mockResolvedValue(makeWebhookRecord());
       notifServiceMock.sendWebhook.mockRejectedValue(new Error("Connection refused"));
 
       const result = await service.testWebhook("wh-1", "user-1");
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe("Connection refused");
+      expect(result.error).toBe("Test delivery failed. Check the destination and delivery configuration.");
     });
 
     it("测试时应使用 BALANCE_LOW 事件和统一通知文档", async () => {

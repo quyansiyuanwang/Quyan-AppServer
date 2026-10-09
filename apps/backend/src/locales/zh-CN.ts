@@ -1024,6 +1024,8 @@ const zhCN = {
     deleteDenied: "无权删除此脚本",
   },
   notification: {
+    testDeliveryFailed: "测试投递失败，请检查目标地址和投递配置。",
+    emailNotConfigured: "未配置通知邮箱",
     webhookNotFound: "Webhook 不存在",
   },
   reurl: {
