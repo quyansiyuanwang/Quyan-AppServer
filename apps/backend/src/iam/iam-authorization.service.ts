@@ -17,7 +17,8 @@ import type { UserStore } from "@/store/users/user.store";
 import type { RamRoleStore } from "@/store/users/ram-role.store";
 import type { PolicyBindingInfo, RamPolicyStore } from "@/store/users/ram-policy.store";
 import { ForbiddenError } from "@/util/errors";
-import { legacyPermissionsToPolicy } from "./legacy-policy";
+import { legacyPermissionsToPolicy, legacyPermissionsToPrincipalPolicy } from "./legacy-policy";
+import { IAM_BACKFILL_CREATOR, isGeneratedLegacyPolicyDocument } from "./migration/legacy-policy-provenance";
 import { parseIamPolicy } from "./parser/policy-parser";
 import { IamResourceConditionService } from "./condition/resource-condition.service";
 import { evaluatePolicies } from "./evaluator/policy-evaluator";
@@ -54,7 +55,12 @@ export class IamAuthorizationService {
     if (user.group?.accountOwnerId && user.group.accountOwnerId !== principal.accountOwnerId) throw deny();
     const result: IamPolicyInput[] = [];
     const addLegacy = (id: string, permissions: unknown, effect: "Allow" | "Deny" = "Allow") => {
-      const document = legacyPermissionsToPolicy(permissions, principal.accountOwnerId, effect);
+      const document = legacyPermissionsToPrincipalPolicy(
+        permissions,
+        principal.accountOwnerId,
+        principal.principalUserId,
+        effect,
+      );
       if (document) result.push({ policyId: id, document });
     };
     const assumedSession = Boolean(principal.roleSessionId);
@@ -122,9 +128,11 @@ export class IamAuthorizationService {
         ],
       },
     });
-    return result.concat(await this.loadAttachedPolicies(principal.accountOwnerId, attached, targets));
+    return result.concat(
+      await this.loadAttachedPolicies(principal.accountOwnerId, attached, targets, principal.principalUserId),
+    );
   }
-  /** Used for delegation proofs without creating a session or importing the caller's own grants. */
+  /** Candidate upper bound for delegation, not executable grants: unknown authors must never be underestimated. */
   async loadRolePolicies(accountOwnerId: string, roleId: string): Promise<IamPolicyInput[]> {
     const role = await this.roles.findRoleById(roleId);
     if (!role || role.status !== 1 || role.accountOwnerId !== accountOwnerId) throw deny();
@@ -132,7 +140,7 @@ export class IamAuthorizationService {
       { principalType: "role", principalId: roleId },
     ]);
   }
-  /** Includes direct, scoped and role-derived grants when proving a membership change. */
+  /** Candidate upper bound for membership delegation; actor grants come from subject-aware loadPolicies. */
   async loadGroupPolicies(accountOwnerId: string, groupId: string): Promise<IamPolicyInput[]> {
     const group = await this.groups.findById(groupId);
     if (!group || group.status !== 1 || group.accountOwnerId !== accountOwnerId) throw deny();
@@ -151,6 +159,7 @@ export class IamAuthorizationService {
     accountOwnerId: string,
     attached: readonly PolicyBindingInfo[],
     targets: readonly IamAuthorizationTarget[],
+    principalUserId?: string,
   ): Promise<IamPolicyInput[]> {
     const result: IamPolicyInput[] = [];
     const validated = new Map<string, IamPolicyInput>();
@@ -158,7 +167,7 @@ export class IamAuthorizationService {
       if (binding.accountOwnerId !== accountOwnerId) throw deny();
       // Validate every attachment before deduplication; an invalid duplicate must not disappear.
       const entries: IamPolicyInput[] = [];
-      this.addBinding(entries, binding, accountOwnerId);
+      this.addBinding(entries, binding, accountOwnerId, principalUserId);
       for (const entry of entries) validated.set(entry.policyId, entry);
     }
 
@@ -220,6 +229,7 @@ export class IamAuthorizationService {
           accountOwnerId: policy.accountOwnerId,
           documentFormat: policy.documentFormat,
           versionId: version?.id,
+          versionCreatedBy: version?.createdBy,
           document: version?.policyId === policy.id && version.status === 1 ? version.document : undefined,
           documentHash: version?.documentHash,
           validationState: version?.validationState,
@@ -227,22 +237,39 @@ export class IamAuthorizationService {
           legacyPermissions: policy.permissions,
         },
         accountOwnerId,
+        principalUserId,
       );
       result.push(...entries.map((entry) => ({ ...entry, authorizationId: relation.id, scope })));
     }
     return result;
   }
-  private addBinding(result: IamPolicyInput[], binding: PolicyBindingInfo, owner: string): void {
+  private addBinding(
+    result: IamPolicyInput[],
+    binding: PolicyBindingInfo,
+    owner: string,
+    principalUserId?: string,
+  ): void {
+    const legacy = (permissions: unknown) =>
+      principalUserId
+        ? legacyPermissionsToPrincipalPolicy(permissions, owner, principalUserId)
+        : legacyPermissionsToPolicy(permissions, owner);
     if (binding.documentFormat === "iam-v1") {
       if (!binding.versionId || !binding.document || binding.validationState !== "valid") throw deny();
       const parsed = parseIamPolicy(binding.document);
       if (parsed.documentHash !== binding.documentHash) throw deny();
       assertIamPolicyAccount(parsed.document, owner);
-      result.push({ policyId: binding.policyId, versionId: binding.versionId, document: parsed.document });
+      // Backfilled versions retain legacy semantics; explicit later JSON versions are never rewritten.
+      let document = parsed.document;
+      if (binding.versionCreatedBy === IAM_BACKFILL_CREATOR) {
+        if (!isGeneratedLegacyPolicyDocument(document, binding.legacyPermissions, owner)) throw deny();
+        const projected = legacy(binding.legacyPermissions);
+        if (!projected) throw deny();
+        document = projected;
+      }
+      result.push({ policyId: binding.policyId, versionId: binding.versionId, document });
     } else if (binding.documentFormat === "legacy") {
-      const document = legacyPermissionsToPolicy(
+      const document = legacy(
         binding.legacyPermissions === undefined ? binding.permissions : binding.legacyPermissions,
-        owner,
       );
       if (document) result.push({ policyId: binding.policyId, document });
     } else throw deny();

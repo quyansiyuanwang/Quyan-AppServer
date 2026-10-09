@@ -294,6 +294,7 @@ export class RamPolicyRepository implements RamPolicyStore {
       accountOwnerId: row.policy.accountOwnerId,
       documentFormat: row.policy.documentFormat,
       versionId: row.policy.defaultVersion?.id,
+      versionCreatedBy: row.policy.defaultVersion?.createdBy,
       document:
         row.policy.defaultVersion?.policyId === row.policyId &&
         row.policy.defaultVersion.status === AccountStatus.ACTIVE &&
@@ -321,6 +322,7 @@ export class RamPolicyRepository implements RamPolicyStore {
       accountOwnerId: row.policy.accountOwnerId,
       documentFormat: row.policy.documentFormat,
       versionId: row.policy.defaultVersion?.id,
+      versionCreatedBy: row.policy.defaultVersion?.createdBy,
       document:
         row.policy.defaultVersion?.policyId === row.policyId &&
         row.policy.defaultVersion.status === AccountStatus.ACTIVE &&

@@ -14,7 +14,7 @@ import { evaluatePolicies } from "../evaluator/policy-evaluator";
 import { legacyPermissionsToPolicy, parseLegacyPermissions } from "../legacy-policy";
 
 export const IAM_BACKFILL_BATCH_SIZE = 100;
-export const IAM_BACKFILL_CREATOR = "migration:legacy-policy-backfill";
+export { IAM_BACKFILL_CREATOR } from "./legacy-policy-provenance";
 export function legacySnapshotHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }

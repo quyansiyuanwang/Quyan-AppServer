@@ -76,6 +76,8 @@ Editing does not grant publication, deletion or site-default management. The edi
 
 Deletion marks the selected article unavailable; it neither deletes another article nor clears other articles' default flags. The deleted article immediately stops being eligible for resource-group grants. Legacy/shadow modes retain historical permissions and author-only editing/deletion; resource-scoped delegation is enforced after switching to enforce. List/menu permissions remain separate while migration continues.
 
+Migration does not automatically widen editing/deletion. `ARTICLE_UPDATE`/`ARTICLE_DELETE` from user additions, groups, legacy bindings or historical backfilled versions remain limited to the executing user’s authored articles in enforce mode. Legacy role and AssumeRole grants use that same executing-user boundary. To manage another same-account author’s article, an authorized delegator must explicitly publish a resource-scoped JSON policy; legacy removals remain global explicit Deny. Historical reorder and publication were not author-only and keep their own scopes. Legacy author authority alone cannot publish or delegate an unconditioned article-management grant.
+
 ## Atomic resource-scoped reordering
 
 In enforce mode, reordering requires `quyan:article:ReorderArticles` on **every** requested article. The server resolves all stored article identities within your account, evaluates the full batch, rechecks every authorized snapshot, then writes all ordering changes in one transaction. A denied, missing, inactive, foreign-account or changed member rejects the whole operation; a later database failure rolls back earlier writes.

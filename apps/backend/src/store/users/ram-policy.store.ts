@@ -41,6 +41,7 @@ export interface PolicyBindingInfo {
   accountOwnerId?: string;
   documentFormat?: string;
   versionId?: string;
+  versionCreatedBy?: string;
   document?: unknown;
   documentHash?: string;
   validationState?: string;

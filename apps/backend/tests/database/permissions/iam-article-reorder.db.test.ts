@@ -242,6 +242,12 @@ describe("IAM atomic article reorder", () => {
     await expect(run(items, (request) => service.reorderArticles(items, actor, request))).rejects.toBeDefined();
     expect(await orders([first.id, second.id])).toEqual([0, 0]);
   });
+  it("retains historical peer reorder authority from a legacy editing permission", async () => {
+    const row = await article(peer);
+    await prisma.user.update({ where: { id: actor }, data: { permissionAdds: [Permission.ARTICLE_UPDATE] } });
+    expect(await reorder([{ id: row.id, sortOrder: 17 }])).toEqual({ success: true });
+    expect(await orders([row.id])).toEqual([17]);
+  });
   it("does not import editing-only JSON grants into the distinct reorder capability", async () => {
     const row = await article();
     await grant(arn(row.id), "Allow", "quyan:article:Update");

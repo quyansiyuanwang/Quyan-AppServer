@@ -378,6 +378,25 @@ describe("IAM concrete article mutations", () => {
       ).title,
     ).toBe("key update");
   });
+  it("keeps legacy permissions author-only through both the enforce middleware and service boundary", async () => {
+    const own = await article(actor),
+      other = await article();
+    await prisma.user.update({
+      where: { id: actor },
+      data: { permissionAdds: [Permission.ARTICLE_UPDATE, Permission.ARTICLE_DELETE] },
+    });
+    await expect(
+      run(other.id, (request) => controller.updateArticle(other.id, { title: "denied" }, request)),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(run(other.id, (request) => service.deleteArticle(other.id, actor, request))).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(
+      (await run(own.id, (request) => controller.updateArticle(own.id, { title: "Owned edit" }, request))).title,
+    ).toBe("Owned edit");
+    expect(await run(own.id, (request) => controller.deleteArticle(own.id, request))).toEqual({ success: true });
+    expect((await persisted(other.id)).status).toBe(MANAGED_STATUS.ENABLED);
+  });
   it.each(["legacy", "shadow"] as const)("retains author-only edits/deletion in %s mode", async (mode) => {
     const own = await article(actor),
       other = await article();
