@@ -61197,6 +61197,10 @@
 						],
 						"nullable": false,
 						"description": "Baseline grant restricted to the validated authenticated user's own ARN."
+					},
+					"legacyPermission": {
+						"$ref": "#/components/schemas/Permission",
+						"description": "Registered migration alias only; clients cannot choose the endpoint Action."
 					}
 				},
 				"required": [

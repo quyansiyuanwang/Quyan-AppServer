@@ -57,7 +57,7 @@ const orders = async (ids: string[]) =>
 async function grant(
   Resource: string | string[],
   Effect: "Allow" | "Deny" = "Allow",
-  Action = "quyan:article:Update",
+  Action = "quyan:article:ReorderArticles",
   principalType: "user" | "role" = "user",
   principalId = actor,
 ) {
@@ -242,6 +242,12 @@ describe("IAM atomic article reorder", () => {
     await expect(run(items, (request) => service.reorderArticles(items, actor, request))).rejects.toBeDefined();
     expect(await orders([first.id, second.id])).toEqual([0, 0]);
   });
+  it("does not import editing-only JSON grants into the distinct reorder capability", async () => {
+    const row = await article();
+    await grant(arn(row.id), "Allow", "quyan:article:Update");
+    await expect(reorder([{ id: row.id, sortOrder: 10 }])).rejects.toMatchObject({ statusCode: 403 });
+    expect(await orders([row.id])).toEqual([0]);
+  });
   it("rejects absent/mismatched identity and ignores an unrelated Action grant", async () => {
     const row = await article(),
       items = [{ id: row.id, sortOrder: 10 }];
@@ -285,7 +291,10 @@ describe("IAM atomic article reorder", () => {
     const full = await ram.addResourceGroupMember(owner, group.id, { resourceArn: arn(second.id) });
     const policy = await ram.createPolicy(owner, {
       name: "reorder-group-policy-" + randomUUID(),
-      document: { Version: "1", Statement: { Effect: "Allow", Action: "quyan:article:Update", Resource: "*" } },
+      document: {
+        Version: "1",
+        Statement: { Effect: "Allow", Action: "quyan:article:ReorderArticles", Resource: "*" },
+      },
     });
     await ram.createAuthorization(owner, {
       principalType: "user",
@@ -335,7 +344,7 @@ describe("IAM atomic article reorder", () => {
         Version: "1",
         Statement: {
           Effect: "Allow",
-          Action: "quyan:article:Update",
+          Action: "quyan:article:ReorderArticles",
           Resource: [arn(first.id), arn(second.id)],
           Condition: { Bool: { "acs:SecureTransport": true } },
         },

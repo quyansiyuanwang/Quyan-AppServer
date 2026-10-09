@@ -78,9 +78,9 @@ Deletion marks the selected article unavailable; it neither deletes another arti
 
 ## Atomic resource-scoped reordering
 
-In enforce mode, reordering requires `quyan:article:Update` on **every** requested article. The server resolves all stored article identities within your account, evaluates the full batch, rechecks every authorized snapshot, then writes all ordering changes in one transaction. A denied, missing, inactive, foreign-account or changed member rejects the whole operation; a later database failure rolls back earlier writes.
+In enforce mode, reordering requires `quyan:article:ReorderArticles` on **every** requested article. The server resolves all stored article identities within your account, evaluates the full batch, rechecks every authorized snapshot, then writes all ordering changes in one transaction. A denied, missing, inactive, foreign-account or changed member rejects the whole operation; a later database failure rolls back earlier writes.
 
-Submit each article ID only once and provide a nonnegative integer order within the database integer range. A request is bounded by the server IAM batch limit (currently 500 resources). Resource-group membership and trusted request Conditions apply separately to every member. Reorder changes only ordering, not author, content, visibility, publication or default selection. It retains the historical edit permission in legacy/shadow mode; listing and site-wide default management remain separate concerns.
+Submit each article ID only once and provide a nonnegative integer order within the database integer range. A request is bounded by the server IAM batch limit (currently 500 resources). Resource-group membership and trusted request Conditions apply separately to every member. Editing-only JSON grants do not authorize this separate Action; existing policy drafts that used `quyan:article:Update` for sorting must explicitly add `quyan:article:ReorderArticles`. Historical `ARTICLE_UPDATE` fields still map to both capabilities during migration. Reorder changes only ordering, not author, content, visibility, publication or default selection. It retains the historical edit permission in legacy/shadow mode; listing and site-wide default management remain separate concerns.
 
 ## Notes
 

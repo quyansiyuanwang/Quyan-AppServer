@@ -120,7 +120,7 @@ export class ArticleController extends Controller {
   @Put("reorder")
   @Security("jwt")
   @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:article:Update",
+    action: "quyan:article:ReorderArticles",
     resourceKind: "batch",
     resource: articleReorderResourceResolver,
   })

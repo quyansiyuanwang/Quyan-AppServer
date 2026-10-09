@@ -96,7 +96,7 @@ export class ArticleManagementService {
     );
     if (!targets)
       throw new NotFoundError("Article reorder targets unavailable", undefined, { messageKey: "article.notFound" });
-    const action = actionForPermission(Permission.ARTICLE_UPDATE),
+    const action = "quyan:article:ReorderArticles",
       resources = targets.map((target) => articleArn(principal.accountOwnerId, target.id)),
       start = performance.now();
     const results = await this.iam.authorizeMany({

@@ -14,6 +14,8 @@ export interface IamActionDefinition {
   authorizationStage: 'legacy' | 'declared'
   /** Baseline grant restricted to the validated authenticated user's own ARN. */
   defaultAuthorizationScope?: 'self'
+  /** Registered migration alias only; clients cannot choose the endpoint Action. */
+  legacyPermission?: Permission
 }
 export interface IamServiceDefinition {
   code: string
@@ -340,6 +342,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   {
+    action: 'quyan:article:ReorderArticles',
+    service: 'article',
+    operation: 'ReorderArticles',
+    accessLevel: 'Write',
+    resourceTypes: ['article/article'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.ARTICLE_UPDATE,
+  },
+  {
     action: 'quyan:iam:SimulatePolicy',
     service: 'iam',
     operation: 'SimulatePolicy',
@@ -377,4 +391,17 @@ export function iamServiceDefinitions(
     services.set(service.code, service)
   }
   return [...services.values()].sort((a, b) => a.code.localeCompare(b.code))
+}
+
+/** Canonical compatibility Action plus explicitly registered native operations; never infer by name. */
+export function iamActionsForLegacyPermission(permission: Permission): string[] {
+  return [
+    actionForPermission(permission),
+    ...IAM_ACTION_DEFINITIONS.filter(
+      (definition) => definition.legacyPermission === permission,
+    ).map((definition) => definition.action),
+  ]
+}
+export function isIamActionForLegacyPermission(action: string, permission: Permission): boolean {
+  return iamActionsForLegacyPermission(permission).includes(action)
 }

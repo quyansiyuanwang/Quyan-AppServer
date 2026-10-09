@@ -1,7 +1,13 @@
 import path from "node:path";
 import { Node } from "ts-morph";
 import type { Decorator, Expression, SourceFile } from "ts-morph";
-import { Permission, actionForPermission, isKnownIamAction, IAM_RESOURCE_KINDS } from "@quyan/shared";
+import {
+  Permission,
+  actionForPermission,
+  isIamActionForLegacyPermission,
+  isKnownIamAction,
+  IAM_RESOURCE_KINDS,
+} from "@quyan/shared";
 
 export interface IamRouteEntry {
   key: string;
@@ -108,7 +114,7 @@ export function collectIamRoutes(sources: readonly SourceFile[], backendRoot: st
           let hasLegacy = false,
             hasExplicit = false;
 
-          const addExplicitDefinition = (definition: Node | undefined, expectedAction?: string) => {
+          const addExplicitDefinition = (definition: Node | undefined, expectedPermission?: Permission) => {
             if (!definition || !Node.isObjectLiteralExpression(definition)) {
               issues.push("IAM definition must be a static object");
               return;
@@ -129,13 +135,13 @@ export function collectIamRoutes(sources: readonly SourceFile[], backendRoot: st
               issues.push("IAM resourceKind is missing or unsupported");
             if (!resolver || (!Node.isIdentifier(resolver) && !Node.isPropertyAccessExpression(resolver)))
               issues.push("IAM resource must reference a named server resolver");
-            if (expectedAction && action !== expectedAction)
+            if (expectedPermission && (!action || !isIamActionForLegacyPermission(action, expectedPermission)))
               issues.push("IAM action must match its legacy Permission mapping");
             if (action) entry.actions.push(action);
             entry.resourceKind = kind;
             entry.resolver = resolver?.getText();
             if (
-              (!expectedAction || action === expectedAction) &&
+              (!expectedPermission || (action && isIamActionForLegacyPermission(action, expectedPermission))) &&
               action &&
               isKnownIamAction(action) &&
               kind &&
@@ -187,15 +193,13 @@ export function collectIamRoutes(sources: readonly SourceFile[], backendRoot: st
                 continue;
               }
             }
-            entry.actions.push(...permissions.map((value) => actionForPermission(value!)));
             hasLegacy = true;
             const metadata = definition.name === "CheckPermission" ? definition.args[3] : undefined;
             if (metadata) {
               const entries = Node.isArrayLiteralExpression(metadata) ? metadata.getElements() : [metadata];
               if (entries.length !== permissions.length) issues.push("IAM metadata must cover every legacy permission");
-              else
-                entries.forEach((item, index) => addExplicitDefinition(item, actionForPermission(permissions[index]!)));
-            }
+              else entries.forEach((item, index) => addExplicitDefinition(item, permissions[index]!));
+            } else entry.actions.push(...permissions.map((value) => actionForPermission(value!)));
           }
           const middlewares = [...classDecorators, ...decorators].filter(
             (item) => tsoaModules.has(item.module) && item.name === "Middlewares",

@@ -1,6 +1,6 @@
 import { getLogger, LogCategory } from "@/util/logger";
 import { performance } from "node:perf_hooks";
-import { actionForPermission } from "@quyan/shared";
+import { actionForPermission, isIamActionForLegacyPermission } from "@quyan/shared";
 import type { Permission } from "@quyan/shared";
 import { env } from "@/config/env";
 import { PermissionService } from "@/services/users/permission.service";
@@ -25,7 +25,7 @@ export function validateLegacyIamDefinitions(permissions: readonly Permission[],
     throw new Error("IAM definitions must cover each declared legacy permission");
   Array.from(definitions).forEach((definition, index) => {
     assertIamAuthorizationDefinition(definition);
-    if (definition.action !== actionForPermission(permissions[index]))
+    if (!isIamActionForLegacyPermission(definition.action, permissions[index]))
       throw new Error("IAM action does not match declared legacy permission");
   });
   return definitions;

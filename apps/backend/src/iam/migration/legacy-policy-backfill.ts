@@ -1,6 +1,13 @@
 import { parseArgs } from "node:util";
 import { createHash } from "node:crypto";
-import { ALL_PERMISSIONS, actionForPermission, buildAcsResource } from "@quyan/shared";
+import {
+  ALL_PERMISSIONS,
+  actionForPermission,
+  buildAcsResource,
+  iamActionsForLegacyPermission,
+  getIamActionDefinition,
+  IAM_RESOURCE_TYPE_CATALOG,
+} from "@quyan/shared";
 import type { ParsedIamPolicy } from "../parser/policy-parser";
 import { parseIamPolicy } from "../parser/policy-parser";
 import { evaluatePolicies } from "../evaluator/policy-evaluator";
@@ -45,6 +52,22 @@ export function planLegacyPolicy(candidate: LegacyPolicyCandidate): LegacyPolicy
       if ((decision.decision === "Allow") !== grants.has(permission))
         return { kind: "invalid", reason: "authorization-difference" };
     }
+    // New native capabilities must preserve the originating legacy permission on their concrete resource types too.
+    for (const permission of ALL_PERMISSIONS)
+      for (const action of iamActionsForLegacyPermission(permission).slice(1)) {
+        const definition = getIamActionDefinition(action)!;
+        for (const type of IAM_RESOURCE_TYPE_CATALOG.filter((type) => definition.resourceTypes.includes(type.id))) {
+          const target = type.arnTemplate
+            .replace("{accountId}", candidate.accountOwnerId)
+            .replace(/\{[^}]+\}/g, "migration-fixture");
+          const decision = evaluatePolicies([{ policyId: candidate.id, document: parsed.document }], {
+            action,
+            resource: target,
+          });
+          if ((decision.decision === "Allow") !== grants.has(permission))
+            return { kind: "invalid", reason: "authorization-difference" };
+        }
+      }
     return { kind: "migrate", parsed, sourceHash: legacySnapshotHash(candidate.permissions) };
   } catch {
     return { kind: "invalid", reason: "invalid-legacy-permissions" };

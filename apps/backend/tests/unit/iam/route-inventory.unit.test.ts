@@ -16,6 +16,18 @@ const explicit =
 const legacy =
   '@Get("item") @Security("jwt") @CheckPermission(Permission.USER_READ,PermissionCheckMode.ALL,"jwt") item() {}';
 describe("IAM import-aware route inventory", () => {
+  it("accepts only Catalog-registered migration aliases and records the actual endpoint Action", () => {
+    const route =
+      '@Get("sort") @Security("jwt") @CheckPermission(Permission.ARTICLE_UPDATE,PermissionCheckMode.ALL,"jwt",{action:"quyan:article:ReorderArticles",resourceKind:"batch",resource:batchResources}) sort() {}';
+    expect(inventory(route)[0]).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:article:ReorderArticles"],
+      issues: [],
+    });
+    expect(inventory(route.replace("Permission.ARTICLE_UPDATE", "Permission.ARTICLE_DELETE"))[0].issues).toContain(
+      "IAM action must match its legacy Permission mapping",
+    );
+  });
   it("finds explicit actions, resolver metadata and stable method/path identity", () => {
     const [entry] = inventory(explicit);
     expect(entry).toMatchObject({

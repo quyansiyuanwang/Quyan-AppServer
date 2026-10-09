@@ -1,6 +1,6 @@
 import {
   ALL_PERMISSIONS,
-  actionForPermission,
+  iamActionsForLegacyPermission,
   buildAcsResource,
   getIamActionDefinition,
   IAM_RESOURCE_TYPE_CATALOG,
@@ -31,7 +31,9 @@ export function legacyPermissionsToPolicy(
   // Legacy permissions were account-wide. Preserve that breadth on migrated entity routes,
   // but never reinterpret an author-supplied IAM account ARN as a resource wildcard.
   const compatibleTypes = new Set(
-    permissions.flatMap((permission) => getIamActionDefinition(actionForPermission(permission))!.resourceTypes),
+    permissions
+      .flatMap(iamActionsForLegacyPermission)
+      .flatMap((action) => getIamActionDefinition(action)!.resourceTypes),
   );
   const resources = IAM_RESOURCE_TYPE_CATALOG.filter((type) => compatibleTypes.has(type.id)).map((type) =>
     type.arnTemplate.replace("{accountId}", accountOwnerId).replace(/\{[^}]+\}/g, "*"),
@@ -41,7 +43,7 @@ export function legacyPermissionsToPolicy(
     Statement: [
       {
         Effect: effect,
-        Action: permissions.map(actionForPermission),
+        Action: permissions.flatMap(iamActionsForLegacyPermission),
         Resource: effect === "Deny" ? ["*"] : [...new Set([account, ...resources])],
       },
     ],
