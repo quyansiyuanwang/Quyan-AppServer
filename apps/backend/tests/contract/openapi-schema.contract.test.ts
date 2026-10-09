@@ -217,6 +217,10 @@ describe("RAM IAM policy API contract", () => {
     for (const [route, method] of [
       ["/v1/developer/projects", "post"],
       ["/v1/developer/projects/{projectId}/status-page", "put"],
+      ["/v1/developer/projects/{projectId}/kv/{key}", "post"],
+      ["/v1/developer/projects/{projectId}/kv/{key}", "delete"],
+      ["/v1/developer/projects/{projectId}/secrets", "post"],
+      ["/v1/developer/projects/{projectId}/secrets/{alias}", "delete"],
     ] as const)
       expect(openApi.paths[route]?.[method]).toHaveProperty("X-Replay-Protected", true);
   });
@@ -231,6 +235,27 @@ describe("RAM IAM policy API contract", () => {
     expect(schema.required).toEqual(["items", "page", "pageSize", "hasNext"]);
     expect(schema.properties).not.toHaveProperty("total");
     expect(openApi.paths["/v1/developer/projects/{projectId}"]?.get?.security).toContainEqual({ jwt: [] });
+  });
+  it("exposes item metadata pages without values or totals and preserves the variable KV key route", () => {
+    for (const [route, dto] of [
+      ["/v1/developer/projects/{projectId}/kv/entries/page", "DeveloperKvPageDto"],
+      ["/v1/developer/projects/{projectId}/secrets/page", "DeveloperSecretPageDto"],
+    ]) {
+      const operation = openApi.paths[route]?.get;
+      expect(operation?.security).toContainEqual({ jwt: [] });
+      expect(operation?.parameters?.map((parameter) => parameter.name)).toEqual(["projectId", "page", "pageSize"]);
+      const schema = openApi.components?.schemas?.[dto] as { properties: Record<string, unknown>; required: string[] };
+      expect(schema.required).toEqual(["items", "page", "pageSize", "hasNext"]);
+      expect(schema.properties).not.toHaveProperty("total");
+    }
+    expect(openApi.paths).not.toHaveProperty("/v1/developer/projects/{projectId}/kv/page");
+    expect(openApi.paths["/v1/developer/projects/{projectId}/kv/{key}"]?.get?.security).toContainEqual({ jwt: [] });
+    for (const dto of ["DeveloperKvValueDto", "DeveloperSecretDto"]) {
+      const schema = openApi.components?.schemas?.[dto] as { properties: Record<string, unknown>; required: string[] };
+      expect(schema.properties.resourceArn).toMatchObject({ type: "string" });
+      expect(schema.required).not.toContain("resourceArn");
+      for (const field of ["ciphertext", "iv", "authTag"]) expect(schema.properties).not.toHaveProperty(field);
+    }
   });
   it("makes the catalog self-service marker optional and restricts its values", () => {
     const schema = openApi.components?.schemas?.IamActionDefinition as {

@@ -633,6 +633,29 @@ export class DeveloperProjectRepository {
     }));
   }
 
+  /** Read only: IAM listing must not delete expired entries it is not permitted to modify. */
+  async listKvCandidates(projectId: string, userId: string, options: { skip: number; take: number }) {
+    const now = new Date();
+    const records = await prisma.developerKvEntry.findMany({
+      where: {
+        projectId,
+        status: 1,
+        project: { userId, status: 1 },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: { key: true, version: true, expiresAt: true, updateTime: true },
+      orderBy: [{ key: "asc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return records.map((record) => ({
+      key: record.key,
+      version: record.version,
+      expiresAt: asIso(record.expiresAt),
+      updateTime: record.updateTime.toISOString(),
+    }));
+  }
+
   async setKv(projectId: string, key: string, body: SetKvValueDto): Promise<DeveloperKvValueDto> {
     const serialized = JSON.stringify(body.value);
     if (Buffer.byteLength(serialized) > MAX_KV_VALUE_BYTES)
@@ -669,6 +692,29 @@ export class DeveloperProjectRepository {
   async getProjectKv(projectId: string, userId: string, key: string): Promise<DeveloperKvValueDto> {
     await this.assertProjectOwner(projectId, userId);
     return this.getKv(projectId, key);
+  }
+
+  /** IAM reads never mutate expired data; cleanup belongs to an explicit maintenance operation. */
+  async getProjectKvReadOnly(projectId: string, userId: string, key: string): Promise<DeveloperKvValueDto> {
+    const item = await prisma.developerKvEntry.findFirst({
+      where: {
+        projectId,
+        key,
+        status: 1,
+        project: { userId, status: 1 },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { key: true, value: true, version: true, expiresAt: true, updateTime: true },
+    });
+    if (!item)
+      throw new NotFoundError("KV key unavailable", undefined, { messageKey: "developerProject.kvKeyNotFound" });
+    return {
+      key: item.key,
+      value: item.value,
+      version: item.version,
+      expiresAt: asIso(item.expiresAt),
+      updateTime: item.updateTime.toISOString(),
+    };
   }
 
   async listProjectKv(projectId: string, userId: string): Promise<Array<Omit<DeveloperKvValueDto, "value">>> {
@@ -1044,6 +1090,28 @@ export class DeveloperProjectRepository {
     const records = await prisma.developerSecret.findMany({
       where: { projectId, status: 1 },
       orderBy: { alias: "asc" },
+    });
+    return records.map((record) => ({
+      id: record.id,
+      alias: record.alias,
+      keyVersion: record.keyVersion,
+      lastUsedAt: asIso(record.lastUsedAt),
+      createTime: record.createTime.toISOString(),
+      updateTime: record.updateTime.toISOString(),
+    }));
+  }
+
+  async listSecretCandidates(
+    projectId: string,
+    userId: string,
+    options: { skip: number; take: number },
+  ): Promise<DeveloperSecretDto[]> {
+    const records = await prisma.developerSecret.findMany({
+      where: { projectId, status: 1, project: { userId, status: 1 } },
+      select: { id: true, alias: true, keyVersion: true, lastUsedAt: true, createTime: true, updateTime: true },
+      orderBy: [{ alias: "asc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
     });
     return records.map((record) => ({
       id: record.id,

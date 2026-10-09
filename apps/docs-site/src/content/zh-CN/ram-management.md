@@ -284,3 +284,18 @@ enforce 模式下，“有效权限”的最终列表与用户权限接口共用
 `GET /v1/developer/projects/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext。先查询当前账户的分页候选，再按 `quyan:developer:ListProjects` 逐项目过滤；只有具体项目的 Allow 也能看到该项目，无需账户级 Allow。空页可能仍有后续页，不返回未授权项目的 total。旧数组接口在 enforce 仅返回默认第一页，遍历请使用 page 接口。新 `GET /v1/developer/projects/{projectId}` 返回被授权项目的详情。
 
 创建项目需要 `quyan:developer:CreateProject` 对当前认证用户的 `acs:quyan:*:<accountId>:user/<userId>` 授权，创建结果仍归该用户。个人基础自助权限不会自动授予项目管理能力。legacy/shadow 保留原来的个人项目所有权检查；shadow 记录差异，enforce 不会因评估失败回退放行。
+
+## 开发者 KV 与密钥资源授权
+
+JWT 项目管理接口可以授权单个 KV 键或单个密钥别名。资源格式分别为：
+
+- KV：`acs:developer:*:<accountId>:kv-item/<projectId>/<encodedKey>`，encodedKey 是原始键的 UTF-8 base64url 编码，不带等号填充。例如 `config:prod` 编码为 `Y29uZmlnOnByb2Q`。
+- 密钥：`acs:developer:*:<accountId>:secret/<projectId>/<ALIAS>`，别名保留大写格式。
+
+单项读取或写入响应及分页元数据返回可选的 `resourceArn`，可直接复制到 JSON 策略。密钥响应始终只有元数据，不返回明文、密文、IV 或认证标签。
+
+KV 操作分别使用 `quyan:developer:ListKv`、`GetKv`、`SetKv`、`DeleteKv`；密钥操作使用 `quyan:developer:ListSecrets`、`PutSecret`、`DeleteSecret`。读取、写入、删除相互独立。创建新键或新别名也需要对应目标 ARN 的写入权限。同账户委派不会改变项目所有者，项目授权不会自动覆盖 KV 或密钥资源。
+
+`GET /v1/developer/projects/{projectId}/kv/entries/page` 和 `GET /v1/developer/projects/{projectId}/secrets/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext。分页候选先限定有效项目和账户归属，再逐键或逐别名检查 List 权限。空页仍可能有后续页，不返回 total。KV 列表不包含值；过期键视为不存在，enforce 下的读取和列表不会删除这些数据。原数组接口在 enforce 只返回默认第一页；`GET .../kv/page` 仍是读取名为 page 的键。
+
+KV 和密钥可作为资源组成员，移除成员后下一次请求即失去该授权范围。资源组成员必须真实存在、有效且属于当前账户；过期 KV、禁用资源以及禁用所有者的项目不能提供资源组授权。上述规则适用于 JWT 项目管理；产品实例的 API Key 接口继续按实例的独立权限验证。

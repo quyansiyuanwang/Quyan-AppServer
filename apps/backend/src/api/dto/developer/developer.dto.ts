@@ -84,11 +84,26 @@ export interface SetKvValueDto {
 }
 
 export interface DeveloperKvValueDto {
+  /** Canonical IAM resource; present on JWT project-management responses. */
+  resourceArn?: string;
   key: string;
   value: unknown;
   version: number;
   expiresAt?: string;
   updateTime: string;
+}
+
+export interface DeveloperKvPageDto {
+  items: Array<Omit<DeveloperKvValueDto, "value">>;
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+export interface DeveloperSecretPageDto {
+  items: DeveloperSecretDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
 }
 
 export interface CreateShortLinkDto {
@@ -143,6 +158,8 @@ export interface UpsertDeveloperSecretDto {
 }
 
 export interface DeveloperSecretDto {
+  /** Metadata only; this field never contains a secret value. */
+  resourceArn?: string;
   id: string;
   alias: string;
   keyVersion: number;

@@ -58,6 +58,8 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'role-session'),
   resource('relay', 'channel'),
   resource('developer', 'project'),
+  resource('developer', 'kv-item', 2),
+  resource('developer', 'secret', 2),
   resource('article', 'article'),
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
@@ -142,6 +144,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     },
     { operation: 'CreateProject', accessLevel: 'Write', resourceTypes: ['quyan/user'] },
     { operation: 'GetProject', accessLevel: 'Read', resourceTypes: ['developer/project'] },
+    {
+      operation: 'ListKv',
+      accessLevel: 'List',
+      resourceTypes: ['developer/project', 'developer/kv-item'],
+    },
+    { operation: 'GetKv', accessLevel: 'Read', resourceTypes: ['developer/kv-item'] },
+    { operation: 'SetKv', accessLevel: 'Write', resourceTypes: ['developer/kv-item'] },
+    { operation: 'DeleteKv', accessLevel: 'Write', resourceTypes: ['developer/kv-item'] },
+    {
+      operation: 'ListSecrets',
+      accessLevel: 'List',
+      resourceTypes: ['developer/project', 'developer/secret'],
+    },
+    { operation: 'PutSecret', accessLevel: 'Write', resourceTypes: ['developer/secret'] },
+    { operation: 'DeleteSecret', accessLevel: 'Write', resourceTypes: ['developer/secret'] },
     { operation: 'GetProjectUsage', accessLevel: 'Read', resourceTypes: ['developer/project'] },
     { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },
   ].map(

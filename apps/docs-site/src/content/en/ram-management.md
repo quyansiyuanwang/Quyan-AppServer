@@ -284,3 +284,18 @@ Project management uses `acs:developer:*:<accountId>:project/<projectId>`. `quya
 `GET /v1/developer/projects/page` accepts page/pageSize and returns items, page, pageSize, and hasNext. Account-isolated candidates are paginated before each project is checked against `quyan:developer:ListProjects`. An Allow on a specific project permits that row without an account-wide Allow. An empty page may still have a next page; no unauthorized total is returned. The legacy array endpoint returns only the default first page in enforce; use the page endpoint to traverse results. `GET /v1/developer/projects/{projectId}` returns authorized project details.
 
 Creation requires `quyan:developer:CreateProject` on the authenticated user's `acs:quyan:*:<accountId>:user/<userId>` ARN, and the created project belongs to that user. Personal baseline capabilities do not include project management. legacy/shadow retain individual project ownership checks, shadow records differences, and enforce never falls back after an evaluation failure.
+
+## Developer KV and Secret resource authorization
+
+JWT project management can delegate a single KV key or a single Secret alias. Resource formats are:
+
+- KV: `acs:developer:*:<accountId>:kv-item/<projectId>/<encodedKey>`. encodedKey is the UTF-8 base64url encoding of the original key, without padding. For example, `config:prod` becomes `Y29uZmlnOnByb2Q`.
+- Secret: `acs:developer:*:<accountId>:secret/<projectId>/<ALIAS>`, preserving uppercase aliases.
+
+Item read/write responses and paginated metadata include an optional `resourceArn` that can be copied into a JSON policy. Secret responses contain metadata only, never plaintext, ciphertext, IV, or authentication tags.
+
+KV uses `quyan:developer:ListKv`, `GetKv`, `SetKv`, and `DeleteKv`; Secret uses `quyan:developer:ListSecrets`, `PutSecret`, and `DeleteSecret`. Reads, writes, and deletion are independent. Creating a new key or alias requires write authority on that exact target ARN. Same-account delegation preserves the project's owner, and project grants do not automatically cover KV or Secret resources.
+
+`GET /v1/developer/projects/{projectId}/kv/entries/page` and `GET /v1/developer/projects/{projectId}/secrets/page` accept page/pageSize and return items, page, pageSize, and hasNext. Candidates are limited to the active project and its account before per-key or per-alias List checks. An empty page may have a next page; no total is returned. KV lists contain no values. Expired keys behave as absent, and enforce reads/lists never delete them. Array endpoints return only the default first page in enforce; `GET .../kv/page` still reads the key named page.
+
+KV and Secret resources can join a resource group. Removal changes the scope on the next request. Members must exist, be active, and belong to the current account; expired KV, disabled resources, and projects with disabled owners cannot provide group-scoped access. These rules apply to JWT project management; product-instance API keys retain their independent permission checks.

@@ -10,5 +10,6 @@ export default defineDocsPage({
     'zh-CN': '保存别名而不暴露密钥明文。',
   },
   tags: ['secret'],
+  updatedAt: '2026-10-09',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

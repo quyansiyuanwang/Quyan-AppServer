@@ -5,6 +5,7 @@ import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { auditIamDecision } from "@/iam/audit/iam-audit.service";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { developerProjectArn, developerKvArn, developerSecretArn } from "@/iam/request/developer-resource-resolvers";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { principalConditionContext, requestConditionContext } from "@/iam/request/condition-context";
 import { getRequestContext } from "@/util/request-context";
@@ -17,6 +18,12 @@ import type {
   DeveloperProjectDto,
   DeveloperProjectPageDto,
   UpdateDeveloperStatusPageDto,
+  DeveloperKvValueDto,
+  DeveloperKvPageDto,
+  DeveloperSecretDto,
+  DeveloperSecretPageDto,
+  SetKvValueDto,
+  UpsertDeveloperSecretDto,
 } from "@/api/dto/developer/developer.dto";
 
 /** JWT management has its own IAM boundary; project-key/public/scheduler calls retain their separate guards. */
@@ -63,12 +70,7 @@ export class DeveloperProjectManagementService {
     };
   }
   private resource(accountOwnerId: string, projectId: string) {
-    return buildAcsResource({
-      service: "developer",
-      region: "*",
-      accountId: accountOwnerId,
-      path: "project/" + projectId,
-    });
+    return developerProjectArn(accountOwnerId, projectId);
   }
   private recordDecision(
     identity: Awaited<ReturnType<DeveloperProjectManagementService["actorContext"]>>,
@@ -173,7 +175,12 @@ export class DeveloperProjectManagementService {
     return { items, page, pageSize, hasNext: candidates.length > pageSize };
   }
 
-  private async projectOwner(action: string, projectId: string, actorUserId: string): Promise<string> {
+  private async projectOwner(
+    action: string,
+    projectId: string,
+    actorUserId: string,
+    target?: { type: "kv-item" | "secret"; id: string },
+  ): Promise<string> {
     const mode = env.security.iamAuthorizationMode;
     if (mode === "legacy") return actorUserId;
     try {
@@ -184,7 +191,12 @@ export class DeveloperProjectManagementService {
           messageKey: "developerProject.projectNotFound",
         });
       const start = performance.now(),
-        resource = this.resource(identity.principal.accountOwnerId, project.id);
+        resource =
+          target?.type === "kv-item"
+            ? developerKvArn(identity.principal.accountOwnerId, project.id, target.id)
+            : target?.type === "secret"
+              ? developerSecretArn(identity.principal.accountOwnerId, project.id, target.id)
+              : this.resource(identity.principal.accountOwnerId, project.id);
       const result = await this.iam.authorize({
         principal: identity.principal,
         action,
@@ -254,5 +266,189 @@ export class DeveloperProjectManagementService {
   async updateStatusPage(projectId: string, actorUserId: string, body: UpdateDeveloperStatusPageDto) {
     const owner = await this.projectOwner("quyan:developer:UpdateStatusPage", projectId, actorUserId);
     return this.projects.updateStatusPage(projectId, owner, body);
+  }
+  private async itemTarget(
+    action: string,
+    projectId: string,
+    actorUserId: string,
+    type: "kv-item" | "secret",
+    id: string,
+  ) {
+    const identity = await this.actorContext(actorUserId);
+    const resourceArn =
+      type === "kv-item"
+        ? developerKvArn(identity.principal.accountOwnerId, projectId, id)
+        : developerSecretArn(identity.principal.accountOwnerId, projectId, id);
+    const owner = await this.projectOwner(action, projectId, actorUserId, { type, id });
+    return { owner, resourceArn };
+  }
+
+  private async filterResourceRows<T extends { resourceArn: string }>(
+    identity: Awaited<ReturnType<DeveloperProjectManagementService["actorContext"]>>,
+    action: string,
+    items: readonly T[],
+    legacyAllowed: boolean,
+  ): Promise<T[]> {
+    const start = performance.now(),
+      policies = await this.iam.loadPolicies(identity.principal);
+    const allowed: T[] = [];
+    for (const item of items) {
+      const result = evaluatePolicies(policies, { action, resource: item.resourceArn, context: identity.context });
+      this.recordDecision(identity, action, item.resourceArn, result, start, legacyAllowed);
+      if (result.decision === "Allow") allowed.push(item);
+    }
+    return allowed;
+  }
+  private async shadowResourceRows<T>(
+    actorUserId: string,
+    action: string,
+    rows: readonly T[],
+    resource: (accountOwnerId: string, item: T) => string,
+  ) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      const identity = await this.actorContext(actorUserId);
+      await this.filterResourceRows(
+        identity,
+        action,
+        rows.map((item) => ({ ...item, resourceArn: resource(identity.principal.accountOwnerId, item) })),
+        true,
+      );
+    } catch {
+      getLogger("DeveloperProjectIam", LogCategory.SECURITY).warn("Project resource list shadow evaluation failed", {
+        action,
+        reason: "iam-evaluation-unavailable",
+        principalUserId: actorUserId,
+      });
+    }
+  }
+
+  private async resourcePage<T extends { resourceArn?: string }>(
+    projectId: string,
+    actorUserId: string,
+    action: string,
+    query: { page?: number; pageSize?: number },
+    candidates: (owner: string, options: { skip: number; take: number }) => Promise<T[]>,
+    resource: (accountOwnerId: string, item: T) => string,
+  ) {
+    const pagination = iamManagementPaginationSchema.safeParse(query);
+    if (!pagination.success)
+      throw new BadRequestError("Invalid project resource pagination", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const { page, pageSize } = pagination.data,
+      mode = env.security.iamAuthorizationMode;
+    const identity = await this.actorContext(actorUserId);
+    let owner = actorUserId;
+    if (mode === "enforce") {
+      const project = await this.projects.findProjectInAccount(projectId, identity.principal.accountOwnerId);
+      if (!project)
+        throw new NotFoundError("Project collection is outside the account", undefined, {
+          messageKey: "developerProject.projectNotFound",
+        });
+      owner = project.userId;
+    } else await this.projects.getProject(projectId, actorUserId);
+    const rows = await candidates(owner, { skip: (page - 1) * pageSize, take: pageSize + 1 });
+    let items = rows
+      .slice(0, pageSize)
+      .map((item) => ({ ...item, resourceArn: resource(identity.principal.accountOwnerId, item) }));
+    if (mode !== "legacy") {
+      try {
+        const allowed = await this.filterResourceRows(identity, action, items, owner === actorUserId);
+        if (mode === "enforce") items = allowed;
+      } catch (error) {
+        if (mode !== "shadow") throw error;
+        getLogger("DeveloperProjectIam", LogCategory.SECURITY).warn("Project resource list shadow evaluation failed", {
+          action,
+          reason: "iam-evaluation-unavailable",
+          principalUserId: actorUserId,
+        });
+      }
+    }
+    return { items, page, pageSize, hasNext: rows.length > pageSize };
+  }
+
+  async listProjectKvPage(
+    projectId: string,
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<DeveloperKvPageDto> {
+    return this.resourcePage<Omit<DeveloperKvValueDto, "value">>(
+      projectId,
+      actorUserId,
+      "quyan:developer:ListKv",
+      query,
+      (owner, options) => this.projects.listKvCandidates(projectId, owner, options),
+      (accountOwnerId, item) => developerKvArn(accountOwnerId, projectId, item.key),
+    );
+  }
+  async listProjectKv(projectId: string, actorUserId: string): Promise<Array<Omit<DeveloperKvValueDto, "value">>> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listProjectKvPage(projectId, actorUserId)).items;
+    const items = await this.projects.listProjectKv(projectId, actorUserId);
+    await this.shadowResourceRows(actorUserId, "quyan:developer:ListKv", items, (accountOwnerId, item) =>
+      developerKvArn(accountOwnerId, projectId, item.key),
+    );
+    return items;
+  }
+  async getProjectKv(projectId: string, actorUserId: string, key: string): Promise<DeveloperKvValueDto> {
+    const target = await this.itemTarget("quyan:developer:GetKv", projectId, actorUserId, "kv-item", key);
+    const item =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await this.projects.getProjectKvReadOnly(projectId, target.owner, key)
+        : await this.projects.getProjectKv(projectId, target.owner, key);
+    return { ...item, resourceArn: target.resourceArn };
+  }
+  async setProjectKv(
+    projectId: string,
+    actorUserId: string,
+    key: string,
+    body: SetKvValueDto,
+  ): Promise<DeveloperKvValueDto> {
+    const target = await this.itemTarget("quyan:developer:SetKv", projectId, actorUserId, "kv-item", key);
+    return {
+      ...(await this.projects.setProjectKv(projectId, target.owner, key, body)),
+      resourceArn: target.resourceArn,
+    };
+  }
+  async deleteProjectKv(projectId: string, actorUserId: string, key: string): Promise<void> {
+    const target = await this.itemTarget("quyan:developer:DeleteKv", projectId, actorUserId, "kv-item", key);
+    return this.projects.deleteProjectKv(projectId, target.owner, key);
+  }
+  async listSecretsPage(
+    projectId: string,
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<DeveloperSecretPageDto> {
+    return this.resourcePage<DeveloperSecretDto>(
+      projectId,
+      actorUserId,
+      "quyan:developer:ListSecrets",
+      query,
+      (owner, options) => this.projects.listSecretCandidates(projectId, owner, options),
+      (accountOwnerId, item) => developerSecretArn(accountOwnerId, projectId, item.alias),
+    );
+  }
+  async listSecrets(projectId: string, actorUserId: string): Promise<DeveloperSecretDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listSecretsPage(projectId, actorUserId)).items;
+    const items = await this.projects.listSecrets(projectId, actorUserId);
+    await this.shadowResourceRows(actorUserId, "quyan:developer:ListSecrets", items, (accountOwnerId, item) =>
+      developerSecretArn(accountOwnerId, projectId, item.alias),
+    );
+    return items;
+  }
+  async upsertSecret(
+    projectId: string,
+    actorUserId: string,
+    body: UpsertDeveloperSecretDto,
+  ): Promise<DeveloperSecretDto> {
+    const target = await this.itemTarget("quyan:developer:PutSecret", projectId, actorUserId, "secret", body.alias);
+    return { ...(await this.projects.upsertSecret(projectId, target.owner, body)), resourceArn: target.resourceArn };
+  }
+  async deleteSecret(projectId: string, alias: string, actorUserId: string): Promise<void> {
+    const target = await this.itemTarget("quyan:developer:DeleteSecret", projectId, actorUserId, "secret", alias);
+    return this.projects.deleteSecret(projectId, alias, target.owner);
   }
 }

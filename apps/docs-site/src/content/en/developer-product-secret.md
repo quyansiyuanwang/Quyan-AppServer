@@ -11,3 +11,9 @@ Undefined aliases, malformed nested placeholders, and replacements that exceed r
 ## Lifecycle and permissions
 
 Creating or rotating needs Secret write, deletion needs Secret manage, and metadata listing needs Secret read. Deletion is permanent; downstream requests that still reference the alias are explicitly rejected. The platform encrypts ciphertext, IV, and authentication tag with a dedicated master key.
+
+## JWT project management
+
+Project Secret management grants `quyan:developer:ListSecrets`, `PutSecret`, and `DeleteSecret` on `acs:developer:*:<accountId>:secret/<projectId>/<ALIAS>`. Creation, rotation, and deletion check the operation and exact alias; same-account delegation preserves the project owner. Project grants do not automatically cover all aliases.
+
+`GET /v1/developer/projects/{projectId}/secrets/page` accepts page/pageSize and returns alias-filtered items, page, pageSize, and hasNext. Empty pages may have a next page, with no total. In enforce, the old array endpoint returns only the default first page. Returned resourceArn values can be copied into policies, and every response contains metadata only. See [RAM management](./ram-management) for authorization and resource-group rules.

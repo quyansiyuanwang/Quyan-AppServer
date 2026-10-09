@@ -30,6 +30,10 @@ import {
   developerProjectResourceResolver,
   iamAuthenticatedUserResourceResolver,
 } from "@/iam/request/resource-resolvers";
+import {
+  developerKvResourceResolver,
+  developerSecretResourceResolver,
+} from "@/iam/request/developer-resource-resolvers";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import type {
   CreateDeveloperApiKeyDto,
@@ -39,6 +43,8 @@ import type {
   CreateShortLinkDto,
   DeveloperApiKeyDto,
   DeveloperKvValueDto,
+  DeveloperKvPageDto,
+  DeveloperSecretPageDto,
   DeveloperProjectDto,
   DeveloperProjectPageDto,
   DeveloperQuotaSummaryDto,
@@ -63,6 +69,7 @@ import {
   createStatusMonitorBodySchema,
   idParamsSchema,
   kvKeyParamsSchema,
+  secretAliasParamsSchema,
   projectIdParamsSchema,
   setKvValueBodySchema,
   updateShortLinkBodySchema,
@@ -206,28 +213,67 @@ export class DeveloperProjectController extends Controller {
     return { success: true };
   }
 
+  @Get("{projectId}/kv/entries/page")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListKv",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
+  public async listKvPage(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<DeveloperKvPageDto> {
+    return this.management.listProjectKvPage(projectId, request.user!.userId, { page, pageSize });
+  }
+
   @Get("{projectId}/kv")
-  @Middlewares(validateParams(projectIdParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListKv",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
   public async listKv(@Path() projectId: string, @Request() request: TypedRequest) {
-    return this.service.listProjectKv(projectId, request.user!.userId);
+    return this.management.listProjectKv(projectId, request.user!.userId);
   }
 
   @Get("{projectId}/kv/{key}")
-  @Middlewares(validateParams(projectIdParamsSchema), validateParams(kvKeyParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateParams(kvKeyParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:GetKv",
+      resourceKind: "single-resource",
+      resource: developerKvResourceResolver,
+    }),
+  )
   public async getKv(
     @Path() projectId: string,
     @Path() key: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperKvValueDto> {
-    return this.service.getProjectKv(projectId, request.user!.userId, key);
+    return this.management.getProjectKv(projectId, request.user!.userId, key);
   }
 
   @Post("{projectId}/kv/{key}")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
     validateParams(kvKeyParamsSchema),
     validateBody(setKvValueBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:SetKv",
+      resourceKind: "single-resource",
+      resource: developerKvResourceResolver,
+    }),
   )
   public async setKv(
     @Path() projectId: string,
@@ -235,17 +281,26 @@ export class DeveloperProjectController extends Controller {
     @Body() body: SetKvValueDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperKvValueDto> {
-    return this.service.setProjectKv(projectId, request.user!.userId, key, body);
+    return this.management.setProjectKv(projectId, request.user!.userId, key, body);
   }
 
   @Delete("{projectId}/kv/{key}")
-  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(kvKeyParamsSchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateParams(projectIdParamsSchema),
+    validateParams(kvKeyParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:DeleteKv",
+      resourceKind: "single-resource",
+      resource: developerKvResourceResolver,
+    }),
+  )
   public async deleteKv(
     @Path() projectId: string,
     @Path() key: string,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    await this.service.deleteProjectKv(projectId, request.user!.userId, key);
+    await this.management.deleteProjectKv(projectId, request.user!.userId, key);
     return { success: true };
   }
 
@@ -309,30 +364,74 @@ export class DeveloperProjectController extends Controller {
     return this.service.getShortLinkStats(projectId, id, request.user!.userId);
   }
 
+  @Get("{projectId}/secrets/page")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListSecrets",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
+  public async listSecretsPage(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<DeveloperSecretPageDto> {
+    return this.management.listSecretsPage(projectId, request.user!.userId, { page, pageSize });
+  }
+
   @Get("{projectId}/secrets")
-  @Middlewares(validateParams(projectIdParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListSecrets",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
   public async listSecrets(@Path() projectId: string, @Request() request: TypedRequest): Promise<DeveloperSecretDto[]> {
-    return this.service.listSecrets(projectId, request.user!.userId);
+    return this.management.listSecrets(projectId, request.user!.userId);
   }
 
   @Post("{projectId}/secrets")
-  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateBody(upsertSecretBodySchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateParams(projectIdParamsSchema),
+    validateBody(upsertSecretBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:PutSecret",
+      resourceKind: "single-resource",
+      resource: developerSecretResourceResolver,
+    }),
+  )
   public async upsertSecret(
     @Path() projectId: string,
     @Body() body: UpsertDeveloperSecretDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperSecretDto> {
-    return this.service.upsertSecret(projectId, request.user!.userId, body);
+    return this.management.upsertSecret(projectId, request.user!.userId, body);
   }
 
   @Delete("{projectId}/secrets/{alias}")
-  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateParams(projectIdParamsSchema),
+    validateParams(secretAliasParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:DeleteSecret",
+      resourceKind: "single-resource",
+      resource: developerSecretResourceResolver,
+    }),
+  )
   public async deleteSecret(
     @Path() projectId: string,
     @Path() alias: string,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    await this.service.deleteSecret(projectId, alias, request.user!.userId);
+    await this.management.deleteSecret(projectId, alias, request.user!.userId);
     return { success: true };
   }
 

@@ -1,3 +1,5 @@
+import { developerKvKeyFromArnSegment } from "@/iam/resources/developer-resources";
+import { developerSecretAliasSchema } from "@/api/schema/developer/developer.schema";
 import { lockRamResourceGroup } from "./ram-resource-group-lock";
 import type { IamManagementPage } from "@/iam/management-pagination";
 import { iamManagementPaginationSchema } from "@/iam/management-pagination";
@@ -97,6 +99,37 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         return Boolean(await prisma.article.findFirst({ where: { id, ...active, author: userOwner } }));
       case "developer/project":
         return Boolean(await prisma.developerProject.findFirst({ where: { id, ...active, user: userOwner } }));
+      case "developer/kv-item": {
+        const key = developerKvKeyFromArnSegment(childId);
+        if (!key) return false;
+        return Boolean(
+          await prisma.developerKvEntry.findFirst({
+            where: {
+              projectId: id,
+              key,
+              ...active,
+              project: { ...active, user: { ...active, ...userOwner } },
+              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            },
+            select: { id: true },
+          }),
+        );
+      }
+      case "developer/secret": {
+        const alias = developerSecretAliasSchema.safeParse(childId);
+        if (!alias.success || alias.data !== childId) return false;
+        return Boolean(
+          await prisma.developerSecret.findFirst({
+            where: {
+              projectId: id,
+              alias: childId,
+              ...active,
+              project: { ...active, user: { ...active, ...userOwner } },
+            },
+            select: { id: true },
+          }),
+        );
+      }
       // Shared/global channels have no account ownership. Only submission-owned channels may join a group.
       case "relay/channel":
         return Boolean(await prisma.relayChannel.findFirst({ where: { id, ...active, submittedBy: userOwner } }));
