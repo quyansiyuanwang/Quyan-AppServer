@@ -773,19 +773,38 @@ export class DeveloperProjectRepository {
     return links.map((link) => this.shortLinkDto(link));
   }
 
+  private activeShortLinkWhere(projectId: string, userId: string, id?: string): Prisma.DeveloperShortLinkWhereInput {
+    return { id, projectId, status: 1, project: { userId, status: 1, user: { status: 1 } } };
+  }
+  async listShortLinkCandidates(
+    projectId: string,
+    userId: string,
+    options: { skip: number; take: number },
+  ): Promise<DeveloperShortLinkDto[]> {
+    const links = await prisma.developerShortLink.findMany({
+      where: this.activeShortLinkWhere(projectId, userId),
+      select: { id: true, code: true, targetUrl: true, enabled: true, expiresAt: true, clickCount: true },
+      orderBy: [{ createTime: "desc" }, { id: "asc" }],
+      skip: options.skip,
+      take: options.take,
+    });
+    return links.map((link) => this.shortLinkDto(link));
+  }
   async updateShortLink(
     projectId: string,
     linkId: string,
     userId: string,
     body: UpdateShortLinkDto,
+    options: { activeOnly?: boolean } = {},
   ): Promise<DeveloperShortLinkDto> {
     await this.assertProjectOwner(projectId, userId);
-    const existing = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
+    const where = options.activeOnly ? this.activeShortLinkWhere(projectId, userId, linkId) : { id: linkId, projectId };
+    const existing = await prisma.developerShortLink.findFirst({ where });
     if (!existing)
       throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
     const targetUrl = body.targetUrl ? (await assertSafeOutboundUrl(body.targetUrl)).url.toString() : undefined;
     const result = await prisma.developerShortLink.updateMany({
-      where: { id: linkId, projectId },
+      where,
       data: {
         targetUrl,
         enabled: body.enabled,
@@ -794,14 +813,21 @@ export class DeveloperProjectRepository {
     });
     if (!result.count)
       throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
-    const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
+    const link = await prisma.developerShortLink.findFirst({ where });
     if (!link) throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
     return this.shortLinkDto(link);
   }
 
-  async deleteShortLink(projectId: string, linkId: string, userId: string): Promise<void> {
+  async deleteShortLink(
+    projectId: string,
+    linkId: string,
+    userId: string,
+    options: { activeOnly?: boolean } = {},
+  ): Promise<void> {
     await this.assertProjectOwner(projectId, userId);
-    const result = await prisma.developerShortLink.deleteMany({ where: { id: linkId, projectId } });
+    const result = await prisma.developerShortLink.deleteMany({
+      where: options.activeOnly ? this.activeShortLinkWhere(projectId, userId, linkId) : { id: linkId, projectId },
+    });
     if (!result.count)
       throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
   }
@@ -881,9 +907,12 @@ export class DeveloperProjectRepository {
     userId: string,
     page = 1,
     pageSize = 50,
+    options: { activeOnly?: boolean } = {},
   ): Promise<DeveloperShortLinkStatsDto> {
     await this.assertProjectOwner(projectId, userId);
-    const link = await prisma.developerShortLink.findFirst({ where: { id: linkId, projectId } });
+    const link = await prisma.developerShortLink.findFirst({
+      where: options.activeOnly ? this.activeShortLinkWhere(projectId, userId, linkId) : { id: linkId, projectId },
+    });
     if (!link) throw new NotFoundError("短链接不存在", undefined, { messageKey: "developerProject.shortLinkNotFound" });
 
     const periodEnd = new Date();

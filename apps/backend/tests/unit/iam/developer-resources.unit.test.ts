@@ -4,11 +4,13 @@ import {
   developerProjectArn,
   developerKvArn,
   developerSecretArn,
+  developerShortLinkArn,
   developerKvKeyFromArnSegment,
 } from "@/iam/resources/developer-resources";
 import {
   developerKvResourceResolver,
   developerSecretResourceResolver,
+  developerShortLinkResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
@@ -72,6 +74,45 @@ describe("developer item resource identities", () => {
     expect(
       await developerKvResourceResolver({ principal, request: { params: { projectId: "project" } } as never }),
     ).toBeUndefined();
+  });
+  it("targets the stored short-link ID under the exact project and keeps statistics separate", async () => {
+    const arn = developerShortLinkArn("owner", "project", "link-1");
+    expect(arn).toBe("acs:developer:*:owner:short-link/project/link-1");
+    expect(
+      await developerShortLinkResourceResolver({
+        principal,
+        request: {
+          params: { projectId: "project", id: "link-1" },
+          body: { code: "public-code", accountId: "foreign" },
+        } as never,
+      }),
+    ).toBe(arn);
+    for (const id of ["*", "bad/id", " link-1 ", undefined])
+      expect(
+        await developerShortLinkResourceResolver({
+          principal,
+          request: { params: { projectId: "project", id } } as never,
+        }),
+      ).toBeUndefined();
+    expect(getIamActionDefinition("quyan:developer:GetShortLinkStats")).toMatchObject({
+      accessLevel: "Read",
+      sensitive: true,
+      resourceTypes: ["developer/short-link"],
+    });
+    expect(isIamActionResourceCompatible("quyan:developer:CreateShortLink", arn)).toBe(false);
+    expect(
+      isIamActionResourceCompatible("quyan:developer:CreateShortLink", developerProjectArn("owner", "project")),
+    ).toBe(true);
+    const document = parseIamPolicy({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:developer:ListShortLinks", Resource: arn },
+    }).document;
+    expect(
+      evaluatePolicies([{ policyId: "fixture", document }], {
+        action: "quyan:developer:GetShortLinkStats",
+        resource: arn,
+      }).decision,
+    ).toBe("ImplicitDeny");
   });
   it("requires the item type for reads and writes; project list permission does not cover children", () => {
     const project = developerProjectArn("owner", "project");

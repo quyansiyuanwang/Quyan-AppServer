@@ -7,5 +7,6 @@ export default defineDocsPage({
   title: { en: 'Short Link API', 'zh-CN': '短链接 API' },
   summary: { en: 'Create and manage redirect links.', 'zh-CN': '创建和管理跳转短链接。' },
   tags: ['short-link'],
+  updatedAt: '2026-10-09',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

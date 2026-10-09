@@ -8,6 +8,7 @@ import {
   developerProjectArn,
   developerKvArn,
   developerSecretArn,
+  developerShortLinkArn,
   isCanonicalDeveloperIdentifier,
 } from "../resources/developer-resources";
 export { developerProjectArn, developerKvArn, developerSecretArn } from "../resources/developer-resources";
@@ -38,4 +39,14 @@ export const developerSecretResourceResolver: ResourceResolver = ({ request, pri
   )
     return undefined;
   return developerSecretArn(principal.accountOwnerId, projectId, alias);
+};
+
+export const developerShortLinkResourceResolver: ResourceResolver = ({ request, principal }) => {
+  const { projectId, id } = request.params;
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, id)
+  )
+    return undefined;
+  return developerShortLinkArn(principal.accountOwnerId, projectId, id);
 };

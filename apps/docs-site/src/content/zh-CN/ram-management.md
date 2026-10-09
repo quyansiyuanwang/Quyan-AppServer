@@ -299,3 +299,9 @@ KV 操作分别使用 `quyan:developer:ListKv`、`GetKv`、`SetKv`、`DeleteKv`�
 `GET /v1/developer/projects/{projectId}/kv/entries/page` 和 `GET /v1/developer/projects/{projectId}/secrets/page` 接受 page/pageSize，返回 items、page、pageSize、hasNext。分页候选先限定有效项目和账户归属，再逐键或逐别名检查 List 权限。空页仍可能有后续页，不返回 total。KV 列表不包含值；过期键视为不存在，enforce 下的读取和列表不会删除这些数据。原数组接口在 enforce 只返回默认第一页；`GET .../kv/page` 仍是读取名为 page 的键。
 
 KV 和密钥可作为资源组成员，移除成员后下一次请求即失去该授权范围。资源组成员必须真实存在、有效且属于当前账户；过期 KV、禁用资源以及禁用所有者的项目不能提供资源组授权。上述规则适用于 JWT 项目管理；产品实例的 API Key 接口继续按实例的独立权限验证。
+
+## 短链接资源授权
+
+短链接使用 `acs:developer:*:<accountId>:short-link/<projectId>/<linkId>`。`quyan:developer:CreateShortLink` 在项目范围控制创建，`ListShortLinks`、`UpdateShortLink`、`DeleteShortLink` 和 `GetShortLinkStats` 在单个链接范围控制管理；统计访问包含访客明细，需要独立授予。创建及项目列表权限不会自动扩大为所有链接权限。
+
+`GET /v1/developer/projects/{projectId}/short-links/page` 支持分页候选和逐资源过滤；返回 resourceArn、hasNext，没有未授权总数，空页可继续遍历。enforce 下旧数组接口只返回默认第一页。具体链接也可用于资源组授权；跨项目链接 ID、跨账户、禁用资源或禁用项目所有者均被拒绝。暂停与到期的链接仍支持授权管理。详情见 [短链接](./developer-product-short-link)。

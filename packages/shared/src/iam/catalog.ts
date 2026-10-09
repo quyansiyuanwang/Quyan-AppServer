@@ -60,6 +60,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('developer', 'project'),
   resource('developer', 'kv-item', 2),
   resource('developer', 'secret', 2),
+  resource('developer', 'short-link', 2),
   resource('article', 'article'),
 ])
 // Resource contracts are explicit for the migrated RAM domain. Compatibility
@@ -159,6 +160,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     },
     { operation: 'PutSecret', accessLevel: 'Write', resourceTypes: ['developer/secret'] },
     { operation: 'DeleteSecret', accessLevel: 'Write', resourceTypes: ['developer/secret'] },
+    {
+      operation: 'ListShortLinks',
+      accessLevel: 'List',
+      resourceTypes: ['developer/project', 'developer/short-link'],
+    },
+    { operation: 'CreateShortLink', accessLevel: 'Write', resourceTypes: ['developer/project'] },
+    { operation: 'UpdateShortLink', accessLevel: 'Write', resourceTypes: ['developer/short-link'] },
+    { operation: 'DeleteShortLink', accessLevel: 'Write', resourceTypes: ['developer/short-link'] },
+    {
+      operation: 'GetShortLinkStats',
+      accessLevel: 'Read',
+      resourceTypes: ['developer/short-link'],
+    },
     { operation: 'GetProjectUsage', accessLevel: 'Read', resourceTypes: ['developer/project'] },
     { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },
   ].map(
@@ -169,7 +183,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       apiRoutes: [],
       conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
-      sensitive: definition.accessLevel === 'Write',
+      sensitive: definition.accessLevel === 'Write' || definition.operation === 'GetShortLinkStats',
       authorizationStage: 'declared',
     }),
   ),

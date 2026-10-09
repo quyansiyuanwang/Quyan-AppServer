@@ -14,6 +14,7 @@ export const developerProjectIdSchema = z
 export const developerKvKeySchema = z.string().trim().regex(key);
 export const developerSecretAliasSchema = z.string().trim().regex(alias);
 export const projectIdParamsSchema = z.object({ projectId: developerProjectIdSchema });
+export const developerItemIdParamsSchema = z.object({ id: developerProjectIdSchema });
 export const secretAliasParamsSchema = z.object({ alias: developerSecretAliasSchema });
 export const idParamsSchema = z.object({ id: z.string().trim().min(1) });
 export const kvKeyParamsSchema = z.object({ key: developerKvKeySchema });

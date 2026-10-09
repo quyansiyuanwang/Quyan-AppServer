@@ -118,7 +118,16 @@ export interface UpdateShortLinkDto {
   expiresAt?: string | null;
 }
 
+export interface DeveloperShortLinkPageDto {
+  items: DeveloperShortLinkDto[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+}
+
 export interface DeveloperShortLinkDto {
+  /** Canonical resource for JWT project policy authoring. */
+  resourceArn?: string;
   id: string;
   code: string;
   targetUrl: string;
@@ -129,6 +138,7 @@ export interface DeveloperShortLinkDto {
 }
 
 export interface DeveloperShortLinkStatsDto {
+  resourceArn?: string;
   linkId: string;
   code: string;
   totalClicks: number;

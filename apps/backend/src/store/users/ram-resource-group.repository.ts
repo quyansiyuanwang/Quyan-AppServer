@@ -99,6 +99,13 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         return Boolean(await prisma.article.findFirst({ where: { id, ...active, author: userOwner } }));
       case "developer/project":
         return Boolean(await prisma.developerProject.findFirst({ where: { id, ...active, user: userOwner } }));
+      case "developer/short-link":
+        return Boolean(
+          await prisma.developerShortLink.findFirst({
+            where: { id: childId, projectId: id, ...active, project: { ...active, user: { ...active, ...userOwner } } },
+            select: { id: true },
+          }),
+        );
       case "developer/kv-item": {
         const key = developerKvKeyFromArnSegment(childId);
         if (!key) return false;

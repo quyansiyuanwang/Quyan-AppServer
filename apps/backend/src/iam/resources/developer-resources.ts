@@ -59,3 +59,33 @@ export function developerKvKeyFromArnSegment(segment: string): string | undefine
     ? key
     : undefined;
 }
+
+export function developerShortLinkArn(accountOwnerId: string, projectId: string, linkId: string): string {
+  if (
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, projectId) ||
+    !isCanonicalDeveloperIdentifier(developerProjectIdSchema, linkId)
+  )
+    throw new Error("Invalid short-link identifier");
+  return buildAcsResource({
+    service: "developer",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "short-link/" + projectId + "/" + linkId,
+  });
+}
+export type DeveloperItemResourceType = "kv-item" | "secret" | "short-link";
+export function developerItemArn(
+  type: DeveloperItemResourceType,
+  accountOwnerId: string,
+  projectId: string,
+  itemId: string,
+): string {
+  switch (type) {
+    case "kv-item":
+      return developerKvArn(accountOwnerId, projectId, itemId);
+    case "secret":
+      return developerSecretArn(accountOwnerId, projectId, itemId);
+    case "short-link":
+      return developerShortLinkArn(accountOwnerId, projectId, itemId);
+  }
+}

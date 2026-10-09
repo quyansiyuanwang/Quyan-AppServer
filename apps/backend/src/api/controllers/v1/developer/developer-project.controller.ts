@@ -33,6 +33,7 @@ import {
 import {
   developerKvResourceResolver,
   developerSecretResourceResolver,
+  developerShortLinkResourceResolver,
 } from "@/iam/request/developer-resource-resolvers";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import type {
@@ -52,6 +53,7 @@ import type {
   DeveloperPushDeliveryDto,
   DeveloperSecretDto,
   DeveloperShortLinkDto,
+  DeveloperShortLinkPageDto,
   DeveloperShortLinkStatsDto,
   DeveloperStatusMonitorDto,
   SetKvValueDto,
@@ -68,6 +70,7 @@ import {
   createShortLinkBodySchema,
   createStatusMonitorBodySchema,
   idParamsSchema,
+  developerItemIdParamsSchema,
   kvKeyParamsSchema,
   secretAliasParamsSchema,
   projectIdParamsSchema,
@@ -304,35 +307,71 @@ export class DeveloperProjectController extends Controller {
     return { success: true };
   }
 
+  @Get("{projectId}/short-links/page")
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListShortLinks",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
+  public async listShortLinksPage(
+    @Path() projectId: string,
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<DeveloperShortLinkPageDto> {
+    return this.management.listShortLinksPage(projectId, request.user!.userId, { page, pageSize });
+  }
+
   @Get("{projectId}/short-links")
-  @Middlewares(validateParams(projectIdParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListShortLinks",
+      resourceKind: "collection",
+      resource: developerProjectResourceResolver,
+    }),
+  )
   public async listShortLinks(
     @Path() projectId: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperShortLinkDto[]> {
-    return this.service.listShortLinks(projectId, request.user!.userId);
+    return this.management.listShortLinks(projectId, request.user!.userId);
   }
 
   @Post("{projectId}/short-links")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
     validateBody(createShortLinkBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:CreateShortLink",
+      resourceKind: "single-resource",
+      resource: developerProjectResourceResolver,
+    }),
   )
   public async createShortLink(
     @Path() projectId: string,
     @Body() body: CreateShortLinkDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperShortLinkDto> {
-    return this.service.createShortLink(projectId, request.user!.userId, body);
+    return this.management.createShortLink(projectId, request.user!.userId, body);
   }
 
   @Put("{projectId}/short-links/{id}")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
-    validateParams(idParamsSchema),
+    validateParams(developerItemIdParamsSchema),
     validateBody(updateShortLinkBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:UpdateShortLink",
+      resourceKind: "single-resource",
+      resource: developerShortLinkResourceResolver,
+    }),
   )
   public async updateShortLink(
     @Path() projectId: string,
@@ -340,28 +379,45 @@ export class DeveloperProjectController extends Controller {
     @Body() body: UpdateShortLinkDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperShortLinkDto> {
-    return this.service.updateShortLink(projectId, id, request.user!.userId, body);
+    return this.management.updateShortLink(projectId, id, request.user!.userId, body);
   }
 
   @Delete("{projectId}/short-links/{id}")
-  @Middlewares(replayProtectionMiddleware, validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  @Middlewares(
+    replayProtectionMiddleware as RequestHandler,
+    validateParams(projectIdParamsSchema),
+    validateParams(developerItemIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:DeleteShortLink",
+      resourceKind: "single-resource",
+      resource: developerShortLinkResourceResolver,
+    }),
+  )
   public async deleteShortLink(
     @Path() projectId: string,
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<{ success: true }> {
-    await this.service.deleteShortLink(projectId, id, request.user!.userId);
+    await this.management.deleteShortLink(projectId, id, request.user!.userId);
     return { success: true };
   }
 
   @Get("{projectId}/short-links/{id}/stats")
-  @Middlewares(validateParams(projectIdParamsSchema), validateParams(idParamsSchema))
+  @Middlewares(
+    validateParams(projectIdParamsSchema),
+    validateParams(developerItemIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:GetShortLinkStats",
+      resourceKind: "single-resource",
+      resource: developerShortLinkResourceResolver,
+    }),
+  )
   public async getShortLinkStats(
     @Path() projectId: string,
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<DeveloperShortLinkStatsDto> {
-    return this.service.getShortLinkStats(projectId, id, request.user!.userId);
+    return this.management.getShortLinkStats(projectId, id, request.user!.userId);
   }
 
   @Get("{projectId}/secrets/page")

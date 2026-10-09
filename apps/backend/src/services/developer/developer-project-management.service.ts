@@ -6,6 +6,11 @@ import { auditIamDecision } from "@/iam/audit/iam-audit.service";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { iamManagementPaginationSchema } from "@/iam/management-pagination";
 import { developerProjectArn, developerKvArn, developerSecretArn } from "@/iam/request/developer-resource-resolvers";
+import {
+  developerItemArn,
+  developerShortLinkArn,
+  type DeveloperItemResourceType,
+} from "@/iam/resources/developer-resources";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { principalConditionContext, requestConditionContext } from "@/iam/request/condition-context";
 import { getRequestContext } from "@/util/request-context";
@@ -24,6 +29,11 @@ import type {
   DeveloperSecretPageDto,
   SetKvValueDto,
   UpsertDeveloperSecretDto,
+  CreateShortLinkDto,
+  UpdateShortLinkDto,
+  DeveloperShortLinkDto,
+  DeveloperShortLinkPageDto,
+  DeveloperShortLinkStatsDto,
 } from "@/api/dto/developer/developer.dto";
 
 /** JWT management has its own IAM boundary; project-key/public/scheduler calls retain their separate guards. */
@@ -179,7 +189,7 @@ export class DeveloperProjectManagementService {
     action: string,
     projectId: string,
     actorUserId: string,
-    target?: { type: "kv-item" | "secret"; id: string },
+    target?: { type: DeveloperItemResourceType; id: string },
   ): Promise<string> {
     const mode = env.security.iamAuthorizationMode;
     if (mode === "legacy") return actorUserId;
@@ -191,12 +201,9 @@ export class DeveloperProjectManagementService {
           messageKey: "developerProject.projectNotFound",
         });
       const start = performance.now(),
-        resource =
-          target?.type === "kv-item"
-            ? developerKvArn(identity.principal.accountOwnerId, project.id, target.id)
-            : target?.type === "secret"
-              ? developerSecretArn(identity.principal.accountOwnerId, project.id, target.id)
-              : this.resource(identity.principal.accountOwnerId, project.id);
+        resource = target
+          ? developerItemArn(target.type, identity.principal.accountOwnerId, project.id, target.id)
+          : this.resource(identity.principal.accountOwnerId, project.id);
       const result = await this.iam.authorize({
         principal: identity.principal,
         action,
@@ -271,14 +278,11 @@ export class DeveloperProjectManagementService {
     action: string,
     projectId: string,
     actorUserId: string,
-    type: "kv-item" | "secret",
+    type: DeveloperItemResourceType,
     id: string,
   ) {
     const identity = await this.actorContext(actorUserId);
-    const resourceArn =
-      type === "kv-item"
-        ? developerKvArn(identity.principal.accountOwnerId, projectId, id)
-        : developerSecretArn(identity.principal.accountOwnerId, projectId, id);
+    const resourceArn = developerItemArn(type, identity.principal.accountOwnerId, projectId, id);
     const owner = await this.projectOwner(action, projectId, actorUserId, { type, id });
     return { owner, resourceArn };
   }
@@ -450,5 +454,81 @@ export class DeveloperProjectManagementService {
   async deleteSecret(projectId: string, alias: string, actorUserId: string): Promise<void> {
     const target = await this.itemTarget("quyan:developer:DeleteSecret", projectId, actorUserId, "secret", alias);
     return this.projects.deleteSecret(projectId, alias, target.owner);
+  }
+  async listShortLinksPage(
+    projectId: string,
+    actorUserId: string,
+    query: { page?: number; pageSize?: number } = {},
+  ): Promise<DeveloperShortLinkPageDto> {
+    return this.resourcePage<DeveloperShortLinkDto>(
+      projectId,
+      actorUserId,
+      "quyan:developer:ListShortLinks",
+      query,
+      (owner, options) => this.projects.listShortLinkCandidates(projectId, owner, options),
+      (accountOwnerId, item) => developerShortLinkArn(accountOwnerId, projectId, item.id),
+    );
+  }
+  async listShortLinks(projectId: string, actorUserId: string): Promise<DeveloperShortLinkDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.listShortLinksPage(projectId, actorUserId)).items;
+    const items = await this.projects.listShortLinks(projectId, actorUserId);
+    await this.shadowResourceRows(actorUserId, "quyan:developer:ListShortLinks", items, (accountOwnerId, item) =>
+      developerShortLinkArn(accountOwnerId, projectId, item.id),
+    );
+    return items;
+  }
+  async createShortLink(
+    projectId: string,
+    actorUserId: string,
+    body: CreateShortLinkDto,
+  ): Promise<DeveloperShortLinkDto> {
+    const identity = await this.actorContext(actorUserId);
+    const owner = await this.projectOwner("quyan:developer:CreateShortLink", projectId, actorUserId);
+    const item = await this.projects.createShortLink(projectId, owner, body);
+    return { ...item, resourceArn: developerShortLinkArn(identity.principal.accountOwnerId, projectId, item.id) };
+  }
+  async updateShortLink(
+    projectId: string,
+    linkId: string,
+    actorUserId: string,
+    body: UpdateShortLinkDto,
+  ): Promise<DeveloperShortLinkDto> {
+    const target = await this.itemTarget(
+      "quyan:developer:UpdateShortLink",
+      projectId,
+      actorUserId,
+      "short-link",
+      linkId,
+    );
+    const item = await this.projects.updateShortLink(projectId, linkId, target.owner, body, {
+      activeOnly: env.security.iamAuthorizationMode === "enforce",
+    });
+    return { ...item, resourceArn: target.resourceArn };
+  }
+  async deleteShortLink(projectId: string, linkId: string, actorUserId: string): Promise<void> {
+    const target = await this.itemTarget(
+      "quyan:developer:DeleteShortLink",
+      projectId,
+      actorUserId,
+      "short-link",
+      linkId,
+    );
+    await this.projects.deleteShortLink(projectId, linkId, target.owner, {
+      activeOnly: env.security.iamAuthorizationMode === "enforce",
+    });
+  }
+  async getShortLinkStats(projectId: string, linkId: string, actorUserId: string): Promise<DeveloperShortLinkStatsDto> {
+    const target = await this.itemTarget(
+      "quyan:developer:GetShortLinkStats",
+      projectId,
+      actorUserId,
+      "short-link",
+      linkId,
+    );
+    const item = await this.projects.getShortLinkStats(projectId, linkId, target.owner, undefined, undefined, {
+      activeOnly: env.security.iamAuthorizationMode === "enforce",
+    });
+    return { ...item, resourceArn: target.resourceArn };
   }
 }
