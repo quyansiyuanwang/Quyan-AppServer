@@ -117,6 +117,8 @@ Evaluation is **matching explicit Deny > matching Allow > implicit Deny**. Both 
 
 Migrated article-resource operations support `quyan:ResourceOwnerId`, the stored author user ID—not the account ID in the ARN. The server reads live article and author ownership; submitted attributes cannot override it. Only Actions whose catalog entry supports this key may use it. Incompatible Actions, including wildcards expanding into other services, are rejected. Saved-policy and JSON-draft simulations use the same trusted resource attributes; missing, deleted, foreign-account, and case-alias articles fail closed.
 
+Article management listing (`quyan:article:ListArticles`) also supports `quyan:ArticlePublishStatus`, read from the stored publication state (`draft` or `published`), never client input. For example, `StringEquals` can restrict listing to published articles. Only Actions that explicitly declare this key support it. Ownership and publication conditions in one statement are AND; use separate Allow statements for an OR scope.
+
 Operators and keys combine with AND; multiple values for one key use OR. `StringLike` supports `*` and `?`; Action/Resource still support only `*`. `IpAddress` excludes network boundary addresses; `IpAddressIncludeBorder` includes them. Apart from explicit `Null` checks, missing context required by a matching statement fails closed, including conditional Deny statements. Simulation does not supply real IP/HTTPS attributes and returns `missing-condition-context` instead of inventing values.
 
 ### Service and resource catalog

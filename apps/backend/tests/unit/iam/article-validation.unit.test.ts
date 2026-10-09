@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertArticlePublicAccess,
   normalizeArticleCreate,
+  normalizeArticleListFilters,
   normalizeArticleUpdate,
 } from "@/services/article/article-validation";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
@@ -131,4 +132,25 @@ describe("article creation validation", () => {
       }),
     ).toThrow();
   });
+});
+
+describe("article management list filters", () => {
+  it("accepts only validated filters and ignores client account or lifecycle overrides", () => {
+    expect(
+      normalizeArticleListFilters({
+        category: "fixture",
+        authorId: "author-id",
+        accountId: "foreign",
+        status: -1,
+        publishStatus: "unknown",
+      }),
+    ).toEqual({ category: "fixture", authorId: "author-id" });
+    expect(normalizeArticleListFilters()).toEqual({});
+  });
+  it.each([null, [], { category: "x".repeat(101) }, { authorId: "../foreign" }])(
+    "rejects malformed filters",
+    (value) => {
+      expect(() => normalizeArticleListFilters(value)).toThrow(expect.objectContaining({ statusCode: 400 }));
+    },
+  );
 });

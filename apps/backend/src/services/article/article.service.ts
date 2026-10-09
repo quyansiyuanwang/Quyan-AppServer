@@ -1,6 +1,6 @@
 import { ArticleRepository } from "@/store/content/article.repository";
 import { UserRepository } from "@/store/users/user.repository";
-import type { ArticleStore } from "@/store/content/article.store";
+import type { ArticleQueryFilters, ArticleStore } from "@/store/content/article.store";
 import type { UserStore } from "@/store/users/user.store";
 import { PermissionService } from "@/services/users/permission.service";
 import BusinessLogService from "@/services/system/businesslog.service";
@@ -18,9 +18,15 @@ import { Permission } from "@/constant/permission";
 import { extractClientIp } from "@/util/ip-extractor";
 import type { Request } from "express";
 import type { TypedRequest } from "@/types/express";
+import { getLogger, LogCategory } from "@/util/logger";
 import { env } from "@/config/env";
 import { ArticleManagementService } from "./article-management.service";
-import { assertArticlePublicAccess, normalizeArticleCreate, normalizeArticleUpdate } from "./article-validation";
+import {
+  assertArticlePublicAccess,
+  normalizeArticleCreate,
+  normalizeArticleListFilters,
+  normalizeArticleUpdate,
+} from "./article-validation";
 
 export class ArticleService {
   private static instance: ArticleService;
@@ -262,27 +268,80 @@ export class ArticleService {
 
   async listArticles(
     userId: string,
-    filters?: {
-      category?: string;
-      authorId?: string;
-    },
+    filters?: Pick<ArticleQueryFilters, "category" | "authorId">,
+    request?: Request,
   ): Promise<ArticleListItemDto[]> {
-    // Admin users can see all articles (draft + published)
-    const articles = await this.repository.findAll(filters);
-
-    // Filter by permissions
-    const accessible = await Promise.all(
-      articles.map(async (article) => {
-        try {
-          await this.checkArticleAccess(article, userId);
-          return article;
-        } catch {
-          return null;
-        }
-      }),
+    const normalized = normalizeArticleListFilters(filters);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (!request)
+        throw new ForbiddenError("Article list request identity missing", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const rows = await ArticleManagementService.getInstance().list(userId, request as TypedRequest, normalized);
+      const accessible = await this.filterArticleRequirements(rows, userId);
+      return Promise.all(accessible.map((row) => this.toArticleListItemDto(row)));
+    }
+    const permission = await this.permissionService.checkUserPermissions(userId, [Permission.ARTICLE_READ], {
+      assumedRoleSessionId: (request as TypedRequest | undefined)?.user?.roleSessionId,
+    });
+    if (!permission.hasPermission)
+      throw new ForbiddenError("Legacy article listing denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const articles = await this.repository.findAll(normalized);
+    const accessible = (
+      await Promise.all(
+        articles.map(async (article) => {
+          try {
+            await this.checkArticleAccess(article, userId);
+            return article;
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((row): row is NonNullable<typeof row> => row !== null);
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        const iamRows = await ArticleManagementService.getInstance().list(
+          userId,
+          request as TypedRequest,
+          normalized,
+          new Set(accessible.map((row) => row.id)),
+        );
+        const iamAccessible = await this.filterArticleRequirements(iamRows, userId);
+        const ids = new Set(iamAccessible.map((row) => row.id));
+        if (ids.size !== accessible.length || accessible.some((row) => !ids.has(row.id)))
+          getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn("IAM article list differs from legacy", {
+            action: "quyan:article:ListArticles",
+            legacyCount: accessible.length,
+            iamCount: ids.size,
+          });
+      } catch {
+        getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn(
+          "IAM article list shadow evaluation unavailable",
+          {
+            action: "quyan:article:ListArticles",
+            reason: "iam-list-unavailable",
+          },
+        );
+      }
+    }
+    return Promise.all(accessible.map((row) => this.toArticleListItemDto(row)));
+  }
+  private async filterArticleRequirements<T extends { isPublic: boolean; requirePermission: string | null }>(
+    rows: readonly T[],
+    userId: string,
+  ): Promise<T[]> {
+    const decisions = await Promise.all(
+      rows.map(
+        async (row) =>
+          row.isPublic ||
+          !row.requirePermission ||
+          (await this.permissionService.hasPermission(userId, row.requirePermission as Permission)),
+      ),
     );
-
-    return Promise.all(accessible.filter((a) => a !== null).map((a) => this.toArticleListItemDto(a!)));
+    return rows.filter((_, index) => decisions[index]);
   }
 
   async listPublishedArticles(userId: string): Promise<ArticleListItemDto[]> {

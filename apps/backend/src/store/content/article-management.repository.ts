@@ -3,6 +3,7 @@ import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { MANAGED_STATUS } from "@/constant/status";
 import { isCanonicalArticleId } from "@/iam/resources/article-resources";
+import type { ArticleQueryFilters } from "./article.store";
 import type { CreateArticleDto, UpdateArticleDto } from "@/api/dto/article/article.dto";
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 
@@ -19,6 +20,34 @@ const managementSelect = {
   updateTime: true,
 } satisfies Prisma.ArticleSelect;
 export type ArticleManagementTarget = Prisma.ArticleGetPayload<{ select: typeof managementSelect }>;
+const listSelect = {
+  ...managementSelect,
+  title: true,
+  category: true,
+  summary: true,
+  viewCount: true,
+  createTime: true,
+} satisfies Prisma.ArticleSelect;
+export type ArticleManagementListRow = Prisma.ArticleGetPayload<{ select: typeof listSelect }>;
+
+const sameManagementSnapshot = (
+  current: ArticleManagementTarget | undefined,
+  target: ArticleManagementTarget,
+): boolean =>
+  Boolean(
+    current &&
+      current.id === target.id &&
+      current.authorId === target.authorId &&
+      current.slug === target.slug &&
+      current.isDefault === target.isDefault &&
+      current.sortOrder === target.sortOrder &&
+      current.publishStatus === target.publishStatus &&
+      current.publishedAt?.getTime() === target.publishedAt?.getTime() &&
+      current.isPublic === target.isPublic &&
+      current.requirePermission === target.requirePermission &&
+      current.updateTime.getTime() === target.updateTime.getTime(),
+  );
+
 type ArticleManagementClient = Pick<Prisma.TransactionClient, "article" | "user">;
 const unavailable = () =>
   new NotFoundError("Article management target unavailable", undefined, { messageKey: "article.notFound" });
@@ -143,6 +172,57 @@ export class ArticleManagementRepository {
     const requested = new Set(ids);
     return records.filter((row) => requested.has(row.id) && canonicalAuthors.has(row.authorId));
   }
+  private async assertListAccount(accountOwnerId: string): Promise<void> {
+    const owner = await prisma.user.findFirst({
+      where: { id: accountOwnerId, status: MANAGED_STATUS.ENABLED },
+      select: { id: true, accountOwnerId: true },
+    });
+    if (!owner || owner.id !== accountOwnerId || (owner.accountOwnerId || owner.id) !== accountOwnerId)
+      throw new ForbiddenError("Article list account unavailable", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+  }
+  /** Bounded account-isolated metadata pages. Content is never loaded for listing. */
+  async listPage(
+    accountOwnerId: string,
+    filters: Pick<ArticleQueryFilters, "category" | "authorId">,
+    afterId?: string,
+  ): Promise<ArticleManagementListRow[]> {
+    await this.assertListAccount(accountOwnerId);
+    return prisma.article.findMany({
+      where: {
+        status: MANAGED_STATUS.ENABLED,
+        publishStatus: { in: ["draft", "published"] },
+        ...(afterId ? { id: { gt: afterId } } : {}),
+        ...(filters.category !== undefined ? { category: filters.category } : {}),
+        ...(filters.authorId !== undefined ? { authorId: filters.authorId } : {}),
+        author: {
+          status: MANAGED_STATUS.ENABLED,
+          OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }],
+        },
+      },
+      select: listSelect,
+      orderBy: { id: "asc" },
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+    });
+  }
+  /** Independently drop unavailable or changed rows after the authorization decision. */
+  async currentListRows(
+    rows: readonly ArticleManagementListRow[],
+    accountOwnerId: string,
+  ): Promise<ArticleManagementListRow[]> {
+    await this.assertListAccount(accountOwnerId);
+    if (!rows.length) return [];
+    const current = new Map(
+      (
+        await this.findAvailableTargets(
+          rows.map((row) => row.id),
+          accountOwnerId,
+        )
+      ).map((row) => [row.id, row]),
+    );
+    return rows.filter((row) => sameManagementSnapshot(current.get(row.id), row));
+  }
   /** All management mutations share a live actor/ownership check and exact authorized snapshot. */
   async assertAuthorizedTarget(
     tx: ArticleManagementClient,
@@ -175,19 +255,7 @@ export class ArticleManagementRepository {
     if (!currentTargets) throw unavailable();
     targets.forEach((target, index) => {
       const current = currentTargets[index];
-      if (
-        !current ||
-        current.authorId !== target.authorId ||
-        current.slug !== target.slug ||
-        current.isDefault !== target.isDefault ||
-        current.sortOrder !== target.sortOrder ||
-        current.publishStatus !== target.publishStatus ||
-        current.publishedAt?.getTime() !== target.publishedAt?.getTime() ||
-        current.isPublic !== target.isPublic ||
-        current.requirePermission !== target.requirePermission ||
-        current.updateTime.getTime() !== target.updateTime.getTime()
-      )
-        throw unavailable();
+      if (!sameManagementSnapshot(current, target)) throw unavailable();
     });
   }
   async transition(

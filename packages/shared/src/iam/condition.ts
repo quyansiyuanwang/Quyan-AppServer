@@ -74,6 +74,7 @@ export const IAM_CONDITION_KEY_CATALOG: readonly IamConditionKeyDefinition[] = O
   key('quyan:PrincipalAccount', 'string', 'principal'),
   key('quyan:EpochTime', 'number', 'request'),
   key('quyan:ResourceOwnerId', 'string', 'resource'),
+  key('quyan:ArticlePublishStatus', 'string', 'resource'),
   key('quyan:ResourceGroupId', 'string', 'resource', false),
   key('quyan:ResourceTag/<key>', 'string', 'resource', false),
   key('acs:MFAPresent', 'boolean', 'principal', false),

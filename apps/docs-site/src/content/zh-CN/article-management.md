@@ -43,6 +43,25 @@
 | 删除文章                      | `ARTICLE_DELETE`  |
 | 发布 / 取消发布               | `ARTICLE_PUBLISH` |
 
+## 资源级管理列表
+
+IAM enforce 模式下，管理列表使用独立的 `quyan:article:ListArticles`，逐篇授权当前账户中的文章元数据。可以指定单篇文章、文章 ARN 通配符或资源组，包含明确授权的同账户他人草稿。数据库先限制有效账户、作者和文章，再分批评估策略；未授权、显式 Deny、已停用、跨账户或授权后发生变化的文章不出现在结果中。没有可见资源时返回空数组，不代表获得了账户权限。
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:article:ListArticles",
+    "Resource": "acs:article:*:account-id:article/article-id"
+  }
+}
+```
+
+请替换实际账户和文章标识。列表只返回元数据，不加载或返回正文，也不提供未过滤的全局总数。`quyan:article:Read` 的 JSON 策略不会隐含授权这一独立列表 Action；编辑、发布、删除和阅读接口仍有各自的规则。仅对账户 ARN 的授权不代表可以查看该账户的每篇文章。响应保持数组格式，服务端按有界数据库批次处理，并保留排序顺序。
+
+文章自身设置的额外访问权限条件仍须满足。旧 `ARTICLE_READ` 在 enforce 模式下兼容为“本人草稿或已发布文章”的列表范围，不会自动授予查看他人草稿的能力；旧移除权限仍全局显式拒绝。legacy／shadow 模式保持原有权限和草稿检查，shadow 只比较结果，不替换旧授权。管理菜单仍使用独立的权限展示，资源级列表授权不等于全局菜单权限。
+
 ## 创建权限与账户范围
 
 IAM enforce 模式下，新建文章使用 `quyan:article:Create`，授权资源为可信当前账户 `acs:quyan:*:<accountId>:account`。创建前尚不存在文章 ID，因此指定已有文章 ARN 的授权不会赋予创建权限，指定资源／资源组范围的授权也不会自动扩大为账户创建权限。

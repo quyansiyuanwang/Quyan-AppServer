@@ -1,5 +1,7 @@
+import type { ArticleQueryFilters } from "@/store/content/article.store";
 import type { CreateArticleDto, ReorderArticleItem, UpdateArticleDto } from "@/api/dto/article/article.dto";
 import {
+  articleManagementFiltersSchema,
   createArticleBodySchema,
   reorderArticlesBodySchema,
   updateArticleBodySchema,
@@ -34,4 +36,11 @@ export function normalizeArticleReorder(input: unknown): ReorderArticleItem[] {
   if (!parsed.success)
     throw new BadRequestError("Invalid article reorder", undefined, { messageKey: "errors.validationFailed" });
   return parsed.data.items;
+}
+
+export function normalizeArticleListFilters(input: unknown = {}): Pick<ArticleQueryFilters, "category" | "authorId"> {
+  const parsed = articleManagementFiltersSchema.safeParse(input);
+  if (!parsed.success)
+    throw new BadRequestError("Invalid article list filters", undefined, { messageKey: "errors.validationFailed" });
+  return parsed.data;
 }

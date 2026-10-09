@@ -3,6 +3,7 @@ import type { CreateArticleDto, ReorderArticleItem, UpdateArticleDto } from "@/a
 import {
   assertArticlePublicAccess,
   normalizeArticleCreate,
+  normalizeArticleListFilters,
   normalizeArticleReorder,
   normalizeArticleUpdate,
 } from "./article-validation";
@@ -13,7 +14,9 @@ import { auditIamDecision } from "@/iam/audit/iam-audit.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { requestConditionContext } from "@/iam/request/condition-context";
-import { articleArn } from "@/iam/resources/article-resources";
+import { articleArn, isCanonicalArticleId } from "@/iam/resources/article-resources";
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
+import type { ArticleManagementListRow } from "@/store/content/article-management.repository";
 import { ArticleManagementRepository } from "@/store/content/article-management.repository";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 
@@ -82,6 +85,68 @@ export class ArticleManagementService {
     const changes = normalizeArticleCreate(input);
     assertArticlePublicAccess(changes.isPublic ?? false, changes.requirePermission);
     return this.repository.create(changes, principal.accountOwnerId, actorUserId);
+  }
+  async list(
+    actorUserId: string,
+    request: TypedRequest,
+    inputFilters: unknown = {},
+    legacyAllowedIds?: ReadonlySet<string>,
+  ): Promise<ArticleManagementListRow[]> {
+    const principal = this.principalForActor(actorUserId, request);
+    const filters = normalizeArticleListFilters(inputFilters);
+    await this.iam.loadPolicies(principal);
+    const action = "quyan:article:ListArticles";
+    const context = requestConditionContext(request, principal);
+    const accepted: ArticleManagementListRow[] = [];
+    let afterId: string | undefined;
+    while (true) {
+      const page = await this.repository.listPage(principal.accountOwnerId, filters, afterId);
+      if (!page.length) break;
+      const candidates = await this.repository.currentListRows(
+        page.filter((row) => isCanonicalArticleId(row.id)),
+        principal.accountOwnerId,
+      );
+      if (!candidates.length) {
+        afterId = page[page.length - 1].id;
+        if (page.length < IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) break;
+        continue;
+      }
+      const resources = candidates.map((row) => articleArn(principal.accountOwnerId, row.id));
+      const start = performance.now();
+      const results = await this.iam.authorizeMany({ principal, action, resources, context });
+      if (results.length !== candidates.length || Array.from(results).some((result) => !result))
+        throw new ForbiddenError("Article list decisions unavailable", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      results.forEach((result, index) => {
+        const resource = resources[index];
+        (request.iamDecisions ??= []).push({ ...result, action, resource });
+        auditIamDecision({
+          requestId: request.res?.locals.requestId,
+          principal,
+          action,
+          resource,
+          result,
+          evaluationLatencyMs: performance.now() - start,
+          authorizationMode: legacyAllowedIds ? "shadow" : "enforce",
+          ...(legacyAllowedIds ? { legacyAllowed: legacyAllowedIds.has(candidates[index].id) } : {}),
+          batchSize: candidates.length,
+          batchIndex: index,
+        });
+      });
+      const allowed = candidates.filter((_, index) => results[index].decision === "Allow");
+      accepted.push(...(await this.repository.currentListRows(allowed, principal.accountOwnerId)));
+      afterId = page[page.length - 1].id;
+      if (page.length < IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) break;
+    }
+    // An empty collection is not a way to bypass identity/session validity.
+    await this.iam.loadPolicies(principal);
+    return accepted.sort(
+      (left, right) =>
+        left.sortOrder - right.sortOrder ||
+        right.createTime.getTime() - left.createTime.getTime() ||
+        left.id.localeCompare(right.id),
+    );
   }
   async transition(
     id: string,

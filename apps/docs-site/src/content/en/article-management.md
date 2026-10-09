@@ -43,6 +43,25 @@ Use this page to maintain site articles and knowledge content.
 | Delete article                     | `ARTICLE_DELETE`    |
 | Publish / unpublish                | `ARTICLE_PUBLISH`   |
 
+## Resource-scoped management listing
+
+In IAM enforce mode, the management list uses the independent `quyan:article:ListArticles` Action to authorize article metadata within the current account, one article at a time. Grants can target one article, article ARN patterns or resource groups, including explicitly authorized drafts by other authors in the same account. Database queries first isolate active accounts, authors and articles, then evaluate bounded batches. Unallowed, explicitly denied, inactive, foreign or changed resources are omitted. An empty array means no visible resources, not account-wide authority.
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:article:ListArticles",
+    "Resource": "acs:article:*:account-id:article/article-id"
+  }
+}
+```
+
+Replace the account and article IDs. Listing only returns metadata: it does not load or return article content or expose an unfiltered global total. A JSON grant for `quyan:article:Read` does not implicitly grant this independent list Action; editing, publishing, deletion and reading endpoints retain their own rules. An account ARN grant does not authorize every article in that account. The compatible array response remains sorted, with bounded database batches processed internally.
+
+Additional article-specific access requirements still apply. Legacy `ARTICLE_READ` grants in enforce mode preserve own-draft or published-article listing and do not automatically authorize peer drafts. Legacy removals remain global explicit Deny. Legacy/shadow modes retain the previous permission and draft checks; shadow comparison does not replace legacy enforcement. Management menus retain separate permission-display checks: a resource-scoped list grant does not mean global menu permission.
+
 ## Creation and account scope
 
 In IAM enforce mode, article creation uses `quyan:article:Create` on the trusted current account, `acs:quyan:*:<accountId>:account`. An article ID does not exist before creation: a grant for an existing article ARN does not grant creation, and resource or resource-group authorizations do not automatically expand into account creation permission.

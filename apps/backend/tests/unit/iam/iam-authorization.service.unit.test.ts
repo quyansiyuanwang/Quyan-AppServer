@@ -106,6 +106,21 @@ describe("IAM identity policy loading", () => {
     policies.listPoliciesForTarget.mockResolvedValue([]);
     policies.listPoliciesForTargets.mockResolvedValue([]);
   });
+  it.each(["sub_user", "access_key", "assumed_role"] as const)(
+    "rejects a stored-ID case alias before loading %s grants",
+    async (subjectType) => {
+      await expect(
+        service.loadPolicies({
+          ...principal,
+          subjectType,
+          subjectUserId: principal.subjectUserId.toUpperCase(),
+          principalUserId: principal.principalUserId.toUpperCase(),
+        }),
+      ).rejects.toThrow();
+      expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
+      expect(policies.listPoliciesForTargets).not.toHaveBeenCalled();
+    },
+  );
   it("grants only self permission inspection without account or administrative visibility", async () => {
     for (const subjectType of ["root", "sub_user", "access_key", "service"] as const) {
       const identity = { ...principal, subjectType };

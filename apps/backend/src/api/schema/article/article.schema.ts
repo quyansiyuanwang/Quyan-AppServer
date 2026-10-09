@@ -51,3 +51,9 @@ export const reorderArticlesBodySchema = z.object({
       });
     }),
 });
+
+/** Internal management-list filters cannot select a different account or expand lifecycle scope. */
+export const articleManagementFiltersSchema = z.object({
+  category: z.string().max(100).optional(),
+  authorId: z.string().refine(isCanonicalArticleId).optional(),
+});

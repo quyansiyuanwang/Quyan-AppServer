@@ -48,6 +48,7 @@ export class IamAuthorizationService {
     if (
       principal.subjectUserId !== principal.principalUserId ||
       !user ||
+      user.id !== principal.principalUserId ||
       user.status !== 1 ||
       (user.accountOwnerId || user.id) !== principal.accountOwnerId
     )

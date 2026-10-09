@@ -36,6 +36,7 @@ import {
 } from "@/api/schema/article/article.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
 import { articleResourceResolver, articleReorderResourceResolver } from "@/iam/request/article-resource-resolvers";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 
@@ -58,9 +59,15 @@ export class ArticleController extends Controller {
 
   @Get("")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_READ, PermissionCheckMode.ALL, "jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:article:ListArticles",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listArticles(@Request() request: TypedRequest): Promise<ArticleListItemDto[]> {
-    return this.service.listArticles(request.user!.userId);
+    return this.service.listArticles(request.user!.userId, undefined, request);
   }
 
   @Get("published")

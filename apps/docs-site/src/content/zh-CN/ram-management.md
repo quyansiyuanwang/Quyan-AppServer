@@ -117,6 +117,8 @@ RAM 管理操作当前使用账户级 Resource：`acs:quyan:*:<主账号ID>:acco
 
 已迁移的文章资源操作支持 `quyan:ResourceOwnerId`，值为数据库中保存的作者用户 ID，不是 ARN 中的账户 ID。条件由服务端读取当前有效文章及作者归属，客户端属性不能覆盖。该键只能与操作清单中明确支持它的 Action 配合；不兼容的 Action（包括展开后包含其他服务的通配符）会被拒绝。模拟已保存策略和 JSON 草稿使用同一可信资源属性；文章不存在、已删除、跨账户或 ID 大小写别名会被安全拒绝。
 
+文章管理列表 `quyan:article:ListArticles` 另支持 `quyan:ArticlePublishStatus`，值来自数据库中的发布状态（`draft` 或 `published`），不能由客户端覆盖。例如可用 `StringEquals` 将列表范围限定为已发布文章。该键只适用于操作目录明确声明支持它的 Action；资源所有者条件与发布状态条件写在同一语句时为 AND，需要 OR 范围时使用多个 Allow 语句。
+
 不同运算符与条件键之间为 AND，同一键多个值为 OR。`StringLike` 支持 `*` 和 `?`；Action/Resource 仍只支持 `*`。`IpAddress` 不包含网段首尾地址，`IpAddressIncludeBorder` 包含首尾地址。除了显式 `Null` 检查，匹配语句所需的属性缺失时会安全拒绝，包括条件 Deny；模拟器不提供真实 IP/HTTPS 等请求属性，会返回 `missing-condition-context`，不会猜测属性。
 
 ### 服务和资源目录

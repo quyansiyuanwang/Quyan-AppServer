@@ -106,3 +106,49 @@ describe("legacy backfill provenance", () => {
     expect(isGeneratedLegacyPolicyDocument(generated(), source, "foreign")).toBe(false);
   });
 });
+
+describe("legacy article list compatibility", () => {
+  const legacy = (effect: "Allow" | "Deny" = "Allow") => ({
+    policyId: "list-compat-fixture",
+    document: legacyPermissionsToPrincipalPolicy([Permission.ARTICLE_READ], owner, actor, effect)!,
+  });
+  it.each([
+    [actor, "draft", "Allow"],
+    [actor, "published", "Allow"],
+    ["peer", "draft", "ImplicitDeny"],
+    ["peer", "published", "Allow"],
+  ])("preserves author %s / state %s visibility", (author, publishStatus, decision) => {
+    const result = evaluatePolicies([legacy()], {
+      action: "quyan:article:ListArticles",
+      resource,
+      context: { "quyan:ResourceOwnerId": author, "quyan:ArticlePublishStatus": publishStatus },
+    });
+    expect(result.decision).toBe(decision);
+    expect(() => parseIamPolicy(legacy().document)).not.toThrow();
+  });
+  it("remains unable to delegate unrestricted listing or bypass a global removal", () => {
+    const document = parseIamPolicy({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:article:ListArticles", Resource: resource },
+    }).document;
+    expect(checkIamDelegation(document, [legacy().document]).allowed).toBe(false);
+    expect(
+      evaluatePolicies([legacy(), legacy("Deny")], {
+        action: "quyan:article:ListArticles",
+        resource,
+        context: { "quyan:ResourceOwnerId": actor, "quyan:ArticlePublishStatus": "published" },
+      }).decision,
+    ).toBe("ExplicitDeny");
+  });
+  it("accepts an old canonical-read/account-only backfill shape without requiring new aliases", () => {
+    const document = parseIamPolicy({
+      Version: "1",
+      Statement: {
+        Effect: "Allow",
+        Action: actionForPermission(Permission.ARTICLE_READ),
+        Resource: "acs:quyan:*:account:account",
+      },
+    }).document;
+    expect(isGeneratedLegacyPolicyDocument(document, [Permission.ARTICLE_READ], owner)).toBe(true);
+  });
+});

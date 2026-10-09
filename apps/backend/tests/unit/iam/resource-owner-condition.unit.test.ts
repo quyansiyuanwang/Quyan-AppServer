@@ -19,10 +19,10 @@ const policy = (Condition: IamCondition = { StringEquals: { "quyan:ResourceOwner
     Statement: { Effect: "Allow", Action: "quyan:article:Update", Resource: resource, Condition },
   }).document,
 });
-const fixture = (ids = ["article-1"], authorId = "actor") => {
+const fixture = (ids = ["article-1"], authorId = "actor", publishStatus = "draft") => {
   const findAvailableTargets = vi
     .fn()
-    .mockResolvedValue(ids.map((id) => ({ id, authorId }) as ArticleManagementTarget));
+    .mockResolvedValue(ids.map((id) => ({ id, authorId, publishStatus }) as ArticleManagementTarget));
   const conditions = new IamResourceConditionService({ findAvailableTargets });
   const iam = new IamAuthorizationService(undefined, undefined, undefined, undefined, undefined, undefined, conditions);
   return { iam, findAvailableTargets };
@@ -132,4 +132,53 @@ describe("trusted resource-owner conditions", () => {
       }),
     ).rejects.toThrow();
   });
+});
+
+describe("trusted article publication conditions", () => {
+  const publicationPolicy = () => ({
+    policyId: "publication-fixture",
+    document: parseIamPolicy({
+      Version: "1",
+      Statement: {
+        Effect: "Allow",
+        Action: "quyan:article:ListArticles",
+        Resource: resource,
+        Condition: { StringEquals: { "quyan:ArticlePublishStatus": "published" } },
+      },
+    }).document,
+  });
+  it("registers publication state only for its native listing provider", () => {
+    expect(getIamConditionKey("quyan:ArticlePublishStatus")).toMatchObject({ supported: true, source: "resource" });
+    expect(getIamActionDefinition("quyan:article:ListArticles")).toMatchObject({
+      accessLevel: "List",
+      resourceTypes: ["article/article"],
+    });
+    expect(getIamActionDefinition("quyan:article:Create")?.conditionKeys).not.toContain("quyan:ArticlePublishStatus");
+    expect(() =>
+      parseIamPolicy({
+        Version: "1",
+        Statement: {
+          Effect: "Allow",
+          Action: "quyan:article:Publish",
+          Resource: resource,
+          Condition: { StringEquals: { "quyan:ArticlePublishStatus": "published" } },
+        },
+      }),
+    ).toThrow();
+  });
+  it.each(["draft", "published"])(
+    "uses stored %s state rather than forged request attributes",
+    async (publishStatus) => {
+      const { iam, findAvailableTargets } = fixture(["article-1"], "peer", publishStatus);
+      const [result] = await iam.evaluateLoadedPolicies({
+        principal,
+        action: "quyan:article:ListArticles",
+        resources: [resource],
+        policies: [publicationPolicy()],
+        context: { "quyan:ArticlePublishStatus": "published", "quyan:ResourceOwnerId": "actor" },
+      });
+      expect(result.decision).toBe(publishStatus === "published" ? "Allow" : "ImplicitDeny");
+      expect(findAvailableTargets).toHaveBeenCalledWith(["article-1"], "account");
+    },
+  );
 });

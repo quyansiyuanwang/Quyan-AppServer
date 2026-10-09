@@ -348,6 +348,22 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   {
+    action: 'quyan:article:ListArticles',
+    service: 'article',
+    operation: 'ListArticles',
+    accessLevel: 'List',
+    resourceTypes: ['article/article'],
+    apiRoutes: [],
+    conditionKeys: [
+      ...IAM_GLOBAL_CONDITION_KEYS,
+      'quyan:ResourceOwnerId',
+      'quyan:ArticlePublishStatus',
+    ],
+    sensitive: false,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.ARTICLE_READ,
+  },
+  {
     action: 'quyan:article:ReorderArticles',
     service: 'article',
     operation: 'ReorderArticles',

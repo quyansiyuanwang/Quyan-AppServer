@@ -53,7 +53,7 @@ export function legacyPermissionsToPolicy(
   };
 }
 
-/** Runtime compatibility preserves historical author-only edits/deletion, but not account-wide reorder. */
+/** Preserve author-only edits/deletion and author-or-published listing without restricting native explicit grants. */
 export function legacyPermissionsToPrincipalPolicy(
   input: unknown,
   accountOwnerId: string,
@@ -69,7 +69,29 @@ export function legacyPermissionsToPrincipalPolicy(
   const statements: NormalizedIamPolicyDocument["Statement"] = [];
   for (const statement of document.Statement) {
     const limited = statement.Action.filter((action) => authorOnly.has(action));
-    const other = statement.Action.filter((action) => !authorOnly.has(action));
+    const list: string[] = statement.Action.filter((action) => action === "quyan:article:ListArticles");
+    const other = statement.Action.filter((action) => !authorOnly.has(action) && !list.includes(action));
+    if (list.length) {
+      const article = statement.Resource.filter((resource) =>
+        getIamResourcePatternTypes(resource).some((type) => type.id === "article/article"),
+      );
+      if (article.length) {
+        statements.push({
+          Effect: "Allow",
+          Sid: "LegacyArticleListOwn",
+          Action: list,
+          Resource: article,
+          Condition: { StringEquals: { "quyan:ResourceOwnerId": principalUserId } },
+        });
+        statements.push({
+          Effect: "Allow",
+          Sid: "LegacyArticleListPublished",
+          Action: list,
+          Resource: article,
+          Condition: { StringEquals: { "quyan:ArticlePublishStatus": "published" } },
+        });
+      }
+    }
     if (other.length)
       statements.push({
         ...statement,
