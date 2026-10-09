@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   productConfig: {
     titleSuffix: '产品配置',
     description: '配置本产品的全局可用状态、默认免费额度与超额单价。',
@@ -54,6 +54,6 @@ const zhCN: DeepStringify<typeof en> = {
     retry: '重试',
     formError: '请先处理请求错误后再试。',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

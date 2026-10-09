@@ -400,6 +400,6 @@ const en = {
     workspaceStatus: 'Workspace status',
     workspaceSaveFailed: 'Failed to create workspace.',
   },
-}
+} as const
 
 export default en

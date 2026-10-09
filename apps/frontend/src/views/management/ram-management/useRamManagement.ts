@@ -287,7 +287,7 @@ export function useRamManagement(section: RamManagementSection) {
     return attachment.targetId
   }
 
-  const userRules: FormRules = {
+  const userRules = computed<FormRules>(() => ({
     username: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
     password: [
       {
@@ -301,18 +301,18 @@ export function useRamManagement(section: RamManagementSection) {
         trigger: 'blur',
       },
     ],
-  }
+  }))
 
-  const roleRules: FormRules = {
+  const roleRules = computed<FormRules>(() => ({
     name: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
-  }
+  }))
 
-  const policyRules: FormRules = {
+  const policyRules = computed<FormRules>(() => ({
     name: [{ required: true, message: i18ns.t('required'), trigger: 'blur' }],
     permissions: [
       { required: true, type: 'array', min: 1, message: i18ns.t('required'), trigger: 'change' },
     ],
-  }
+  }))
 
   const formatDate = (value?: string) => (value ? new Date(value).toLocaleString() : '-')
 

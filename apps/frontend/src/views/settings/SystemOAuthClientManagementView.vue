@@ -204,7 +204,7 @@
 
 <script setup lang="ts">
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { ElMessage } from '@/utils/elementPlusRuntime'
 import { Plus, Check, Close } from '@element-plus/icons-vue'
 import { OAuthClientService } from '@/service/oauthClientService'
@@ -247,7 +247,7 @@ const form = reactive({
   refreshTokenLifetime: 604800,
 })
 
-const rules = {
+const rules = computed(() => ({
   clientId: [{ required: true, message: t('systemOAuth.validation.clientId'), trigger: 'blur' }],
   name: [{ required: true, message: t('systemOAuth.validation.name'), trigger: 'blur' }],
   clientType: [
@@ -257,7 +257,7 @@ const rules = {
     { required: true, message: t('systemOAuth.validation.redirectUris'), trigger: 'change' },
   ],
   scopes: [{ required: true, message: t('systemOAuth.validation.scopes'), trigger: 'change' }],
-}
+}))
 
 function resetForm() {
   isEditing.value = false

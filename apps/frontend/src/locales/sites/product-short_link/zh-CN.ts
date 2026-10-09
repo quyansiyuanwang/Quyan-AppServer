@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   shortLinkAnalytics: {
     back: '返回短链接',
     title: '访问分析',
@@ -32,6 +32,6 @@ const zhCN: DeepStringify<typeof en> = {
     userAgent: 'User-Agent',
     loadFailed: '无法加载短链接访问分析',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

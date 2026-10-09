@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   workspace: {
     title: '工作区',
     placeholder: '用于承载文档与工具的浮动标签页区域',
@@ -22,6 +22,6 @@ const zhCN: DeepStringify<typeof en> = {
     ticketRoadmapTitle: '后续跟进',
     ticketRoadmapDescription: '追踪下一步动作、状态变化和后续工作台集成。',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

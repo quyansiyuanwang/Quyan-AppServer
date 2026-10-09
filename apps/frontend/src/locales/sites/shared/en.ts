@@ -182,6 +182,7 @@ const en = {
     pushCredentialValue: 'Credential value',
     pushCredentialSaved: 'Credential saved securely and selected',
     pushCredentialLoadFailed: 'Failed to load Secret Management projects or credentials',
+    pushCredentialNameLoading: 'Loading Secret Management project…',
     invalidSecretAlias:
       'The secret alias must start with an uppercase letter and contain only uppercase letters, digits, and underscores.',
     deliveryLogs: 'Delivery logs',
@@ -2090,7 +2091,7 @@ const en = {
     probeAccountBinding: 'Shared account binding',
     probeAccountNoBinding: 'Use existing channel credentials',
     probeAccountBindingHelp:
-      'Use {{accountToken}} in the balance workflow; binding and refreshing require account pool management permission.',
+      "Use {'{{accountToken}}'} in the balance workflow; binding and refreshing require account pool management permission.",
     probeAccountLegacyWarning:
       'Remove the legacy login steps manually; otherwise they still run on every balance read.',
     probeBatchCredentialNotice:
@@ -2160,7 +2161,7 @@ const en = {
     'channelProbeEndpointHelpanthropic-messages':
       'Calls /v1/messages with a minimal messages and max_tokens request.',
     'channelProbeEndpointHelpgemini-generate-content':
-      'Calls /v1beta/models/{model}:generateContent with contents and generationConfig.',
+      "Calls /v1beta/models/{'{model}'}:generateContent with contents and generationConfig.",
     channelProbeCacheMode: 'Cache measurement',
     channelProbeCacheModeBust: 'Avoid cached responses',
     channelProbeCacheModeAllow: 'Allow upstream cache',
@@ -2601,6 +2602,7 @@ const en = {
     compositeHint:
       'Combine your own tokens in order, including nested compositions. Request settings run outside-in; response conversion runs inside-out.',
     compositionMembers: 'Ordered member tokens',
+    tokenNameLoading: 'Loading token name…',
     compositionSearch: 'Search owned tokens by name or ID',
     compositionAdd: 'Add',
     compositionRemove: 'Remove',
@@ -2623,6 +2625,7 @@ const en = {
     routingModeOrdered: 'Ordered Channels',
     routingModeAutomaticPool: 'Automatic Proxy Pool',
     automaticProxyPoolChannel: 'Automatic Proxy Pool Channel',
+    channelNameLoading: 'Loading channel…',
     automaticProxyPoolChannelPlaceholder: 'Select an automatic proxy pool channel',
     automaticProxyPoolChannelRequired: 'Select an automatic proxy pool channel',
     blockedAutomaticPoolChannels: 'Blocked Pool Channels',
@@ -2870,6 +2873,6 @@ const en = {
     customKeyHint:
       'Users with custom token permission can specify their own token value. Must start with sk-rlt- (legacy rlt_ is accepted), alphanumeric only, 12-200 chars. Max 10 custom tokens per user.',
   },
-}
+} as const
 
 export default en

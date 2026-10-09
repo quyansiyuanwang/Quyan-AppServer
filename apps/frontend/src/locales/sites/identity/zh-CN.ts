@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   oauthResult: {
     successTitle: '授权成功',
     successDescription: 'Quyan CLI 已完成登录并将凭证保存到系统密钥链。',
@@ -199,6 +199,6 @@ const zhCN: DeepStringify<typeof en> = {
     verifyCodeHint: '输入 6 位验证码，或使用恢复码完成验证。',
     passkeyNeedSecondFactor: '通行密钥验证通过，请完成第二步验证。',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

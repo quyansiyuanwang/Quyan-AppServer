@@ -163,6 +163,6 @@ const en = {
       sh: 'POSIX Shell (sh)',
     },
   },
-}
+} as const
 
 export default en

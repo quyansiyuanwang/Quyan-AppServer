@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   jsonEndpoint: {
     management: 'JSON 端点管理',
     create: '创建端点',
@@ -69,6 +69,6 @@ const zhCN: DeepStringify<typeof en> = {
     enterValue: '输入值',
     jsonPlaceholder: '在此输入 JSON 代码...',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

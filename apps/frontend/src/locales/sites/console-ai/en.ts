@@ -55,6 +55,6 @@ const en = {
     retry: 'Retry',
     formError: 'Resolve the request error before trying again.',
   },
-}
+} as const
 
 export default en

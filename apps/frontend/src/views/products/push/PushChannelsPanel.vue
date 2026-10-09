@@ -35,7 +35,11 @@
       >
         <template #default="{ row }">
           <span v-if="row.secretReference" class="secret-reference-cell">
-            <span>{{ secretProjectName(row.secretReference.secretInstanceId) }}</span>
+            <span v-if="isSecretProjectNamePending(row.secretReference.secretInstanceId)">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              {{ i18ns.t('productResources.pushCredentialNameLoading') }}
+            </span>
+            <span v-else>{{ secretProjectName(row.secretReference.secretInstanceId) }}</span>
             <code>{{ row.secretReference.alias }}</code>
           </span>
           <span v-else>-</span>
@@ -278,6 +282,7 @@
 
 <script setup lang="ts">
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
+import { Loading } from '@element-plus/icons-vue'
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
 import type {
@@ -339,6 +344,14 @@ const canReadDeliveries = computed(() => props.hasPermission(Permission.PRODUCT_
 const canSend = computed(() => props.hasPermission(Permission.PRODUCT_PUSH_SEND))
 const secretProjectName = (secretInstanceId: string) =>
   secretProjects.value.find((project) => project.id === secretInstanceId)?.name || secretInstanceId
+
+// The credential project directory is fetched in parallel with the channels, so
+// the name cell stays in a loading state instead of printing the raw instance ID
+// that is replaced once the directory lands.
+const isSecretProjectNamePending = (secretInstanceId: string) =>
+  Boolean(secretInstanceId) &&
+  secretProjectsLoading.value &&
+  !secretProjects.value.some((project) => project.id === secretInstanceId)
 
 const loadChannels = async () => {
   if (!props.instance || !canManageChannels.value) {

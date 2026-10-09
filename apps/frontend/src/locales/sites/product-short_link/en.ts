@@ -29,6 +29,6 @@ const en = {
     userAgent: 'User-Agent',
     loadFailed: 'Unable to load short-link analytics',
   },
-}
+} as const
 
 export default en

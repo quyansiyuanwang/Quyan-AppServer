@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   productConsole: {
     refresh: '刷新',
     documentation: '查看文档',
@@ -176,6 +176,7 @@ const zhCN: DeepStringify<typeof en> = {
     pushCredentialValue: '凭据值',
     pushCredentialSaved: '凭据已加密保存并选中',
     pushCredentialLoadFailed: '加载密钥托管项目或凭据失败',
+    pushCredentialNameLoading: '密钥托管项目加载中…',
     invalidSecretAlias: '密钥别名必须以大写字母开头，且只能包含大写字母、数字和下划线。',
     deliveryLogs: '投递日志',
     attempts: '尝试',
@@ -2004,7 +2005,7 @@ const zhCN: DeepStringify<typeof en> = {
     probeAccountBinding: '绑定号池账号',
     probeAccountNoBinding: '使用渠道原有凭据',
     probeAccountBindingHelp:
-      '余额工作流可通过 {{accountToken}} 引用号池会话；绑定和刷新需要号池管理权限。',
+      "余额工作流可通过 {'{{accountToken}}'} 引用号池会话；绑定和刷新需要号池管理权限。",
     probeAccountLegacyWarning: '请手动删除旧登录步骤，否则每次读取余额仍会执行旧登录。',
     probeBatchCredentialNotice:
       '仅复制共享工作流与计费参数，不复制来源凭据或号池绑定；逐项选择支持的格式、模型和账号。',
@@ -2069,7 +2070,7 @@ const zhCN: DeepStringify<typeof en> = {
     'channelProbeEndpointHelpanthropic-messages':
       '请求 /v1/messages，最小请求使用 messages 和 max_tokens。',
     'channelProbeEndpointHelpgemini-generate-content':
-      '请求 /v1beta/models/{model}:generateContent，最小请求使用 contents 和 generationConfig。',
+      "请求 /v1beta/models/{'{model}'}:generateContent，最小请求使用 contents 和 generationConfig。",
     channelProbeCacheMode: '缓存测量',
     channelProbeCacheModeBust: '避免缓存响应',
     channelProbeCacheModeAllow: '允许上游缓存',
@@ -2478,6 +2479,7 @@ const zhCN: DeepStringify<typeof en> = {
     routingModeComposite: '组合令牌',
     compositeHint: '按顺序组合自己的令牌，支持嵌套。高级配置从外到内执行，响应从内到外转换。',
     compositionMembers: '有序成员令牌',
+    tokenNameLoading: '令牌名称加载中…',
     compositionSearch: '搜索自有令牌名称或 ID',
     compositionAdd: '加入',
     compositionRemove: '移除',
@@ -2497,6 +2499,7 @@ const zhCN: DeepStringify<typeof en> = {
     routingModeOrdered: '有序渠道',
     routingModeAutomaticPool: '自动代理池',
     automaticProxyPoolChannel: '自动代理池渠道',
+    channelNameLoading: '渠道加载中…',
     automaticProxyPoolChannelPlaceholder: '请选择自动代理池渠道',
     automaticProxyPoolChannelRequired: '请选择自动代理池渠道',
     blockedAutomaticPoolChannels: '屏蔽池内渠道',
@@ -2728,6 +2731,6 @@ const zhCN: DeepStringify<typeof en> = {
     customKeyHint:
       '拥有自定义令牌权限的用户可自行指定令牌值。必须以 sk-rlt- 开头，仅含字母和数字（兼容旧 rlt_），长度 12-200。每个用户最多创建 10 个自定义令牌。',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

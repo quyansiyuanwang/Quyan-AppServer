@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const emoji: DeepStringify<typeof en> = {
+const emoji = {
   siteOverview: {
     partialFailure: '⚠️ 📊 ⏳',
     unlimited: '♾️',
@@ -538,6 +538,8 @@ const emoji: DeepStringify<typeof en> = {
     showRamGroups: '👁️ 🐏 📁',
   },
   PermissionManagement: {
+    inspect: '🔍 🔑',
+    diagnosticsExplanation: '🔍 🔑 ✅ / 🚫 🧾',
     title: '🛂 ♿',
     name: '📛',
     groupId: '👤 🚮 ▶️',
@@ -873,14 +875,14 @@ const emoji: DeepStringify<typeof en> = {
     hotRetention: '🔥 🕒',
     archiveRetention: '🗃️ 🕒',
     forever: '♾️',
-    days: '🕒',
+    days: '🕒 {days}',
     reset: '↩️',
     actions: '⚙️',
     run: '▶️',
     batchRun: '▶️ 📚',
-    batchConfirm: '⚠️ 📚',
+    batchConfirm: '⚠️ 📚 {datasets} · 🗃️ {count} 🗑️？',
     batchResult: '📚 ✅ {completed} ❌ {failed} ⏭️ {skipped}',
-    confirmRun: '⚠️',
+    confirmRun: '⚠️ 🗃️ {count} 🗑️？',
     started: '🚀',
     saved: '💾',
     runs: '📜',
@@ -1250,7 +1252,7 @@ const emoji: DeepStringify<typeof en> = {
     endpointDesc: '🩵 🥴 🪙 ✨ 8️⃣ 🤪 🪙 🌌 📨 😚 8️⃣ ✨ 🎦 🪙 ➡️ 📩 ✨ 🔌',
     openaiNote: '〽️ 🤝 🛄 💭 👽 🔌 📉 🤣 💭 👽 ➕ 😮 📍',
     anthropicNote: '〽️ 🤝 🚷 ✉️ 🔌 📉 🤣 ✉️ ➕ 😮 📍',
-    geminiNote: '〽️ 🤝 😳 😦 🔌 📉 ⏯️ 🤖 {model} 🔽 ➕ 😮 📍',
+    geminiNote: "〽️ 🤝 Gemini · /v1beta/models/{'{model}'}/generateContent",
     balanceEndpoint: '🔁 📊 📍',
     balanceNote: '🔍 🪙 🔁 📊 📄 🎨 🔐 🪙 🧾 🗒️ 🚯 ➕ ⏯️',
     platformBalanceEndpoint: '🏦 💳 📍',
@@ -1338,6 +1340,9 @@ const emoji: DeepStringify<typeof en> = {
     },
   },
   oauthClient: {
+    nameRequired: '📝 🏷️',
+    redirectUrisRequired: '➕ ↩️ URL',
+    regenerateSecretConfirm: '🔄 🔑？🗝️ ⛔',
     management: '🪪 📱 ♿',
     reviewManagement: '🪪 ✅ ♿',
     description: '📝 📜 2️⃣.0 📱, 🔁 📜, 🧾 🔐 🎛️ 3️⃣📜-📜 🔌',
@@ -1442,9 +1447,10 @@ const emoji: DeepStringify<typeof en> = {
       profile: '`💬 /💬1/💬/💬` `💬 /💬1/💬/💬/💬`',
       email: '`🔔 /🔔1/🔔/🔔/🔔-🔔-🔔-🔔` `🔔 /🔔1/🔔/🔔/🔔`',
       notification: '`/🔔1/🔔/🔔` `/🔔1/🔔/🔔` `/🔔1/🔔/🔔` `/🔔1/🔔/🔔`',
-      oauthClient: '`/🔑1/🔑-🔑` `🔑-🔑`',
+      oauthClient:
+        "`GET/POST/PUT/DELETE /v1/oauth-clients` · `POST /v1/oauth-clients/{'{id}'}/regenerate-secret`",
       accesskey: '`/🔑1/🔑` `🔑-🔑-🔑-🔑-🔑`',
-      passkey: '`/🔑1/🔑/🔑/*` `🔑 /🔑1/🔑/🔑` `🔑 /🔑1/🔑/{credentialId}`',
+      passkey: "`/🔑1/🔑/🔑/*` `🔑 /🔑1/🔑/🔑` `🔑 /🔑1/🔑/{'{credentialId}'}`",
       twoFactor: '`/💬1/💬/💬/2💬/*`',
     },
     scopeNotes: {
@@ -1634,6 +1640,6 @@ const emoji: DeepStringify<typeof en> = {
     },
     messages: { loadFailed: '❌', updated: '✅', created: '✅', operationFailed: '❌' },
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default emoji

@@ -48,9 +48,12 @@ const selectedProjects = String(process.env.VITEST_PROJECT_SELECTOR || '')
   .map((project) => project.trim())
   .filter(Boolean)
 const projectArgs = selectedProjects.flatMap((project) => ['--project', project])
+// Both workspaces own a `test:related` script that prepares the generated imports
+// their suites need (Prisma Client, domain-view/i18n manifests) before running
+// Vitest, so this selector never has to know about those prerequisites.
 const command = backendWorkspace
   ? ['--filter', '@quyan/backend', 'run', 'test:related', ...projectArgs, ...relatedFiles]
-  : ['exec', 'vitest', 'related', '--run', '--passWithNoTests', ...relatedFiles]
+  : ['--filter', '@quyan/frontend', 'run', 'test:related', ...relatedFiles]
 
 const result = spawnSync('pnpm', command, {
   cwd: workspace,

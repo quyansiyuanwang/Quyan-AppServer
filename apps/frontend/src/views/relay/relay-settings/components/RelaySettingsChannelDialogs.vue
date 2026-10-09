@@ -1202,7 +1202,7 @@
                 class="rounded border border-[var(--el-border-color-lighter)] p-3"
               >
                 <div class="font-medium break-all">
-                  {{ getChannelNameById(member.memberChannelId) }}
+                  {{ member.memberChannelName || getChannelNameById(member.memberChannelId) }}
                 </div>
                 <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
                   #{{ member.priority }}

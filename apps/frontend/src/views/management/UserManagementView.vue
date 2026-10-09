@@ -76,7 +76,7 @@
             </template>
           </el-table-column>
           <el-table-column :label="i18ns.t('UserManagement.group')" min-width="120">
-            <template #default="{ row }">{{ getGroupName(row.groupId) }}</template>
+            <template #default="{ row }">{{ getGroupName(row) }}</template>
           </el-table-column>
           <el-table-column :label="i18ns.t('UserManagement.createdAt')" min-width="180">
             <template #default="{ row }">{{
@@ -210,7 +210,7 @@
                 <div>{{ i18ns.t('UserManagement.email') }}: {{ row.email || '-' }}</div>
                 <div>
                   {{ i18ns.t('UserManagement.group') }}:
-                  {{ row.groupId ? getGroupName(row.groupId) : '-' }}
+                  {{ getGroupName(row) }}
                 </div>
                 <div>
                   {{ i18ns.t('UserManagement.createdAt') }}:
@@ -478,9 +478,16 @@ const loadGroups = async () => {
   }
 }
 
-const getGroupName = (groupId: string): string => {
-  const group = groups.value.find((g) => g.id === groupId)
-  return group ? group.name || group.username : groupId
+// The user list endpoint already resolves the group name for each row, so the
+// separately loaded group directory is only a fallback for missing relations.
+// Resolving through the directory first made the column print the raw group ID
+// until that parallel request landed.
+const getGroupName = (row: Pick<UserDto, 'groupId' | 'groupName'>): string => {
+  if (row.groupName) return row.groupName
+  if (!row.groupId) return '-'
+
+  const group = groups.value.find((g) => g.id === row.groupId)
+  return group ? group.name || group.username : row.groupId
 }
 
 const handleResetPassword = (row: UserDto) => {

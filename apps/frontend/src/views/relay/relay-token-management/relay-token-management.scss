@@ -810,6 +810,14 @@
   gap: 4px;
 }
 
+// Placeholder shown while the routing catalog that resolves channel names is
+// still loading; keeps the cell from displaying a raw channel ID first.
+.channel-config-loading-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .channel-tooltip-content {
   display: flex;
   flex-direction: column;

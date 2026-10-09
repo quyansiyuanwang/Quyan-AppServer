@@ -1,7 +1,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { getErrorMessage } from '@/utils/error-utils'
 import { ElMessage, ElMessageBox } from '@/utils/elementPlusRuntime'
-import { useI18n } from 'vue-i18n'
 import { usePageDevice } from '@/composables/usePageDevice'
 import { useOAuthScopeCatalog } from '@/composables/useOAuthScopeCatalog'
 import { i18ns } from '@/locales'
@@ -49,7 +48,7 @@ const createEmptyForm = (): AuthCenterClientFormState => ({
 
 export const useAuthCenterClientManagement = () => {
   const { isDesktop } = usePageDevice()
-  const { t } = useI18n()
+  const { t } = i18ns
   const authCenterClientService = AuthCenterClientService.getInstance()
 
   const clients = ref<AuthCenterClientDto[]>([])

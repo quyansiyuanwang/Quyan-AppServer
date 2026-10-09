@@ -403,6 +403,6 @@ const en = {
     recentSites: 'Recently used',
     noMatchedFeatures: 'No categories or features matched the current filters.',
   },
-}
+} as const
 
 export default en

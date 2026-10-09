@@ -41,7 +41,13 @@
     <el-empty v-if="!modelValue.length" :description="i18ns.t('relay.compositionNoMembers')" />
     <div v-for="(member, index) in modelValue" :key="member.tokenId" class="composition-member">
       <div class="composition-member-heading">
-        <span>#{{ index + 1 }} {{ metadata[member.tokenId]?.name || member.tokenId }}</span>
+        <span>
+          #{{ index + 1 }}
+          <el-icon v-if="isMemberNamePending(member.tokenId)" class="is-loading"
+            ><Loading
+          /></el-icon>
+          {{ resolveMemberName(member.tokenId) }}
+        </span>
         <el-tag v-if="unavailable(member.tokenId)" type="warning" size="small">{{
           i18ns.t('relay.compositionUnavailable')
         }}</el-tag>
@@ -86,7 +92,7 @@
           v-for="child in metadata[member.tokenId]?.memberTokenConfigs || []"
           :key="child.tokenId"
         >
-          #{{ child.priority + 1 }} {{ metadata[child.tokenId]?.name || child.tokenId }}
+          #{{ child.priority + 1 }} {{ resolveMemberName(child.tokenId) }}
           <el-button text size="small" @click="loadDirectory(child.tokenId)">{{
             i18ns.t('relay.compositionLoadModels')
           }}</el-button>
@@ -117,7 +123,7 @@
           {{
             route.tokenPathIds
               .slice(1)
-              .map((id) => metadata[id]?.name || id)
+              .map((id) => resolveMemberName(id))
               .join(' → ')
           }}
         </li>
@@ -137,6 +143,7 @@ import type {
   RelayTokenAvailableModelsDto,
 } from '@/client/types.gen'
 import { relayTokenService } from '@/service/relayTokenService'
+import { Loading } from '@element-plus/icons-vue'
 import { i18ns } from '@/locales'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 const props = defineProps<{
@@ -241,6 +248,17 @@ const unavailable = (id: string) =>
     metadata.value[id]!.expiresAt &&
       new Date(metadata.value[id]!.expiresAt!).getTime() < Date.now(),
   )
+
+// Member names come from the composition candidate metadata, which is fetched
+// asynchronously, so members the current page does not know yet stay in a
+// loading state instead of printing their raw token ID first.
+const isMemberNamePending = (id: string) => !metadata.value[id]?.name && loading.value
+
+const resolveMemberName = (id: string) => {
+  const name = metadata.value[id]?.name
+  if (name) return name
+  return loading.value ? i18ns.t('relay.tokenNameLoading') : id
+}
 async function loadDirectory(id: string) {
   try {
     const directory = await relayTokenService.getTokenAvailableModels(id, props.targetUserId)

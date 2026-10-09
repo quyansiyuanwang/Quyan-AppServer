@@ -2,7 +2,7 @@
 import type en from './en'
 import type { DeepStringify } from '@/types/common'
 
-const ticket: DeepStringify<typeof en>['ticket'] = {
+const ticket = {
   pageEyebrow: '工单工作台',
   pageTitle: '建议与问题工单',
   pageDescription: '提交产品建议、问题工单、跟踪处理进度，并与审核人员持续沟通。',
@@ -108,9 +108,9 @@ const ticket: DeepStringify<typeof en>['ticket'] = {
     high: '高',
     urgent: '紧急',
   },
-}
+} as const satisfies DeepStringify<typeof en>['ticket']
 
-const zhCN: DeepStringify<typeof en> = {
+const zhCN = {
   ticket,
   contentSafety: {
     title: '内容安全',
@@ -213,6 +213,6 @@ const zhCN: DeepStringify<typeof en> = {
     exportScopeUser: '当前用户策略',
     exportScopeSystem: '系统策略',
   },
-}
+} as const satisfies DeepStringify<typeof en>
 
 export default zhCN

@@ -411,6 +411,16 @@ export const useMonthlyPassManagement = () => {
     return new Map(channelOptions.value.map((item) => [item.value, item.name]))
   })
 
+  // Channel display names come from a directory that is fetched in parallel with
+  // the template list, so templates can be rendered before their channel names are
+  // known. Those cells stay in a loading state instead of showing raw channel IDs
+  // that get replaced as soon as the channel directory arrives.
+  const isChannelNamePending = (channelId: string) =>
+    Boolean(channelId) && channelOptionsLoading.value && !channelNameById.value.has(channelId)
+
+  const isAllowedChannelsLabelPending = (allowedChannels?: string[]) =>
+    Array.isArray(allowedChannels) && allowedChannels.some(isChannelNamePending)
+
   const availableTemplateModelOptions = computed(() => {
     if (!templateForm.allowedChannels.length) return modelOptions.value
 
@@ -1620,6 +1630,7 @@ export const useMonthlyPassManagement = () => {
     channelOptionsLoading,
     channelOptionsLoadError,
     formatAllowedChannels,
+    isAllowedChannelsLabelPending,
     formatPurchaseLimit,
     getTemplateQuotaWindowSource,
     getUserPassQuotaWindowSource,
