@@ -10,6 +10,15 @@ Use this page to manage how the system contacts you about important events, and 
 - Review delivery history.
 - (Admins) Adjust global default subscribed events and balance thresholds.
 
+## Permissions and availability
+
+- In legacy permission mode, notification preferences still require notification-management permission; signing in alone does not grant access.
+- In IAM enforcement mode, reading uses `quyan:notification:GetPreferences` and saving uses `quyan:notification:UpdatePreferences`. The operations can be granted separately.
+- The resource is the executing user's own identity: `acs:quyan:*:<accountId>:user/<userId>`. The server derives the account and user from authenticated context; supplying another user or ARN cannot change the target.
+- An explicit Deny for this resource overrides Allow. Group and role policies can participate; an assumed role uses its valid session permissions rather than the caller's direct policies.
+- The first authorized read may create default preferences; later reads synchronize newly introduced events. Events you explicitly unsubscribed from do not become subscribed again merely because they are already known. Inactive or disabled identities, role sessions and preference records cannot be read or modified.
+- These fine-grained operations cover only reading and saving preferences. Webhooks, delivery tests and delivery logs retain their respective existing permission checks.
+
 ## What you will see
 
 ### Email settings

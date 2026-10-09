@@ -2,7 +2,6 @@ import type { Request } from "express";
 import { extractClientIp } from "@/util/ip-extractor";
 import {
   NotificationPreferenceRepository,
-  type NotificationPreferenceUpdateInput,
   type NotificationWebhookCreateInput,
   type NotificationWebhookUpdateInput,
 } from "@/store/notification/notification-preference.repository";
@@ -31,6 +30,10 @@ import {
   ALL_NOTIFICATION_EVENTS,
 } from "@/constant/notification-event";
 import { NotFoundError } from "@/util/errors";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { normalizeNotificationPreferenceUpdate } from "./notification-preference-validation";
+import { NotificationPreferenceIamService } from "./notification-preference-iam.service";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import type { NotificationPreference, NotificationWebhook } from "@prisma/client";
@@ -55,8 +58,11 @@ export class NotificationManagementService {
 
   // ─── Preference ────────────────────────────────────────────────────────────
 
-  async getPreference(userId: string): Promise<NotificationPreferenceDto> {
-    const pref = await this.preferenceInitializer.getOrInitialize(userId);
+  async getPreference(userId: string, request?: Request): Promise<NotificationPreferenceDto> {
+    const pref =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await NotificationPreferenceIamService.getInstance().get(userId, request as TypedRequest | undefined)
+        : await this.preferenceInitializer.getOrInitialize(userId);
 
     return this.toPreferenceDto(pref);
   }
@@ -66,17 +72,12 @@ export class NotificationManagementService {
     dto: UpdateNotificationPreferenceDto,
     request: Request,
   ): Promise<NotificationPreferenceDto> {
-    const updateData: NotificationPreferenceUpdateInput = {};
+    const updateData = normalizeNotificationPreferenceUpdate(dto);
 
-    if (dto.notificationEmail !== undefined) updateData.notificationEmail = dto.notificationEmail;
-    if (dto.subscribedEvents !== undefined) {
-      updateData.subscribedEvents = dto.subscribedEvents;
-      updateData.knownEvents = [...ALL_NOTIFICATION_EVENTS];
-    }
-    if (dto.thresholds !== undefined) updateData.thresholds = dto.thresholds;
-    if (dto.cooldownMinutes !== undefined) updateData.cooldownMinutes = dto.cooldownMinutes;
-
-    const updated = await this.repository.upsertPreference(userId, updateData);
+    const updated =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await NotificationPreferenceIamService.getInstance().update(userId, updateData, request as TypedRequest)
+        : await this.repository.upsertPreference(userId, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.NOTIFICATION_PREFERENCE_UPDATE,

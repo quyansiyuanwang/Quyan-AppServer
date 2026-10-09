@@ -40,6 +40,8 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { Permission } from "@/constant/permission";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 @Route("v1/notification")
 @Tags("Notification / Event Center")
@@ -50,15 +52,23 @@ export class NotificationController extends Controller {
   /** Get the current user's notification preferences */
   @Get("preferences")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
+  @CheckPermission(Permission.NOTIFICATION_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:notification:GetPreferences",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   public async getPreferences(@Request() request: TypedRequest): Promise<NotificationPreferenceDto> {
-    return this.service.getPreference(request.user!.userId);
+    return this.service.getPreference(request.user!.userId, request);
   }
 
   /** Update notification preferences (email, subscribed events, thresholds, cooldown) */
   @Put("preferences")
   @Security("jwt")
-  @RequirePermission(Permission.NOTIFICATION_MANAGE)
+  @CheckPermission(Permission.NOTIFICATION_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:notification:UpdatePreferences",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(updateNotificationPreferenceBodySchema))
   public async updatePreferences(
     @Body() body: UpdateNotificationPreferenceDto,

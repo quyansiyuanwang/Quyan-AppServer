@@ -347,6 +347,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       authorizationStage: 'declared',
     }),
   ),
+  ...[
+    { operation: 'GetPreferences', accessLevel: 'Read' },
+    { operation: 'UpdatePreferences', accessLevel: 'Write' },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:notification:' + definition.operation,
+      service: 'notification',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: ['quyan/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.NOTIFICATION_MANAGE,
+    }),
+  ),
   {
     action: 'quyan:article:ListArticles',
     service: 'article',

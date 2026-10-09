@@ -58,6 +58,22 @@ describe("IAM service and resource catalog", () => {
       expect(getIamActionDefinition("quyan:developer:" + action)?.resourceTypes).toEqual(["developer/project"]);
     expect(IAM_AUTHENTICATED_SELF_ACTIONS.some((action) => action.startsWith("quyan:developer:"))).toBe(false);
   });
+  it("declares sensitive preference operations without a default self-service grant", () => {
+    for (const [operation, accessLevel] of [
+      ["GetPreferences", "Read"],
+      ["UpdatePreferences", "Write"],
+    ]) {
+      const action = "quyan:notification:" + operation;
+      expect(getIamActionDefinition(action)).toMatchObject({
+        resourceTypes: ["quyan/user"],
+        accessLevel,
+        sensitive: true,
+        authorizationStage: "declared",
+        legacyPermission: Permission.NOTIFICATION_MANAGE,
+      });
+      expect(IAM_AUTHENTICATED_SELF_ACTIONS).not.toContain(action);
+    }
+  });
   it("derives API links, ignores invalid metadata and deduplicates deterministically", () => {
     const route = {
       key: "PUT /v1/ram/users/{userId}",
