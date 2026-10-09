@@ -19,7 +19,8 @@ import { extractClientIp } from "@/util/ip-extractor";
 import type { Request } from "express";
 import type { TypedRequest } from "@/types/express";
 import { env } from "@/config/env";
-import { ArticlePublicationService } from "./article-publication.service";
+import { ArticleManagementService } from "./article-management.service";
+import { assertArticlePublicAccess, normalizeArticleUpdate } from "./article-validation";
 
 export class ArticleService {
   private static instance: ArticleService;
@@ -46,7 +47,7 @@ export class ArticleService {
     const existing = await this.repository.findBySlug(dto.slug);
     if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
 
-    this.validatePublicAccess(dto.isPublic ?? false, dto.requirePermission);
+    assertArticlePublicAccess(dto.isPublic ?? false, dto.requirePermission);
 
     const article = await this.repository.create({
       ...dto,
@@ -71,25 +72,11 @@ export class ArticleService {
   }
 
   async updateArticle(id: string, dto: UpdateArticleDto, userId: string, request: Request): Promise<ArticleDto> {
-    const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
-
-    if (article.authorId !== userId)
-      throw new ForbiddenError("You can only update your own articles", undefined, {
-        messageKey: "article.updateOwnOnly",
-      });
-
-    if (dto.slug && dto.slug !== article.slug) {
-      const existing = await this.repository.findBySlug(dto.slug);
-      if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
-    }
-
-    this.validatePublicAccess(
-      dto.isPublic ?? article.isPublic,
-      dto.requirePermission ?? article.requirePermission ?? undefined,
-    );
-
-    const updated = await this.repository.update(id, dto);
+    if (env.security.iamAuthorizationMode === "enforce") dto = normalizeArticleUpdate(dto);
+    const updated =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await ArticleManagementService.getInstance().update(id, dto, userId, request as TypedRequest)
+        : await this.updateLegacyArticle(id, dto, userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_UPDATE,
@@ -109,15 +96,10 @@ export class ArticleService {
   }
 
   async deleteArticle(id: string, userId: string, request: Request): Promise<void> {
-    const article = await this.repository.findById(id);
-    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
-
-    if (article.authorId !== userId)
-      throw new ForbiddenError("You can only delete your own articles", undefined, {
-        messageKey: "article.deleteOwnOnly",
-      });
-
-    await this.repository.delete(id);
+    const article =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await ArticleManagementService.getInstance().delete(id, userId, request as TypedRequest)
+        : await this.deleteLegacyArticle(id, userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.ARTICLE_DELETE,
@@ -131,6 +113,39 @@ export class ArticleService {
       ipAddress: this.getClientIP(request),
       userAgent: request.headers["user-agent"],
     });
+  }
+
+  private async updateLegacyArticle(id: string, dto: UpdateArticleDto, userId: string) {
+    const article = await this.repository.findById(id);
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
+
+    if (article.authorId !== userId)
+      throw new ForbiddenError("You can only update your own articles", undefined, {
+        messageKey: "article.updateOwnOnly",
+      });
+
+    if (dto.slug && dto.slug !== article.slug) {
+      const existing = await this.repository.findBySlug(dto.slug);
+      if (existing) throw new BadRequestError("Slug already exists", undefined, { messageKey: "article.slugExists" });
+    }
+
+    assertArticlePublicAccess(
+      dto.isPublic ?? article.isPublic,
+      dto.requirePermission ?? article.requirePermission ?? undefined,
+    );
+
+    return this.repository.update(id, dto);
+  }
+  private async deleteLegacyArticle(id: string, userId: string) {
+    const article = await this.repository.findById(id);
+    if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
+
+    if (article.authorId !== userId)
+      throw new ForbiddenError("You can only delete your own articles", undefined, {
+        messageKey: "article.deleteOwnOnly",
+      });
+
+    return this.repository.delete(id);
   }
 
   async publishArticle(id: string, userId: string, request: Request): Promise<ArticleDto> {
@@ -173,7 +188,7 @@ export class ArticleService {
 
   private async transitionPublication(id: string, userId: string, request: Request, next: "draft" | "published") {
     if (env.security.iamAuthorizationMode === "enforce")
-      return ArticlePublicationService.getInstance().transition(id, userId, request as TypedRequest, next);
+      return ArticleManagementService.getInstance().transition(id, userId, request as TypedRequest, next);
     const article = await this.repository.findById(id);
     if (!article) throw new NotFoundError("Article not found", undefined, { messageKey: "article.notFound" });
     if (article.publishStatus === next)
@@ -309,13 +324,6 @@ export class ArticleService {
 
     this.repository.incrementViewCount(article.id).catch(() => {});
     return this.toArticleDto(article);
-  }
-
-  private validatePublicAccess(isPublic: boolean, requirePermission?: string): void {
-    if (isPublic && requirePermission?.trim())
-      throw new BadRequestError("Public articles cannot require permissions", undefined, {
-        messageKey: "article.publicCannotRequirePermissions",
-      });
   }
 
   private async checkArticleAccess(article: any, userId: string): Promise<void> {

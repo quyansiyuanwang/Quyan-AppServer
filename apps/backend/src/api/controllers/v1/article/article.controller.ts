@@ -131,7 +131,11 @@ export class ArticleController extends Controller {
 
   @Put("{id}")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Update",
+    resourceKind: "single-resource",
+    resource: articleResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(articleIdParamsSchema), validateBody(updateArticleBodySchema))
   public async updateArticle(
     @Path() id: string,
@@ -143,7 +147,11 @@ export class ArticleController extends Controller {
 
   @Delete("{id}")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_DELETE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ARTICLE_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Delete",
+    resourceKind: "single-resource",
+    resource: articleResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(articleIdParamsSchema))
   public async deleteArticle(@Path() id: string, @Request() request: TypedRequest): Promise<{ success: boolean }> {
     await this.service.deleteArticle(id, request.user!.userId, request);

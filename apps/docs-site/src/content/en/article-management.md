@@ -68,6 +68,14 @@ Replace the placeholders with your account and article identifiers. An explicit 
 
 Publishing can make already-public articles accessible anonymously. Check content, public visibility and access restrictions before confirming. The publish response contains the existing full article DTO, including content. The server rechecks active ownership and the authorized publication snapshot before writing; if state or visibility changed, reload and authorize again. This grant does not authorize creating/editing/deleting articles or changing the site-wide default. Article listing/menu visibility still uses its separate permissions during migration; public reading is unchanged.
 
+## Resource-scoped editing and deletion
+
+In enforce mode, `quyan:article:Update` and `quyan:article:Delete` independently authorize the same concrete article ARN. A policy can delegate an exact same-account peer article, or restrict it to a resource group. The server checks current article/author/account availability and rechecks the authorized snapshot in the write transaction. Cross-account resources, identity aliases, explicit Deny, missing policies and stale targets fail closed.
+
+Editing does not grant publication, deletion or site-default management. The edit response includes the full article DTO. Only title, slug, category, summary, content, public visibility and access requirement are editable: a request cannot replace the author, change publication state/default selection, or overwrite status/counters. Making an already-published article public can expose its contents anonymously; clear any permission requirement explicitly in the same edit. Slugs remain site-wide unique, including inactive articles.
+
+Deletion marks the selected article unavailable; it neither deletes another article nor clears other articles' default flags. The deleted article immediately stops being eligible for resource-group grants. Legacy/shadow modes retain historical permissions and author-only editing/deletion; resource-scoped delegation is enforced after switching to enforce. List/menu permissions remain separate while migration continues.
+
 ## Notes
 
 - The reading-side page is usually `home-articles`.

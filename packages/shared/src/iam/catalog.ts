@@ -135,6 +135,8 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
     conditionKeys: [...IAM_SUPPORTED_CONDITION_KEYS],
     sensitive:
       permission === Permission.ARTICLE_PUBLISH ||
+      permission === Permission.ARTICLE_UPDATE ||
+      permission === Permission.ARTICLE_DELETE ||
       /ram:|permission:|impersonate|secret|password|key/i.test(permission),
     authorizationStage: resources ? 'declared' : 'legacy',
     ...(permission === Permission.PERMISSION_VIEW

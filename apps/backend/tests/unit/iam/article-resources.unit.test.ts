@@ -8,13 +8,13 @@ import {
 } from "@quyan/shared";
 import { articleArn, isCanonicalArticleId } from "@/iam/resources/article-resources";
 import { articleResourceResolver } from "@/iam/request/article-resource-resolvers";
-import { ArticlePublicationRepository } from "@/store/content/article-publication.repository";
+import { ArticleManagementRepository } from "@/store/content/article-management.repository";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { legacyPermissionsToPolicy } from "@/iam/legacy-policy";
 import type { TypedRequest } from "@/types/express";
-vi.mock("@/store/content/article-publication.repository", () => ({
-  ArticlePublicationRepository: { getInstance: () => ({ findTarget: vi.fn() }) },
+vi.mock("@/store/content/article-management.repository", () => ({
+  ArticleManagementRepository: { getInstance: () => ({ findTarget: vi.fn() }) },
 }));
 const action = actionForPermission(Permission.ARTICLE_PUBLISH);
 describe("article publication resource contract", () => {
@@ -87,7 +87,7 @@ describe("article publication resource contract", () => {
       accountOwnerId: "owner",
       subjectType: "sub_user" as const,
     };
-    const target = vi.spyOn(ArticlePublicationRepository, "getInstance");
+    const target = vi.spyOn(ArticleManagementRepository, "getInstance");
     expect(await articleResourceResolver({ request, principal })).toBeUndefined();
     expect(target).not.toHaveBeenCalled();
     target.mockRestore();

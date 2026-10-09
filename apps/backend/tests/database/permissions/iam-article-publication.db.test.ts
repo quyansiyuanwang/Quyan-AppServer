@@ -7,7 +7,7 @@ import { env } from "@/config/env";
 import { RamService } from "@/services/users/ram.service";
 import { ArticleService } from "@/services/article/article.service";
 import { ArticleController } from "@/api/controllers/v1/article/article.controller";
-import { ArticlePublicationRepository } from "@/store/content/article-publication.repository";
+import { ArticleManagementRepository } from "@/store/content/article-management.repository";
 import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import BusinessLogService from "@/services/system/businesslog.service";
@@ -20,7 +20,7 @@ import type { TypedRequest } from "@/types/express";
 const ram = RamService.getInstance(),
   service = ArticleService.getInstance(),
   controller = new ArticleController();
-const repository = ArticlePublicationRepository.getInstance(),
+const repository = ArticleManagementRepository.getInstance(),
   originalMode = env.security.iamAuthorizationMode;
 let owner: string, actor: string, peer: string, foreign: string;
 const arn = (id: string) => articleArn(owner, id);

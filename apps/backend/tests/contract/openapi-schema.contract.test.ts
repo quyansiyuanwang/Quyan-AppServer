@@ -432,3 +432,12 @@ describe("article publication wire contracts", () => {
     expect(JSON.stringify(route.responses)).toContain("#/components/schemas/ArticleDto");
   });
 });
+
+describe("article mutation wire contracts", () => {
+  it.each(["put", "delete"] as const)("retains authenticated %s on a concrete article", (method) => {
+    const operation = openApi.paths["/v1/articles/{id}"][method]!;
+    expect(operation.security).toEqual(expect.arrayContaining([expect.objectContaining({ jwt: [] })]));
+    expect(operation.parameters).toEqual(expect.arrayContaining([expect.objectContaining({ name: "id", in: "path" })]));
+    expect(operation.responses).toHaveProperty("200");
+  });
+});
