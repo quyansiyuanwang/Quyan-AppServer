@@ -1,9 +1,10 @@
+import { assertRelayRequestBodyCapacity, relayDeclaredBodyTooLarge } from "@/util/relay/relay-capacity.util";
 import { getAIHttpAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-executor.service";
 import axios from "axios";
-import { Readable, Transform } from "stream";
+import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import type { RelayToken } from "@prisma/client";
 import type { RelayProxyStore } from "@/store/relay/relay-proxy.store";
@@ -105,6 +106,7 @@ export class RelayImageForwarderService {
     host: RelayImageForwarderHost,
   ): Promise<ImageForwardResult> {
     const bodyData = host.buildForwardBodyBuffer(convertedBody);
+    assertRelayRequestBodyCapacity(bodyData, headers["content-type"] ?? headers["Content-Type"]);
     const cleanHeaders = { ...headers };
     delete cleanHeaders.host;
     delete cleanHeaders.Host;
@@ -243,24 +245,12 @@ export class RelayImageForwarderService {
     }
 
     const responseLimit = Math.max(1, maxBodyBytes);
-    const byteCounter = new Transform({
-      transform(chunk, _encoding, callback) {
-        const bufferChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-        responseBytes += bufferChunk.length;
-        if (firstByteTime === null) firstByteTime = Date.now();
-
-        if (responseBytes > responseLimit) {
-          callback(
-            new PayloadTooLargeError("Upstream image response body too large", undefined, {
-              messageKey: "relay.imageUpstreamTooLarge",
-            }),
-          );
-          return;
-        }
-
-        callback(null, chunk);
-      },
-    });
+    if (relayDeclaredBodyTooLarge(upstreamHeaders["content-length"], responseLimit)) {
+      responseStream.destroy();
+      throw new PayloadTooLargeError("Upstream image response body too large", undefined, {
+        messageKey: "relay.imageUpstreamTooLarge",
+      });
+    }
 
     const clientCloseHandler = () => {
       if (res.writableEnded) return;
@@ -270,10 +260,19 @@ export class RelayImageForwarderService {
 
     req.once("aborted", clientCloseHandler);
     res.once("close", clientCloseHandler);
-    res.writeHead(statusCode, host.withRequestIdHeader(req, host.sanitizeResponseHeaders(upstreamHeaders)));
-
     try {
-      await pipeline(responseStream, byteCounter, res);
+      // Validate the complete bounded image before committing success; no JSON decode/copy is needed.
+      const body = await host.readStreamBodyLimited(responseStream, responseLimit, () => {
+        if (firstByteTime === null) firstByteTime = Date.now();
+      });
+      responseBytes = body.bytesRead;
+      if (body.truncated)
+        throw new PayloadTooLargeError("Upstream image response body too large", undefined, {
+          messageKey: "relay.imageUpstreamTooLarge",
+        });
+      if (clientDisconnected) return { handled: true, success: false, retryable: false, clientDisconnected: true };
+      res.writeHead(statusCode, host.withRequestIdHeader(req, host.sanitizeResponseHeaders(upstreamHeaders)));
+      await pipeline(Readable.from([body.buffer]), res);
     } finally {
       req.off("aborted", clientCloseHandler);
       res.off("close", clientCloseHandler);

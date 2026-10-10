@@ -8,7 +8,7 @@ import { MessageRepository } from "@/store/chat/message.repository";
 import type { ConversationStore } from "@/store/chat/conversation.store";
 import type { MessageStore } from "@/store/chat/message.store";
 import { AIProviderService } from "./ai-provider.service";
-import { NotFoundError, ForbiddenError, BadRequestError } from "@/util/errors";
+import { NotFoundError, ForbiddenError, BadRequestError, PayloadTooLargeError } from "@/util/errors";
 import { Decimal } from "@prisma/client/runtime/library";
 import type { ModelPricing } from "@prisma/client";
 import { RelayTokenRepository } from "@/store/relay/relay-token.repository";
@@ -655,7 +655,9 @@ export class ChatService {
       const errorStatusCode =
         typeof (error as { response?: { status?: number } })?.response?.status === "number"
           ? (error as { response?: { status?: number } }).response!.status!
-          : 500;
+          : error instanceof PayloadTooLargeError
+            ? 413
+            : 500;
 
       await this.relayUsageRepository
         .create({
@@ -725,6 +727,8 @@ export class ChatService {
       cost = Math.max(0, Math.ceil(rawCost * 10000) / 10000);
     }
     cost += auditCost;
+    const capacityFailure = failed && lastError instanceof PayloadTooLargeError;
+    if (capacityFailure) cost = 0;
 
     const message = await this.messageRepo.create({
       conversationId,
@@ -737,6 +741,30 @@ export class ChatService {
       cost: new Decimal(cost),
       completionStatus: stopped ? "stopped" : failed ? "failed" : "completed",
     });
+
+    if (capacityFailure) {
+      await this.relayUsageRepository
+        .create({
+          relayTokenId: token.id,
+          executionChannelId: effectiveChannel.id,
+          displayChannelId: displayChannel.id,
+          displayChannelName: displayChannel.name || null,
+          requestTokens: inputTokens,
+          responseTokens: outputTokens,
+          totalTokens,
+          cacheCreationTokens,
+          cacheReadTokens,
+          path: usagePath,
+          method: usageMethod,
+          statusCode: 413,
+          ipAddress: usageIpAddress,
+          totalOutputTime,
+          timeToFirstByte,
+          isStreaming,
+        })
+        .catch(() => undefined);
+      throw lastError;
+    }
 
     const finalizeResult = await this.usageChargeService.chargeUsage({
       userId,

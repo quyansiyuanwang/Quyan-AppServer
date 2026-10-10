@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { ChatService } from "../../../src/services/chat/chat.service";
-import { BadRequestError, ForbiddenError, NotFoundError } from "../../../src/util/errors";
+import { BadRequestError, ForbiddenError, NotFoundError, PayloadTooLargeError } from "../../../src/util/errors";
 
 async function* createChatStream() {
   yield { content: "hello", done: false };
@@ -196,6 +196,7 @@ describe("ChatService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    relayUsageRepository.create.mockResolvedValue(undefined);
     contentSafetyService.getPublicConfig.mockResolvedValue({
       requestEnabled: true,
       requestAction: "unreachable",
@@ -643,52 +644,61 @@ describe("ChatService", () => {
     expect(messageRepo.create).toHaveBeenLastCalledWith(expect.objectContaining({ completionStatus: "stopped" }));
   });
 
-  it("persists a failed partial response without emitting a complete event", async () => {
-    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
-    relayTokenRepository.findByIdWithChannel.mockResolvedValue({
-      id: "token-1",
-      userId: "user-1",
-      token: "rlt_x",
-      channelId: "channel-1",
-      allowedModels: null,
-      upstreamUrl: "https://upstream.example.com",
-      upstreamApiKey: "upstream-key",
-      channel: { id: "channel-1", name: "main", multiplier: 1, allowedModels: null },
-    });
-    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
-      {
-        model: "gpt-4o-mini",
-        provider: null,
-        pricingType: "token-based",
-        fixedPrice: null,
-        inputPrice: 1000,
-        outputPrice: 2000,
-        cacheCreationMultiplier: 1,
-        cacheReadMultiplier: 1,
-        supportedFormats: "openai",
-      },
-    ]);
-    usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
-    usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
-    relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
-    messageRepo.create.mockResolvedValue(createPersistedMessage());
-    messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
-    aiProvider.streamChat.mockReturnValue(createPartialFailingStream(new Error("upstream disconnected")));
+  it.each([new Error("upstream disconnected"), new PayloadTooLargeError()])(
+    "persists a failed partial response without successful completion (%s)",
+    async (failure) => {
+      conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
+      relayTokenRepository.findByIdWithChannel.mockResolvedValue({
+        id: "token-1",
+        userId: "user-1",
+        token: "rlt_x",
+        channelId: "channel-1",
+        allowedModels: null,
+        upstreamUrl: "https://upstream.example.com",
+        upstreamApiKey: "upstream-key",
+        channel: { id: "channel-1", name: "main", multiplier: 1, allowedModels: null },
+      });
+      modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+        {
+          model: "gpt-4o-mini",
+          provider: null,
+          pricingType: "token-based",
+          fixedPrice: null,
+          inputPrice: 1000,
+          outputPrice: 2000,
+          cacheCreationMultiplier: 1,
+          cacheReadMultiplier: 1,
+          supportedFormats: "openai",
+        },
+      ]);
+      usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
+      usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
+      relayUsageRepository.create.mockResolvedValue({});
+      relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
+      messageRepo.create.mockResolvedValue(createPersistedMessage());
+      messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
+      aiProvider.streamChat.mockReturnValue(createPartialFailingStream(failure));
 
-    const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini");
+      const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini");
 
-    await expect(iterator.next()).resolves.toEqual({
-      done: false,
-      value: { type: "delta", content: "partial", done: false },
-    });
-    await expect(iterator.next()).rejects.toThrow("upstream disconnected");
-    expect(messageRepo.create).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        completionStatus: "failed",
-        content: "partial",
-      }),
-    );
-  });
+      await expect(iterator.next()).resolves.toEqual({
+        done: false,
+        value: { type: "delta", content: "partial", done: false },
+      });
+      await expect(iterator.next()).rejects.toThrow(failure);
+      if (failure instanceof PayloadTooLargeError) {
+        expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+        expect(relayUsageRepository.create).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 413 }));
+        expect(messageRepo.create.mock.calls.at(-1)?.[0].cost.toNumber()).toBe(0);
+      } else expect(usageChargeService.chargeUsage).toHaveBeenCalledOnce();
+      expect(messageRepo.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          completionStatus: "failed",
+          content: "partial",
+        }),
+      );
+    },
+  );
 
   it("filters available models by channel and token constraints", async () => {
     relayTokenRepository.findByUserIdWithRelations.mockResolvedValue([

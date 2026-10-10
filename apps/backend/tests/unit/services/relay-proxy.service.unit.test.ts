@@ -1,3 +1,4 @@
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { EventEmitter } from "events";
 import http from "http";
 import { Readable, Writable } from "stream";
@@ -373,6 +374,29 @@ const createService = (
 };
 
 describe("RelayProxyService failover", () => {
+  it("rejects known oversized non-stream responses without reading, failover or charging", async () => {
+    const { service, usageChargeService } = createService();
+    const upstream = new Readable({
+      read() {
+        throw new Error("oversized response body must not be read");
+      },
+    });
+    axiosMock.mockResolvedValue({
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(getAIResourceConfig().relay.resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024 + 1),
+      },
+      data: upstream,
+    });
+    await expect(service.forwardRequest(createRelayToken(), createRequest())).rejects.toMatchObject({
+      statusCode: 413,
+    });
+    expect(upstream.destroyed).toBe(true);
+    expect(axiosMock).toHaveBeenCalledOnce();
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     axiosMock.mockReset();
@@ -2525,7 +2549,7 @@ describe("RelayProxyService failover", () => {
         expect.objectContaining({
           handled: true,
           success: false,
-          statusCode: 200,
+          statusCode: 499,
           clientDisconnected: true,
         }),
       );

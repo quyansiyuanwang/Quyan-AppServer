@@ -1,3 +1,4 @@
+import { env } from "@/config/env";
 import http from "node:http";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
@@ -17,15 +18,21 @@ function fixture(
   options: {
     backpressure?: boolean;
     conversion?: boolean;
+    responseTarget?: "anthropic" | "openai-responses";
     audit?: boolean;
     frameLimit?: number;
     gemini?: boolean;
     contentType?: string;
+    contentLength?: number;
+    bodyBuffer?: Buffer;
   } = {},
 ) {
   const upstream = Object.assign(new PassThrough(), {
     statusCode: 200,
-    headers: { "content-type": options.contentType ?? "text/event-stream" },
+    headers: {
+      "content-type": options.contentType ?? "text/event-stream",
+      ...(options.contentLength !== undefined ? { "content-length": String(options.contentLength) } : {}),
+    },
   });
   const request = Object.assign(new EventEmitter(), {
     path: "/relay/proxy/v1/chat/completions",
@@ -50,7 +57,8 @@ function fixture(
       }
       return true;
     }),
-    end: vi.fn(() => {
+    end: vi.fn((chunk?: Buffer | string) => {
+      if (chunk) output.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       response.writableEnded = true;
       response.emit("finish");
     }),
@@ -101,7 +109,7 @@ function fixture(
     globalMultiplier: 1,
     timeMultiplier: 1,
     convertedBody: { model: "m", stream: true },
-    bodyBuffer: Buffer.from('{"model":"m","stream":true}'),
+    bodyBuffer: options.bodyBuffer ?? Buffer.from('{"model":"m","stream":true}'),
     requestFormat: options.gemini ? "gemini" : "openai-chat-completions",
     relayGlobalMultiplier: 1,
     channelMultiplier: 1,
@@ -112,7 +120,7 @@ function fixture(
     monthlyPassCoverageAt: new Date(),
     upstreamStreamTimeout: 1000,
     responseTransform: options.conversion
-      ? { sourceFormat: "openai-chat-completions", targetFormat: "anthropic" }
+      ? { sourceFormat: "openai-chat-completions", targetFormat: options.responseTarget ?? "anthropic" }
       : undefined,
   };
   return {
@@ -125,6 +133,92 @@ function fixture(
   };
 }
 describe("relay single-chain stream forwarding", () => {
+  it("rejects conversion retention overflow as 413 without starting success or billing", async () => {
+    const settings = structuredClone(AI_RESOURCE_DEFAULTS);
+    settings.aiResources.streaming.retainedLimitBytes = 8;
+    AIResourceConfigService.getInstance().apply(settings);
+    const f = fixture({ conversion: true, responseTarget: "openai-responses" });
+    const pending = f.start();
+    const rejected = expect(pending).rejects.toMatchObject({ statusCode: 413 });
+    await tick();
+    f.upstream.end(delta);
+    await rejected;
+    expect(f.response.headersSent).toBe(false);
+    expect(f.response.end).not.toHaveBeenCalled();
+    expect(f.host.finalizeStreamUsage).not.toHaveBeenCalled();
+  });
+
+  it("rejects an oversized wire request before opening upstream or starting a response", async () => {
+    const f = fixture({ bodyBuffer: Buffer.alloc(env.runtime.requestSizeLimits.jsonBodyLimitMb * 1024 * 1024 + 1) });
+    await expect(f.start()).rejects.toMatchObject({ statusCode: 413 });
+    expect(http.request).not.toHaveBeenCalled();
+    expect(f.response.writeHead).not.toHaveBeenCalled();
+    expect(f.response.end).not.toHaveBeenCalled();
+    expect(f.host.finalizeStreamUsage).not.toHaveBeenCalled();
+  });
+  it("rejects a known oversized reviewed response before sending 200 or reading its body", async () => {
+    const f = fixture({ audit: true, contentLength: AI_RESOURCE_DEFAULTS.aiResources.streaming.outputLimitBytes + 1 });
+    const pending = expect(f.start()).rejects.toMatchObject({ statusCode: 413 });
+    await pending;
+    expect(f.upstream.destroyed).toBe(true);
+    expect(f.response.writeHead).not.toHaveBeenCalled();
+    expect(f.response.end).not.toHaveBeenCalled();
+    expect(f.host.finalizeStreamUsage).not.toHaveBeenCalled();
+  });
+  it.each([
+    {},
+    { conversion: true, responseTarget: "anthropic" as const },
+    { conversion: true, responseTarget: "openai-responses" as const },
+  ])("reports a late capacity failure without charging partial output (%s)", async (options) => {
+    const f = fixture({ ...options, frameLimit: 128 });
+    const pending = f.start();
+    const rejected = expect(pending).rejects.toMatchObject({ statusCode: 413 });
+    await tick();
+    f.upstream.write(Buffer.concat([delta, usage]));
+    await tick();
+    expect(f.response.headersSent).toBe(true);
+    f.upstream.end(Buffer.from('data: {"text":"' + "x".repeat(256) + '"}\n\n'));
+    await rejected;
+    const wire = Buffer.concat(f.output).toString();
+    expect(wire).toContain(options.responseTarget === "openai-responses" ? "event: response.failed" : "event: error");
+    expect(wire).not.toContain("message_stop");
+    expect(wire).not.toContain("response.completed");
+    expect(wire).toContain('"type":"request_too_large"');
+    expect(wire).not.toContain("[DONE]");
+    expect(f.host.finalizeStreamUsage).not.toHaveBeenCalled();
+    expect(f.upstream.destroyed).toBe(true);
+  });
+  it("keeps partial-output settlement for an upstream transport failure, with an explicit error", async () => {
+    const f = fixture();
+    const pending = f.start();
+    const rejected = expect(pending).rejects.toThrow("fixture disconnect");
+    await tick();
+    f.upstream.write(Buffer.concat([delta, usage]));
+    await tick();
+    f.upstream.destroy(new Error("fixture disconnect"));
+    await rejected;
+    expect(f.host.finalizeStreamUsage).toHaveBeenCalledOnce();
+    expect(f.host.finalizeStreamUsage.mock.calls[0]).toEqual([
+      expect.anything(),
+      expect.objectContaining({ statusCode: 502 }),
+    ]);
+    expect(Buffer.concat(f.output).toString()).toContain("event: error");
+    expect(Buffer.concat(f.output).toString()).not.toContain("[DONE]");
+  });
+  it("allows a long same-protocol stream beyond the retained-text budget", async () => {
+    const settings = structuredClone(AI_RESOURCE_DEFAULTS);
+    settings.aiResources.streaming.outputLimitBytes = 128;
+    AIResourceConfigService.getInstance().apply(settings);
+    const f = fixture({ frameLimit: 128 });
+    const wire = Buffer.concat([Buffer.concat(Array(20).fill(delta)), usage, done]);
+    const pending = f.start();
+    await tick();
+    f.upstream.end(wire);
+    expect((await pending).success).toBe(true);
+    expect(Buffer.concat(f.output)).toEqual(wire);
+    expect(f.host.finalizeStreamUsage).toHaveBeenCalledOnce();
+  });
+
   it.each(
     [false, true].flatMap((audit) =>
       ["text/event-stream", "application/x-ndjson"].flatMap((contentType) =>
@@ -214,6 +308,9 @@ describe("relay single-chain stream forwarding", () => {
     await result;
     expect(f.upstream.destroyed).toBe(true);
     expect(f.output).toHaveLength(0);
+    expect(f.response.end).not.toHaveBeenCalled();
+    expect(f.response.writeHead).not.toHaveBeenCalled();
+    expect(f.host.finalizeStreamUsage).not.toHaveBeenCalled();
     expect(f.request.listenerCount("aborted")).toBe(0);
   });
 });

@@ -1,3 +1,8 @@
+import {
+  assertRelayRequestBodyCapacity,
+  relayDeclaredBodyTooLarge,
+  relayStreamFailureStatus,
+} from "@/util/relay/relay-capacity.util";
 import { jsonSerializedLength } from "@/util/json-serialized-length";
 import { parseRelayRequestBody, relayRawRequestBody } from "@/util/relay/relay-request-payload";
 import { withContentSafetyAttempt, resetContentSafetyAttempt } from "@/services/system/content-safety-attempt";
@@ -70,7 +75,6 @@ import { Prisma, RelayToken, RelayChannel } from "@prisma/client";
 import {
   BadRequestError,
   ForbiddenError,
-  GatewayTimeoutError,
   ContentSafetyBlockedError,
   LockBackendUnavailableError,
   PayloadTooLargeError,
@@ -2411,7 +2415,7 @@ export class RelayProxyService {
   private shouldFailoverOnError(error: unknown): boolean {
     // 余额不足错误不应该 failover，因为切换渠道也会遇到同样的问题
     if (error instanceof RelayChannelSkipError && error.reason === "insufficient-balance") return false;
-    if (error instanceof ContentSafetyBlockedError) return false;
+    if (error instanceof ContentSafetyBlockedError || error instanceof PayloadTooLargeError) return false;
     const cancellation = error as { code?: string; name?: string } | undefined;
     if (cancellation?.code === "ERR_CANCELED" || cancellation?.name === "AbortError") return false;
 
@@ -2422,8 +2426,7 @@ export class RelayProxyService {
   private sendStreamTransportError(res: any, error: unknown): void {
     if (res.headersSent || res.writableEnded) return;
 
-    const statusCode =
-      error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502;
+    const statusCode = relayStreamFailureStatus(error);
     const message = error instanceof Error ? error.message : "Upstream request failed";
 
     res.status(statusCode).json({
@@ -3736,6 +3739,7 @@ export class RelayProxyService {
             }
 
             wireBody ??= this.buildForwardBodyBuffer(convertedBody);
+            assertRelayRequestBodyCapacity(wireBody, req.headers?.["content-type"]);
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
             const systemHasCache =
@@ -4013,6 +4017,15 @@ export class RelayProxyService {
                 })
               ),
             );
+            if (
+              relayDeclaredBodyTooLarge(getUpstreamHeaderValue(response.headers, "content-length"), maxResponseBytes)
+            ) {
+              (response.data as Readable).destroy?.();
+              throw new PayloadTooLargeError("Upstream response body exceeds the response limit", undefined, {
+                messageKey: "relayProxy.upstreamResponseTooLarge",
+                messageParams: { limitMb: resourceGuard.maxUpstreamResponseBodyMb },
+              });
+            }
             const streamedResponse = await this.readStreamBodyLimited(
               response.data as Readable,
               maxResponseBytes,
@@ -4611,8 +4624,7 @@ export class RelayProxyService {
               if (getCompositeContext(req)) throw error;
               this.sendStreamTransportError(res, error);
               return {
-                status:
-                  error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502,
+                status: relayStreamFailureStatus(error),
                 headers: {},
                 data: {},
               };

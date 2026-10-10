@@ -1,3 +1,7 @@
+import http from "node:http";
+import { once } from "node:events";
+import { env } from "@/config/env";
+import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
 import { RelayTokenRepository } from "@/store/relay/relay-token.repository";
 import { RelayUsageRepository } from "@/store/relay/relay-usage.repository";
 import { RelayProxyRepository } from "@/store/relay/relay-proxy.repository";
@@ -64,7 +68,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     }
   };
 
-  const getAudit = async (tokenId: string, bodyKeyword: string) => {
+  const getAudit = async (tokenId: string, bodyKeyword: string, after?: Date) => {
     for (let i = 0; i < 50; i++) {
       const logs = await prisma.aIRequestLog.findMany({
         where: { relayTokenId: tokenId },
@@ -72,7 +76,9 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
         take: 20,
       });
       const row = logs.find(
-        (log) => JSON.stringify(log.requestBody).includes(bodyKeyword) && log.outcome !== "pending",
+        (log) =>
+          (after ? log.createTime >= after : JSON.stringify(log.requestBody).includes(bodyKeyword)) &&
+          log.outcome !== "pending",
       );
       if (row) return row;
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1872,6 +1878,116 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     const usage = await getLatestUsage(geminiRelayTokenId, beforeCount + 1);
     expect(usage?.isStreaming).toBe(false);
     expect(usage?.totalTokens ?? 0).toBeGreaterThan(0);
+  });
+
+  it("rejects oversized input with 413 before calling upstream or charging", async () => {
+    const upstreamBefore = observedUpstreamRequests.length;
+    const chargedBefore = await prisma.balanceTransaction.count({ where: { userId: testUserId } });
+    const response = await request(app)
+      .post("/relay/proxy/v1/chat/completions")
+      .set("Authorization", "Bearer " + openaiRelayTokenValue)
+      .send({
+        model: openaiRelayModelId,
+        stream: true,
+        messages: [{ role: "user", content: "x".repeat(env.runtime.requestSizeLimits.jsonBodyLimitMb * 1024 * 1024) }],
+      });
+    expect(response.status).toBe(413);
+    expect(observedUpstreamRequests).toHaveLength(upstreamBefore);
+    expect(await prisma.balanceTransaction.count({ where: { userId: testUserId } })).toBe(chargedBefore);
+  });
+
+  it("returns 413 for chunked oversized input without resetting the response or calling upstream", async () => {
+    const upstreamBefore = observedUpstreamRequests.length;
+    const chargedBefore = await prisma.balanceTransaction.count({ where: { userId: testUserId } });
+    const server = http.createServer(app);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const port = (server.address() as { port: number }).port;
+    try {
+      const response = await new Promise<{ status?: number; text: string }>((resolve, reject) => {
+        const outgoing = http.request(
+          {
+            hostname: "127.0.0.1",
+            port,
+            method: "POST",
+            path: "/relay/proxy/v1/chat/completions",
+            headers: {
+              "content-type": "application/json",
+              "transfer-encoding": "chunked",
+              authorization: "Bearer " + openaiRelayTokenValue,
+            },
+          },
+          (incoming) => {
+            let text = "";
+            incoming.on("data", (chunk) => {
+              text += chunk.toString();
+            });
+            incoming.on("error", reject);
+            incoming.on("end", () => resolve({ status: incoming.statusCode, text }));
+          },
+        );
+        outgoing.on("error", reject);
+        const chunk = Buffer.alloc(256 * 1024, 120);
+        void (async () => {
+          outgoing.write('{"messages":[{"content":"');
+          for (
+            let bytes = 0;
+            bytes <= env.runtime.requestSizeLimits.jsonBodyLimitMb * 1024 * 1024;
+            bytes += chunk.length
+          )
+            if (!outgoing.write(chunk)) await once(outgoing, "drain");
+          outgoing.end('"}]}');
+        })().catch(reject);
+      });
+      expect(response.status).toBe(413);
+      expect(observedUpstreamRequests).toHaveLength(upstreamBefore);
+      expect(await prisma.balanceTransaction.count({ where: { userId: testUserId } })).toBe(chargedBefore);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    }
+  });
+
+  it.each([false, true])("does not charge local stream capacity failures (partial output=%s)", async (partial) => {
+    const resources = AIResourceConfigService.getInstance();
+    const previous = resources.current;
+    const settings = structuredClone(previous);
+    settings.aiResources.streaming.frameLimitBytes = 128;
+    resources.apply(settings);
+    const chargedBefore = await prisma.balanceTransaction.count({ where: { userId: testUserId } });
+    const upstreamBefore = observedUpstreamRequests.length;
+    const marker = partial ? "late capacity refusal" : "early capacity refusal";
+    const auditAfter = new Date();
+    relayAIMockPlugin!.useOpenAI(async () => ({
+      streamChunks: [
+        ...(partial ? ['data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'] : []),
+        'data: {"choices":[{"delta":{"content":"' + "x".repeat(256) + '"}}]}\n\n',
+        'data: {"usage":{"prompt_tokens":12,"completion_tokens":9,"total_tokens":21}}\n\n',
+        "data: [DONE]\n\n",
+      ],
+    }));
+    try {
+      const response = await request(app)
+        .post("/relay/proxy/v1/chat/completions")
+        .set("Authorization", "Bearer " + openaiRelayTokenValue)
+        .send({ model: openaiRelayModelId, stream: true, messages: [{ role: "user", content: marker }] });
+      expect(response.status).toBe(partial ? 200 : 413);
+      if (partial) {
+        expect(response.text).toContain("event: error");
+        expect(response.text).toContain('"type":"request_too_large"');
+      }
+      expect(response.text).not.toContain("[DONE]");
+      expect(observedUpstreamRequests).toHaveLength(upstreamBefore + 1);
+      const audit = await getAudit(openaiRelayTokenId, marker, auditAfter);
+      expect(audit.outcome).toBe("failed");
+      expect(await prisma.balanceTransaction.count({ where: { userId: testUserId } })).toBe(chargedBefore);
+    } finally {
+      resources.apply(previous);
+      relayAIMockPlugin!.useOpenAI(async (ctx) => ({
+        ...(ctx.body.stream === true
+          ? relayAIMockPlugin!["buildOpenAIStreamReply"](ctx as any)
+          : { body: relayAIMockPlugin!["buildOpenAIBody"](ctx as any) }),
+      }));
+    }
   });
 
   it("Gemini 流式 streamGenerateContent 返回分块并记录 streaming usage", async () => {
