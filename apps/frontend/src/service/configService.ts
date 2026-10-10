@@ -68,6 +68,12 @@ export class ConfigService {
     return this.instance
   }
 
+  async getAIResourceConfiguration() {
+    const result = await configApi.getAllConfigs({})
+    if (result?.code === CustomCode.OK && result.data?.aiResources) return result.data.aiResources
+    throw toServiceError(result)
+  }
+
   async getAllConfigs() {
     const result = await configApi.getAllConfigs({})
     if (result && result.code === CustomCode.OK && result.data) {

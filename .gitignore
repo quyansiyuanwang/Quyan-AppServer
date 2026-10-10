@@ -15,3 +15,6 @@ apps/frontend/src/router/.gen/
 .tmp/
 
 *.log
+
+# Local diagnostics and AI pressure-test artifacts
+/tmp/

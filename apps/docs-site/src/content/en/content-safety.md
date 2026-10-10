@@ -25,3 +25,11 @@ Users and administrators can export the current scope as JSON policy or CSV rule
 ## System policy
 
 Administrators with system configuration permission can manage the system baseline, AI channel, default rules, system rules, and all incident records from the System Content Safety page. Existing security verification remains required for system changes.
+
+## Programming workflows and rule updates
+
+The default import uses a relaxed development baseline: only complete PEM private-key material is blocked. Tool definitions, system prompts, common code, commands and configuration paths are not blocking signals by themselves. Placeholders, standalone markers and abbreviated key templates do not match; avoid sending complete real credentials.
+
+Upgrades do not automatically disable existing rules. To relax a legacy ruleset, retain each rule ID and set enabled=false in CSV, preview, then import with overwrite. Removing CSV rows does not delete database rules. CSV contains rules, not AI-review switches; AI review can still block independently.
+
+Each upstream attempt uses its initial policy and rule snapshot. Edits apply to the next request, retry or channel switch; active long-lived streams keep their original rules.

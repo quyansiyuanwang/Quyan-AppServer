@@ -2243,7 +2243,95 @@ describe("RelayProxyService failover", () => {
     }
   });
 
-  it("still charges when the client disconnects after upstream streaming has started", async () => {
+  it("cancels an oversized streaming error body immediately without success or charging", async () => {
+    const relayToken = createRelayToken();
+    const req = new EventEmitter() as any;
+    req.method = "POST";
+    req.path = "/relay/proxy/v1/chat/completions";
+    req.ip = "127.0.0.1";
+    req.connection = { remoteAddress: "127.0.0.1" };
+
+    const res = {
+      headersSent: false,
+      writableEnded: false,
+      finished: false,
+      writeHead: vi.fn(() => {
+        res.headersSent = true;
+      }),
+      write: vi.fn(),
+      end: vi.fn(() => {
+        res.finished = true;
+        res.writableEnded = true;
+      }),
+      status: vi.fn(() => ({ json: vi.fn() })),
+    };
+
+    const { service, relayProxyRepository, usageChargeService } = createService();
+
+    const requestSpy = vi.spyOn(http, "request").mockImplementation((options: any, callback: any) => {
+      const proxyReq = new EventEmitter() as any;
+      proxyReq.write = vi.fn();
+      proxyReq.end = vi.fn(() => {
+        const proxyRes = new EventEmitter() as any;
+        proxyRes.statusCode = 503;
+        proxyRes.headers = { "content-type": "application/json" };
+
+        proxyRes.destroy = vi.fn((error: Error) => proxyRes.emit("error", error));
+        callback(proxyRes);
+        proxyRes.emit("data", Buffer.alloc(env.aiRequestLog.responseBodyBytes + 1));
+        expect(proxyRes.destroy).toHaveBeenCalledOnce();
+      });
+      proxyReq.destroy = vi.fn((err?: Error) => {
+        if (err) proxyReq.emit("error", err);
+      });
+      return proxyReq;
+    });
+
+    try {
+      await expect(
+        (service as any).forwardStreamRequest(
+          relayToken,
+          req,
+          res,
+          "http://primary.example.com/v1/chat/completions",
+          { Authorization: "Bearer test-key" },
+          {
+            pricingType: "token-based",
+            input: 0.000001,
+            output: 0.000002,
+            multiplier: 1,
+            cacheCreationMultiplier: 1.25,
+            cacheReadMultiplier: 0.1,
+          },
+          "gpt-4o-mini",
+          "gpt-4o-mini",
+          1,
+          1,
+          undefined,
+          { model: "gpt-4o-mini", stream: true, messages: [] },
+          "openai",
+          1,
+          1,
+          "channel-primary",
+          "channel-primary",
+          "Primary",
+          "channel-primary",
+          new Date("2026-01-01T00:00:00.000Z"),
+          30000,
+          false,
+          ["503"],
+        ),
+      ).rejects.toMatchObject({ statusCode: 413 });
+
+      expect(relayProxyRepository.recordUsageWithZeroChargeTransaction).not.toHaveBeenCalled();
+      expect(relayProxyRepository.recordUsageWithoutCharge).not.toHaveBeenCalled();
+      expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+    } finally {
+      requestSpy.mockRestore();
+    }
+  });
+
+  it("does not mistake normal request-body close for client disconnect", async () => {
     const relayToken = createRelayToken();
     const req = new EventEmitter() as any;
     req.method = "POST";
@@ -2342,6 +2430,114 @@ describe("RelayProxyService failover", () => {
           totalTokens: 15,
         }),
       );
+      expect(relayProxyRepository.recordUsageWithZeroChargeTransaction).not.toHaveBeenCalled();
+      expect(relayProxyRepository.recordUsageWithoutCharge).not.toHaveBeenCalled();
+    } finally {
+      requestSpy.mockRestore();
+    }
+  });
+
+  it("still charges when the client disconnects after upstream streaming has started", async () => {
+    const relayToken = createRelayToken();
+    const req = new EventEmitter() as any;
+    req.method = "POST";
+    req.path = "/relay/proxy/v1/chat/completions";
+    req.ip = "127.0.0.1";
+    req.connection = { remoteAddress: "127.0.0.1" };
+
+    const res = {
+      headersSent: false,
+      writableEnded: false,
+      finished: false,
+      writeHead: vi.fn(() => {
+        res.headersSent = true;
+      }),
+      write: vi.fn(),
+      end: vi.fn(() => {
+        res.finished = true;
+        res.writableEnded = true;
+      }),
+      status: vi.fn(() => ({ json: vi.fn() })),
+    };
+
+    const { service, relayProxyRepository, usageChargeService } = createService();
+
+    const requestSpy = vi.spyOn(http, "request").mockImplementation((options: any, callback: any) => {
+      const proxyReq = new EventEmitter() as any;
+      proxyReq.write = vi.fn();
+      proxyReq.end = vi.fn(() => {
+        const proxyRes = new EventEmitter() as any;
+        proxyRes.statusCode = 200;
+        proxyRes.headers = { "content-type": "text/event-stream" };
+
+        callback(proxyRes);
+        proxyRes.emit(
+          "data",
+          Buffer.from(
+            'data: {"choices":[{"delta":{"content":"hello"}}],"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}\n\n',
+          ),
+        );
+        queueMicrotask(() => req.emit("aborted"));
+        proxyRes.emit("data", Buffer.from("data: [DONE]\n\n"));
+        proxyRes.emit("end");
+      });
+      proxyReq.destroy = vi.fn((err?: Error) => {
+        if (err) proxyReq.emit("error", err);
+      });
+      return proxyReq;
+    });
+
+    try {
+      const result = await (service as any).forwardStreamRequest(
+        relayToken,
+        req,
+        res,
+        "http://primary.example.com/v1/chat/completions",
+        { Authorization: "Bearer test-key" },
+        {
+          pricingType: "token-based",
+          input: 0.000001,
+          output: 0.000002,
+          multiplier: 1,
+          cacheCreationMultiplier: 1.25,
+          cacheReadMultiplier: 0.1,
+        },
+        "gpt-4o-mini",
+        "gpt-4o-mini",
+        1,
+        1,
+        undefined,
+        { model: "gpt-4o-mini", stream: true, messages: [] },
+        "openai",
+        1,
+        1,
+        "channel-primary",
+        "channel-primary",
+        "Primary",
+        "channel-primary",
+        new Date("2026-01-01T00:00:00.000Z"),
+        30000,
+        false,
+        ["503"],
+      );
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          handled: true,
+          success: false,
+          statusCode: 200,
+          clientDisconnected: true,
+        }),
+      );
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          relayTokenId: "token-1",
+          isStreaming: true,
+          statusCode: 499,
+          totalTokens: 15,
+        }),
+      );
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledOnce();
       expect(relayProxyRepository.recordUsageWithZeroChargeTransaction).not.toHaveBeenCalled();
       expect(relayProxyRepository.recordUsageWithoutCharge).not.toHaveBeenCalled();
     } finally {

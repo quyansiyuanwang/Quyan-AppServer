@@ -1,28 +1,13 @@
+import { getAIHttpAgents } from "@/services/infrastructure/ai-http-agent-pool";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
+import { AIResourceService, withAIGenerator } from "@/services/infrastructure/ai-resource.service";
+import { boundedTextLines, aiContentTooLarge } from "@/util/streaming/bounded-text";
 import axios from "axios";
-import https from "https";
-import http from "http";
 import { extractTokenUsageMetrics, normalizeTokenBreakdown } from "@/util/token-usage.util";
 import type { RelayRequestFormat } from "@/util/relay";
 import { getLogger, LogCategory } from "@/util/logger";
 
 const logger = getLogger("AIProvider", LogCategory.BUSINESS);
-
-// Reuse HTTP agents for connection pooling
-const httpsAgent = new https.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  maxSockets: 50,
-  maxFreeSockets: 10,
-  timeout: 60000,
-});
-
-const httpAgent = new http.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  maxSockets: 50,
-  maxFreeSockets: 10,
-  timeout: 60000,
-});
 
 interface ChatMessage {
   role: string;
@@ -222,14 +207,49 @@ export class AIProviderService {
     signal?: AbortSignal,
     options?: ChatCompletionOptions,
   ): AsyncGenerator<StreamChunk> {
-    const provider = this.resolveProvider(model, requestFormat);
+    yield* withAIGenerator(
+      (combined) => this.streamChatInternal(messages, model, apiKey, upstreamUrl, requestFormat, combined, options),
+      signal,
+    );
+  }
 
-    if (provider === "openai" || provider === "openai-chat-completions")
-      yield* this.streamOpenAI(messages, model, apiKey, upstreamUrl, signal, options);
-    else if (provider === "anthropic")
-      yield* this.streamAnthropic(messages, model, apiKey, upstreamUrl, signal, options);
-    else if (provider === "gemini") yield* this.streamGemini(messages, model, apiKey, upstreamUrl, signal, options);
-    else throw new Error(`Provider ${provider} not yet implemented`);
+  private async *streamChatInternal(
+    messages: ChatMessage[],
+    model: string,
+    apiKey: string,
+    upstreamUrl: string,
+    requestFormat?: RelayRequestFormat,
+    signal?: AbortSignal,
+    options?: ChatCompletionOptions,
+  ): AsyncGenerator<StreamChunk> {
+    const provider = this.resolveProvider(model, requestFormat);
+    const stream =
+      provider === "openai" || provider === "openai-chat-completions"
+        ? this.streamOpenAI(messages, model, apiKey, upstreamUrl, signal, options)
+        : provider === "anthropic"
+          ? this.streamAnthropic(messages, model, apiKey, upstreamUrl, signal, options)
+          : provider === "gemini"
+            ? this.streamGemini(messages, model, apiKey, upstreamUrl, signal, options)
+            : undefined;
+    if (!stream) throw new Error(`Provider ${provider} not yet implemented`);
+    let outputBytes = 0;
+    for await (const chunk of stream) {
+      if (!chunk.done) {
+        outputBytes += Buffer.byteLength(chunk.content);
+        if (outputBytes > getAIResourceConfig().aiResources.streaming.outputLimitBytes) throw aiContentTooLarge();
+      }
+      yield chunk;
+    }
+  }
+
+  private async postStream(...args: Parameters<typeof axios.post>) {
+    try {
+      return await axios.post(...args);
+    } catch (error) {
+      // Axios rejects error statuses without consuming a streaming response. Close it before retry/release.
+      (error as { response?: { data?: { destroy?: () => void } } }).response?.data?.destroy?.();
+      throw error;
+    }
   }
 
   private async *streamOpenAI(
@@ -245,7 +265,7 @@ export class AIProviderService {
     const startAt = Date.now();
     let response;
     try {
-      response = await axios.post(
+      response = await this.postStream(
         url,
         {
           model,
@@ -256,10 +276,13 @@ export class AIProviderService {
           stream_options: { include_usage: true },
         },
         {
-          headers: { Authorization: `Bearer ${apiKey}`, ...options?.requestHeaders },
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            ...options?.requestHeaders,
+            ...AIResourceService.getInstance().hopHeaders(url, `Bearer ${apiKey}`),
+          },
           responseType: "stream",
-          httpAgent,
-          httpsAgent,
+          ...getAIHttpAgents(),
           signal,
         },
       );
@@ -268,7 +291,7 @@ export class AIProviderService {
       if (status !== 400 && status !== 422) throw error;
 
       logger.warn("OpenAI stream_options unsupported; retrying without it", { model });
-      response = await axios.post(
+      response = await this.postStream(
         url,
         {
           model,
@@ -277,10 +300,13 @@ export class AIProviderService {
           ...(options?.maxOutputTokens ? { max_tokens: options.maxOutputTokens } : {}),
         },
         {
-          headers: { Authorization: `Bearer ${apiKey}`, ...options?.requestHeaders },
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            ...options?.requestHeaders,
+            ...AIResourceService.getInstance().hopHeaders(url, `Bearer ${apiKey}`),
+          },
           responseType: "stream",
-          httpAgent,
-          httpsAgent,
+          ...getAIHttpAgents(),
           signal,
         },
       );
@@ -296,7 +322,6 @@ export class AIProviderService {
     };
     let assistantContentLength = 0;
     let firstContentAt: number | null = null;
-    let buffer = "";
     const extractTextValue = (value: unknown) => this.extractTextValue(value);
     const extractResponseEventText = (event: unknown) => this.extractResponseEventText(event);
     const updateTokenMetrics = (usagePayload: unknown, metrics: TokenMetrics, fallbackInputTokens: number) =>
@@ -378,28 +403,17 @@ export class AIProviderService {
       }
     };
 
-    for await (const chunk of response.data) {
-      buffer += chunk.toString();
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line) continue;
-
-        for await (const out of processDataLine(line)) {
-          yield out;
-          if (out.done) return;
-        }
-      }
-    }
-
-    const trailingLine = buffer.trim();
-    if (trailingLine)
-      for await (const out of processDataLine(trailingLine)) {
+    for await (const rawLine of boundedTextLines(
+      response.data,
+      getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+    )) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      for await (const out of processDataLine(line)) {
         yield out;
         if (out.done) return;
       }
+    }
 
     logger.debug("AI provider stream ended", { model });
     if (tokenMetrics.inputTokens === 0) tokenMetrics.inputTokens = estimatedRequestTokens;
@@ -448,13 +462,12 @@ export class AIProviderService {
     };
     let assistantContentLength = 0;
     let firstContentAt: number | null = null;
-    let buffer = "";
     const extractAnthropicTextDelta = (payload: unknown) => this.extractAnthropicTextDelta(payload);
     const isRecord = (value: unknown): value is Record<string, unknown> => this.isRecord(value);
     const updateTokenMetrics = (usagePayload: unknown, metrics: TokenMetrics, fallbackInputTokens: number) =>
       this.updateTokenMetrics(usagePayload, metrics, fallbackInputTokens);
 
-    const response = await axios.post(
+    const response = await this.postStream(
       url,
       {
         model,
@@ -468,10 +481,11 @@ export class AIProviderService {
           "anthropic-version": this.anthropicVersion,
           Authorization: `Bearer ${apiKey}`,
           "x-api-key": apiKey,
+          ...options?.requestHeaders,
+          ...AIResourceService.getInstance().hopHeaders(url, `Bearer ${apiKey}`),
         },
         responseType: "stream",
-        httpAgent,
-        httpsAgent,
+        ...getAIHttpAgents(),
         signal,
       },
     );
@@ -537,28 +551,17 @@ export class AIProviderService {
       }
     };
 
-    for await (const chunk of response.data) {
-      buffer += chunk.toString();
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line) continue;
-
-        for await (const out of processDataLine(line)) {
-          yield out;
-          if (out.done) return;
-        }
-      }
-    }
-
-    const trailingLine = buffer.trim();
-    if (trailingLine)
-      for await (const out of processDataLine(trailingLine)) {
+    for await (const rawLine of boundedTextLines(
+      response.data,
+      getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+    )) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      for await (const out of processDataLine(line)) {
         yield out;
         if (out.done) return;
       }
+    }
 
     yield finalizeDoneChunk();
   }
@@ -582,13 +585,12 @@ export class AIProviderService {
     };
     let assistantContentLength = 0;
     let firstContentAt: number | null = null;
-    let buffer = "";
     const extractGeminiTextDelta = (payload: unknown) => this.extractGeminiTextDelta(payload);
     const extractGeminiUsage = (payload: unknown) => this.extractGeminiUsage(payload);
     const updateTokenMetrics = (usagePayload: unknown, metrics: TokenMetrics, fallbackInputTokens: number) =>
       this.updateTokenMetrics(usagePayload, metrics, fallbackInputTokens);
 
-    const response = await axios.post(
+    const response = await this.postStream(
       url,
       {
         ...this.toGeminiRequest(messages),
@@ -598,10 +600,14 @@ export class AIProviderService {
         headers: {
           "content-type": "application/json",
           "x-goog-api-key": apiKey,
+          ...options?.requestHeaders,
+          ...AIResourceService.getInstance().hopHeaders(
+            url,
+            options?.requestHeaders?.Authorization ?? options?.requestHeaders?.authorization ?? "",
+          ),
         },
         responseType: "stream",
-        httpAgent,
-        httpsAgent,
+        ...getAIHttpAgents(),
         signal,
       },
     );
@@ -663,21 +669,17 @@ export class AIProviderService {
       }
     };
 
-    for await (const chunk of response.data) {
-      buffer += chunk.toString();
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line) continue;
-
-        for await (const out of processDataLine(line)) yield out;
+    for await (const rawLine of boundedTextLines(
+      response.data,
+      getAIResourceConfig().aiResources.streaming.frameLimitBytes,
+    )) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      for await (const out of processDataLine(line)) {
+        yield out;
+        if (out.done) return;
       }
     }
-
-    const trailingLine = buffer.trim();
-    if (trailingLine) for await (const out of processDataLine(trailingLine)) yield out;
 
     yield finalizeDoneChunk();
   }

@@ -73,6 +73,7 @@ describe("ChatService", () => {
   const conversationRepo = {
     create: vi.fn(),
     findById: vi.fn(),
+    replaceFrom: vi.fn(),
     findByUserId: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -81,7 +82,10 @@ describe("ChatService", () => {
   const messageRepo = {
     create: vi.fn(),
     findByConversationId: vi.fn(),
+    getContextSize: vi.fn(),
+    findContext: vi.fn(),
     findById: vi.fn(),
+    replaceFrom: vi.fn(),
     delete: vi.fn(),
   };
 
@@ -96,6 +100,7 @@ describe("ChatService", () => {
 
   const relayTokenRepository = {
     findById: vi.fn(),
+    replaceFrom: vi.fn(),
     findByIdWithChannel: vi.fn(),
     findByUserIdWithChannel: vi.fn(),
     findByUserIdWithRelations: vi.fn(),
@@ -234,6 +239,26 @@ describe("ChatService", () => {
           allowStickyFailover: true,
         }) as any,
     );
+    messageRepo.getContextSize.mockResolvedValue({ count: 0, bytes: 0 });
+    messageRepo.findContext.mockImplementation((...args: any[]) => messageRepo.findByConversationId(...args));
+  });
+
+  it("rejects oversized context before reading history or modifying messages", async () => {
+    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1" });
+    messageRepo.getContextSize.mockResolvedValue({ count: 200, bytes: 10 });
+    await expect(service.assertContextBudget("conv-1", "user-1", "hello")).rejects.toMatchObject({ statusCode: 413 });
+    expect(messageRepo.findContext).not.toHaveBeenCalled();
+    expect(messageRepo.create).not.toHaveBeenCalled();
+  });
+
+  it("calculates replacement budgets from the history before the replaced message", async () => {
+    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1" });
+    const target = createPersistedMessage({ id: "replace", conversationId: "conv-1", role: "user" });
+    messageRepo.findById.mockResolvedValue(target);
+    messageRepo.getContextSize.mockResolvedValue({ count: 2, bytes: 100 });
+    await service.assertContextBudget("conv-1", "user-1", "replacement", "replace");
+    expect(messageRepo.getContextSize).toHaveBeenCalledWith("conv-1", target);
+    expect(messageRepo.replaceFrom).not.toHaveBeenCalled();
   });
 
   it("throws ForbiddenError when creating conversation with invalid relay token", async () => {
@@ -316,6 +341,7 @@ describe("ChatService", () => {
       throw new BadRequestError("exceeding the token limit 1");
     });
     messageRepo.findByConversationId.mockResolvedValue([]);
+    messageRepo.getContextSize.mockResolvedValue({ count: 0, bytes: 0 });
 
     const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini");
 
@@ -463,6 +489,7 @@ describe("ChatService", () => {
       "first-key",
       "https://first.example.com",
       "openai",
+      expect.any(AbortSignal),
     );
     expect(aiProvider.streamChat).toHaveBeenNthCalledWith(
       2,
@@ -471,6 +498,7 @@ describe("ChatService", () => {
       "second-key",
       "https://second.example.com",
       "openai",
+      expect.any(AbortSignal),
     );
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
       expect.objectContaining({ executionChannelId: "channel-second" }),
@@ -559,6 +587,7 @@ describe("ChatService", () => {
       "second-key",
       "https://second.example.com",
       "openai",
+      expect.any(AbortSignal),
     );
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
       expect.objectContaining({ executionChannelId: "channel-second" }),
@@ -599,7 +628,10 @@ describe("ChatService", () => {
       createFailingStream(Object.assign(new Error("cancelled"), { code: "ERR_CANCELED" })),
     );
     const controller = new AbortController();
-    controller.abort();
+    aiProvider.streamChat.mockImplementation(() => {
+      controller.abort();
+      return createFailingStream(Object.assign(new Error("cancelled"), { code: "ERR_CANCELED" }));
+    });
 
     const chunks: Array<Record<string, unknown>> = [];
     for await (const chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-4o-mini", undefined, {
@@ -768,6 +800,7 @@ describe("ChatService", () => {
       "upstream-key",
       "https://upstream.example.com",
       "anthropic",
+      expect.any(AbortSignal),
     );
   });
 
@@ -815,6 +848,7 @@ describe("ChatService", () => {
       "upstream-key",
       "https://upstream.example.com",
       "anthropic",
+      expect.any(AbortSignal),
     );
   });
 
@@ -912,6 +946,7 @@ describe("ChatService", () => {
       "upstream-key",
       "https://upstream.example.com",
       "openai",
+      expect.any(AbortSignal),
     );
   });
 

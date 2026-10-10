@@ -1,3 +1,9 @@
+import { jsonSerializedLength } from "@/util/json-serialized-length";
+import { parseRelayRequestBody, relayRawRequestBody } from "@/util/relay/relay-request-payload";
+import { withContentSafetyAttempt, resetContentSafetyAttempt } from "@/services/system/content-safety-attempt";
+import { getAIHttpAgents } from "@/services/infrastructure/ai-http-agent-pool";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
+import { withAIWork, aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import { filterBlockedAutomaticPoolCandidates } from "./relay-candidate-exclusions";
 import { relayConvertedRequestPath } from "./utils/relay-request-format.util";
 import { compositeSafetyService } from "./relay-composite-safety.service";
@@ -32,31 +38,18 @@ import type { RelayTokenWithRelations } from "@/store/relay/relay-token.store";
 
 // HTTP Agent configuration for connection pooling and keep-alive
 // Reduced limits for low-spec servers (2v2g) to prevent resource exhaustion
-const httpsAgent = new https.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  maxSockets: 10, // Reduced from 100 - prevents too many concurrent connections
-  maxFreeSockets: 2, // Reduced from 10 - limits idle connections
-  timeout: 60000,
-  scheduling: "lifo", // Use LIFO to reuse recent connections
-});
-
-const httpAgent = new http.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  maxSockets: 10, // Reduced from 100
-  maxFreeSockets: 2, // Reduced from 10
-  timeout: 60000,
-  scheduling: "lifo",
-});
-
 type UpstreamAgents = { httpAgent: http.Agent; httpsAgent: https.Agent };
-const directUpstreamAgents: UpstreamAgents = { httpAgent, httpsAgent };
+const directUpstreamAgents = new Proxy({} as UpstreamAgents, {
+  get: (_target, key) => getAIHttpAgents()[key as keyof UpstreamAgents],
+});
 
 const createUpstreamAgents = (useProxy: boolean, proxyConfig: { enabled: boolean; url: string }): UpstreamAgents => {
   if (!useProxy || !proxyConfig.enabled || !proxyConfig.url) return directUpstreamAgents;
   try {
-    const proxyAgent = new ProxyAgent({ getProxyForUrl: () => proxyConfig.url });
+    const proxyAgent = new ProxyAgent({
+      ...getAIResourceConfig().aiResources.http,
+      getProxyForUrl: () => proxyConfig.url,
+    });
     return { httpAgent: proxyAgent as unknown as http.Agent, httpsAgent: proxyAgent as unknown as https.Agent };
   } catch {
     return directUpstreamAgents;
@@ -304,6 +297,10 @@ export class RelayProxyService {
       contentSafetyService: compositeSafetyService(this.contentSafetyService, getCompositeContext(req)),
       relayProxyRepository: this.relayProxyRepository,
       systemPreflightBufferLimitBytes: relayConfig.preflightBufferLimitBytes,
+      streamFrameLimitBytes:
+        req && this.isImageRequest(req, resolveRelayRequestFormat(req))
+          ? getAIResourceConfig().relay.resourceGuard.imageResponseBodyLimitMb * 1024 * 1024
+          : getAIResourceConfig().aiResources.streaming.frameLimitBytes,
       finalizeStreamUsage: async (token, data) => {
         try {
           return await this.finalizeStreamUsage(token, data);
@@ -1380,7 +1377,7 @@ export class RelayProxyService {
       case "relayUpstreamConcurrency": {
         const { userId, isImageRequest, isStreamRequest, relayConfig } =
           context as RelayCapacityPolicyContextMap["relayUpstreamConcurrency"];
-        const resourceGuard = env.relay.resourceGuard;
+        const resourceGuard = getAIResourceConfig().relay.resourceGuard;
         return {
           userId,
           scope: this.getConcurrencyScope(isImageRequest),
@@ -1410,7 +1407,7 @@ export class RelayProxyService {
   }
 
   private getRelayConcurrencyStatusLimits(relayConfig: Awaited<ReturnType<RelayConfigService["getRelayConfig"]>>) {
-    const resourceGuard = env.relay.resourceGuard;
+    const resourceGuard = getAIResourceConfig().relay.resourceGuard;
 
     return {
       maxConcurrency: relayConfig.maxConcurrency,
@@ -2499,7 +2496,7 @@ export class RelayProxyService {
                 ? Buffer.from(stream)
                 : Buffer.from(JSON.stringify(stream) ?? "");
       const truncated = serializedBody.length > maxBytes;
-      const buffer = truncated ? serializedBody.subarray(0, maxBytes) : serializedBody;
+      const buffer = truncated ? Buffer.from(serializedBody.subarray(0, maxBytes)) : serializedBody;
 
       if (serializedBody.length > 0) onFirstChunk?.();
 
@@ -2518,15 +2515,17 @@ export class RelayProxyService {
 
       if (bufferedBytes >= maxBytes) {
         truncated = true;
-        continue;
+        (stream as Readable).destroy?.();
+        break;
       }
 
       const remaining = maxBytes - bufferedBytes;
       if (bufferChunk.length > remaining) {
-        chunks.push(bufferChunk.subarray(0, remaining));
+        chunks.push(Buffer.from(bufferChunk.subarray(0, remaining)));
         bufferedBytes += remaining;
         truncated = true;
-        continue;
+        (stream as Readable).destroy?.();
+        break;
       }
 
       chunks.push(bufferChunk);
@@ -2536,8 +2535,8 @@ export class RelayProxyService {
     return { buffer: Buffer.concat(chunks, bufferedBytes), truncated, bytesRead };
   }
 
-  private parseBufferedUpstreamBody(body: Buffer, headers: Record<string, unknown>): any {
-    return parseRelayBufferedBody(body, headers);
+  private parseBufferedUpstreamBody(body: Buffer, headers: Record<string, unknown>, text?: string): any {
+    return parseRelayBufferedBody(body, headers, text);
   }
 
   private async chargeForwardedImageUsage(params: {
@@ -2725,37 +2724,39 @@ export class RelayProxyService {
     relayToken: RelayTokenWithChannel,
     req: any,
     res?: any,
-  ): Promise<{ status: number; headers: any; data: any }> {
-    const response = req.res ?? res;
-    setAIRequestLogContext(response, {
-      executionPending: true,
-      outcome: "pending",
-      failureStage: "request",
-      isStreaming: req.body?.stream === true,
-      userId: relayToken.userId,
-      username: relayToken.user?.username ?? null,
-      relayTokenId: relayToken.id,
-      relayTokenName: relayToken.name ?? null,
-      authenticationState: "authenticated",
-    });
-    try {
-      const result =
-        relayToken.routingMode === "composite"
-          ? await this.forwardCompositeRequest(relayToken, req, res)
-          : await this.forwardRequestInternal(relayToken, req, res);
-      const audit = getAIRequestLogContext(response);
+  ): Promise<{ status: number; headers: any; data: any; rawBody?: Buffer }> {
+    return withAIWork(async () => {
+      const response = req.res ?? res;
       setAIRequestLogContext(response, {
-        executionPending: false,
-        outcome: result.status >= 400 ? "failed" : "success",
-        failureStage: result.status >= 400 ? (audit?.failureStage ?? "upstream") : null,
-        errorSummary: result.status >= 400 ? (audit?.errorSummary ?? "Upstream request failed") : null,
+        executionPending: true,
+        outcome: "pending",
+        failureStage: "request",
+        isStreaming: req.body?.stream === true,
+        userId: relayToken.userId,
+        username: relayToken.user?.username ?? null,
+        relayTokenId: relayToken.id,
+        relayTokenName: relayToken.name ?? null,
+        authenticationState: "authenticated",
       });
-      return result;
-    } catch (error) {
-      recordAIRequestFailure(response, error);
-      setAIRequestLogContext(response, { executionPending: false });
-      throw error;
-    }
+      try {
+        const result =
+          relayToken.routingMode === "composite"
+            ? await this.forwardCompositeRequest(relayToken, req, res)
+            : await this.forwardRequestInternal(relayToken, req, res);
+        const audit = getAIRequestLogContext(response);
+        setAIRequestLogContext(response, {
+          executionPending: false,
+          outcome: result.status >= 400 ? "failed" : "success",
+          failureStage: result.status >= 400 ? (audit?.failureStage ?? "upstream") : null,
+          errorSummary: result.status >= 400 ? (audit?.errorSummary ?? "Upstream request failed") : null,
+        });
+        return result;
+      } catch (error) {
+        recordAIRequestFailure(response, error);
+        setAIRequestLogContext(response, { executionPending: false });
+        throw error;
+      }
+    });
   }
 
   private async compositionAllows(token: RelayTokenAvailabilityInput, ...names: string[]): Promise<boolean> {
@@ -3035,7 +3036,7 @@ export class RelayProxyService {
             token.requestFormatTransforms,
             source as RelayConvertibleRequestFormat,
           );
-          let converted = Buffer.isBuffer(input.body) ? Buffer.from(input.body) : structuredClone(input.body);
+          let converted = Buffer.isBuffer(input.body) ? input.body : structuredClone(input.body);
           if (transform) {
             try {
               converted = convertRelayRequest(converted, transform.sourceFormat, transform.targetFormat);
@@ -3119,7 +3120,8 @@ export class RelayProxyService {
           const rules = getCompositeTransforms(input);
           const outgoing = compositeStreamResponse(response, rules);
           const request = cloneCompositeRequest(input, {
-            body: Buffer.isBuffer(input.body) ? Buffer.from(input.body) : structuredClone(input.body),
+            // Raw ingress buffers are immutable; only mutable structured branch bodies need cloning.
+            body: Buffer.isBuffer(input.body) ? input.body : structuredClone(input.body),
             res: outgoing,
           });
           const attemptContext = forkCompositeContext(execution);
@@ -3133,6 +3135,7 @@ export class RelayProxyService {
           }
           if (rules.length && !outgoing?.headersSent) {
             result.data = reverseCompositeResponse(result.data, rules, result.status >= 400);
+            result.rawBody = undefined;
             for (const key of Object.keys(result.headers ?? {}))
               if (key.toLowerCase() === "content-length") delete result.headers[key];
           }
@@ -3147,22 +3150,27 @@ export class RelayProxyService {
     }
   }
 
-  private async forwardRequestInternal(
+  private forwardRequestInternal(
     relayToken: RelayTokenWithChannel,
     req: any,
     res?: any,
-  ): Promise<{ status: number; headers: any; data: any }> {
+  ): Promise<{ status: number; headers: any; data: any; rawBody?: Buffer }> {
+    return withContentSafetyAttempt(() => this.forwardRequestScoped(relayToken, req, res));
+  }
+
+  private async forwardRequestScoped(
+    relayToken: RelayTokenWithChannel,
+    req: any,
+    res?: any,
+  ): Promise<{ status: number; headers: any; data: any; rawBody?: Buffer }> {
     const contentSafetyService = compositeSafetyService(this.contentSafetyService, getCompositeContext(req));
     const requestStartTime = Date.now();
-    const rawJsonBody =
-      Buffer.isBuffer(req.body) && String(req.headers?.["content-type"] || "").includes("json") ? req.body : undefined;
-    if (rawJsonBody) {
-      try {
-        req.body = JSON.parse(rawJsonBody.toString("utf8"));
-      } catch {
-        throw new BadRequestError("Invalid JSON request body", undefined, { messageKey: "relayProxy.invalidJsonBody" });
-      }
+    try {
+      parseRelayRequestBody(req);
+    } catch {
+      throw new BadRequestError("Invalid JSON request body", undefined, { messageKey: "relayProxy.invalidJsonBody" });
     }
+    const rawJsonBody = relayRawRequestBody(req);
     const clientRequestFormat = this.getRequestFormat(req);
     const requestFormatTransform =
       clientRequestFormat === "openai-chat-completions" ||
@@ -3172,7 +3180,7 @@ export class RelayProxyService {
         : undefined;
     const requestFormat = requestFormatTransform?.targetFormat ?? clientRequestFormat;
     const relayConfig = await this.relayConfigService.getRelayConfig();
-    const resourceGuard = env.relay.resourceGuard;
+    const resourceGuard = getAIResourceConfig().relay.resourceGuard;
     const requestedModel = this.extractRequestedModel(req, clientRequestFormat);
     if (!requestedModel)
       throw new BadRequestError("Model is required in request body or URL path", undefined, {
@@ -3376,7 +3384,7 @@ export class RelayProxyService {
       let auditOutputTokens = 0;
       let auditCost = 0;
       let auditDurationMs = 0;
-      const contentSafetyConfig =
+      let contentSafetyConfig =
         typeof (contentSafetyService as any).getEffectivePolicy === "function"
           ? await contentSafetyService.getEffectivePolicy(relayToken.userId, relayToken.contentSafetyConfig as any)
           : await contentSafetyService.getPublicConfig();
@@ -3458,9 +3466,16 @@ export class RelayProxyService {
           let timeMultiplier = 1;
           let upstreamResponseSucceeded = false;
           let upstreamRequestStarted = false;
+          let requestAgents = directUpstreamAgents;
           beginAIRequestAttempt(req.res ?? res);
 
           try {
+            resetContentSafetyAttempt();
+            if (typeof contentSafetyService.prepareAttempt === "function")
+              contentSafetyConfig = await contentSafetyService.prepareAttempt({
+                userId: relayToken.userId,
+                tokenConfig: relayToken.contentSafetyConfig as any,
+              });
             // Resolve the model config for this specific channel. The requested
             // model may be an alias that the channel-level (or token-level) model
             // mapping rewrites to a priced upstream model, so eligibility is first
@@ -3560,7 +3575,7 @@ export class RelayProxyService {
               relayProxyConfig = await this.configService.getRelayProxyConfig();
               relayProxyConfigLoaded = true;
             }
-            const requestAgents = createUpstreamAgents(channel.useProxy === true, relayProxyConfig);
+            requestAgents = createUpstreamAgents(channel.useProxy === true, relayProxyConfig);
             const upstreamUrl = upstreamConfig.upstreamUrl;
             let upstreamApiKey = upstreamConfig.upstreamApiKey;
             channelMultiplier =
@@ -3656,13 +3671,6 @@ export class RelayProxyService {
               requestFormat,
               req.path,
             );
-            if (
-              rawJsonBody &&
-              !requestFormatTransform &&
-              selectedModelId === normalizedRequestedModel &&
-              !autoInjectedStreamUsageOption
-            )
-              convertedBody = rawJsonBody;
             if (tokenNormalizerBody !== undefined) convertedBody = tokenNormalizerBody;
             else if (requestFormat === "anthropic") {
               convertedBody = normalizeAnthropicRequestBeforeSend(
@@ -3672,14 +3680,33 @@ export class RelayProxyService {
               );
             }
 
-            // Enforce request-side content safety after all format/model transforms.
-            if (!Buffer.isBuffer(convertedBody)) {
-              const requestSafetyText =
-                typeof convertedBody === "string" ? convertedBody : JSON.stringify(convertedBody);
+            const reuseRawRequest = Boolean(
+              rawJsonBody &&
+                !requestFormatTransform &&
+                selectedModelId === normalizedRequestedModel &&
+                tokenNormalizerBody === undefined &&
+                convertedBody === forwardedBody &&
+                !autoInjectedStreamUsageOption,
+            );
+            // Evaluate the final wire body regardless of whether bytes can be reused.
+            let wireBody: Buffer | undefined;
+            if (!Buffer.isBuffer(convertedBody) || reuseRawRequest) {
+              const requestSafetyText = reuseRawRequest
+                ? rawJsonBody!.toString("utf8")
+                : Buffer.isBuffer(convertedBody)
+                  ? convertedBody.toString("utf8")
+                  : typeof convertedBody === "string"
+                    ? convertedBody
+                    : JSON.stringify(convertedBody);
               const requestSafety = await contentSafetyService.evaluate("request", requestSafetyText, {
                 userId: relayToken.userId,
                 tokenConfig: relayToken.contentSafetyConfig as any,
               });
+              wireBody = reuseRawRequest
+                ? rawJsonBody
+                : Buffer.isBuffer(convertedBody)
+                  ? convertedBody
+                  : Buffer.from(requestSafetyText);
               auditInputTokens += requestSafety.auditInputTokens;
               auditOutputTokens += requestSafety.auditOutputTokens;
               auditCost += requestSafety.auditCost;
@@ -3700,6 +3727,7 @@ export class RelayProxyService {
                   try {
                     convertedBody =
                       typeof convertedBody === "string" ? requestSafety.text : JSON.parse(requestSafety.text);
+                    wireBody = Buffer.from(requestSafety.text);
                   } catch {
                     throw new ContentSafetyBlockedError();
                   }
@@ -3707,6 +3735,7 @@ export class RelayProxyService {
               }
             }
 
+            wireBody ??= this.buildForwardBodyBuffer(convertedBody);
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
             const systemHasCache =
@@ -3744,6 +3773,7 @@ export class RelayProxyService {
                     | ContextLengthMultiplierRule[]
                     | undefined,
                   convertedBody,
+                  bodyBuffer: wireBody,
                   requestFormat,
                   relayGlobalMultiplier,
                   channelMultiplier,
@@ -3952,12 +3982,12 @@ export class RelayProxyService {
             // maxBodyLength: multipart 用 multipartBodyLimitMb，JSON 用 5MB（与 express.json limit 一致）
             const maxBodyLimitBytes = Buffer.isBuffer(convertedBody)
               ? resourceGuard.multipartBodyLimitMb * 1024 * 1024
-              : 5 * 1024 * 1024;
+              : env.runtime.requestSizeLimits.jsonBodyLimitMb * 1024 * 1024;
             upstreamRequestStarted = true;
             setAIRequestLogContext(req.res ?? res, { failureStage: "upstream" });
             let firstPayloadTime: number | null = null;
             const maxResponseBytes = resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024;
-            const upstreamBody = this.buildForwardBodyBuffer(convertedBody);
+            const upstreamBody = wireBody;
             delete headers["content-length"];
             delete headers["Content-Length"];
             headers["Content-Length"] = upstreamBody.length;
@@ -3966,7 +3996,7 @@ export class RelayProxyService {
               () => (
                 consumeCompositeAttempt(req),
                 axios({
-                  signal: getCompositeContext(req)?.signal,
+                  signal: getCompositeContext(req)?.signal ?? aiResourceContext.getStore()?.signal,
                   method: req.method,
                   url: fullUpstreamUrl,
                   headers,
@@ -3999,7 +4029,17 @@ export class RelayProxyService {
                   messageParams: { limitMb: resourceGuard.maxUpstreamResponseBodyMb },
                 },
               );
-            response.data = this.parseBufferedUpstreamBody(streamedResponse.buffer, response.headers || {});
+            const responseText = streamedResponse.buffer.toString("utf8");
+            response.data = this.parseBufferedUpstreamBody(
+              streamedResponse.buffer,
+              response.headers || {},
+              responseText,
+            );
+            let rawResponseEligible =
+              response.status < 400 &&
+              isRelayJsonContentType(getUpstreamHeaderValue(response.headers, "content-type")) &&
+              response.data !== null &&
+              typeof response.data === "object";
             if (getCompositeContext(req)) getCompositeContext(req)!.lastUpstreamStatus = response.status;
             recordAIRequestAttempt(req.res ?? res, {
               success: response.status < 400,
@@ -4008,8 +4048,7 @@ export class RelayProxyService {
               error: response.status >= 400 ? response.data : undefined,
             });
             if (typeof response.data === "string" || (response.data && typeof response.data === "object")) {
-              const responseSafetyText =
-                typeof response.data === "string" ? response.data : JSON.stringify(response.data);
+              const responseSafetyText = responseText;
               const responseSafety = await contentSafetyService.evaluate("response", responseSafetyText, {
                 userId: relayToken.userId,
                 tokenConfig: relayToken.contentSafetyConfig as any,
@@ -4032,6 +4071,7 @@ export class RelayProxyService {
                 });
                 if (responseSafety.action === "unreachable") throw new ContentSafetyBlockedError();
                 if (responseSafety.action === "blackhole") {
+                  rawResponseEligible = false;
                   try {
                     response.data =
                       typeof response.data === "string" ? responseSafety.text : JSON.parse(responseSafety.text);
@@ -4348,6 +4388,7 @@ export class RelayProxyService {
             });
 
             return {
+              rawBody: rawResponseEligible && !requestFormatTransform ? streamedResponse.buffer : undefined,
               status: response.status,
               headers: this.withRequestIdHeader(req, response.headers),
               data: requestFormatTransform
@@ -4578,6 +4619,11 @@ export class RelayProxyService {
             }
 
             throw error;
+          } finally {
+            if (requestAgents !== directUpstreamAgents) {
+              requestAgents.httpAgent.destroy();
+              if (requestAgents.httpsAgent !== requestAgents.httpAgent) requestAgents.httpsAgent.destroy();
+            }
           }
         } // end inner channel retry loop
 
@@ -4653,8 +4699,7 @@ export class RelayProxyService {
     if (reqBody)
       if (Buffer.isBuffer(reqBody)) requestTokens = Math.ceil(reqBody.length / 4);
       else {
-        const reqText = JSON.stringify(reqBody);
-        requestTokens = Math.ceil(reqText.length / 4);
+        requestTokens = Math.ceil(jsonSerializedLength(reqBody) / 4);
       }
 
     if (resBody?.usage && typeof resBody.usage === "object") {
@@ -4721,8 +4766,7 @@ export class RelayProxyService {
     if (resBody?.__relayForwardedResponseByteLength != null)
       responseTokens = Math.ceil(Number(resBody.__relayForwardedResponseByteLength || 0) / 4);
     else if (resBody) {
-      const resText = JSON.stringify(resBody);
-      responseTokens = Math.ceil(resText.length / 4);
+      responseTokens = Math.ceil(jsonSerializedLength(resBody) / 4);
     }
 
     return {

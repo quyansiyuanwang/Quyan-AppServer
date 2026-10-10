@@ -1,3 +1,4 @@
+import { resourceInteger } from "./ai-resources";
 import { sanitizeInt } from "./common";
 import type { EnvSnapshot } from "./source";
 
@@ -100,14 +101,23 @@ export function buildRateLimitConfig(source: EnvSnapshot) {
 export function buildRelayConfig(source: EnvSnapshot) {
   return {
     resourceGuard: {
-      multipartBodyLimitMb: sanitizeInt(source.RELAY_MULTIPART_BODY_LIMIT_MB, 4, 1, 20),
-      imageMaxConcurrency: sanitizeInt(source.RELAY_IMAGE_MAX_CONCURRENCY, 1, 1, 10),
-      imageQueueTimeoutMs: sanitizeInt(source.RELAY_IMAGE_QUEUE_TIMEOUT_MS, 300000, 0, 300000),
-      nonStreamUpstreamTimeoutMs: sanitizeInt(source.RELAY_NON_STREAM_UPSTREAM_TIMEOUT_MS, 600000, 10000, 600000),
-      maxUpstreamResponseBodyMb: sanitizeInt(source.RELAY_MAX_UPSTREAM_RESPONSE_BODY_MB, 64, 1, 128),
-      imageResponseBodyLimitMb: sanitizeInt(source.RELAY_IMAGE_RESPONSE_BODY_LIMIT_MB, 16, 1, 64),
+      multipartBodyLimitMb: resourceInteger(source, "RELAY_MULTIPART_BODY_LIMIT_MB", 4, 1, 20),
+      imageMaxConcurrency: resourceInteger(source, "RELAY_IMAGE_MAX_CONCURRENCY", 1, 1, 10),
+      imageQueueTimeoutMs: resourceInteger(source, "RELAY_IMAGE_QUEUE_TIMEOUT_MS", 10000, 0, 300000),
+      nonStreamUpstreamTimeoutMs: resourceInteger(
+        source,
+        "RELAY_NON_STREAM_UPSTREAM_TIMEOUT_MS",
+        600000,
+        10000,
+        600000,
+      ),
+      maxUpstreamResponseBodyMb: resourceInteger(source, "RELAY_MAX_UPSTREAM_RESPONSE_BODY_MB", 16, 1, 128),
+      imageResponseBodyLimitMb: resourceInteger(source, "RELAY_IMAGE_RESPONSE_BODY_LIMIT_MB", 16, 1, 64),
     },
-    channelProbe: { masterKey: String(source.RELAY_CHANNEL_PROBE_MASTER_KEY || "").trim() },
+    channelProbe: {
+      maxConcurrency: resourceInteger(source, "RELAY_CHANNEL_PROBE_MAX_CONCURRENCY", 1),
+      masterKey: String(source.RELAY_CHANNEL_PROBE_MASTER_KEY || "").trim(),
+    },
     channelChangeRequest: { masterKey: String(source.RELAY_CHANNEL_CHANGE_REQUEST_MASTER_KEY || "").trim() },
   };
 }

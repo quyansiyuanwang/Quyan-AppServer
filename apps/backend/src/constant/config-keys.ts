@@ -3,6 +3,7 @@
  */
 
 export const CONFIG_KEYS = {
+  AI_RESOURCES: "ai.resources",
   HEARTBEAT: {
     INTERVAL_SECONDS: "heartbeat.intervalSeconds",
     TIMEOUT_SECONDS: "heartbeat.timeoutSeconds",

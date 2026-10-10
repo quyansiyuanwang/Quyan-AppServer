@@ -290,6 +290,7 @@ const en = {
     replayProtectionUnavailable: "Replay protection service is temporarily unavailable, please retry later",
   },
   system: {
+    invalidAiResources: "Invalid AI resource configuration",
     configUpdated: "Configuration updated successfully",
     invalidConfirmationPhrase: "Confirmation phrase is invalid",
     errorGroupNotFound: "Error group not found",
@@ -759,6 +760,8 @@ const en = {
     priorityUnique: "priority must be unique",
   },
   relayProxy: {
+    aiCapacityExceeded: "AI server capacity is temporarily exhausted; please retry later",
+    aiContentTooLarge: "AI content exceeds the configured resource limit",
     multipartModelRewriteFailed: "Unable to safely rewrite multipart model field",
     concurrencyBackendUnavailable: "Relay concurrency coordination backend unavailable",
     queueTimeout: "Request queue timeout waiting for upstream slot",

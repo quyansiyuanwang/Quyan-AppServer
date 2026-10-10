@@ -184,15 +184,15 @@ export class AgentController extends Controller {
           idle = 0;
           for (const event of events) {
             cursor = event.sequence;
-            this.sse.sendChunk(res, { ...(event.payload as object), sequence: event.sequence });
+            await this.sse.sendChunk(res, { ...(event.payload as object), sequence: event.sequence });
           }
         } else idle += 1;
         if (events.some((event) => ["complete", "error"].includes(event.eventType))) break;
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
       if (!res.writableEnded && !res.destroyed) {
-        this.sse.sendChunk(res, { type: "done", done: true });
-        this.sse.sendDone(res);
+        await this.sse.sendChunk(res, { type: "done", done: true });
+        await this.sse.sendDone(res);
       }
     } finally {
       if (!res.writableEnded && !res.destroyed) this.sse.endStream(res);

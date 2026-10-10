@@ -155,6 +155,7 @@ export class ChatController extends Controller {
     };
     const canWrite = () => !abortController.signal.aborted && !res.writableEnded && !res.destroyed;
 
+    await this.chatService.assertContextBudget(conversationId, userId!, body.content, body.replaceMessageId);
     skipResponseWrapper(req);
     this.sseService.initStream(res);
     req.once("aborted", abortIfClientDisconnected);
@@ -176,15 +177,15 @@ export class ChatController extends Controller {
         },
         body.replaceMessageId,
       ))
-        if (canWrite()) this.sseService.sendChunk(res, chunk);
+        if (canWrite()) await this.sseService.sendChunk(res, chunk);
 
       if (canWrite()) {
-        this.sseService.sendChunk<Extract<ChatStreamEvent, { type: "done" }>>(res, { type: "done", done: true });
-        this.sseService.sendDone(res);
+        await this.sseService.sendChunk<Extract<ChatStreamEvent, { type: "done" }>>(res, { type: "done", done: true });
+        await this.sseService.sendDone(res);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Chat stream failed";
-      if (canWrite()) this.sseService.sendError(res, message);
+      if (canWrite()) await this.sseService.sendError(res, message);
     } finally {
       req.off("aborted", abortIfClientDisconnected);
       res.off("close", abortIfClientDisconnected);

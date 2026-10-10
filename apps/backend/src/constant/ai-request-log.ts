@@ -1,8 +1,13 @@
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 export const AI_REQUEST_LOG_PREFIX = "/relay/proxy";
 
 export const AI_REQUEST_LOG_LIMITS = {
-  requestBodyBytes: 1024 * 1024,
-  responseBodyBytes: 2 * 1024 * 1024,
+  get requestBodyBytes() {
+    return getAIResourceConfig().aiRequestLog.requestBodyBytes;
+  },
+  get responseBodyBytes() {
+    return getAIResourceConfig().aiRequestLog.responseBodyBytes;
+  },
   contentChunkBytes: 32 * 1024,
   contentPageItems: 20,
   maxPageItems: 100,

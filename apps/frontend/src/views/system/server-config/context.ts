@@ -6,6 +6,7 @@ import type {
 } from '@/client/types.gen'
 
 export type ServerConfigSectionName =
+  | 'ai-resources'
   | 'registration'
   | 'billing'
   | 'heartbeat'

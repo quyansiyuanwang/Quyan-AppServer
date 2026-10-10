@@ -1,5 +1,5 @@
 import { prisma } from "@/config/database";
-import type { Message } from "@prisma/client";
+import { Prisma, type Message } from "@prisma/client";
 import type { MessageCreateInput, MessageStore } from "./message.store";
 import { RECORD_STATUS } from "@/constant/status";
 
@@ -9,6 +9,29 @@ export class MessageRepository implements MessageStore {
   static getInstance() {
     if (!this.instance) this.instance = new MessageRepository();
     return this.instance;
+  }
+
+  async getContextSize(
+    conversationId: string,
+    before?: { id: string; createTime: Date },
+  ): Promise<{ count: number; bytes: number }> {
+    const boundary = before
+      ? Prisma.sql`AND (createTime < ${before.createTime} OR (createTime = ${before.createTime} AND id < ${before.id}))`
+      : Prisma.empty;
+    const rows = await prisma.$queryRaw<Array<{ count: bigint; bytes: bigint }>>(Prisma.sql`
+      SELECT COUNT(*) AS count, COALESCE(SUM(OCTET_LENGTH(content)), 0) AS bytes
+      FROM messages WHERE conversationId = ${conversationId} AND status = ${RECORD_STATUS.ACTIVE} ${boundary}
+    `);
+    return { count: Number(rows[0]?.count ?? 0), bytes: Number(rows[0]?.bytes ?? 0) };
+  }
+
+  async findContext(conversationId: string, maxMessages: number): Promise<Array<Pick<Message, "role" | "content">>> {
+    return prisma.message.findMany({
+      where: { conversationId, status: RECORD_STATUS.ACTIVE },
+      orderBy: [{ createTime: "asc" }, { id: "asc" }],
+      select: { role: true, content: true },
+      ...(maxMessages > 0 ? { take: maxMessages + 1 } : {}),
+    });
   }
 
   async create(data: MessageCreateInput): Promise<Message> {

@@ -1889,9 +1889,12 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     expect(relayResponse.text).toContain("usageMetadata");
 
     const usage = await getLatestUsage(geminiRelayTokenId, beforeCount + 1);
-    expect(usage?.isStreaming).toBe(true);
-    expect(usage?.requestTokens ?? 0).toBeGreaterThan(0);
-    expect(usage?.responseTokens ?? 0).toBeGreaterThan(0);
+    expect(usage).toMatchObject({
+      isStreaming: true,
+      requestTokens: 12,
+      responseTokens: 9,
+      totalTokens: 21,
+    });
   });
   it("routes nested aliases, reverses protocol conversion and attributes usage without extra charges", async () => {
     const repo = RelayTokenRepository.getInstance();

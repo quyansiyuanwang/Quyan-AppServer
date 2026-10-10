@@ -1,3 +1,8 @@
+import { withContentSafetyGenerator, resetContentSafetyAttempt } from "@/services/system/content-safety-attempt";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
+import { CHAT_MESSAGE_STORAGE_LIMIT_BYTES } from "@/constant/chat";
+import { aiContentTooLarge } from "@/util/streaming/bounded-text";
+import { withAIGenerator } from "@/services/infrastructure/ai-resource.service";
 import { ConversationRepository } from "@/store/chat/conversation.repository";
 import { MessageRepository } from "@/store/chat/message.repository";
 import type { ConversationStore } from "@/store/chat/conversation.store";
@@ -287,6 +292,31 @@ export class ChatService {
     await this.messageRepo.deleteFrom(messageId);
   }
 
+  public async assertContextBudget(
+    conversationId: string,
+    userId: string,
+    content: string,
+    replaceMessageId?: string,
+  ): Promise<void> {
+    await this.getConversation(conversationId, userId);
+    const limits = getAIResourceConfig().chat.resourceLimits;
+    const bytes = Buffer.byteLength(content);
+    if (bytes > limits.inputLimitBytes || bytes > CHAT_MESSAGE_STORAGE_LIMIT_BYTES) throw aiContentTooLarge();
+    let before: PrismaMessage | undefined;
+    if (replaceMessageId) {
+      const target = await this.messageRepo.findById(replaceMessageId);
+      if (!target || target.conversationId !== conversationId || target.role !== "user")
+        throw new BadRequestError("Invalid replacement target", undefined, { messageKey: "chat.replaceTargetInvalid" });
+      before = target;
+    }
+    const size = await this.messageRepo.getContextSize(conversationId, before);
+    if (
+      (limits.contextMaxMessages > 0 && size.count + 1 > limits.contextMaxMessages) ||
+      size.bytes + bytes > limits.contextLimitBytes
+    )
+      throw aiContentTooLarge();
+  }
+
   async *sendMessage(
     conversationId: string,
     userId: string,
@@ -296,6 +326,33 @@ export class ChatService {
     requestMeta?: ChatRequestMeta,
     replaceMessageId?: string,
   ): AsyncGenerator<Extract<ChatStreamEvent, { type: "delta" | "complete" }>> {
+    yield* withAIGenerator(
+      (signal) =>
+        withContentSafetyGenerator(() =>
+          this.sendMessageInternal(
+            conversationId,
+            userId,
+            content,
+            model,
+            relayTokenId,
+            { ...requestMeta, signal },
+            replaceMessageId,
+          ),
+        ),
+      requestMeta?.signal,
+    );
+  }
+
+  private async *sendMessageInternal(
+    conversationId: string,
+    userId: string,
+    content: string,
+    model: string,
+    relayTokenId?: string,
+    requestMeta?: ChatRequestMeta,
+    replaceMessageId?: string,
+  ): AsyncGenerator<Extract<ChatStreamEvent, { type: "delta" | "complete" }>> {
+    await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
     const conversation = await this.getConversation(conversationId, userId);
 
     const tokenId = relayTokenId || conversation.relayTokenId;
@@ -309,6 +366,8 @@ export class ChatService {
     if (!requestedModel)
       throw new BadRequestError("Model is required", undefined, { messageKey: "chat.modelRequired" });
 
+    if (typeof this.contentSafetyService.prepareAttempt === "function")
+      await this.contentSafetyService.prepareAttempt({ userId, tokenConfig: token.contentSafetyConfig as any });
     const requestSafety = await this.contentSafetyService.evaluate("request", content, {
       userId,
       tokenConfig: token.contentSafetyConfig as any,
@@ -329,12 +388,11 @@ export class ChatService {
       if (requestSafety.action === "unreachable") throw new ContentSafetyBlockedError();
       content = requestSafety.text;
     }
-    const effectiveSafety =
+    let effectiveSafety =
       typeof (this.contentSafetyService as any).getEffectivePolicy === "function"
         ? await this.contentSafetyService.getEffectivePolicy(userId, token.contentSafetyConfig as any)
         : await this.contentSafetyService.getPublicConfig();
-    const auditResponse = Boolean(effectiveSafety.responseEnabled && effectiveSafety.responseAiEnabled);
-    let bufferedAuditedResponse = "";
+    let auditResponse = Boolean(effectiveSafety.responseEnabled && effectiveSafety.responseAiEnabled);
 
     const configuredModels = await this.modelPricingRepository.listActiveOrderedByModel();
 
@@ -354,6 +412,7 @@ export class ChatService {
         messageKey: "relayProxy.tokenModelNotAllowed",
       });
 
+    await this.assertContextBudget(conversationId, userId, content, replaceMessageId);
     if (replaceMessageId) {
       const message = await this.messageRepo.findById(replaceMessageId);
       if (!message || message.conversationId !== conversationId || message.role !== "user")
@@ -363,10 +422,32 @@ export class ChatService {
       await this.messageRepo.replaceFrom(replaceMessageId, content);
     } else await this.messageRepo.create({ conversationId, role: "user", content });
 
-    const history = await this.messageRepo.findByConversationId(conversationId);
+    const history = await this.messageRepo.findContext(
+      conversationId,
+      getAIResourceConfig().chat.resourceLimits.contextMaxMessages,
+    );
+    if (
+      (getAIResourceConfig().chat.resourceLimits.contextMaxMessages > 0 &&
+        history.length > getAIResourceConfig().chat.resourceLimits.contextMaxMessages) ||
+      history.reduce((sum, item) => sum + Buffer.byteLength(item.content), 0) >
+        getAIResourceConfig().chat.resourceLimits.contextLimitBytes
+    )
+      throw aiContentTooLarge();
     const messages = history.map((m) => ({ role: m.role, content: m.content }));
+    const historyBytes = history.reduce((bytes, message) => bytes + Buffer.byteLength(message.content), 0);
+    const assertAnswerBudget = (bytes: number) => {
+      const limits = getAIResourceConfig().chat.resourceLimits;
+      if (
+        bytes > limits.outputLimitBytes ||
+        bytes > CHAT_MESSAGE_STORAGE_LIMIT_BYTES ||
+        (limits.contextMaxMessages > 0 && history.length + 1 > limits.contextMaxMessages) ||
+        historyBytes + bytes > limits.contextLimitBytes
+      )
+        throw aiContentTooLarge();
+    };
 
     let assistantContent = "";
+    let assistantBytes = 0;
     let inputTokens = 0;
     let outputTokens = 0;
     let cacheCreationTokens = 0;
@@ -413,6 +494,40 @@ export class ChatService {
 
       effectiveCandidate = candidate;
       try {
+        if (attemptIndex > 0) {
+          resetContentSafetyAttempt();
+          effectiveSafety =
+            typeof this.contentSafetyService.prepareAttempt === "function"
+              ? await this.contentSafetyService.prepareAttempt({
+                  userId,
+                  tokenConfig: token.contentSafetyConfig as any,
+                })
+              : typeof this.contentSafetyService.getEffectivePolicy === "function"
+                ? await this.contentSafetyService.getEffectivePolicy(userId, token.contentSafetyConfig as any)
+                : await this.contentSafetyService.getPublicConfig();
+          auditResponse = Boolean(effectiveSafety.responseEnabled && effectiveSafety.responseAiEnabled);
+          const safety = await this.contentSafetyService.evaluate("request", content, {
+            userId,
+            tokenConfig: token.contentSafetyConfig as any,
+          });
+          auditInputTokens += safety.auditInputTokens;
+          auditOutputTokens += safety.auditOutputTokens;
+          auditCost += safety.auditCost;
+          auditDurationMs += safety.auditDurationMs;
+          if (safety.matched) {
+            await this.contentSafetyService.recordIncident({
+              userId,
+              relayTokenId: token.id,
+              requestId: usageRequestId,
+              direction: "request",
+              evaluation: safety,
+              model: selectedModelName,
+              channelId: candidate.channel.id,
+            });
+            if (safety.action === "unreachable") throw new ContentSafetyBlockedError();
+            messages[messages.length - 1] = { ...messages[messages.length - 1]!, content: safety.text };
+          }
+        }
         const streamRequestFormat =
           candidate.requestFormat === "openai-chat-completions" ? "openai" : candidate.requestFormat;
         const stream = requestMeta?.signal
@@ -451,9 +566,11 @@ export class ChatService {
               if (responseSafety.action === "unreachable") throw new ContentSafetyBlockedError();
               chunk.content = responseSafety.text;
             }
+            const nextBytes = assistantBytes + Buffer.byteLength(chunk.content);
+            assertAnswerBudget(nextBytes);
+            assistantBytes = nextBytes;
             assistantContent += chunk.content;
-            if (auditResponse) bufferedAuditedResponse += chunk.content;
-            else yield { type: "delta", content: chunk.content, done: false };
+            if (!auditResponse) yield { type: "delta", content: chunk.content, done: false };
           }
           if (chunk.done) {
             inputTokens = chunk.inputTokens || 0;
@@ -474,8 +591,8 @@ export class ChatService {
           failed = attemptIndex === attemptCandidates.length - 1;
           if (attemptIndex < attemptCandidates.length - 1) continue;
         }
-        if (auditResponse && bufferedAuditedResponse) {
-          const audited = await this.contentSafetyService.evaluate("response", bufferedAuditedResponse, {
+        if (auditResponse && assistantContent) {
+          const audited = await this.contentSafetyService.evaluate("response", assistantContent, {
             userId,
             tokenConfig: token.contentSafetyConfig as any,
           });
@@ -494,10 +611,11 @@ export class ChatService {
               channelId: candidate.channel.id,
             });
             if (audited.action === "unreachable") throw new ContentSafetyBlockedError();
-            assistantContent = assistantContent.slice(0, -bufferedAuditedResponse.length) + audited.text;
-            bufferedAuditedResponse = audited.text;
+            assertAnswerBudget(Buffer.byteLength(audited.text));
+            assistantContent = audited.text;
+            assistantBytes = Buffer.byteLength(assistantContent);
           }
-          yield { type: "delta", content: bufferedAuditedResponse, done: false };
+          yield { type: "delta", content: assistantContent, done: false };
         }
         totalOutputTime = Math.max(0, totalOutputTime - auditDurationMs);
         timeToFirstByte = Math.max(0, timeToFirstByte - auditDurationMs);
@@ -574,6 +692,10 @@ export class ChatService {
     if (totalOutputTime <= 0) totalOutputTime = Math.max(0, Date.now() - streamStartAt);
     if (timeToFirstByte <= 0) timeToFirstByte = Math.max(0, (firstChunkAt || Date.now()) - streamStartAt);
 
+    if ((failed || stopped) && assistantContent) {
+      if (!inputTokens) inputTokens = Math.ceil(messages.reduce((sum, message) => sum + message.content.length, 0) / 4);
+      if (!outputTokens) outputTokens = Math.ceil(assistantContent.length / 4);
+    }
     const totalTokens = inputTokens + outputTokens;
     const relayConfig = await this.relayConfigRepository.findLatestActive();
 

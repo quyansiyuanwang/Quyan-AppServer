@@ -13,7 +13,15 @@ const { repository, redis, login } = vi.hoisted(() => ({
   },
   login: vi.fn(),
 }));
-vi.mock("@/config/env", () => ({ env: { relay: { channelProbe: { masterKey: "a".repeat(70) } } } }));
+vi.mock("@/store/system/server-config.repository", () => ({
+  ServerConfigRepository: { getInstance: () => ({ findByKey: vi.fn(async () => null) }) },
+}));
+vi.mock("@/config/env", () => ({
+  env: {
+    runtime: { isTest: true, isDevelopment: false, logging: { disableConsoleLog: true } },
+    relay: { channelProbe: { masterKey: "a".repeat(70) } },
+  },
+}));
 vi.mock("@/store/relay/relay-channel-probe-account.repository", () => ({
   RelayChannelProbeAccountRepository: { getInstance: () => repository },
 }));
@@ -21,8 +29,8 @@ vi.mock("@/services/infrastructure/redis.service", () => ({ RedisService: { getI
 vi.mock("@/util/developer-outbound-url", () => ({
   assertSafeOutboundUrl: vi.fn(async (url: string) => ({
     url: new URL(url),
-    httpAgent: undefined,
-    httpsAgent: undefined,
+    httpAgent: { destroy: vi.fn() },
+    httpsAgent: { destroy: vi.fn() },
   })),
 }));
 vi.mock("axios", () => ({ default: { request: login, post: vi.fn(), isAxiosError: () => false } }));

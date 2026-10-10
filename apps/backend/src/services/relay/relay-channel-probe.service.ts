@@ -1,3 +1,6 @@
+import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
+import { AIResourceService, aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
 import type { Prisma, RelayChannel } from "@prisma/client";
@@ -95,7 +98,7 @@ const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_TTL_MS = 2 * 60 * 60 * 1000;
 const RUN_QUEUE_SLOT_PREFIX = "relay:channel-probe-run:v1";
 const GROUP_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
-const MAX_CONCURRENT_PROBE_RUNS = 4;
+
 // Upstream billing ledgers are commonly eventually consistent. Keep both
 // snapshots outside the actual model request by a small, deterministic window
 // while the channel write lock is held, so an in-app request cannot distort a
@@ -1611,28 +1614,41 @@ export class RelayChannelProbeService {
     if (this.scheduling) return;
     this.scheduling = true;
     try {
-      const availableSlots = MAX_CONCURRENT_PROBE_RUNS - this.activeRunIds.size;
+      const availableSlots = getAIResourceConfig().relay.channelProbe.maxConcurrency - this.activeRunIds.size;
       if (availableSlots <= 0) return;
       const now = new Date();
       // Inspect more than the immediate capacity so a queued job in an active
       // group never prevents an independent group from starting.
       const candidates = await this.repository.findClaimableRuns(now, availableSlots * 8);
       for (const candidate of candidates) {
-        if (this.activeRunIds.size >= MAX_CONCURRENT_PROBE_RUNS) break;
+        if (this.activeRunIds.size >= getAIResourceConfig().relay.channelProbe.maxConcurrency) break;
         const scope = getProbeSchedulingScope(candidate.relayChannelId, candidate.profile?.probeGroup);
         if (this.activeRunIds.has(candidate.id) || this.activeSchedulingScopes.has(scope)) continue;
 
+        const resource = AIResourceService.getInstance().tryAcquire();
+        if (!resource) break;
         const owner = randomUUID();
-        const claimed = await this.repository.claimRun(candidate.id, owner, now, new Date(Date.now() + RUN_LEASE_MS));
-        if (!claimed.count) continue;
+        let claimed;
+        try {
+          claimed = await this.repository.claimRun(candidate.id, owner, now, new Date(Date.now() + RUN_LEASE_MS));
+        } catch (error) {
+          resource.release();
+          throw error;
+        }
+        if (!claimed.count) {
+          resource.release();
+          continue;
+        }
 
         this.activeRunIds.add(candidate.id);
         this.activeSchedulingScopes.add(scope);
-        void this.executeRun(candidate.id, owner)
+        void aiResourceContext
+          .run(resource, () => this.executeRun(candidate.id, owner))
           .catch((error) =>
             logger.error("Relay channel probe worker crashed", { runId: candidate.id, error: this.safeError(error) }),
           )
           .finally(() => {
+            resource.release();
             this.activeRunIds.delete(candidate.id);
             this.activeSchedulingScopes.delete(scope);
             void this.schedulePendingRuns();
@@ -1969,52 +1985,57 @@ export class RelayChannelProbeService {
     let balance: number | undefined;
     for (const step of workflow) {
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
-      const safe = await assertSafeOutboundUrl(rawUrl);
-      const body = interpolateRequiredProbeVariables(step.body || {}, variables);
-      const headers = getProbeWorkflowHeaders(
-        step.method,
-        interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
-      );
-      const response = await axios
-        .request({
-          method: step.method,
-          url: safe.url.toString(),
-          headers,
-          params: interpolateRequiredProbeVariables(step.query || {}, variables),
-          data: getProbeWorkflowRequestBody(step.method, body),
-          httpAgent: safe.httpAgent,
-          httpsAgent: safe.httpsAgent,
-          // A probe must use the validated and DNS-pinned target directly. Letting
-          // Axios inherit HTTP(S)_PROXY bypasses that boundary and can turn a bad
-          // deployment proxy into an opaque "Invalid IP address" probe failure.
-          proxy: false,
-          timeout: PROBE_TIMEOUT_MS,
-          maxRedirects: 0,
-          maxContentLength: MAX_RESPONSE_BYTES,
-          validateStatus: (status) => status >= 200 && status < 300,
-        })
-        .catch((error: unknown) => {
-          if (variables.accountToken && axios.isAxiosError(error) && error.response?.status === 401)
-            throw new BadRequestError("PROBE_BALANCE_AUTH_EXPIRED", undefined, {
-              messageKey: "relayChannelProbe.accountBalanceUnauthorized",
+      const safe = configureAIOutboundAgents(await assertSafeOutboundUrl(rawUrl));
+      try {
+        const body = interpolateRequiredProbeVariables(step.body || {}, variables);
+        const headers = getProbeWorkflowHeaders(
+          step.method,
+          interpolateRequiredProbeVariables(step.headers || {}, variables) as Record<string, string>,
+        );
+        const response = await axios
+          .request({
+            method: step.method,
+            url: safe.url.toString(),
+            headers,
+            params: interpolateRequiredProbeVariables(step.query || {}, variables),
+            data: getProbeWorkflowRequestBody(step.method, body),
+            httpAgent: safe.httpAgent,
+            httpsAgent: safe.httpsAgent,
+            // A probe must use the validated and DNS-pinned target directly. Letting
+            // Axios inherit HTTP(S)_PROXY bypasses that boundary and can turn a bad
+            // deployment proxy into an opaque "Invalid IP address" probe failure.
+            proxy: false,
+            timeout: PROBE_TIMEOUT_MS,
+            maxRedirects: 0,
+            maxContentLength: MAX_RESPONSE_BYTES,
+            validateStatus: (status) => status >= 200 && status < 300,
+          })
+          .catch((error: unknown) => {
+            if (variables.accountToken && axios.isAxiosError(error) && error.response?.status === 401)
+              throw new BadRequestError("PROBE_BALANCE_AUTH_EXPIRED", undefined, {
+                messageKey: "relayChannelProbe.accountBalanceUnauthorized",
+              });
+            throw error;
+          });
+        for (const [name, path] of Object.entries(step.extract || {})) {
+          const value = readProbeJsonPath(response.data, path);
+          if (value == null)
+            throw new BadRequestError(`探针变量 ${name} 未在上游响应中找到`, undefined, {
+              messageKey: "relayChannelProbe.variableNotFound",
+              messageParams: { variable: name },
             });
-          throw error;
-        });
-      for (const [name, path] of Object.entries(step.extract || {})) {
-        const value = readProbeJsonPath(response.data, path);
-        if (value == null)
-          throw new BadRequestError(`探针变量 ${name} 未在上游响应中找到`, undefined, {
-            messageKey: "relayChannelProbe.variableNotFound",
-            messageParams: { variable: name },
-          });
-        variables[name] = String(value);
-      }
-      if (step.balancePath) {
-        balance = toNumber(readProbeJsonPath(response.data, step.balancePath));
-        if (balance === undefined)
-          throw new BadRequestError("上游余额字段不是有效数值", undefined, {
-            messageKey: "relayChannelProbe.invalidBalanceValue",
-          });
+          variables[name] = String(value);
+        }
+        if (step.balancePath) {
+          balance = toNumber(readProbeJsonPath(response.data, step.balancePath));
+          if (balance === undefined)
+            throw new BadRequestError("上游余额字段不是有效数值", undefined, {
+              messageKey: "relayChannelProbe.invalidBalanceValue",
+            });
+        }
+      } finally {
+        safe.httpAgent.destroy();
+        safe.httpsAgent.destroy();
       }
     }
     if (balance === undefined)
@@ -2083,61 +2104,66 @@ export class RelayChannelProbeService {
       throw new BadRequestError("渠道缺少对应格式的上游配置", undefined, {
         messageKey: "relayChannel.upstreamConfigMissingForFormat",
       });
-    const base = await assertSafeOutboundUrl(upstreamUrl);
-    const interpolatedPayload = interpolateRequiredProbeVariables(
-      { ...(profile.probePayload as Record<string, unknown>), model: upstreamModelId },
-      variables,
-    );
-    if (!isRecord(interpolatedPayload))
-      throw new BadRequestError("探针请求体必须是 JSON 对象", undefined, {
-        messageKey: "relayChannelProbe.requestBodyMustBeJson",
-      });
-    let payload = interpolatedPayload;
-    // Earlier profiles were initialized with {}, which cannot safely carry a cache marker.
-    // Preserve every configured field, but turn that exact empty legacy shape into the same
-    // minimal request the UI now starts with.
-    if (Object.keys(payload).every((key) => key === "model")) {
-      payload = { ...payload, ...createDefaultProbePayload(format, endpoint) };
-    }
-    const measured = injectProbeMeasurementInput(payload, format, profile.measurementInputTokens, endpoint);
-    const measurementInputInjected = measured != null;
-    if (measured) payload = measured;
-    let injectedCacheBusterId: string | undefined;
-    if (cacheBustingEnabled) {
-      const candidateId = cacheBusterId ?? randomUUID();
-      const injected = injectProbeCacheBuster(payload, format, candidateId, endpoint);
-      if (injected) {
-        payload = injected;
-        injectedCacheBusterId = candidateId;
-      } else if (!forceWithoutCacheBuster) {
-        throw new BadRequestError(
-          "PROBE_CACHE_BUSTER_INJECTION_FAILED:当前请求体不包含该接口可注入的提示字段，请应用最小请求预设或修正请求格式",
-          undefined,
-          { messageKey: "relayChannelProbe.cacheBusterInjectionFailed" },
-        );
+    const base = configureAIOutboundAgents(await assertSafeOutboundUrl(upstreamUrl));
+    try {
+      const interpolatedPayload = interpolateRequiredProbeVariables(
+        { ...(profile.probePayload as Record<string, unknown>), model: upstreamModelId },
+        variables,
+      );
+      if (!isRecord(interpolatedPayload))
+        throw new BadRequestError("探针请求体必须是 JSON 对象", undefined, {
+          messageKey: "relayChannelProbe.requestBodyMustBeJson",
+        });
+      let payload = interpolatedPayload;
+      // Earlier profiles were initialized with {}, which cannot safely carry a cache marker.
+      // Preserve every configured field, but turn that exact empty legacy shape into the same
+      // minimal request the UI now starts with.
+      if (Object.keys(payload).every((key) => key === "model")) {
+        payload = { ...payload, ...createDefaultProbePayload(format, endpoint) };
       }
-    }
-    const headers: Record<string, string> =
-      format === "anthropic"
-        ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
-        : { Authorization: `Bearer ${apiKey}` };
-    const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, upstreamModelId, endpoint));
-    if (format === "gemini") endpointUrl.searchParams.set("key", apiKey);
-    const response = await axios.post(endpointUrl.toString(), payload, {
-      headers,
-      httpAgent: base.httpAgent,
-      httpsAgent: base.httpsAgent,
-      proxy: false,
-      timeout: PROBE_TIMEOUT_MS,
-      maxRedirects: 0,
-      maxContentLength: MAX_RESPONSE_BYTES,
-      validateStatus: (status) => status >= 200 && status < 300,
-    });
-    if (!isRecord(response.data))
-      throw new BadRequestError("上游模型响应必须是 JSON 对象", undefined, {
-        messageKey: "relayChannelProbe.upstreamModelResponseMustBeJson",
+      const measured = injectProbeMeasurementInput(payload, format, profile.measurementInputTokens, endpoint);
+      const measurementInputInjected = measured != null;
+      if (measured) payload = measured;
+      let injectedCacheBusterId: string | undefined;
+      if (cacheBustingEnabled) {
+        const candidateId = cacheBusterId ?? randomUUID();
+        const injected = injectProbeCacheBuster(payload, format, candidateId, endpoint);
+        if (injected) {
+          payload = injected;
+          injectedCacheBusterId = candidateId;
+        } else if (!forceWithoutCacheBuster) {
+          throw new BadRequestError(
+            "PROBE_CACHE_BUSTER_INJECTION_FAILED:当前请求体不包含该接口可注入的提示字段，请应用最小请求预设或修正请求格式",
+            undefined,
+            { messageKey: "relayChannelProbe.cacheBusterInjectionFailed" },
+          );
+        }
+      }
+      const headers: Record<string, string> =
+        format === "anthropic"
+          ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+          : { Authorization: `Bearer ${apiKey}` };
+      const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, upstreamModelId, endpoint));
+      if (format === "gemini") endpointUrl.searchParams.set("key", apiKey);
+      const response = await axios.post(endpointUrl.toString(), payload, {
+        headers,
+        httpAgent: base.httpAgent,
+        httpsAgent: base.httpsAgent,
+        proxy: false,
+        timeout: PROBE_TIMEOUT_MS,
+        maxRedirects: 0,
+        maxContentLength: MAX_RESPONSE_BYTES,
+        validateStatus: (status) => status >= 200 && status < 300,
       });
-    return { response: response.data, cacheBusterId: injectedCacheBusterId, measurementInputInjected };
+      if (!isRecord(response.data))
+        throw new BadRequestError("上游模型响应必须是 JSON 对象", undefined, {
+          messageKey: "relayChannelProbe.upstreamModelResponseMustBeJson",
+        });
+      return { response: response.data, cacheBusterId: injectedCacheBusterId, measurementInputInjected };
+    } finally {
+      base.httpAgent.destroy();
+      base.httpsAgent.destroy();
+    }
   }
 
   private extractUsage(response: Record<string, unknown>) {

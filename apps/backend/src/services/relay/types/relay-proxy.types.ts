@@ -107,6 +107,7 @@ export interface RelayUpstreamRequestContext {
   upstreamUrl: string;
   headers: Record<string, unknown>;
   convertedBody: unknown;
+  bodyBuffer?: Buffer;
   requestFormat: RelayRequestFormat;
   requestAgents?: RelayUpstreamAgents;
 }
