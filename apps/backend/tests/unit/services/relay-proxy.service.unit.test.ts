@@ -1,3 +1,4 @@
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { EventEmitter } from "events";
 import http from "http";
 import { Readable, Writable } from "stream";
@@ -373,6 +374,29 @@ const createService = (
 };
 
 describe("RelayProxyService failover", () => {
+  it("rejects known oversized non-stream responses without reading, failover or charging", async () => {
+    const { service, usageChargeService } = createService();
+    const upstream = new Readable({
+      read() {
+        throw new Error("oversized response body must not be read");
+      },
+    });
+    axiosMock.mockResolvedValue({
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(getAIResourceConfig().relay.resourceGuard.maxUpstreamResponseBodyMb * 1024 * 1024 + 1),
+      },
+      data: upstream,
+    });
+    await expect(service.forwardRequest(createRelayToken(), createRequest())).rejects.toMatchObject({
+      statusCode: 413,
+    });
+    expect(upstream.destroyed).toBe(true);
+    expect(axiosMock).toHaveBeenCalledOnce();
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     axiosMock.mockReset();
@@ -607,7 +631,7 @@ describe("RelayProxyService failover", () => {
 
     modelPricingService.getModelPricing.mockResolvedValue([
       {
-        model: "claude-test",
+        model: "Claude budget pricing",
         provider: "claude-test",
         pricingType: "token-based",
         inputPrice: 1000,
@@ -647,6 +671,8 @@ describe("RelayProxyService failover", () => {
     expect((axiosMock.mock.calls[1]![0] as any).url).toBe("https://primary.example.com/v1/messages");
     const firstBody = JSON.parse((axiosMock.mock.calls[0]![0] as any).data.toString("utf8"));
     const retryBody = JSON.parse((axiosMock.mock.calls[1]![0] as any).data.toString("utf8"));
+    expect(firstBody.model).toBe("claude-test");
+    expect(retryBody.model).toBe("claude-test");
     expect(firstBody.thinking).toBeUndefined();
     expect(retryBody.thinking).toEqual({ type: "enabled", budget_tokens: 32000 });
     expect(retryBody.max_tokens).toBe(64000);
@@ -2071,11 +2097,26 @@ describe("RelayProxyService failover", () => {
 
   it("does not charge when upstream streaming response is an error", async () => {
     const relayToken = createRelayToken();
+    relayToken.channel.allowedModels = JSON.stringify(["Primary pricing"]);
+    relayToken.channelConfigs[1]!.channel.allowedModels = JSON.stringify(["Secondary pricing"]);
     const req = createRequest({
       body: { model: "gpt-4o-mini", messages: [{ role: "user", content: "hello" }], stream: true },
     });
     const res = { headersSent: false, writableEnded: false, finished: false, status: vi.fn(() => ({ json: vi.fn() })) };
-    const { service, relayTokenRepo } = createService();
+    const { service, relayTokenRepo, modelPricingService } = createService();
+    const pricing = {
+      provider: "gpt-4o-mini",
+      pricingType: "token-based",
+      inputPrice: 1000,
+      outputPrice: 2000,
+      cacheCreationMultiplier: 1,
+      cacheReadMultiplier: 1,
+      supportedFormats: "openai",
+    };
+    modelPricingService.getModelPricing.mockResolvedValue([
+      { ...pricing, model: "Primary pricing" },
+      { ...pricing, model: "Secondary pricing" },
+    ]);
     const forwardStreamSpy = vi
       .spyOn(service as any, "forwardStreamRequest")
       .mockRejectedValueOnce(new GatewayTimeoutError("primary timeout"))
@@ -2086,6 +2127,15 @@ describe("RelayProxyService failover", () => {
 
       expect(result.status).toBe(200);
       expect(forwardStreamSpy).toHaveBeenCalledTimes(2);
+      for (const [index, modelName] of ["Primary pricing", "Secondary pricing"].entries()) {
+        const params = forwardStreamSpy.mock.calls[index]![0] as any;
+        expect(params).toEqual(
+          expect.objectContaining({ selectedModelName: modelName, selectedModelId: "gpt-4o-mini" }),
+        );
+        expect(JSON.parse(params.bodyBuffer.toString("utf8"))).toEqual(
+          expect.objectContaining({ model: "gpt-4o-mini" }),
+        );
+      }
       expect(relayTokenRepo.createSwitchLog).toHaveBeenCalledWith(
         expect.objectContaining({
           fromChannelId: "channel-primary",
@@ -2525,7 +2575,7 @@ describe("RelayProxyService failover", () => {
         expect.objectContaining({
           handled: true,
           success: false,
-          statusCode: 200,
+          statusCode: 499,
           clientDisconnected: true,
         }),
       );
@@ -2943,6 +2993,142 @@ describe("RelayProxyService failover", () => {
   });
 
   describe("RelayProxyService model mapping forwarding", () => {
+    it.each([
+      ["openai-chat-completions", "/v1/chat/completions", false],
+      ["openai-responses", "/v1/responses", false],
+      ["anthropic", "/v1/messages", false],
+      ["gemini", "/v1beta/models/Shared-Upstream-ID:generateContent", false],
+      ["openai-chat-completions", "/v1/chat/completions", true],
+      ["openai-responses", "/v1/responses", true],
+      ["anthropic", "/v1/messages", true],
+      ["gemini", "/v1beta/models/customer-model:generateContent", true],
+    ] as const)(
+      "uses the channel pricing name and upstream model ID for %s (mapping: %s, %s)",
+      async (format, path, mapped) => {
+        const modelId = "Shared-Upstream-ID";
+        const requestedModel = mapped ? "customer-model" : modelId;
+        const relayToken = createRelayToken();
+        Object.assign(relayToken.channel, {
+          allowedFormats: format,
+          allowedModels: JSON.stringify(["Channel pricing"]),
+          modelMapping: mapped ? { "customer-model": modelId } : null,
+          anthropicUpstreamUrl: "https://primary.example.com",
+          anthropicUpstreamApiKey: "anthropic-key",
+          geminiUpstreamUrl: "https://primary.example.com",
+          geminiUpstreamApiKey: "gemini-key",
+        });
+        const req = createRequest({
+          path: "/relay/proxy" + path,
+          originalUrl: "/relay/proxy" + path,
+          body:
+            format === "gemini"
+              ? { contents: [{ role: "user", parts: [{ text: "hello" }] }] }
+              : { model: requestedModel, messages: [{ role: "user", content: "hello" }], max_tokens: 100 },
+        });
+        const { service, modelPricingService, usageChargeService } = createService();
+        const pricing = {
+          provider: modelId,
+          pricingType: "token-based",
+          inputPrice: 3000,
+          outputPrice: 4000,
+          cacheCreationMultiplier: 1,
+          cacheReadMultiplier: 1,
+          supportedFormats: format,
+        };
+        modelPricingService.getModelPricing.mockResolvedValue([
+          { ...pricing, model: "Other channel pricing", inputPrice: 1000, outputPrice: 2000 },
+          { ...pricing, model: "Channel pricing" },
+        ]);
+        axiosMock.mockResolvedValueOnce({
+          status: 200,
+          headers: { "content-type": "application/json" },
+          data: {
+            choices: [{ message: { content: "ok" } }],
+            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, input_tokens: 10, output_tokens: 5 },
+            usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5, totalTokenCount: 15 },
+          },
+        });
+
+        await expect(service.forwardRequest(relayToken, req)).resolves.toEqual(
+          expect.objectContaining({ status: 200 }),
+        );
+        const upstream = axiosMock.mock.calls[0]![0] as unknown as { data: Buffer; url: string };
+        const wireBody = JSON.parse(upstream.data.toString("utf8"));
+        if (format === "gemini") {
+          expect(upstream.url).toContain("/models/Shared-Upstream-ID:generateContent");
+          expect(wireBody).not.toHaveProperty("model");
+        } else expect(wireBody.model).toBe(modelId);
+        expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+          expect.objectContaining({ modelId, modelName: "Channel pricing", inputRate: 0.003, outputRate: 0.004 }),
+        );
+      },
+    );
+
+    it("chooses the channel's compatible pricing format among entries sharing an upstream ID", async () => {
+      const relayToken = createRelayToken();
+      relayToken.channel.allowedModels = JSON.stringify(["OpenAI pricing"]);
+      const { service, modelPricingService, usageChargeService } = createService();
+      const pricing = {
+        provider: "Shared-Upstream-ID",
+        pricingType: "token-based",
+        inputPrice: 1000,
+        outputPrice: 2000,
+        cacheCreationMultiplier: 1,
+        cacheReadMultiplier: 1,
+      };
+      modelPricingService.getModelPricing.mockResolvedValue([
+        { ...pricing, model: "Anthropic pricing", supportedFormats: "anthropic" },
+        { ...pricing, model: "OpenAI pricing", supportedFormats: "openai-chat-completions" },
+      ]);
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { choices: [{ message: { content: "ok" } }], usage: { prompt_tokens: 10, completion_tokens: 5 } },
+      });
+      await service.forwardRequest(relayToken, createRequest({ body: { model: "Shared-Upstream-ID", messages: [] } }));
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ modelId: "Shared-Upstream-ID", modelName: "OpenAI pricing" }),
+      );
+    });
+
+    it("prefers an explicit channel pricing name that equals the shared upstream ID", async () => {
+      const relayToken = createRelayToken();
+      relayToken.channel.allowedModels = JSON.stringify(["Shared-Upstream-ID"]);
+      const { service, modelPricingService, usageChargeService } = createService();
+      const pricing = {
+        provider: "Shared-Upstream-ID",
+        pricingType: "token-based",
+        inputPrice: 1000,
+        outputPrice: 2000,
+        cacheCreationMultiplier: 1,
+        cacheReadMultiplier: 1,
+      };
+      modelPricingService.getModelPricing.mockResolvedValue([
+        { ...pricing, model: "Other pricing", supportedFormats: "openai-chat-completions" },
+        { ...pricing, model: "Shared-Upstream-ID", supportedFormats: "openai-chat-completions" },
+      ]);
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        data: { choices: [{ message: { content: "ok" } }], usage: { prompt_tokens: 10, completion_tokens: 5 } },
+      });
+      await service.forwardRequest(relayToken, createRequest({ body: { model: "Shared-Upstream-ID", messages: [] } }));
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ modelId: "Shared-Upstream-ID", modelName: "Shared-Upstream-ID" }),
+      );
+    });
+
+    it("rejects requests by display name when it differs from the upstream model ID", async () => {
+      const { service, modelPricingService } = createService();
+      modelPricingService.getModelPricing.mockResolvedValue([
+        { model: "Display name", provider: "Upstream-ID", supportedFormats: "openai" },
+      ]);
+      await expect(
+        service.forwardRequest(createRelayToken(), createRequest({ body: { model: "Display name" } })),
+      ).rejects.toThrow("is not configured");
+      expect(axiosMock).not.toHaveBeenCalled();
+    });
+
     it("accepts an uppercase model ID and preserves its casing in the upstream body", async () => {
       const relayToken = createRelayToken();
       relayToken.channel.allowedModels = JSON.stringify(["Claude Sonnet"]);

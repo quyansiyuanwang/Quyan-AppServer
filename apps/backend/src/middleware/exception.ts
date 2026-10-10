@@ -1,3 +1,4 @@
+import { hasPendingRequestSizeRefusal } from "./request-size-guard";
 import { recordAIRequestFailure, getAIRequestLogContext } from "@/util/ai-request-log-context";
 import type { Request, Response, NextFunction } from "express";
 import chalk from "chalk";
@@ -82,7 +83,8 @@ function getPrismaErrorTarget(error: Prisma.PrismaClientKnownRequestError): stri
  */
 export function exceptionMiddleware(err: Error, req: Request, res: Response, next: NextFunction) {
   recordAIRequestFailure(res, err);
-  // 如果响应已经发送，则不再处理
+  // A completed response or an in-progress 413 must not be reset by a late parser/upstream error.
+  if (res.writableEnded || hasPendingRequestSizeRefusal(res)) return;
   if (res.headersSent) return next(err);
 
   // JWT 相关错误是正常的业务流程，不记录日志

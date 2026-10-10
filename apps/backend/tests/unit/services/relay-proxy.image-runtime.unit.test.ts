@@ -85,7 +85,7 @@ const createService = () => {
   const modelPricingService = {
     getModelPricing: vi.fn().mockResolvedValue([
       {
-        model: "gpt-image-1",
+        model: "Image channel pricing",
         provider: "gpt-image-1",
         pricingType: "token-based",
         inputPrice: 1000,
@@ -280,6 +280,8 @@ describe("RelayProxyService image runtime", () => {
     const axiosConfig = axiosMock.mock.calls[0][0] as any;
     const forwardedBody = axiosConfig.data as Buffer;
     expect(forwardedBody).not.toBe(multipartBody);
+    expect(forwardedBody.toString("utf8")).toContain('name="model"\r\n\r\ngpt-image-1\r\n');
+    expect(forwardedBody.toString("utf8")).not.toContain("Image channel pricing");
     expect(forwardedBody.toString("utf8").match(/name="image\[\]"/g)).toHaveLength(3);
     expect(forwardedBody.toString("utf8")).toContain('name="mask"; filename="mask.png"');
     expect(forwardedBody.toString("utf8")).toContain("fake-image-one");
@@ -291,6 +293,7 @@ describe("RelayProxyService image runtime", () => {
         relayTokenId: "token-1",
         channelId: "channel-primary",
         modelId: "gpt-image-1",
+        modelName: "Image channel pricing",
         isStreaming: false,
       }),
     );
@@ -382,89 +385,89 @@ describe("RelayProxyService image runtime", () => {
     ).toThrow("Unable to safely rewrite multipart model field");
   });
 
-  it("rejects oversized streamed image responses before charging usage", async () => {
-    const relayToken = createRelayToken();
-    const req = createMultipartImageRequest(
-      Buffer.from(
-        [
-          "------test-boundary",
-          'Content-Disposition: form-data; name="model"',
-          "",
+  it.each([undefined, "10"])(
+    "rejects oversized image responses before returning 200 or charging (content-length=%s)",
+    async (contentLength) => {
+      const relayToken = createRelayToken();
+      const req = createMultipartImageRequest(
+        Buffer.from(
+          [
+            "------test-boundary",
+            'Content-Disposition: form-data; name="model"',
+            "",
+            "gpt-image-1",
+            "------test-boundary--",
+            "",
+          ].join("\r\n"),
+          "utf8",
+        ),
+      );
+      const res = new Writable({
+        write(_chunk, _encoding, callback) {
+          callback();
+        },
+      }) as any;
+      res.headersSent = false;
+      res.writeHead = vi.fn((statusCode: number, headers: Record<string, unknown>) => {
+        res.headersSent = true;
+        res.statusCode = statusCode;
+        res.headers = headers;
+        return res;
+      });
+
+      const { service, usageChargeService } = createService();
+
+      axiosMock.mockResolvedValueOnce({
+        status: 200,
+        headers: {
+          "content-type": "application/octet-stream",
+          ...(contentLength ? { "content-length": contentLength } : {}),
+        },
+        data: Readable.from([Buffer.from("12345"), Buffer.from("67890")]),
+      });
+
+      await expect(
+        (service as any).forwardImageRequest(
+          relayToken,
+          req,
+          res,
+          "https://primary.example.com/v1/images/edits",
+          {
+            Authorization: "Bearer channel-primary-key",
+            "content-type": req.headers["content-type"],
+          },
+          {
+            pricingType: "token-based",
+            input: 0.000001,
+            output: 0.000002,
+            multiplier: 1,
+            cacheCreationMultiplier: 1.25,
+            cacheReadMultiplier: 0.1,
+          },
           "gpt-image-1",
-          "------test-boundary--",
-          "",
-        ].join("\r\n"),
-        "utf8",
-      ),
-    );
-    const res = new Writable({
-      write(_chunk, _encoding, callback) {
-        callback();
-      },
-    }) as any;
-    res.headersSent = false;
-    res.writeHead = vi.fn((statusCode: number, headers: Record<string, unknown>) => {
-      res.headersSent = true;
-      res.statusCode = statusCode;
-      res.headers = headers;
-      return res;
-    });
+          "gpt-image-1",
+          1,
+          1,
+          undefined,
+          req.body,
+          1,
+          1,
+          "channel-primary",
+          "channel-primary",
+          "Primary",
+          "channel-primary",
+          new Date("2026-01-01T00:00:00.000Z"),
+          30000,
+          8,
+          false,
+          [],
+          true,
+        ),
+      ).rejects.toBeInstanceOf(PayloadTooLargeError);
 
-    const { service, usageChargeService } = createService();
-
-    axiosMock.mockResolvedValueOnce({
-      status: 200,
-      headers: {
-        "content-type": "application/octet-stream",
-      },
-      data: Readable.from([Buffer.from("12345"), Buffer.from("67890")]),
-    });
-
-    await expect(
-      (service as any).forwardImageRequest(
-        relayToken,
-        req,
-        res,
-        "https://primary.example.com/v1/images/edits",
-        {
-          Authorization: "Bearer channel-primary-key",
-          "content-type": req.headers["content-type"],
-        },
-        {
-          pricingType: "token-based",
-          input: 0.000001,
-          output: 0.000002,
-          multiplier: 1,
-          cacheCreationMultiplier: 1.25,
-          cacheReadMultiplier: 0.1,
-        },
-        "gpt-image-1",
-        "gpt-image-1",
-        1,
-        1,
-        undefined,
-        req.body,
-        1,
-        1,
-        "channel-primary",
-        "channel-primary",
-        "Primary",
-        "channel-primary",
-        new Date("2026-01-01T00:00:00.000Z"),
-        30000,
-        8,
-        false,
-        [],
-        true,
-      ),
-    ).rejects.toBeInstanceOf(PayloadTooLargeError);
-
-    expect(res.writeHead).toHaveBeenCalledWith(
-      200,
-      expect.objectContaining({
-        "content-type": "application/octet-stream",
-      }),
-    );
-    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
-  });
+      expect(res.writeHead).not.toHaveBeenCalled();
+      expect(res.headersSent).toBe(false);
+      expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+    },
+  );
 });

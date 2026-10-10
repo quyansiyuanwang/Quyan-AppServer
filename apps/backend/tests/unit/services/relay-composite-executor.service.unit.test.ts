@@ -7,7 +7,7 @@ import {
   consumeCompositeAttempt,
   type CompositeExecutionContext,
 } from "@/services/relay/relay-composite-executor.service";
-import { ContentSafetyBlockedError } from "@/util/errors";
+import { ContentSafetyBlockedError, PayloadTooLargeError } from "@/util/errors";
 import type { RelayTokenWithRelations } from "@/store/relay/relay-token.store";
 const node = (id: string, children: string[] = []) =>
   ({
@@ -36,6 +36,17 @@ function run(nodes: RelayTokenWithRelations[], execute: any, options: any = {}) 
   });
 }
 describe("composite execution", () => {
+  it("does not retry local capacity errors even if a parent explicitly retries 413", async () => {
+    const a = node("a", ["b", "c"]);
+    a.failoverConfig = { enabled: true, maxRetries: 2, failoverThreshold: 2, retryStatusCodes: ["413", "503"] } as any;
+    const failure = new PayloadTooLargeError();
+    const execute = vi.fn(async () => {
+      throw failure;
+    });
+    await expect(run([a, node("b"), node("c")], execute)).rejects.toBe(failure);
+    expect(execute).toHaveBeenCalledOnce();
+  });
+
   it("preserves ordered depth-first paths and fails over without committing", async () => {
     const execute = vi.fn(async (token, _request, ctx) => {
       if (token.id === "c") return { status: 503, headers: {}, data: {} };
