@@ -39,6 +39,25 @@
 - 创建敏感凭证时，可能需要额外验证。
 - 访问密钥应像密码一样保密，不应出现在公开截图或聊天记录中。
 
+## 撤销权限和资源范围
+
+启用 IAM 策略授权后，删除访问密钥需要 `quyan:ram:DeleteAccessKey`。策略可以限定到当前用户的一把密钥：
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:ram:DeleteAccessKey",
+    "Resource": "acs:quyan:*:<accountId>:access-key/<userId>/<keyId>"
+  }
+}
+```
+
+请用当前账号 ID、当前用户 ID 和实际密钥 ID 替换占位符。授予此操作不允许读取完整密钥或管理其他用户的密钥；匹配的 Deny 会覆盖 Allow。
+
+删除仍需通过重放保护；已启用二次验证时，这项高风险操作会要求验证。撤销后，该密钥不能继续用于新请求认证。账号、角色会话或密钥归属在授权后发生变化时，请求会被拒绝；并发变更导致冲突时，请刷新列表后重试。
+
 ## 相关页面
 
 - `account-settings`

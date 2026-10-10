@@ -1,3 +1,7 @@
+import { env } from "@/config/env";
+import { AccessKeyIamService } from "./accesskey-iam.service";
+import type { TypedRequest } from "@/types/express";
+import { getLogger, LogCategory } from "@/util/logger";
 import { randomBytes } from "crypto";
 import { AccessKeyRepository } from "@/store/users/accesskey.repository";
 import { UserRepository } from "@/store/users/user.repository";
@@ -102,20 +106,43 @@ export class AccessKeyService {
   }
 
   async revokeKey(keyId: string, userId: string, request?: Request): Promise<void> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const target = await AccessKeyIamService.getInstance().revoke(userId, keyId, request as TypedRequest | undefined);
+      await this.logRevocation(target.id, userId, request);
+      return;
+    }
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await AccessKeyIamService.getInstance().authorizeRevocation(
+          userId,
+          keyId,
+          request as TypedRequest | undefined,
+          true,
+        );
+      } catch {
+        getLogger("AccessKeyIamBridge", LogCategory.SECURITY).warn("Access key IAM shadow evaluation denied", {
+          action: "quyan:ram:DeleteAccessKey",
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
     const accessKey = await this.repository.findById(keyId);
     if (!accessKey || accessKey.userId !== userId)
       throw new NotFoundError("AccessKey not found", undefined, { messageKey: "accessKey.notFound" });
 
-    await this.repository.delete(keyId);
+    await this.repository.delete(keyId, userId);
+    await this.logRevocation(accessKey.id, userId, request);
+  }
 
+  private async logRevocation(keyId: string, userId: string, request?: Request) {
     await this.businessLogService.logOperation({
       operationType: OperationType.ACCESS_KEY_DELETE,
       operationCategory: OperationCategory.AUTH,
       actorUserId: userId,
       targetUserId: userId,
-      targetResourceId: accessKey.id,
+      targetResourceId: keyId,
       targetResourceType: "ACCESS_KEY",
-      description: `删除了 AccessKey '${accessKey.name || accessKey.id}'`,
+      description: "Revoked an access key",
       success: true,
       ...buildBusinessLogRequestContext(request),
     });

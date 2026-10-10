@@ -74,6 +74,13 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         return Boolean(await prisma.user.findFirst({ where: { id: accountOwnerId, ...active } }));
       case "quyan/user":
         return Boolean(await prisma.user.findFirst({ where: { id, ...active, ...userOwner } }));
+      case "quyan/access-key":
+        return Boolean(
+          await prisma.accessKey.findFirst({
+            where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+            select: { id: true },
+          }),
+        );
       case "quyan/group":
         return Boolean(await prisma.group.findFirst({ where: { id, accountOwnerId, ...active } }));
       case "quyan/role":

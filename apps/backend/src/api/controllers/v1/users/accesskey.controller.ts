@@ -1,3 +1,4 @@
+import { accessKeyResourceResolver } from "@/iam/request/accesskey-resource-resolvers";
 import { Controller, Get, Post, Delete, Route, Security, Request, Path, Body, Middlewares } from "@tsoa/runtime";
 import { AccessKeyService } from "@/services/users/accesskey.service";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
@@ -54,7 +55,11 @@ export class AccessKeyController extends Controller {
 
   @Delete("{id}")
   @Security("jwt")
-  @CheckPermission(Permission.ACCESSKEY_DELETE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ACCESSKEY_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:DeleteAccessKey",
+    resourceKind: "single-resource",
+    resource: accessKeyResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code", alwaysRequire: true })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code", alwaysRequire: true }),
