@@ -8042,6 +8042,49 @@
 				"parameters": []
 			}
 		},
+		"/v1/accesskeys/page": {
+			"get": {
+				"operationId": "AccessKeyControllerListAccessKeysPage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/AccessKeyPageDto"
+								}
+							}
+						}
+					}
+				},
+				"description": "Bounded metadata page. Empty IAM-filtered pages can still have hasNext=true.",
+				"security": [
+					{
+						"jwt": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/v1/accesskeys/{id}": {
 			"delete": {
 				"operationId": "AccessKeyControllerDeleteAccessKey",
@@ -42945,6 +42988,36 @@
 						"description": "邮箱验证码（未开启 2FA 时必填）"
 					}
 				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AccessKeyPageDto": {
+				"description": "Bounded candidate page. IAM filtering may produce an empty page with hasNext=true.\r\nNo unfiltered credential count is returned. Existing secrets remain masked.",
+				"properties": {
+					"items": {
+						"items": {
+							"$ref": "#/components/schemas/AccessKeyDto"
+						},
+						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double"
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"items",
+					"page",
+					"pageSize",
+					"hasNext"
+				],
 				"type": "object",
 				"additionalProperties": false
 			},

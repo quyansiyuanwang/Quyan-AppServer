@@ -1,4 +1,8 @@
 import { env } from "@/config/env";
+import { PermissionService } from "./permission.service";
+import { Permission } from "@/constant/permission";
+import { AccessKeyManagementRepository } from "@/store/users/accesskey-management.repository";
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
 import { AccessKeyIamService } from "./accesskey-iam.service";
 import type { TypedRequest } from "@/types/express";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -7,10 +11,10 @@ import { AccessKeyRepository } from "@/store/users/accesskey.repository";
 import { UserRepository } from "@/store/users/user.repository";
 import type { AccessKeyStore } from "@/store/users/accesskey.store";
 import type { UserStore } from "@/store/users/user.store";
-import type { CreateAccessKeyDto, AccessKeyDto } from "@/api/dto/users/accesskey.dto";
+import type { CreateAccessKeyDto, AccessKeyDto, AccessKeyPageDto } from "@/api/dto/users/accesskey.dto";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import { NotFoundError, UnauthorizedError, BadRequestError } from "@/util/errors";
+import { NotFoundError, UnauthorizedError, BadRequestError, ForbiddenError } from "@/util/errors";
 import { EmailService } from "@/services/auth/email.service";
 import { CustomCode } from "@/constant/custom-code";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
@@ -100,9 +104,62 @@ export class AccessKeyService {
     });
   }
 
-  async listKeys(userId: string): Promise<AccessKeyDto[]> {
+  private async assertLegacyRead(userId: string, request?: TypedRequest) {
+    const result = await PermissionService.getInstance().checkUserPermissions(userId, [Permission.ACCESSKEY_READ], {
+      assumedRoleSessionId: request?.user?.roleSessionId,
+    });
+    if (!result.hasPermission)
+      throw new ForbiddenError("Legacy access key listing denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+  }
+  private async compareShadow(legacy: readonly AccessKeyDto[], evaluate: () => Promise<readonly AccessKeyDto[]>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      const rows = await evaluate();
+      const ids = new Set(rows.map((row) => row.id));
+      if (rows.length !== legacy.length || legacy.some((row) => !ids.has(row.id)))
+        getLogger("AccessKeyIamBridge", LogCategory.SECURITY).warn("Access key IAM list differs from legacy", {
+          action: "quyan:ram:ListAccessKeys",
+          legacyCount: legacy.length,
+          iamCount: rows.length,
+        });
+    } catch {
+      getLogger("AccessKeyIamBridge", LogCategory.SECURITY).warn("Access key IAM shadow list unavailable", {
+        action: "quyan:ram:ListAccessKeys",
+        reason: "iam-list-unavailable",
+      });
+    }
+  }
+  async listKeys(userId: string, request?: TypedRequest): Promise<AccessKeyDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return AccessKeyIamService.getInstance().list(userId, request);
+    await this.assertLegacyRead(userId, request);
     const keys = await this.repository.findByUserId(userId);
-    return keys.map((k) => this.toDto(k, true)); // 列表中掩码密钥
+    const rows = keys.map((key) => this.toDto(key, true));
+    await this.compareShadow(rows, () => AccessKeyIamService.getInstance().list(userId, request, true));
+    return rows;
+  }
+  async listKeysPage(
+    userId: string,
+    options: { page?: number; pageSize?: number },
+    request?: TypedRequest,
+  ): Promise<AccessKeyPageDto> {
+    const parsed = iamManagementPaginationSchema.safeParse(options);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid access key page", undefined, {
+        messageKey: "validation.fieldInvalidValue",
+        messageParams: { field: "pagination" },
+      });
+    const page = parsed.data;
+    if (env.security.iamAuthorizationMode === "enforce")
+      return AccessKeyIamService.getInstance().listPage(userId, page, request);
+    await this.assertLegacyRead(userId, request);
+    const result = await AccessKeyManagementRepository.getInstance().legacyPage(userId, page);
+    await this.compareShadow(
+      result.items,
+      async () => (await AccessKeyIamService.getInstance().listPage(userId, page, request, true)).items,
+    );
+    return result;
   }
 
   async revokeKey(keyId: string, userId: string, request?: Request): Promise<void> {

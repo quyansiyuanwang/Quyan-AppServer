@@ -1,16 +1,20 @@
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamManagementPaginationSchema } from "@/iam/management-pagination";
 import { accessKeyResourceResolver } from "@/iam/request/accesskey-resource-resolvers";
-import { Controller, Get, Post, Delete, Route, Security, Request, Path, Body, Middlewares } from "@tsoa/runtime";
+import { Query, Controller, Get, Post, Delete, Route, Security, Request, Path, Body, Middlewares } from "@tsoa/runtime";
 import { AccessKeyService } from "@/services/users/accesskey.service";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type {
+  AccessKeyPageDto,
   CreateAccessKeyDto,
   AccessKeyDto,
   SendAccessKeyCreationVerificationCodeResponse,
 } from "@/api/dto/users/accesskey.dto";
 import { accesskeyIdParamsSchema, createAccessKeyBodySchema } from "@/api/schema/users/accesskey.schema";
-import { validateBody, validateParams } from "@/middleware/validation";
+import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { ForbiddenError } from "@/util/errors";
@@ -46,11 +50,37 @@ export class AccessKeyController extends Controller {
 
   @Get()
   @Security("jwt")
-  @CheckPermission(Permission.ACCESSKEY_READ, PermissionCheckMode.ALL, "jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ListAccessKeys",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listAccessKeys(@Request() request: TypedRequest): Promise<AccessKeyDto[]> {
     assertNoOAuthAccessToken(request, "读取");
     const service = new AccessKeyService();
-    return service.listKeys(request.user!.userId);
+    return service.listKeys(request.user!.userId, request);
+  }
+
+  /** Bounded metadata page. Empty IAM-filtered pages can still have hasNext=true. */
+  @Get("page")
+  @Security("jwt")
+  @Middlewares(
+    validateQuery(iamManagementPaginationSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ListAccessKeys",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
+  public async listAccessKeysPage(
+    @Request() request: TypedRequest,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<AccessKeyPageDto> {
+    assertNoOAuthAccessToken(request, "读取");
+    return new AccessKeyService().listKeysPage(request.user!.userId, { page, pageSize }, request);
   }
 
   @Delete("{id}")

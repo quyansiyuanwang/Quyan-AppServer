@@ -212,13 +212,19 @@ public async publishArticle(
 1. Action 来自服务端元数据，不读取客户端提交的 Action Header/Query。
 2. Resolver 验证标识、数据库归属和规范大小写；不能可靠解析时拒绝，不回退到 `*`。
 3. Service 授权实际方法参数，不能仅依赖请求体或只检查批量请求的第一个对象。
-4. 列表先做数据库账户隔离，使用有界数据库扫描逐资源评估，再对获准行分页；不得返回未授权行或未经授权过滤的全局总数。指定目标的批量修改使用 `authorizeMany`，全部允许后才写入；“全部”类操作应只更新逐资源获准的快照，不重新使用更宽的查询条件。
+4. 列表先做数据库账户隔离，使用有界候选页或有界数据库扫描逐资源评估；不得返回未授权行或未经授权过滤的全局总数。采用候选页时，过滤后允许空页，客户端应根据 `hasNext` 继续翻页，不能用获准行数量推断列表结束。指定目标的批量修改使用 `authorizeMany`，全部允许后才写入；“全部”类操作应只更新逐资源获准的快照，不重新使用更宽的查询条件。
 5. 敏感写入在事务内复核有效身份、资源归属与已授权快照，避免授权后资源状态变化造成越权。
 6. Condition 的值只能来自已注册的可信属性提供器。缺失或异常属性安全拒绝，不能通过调用参数伪造主体或资源所有者。
 
 `iamCollectionAuthorizationMiddleware` 只验证集合边界，不能代替 Service 的逐行过滤。IAM 也不能替代计费、业务状态、凭据使用、公开可见性等业务校验。
 
 本人自助能力通过共享 Action 的 `defaultAuthorizationScope: "self"` 注册，资源类型还须明确声明 `authenticatedSelfScope`。默认授权只覆盖当前执行用户的身份 ARN 或以该用户为父级的注册子资源。例如通知收件箱资源为 `acs:notification:*:<accountId>:inbox-item/<userId>/<itemId>`，默认模式只能访问本人的消息；显式 Deny 仍优先。不能仅因 Action 是 Read 或资源类型存在就自动授予默认权限。
+
+### 凭据资源管理
+
+访问密钥资源为 `acs:quyan:*:<accountId>:access-key/<userId>/<keyId>`。`quyan:ram:ListAccessKeys` 与 `quyan:ram:DeleteAccessKey` 是独立敏感操作，不注册默认本人授权；历史 `ACCESSKEY_READ`/`ACCESSKEY_DELETE` 只通过明确的兼容映射参与迁移。即使策略允许通配符，业务层仍限定当前执行用户自己的密钥，OAuth 第三方应用不能读取列表或撤销密钥。
+
+`GET /v1/accesskeys/page` 使用统一分页边界，返回 `items`、`page`、`pageSize` 和 `hasNext`，不返回未授权资源总数。旧数组接口保留完整已授权结果，不能悄悄替换成第一页。列表先读取无凭据的目标元数据，逐资源授权后再次求值，并在可串行化事务内复核账户、角色会话与资源快照，再读取并脱敏资料；密钥原文和历史凭据列不得进入列表 DTO 或授权日志。
 
 ### 策略版本与委派
 

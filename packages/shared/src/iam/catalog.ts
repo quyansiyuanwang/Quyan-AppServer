@@ -409,6 +409,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   {
+    action: 'quyan:ram:ListAccessKeys',
+    service: 'ram',
+    operation: 'ListAccessKeys',
+    accessLevel: 'List',
+    resourceTypes: ['quyan/access-key'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.ACCESSKEY_READ,
+  },
+  {
     action: 'quyan:ram:DeleteAccessKey',
     service: 'ram',
     operation: 'DeleteAccessKey',

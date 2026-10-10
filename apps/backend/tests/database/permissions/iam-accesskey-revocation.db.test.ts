@@ -91,7 +91,7 @@ describe("transactional resource-scoped access-key revocation", () => {
   it("keeps key reads and authorization metadata free of credential columns", async () => {
     const own = await key();
     const target = await repository.target(principal(), own.id);
-    expect(Object.keys(target).sort()).toEqual(["id", "status", "updateTime", "userId"]);
+    expect(Object.keys(target).sort()).toEqual(["createTime", "id", "status", "updateTime", "userId"]);
     expect(JSON.stringify(target)).not.toContain(own.key);
   });
   it("applies explicit Deny and implicit Deny without writing", async () => {
