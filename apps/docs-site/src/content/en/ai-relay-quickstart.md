@@ -33,3 +33,7 @@ OpenAI Responses uses `/v1/responses` and an `input` field. Channels, models, re
 - `403`: check token status, IP allowlist, and quota limits.
 
 Related pages: `relay-token-management`, `api-documentation`, `relay-settings`.
+
+## Resource protection and retries
+
+The server may limit total concurrency, queue time, uploads and upstream response size. On HTTP 429, retry with backoff rather than immediately issuing parallel retries. Oversized responses abort the upstream instead of returning truncated success. A stream failure does not imply zero upstream usage; consult usage records. Budgets depend on the deployment configuration.

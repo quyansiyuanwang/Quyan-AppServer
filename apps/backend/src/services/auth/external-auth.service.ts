@@ -1193,7 +1193,7 @@ export class ExternalAuthService {
         const serializedStatus = JSON.stringify(status);
 
         if (serializedStatus !== previousPayload || heartbeatCounter >= 10) {
-          this.sseService.sendChunk(res, status);
+          await this.sseService.sendChunk(res, status);
           previousPayload = serializedStatus;
           heartbeatCounter = 0;
         } else {
@@ -1201,7 +1201,7 @@ export class ExternalAuthService {
         }
 
         if (["approved", "rejected", "expired", "consumed"].includes(status.status)) {
-          this.sseService.sendDone(res);
+          await this.sseService.sendDone(res);
           break;
         }
 
@@ -1210,7 +1210,7 @@ export class ExternalAuthService {
     } catch (error) {
       if (!closed) {
         const message = error instanceof Error ? error.message : "QR stream failed";
-        this.sseService.sendError(res, message);
+        await this.sseService.sendError(res, message);
       }
     } finally {
       request.off("close", handleClose);

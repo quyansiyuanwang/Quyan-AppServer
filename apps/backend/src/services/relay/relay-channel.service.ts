@@ -1,3 +1,5 @@
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
+import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import axios from "axios";
 import { ProxyAgent } from "proxy-agent";
@@ -2616,11 +2618,11 @@ export class RelayChannelService {
     apiKey: string,
     channelUseProxy: boolean,
   ): Promise<PreparedUpstreamModelsRequest> {
-    const safe = await assertSafeOutboundUrl(upstreamUrl);
+    const safe = configureAIOutboundAgents(await assertSafeOutboundUrl(upstreamUrl));
     const relayProxyConfig = await this.configService.getRelayProxyConfig();
     const probeAgent =
       channelUseProxy && relayProxyConfig.enabled && relayProxyConfig.url
-        ? new ProxyAgent({ getProxyForUrl: () => relayProxyConfig.url })
+        ? new ProxyAgent({ ...getAIResourceConfig().aiResources.http, getProxyForUrl: () => relayProxyConfig.url })
         : undefined;
     const endpoint = new URL(safe.url.toString());
     const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
@@ -2644,43 +2646,48 @@ export class RelayChannelService {
   private async executeUpstreamModelsRequest(
     prepared: PreparedUpstreamModelsRequest,
   ): Promise<RelayChannelUpstreamModelsResponse> {
-    const response = await axios.get(prepared.endpointUrl, {
-      headers: prepared.headers,
-      httpAgent: prepared.httpAgent,
-      httpsAgent: prepared.httpsAgent,
-      proxy: false,
-      timeout: UPSTREAM_MODELS_TIMEOUT_MS,
-      maxRedirects: 0,
-      maxContentLength: UPSTREAM_MODELS_MAX_BYTES,
-      validateStatus: (status) => status >= 200 && status < 300,
-    });
-    const payload = response.data as Record<string, unknown>;
-    const source = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
-    const ids = source
-      .map((item) => {
-        if (typeof item === "string") return item;
-        if (!item || typeof item !== "object") return "";
-        const record = item as Record<string, unknown>;
-        return String(record.id || record.name || record.model || "");
-      })
-      .map((id) => id.trim())
-      .filter(Boolean);
-    const catalog = await this.modelPricingService.getModelPricing();
-    const seen = new Set<string>();
-    return {
-      format: prepared.format,
-      models: ids
-        .filter((id) => !seen.has(id) && seen.add(id))
-        .map((id) => {
-          const matched = catalog.find((model) => resolveModelId(model).trim() === id);
-          return {
-            id,
-            matched: Boolean(matched),
-            pricingModel: matched?.model,
-            pricingModelId: matched ? resolveModelId(matched) : undefined,
-          };
-        }),
-    };
+    try {
+      const response = await axios.get(prepared.endpointUrl, {
+        headers: prepared.headers,
+        httpAgent: prepared.httpAgent,
+        httpsAgent: prepared.httpsAgent,
+        proxy: false,
+        timeout: UPSTREAM_MODELS_TIMEOUT_MS,
+        maxRedirects: 0,
+        maxContentLength: UPSTREAM_MODELS_MAX_BYTES,
+        validateStatus: (status) => status >= 200 && status < 300,
+      });
+      const payload = response.data as Record<string, unknown>;
+      const source = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
+      const ids = source
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (!item || typeof item !== "object") return "";
+          const record = item as Record<string, unknown>;
+          return String(record.id || record.name || record.model || "");
+        })
+        .map((id) => id.trim())
+        .filter(Boolean);
+      const catalog = await this.modelPricingService.getModelPricing();
+      const seen = new Set<string>();
+      return {
+        format: prepared.format,
+        models: ids
+          .filter((id) => !seen.has(id) && seen.add(id))
+          .map((id) => {
+            const matched = catalog.find((model) => resolveModelId(model).trim() === id);
+            return {
+              id,
+              matched: Boolean(matched),
+              pricingModel: matched?.model,
+              pricingModelId: matched ? resolveModelId(matched) : undefined,
+            };
+          }),
+      };
+    } finally {
+      prepared.httpAgent.destroy();
+      if (prepared.httpsAgent !== prepared.httpAgent) prepared.httpsAgent.destroy();
+    }
   }
 
   private getChangeRequestEncryptionKey(): Buffer {

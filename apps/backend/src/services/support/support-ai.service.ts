@@ -1,3 +1,6 @@
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
+import { withAIGenerator } from "@/services/infrastructure/ai-resource.service";
+import { aiContentTooLarge } from "@/util/streaming/bounded-text";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import type { Request } from "express";
 import { env } from "@/config/env";
@@ -125,7 +128,6 @@ type SupportModelProvider = {
 const DEFAULT_SESSION_RETENTION_DAYS = 3;
 const MIN_SESSION_RETENTION_DAYS = 1;
 const MAX_SESSION_RETENTION_DAYS = 7;
-const MAX_CONVERSATION_MESSAGES = 12;
 const MAX_DOCUMENTATION_SEARCH_RESULTS = 6;
 const MAX_DOCUMENTATION_READ_RESULTS = 3;
 const MAX_DOCUMENTATION_READ_CHARACTERS = 1200;
@@ -878,19 +880,42 @@ export class SupportAiService {
             typeof message.content === "string" &&
             Boolean(message.content.trim()),
         )
-        .slice(-MAX_CONVERSATION_MESSAGES)
-        .map((message) => ({ role: message.role, content: message.content.trim().slice(0, 4000) })),
+        .map((message) => ({ role: message.role, content: message.content.trim() })),
     };
   }
 
   private async readConversation(userId: string): Promise<StoredSupportConversation> {
     const raw = await this.redisService.get(this.conversationKey(userId));
     if (!raw) return { messages: [] };
+    let parsed: unknown;
     try {
-      return this.normalizeConversation(JSON.parse(raw));
+      parsed = JSON.parse(raw);
     } catch {
       return { messages: [] };
     }
+    const conversation = this.normalizeConversation(parsed);
+    this.assertContextBudget(conversation.messages);
+    return conversation;
+  }
+
+  private assertContextBudget(messages: AgentMessage[]): void {
+    const limits = getAIResourceConfig().chat.resourceLimits;
+    if (
+      (limits.contextMaxMessages > 0 && messages.length > limits.contextMaxMessages) ||
+      messages.reduce((bytes, message) => bytes + Buffer.byteLength(message.content), 0) > limits.contextLimitBytes
+    )
+      throw aiContentTooLarge();
+  }
+
+  /** Checked before SSE starts, and again before any conversation write. Never trims history. */
+  async assertMessageBudget(userId: string, body: SendSupportMessageDto): Promise<void> {
+    const content = body.content.trim();
+    if (!content)
+      throw new BadRequestError("Support message is invalid", undefined, { messageKey: "supportAi.messageInvalid" });
+    if (Buffer.byteLength(content) > getAIResourceConfig().chat.resourceLimits.inputLimitBytes)
+      throw aiContentTooLarge();
+    const history = await this.readConversation(userId);
+    this.assertContextBudget([...history.messages, { role: "user", content }]);
   }
 
   private async saveConversation(
@@ -898,6 +923,7 @@ export class SupportAiService {
     messages: StoredSupportConversation["messages"],
     retentionDays: number,
   ) {
+    this.assertContextBudget(messages);
     const conversation = this.normalizeConversation({ messages });
     await this.redisService.set(
       this.conversationKey(userId),
@@ -946,6 +972,15 @@ export class SupportAiService {
     request?: Request,
     signal?: AbortSignal,
   ): AsyncGenerator<SupportStreamEvent> {
+    yield* withAIGenerator((combined) => this.streamInternal(userId, body, request, combined), signal);
+  }
+
+  private async *streamInternal(
+    userId: string,
+    body: SendSupportMessageDto,
+    request?: Request,
+    signal?: AbortSignal,
+  ): AsyncGenerator<SupportStreamEvent> {
     const config = await this.getConfig();
     if (!config.enabled)
       throw new BadRequestError("AI support is unavailable", undefined, { messageKey: "supportAi.aiUnavailable" });
@@ -955,16 +990,13 @@ export class SupportAiService {
     )
       throw new BadRequestError("AI support is unavailable", undefined, { messageKey: "supportAi.aiUnavailable" });
     const content = body.content.trim();
-    if (!content || content.length > 4000)
-      throw new BadRequestError("Support message is invalid", undefined, { messageKey: "supportAi.messageInvalid" });
+    await this.assertMessageBudget(userId, body);
     await this.assertRateLimit(userId, config);
     const locale = body.locale === "en" ? "en" : "zh-CN";
     const storedConversation = await this.readConversation(userId);
-    const history = [...storedConversation.messages, { role: "user" as const, content }].slice(
-      -MAX_CONVERSATION_MESSAGES,
-    );
+    const history = [...storedConversation.messages, { role: "user" as const, content }];
+    this.assertContextBudget(history);
     // Only message text is retained. Page context and client-supplied history are request-scoped evidence.
-    await this.saveConversation(userId, history, config.sessionRetentionDays);
     const provider = await this.resolveModelProvider(userId, body, config, request);
     const messages: AgentMessage[] = [
       {
@@ -973,93 +1005,120 @@ export class SupportAiService {
       },
       ...history,
     ];
+    this.assertContextBudget(messages);
+    await this.saveConversation(userId, history, config.sessionRetentionDays);
     let candidates: DocumentationSearchResult[] = [];
     let outlines: DocumentationOutlineResult[] = [];
     const citations = new Map<string, { slug: string; title: string; url: string }>();
     let inputTokens = 0;
     let outputTokens = 0;
     let durationMs = 0;
-    for (let round = 1; round <= config.maxAgentRounds; round += 1) {
-      yield { type: "status", stage: "thinking", round };
-      const plan = await this.collectAgentPlan(messages, config, provider, signal);
-      inputTokens += plan.inputTokens;
-      outputTokens += plan.outputTokens;
-      durationMs += plan.durationMs;
-      const action = this.parseAgentAction(plan.content);
-      messages.push({ role: "assistant", content: plan.content });
-      if (!action || action.tool === "final") break;
+    let assistantContent = "";
+    let assistantBytes = 0;
+    let finalUsageReceived = false;
+    const historyBytes = history.reduce((bytes, message) => bytes + Buffer.byteLength(message.content), 0);
+    try {
+      for (let round = 1; round <= config.maxAgentRounds; round += 1) {
+        this.assertContextBudget(messages);
+        yield { type: "status", stage: "thinking", round };
+        const plan = await this.collectAgentPlan(messages, config, provider, signal);
+        inputTokens += plan.inputTokens;
+        outputTokens += plan.outputTokens;
+        durationMs += plan.durationMs;
+        const action = this.parseAgentAction(plan.content);
+        messages.push({ role: "assistant", content: plan.content });
+        if (!action || action.tool === "final") break;
 
-      if (action.tool === "documentation_search") {
-        yield { type: "status", stage: "searching", round };
-        candidates = await this.searchDocumentation(action.query, locale);
-        messages.push({
-          role: "user",
-          content: `Tool result: documentation_search\n${JSON.stringify(this.toolMetadata(candidates))}`,
-        });
-        continue;
-      }
+        if (action.tool === "documentation_search") {
+          yield { type: "status", stage: "searching", round };
+          candidates = await this.searchDocumentation(action.query, locale);
+          messages.push({
+            role: "user",
+            content: `Tool result: documentation_search\n${JSON.stringify(this.toolMetadata(candidates))}`,
+          });
+          continue;
+        }
 
-      if (action.tool === "documentation_outline") {
+        if (action.tool === "documentation_outline") {
+          yield { type: "status", stage: "reading", round };
+          outlines = await this.outlineDocumentation(candidates, action.ids);
+          messages.push({
+            role: "user",
+            content: `Tool result: documentation_outline\n${JSON.stringify(outlines)}`,
+          });
+          continue;
+        }
+
         yield { type: "status", stage: "reading", round };
-        outlines = await this.outlineDocumentation(candidates, action.ids);
+        const documents = await this.readDocumentation(candidates, action.ids, outlines);
+        for (const document of documents)
+          citations.set(document.slug, {
+            slug: document.slug,
+            title: document.title,
+            url: new URL(document.path, env.integrations.supportKnowledge.url).toString(),
+          });
+        if (documents.length) yield { type: "citations", citations: [...citations.values()] };
         messages.push({
           role: "user",
-          content: `Tool result: documentation_outline\n${JSON.stringify(outlines)}`,
+          content: `Tool result: documentation_read\n${documents.length ? documents.map((document) => `[${document.title}]\n${document.content}`).join("\n\n") : "No readable documentation matched the requested IDs."}`,
         });
-        continue;
       }
 
-      yield { type: "status", stage: "reading", round };
-      const documents = await this.readDocumentation(candidates, action.ids, outlines);
-      for (const document of documents)
-        citations.set(document.slug, {
-          slug: document.slug,
-          title: document.title,
-          url: new URL(document.path, env.integrations.supportKnowledge.url).toString(),
-        });
-      if (documents.length) yield { type: "citations", citations: [...citations.values()] };
+      yield { type: "status", stage: "generating" };
       messages.push({
         role: "user",
-        content: `Tool result: documentation_read\n${documents.length ? documents.map((document) => `[${document.title}]\n${document.content}`).join("\n\n") : "No readable documentation matched the requested IDs."}`,
+        content:
+          "Planning is complete. Give the final user-facing answer now. Use only documentation_read and current-page evidence supplied above; do not expose tool JSON or internal planning.",
       });
-    }
-
-    yield { type: "status", stage: "generating" };
-    messages.push({
-      role: "user",
-      content:
-        "Planning is complete. Give the final user-facing answer now. Use only documentation_read and current-page evidence supplied above; do not expose tool JSON or internal planning.",
-    });
-    let assistantContent = "";
-    for await (const chunk of this.aiProvider.streamChat(
-      messages,
-      provider.model,
-      provider.apiKey,
-      provider.upstreamUrl,
-      provider.requestFormat,
-      signal,
-      {
-        maxOutputTokens: config.maxOutputTokens,
-        ...(provider.requestHeaders ? { requestHeaders: provider.requestHeaders } : {}),
-      },
-    )) {
-      if (!chunk.done && chunk.content) {
-        assistantContent += chunk.content;
-        yield { type: "delta", content: chunk.content };
+      this.assertContextBudget(messages);
+      for await (const chunk of this.aiProvider.streamChat(
+        messages,
+        provider.model,
+        provider.apiKey,
+        provider.upstreamUrl,
+        provider.requestFormat,
+        signal,
+        {
+          maxOutputTokens: config.maxOutputTokens,
+          ...(provider.requestHeaders ? { requestHeaders: provider.requestHeaders } : {}),
+        },
+      )) {
+        if (!chunk.done && chunk.content) {
+          assistantBytes += Buffer.byteLength(chunk.content);
+          if (
+            assistantBytes > getAIResourceConfig().aiResources.streaming.outputLimitBytes ||
+            historyBytes + assistantBytes > getAIResourceConfig().chat.resourceLimits.contextLimitBytes ||
+            (getAIResourceConfig().chat.resourceLimits.contextMaxMessages > 0 &&
+              history.length + 1 > getAIResourceConfig().chat.resourceLimits.contextMaxMessages)
+          )
+            throw aiContentTooLarge();
+          assistantContent += chunk.content;
+          yield { type: "delta", content: chunk.content };
+        }
+        if (chunk.done) {
+          finalUsageReceived = true;
+          inputTokens += chunk.inputTokens ?? 0;
+          outputTokens += chunk.outputTokens ?? 0;
+          durationMs += chunk.totalOutputTime ?? 0;
+        }
       }
-      if (chunk.done) {
-        inputTokens += chunk.inputTokens ?? 0;
-        outputTokens += chunk.outputTokens ?? 0;
-        durationMs += chunk.totalOutputTime ?? 0;
+    } finally {
+      // Final usage may never arrive after abort/overflow; account for already emitted text exactly once.
+      if (!finalUsageReceived && assistantContent) {
+        inputTokens += Math.ceil(
+          messages.reduce((bytes, message) => bytes + Buffer.byteLength(message.content), 0) / 4,
+        );
+        outputTokens += Math.ceil(Buffer.byteLength(assistantContent) / 4);
       }
+      if (finalUsageReceived || inputTokens || outputTokens)
+        await this.recordUsage(
+          userId,
+          config,
+          provider.model,
+          { inputTokens, outputTokens, durationMs },
+          (body.fundingMode ?? "platform") !== "user-relay",
+        );
     }
-    await this.recordUsage(
-      userId,
-      config,
-      provider.model,
-      { inputTokens, outputTokens, durationMs },
-      (body.fundingMode ?? "platform") !== "user-relay",
-    );
     if (assistantContent.trim())
       await this.saveConversation(
         userId,

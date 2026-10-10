@@ -296,6 +296,7 @@ const zhCN = {
     replayProtectionUnavailable: "防重放保护服务暂时不可用，请稍后重试",
   },
   system: {
+    invalidAiResources: "AI 资源配置无效，请检查整数范围、RSS 水位和连接数关系",
     configUpdated: "配置更新成功",
     invalidConfirmationPhrase: "确认短语不正确",
     errorGroupNotFound: "错误分组不存在",
@@ -760,6 +761,8 @@ const zhCN = {
     priorityUnique: "priority 不能重复",
   },
   relayProxy: {
+    aiCapacityExceeded: "AI 服务资源暂时不足，请稍后重试",
+    aiContentTooLarge: "AI 内容超过配置的资源容量上限",
     multipartModelRewriteFailed: "无法安全改写 multipart 请求中的模型字段",
     concurrencyBackendUnavailable: "中转并发协调后端不可用",
     queueTimeout: "排队等待上游并发位超时",

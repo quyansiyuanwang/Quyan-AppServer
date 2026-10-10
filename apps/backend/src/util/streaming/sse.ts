@@ -1,3 +1,4 @@
+import { writeWithBackpressure } from "./backpressure";
 import type { Response } from "express";
 
 export class SSEStreamService {
@@ -18,16 +19,16 @@ export class SSEStreamService {
     res.flushHeaders();
   }
 
-  sendChunk<T>(res: Response, data: T): void {
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  sendChunk<T>(res: Response, data: T): Promise<void> {
+    return writeWithBackpressure(res, `data: ${JSON.stringify(data)}\n\n`);
   }
 
   sendDone(res: Response) {
-    res.write("data: [DONE]\n\n");
+    return writeWithBackpressure(res, "data: [DONE]\n\n");
   }
 
-  sendError(res: Response, error: string): void {
-    res.write(`data: ${JSON.stringify({ type: "error", error, done: true })}\n\n`);
+  sendError(res: Response, error: string): Promise<void> {
+    return writeWithBackpressure(res, `data: ${JSON.stringify({ type: "error", error, done: true })}\n\n`);
   }
 
   endStream(res: Response) {

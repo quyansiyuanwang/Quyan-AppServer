@@ -30,6 +30,12 @@ const {
 
 vi.mock('@/service/configService', () => ({
   configService: {
+    getAIResourceConfiguration: vi.fn(async () => ({
+      effective: { version: 1 },
+      defaults: { version: 1 },
+      fields: [],
+      legacyEnvironmentPresent: false,
+    })),
     getRegistrationConfig: getRegistrationConfigMock,
     getBillingConfig: vi.fn(async () => ({ rechargeRatio: 100 })),
     getCaptchaConfig: getCaptchaConfigMock,
@@ -85,7 +91,6 @@ describe('ServerConfigView captcha configuration', () => {
   it('treats provider=none as disabled mode', async () => {
     const wrapper = mount(ServerConfigView)
     await flush()
-
     ;(wrapper.vm as any).activeNames = ['captcha']
     await flush()
 
@@ -96,7 +101,6 @@ describe('ServerConfigView captcha configuration', () => {
   it('prevents fallback provider equal to primary provider', async () => {
     const wrapper = mount(ServerConfigView)
     await flush()
-
     ;(wrapper.vm as any).captchaProvider = 'recaptcha'
     ;(wrapper.vm as any).captchaFallbackProvider = 'recaptcha'
     await (wrapper.vm as any).saveCaptcha()
@@ -108,7 +112,6 @@ describe('ServerConfigView captcha configuration', () => {
   it('enables minScore when recaptcha is used as fallback provider', async () => {
     const wrapper = mount(ServerConfigView)
     await flush()
-
     ;(wrapper.vm as any).captchaProvider = 'turnstile'
     ;(wrapper.vm as any).captchaFallbackProvider = 'recaptcha'
     await flush()
@@ -119,7 +122,6 @@ describe('ServerConfigView captcha configuration', () => {
   it('saves provider none as disabled captcha mode', async () => {
     const wrapper = mount(ServerConfigView)
     await flush()
-
     ;(wrapper.vm as any).captchaProvider = 'none'
     ;(wrapper.vm as any).captchaFallbackProvider = 'none'
     ;(wrapper.vm as any).captchaMinScore = 0.5
@@ -138,7 +140,6 @@ describe('ServerConfigView captcha configuration', () => {
   it('loads trust window minutes from captcha config', async () => {
     const wrapper = mount(ServerConfigView)
     await flush()
-
     ;(wrapper.vm as any).activeNames = ['captcha']
     await flush()
 

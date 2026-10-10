@@ -1,3 +1,4 @@
+import type { AIResourceConfigurationDto } from "./ai-resources.dto";
 export interface ServerConfigDto {
   key: string;
   value: string;
@@ -9,6 +10,7 @@ export interface SetConfigDto {
 
 export interface GetConfigResponse {
   configs: Record<string, string>;
+  aiResources?: AIResourceConfigurationDto;
 }
 
 export interface RegistrationStatusResponse {

@@ -12,6 +12,7 @@ import {
   Middlewares,
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
+import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
 import { ConfigService } from "@/services/system/config.service";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type {
@@ -83,7 +84,7 @@ export class ConfigController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async getAllConfigs(@Request() _request: TypedRequest): Promise<GetConfigResponse> {
     const configs = await this.configService.getAllConfigs();
-    return { configs };
+    return { configs, aiResources: AIResourceConfigService.getInstance().describe() };
   }
 
   @Put("")

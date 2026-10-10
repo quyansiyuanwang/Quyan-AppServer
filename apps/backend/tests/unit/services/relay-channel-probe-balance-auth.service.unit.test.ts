@@ -6,8 +6,8 @@ import { RelayChannelProbeAccountService } from "@/services/relay/relay-channel-
 vi.mock("@/util/developer-outbound-url", () => ({
   assertSafeOutboundUrl: vi.fn(async (url: string) => ({
     url: new URL(url),
-    httpAgent: undefined,
-    httpsAgent: undefined,
+    httpAgent: { destroy: vi.fn() },
+    httpsAgent: { destroy: vi.fn() },
   })),
 }));
 

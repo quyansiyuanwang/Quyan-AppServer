@@ -1,3 +1,5 @@
+import { AIResourceConfigService } from "./services/infrastructure/ai-resource-config.service";
+import { AIResourceService } from "./services/infrastructure/ai-resource.service";
 import { ChinaHolidayCalendarService } from "./services/relay/china-holiday-calendar.service";
 import { createApp, setupService } from "./app";
 import { disconnectDatabase } from "./config/database";
@@ -14,88 +16,97 @@ import { CarpoolExpirationSchedulerService } from "./services/billing/carpool-ex
 import { getLogger, LogCategory } from "./util/logger";
 import { AgentRuntimeGateway } from "./services/agent/agent-runtime.gateway";
 
-const app = createApp();
-setupService();
-const port = env.runtime.port;
-const isDev = env.runtime.isDevelopment;
-const logger = getLogger("Main", LogCategory.UTIL);
-const remoteTerminalGatewayBootstrap = new RemoteTerminalGatewayBootstrap(RemoteTerminalGatewayService.getInstance());
-const agentRuntimeGateway = AgentRuntimeGateway.getInstance();
+async function startBackend() {
+  await AIResourceConfigService.getInstance().start();
+  const app = createApp();
+  setupService();
+  const port = env.runtime.port;
+  const isDev = env.runtime.isDevelopment;
+  const logger = getLogger("Main", LogCategory.UTIL);
+  const remoteTerminalGatewayBootstrap = new RemoteTerminalGatewayBootstrap(RemoteTerminalGatewayService.getInstance());
+  const agentRuntimeGateway = AgentRuntimeGateway.getInstance();
 
-if (isDev) logger.warn("Running in development mode");
+  if (isDev) logger.warn("Running in development mode");
 
-const server = app.listen(port, () => {
-  logger.info(`Database: ${env.database.hiddenUrl}`);
-  logger.info(`🚀 Server is running on port ${port}`);
-  logger.info(`📖 API 文档: http://localhost:${port}/docs`);
-  logger.info(`📄 OpenAPI JSON: http://localhost:${port}/docs/openapi.json`);
+  const server = app.listen(port, () => {
+    logger.info(`Database: ${env.database.hiddenUrl}`);
+    logger.info(`🚀 Server is running on port ${port}`);
+    logger.info(`📖 API 文档: http://localhost:${port}/docs`);
+    logger.info(`📄 OpenAPI JSON: http://localhost:${port}/docs/openapi.json`);
 
-  // Notify PM2 that the app is ready (for cluster mode with wait_ready: true)
-  if (process.send) {
-    process.send("ready");
-    logger.info("Sent 'ready' signal to PM2");
-  }
-});
-
-server.on("upgrade", (request, socket, head) => {
-  const handled = remoteTerminalGatewayBootstrap.handleUpgrade(request, socket, head);
-  if (handled) return;
-  if (!agentRuntimeGateway.handleUpgrade(request, socket, head)) socket.destroy();
-});
-
-// Configure server-level timeouts to prevent hanging connections
-server.keepAliveTimeout = 65 * 1000; // 65 seconds (slightly higher than typical load balancer timeout)
-server.headersTimeout = 66 * 1000; // 66 seconds (must be higher than keepAliveTimeout)
-server.requestTimeout = 10 * 60 * 1000; // 10 minutes for long-running requests (streaming)
-
-// Graceful shutdown handler
-let shutdownStarted = false;
-
-const closeHttpServer = (): Promise<void> =>
-  new Promise((resolve, reject) => {
-    server.close((error) => {
-      if (error && (error as { code?: string }).code !== "ERR_SERVER_NOT_RUNNING") reject(error);
-      else resolve();
-    });
+    // Notify PM2 that the app is ready (for cluster mode with wait_ready: true)
+    if (process.send) {
+      process.send("ready");
+      logger.info("Sent 'ready' signal to PM2");
+    }
   });
 
-const gracefulShutdown = async (signal: string) => {
-  if (shutdownStarted) return;
-  shutdownStarted = true;
-  logger.info(`${signal} received, starting graceful shutdown`);
+  server.on("upgrade", (request, socket, head) => {
+    const handled = remoteTerminalGatewayBootstrap.handleUpgrade(request, socket, head);
+    if (handled) return;
+    if (!agentRuntimeGateway.handleUpgrade(request, socket, head)) socket.destroy();
+  });
 
-  // Force shutdown after 12 minutes (10min request + 2min buffer)
-  const forceShutdownTimer = setTimeout(
-    () => {
-      logger.error("Forced shutdown after timeout");
-      process.exit(1);
-    },
-    12 * 60 * 1000,
-  );
-  forceShutdownTimer.unref?.();
+  // Configure server-level timeouts to prevent hanging connections
+  server.keepAliveTimeout = 65 * 1000; // 65 seconds (slightly higher than typical load balancer timeout)
+  server.headersTimeout = 66 * 1000; // 66 seconds (must be higher than keepAliveTimeout)
+  server.requestTimeout = 10 * 60 * 1000; // 10 minutes for long-running requests (streaming)
 
-  try {
-    DeveloperMonitorSchedulerService.getInstance().stop();
-    RelayChannelProbeService.getInstance().stop();
-    RelayChannelProviderSettlementSchedulerService.getInstance().stop();
-    DataLifecycleSchedulerService.getInstance().stop();
-    CarpoolExpirationSchedulerService.getInstance().stop();
-    await ChinaHolidayCalendarService.getInstance().stop();
-    await remoteTerminalGatewayBootstrap.close();
-    agentRuntimeGateway.close();
-    await closeHttpServer();
-    await disposeRequestLogService();
-    await RedisService.getInstance().close();
-    await disconnectDatabase();
-    logger.info("Graceful shutdown completed");
-    process.exitCode = 0;
-  } catch (error) {
-    logger.error("Graceful shutdown failed", { error });
-    process.exitCode = 1;
-  } finally {
-    clearTimeout(forceShutdownTimer);
-  }
-};
+  // Graceful shutdown handler
+  let shutdownStarted = false;
 
-process.once("SIGTERM", () => void gracefulShutdown("SIGTERM"));
-process.once("SIGINT", () => void gracefulShutdown("SIGINT"));
+  const closeHttpServer = (): Promise<void> =>
+    new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error && (error as { code?: string }).code !== "ERR_SERVER_NOT_RUNNING") reject(error);
+        else resolve();
+      });
+    });
+
+  const gracefulShutdown = async (signal: string) => {
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    logger.info(`${signal} received, starting graceful shutdown`);
+
+    // Force shutdown after 12 minutes (10min request + 2min buffer)
+    const forceShutdownTimer = setTimeout(
+      () => {
+        logger.error("Forced shutdown after timeout");
+        process.exit(1);
+      },
+      12 * 60 * 1000,
+    );
+    forceShutdownTimer.unref?.();
+
+    try {
+      DeveloperMonitorSchedulerService.getInstance().stop();
+      RelayChannelProbeService.getInstance().stop();
+      RelayChannelProviderSettlementSchedulerService.getInstance().stop();
+      DataLifecycleSchedulerService.getInstance().stop();
+      CarpoolExpirationSchedulerService.getInstance().stop();
+      await ChinaHolidayCalendarService.getInstance().stop();
+      await remoteTerminalGatewayBootstrap.close();
+      agentRuntimeGateway.close();
+      await closeHttpServer();
+      AIResourceService.getInstance().stop();
+      AIResourceConfigService.getInstance().stop();
+      await disposeRequestLogService();
+      await RedisService.getInstance().close();
+      await disconnectDatabase();
+      logger.info("Graceful shutdown completed");
+      process.exitCode = 0;
+    } catch (error) {
+      logger.error("Graceful shutdown failed", { error });
+      process.exitCode = 1;
+    } finally {
+      clearTimeout(forceShutdownTimer);
+    }
+  };
+
+  process.once("SIGTERM", () => void gracefulShutdown("SIGTERM"));
+  process.once("SIGINT", () => void gracefulShutdown("SIGINT"));
+}
+void startBackend().catch((error) => {
+  getLogger("Main", LogCategory.UTIL).error("Backend initialization failed", { error });
+  process.exitCode = 1;
+});

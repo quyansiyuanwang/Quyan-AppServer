@@ -1,3 +1,4 @@
+import { AIRequestLogWriter } from "./ai-request-log-writer";
 import type { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import {
@@ -16,7 +17,7 @@ import {
   type AIRequestLogAuditContext,
 } from "@/util/ai-request-log-context";
 import { auditCursor, contentPage, readAuditCursor, searchContent } from "@/util/ai-request-log-content";
-import { auditUtf8Slice, sanitizeAuditPayload } from "@/util/ai-request-log-payload";
+import { sanitizeAuditPayload, budgetAuditPayload } from "@/util/ai-request-log-payload";
 import { AIRequestLogRepository } from "@/store/system/ai-request-log.repository";
 import type {
   AIRequestLogAttemptDto,
@@ -42,6 +43,8 @@ function jsonInput(value: unknown): Prisma.InputJsonValue {
 }
 export class AIRequestLogService {
   private static instance: AIRequestLogService;
+  private readonly writer = new AIRequestLogWriter();
+  private droppedWrites = 0;
   public static getInstance(): AIRequestLogService {
     return (this.instance ??= new AIRequestLogService());
   }
@@ -49,12 +52,12 @@ export class AIRequestLogService {
   public async logRequest(req: Request, res: Response, responseBody?: unknown, durationMs = 0): Promise<void> {
     const initialContext = getAIRequestLogContext(res);
     if (!initialContext) return;
-    const currentContext = () => getAIRequestLogContext(res) ?? initialContext;
+
     const existing = writes.get(res);
     if (existing) return existing;
     const requestId = ensureAIRequestLogId(res);
     const path = String(req.originalUrl || req.url || req.path || "").split("?")[0] || "";
-    const context = currentContext();
+    const context = initialContext;
     let omission: AIRequestLogOmissionReason | null = context.bodyOmissionReason ?? null;
     let body: unknown;
     if (res.statusCode === 413) omission = "request-too-large";
@@ -63,7 +66,10 @@ export class AIRequestLogService {
       if (Buffer.isBuffer(req.body)) {
         if (/json/i.test(String(req.headers["content-type"] || ""))) {
           try {
-            body = JSON.parse(req.body.toString("utf8"));
+            body =
+              req.body.byteLength > AI_REQUEST_LOG_LIMITS.requestBodyBytes
+                ? { _truncated: true, _size: req.body.byteLength }
+                : JSON.parse(req.body.toString("utf8"));
           } catch {
             omission = "invalid-body";
           }
@@ -85,63 +91,104 @@ export class AIRequestLogService {
       requestPayload.byteSize ??
       (Number.isSafeInteger(headerSize) && headerSize >= 0 ? Math.min(headerSize, 2147483647) : null);
     const closedEarly = res.locals.responseClosedEarly === true;
-    const diagnostics = () => this.diagnostics(currentContext(), res.statusCode, closedEarly);
-    const safeFailure = () => logger.error("Failed to persist AI request audit log", { requestId, path });
-    // Serialize creation and late updates. A context patch can arrive while the first insert is still pending;
-    // defer that patch until the row exists so identity/failure updates cannot race ahead of the insert.
-    let queue = Promise.resolve();
+    const statusCode = res.statusCode;
+    let latest = this.diagnostics(context, statusCode, closedEarly);
     let created = false;
     let updatePending = false;
-    observeAIRequestLogContext(res, () => {
-      if (!created) {
+    let updating = false;
+    const input: Prisma.AIRequestLogUncheckedCreateInput = {
+      requestId,
+      userId: context.userId ?? undefined,
+      username: context.username?.slice(0, 191),
+      relayTokenId: context.relayTokenId ?? undefined,
+      relayTokenName: context.relayTokenName?.slice(0, 100),
+      model: context.model?.slice(0, 160),
+      requestFormat: context.requestFormat?.slice(0, 40),
+      path: path.slice(0, 1024),
+      method: req.method,
+      statusCode: statusCode,
+      ipAddress: extractClientIp(req),
+      userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"].slice(0, 2048) : undefined,
+      durationMs: Math.max(0, Math.round(durationMs)),
+      requestSizeBytes: requestSize,
+      responseSizeBytes: responsePayload.byteSize,
+      requestTruncated: requestPayload.truncated,
+      responseTruncated: responsePayload.truncated || this.hasTruncationMarker(responseBody),
+      bodyOmissionReason: omission,
+      isStreaming:
+        context.isStreaming ??
+        (body && typeof body === "object" ? (body as { stream?: unknown }).stream === true : undefined),
+      ...latest,
+      ...(requestPayload.value === undefined ? {} : { requestBody: requestPayload.value }),
+      ...(responsePayload.value === undefined ? {} : { responseBody: responsePayload.value }),
+    };
+    const repository = this.repository;
+    const writer = this.writer;
+    const safeFailure = () => logger.error("Failed to persist AI request audit log", { requestId, path });
+    const update = () => {
+      if (!created || updating) {
         updatePending = true;
         return;
       }
-      queue = queue
-        .then(async () => {
-          await this.repository.updateByRequestId(requestId, diagnostics());
-        })
-        .catch(safeFailure);
-      writes.set(res, queue);
+      updating = true;
+      const data = latest;
+      const promise = writer.enqueue(requestId + ":update", Buffer.byteLength(JSON.stringify(data)), async () => {
+        try {
+          await repository.updateByRequestId(requestId, data);
+        } catch {
+          safeFailure();
+        }
+      });
+      if (!promise) {
+        updating = false;
+        return;
+      }
+      void promise.finally(() => {
+        updating = false;
+        if (updatePending) {
+          updatePending = false;
+          update();
+        }
+      });
+    };
+    // A WeakRef avoids retaining the request/response while database writes are queued.
+    const responseRef = new WeakRef(res);
+    observeAIRequestLogContext(res, () => {
+      const response = responseRef.deref();
+      if (!response) return;
+      latest = this.diagnostics(getAIRequestLogContext(response) ?? {}, statusCode, closedEarly);
+      update();
     });
-    queue = queue
-      .then(async () => {
-        await this.repository.create({
-          requestId,
-          userId: context.userId ?? undefined,
-          username: context.username?.slice(0, 191),
-          relayTokenId: context.relayTokenId ?? undefined,
-          relayTokenName: context.relayTokenName?.slice(0, 100),
-          model: context.model?.slice(0, 160),
-          requestFormat: context.requestFormat?.slice(0, 40),
-          path: path.slice(0, 1024),
-          method: req.method,
-          statusCode: res.statusCode,
-          ipAddress: extractClientIp(req),
-          userAgent:
-            typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"].slice(0, 2048) : undefined,
-          durationMs: Math.max(0, Math.round(durationMs)),
-          requestSizeBytes: requestSize,
-          responseSizeBytes: responsePayload.byteSize,
-          requestTruncated: requestPayload.truncated,
-          responseTruncated: responsePayload.truncated || this.hasTruncationMarker(responseBody),
-          bodyOmissionReason: omission,
-          isStreaming:
-            context.isStreaming ??
-            (body && typeof body === "object" ? (body as { stream?: unknown }).stream === true : undefined),
-          ...diagnostics(),
-          ...(requestPayload.value === undefined ? {} : { requestBody: requestPayload.value }),
-          ...(responsePayload.value === undefined ? {} : { responseBody: responsePayload.value }),
-        });
+    let bytes = Buffer.byteLength(JSON.stringify(input));
+    if (!writer.canAccept(bytes)) {
+      delete input.requestBody;
+      delete input.responseBody;
+      input.requestTruncated = Boolean(requestPayload.value !== undefined) || input.requestTruncated;
+      input.responseTruncated = Boolean(responsePayload.value !== undefined) || input.responseTruncated;
+      bytes = Buffer.byteLength(JSON.stringify(input));
+    }
+    const snapshot = input;
+    const queue = writer.enqueue(requestId, bytes, async () => {
+      try {
+        await repository.create(snapshot);
         created = true;
         if (updatePending) {
           updatePending = false;
-          await this.repository.updateByRequestId(requestId, diagnostics());
+          update();
         }
-      })
-      .catch(safeFailure);
+      } catch {
+        safeFailure();
+      }
+    });
+    if (!queue) {
+      this.droppedWrites++;
+      // Log logarithmically under sustained overload; logging must not become another queue.
+      if (Number.isInteger(Math.log2(this.droppedWrites)))
+        logger.warn("AI audit queue full; record dropped", { ...writer.snapshot(), dropped: this.droppedWrites });
+      return;
+    }
     writes.set(res, queue);
-    await queue;
+    return queue;
   }
   private diagnostics(
     context: AIRequestLogAuditContext,
@@ -325,29 +372,11 @@ export class AIRequestLogService {
     measuredBytes?: number,
   ): { value?: Prisma.InputJsonValue; byteSize: number | null; truncated: boolean } {
     if (value === undefined || value === null) return { byteSize: null, truncated: false };
-    let originalSize: number;
-    try {
-      originalSize =
-        measuredBytes ??
-        (Buffer.isBuffer(value)
-          ? value.byteLength
-          : Buffer.byteLength(typeof value === "string" ? value : JSON.stringify(value)));
-      originalSize = Math.min(2147483647, Math.max(0, Math.round(originalSize)));
-    } catch {
-      originalSize = 0;
-    }
-    const safe = sanitizeAuditPayload(value);
-    const serialized = JSON.stringify(safe) ?? "null";
-    if (Buffer.byteLength(serialized) <= maxBytes)
-      return { value: jsonInput(safe), byteSize: originalSize, truncated: this.hasTruncationMarker(value) };
+    const payload = budgetAuditPayload(value, maxBytes);
     return {
-      value: {
-        _truncated: true,
-        _originalSize: originalSize,
-        _preview: auditUtf8Slice(serialized, 0, Math.max(0, maxBytes - 256)).text,
-      },
-      byteSize: originalSize,
-      truncated: true,
+      value: payload.value as Prisma.InputJsonValue,
+      byteSize: measuredBytes == null ? payload.byteSize : Math.min(2147483647, Math.max(0, measuredBytes)),
+      truncated: payload.truncated,
     };
   }
 }

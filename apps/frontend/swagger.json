@@ -42862,10 +42862,360 @@
 				"type": "object",
 				"description": "Construct a type with a set of properties K of type T"
 			},
+			"AIResourceSettingsDto": {
+				"description": "Versioned per-process AI memory budgets. Byte capacities use 1024-based units.",
+				"properties": {
+					"version": {
+						"type": "number",
+						"enum": [
+							1
+						],
+						"nullable": false
+					},
+					"aiResources": {
+						"properties": {
+							"http": {
+								"properties": {
+									"maxFreeSockets": {
+										"type": "number",
+										"format": "double"
+									},
+									"maxTotalSockets": {
+										"type": "number",
+										"format": "double"
+									},
+									"maxSockets": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"maxFreeSockets",
+									"maxTotalSockets",
+									"maxSockets"
+								],
+								"type": "object"
+							},
+							"streaming": {
+								"properties": {
+									"outputLimitBytes": {
+										"type": "number",
+										"format": "double"
+									},
+									"maxBlocks": {
+										"type": "number",
+										"format": "double"
+									},
+									"retainedLimitBytes": {
+										"type": "number",
+										"format": "double"
+									},
+									"frameLimitBytes": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"outputLimitBytes",
+									"maxBlocks",
+									"retainedLimitBytes",
+									"frameLimitBytes"
+								],
+								"type": "object"
+							},
+							"memory": {
+								"properties": {
+									"resumeWatermarkBytes": {
+										"type": "number",
+										"format": "double"
+									},
+									"highWatermarkBytes": {
+										"type": "number",
+										"format": "double"
+									},
+									"sampleIntervalMs": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"resumeWatermarkBytes",
+									"highWatermarkBytes",
+									"sampleIntervalMs"
+								],
+								"type": "object"
+							},
+							"queueTimeoutMs": {
+								"type": "number",
+								"format": "double"
+							},
+							"maxQueuedRequests": {
+								"type": "number",
+								"format": "double"
+							},
+							"maxActiveRequests": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"http",
+							"streaming",
+							"memory",
+							"queueTimeoutMs",
+							"maxQueuedRequests",
+							"maxActiveRequests"
+						],
+						"type": "object"
+					},
+					"chat": {
+						"properties": {
+							"resourceLimits": {
+								"properties": {
+									"contextLimitBytes": {
+										"type": "number",
+										"format": "double"
+									},
+									"contextMaxMessages": {
+										"type": "number",
+										"format": "double"
+									},
+									"outputLimitBytes": {
+										"type": "number",
+										"format": "double"
+									},
+									"inputLimitBytes": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"contextLimitBytes",
+									"contextMaxMessages",
+									"outputLimitBytes",
+									"inputLimitBytes"
+								],
+								"type": "object"
+							}
+						},
+						"required": [
+							"resourceLimits"
+						],
+						"type": "object"
+					},
+					"aiRequestLog": {
+						"properties": {
+							"queueMaxBytes": {
+								"type": "number",
+								"format": "double"
+							},
+							"queueMaxItems": {
+								"type": "number",
+								"format": "double"
+							},
+							"writeConcurrency": {
+								"type": "number",
+								"format": "double"
+							},
+							"responseBodyBytes": {
+								"type": "number",
+								"format": "double"
+							},
+							"requestBodyBytes": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"queueMaxBytes",
+							"queueMaxItems",
+							"writeConcurrency",
+							"responseBodyBytes",
+							"requestBodyBytes"
+						],
+						"type": "object"
+					},
+					"relay": {
+						"properties": {
+							"channelProbe": {
+								"properties": {
+									"maxConcurrency": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"maxConcurrency"
+								],
+								"type": "object"
+							},
+							"resourceGuard": {
+								"properties": {
+									"imageResponseBodyLimitMb": {
+										"type": "number",
+										"format": "double"
+									},
+									"maxUpstreamResponseBodyMb": {
+										"type": "number",
+										"format": "double"
+									},
+									"nonStreamUpstreamTimeoutMs": {
+										"type": "number",
+										"format": "double"
+									},
+									"imageQueueTimeoutMs": {
+										"type": "number",
+										"format": "double"
+									},
+									"imageMaxConcurrency": {
+										"type": "number",
+										"format": "double"
+									},
+									"multipartBodyLimitMb": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"imageResponseBodyLimitMb",
+									"maxUpstreamResponseBodyMb",
+									"nonStreamUpstreamTimeoutMs",
+									"imageQueueTimeoutMs",
+									"imageMaxConcurrency",
+									"multipartBodyLimitMb"
+								],
+								"type": "object"
+							}
+						},
+						"required": [
+							"channelProbe",
+							"resourceGuard"
+						],
+						"type": "object"
+					},
+					"ruleCache": {
+						"properties": {
+							"maxEstimatedBytes": {
+								"type": "number",
+								"format": "double"
+							},
+							"maxItems": {
+								"type": "number",
+								"format": "double"
+							}
+						},
+						"required": [
+							"maxEstimatedBytes",
+							"maxItems"
+						],
+						"type": "object"
+					}
+				},
+				"required": [
+					"version",
+					"aiResources",
+					"chat",
+					"aiRequestLog",
+					"relay",
+					"ruleCache"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIResourceFieldDto": {
+				"properties": {
+					"path": {
+						"type": "string"
+					},
+					"group": {
+						"type": "string"
+					},
+					"label": {
+						"type": "string"
+					},
+					"labelEn": {
+						"type": "string"
+					},
+					"unit": {
+						"type": "string"
+					},
+					"scale": {
+						"type": "number",
+						"format": "double"
+					},
+					"min": {
+						"type": "number",
+						"format": "double"
+					},
+					"max": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"path",
+					"group",
+					"label",
+					"labelEn",
+					"unit",
+					"scale",
+					"min",
+					"max"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"AIResourceConfigurationDto": {
+				"properties": {
+					"configKey": {
+						"type": "string"
+					},
+					"effective": {
+						"$ref": "#/components/schemas/AIResourceSettingsDto"
+					},
+					"defaults": {
+						"$ref": "#/components/schemas/AIResourceSettingsDto"
+					},
+					"fields": {
+						"items": {
+							"$ref": "#/components/schemas/AIResourceFieldDto"
+						},
+						"type": "array"
+					},
+					"source": {
+						"type": "string",
+						"enum": [
+							"defaults",
+							"legacy-env",
+							"database"
+						]
+					},
+					"revision": {
+						"type": "string"
+					},
+					"legacyEnvironmentPresent": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"configKey",
+					"effective",
+					"defaults",
+					"fields",
+					"source",
+					"revision",
+					"legacyEnvironmentPresent"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"GetConfigResponse": {
 				"properties": {
 					"configs": {
 						"$ref": "#/components/schemas/Record_string.string_"
+					},
+					"aiResources": {
+						"$ref": "#/components/schemas/AIResourceConfigurationDto"
 					}
 				},
 				"required": [

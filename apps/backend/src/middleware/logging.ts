@@ -200,10 +200,12 @@ function appendResponseChunk(res: Response, chunk: any, encoding?: ResponseChunk
   const buffer = toBuffer(chunk, encoding);
   if (!buffer) return;
 
+  if (res.locals.preparedAuditBody) return;
   if (!res.locals.responseCaptureState)
     res.locals.responseCaptureState = {
       chunks: [] as Buffer[],
       totalBytes: 0,
+      capturedBytes: 0,
       truncated: false,
       isBinary: false,
       hasBody: false,
@@ -219,7 +221,7 @@ function appendResponseChunk(res: Response, chunk: any, encoding?: ResponseChunk
     return;
   }
 
-  const capturedBytes = state.chunks.reduce((sum: number, item: Buffer) => sum + item.length, 0);
+  const capturedBytes = state.capturedBytes;
   const remaining = (res.locals.responseCaptureLimit || DEFAULT_MAX_RESPONSE_BODY_SIZE) - capturedBytes;
   if (remaining <= 0) {
     state.truncated = true;
@@ -227,12 +229,14 @@ function appendResponseChunk(res: Response, chunk: any, encoding?: ResponseChunk
   }
 
   if (buffer.length > remaining) {
-    state.chunks.push(buffer.subarray(0, remaining));
+    state.chunks.push(Buffer.from(buffer.subarray(0, remaining)));
+    state.capturedBytes += remaining;
     state.truncated = true;
     return;
   }
 
-  state.chunks.push(buffer);
+  state.chunks.push(Buffer.from(buffer));
+  state.capturedBytes += buffer.length;
 }
 
 function finalizeCapturedResponse(res: Response): void {
@@ -277,12 +281,12 @@ function finalizeCapturedResponse(res: Response): void {
     return;
   }
 
-  const rawText = Buffer.concat(state.chunks).toString("utf8");
   if (state.truncated) {
+    state.chunks.length = 0;
     res.locals.responseBody = {
       _truncated: true,
       _size: state.totalBytes,
-      _preview: rawText,
+      _reason: "incomplete-content",
       _contentType: contentType || null,
       _statusCode: res.statusCode,
       _closedEarly: res.locals.responseClosedEarly === true,
@@ -291,6 +295,8 @@ function finalizeCapturedResponse(res: Response): void {
     return;
   }
 
+  const rawText = Buffer.concat(state.chunks, state.capturedBytes).toString("utf8");
+  state.chunks.length = 0;
   if (!rawText) {
     res.locals.responseBody = {
       _empty: true,

@@ -1,3 +1,5 @@
+import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
+import { AI_RESOURCE_CONFIG_KEY } from "@/config/ai-resource-policy";
 import BusinessLogService from "./businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { CONFIG_KEYS } from "@/constant/config-keys";
@@ -233,7 +235,10 @@ export class ConfigService {
   }
 
   async set(key: string, value: string, actorUserId?: string, request?: Request): Promise<void> {
-    await this.serverConfigRepository.upsert(key, value);
+    const resourceSettings =
+      key === AI_RESOURCE_CONFIG_KEY ? AIResourceConfigService.getInstance().parse(value) : undefined;
+    const row = await this.serverConfigRepository.upsert(key, value);
+    if (resourceSettings) AIResourceConfigService.getInstance().apply(resourceSettings, row.updateTime.toISOString());
 
     if (actorUserId)
       await this.businessLogService.logOperation({
@@ -259,6 +264,8 @@ export class ConfigService {
   }
 
   async setMultiple(configs: Record<string, string>, actorUserId?: string, request?: Request): Promise<void> {
+    if (configs[AI_RESOURCE_CONFIG_KEY] !== undefined)
+      AIResourceConfigService.getInstance().parse(configs[AI_RESOURCE_CONFIG_KEY]);
     for (const [key, value] of Object.entries(configs)) await this.set(key, value, actorUserId, request);
   }
 

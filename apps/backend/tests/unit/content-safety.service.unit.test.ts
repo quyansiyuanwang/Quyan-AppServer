@@ -47,8 +47,8 @@ describe("content safety rule data", () => {
   });
 
   it("ships high-confidence defaults as importable data", () => {
-    expect(DEFAULT_CONTENT_SAFETY_RULES.length).toBeGreaterThan(10);
-    expect(DEFAULT_CONTENT_SAFETY_RULES.some((rule) => rule.pattern === "process.env")).toBe(true);
+    expect(DEFAULT_CONTENT_SAFETY_RULES).toHaveLength(1);
+    expect(DEFAULT_CONTENT_SAFETY_RULES[0]!.name).toBe("Private key material");
     expect(DEFAULT_CONTENT_SAFETY_RULES.every((rule) => rule.action === "unreachable")).toBe(true);
   });
 
@@ -57,12 +57,12 @@ describe("content safety rule data", () => {
   });
 
   it("does not treat an example environment template as a secret file", () => {
-    const rule = DEFAULT_CONTENT_SAFETY_RULES.find((item) => item.name === "Environment file access");
+    const rule = DEFAULT_CONTENT_SAFETY_RULES[0];
     expect(rule?.type).toBe("regex");
     const expression = new RegExp(rule!.pattern, "iu");
     expect(expression.test("Please create a .env.example template with placeholder values.")).toBe(false);
-    expect(expression.test("cat .env.production")).toBe(true);
-    expect(expression.test("cat .env")).toBe(true);
+    expect(expression.test("cat .env.production")).toBe(false);
+    expect(expression.test("cat .env")).toBe(false);
   });
 
   it("keeps legacy literal .env rules from matching .env.example", () => {

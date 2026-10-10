@@ -360,3 +360,9 @@ Administrators can review channel status, add multiple providers in the channel 
 - `relay-token-management`
 - `upstream-status`
 - `server-configuration`
+
+## Server resource protection and audit bodies
+
+Server Configuration includes an advanced AI Resource Protection panel for live admission, queues, RSS, uploads, responses, audit and connection-pool budgets. Saving applies locally at once; other processes refresh within five seconds. Running requests retain their starting content budgets. Per-user and image-scope concurrency protections still apply.
+
+Legacy resource environment values are used only before management settings are saved. Audit bodies remain sanitized and available; backlog may omit bodies or drop records with warnings. Audit logs do not replace billing records.

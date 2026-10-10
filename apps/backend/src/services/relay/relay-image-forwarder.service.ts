@@ -1,7 +1,8 @@
+import { getAIHttpAgents } from "@/services/infrastructure/ai-http-agent-pool";
+import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
+import { aiResourceContext } from "@/services/infrastructure/ai-resource.service";
 import { consumeCompositeAttempt, getCompositeContext } from "./relay-composite-executor.service";
 import axios from "axios";
-import http from "http";
-import https from "https";
 import { Readable, Transform } from "stream";
 import { pipeline } from "stream/promises";
 import type { RelayToken } from "@prisma/client";
@@ -19,11 +20,6 @@ import type {
 } from "./types/relay-proxy.types";
 import type { ContextLengthMultiplierRule } from "./context-length-multiplier.service";
 
-type UpstreamAgents = RelayUpstreamAgents;
-const directUpstreamAgents: UpstreamAgents = {
-  httpAgent: new http.Agent({ keepAlive: true }),
-  httpsAgent: new https.Agent({ keepAlive: true }),
-};
 import { DEFAULT_CACHE_CREATION_MULTIPLIER, DEFAULT_CACHE_READ_MULTIPLIER } from "@/constant/pricing";
 
 export interface RelayImageForwarderHost {
@@ -74,7 +70,7 @@ export class RelayImageForwarderService {
       params.retryStatusCodes,
       params.inputTokensIncludeCacheRead,
       params.originalRequestedModel,
-      params.requestAgents || directUpstreamAgents,
+      params.requestAgents || getAIHttpAgents(),
       host,
     );
   }
@@ -105,7 +101,7 @@ export class RelayImageForwarderService {
     retryStatusCodes: string[],
     inputTokensIncludeCacheRead: boolean,
     originalRequestedModel: string | undefined,
-    requestAgents: UpstreamAgents,
+    requestAgents: RelayUpstreamAgents,
     host: RelayImageForwarderHost,
   ): Promise<ImageForwardResult> {
     const bodyData = host.buildForwardBodyBuffer(convertedBody);
@@ -126,7 +122,7 @@ export class RelayImageForwarderService {
 
     consumeCompositeAttempt(req);
     const response = await axios({
-      signal: getCompositeContext(req)?.signal,
+      signal: getCompositeContext(req)?.signal ?? aiResourceContext.getStore()?.signal,
       method: req.method,
       url: upstreamUrl,
       headers: cleanHeaders,
@@ -149,9 +145,17 @@ export class RelayImageForwarderService {
     const responseStream = response.data as Readable;
 
     if (isErrorResponse) {
-      const { buffer, truncated } = await host.readStreamBodyLimited(responseStream, 100 * 1024, () => {
-        if (firstByteTime === null) firstByteTime = Date.now();
-      });
+      const { buffer, truncated } = await host.readStreamBodyLimited(
+        responseStream,
+        getAIResourceConfig().aiRequestLog.responseBodyBytes,
+        () => {
+          if (firstByteTime === null) firstByteTime = Date.now();
+        },
+      );
+      if (truncated)
+        throw new PayloadTooLargeError("Upstream error body exceeds resource budget", undefined, {
+          messageKey: "relayProxy.aiContentTooLarge",
+        });
       const upstreamData = host.parseBufferedUpstreamBody(buffer, upstreamHeaders);
       const upstreamMessage = host.extractUpstreamErrorMessage(upstreamData, statusCode);
 
@@ -259,17 +263,20 @@ export class RelayImageForwarderService {
     });
 
     const clientCloseHandler = () => {
+      if (res.writableEnded) return;
       clientDisconnected = true;
       if (typeof (responseStream as any).destroy === "function") (responseStream as any).destroy();
     };
 
-    req.once("close", clientCloseHandler);
+    req.once("aborted", clientCloseHandler);
+    res.once("close", clientCloseHandler);
     res.writeHead(statusCode, host.withRequestIdHeader(req, host.sanitizeResponseHeaders(upstreamHeaders)));
 
     try {
       await pipeline(responseStream, byteCounter, res);
     } finally {
-      req.off("close", clientCloseHandler);
+      req.off("aborted", clientCloseHandler);
+      res.off("close", clientCloseHandler);
     }
 
     if (!clientDisconnected)

@@ -1,3 +1,4 @@
+import { parseRelayRequestBody } from "@/util/relay/relay-request-payload";
 import type { Request, Response, NextFunction } from "express";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
 import { RelayProxyService } from "@/services/relay/relay-proxy.service";
@@ -9,7 +10,7 @@ export async function streamingMiddleware(req: Request, res: Response, next: Nex
   if (!req.path.startsWith("/relay/proxy/")) return next();
   if (Buffer.isBuffer(req.body)) {
     try {
-      req.body = JSON.parse(req.body.toString("utf8"));
+      parseRelayRequestBody(req);
     } catch {
       return next();
     }

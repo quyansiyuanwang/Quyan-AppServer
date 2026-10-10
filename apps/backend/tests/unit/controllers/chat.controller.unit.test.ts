@@ -45,7 +45,10 @@ describe("ChatController streaming", () => {
   it("writes typed chat events followed by transport completion", async () => {
     const res = createResponse();
     const request = createRequest(res);
-    const chatService = { sendMessage: vi.fn(() => chatEvents()) };
+    const chatService = {
+      assertContextBudget: vi.fn().mockResolvedValue(undefined),
+      sendMessage: vi.fn(() => chatEvents()),
+    };
     const sseService = {
       initStream: vi.fn(),
       sendChunk: vi.fn(),
@@ -88,7 +91,10 @@ describe("ChatController streaming", () => {
       return res;
     });
     const request = createRequest(res);
-    const chatService = { sendMessage: vi.fn(() => chatEvents()) };
+    const chatService = {
+      assertContextBudget: vi.fn().mockResolvedValue(undefined),
+      sendMessage: vi.fn(() => chatEvents()),
+    };
     const sseService = {
       initStream: vi.fn(),
       sendChunk: vi.fn(),

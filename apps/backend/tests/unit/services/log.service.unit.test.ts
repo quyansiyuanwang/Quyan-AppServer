@@ -85,6 +85,18 @@ describe("LogService", () => {
       expect(mockRepo.create).toHaveBeenCalledTimes(1);
     });
 
+    it("budgets AI error bodies before traversal and omits incomplete credentials", async () => {
+      mockReq.originalUrl = "/relay/proxy/test";
+      mockRes.statusCode = 500;
+      mockReq.body = { prompt: "x".repeat(5 * 1024 * 1024), api_key: "fixture-secret" };
+      await logService.logRequest(mockReq as Request, mockRes as Response, '{"api_key":"fixture-secret');
+      await logService.flushNow();
+      const input = vi.mocked(mockRepo.create).mock.calls[0][0];
+      expect(JSON.stringify(input)).not.toContain("fixture-secret");
+      expect(JSON.stringify(input)).not.toContain("x".repeat(1024));
+      expect(input.bodyParams).toMatchObject({ _truncated: true });
+    });
+
     it("should skip logging for configured status codes", async () => {
       mockRes.statusCode = 401; // Configured in SKIP_LOGGING_STATUS_CODES
 
