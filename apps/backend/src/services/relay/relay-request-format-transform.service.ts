@@ -1,3 +1,4 @@
+import { PayloadTooLargeError } from "@/util/errors";
 import { BoundedByteFrames } from "@/util/streaming/bounded-byte-frames";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import type { RelayConvertibleRequestFormat, RelayRequestFormatTransform } from "@quyan/shared";
@@ -575,7 +576,9 @@ export class RelaySseFormatTransform extends Transform {
   private retain(fragment: string): void {
     this.bufferedChars += Buffer.byteLength(fragment);
     if (this.bufferedChars > this.limits.retainedLimitBytes)
-      throw new RelayFormatTransformError("Converted stream output exceeds retention limit");
+      throw new PayloadTooLargeError("Converted stream output exceeds retention limit", undefined, {
+        messageKey: "relayProxy.aiContentTooLarge",
+      });
   }
   private textDelta(fragment: string): string {
     if (!fragment) return "";
@@ -623,7 +626,9 @@ export class RelaySseFormatTransform extends Transform {
     if (!tool) {
       if (!id || !name) throw new RelayFormatTransformError("Stream tool metadata is missing");
       if (this.tools.size >= this.limits.maxBlocks)
-        throw new RelayFormatTransformError("Stream tool count exceeds conversion limit");
+        throw new PayloadTooLargeError("Stream tool count exceeds conversion limit", undefined, {
+          messageKey: "relayProxy.aiContentTooLarge",
+        });
       this.retain(id + name);
       tool = { index: this.nextIndex++, id, name, args: "" };
       this.tools.set(sourceIndex, tool);

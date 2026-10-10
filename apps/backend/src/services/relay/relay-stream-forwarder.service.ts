@@ -1,3 +1,9 @@
+import {
+  assertRelayRequestBodyCapacity,
+  relayDeclaredBodyTooLarge,
+  relayStreamFailureStatus,
+  endFailedRelayStream,
+} from "@/util/relay/relay-capacity.util";
 import { BoundedByteFrames } from "@/util/streaming/bounded-byte-frames";
 import {
   consumeRelayStreamUsageValue,
@@ -201,6 +207,8 @@ export class RelayStreamForwarderService {
         }
       }
     }
+
+    assertRelayRequestBodyCapacity(bodyData, headers["content-type"] ?? headers["Content-Type"]);
 
     const streamUsage = new RelayStreamUsageTracker(Math.ceil(bodyData.length / 4), inputTokensIncludeCacheRead);
 
@@ -555,13 +563,22 @@ export class RelayStreamForwarderService {
               auditSettled = true;
               rawChunks.length = 0;
               safetyFrames.clear();
-              auditAttempt(false, streamStatusCode, error);
+              auditAttempt(false, relayStreamFailureStatus(error), error);
               recordAIRequestFailure(auditResponse, error);
               destroyRelayUpstreamResponse(proxyRes, error);
-              if (!res.writableEnded) res.end();
+              endFailedRelayStream(res, error, responseTransform?.targetFormat ?? requestFormat);
               reject(error);
             };
             failActiveStream = failAudit;
+            proxyRes.on("error", failAudit);
+            if (relayDeclaredBodyTooLarge(proxyRes.headers["content-length"], maxAuditBytes)) {
+              failAudit(
+                new PayloadTooLargeError("Response exceeds content safety buffer limit", undefined, {
+                  messageKey: "relay.streamBufferTooLarge",
+                }),
+              );
+              return;
+            }
             proxyRes.on("data", (chunk: Buffer) => {
               if (auditSettled) return;
               if (firstByteTime === null) firstByteTime = Date.now();
@@ -809,7 +826,6 @@ export class RelayStreamForwarderService {
                 });
               }
             });
-            proxyRes.on("error", failAudit);
             return;
           }
 
@@ -943,21 +959,16 @@ export class RelayStreamForwarderService {
             if (settled) return;
             settled = true;
             const failure = error instanceof Error ? error : new Error("Stream failed");
-            auditAttempt(false, streamStatusCode, failure);
+            const status = clientDisconnected ? 499 : relayStreamFailureStatus(failure);
+            auditAttempt(false, status, failure);
             recordAIRequestFailure(auditResponse, failure);
             destroyRelayUpstreamResponse(proxyRes, failure);
             // convertFrame is used directly; report failure through the request promise.
             sseTransform?.destroy();
             frames.clear();
             pendingSafetyFrame = undefined;
-            if (!res.writableEnded) res.end();
-            const status = clientDisconnected
-              ? 499
-              : failure instanceof GatewayTimeoutError
-                ? 504
-                : failure instanceof PayloadTooLargeError
-                  ? 413
-                  : 502;
+            if (!clientDisconnected)
+              endFailedRelayStream(res, failure, responseTransform?.targetFormat ?? requestFormat);
             // Do not bill blocked/unaudited content. Partial output settles before releasing the root.
             const finish = () => {
               if (clientDisconnected)
@@ -965,12 +976,17 @@ export class RelayStreamForwarderService {
                   handled: true,
                   success: false,
                   retryable: false,
-                  statusCode: streamStatusCode,
+                  statusCode: status,
                   clientDisconnected: true,
                 });
               else reject(failure);
             };
-            if (firstByteTime !== null && selectedModelRate && !(failure instanceof ContentSafetyBlockedError))
+            if (
+              (responseStarted || (clientDisconnected && firstByteTime !== null)) &&
+              selectedModelRate &&
+              !(failure instanceof ContentSafetyBlockedError) &&
+              !(failure instanceof PayloadTooLargeError)
+            )
               void streamChunkPromise
                 .then(() => settleUsage(status))
                 .then(finish, (billingError) => {
