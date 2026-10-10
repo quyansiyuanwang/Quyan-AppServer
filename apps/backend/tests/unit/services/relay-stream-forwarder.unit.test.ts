@@ -13,10 +13,19 @@ afterEach(() => {
   vi.restoreAllMocks();
   AIResourceConfigService.getInstance().apply(structuredClone(AI_RESOURCE_DEFAULTS));
 });
-function fixture(options: { backpressure?: boolean; conversion?: boolean; audit?: boolean; frameLimit?: number } = {}) {
+function fixture(
+  options: {
+    backpressure?: boolean;
+    conversion?: boolean;
+    audit?: boolean;
+    frameLimit?: number;
+    gemini?: boolean;
+    contentType?: string;
+  } = {},
+) {
   const upstream = Object.assign(new PassThrough(), {
     statusCode: 200,
-    headers: { "content-type": "text/event-stream" },
+    headers: { "content-type": options.contentType ?? "text/event-stream" },
   });
   const request = Object.assign(new EventEmitter(), {
     path: "/relay/proxy/v1/chat/completions",
@@ -93,7 +102,7 @@ function fixture(options: { backpressure?: boolean; conversion?: boolean; audit?
     timeMultiplier: 1,
     convertedBody: { model: "m", stream: true },
     bodyBuffer: Buffer.from('{"model":"m","stream":true}'),
-    requestFormat: "openai-chat-completions",
+    requestFormat: options.gemini ? "gemini" : "openai-chat-completions",
     relayGlobalMultiplier: 1,
     channelMultiplier: 1,
     executionChannelId: "c",
@@ -116,6 +125,36 @@ function fixture(options: { backpressure?: boolean; conversion?: boolean; audit?
   };
 }
 describe("relay single-chain stream forwarding", () => {
+  it.each(
+    [false, true].flatMap((audit) =>
+      ["text/event-stream", "application/x-ndjson"].flatMap((contentType) =>
+        ["line", "sse"].map((dialect) => ({ audit, contentType, dialect })),
+      ),
+    ),
+  )("records Gemini usage for $dialect framing ($contentType, audit=$audit)", async (options) => {
+    // Some compatible upstreams advertise SSE while sending plain JSON lines.
+    const events = [
+      '{"candidates":[{"content":{"parts":[{"text":"中文🙂"}]}}]}',
+      '{"candidates":[{"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":3,"totalTokenCount":15}}',
+    ];
+    const wire = Buffer.from(
+      events.map((event) => (options.dialect === "line" ? event + "\r\n" : "data: " + event + "\r\n\r\n")).join(""),
+    );
+    const f = fixture({ ...options, gemini: true });
+    const parse = vi.spyOn(JSON, "parse");
+    const pending = f.start();
+    await tick();
+    f.upstream.end(wire);
+    expect((await pending).success).toBe(true);
+    expect(parse).toHaveBeenCalledTimes(1);
+    expect(f.host.finalizeStreamUsage).toHaveBeenCalledOnce();
+    expect(f.host.finalizeStreamUsage.mock.calls[0]).toEqual([
+      expect.anything(),
+      expect.objectContaining({ requestTokens: 12, responseTokens: 3, totalTokens: 15 }),
+    ]);
+    expect(Buffer.concat(f.output)).toEqual(wire);
+  });
+
   it("passes original UTF-8 bytes and parses only escaped usage events", async () => {
     const f = fixture();
     const parse = vi.spyOn(JSON, "parse");

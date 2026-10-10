@@ -1,15 +1,35 @@
 import { aiContentTooLarge } from "./bounded-text";
-/** SSE byte framing. Only an unfinished frame owns copied slices. UTF-8 is decoded after framing. */
+export type ByteFrameDelimiter = "sse" | "line" | "gemini";
+
+/** Gemini-compatible upstreams can label plain JSON lines as SSE (or vice versa). */
+export function resolveByteFrameDelimiter(
+  input: Buffer | string,
+  delimiter: ByteFrameDelimiter,
+): "sse" | "line" | undefined {
+  if (delimiter !== "gemini") return delimiter;
+  for (let index = 0; index < input.length; index++) {
+    const byte = typeof input === "string" ? input.charCodeAt(index) : input[index];
+    if (byte === 32 || byte === 9 || byte === 10 || byte === 13) continue;
+    return byte === 123 || byte === 91 ? "line" : "sse";
+  }
+  return undefined;
+}
+
+/** Byte framing. Only an unfinished frame owns copied slices. UTF-8 is decoded after framing. */
 export class BoundedByteFrames {
   private pieces: Buffer[] = [];
   private bytes = 0;
   private lineBytes = 0;
   private lastByte = -1;
+  private resolvedDelimiter?: "sse" | "line";
   constructor(
     private readonly maxBytes: number,
-    private readonly delimiter: "sse" | "line" = "sse",
-  ) {}
+    private readonly delimiter: ByteFrameDelimiter = "sse",
+  ) {
+    this.resolvedDelimiter = delimiter === "gemini" ? undefined : delimiter;
+  }
   *feed(chunk: Buffer): Generator<Buffer> {
+    this.resolvedDelimiter ??= resolveByteFrameDelimiter(chunk, this.delimiter);
     let offset = 0,
       frameStart = 0;
     while (offset < chunk.length) {
@@ -28,7 +48,7 @@ export class BoundedByteFrames {
       this.lineBytes = 0;
       this.lastByte = -1;
       offset = newline + 1;
-      if (blank || this.delimiter === "line") {
+      if (blank || this.resolvedDelimiter === "line") {
         const tail = chunk.subarray(frameStart, offset);
         const frame = this.pieces.length ? Buffer.concat([...this.pieces, tail], this.bytes) : tail;
         this.pieces.length = 0;
@@ -53,6 +73,7 @@ export class BoundedByteFrames {
     this.bytes = 0;
     this.lineBytes = 0;
     this.lastByte = -1;
+    this.resolvedDelimiter = this.delimiter === "gemini" ? undefined : this.delimiter;
   }
   get retainedBytes() {
     return this.bytes;

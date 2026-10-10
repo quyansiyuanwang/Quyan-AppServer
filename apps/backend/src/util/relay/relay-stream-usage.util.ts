@@ -1,3 +1,4 @@
+import { resolveByteFrameDelimiter, type ByteFrameDelimiter } from "../streaming/bounded-byte-frames";
 import {
   extractTokenUsageMetrics,
   hasTokenValue,
@@ -175,7 +176,8 @@ export function relayFrameNeedsUsage(frame: Buffer | string): boolean {
   return frame.includes('"usage"') || frame.includes('"usageMetadata"') || frame.includes("\\u");
 }
 /** Scan one already-decoded bounded response without allocating an event array. */
-export function* relayDecodedFrames(text: string, delimiter: "sse" | "line"): Generator<string> {
+export function* relayDecodedFrames(text: string, delimiter: ByteFrameDelimiter): Generator<string> {
+  const resolvedDelimiter = resolveByteFrameDelimiter(text, delimiter);
   let offset = 0,
     start = 0;
   while (offset < text.length) {
@@ -183,7 +185,7 @@ export function* relayDecodedFrames(text: string, delimiter: "sse" | "line"): Ge
     if (newline < 0) break;
     const blank = newline === offset || (newline === offset + 1 && text[offset] === "\r");
     offset = newline + 1;
-    if (blank || delimiter === "line") {
+    if (blank || resolvedDelimiter === "line") {
       yield text.slice(start, offset);
       start = offset;
     }

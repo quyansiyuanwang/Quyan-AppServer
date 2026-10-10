@@ -250,10 +250,7 @@ export class RelayStreamForwarderService {
           const responseHeaders = { ...proxyRes.headers };
           delete responseHeaders["content-length"];
           delete responseHeaders["transfer-encoding"];
-          const frameDelimiter =
-            requestFormat === "gemini" && !String(responseHeaders["content-type"] ?? "").includes("text/event-stream")
-              ? ("line" as const)
-              : ("sse" as const);
+          const frameDelimiter = requestFormat === "gemini" ? ("gemini" as const) : ("sse" as const);
 
           // For error responses we buffer the whole body so we can build a
           // normalized error message; we do NOT pipe chunks straight through.

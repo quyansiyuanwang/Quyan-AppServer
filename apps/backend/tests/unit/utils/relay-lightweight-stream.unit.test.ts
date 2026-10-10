@@ -5,6 +5,35 @@ import { parseRelayStreamEvent, relayDecodedFrames } from "@/util/relay/relay-st
 import { jsonSerializedLength } from "@/util/json-serialized-length";
 import { parseRelayRequestBody, relayRawRequestBody } from "@/util/relay/relay-request-payload";
 describe("lightweight forwarding", () => {
+  it.each(["line", "sse"])("detects Gemini %s framing across byte/UTF-8 seams", (dialect) => {
+    const text =
+      dialect === "line"
+        ? ' \t{"text":"中文🙂","usageMetadata":{"promptTokenCount":4}}\r\n{"usageMetadata":{"promptTokenCount":5}}\r\n'
+        : 'event: message\r\ndata: {"text":"中文🙂","usageMetadata":\r\ndata: {"promptTokenCount":4}}\r\n\r\ndata: {"usageMetadata":{"promptTokenCount":5}}\r\n\r\n';
+    const parser = new BoundedByteFrames(128, "gemini");
+    const frames: Buffer[] = [];
+    for (const byte of Buffer.from(text)) frames.push(...parser.feed(Buffer.from([byte])));
+    expect(parser.finish()).toBeUndefined();
+    expect(parser.retainedBytes).toBe(0);
+    expect(frames).toHaveLength(2);
+    expect(Buffer.concat(frames).toString()).toBe(text);
+    expect(Array.from(relayDecodedFrames(text, "gemini"))).toEqual(frames.map((frame) => frame.toString()));
+    expect(
+      frames.map((frame) => parseRelayStreamEvent(frame.toString(), "gemini").usageMetadata.promptTokenCount),
+    ).toEqual([4, 5]);
+  });
+  it("applies Gemini frame capacity per JSON line even when a chunk contains many events", () => {
+    const line = Buffer.from('{"usageMetadata":{"candidatesTokenCount":3}}\n');
+    const parser = new BoundedByteFrames(line.length, "gemini");
+    const wire = Buffer.concat([line, line, line]);
+    const frames = Array.from(parser.feed(wire));
+    expect(frames).toHaveLength(3);
+    expect(Buffer.concat(frames)).toEqual(wire);
+    expect(parser.retainedBytes).toBe(0);
+    expect(() => Array.from(parser.feed(Buffer.from('{"oversized":"' + "x".repeat(line.length))))).toThrow();
+    expect(parser.retainedBytes).toBe(0);
+  });
+
   it("frames multiple events without a chunk-level overflow and handles CRLF/UTF-8 seams", () => {
     const parser = new BoundedByteFrames(32);
     const body = Buffer.from("data: 中文🙂\r\n\r\ndata: 2\n\n");
