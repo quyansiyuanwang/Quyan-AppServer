@@ -85,7 +85,7 @@ const createService = () => {
   const modelPricingService = {
     getModelPricing: vi.fn().mockResolvedValue([
       {
-        model: "gpt-image-1",
+        model: "Image channel pricing",
         provider: "gpt-image-1",
         pricingType: "token-based",
         inputPrice: 1000,
@@ -280,6 +280,8 @@ describe("RelayProxyService image runtime", () => {
     const axiosConfig = axiosMock.mock.calls[0][0] as any;
     const forwardedBody = axiosConfig.data as Buffer;
     expect(forwardedBody).not.toBe(multipartBody);
+    expect(forwardedBody.toString("utf8")).toContain('name="model"\r\n\r\ngpt-image-1\r\n');
+    expect(forwardedBody.toString("utf8")).not.toContain("Image channel pricing");
     expect(forwardedBody.toString("utf8").match(/name="image\[\]"/g)).toHaveLength(3);
     expect(forwardedBody.toString("utf8")).toContain('name="mask"; filename="mask.png"');
     expect(forwardedBody.toString("utf8")).toContain("fake-image-one");
@@ -291,6 +293,7 @@ describe("RelayProxyService image runtime", () => {
         relayTokenId: "token-1",
         channelId: "channel-primary",
         modelId: "gpt-image-1",
+        modelName: "Image channel pricing",
         isStreaming: false,
       }),
     );

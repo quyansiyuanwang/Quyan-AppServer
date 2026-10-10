@@ -104,7 +104,7 @@ function fixture(
     upstreamUrl: "http://fixture.invalid/v1/chat/completions",
     headers: {},
     selectedRateConfig: { input: 0, output: 0 },
-    selectedModelName: "m",
+    selectedModelName: "Stream channel pricing",
     selectedModelId: "m",
     globalMultiplier: 1,
     timeMultiplier: 1,
@@ -126,6 +126,7 @@ function fixture(
   return {
     upstream,
     request,
+    proxyRequest,
     response,
     output,
     host,
@@ -261,8 +262,14 @@ describe("relay single-chain stream forwarding", () => {
     expect(f.host.finalizeStreamUsage).toHaveBeenCalledOnce();
     expect(f.host.finalizeStreamUsage.mock.calls[0]).toEqual([
       expect.anything(),
-      expect.objectContaining({ requestTokens: 12, responseTokens: 3 }),
+      expect.objectContaining({
+        requestTokens: 12,
+        responseTokens: 3,
+        modelId: "m",
+        modelName: "Stream channel pricing",
+      }),
     ]);
+    expect(f.proxyRequest.write).toHaveBeenCalledWith(Buffer.from('{"model":"m","stream":true}'));
     expect(f.request.listenerCount("aborted")).toBe(0);
     expect(f.response.listenerCount("close")).toBe(0);
   });

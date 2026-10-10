@@ -422,7 +422,7 @@ describe("ChatService", () => {
       id: "channel-first",
       name: "first",
       multiplier: 1,
-      allowedModels: null,
+      allowedModels: JSON.stringify(["First-channel pricing"]),
       openaiUpstreamUrl: "https://first.example.com",
       openaiUpstreamApiKey: "first-key",
     };
@@ -430,7 +430,7 @@ describe("ChatService", () => {
       id: "channel-second",
       name: "second",
       multiplier: 1,
-      allowedModels: null,
+      allowedModels: JSON.stringify(["Second-channel pricing"]),
       openaiUpstreamUrl: "https://second.example.com",
       openaiUpstreamApiKey: "second-key",
     };
@@ -461,12 +461,23 @@ describe("ChatService", () => {
     });
     modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
       {
-        model: "gpt-4o-mini",
-        provider: null,
+        model: "First-channel pricing",
+        provider: "gpt-4o-mini",
         pricingType: "token-based",
         fixedPrice: null,
         inputPrice: 1000,
         outputPrice: 2000,
+        cacheCreationMultiplier: 1,
+        cacheReadMultiplier: 1,
+        supportedFormats: "openai",
+      },
+      {
+        model: "Second-channel pricing",
+        provider: "gpt-4o-mini",
+        pricingType: "token-based",
+        fixedPrice: null,
+        inputPrice: 3000,
+        outputPrice: 4000,
         cacheCreationMultiplier: 1,
         cacheReadMultiplier: 1,
         supportedFormats: "openai",
@@ -502,7 +513,13 @@ describe("ChatService", () => {
       expect.any(AbortSignal),
     );
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ executionChannelId: "channel-second" }),
+      expect.objectContaining({
+        executionChannelId: "channel-second",
+        modelId: "gpt-4o-mini",
+        modelName: "Second-channel pricing",
+        inputRate: 0.003,
+        outputRate: 0.004,
+      }),
     );
   });
 
@@ -800,7 +817,7 @@ describe("ChatService", () => {
     aiProvider.streamChat.mockReturnValue(createChatStream());
 
     const chunks: Array<Record<string, unknown>> = [];
-    for await (const chunk of service.sendMessage("conv-1", "user-1", "hello", "claude-like-model")) chunks.push(chunk);
+    for await (const chunk of service.sendMessage("conv-1", "user-1", "hello", "claude-3-5-sonnet")) chunks.push(chunk);
 
     expect(chunks[0]).toEqual({ type: "delta", content: "hello", done: false });
     expect(chunks.at(-1)?.done).toBe(true);
@@ -862,51 +879,92 @@ describe("ChatService", () => {
     );
   });
 
-  it("rejects provider-id requests when no exact model name is configured", async () => {
-    conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
-    relayTokenRepository.findByIdWithChannel.mockResolvedValue({
-      id: "token-1",
-      userId: "user-1",
-      channelId: "channel-1",
-      upstreamUrl: "https://upstream.example.com",
-      upstreamApiKey: "upstream-key",
-      allowedModels: null,
-      channel: {
-        id: "channel-1",
-        name: "main",
+  it.each(["gpt-5.4-a", "gpt-5.4"])(
+    "selects channel pricing %s for a shared model ID and sends only the ID upstream",
+    async (pricingName) => {
+      conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
+      relayTokenRepository.findByIdWithChannel.mockResolvedValue({
+        id: "token-1",
+        userId: "user-1",
+        channelId: "channel-1",
+        upstreamUrl: "https://upstream.example.com",
+        upstreamApiKey: "upstream-key",
         allowedModels: null,
-      },
-    });
+        channel: {
+          id: "channel-1",
+          name: "main",
+          allowedModels: JSON.stringify([pricingName]),
+        },
+      });
 
-    modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
-      {
-        model: "gpt-5.4-a",
-        provider: "gpt-5.4",
-        pricingType: "token-based",
-        fixedPrice: null,
-        inputPrice: 1000,
-        outputPrice: 2000,
-        cacheCreationMultiplier: 1.25,
-        cacheReadMultiplier: 0.1,
-        supportedFormats: "openai",
-      },
-      {
-        model: "gpt-5.4-b",
-        provider: "gpt-5.4",
-        pricingType: "token-based",
-        fixedPrice: null,
-        inputPrice: 1000,
-        outputPrice: 2000,
-        cacheCreationMultiplier: 1.25,
-        cacheReadMultiplier: 0.1,
-        supportedFormats: "openai",
-      },
-    ]);
+      modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+        {
+          model: "gpt-5.4-a",
+          provider: "gpt-5.4",
+          pricingType: "token-based",
+          fixedPrice: null,
+          inputPrice: 1000,
+          outputPrice: 2000,
+          cacheCreationMultiplier: 1.25,
+          cacheReadMultiplier: 0.1,
+          supportedFormats: "openai",
+        },
+        {
+          model: "gpt-5.4",
+          provider: "gpt-5.4",
+          pricingType: "token-based",
+          fixedPrice: null,
+          inputPrice: 1000,
+          outputPrice: 2000,
+          cacheCreationMultiplier: 1.25,
+          cacheReadMultiplier: 0.1,
+          supportedFormats: "openai",
+        },
+      ]);
 
-    const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-5.4");
+      usageChargeService.hasCoverageOrPositiveBalance.mockResolvedValue(true);
+      usageChargeService.chargeUsage.mockResolvedValue({ applied: true });
+      relayConfigRepository.findLatestActive.mockResolvedValue({ globalMultiplier: 1 });
+      messageRepo.create.mockResolvedValue(createPersistedMessage());
+      messageRepo.findByConversationId.mockResolvedValue([{ role: "user", content: "hello" }]);
+      aiProvider.streamChat.mockReturnValue(createChatStream());
 
-    await expect(iterator.next()).rejects.toThrow("is not configured");
-  });
+      for await (const _chunk of service.sendMessage("conv-1", "user-1", "hello", "gpt-5.4")) {
+        // Drain the stream.
+      }
+
+      expect(aiProvider.streamChat).toHaveBeenCalledWith(
+        expect.any(Array),
+        "gpt-5.4",
+        "upstream-key",
+        "https://upstream.example.com",
+        "openai",
+        expect.any(AbortSignal),
+      );
+      expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
+        expect.objectContaining({ modelId: "gpt-5.4", modelName: pricingName, executionChannelId: "channel-1" }),
+      );
+      expect(messageRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ role: "assistant", model: pricingName }),
+      );
+    },
+  );
+
+  it.each(["Claude Sonnet", "claude-sonnet-4-20250514"])(
+    "rejects a display name or differently cased model ID: %s",
+    async (requestedModel) => {
+      conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
+      relayTokenRepository.findByIdWithChannel.mockResolvedValue({ id: "token-1", userId: "user-1" });
+      modelPricingRepository.listActiveOrderedByModel.mockResolvedValue([
+        { model: "Claude Sonnet", provider: "Claude-Sonnet-4-20250514" },
+      ]);
+      await expect(service.sendMessage("conv-1", "user-1", "hello", requestedModel).next()).rejects.toThrow(
+        "is not configured",
+      );
+      expect(aiProvider.streamChat).not.toHaveBeenCalled();
+      expect(messageRepo.create).not.toHaveBeenCalled();
+    },
+  );
 
   it("accepts a unique provider value as the canonical model ID", async () => {
     conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
@@ -960,7 +1018,7 @@ describe("ChatService", () => {
     );
   });
 
-  it("rejects model when relay token allow-list does not include requested model name", async () => {
+  it("rejects model when relay token allow-list does not include requested model ID", async () => {
     conversationRepo.findById.mockResolvedValue({ id: "conv-1", userId: "user-1", relayTokenId: "token-1" });
     relayTokenRepository.findByIdWithChannel.mockResolvedValue({
       id: "token-1",
@@ -1004,7 +1062,7 @@ describe("ChatService", () => {
       },
     ]);
 
-    const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-5.4-.1C");
+    const iterator = service.sendMessage("conv-1", "user-1", "hello", "gpt-5.4");
 
     await expect(iterator.next()).rejects.toThrow("does not allow model");
   });

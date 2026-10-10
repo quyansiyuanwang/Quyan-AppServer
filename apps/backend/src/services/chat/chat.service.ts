@@ -56,6 +56,7 @@ interface ChatRouteCandidate {
   requestFormat: RelayRequestFormat;
   upstreamUrl: string;
   upstreamApiKey: string;
+  modelPricing: ModelPricing;
 }
 
 export class ChatService {
@@ -81,16 +82,12 @@ export class ChatService {
     return this.instance;
   }
 
-  private resolveRequestedPricing(pricingList: ModelPricing[], requestedModel: string): ModelPricing | null {
-    const normalizedRequestedModel = requestedModel.trim();
-    if (!normalizedRequestedModel) return null;
-
-    // Public relay/chat model selections are model IDs. Keep the model name as
-    // a compatibility fallback for older clients, but always derive the
-    // upstream request from resolveModelId below.
-    const idMatches = pricingList.filter((pricing) => resolveModelId(pricing) === normalizedRequestedModel);
-    if (idMatches.length === 1) return idMatches[0] || null;
-    return pricingList.find((pricing) => pricing.model.trim() === normalizedRequestedModel) || null;
+  private resolveRequestedPricings(pricingList: ModelPricing[], requestedModelId: string): ModelPricing[] {
+    const normalizedModelId = requestedModelId.trim();
+    if (!normalizedModelId) return [];
+    // Multiple pricing names may share an upstream ID. Select the name only
+    // after resolving the channel, whose allow-list determines its pricing.
+    return pricingList.filter((pricing) => resolveModelId(pricing) === normalizedModelId);
   }
 
   private getPreferredRequestFormatOrder(
@@ -133,10 +130,9 @@ export class ChatService {
 
   private async resolveChatRouteCandidates(
     token: RelayTokenWithChannel,
-    modelPricing: ModelPricing,
+    modelPricings: ModelPricing[],
     selectedModelId: string,
   ): Promise<{ candidates: ChatRouteCandidate[]; attemptPlan: RelayAttemptPlan }> {
-    const orderedFormats = this.getPreferredRequestFormatOrder(selectedModelId, modelPricing.supportedFormats);
     const attemptPlan = await this.relayProxyService.getChatAttemptPlan(token);
     const candidateChannels = attemptPlan.channels;
 
@@ -149,43 +145,48 @@ export class ChatService {
 
     const candidates: ChatRouteCandidate[] = [];
     for (const candidate of candidateChannels) {
-      for (const requestFormat of orderedFormats) {
-        const channel = candidate.resolvedChannel;
-        const channelAllowedFormats = channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini";
-        if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
+      const channel = candidate.resolvedChannel;
+      const channelAllowedModels = parseRelayChannelAllowedModelNames(channel);
+      const namedPricings = modelPricings.filter((pricing) =>
+        isModelNameAllowed(channelAllowedModels, pricing.model.trim()),
+      );
+      const channelPricings =
+        namedPricings.length > 0
+          ? namedPricings
+          : isModelNameAllowed(channelAllowedModels, selectedModelId)
+            ? modelPricings
+            : [];
+      const candidateCount = candidates.length;
+      for (const modelPricing of channelPricings) {
+        const orderedFormats = this.getPreferredRequestFormatOrder(selectedModelId, modelPricing.supportedFormats);
+        for (const requestFormat of orderedFormats) {
+          const channelAllowedFormats = channel.allowedFormats ?? "openai-chat-completions,anthropic,gemini";
+          if (!supportsRelayRequestFormat(channelAllowedFormats, requestFormat)) continue;
 
-        const channelAllowedModels = parseRelayChannelAllowedModelNames(channel);
-        if (
-          !isModelNameAllowed(channelAllowedModels, modelPricing.model.trim()) &&
-          !isModelNameAllowed(channelAllowedModels, resolveModelId(modelPricing))
-        )
-          continue;
-
-        const config = this.getUpstreamConfigForFormat(token, channel, requestFormat);
-        const upstreamUrl = config.upstreamUrl?.trim();
-        const upstreamApiKey = config.upstreamApiKey?.trim();
-        if (upstreamUrl && upstreamApiKey) {
-          candidates.push({
-            channel,
-            displayChannel: candidate.displayChannel,
-            requestFormat,
-            upstreamUrl,
-            upstreamApiKey,
-          });
-          break;
+          const config = this.getUpstreamConfigForFormat(token, channel, requestFormat);
+          const upstreamUrl = config.upstreamUrl?.trim();
+          const upstreamApiKey = config.upstreamApiKey?.trim();
+          if (upstreamUrl && upstreamApiKey) {
+            candidates.push({
+              channel,
+              displayChannel: candidate.displayChannel,
+              requestFormat,
+              upstreamUrl,
+              upstreamApiKey,
+              modelPricing,
+            });
+            break;
+          }
         }
+        if (candidates.length > candidateCount) break;
       }
     }
 
     if (candidates.length) return { candidates, attemptPlan };
 
-    throw new BadRequestError(
-      `Model ${modelPricing.model.trim()} has no compatible upstream configuration. Supported formats: ${
-        modelPricing.supportedFormats || "openai-chat-completions,anthropic,gemini"
-      }`,
-      undefined,
-      { messageKey: "chat.modelNoCompatibleUpstream" },
-    );
+    throw new BadRequestError(`Model ID ${selectedModelId} has no compatible upstream configuration`, undefined, {
+      messageKey: "chat.modelNoCompatibleUpstream",
+    });
   }
 
   private isAborted(error: unknown, signal?: AbortSignal): boolean {
@@ -396,15 +397,20 @@ export class ChatService {
 
     const configuredModels = await this.modelPricingRepository.listActiveOrderedByModel();
 
-    const resolvedPricing = this.resolveRequestedPricing(configuredModels, requestedModel);
-    if (!resolvedPricing)
+    const requestedPricings = this.resolveRequestedPricings(configuredModels, requestedModel);
+    if (requestedPricings.length === 0)
       throw new BadRequestError(`Model '${requestedModel}' is not configured`, undefined, {
         messageKey: "chat.modelNotConfigured",
       });
 
-    const selectedModelName = resolvedPricing.model.trim();
-    const selectedModelId = resolveModelId(resolvedPricing);
-    const { candidates, attemptPlan } = await this.resolveChatRouteCandidates(token, resolvedPricing, selectedModelId);
+    const selectedModelId = requestedModel;
+    const { candidates, attemptPlan } = await this.resolveChatRouteCandidates(
+      token,
+      requestedPricings,
+      selectedModelId,
+    );
+    let resolvedPricing = candidates[0]!.modelPricing;
+    let selectedModelName = resolvedPricing.model.trim();
 
     const tokenAllowedModelIds = parseRelayTokenAllowedModelIds(token.allowedModels);
     if (tokenAllowedModelIds.length > 0 && !isModelIdAllowed(tokenAllowedModelIds, resolvedPricing))
@@ -475,6 +481,8 @@ export class ChatService {
     for (let attemptIndex = 0; attemptIndex < attemptCandidates.length; attemptIndex += 1) {
       const candidate = attemptCandidates[attemptIndex];
       if (!candidate) continue;
+      resolvedPricing = candidate.modelPricing;
+      selectedModelName = resolvedPricing.model.trim();
       if (token.routingMode === "automatic-pool")
         this.relayProxyService.assertRelayChannelMultiplierAccepted(candidate.channel, attemptPlan.failoverConfig);
       requireRelayChannelForFormat({ ...token, channel: candidate.channel }, candidate.requestFormat);
