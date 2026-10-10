@@ -1,3 +1,7 @@
+import {
+  accessKeyIssuanceSnapshotMiddleware,
+  accessKeyIssuanceReadyMiddleware,
+} from "@/iam/request/accesskey-issuance-context";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import { iamManagementPaginationSchema } from "@/iam/management-pagination";
@@ -33,12 +37,18 @@ function assertNoOAuthAccessToken(request: TypedRequest, action: "读取" | "删
 export class AccessKeyController extends Controller {
   @Post()
   @Security("jwt", ["accesskey"])
-  @CheckPermission(Permission.ACCESSKEY_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ACCESSKEY_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:CreateAccessKey",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
+    accessKeyIssuanceSnapshotMiddleware(),
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(createAccessKeyBodySchema),
+    accessKeyIssuanceReadyMiddleware,
   )
   public async createAccessKey(
     @Request() request: TypedRequest,
@@ -105,14 +115,23 @@ export class AccessKeyController extends Controller {
 
   @Post("send-accesskey-creation-verification-code")
   @Security("jwt", ["accesskey"])
-  @CheckPermission(Permission.ACCESSKEY_CREATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ACCESSKEY_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ram:SendAccessKeyCreationVerificationCode",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
-  @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), replayProtectionMiddleware)
+  @Middlewares(
+    accessKeyIssuanceSnapshotMiddleware(),
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    accessKeyIssuanceReadyMiddleware,
+  )
   public async sendAccessKeyCreationVerificationCode(
     @Request() request: TypedRequest,
   ): Promise<SendAccessKeyCreationVerificationCodeResponse> {
     const service = new AccessKeyService();
-    const sent = await service.sendAccessKeyCreationVerificationCodeForUser(request.user!.userId);
+    const sent = await service.sendAccessKeyCreationVerificationCodeForUser(request.user!.userId, request);
     return {
       message: sent ? "验证码已发送" : "当前账户已启用二次验证，无需额外邮箱验证码",
     };

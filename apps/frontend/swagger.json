@@ -42992,7 +42992,7 @@
 				"additionalProperties": false
 			},
 			"AccessKeyPageDto": {
-				"description": "Bounded candidate page. IAM filtering may produce an empty page with hasNext=true.\r\nNo unfiltered credential count is returned. Existing secrets remain masked.",
+				"description": "Bounded candidate page. IAM filtering may produce an empty page with hasNext=true.\nNo unfiltered credential count is returned. Existing secrets remain masked.",
 				"properties": {
 					"items": {
 						"items": {

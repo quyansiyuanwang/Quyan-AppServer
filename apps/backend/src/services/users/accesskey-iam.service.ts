@@ -1,3 +1,5 @@
+import { getAccessKeyIssuanceState } from "@/iam/request/accesskey-issuance-context";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import { MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
 import type { AccessKeyDto, AccessKeyPageDto } from "@/api/dto/users/accesskey.dto";
 import type { IamManagementPage } from "@/iam/management-pagination";
@@ -22,6 +24,41 @@ export class AccessKeyIamService {
   ) {}
   static getInstance() {
     return (this.instance ??= new AccessKeyIamService());
+  }
+  async authorizeIssuance(
+    userId: string,
+    action: "quyan:ram:CreateAccessKey" | "quyan:ram:SendAccessKeyCreationVerificationCode",
+    request: TypedRequest,
+    shadow = false,
+  ) {
+    const state = getAccessKeyIssuanceState(request),
+      principal = state.principal;
+    if (userId !== principal.subjectUserId || userId !== state.snapshot.id) throw accessKeyAuthorizationDenied();
+    await this.repository.checkIssuanceState(state);
+    await this.iam.loadPolicies(principal);
+    const resource = await iamAuthenticatedUserResourceResolver({ request, principal });
+    if (!resource) throw accessKeyAuthorizationDenied();
+    const start = performance.now();
+    const result = await this.iam.authorize({
+      principal,
+      action,
+      resource,
+      context: requestConditionContext(request, principal),
+    });
+    if (!result) throw accessKeyAuthorizationDenied();
+    (request.iamDecisions ??= []).push({ ...result, action, resource });
+    auditIamDecision({
+      requestId: request.res?.locals.requestId,
+      principal,
+      action,
+      resource,
+      result,
+      evaluationLatencyMs: performance.now() - start,
+      authorizationMode: shadow ? "shadow" : "enforce",
+      ...(shadow ? { legacyAllowed: true } : {}),
+    });
+    if (result.decision !== "Allow") throw accessKeyAuthorizationDenied();
+    return state;
   }
   private async actor(userId: string, request?: TypedRequest) {
     const principal = request && getIamPrincipal(request);

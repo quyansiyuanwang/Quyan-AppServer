@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'access-key-management',
-  updatedAt: '2026-10-10',
+  updatedAt: '2026-10-11',
   category: {
     en: 'Account',
     'zh-CN': '账号',

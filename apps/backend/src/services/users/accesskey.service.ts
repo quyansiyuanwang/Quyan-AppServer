@@ -1,3 +1,5 @@
+import { getAccessKeyIssuanceState } from "@/iam/request/accesskey-issuance-context";
+import { accessKeyAuthorizationDenied } from "@/store/users/accesskey-management.repository";
 import { env } from "@/config/env";
 import { PermissionService } from "./permission.service";
 import { Permission } from "@/constant/permission";
@@ -28,9 +30,53 @@ export class AccessKeyService {
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly emailService: EmailService = EmailService.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly management = AccessKeyManagementRepository.getInstance(),
+    private readonly iam = AccessKeyIamService.getInstance(),
   ) {}
 
+  private async issuanceState(
+    userId: string,
+    action: "quyan:ram:CreateAccessKey" | "quyan:ram:SendAccessKeyCreationVerificationCode",
+    request: TypedRequest,
+  ) {
+    const state = getAccessKeyIssuanceState(request);
+    if (state.principal.subjectUserId !== userId || state.snapshot.id !== userId) throw accessKeyAuthorizationDenied();
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      const permission = await PermissionService.getInstance().checkUserPermissions(
+        userId,
+        [Permission.ACCESSKEY_CREATE],
+        { assumedRoleSessionId: state.principal.roleSessionId },
+      );
+      if (!permission.hasPermission) throw accessKeyAuthorizationDenied();
+    }
+    if (env.security.iamAuthorizationMode === "enforce") await this.iam.authorizeIssuance(userId, action, request);
+    else if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iam.authorizeIssuance(userId, action, request, true);
+      } catch {
+        getLogger("AccessKeyIamBridge", LogCategory.SECURITY).warn("Access key IAM shadow evaluation denied", {
+          action,
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    await this.management.checkIssuanceState(state);
+    return state;
+  }
+
   async generateKeyForUser(userId: string, data: CreateAccessKeyDto, request?: Request): Promise<AccessKeyDto> {
+    if (request) {
+      const state = await this.issuanceState(userId, "quyan:ram:CreateAccessKey", request as TypedRequest);
+      const key = `${getCredentialPrefix("accessKey")}${randomBytes(32).toString("hex")}`;
+      const accessKey = await this.management.issue(
+        state,
+        { userId, key, name: data.name, expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined },
+        data.verificationCode,
+      );
+      await this.logCreation(accessKey.id, userId, request);
+      return this.toDto(accessKey, false);
+    }
+    if (env.security.iamAuthorizationMode === "enforce") throw accessKeyAuthorizationDenied();
     const user = await this.userRepository.findById(userId);
     if (!user || !user.email)
       throw new NotFoundError("用户邮箱不存在", undefined, { messageKey: "user.emailNotFound" });
@@ -38,7 +84,7 @@ export class AccessKeyService {
     return this.generateKey(userId, user.email, data, user.twoFactorEnabled === true, request);
   }
 
-  async generateKey(
+  private async generateKey(
     userId: string,
     userEmail: string,
     data: CreateAccessKeyDto,
@@ -67,23 +113,23 @@ export class AccessKeyService {
       expiresAt: data.expiresAt ? new Date(data.expiresAt) : undefined,
     });
 
+    await this.logCreation(accessKey.id, userId, request);
+
+    return this.toDto(accessKey, false); // 创建时返回完整密钥
+  }
+
+  private async logCreation(keyId: string, userId: string, request?: Request) {
     await this.businessLogService.logOperation({
       operationType: OperationType.ACCESS_KEY_CREATE,
       operationCategory: OperationCategory.AUTH,
       actorUserId: userId,
       targetUserId: userId,
-      targetResourceId: accessKey.id,
+      targetResourceId: keyId,
       targetResourceType: "ACCESS_KEY",
-      description: `创建了 AccessKey '${accessKey.name || accessKey.id}'`,
-      changes: {
-        name: accessKey.name,
-        expiresAt: accessKey.expiresAt,
-      },
+      description: "Created an access key",
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
-
-    return this.toDto(accessKey, false); // 创建时返回完整密钥
   }
 
   async validateKey(key: string): Promise<AccessKeyDto> {
@@ -205,11 +251,26 @@ export class AccessKeyService {
     });
   }
 
-  async sendAccessKeyCreationVerificationCode(email: string): Promise<void> {
+  private async sendAccessKeyCreationVerificationCode(email: string): Promise<void> {
     await this.emailService.sendVerificationCode(email);
   }
 
-  async sendAccessKeyCreationVerificationCodeForUser(userId: string): Promise<boolean> {
+  async sendAccessKeyCreationVerificationCodeForUser(userId: string, request?: Request): Promise<boolean> {
+    if (request) {
+      const state = await this.issuanceState(
+        userId,
+        "quyan:ram:SendAccessKeyCreationVerificationCode",
+        request as TypedRequest,
+      );
+      if (state.snapshot.twoFactorEnabled) return false;
+      // SMTP is external I/O, never held inside a credential-insertion transaction.
+      // Recheck the exact authenticated state immediately before dispatch and afterwards.
+      await this.management.checkIssuanceState(state);
+      await this.emailService.sendVerificationCode(state.snapshot.email!);
+      await this.management.checkIssuanceState(state);
+      return true;
+    }
+    if (env.security.iamAuthorizationMode === "enforce") throw accessKeyAuthorizationDenied();
     const user = await this.userRepository.findById(userId);
     if (!user || !user.email)
       throw new NotFoundError("用户邮箱不存在", undefined, { messageKey: "user.emailNotFound" });

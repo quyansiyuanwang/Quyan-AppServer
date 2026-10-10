@@ -408,6 +408,20 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.NOTIFICATION_MANAGE,
     }),
   ),
+  ...['CreateAccessKey', 'SendAccessKeyCreationVerificationCode'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:ram:' + operation,
+      service: 'ram',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.ACCESSKEY_CREATE,
+    }),
+  ),
   {
     action: 'quyan:ram:ListAccessKeys',
     service: 'ram',

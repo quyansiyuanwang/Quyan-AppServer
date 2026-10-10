@@ -39,6 +39,27 @@ Use this page to create and maintain access keys for account-level programmatic 
 - Some creation flows can require a verification step.
 - Treat access keys like passwords and never expose them in shared screenshots or chats.
 
+## Creation permissions and security verification
+
+When IAM enforcement is enabled, creating a key requires `quyan:ram:CreateAccessKey`; sending its creation verification code requires the separate `quyan:ram:SendAccessKeyCreationVerificationCode` action. Both target the executing user, not a key that has yet to exist:
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": ["quyan:ram:CreateAccessKey", "quyan:ram:SendAccessKeyCreationVerificationCode"],
+    "Resource": "acs:quyan:*:<accountId>:user/<userId>"
+  }
+}
+```
+
+Replace the placeholders with the current account and executing user IDs. Neither action is automatically granted. Creation does not grant listing or revocation, nor does it permit creating keys for another user. A matching Deny takes precedence.
+
+Without two-factor authentication, creation requires a valid, unused email code. A code can complete only one creation; code consumption and key insertion commit or roll back together. With two-factor authentication enabled, the existing security challenge still applies, but no additional email code is required or sent.
+
+If email, two-factor settings, account state, or the role session changes during verification, authenticate again and restart the flow. Conflicts do not create a key. Third-party OAuth applications may still create keys subject to the `accesskey` scope, user authorization, and these IAM permissions; this does not permit reading or deleting existing keys. The full new key is returned only on successful creation, so save it immediately.
+
 ## Revocation permissions and resource scope
 
 When IAM policy authorization is enabled, deleting an access key requires `quyan:ram:DeleteAccessKey`. A policy can restrict this operation to one of the current user's keys:

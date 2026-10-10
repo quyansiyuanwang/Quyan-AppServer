@@ -226,6 +226,12 @@ public async publishArticle(
 
 `GET /v1/accesskeys/page` 使用统一分页边界，返回 `items`、`page`、`pageSize` 和 `hasNext`，不返回未授权资源总数。旧数组接口保留完整已授权结果，不能悄悄替换成第一页。列表先读取无凭据的目标元数据，逐资源授权后再次求值，并在可串行化事务内复核账户、角色会话与资源快照，再读取并脱敏资料；密钥原文和历史凭据列不得进入列表 DTO 或授权日志。
 
+创建使用 `quyan:ram:CreateAccessKey`，发送创建验证码使用独立的 `quyan:ram:SendAccessKeyCreationVerificationCode`，二者均限定为可信执行用户 ARN `acs:quyan:*:<accountId>:user/<userId>`，无默认本人授权。只有显式 legacy `ACCESSKEY_CREATE` 转换可参与兼容映射；规范 legacy JSON Action 不会隐式扩展为原生敏感 Action。OAuth 创建还要求有效用户、应用和 `accesskey` scope，不能扩展到其他用户。
+
+创建中间件在 2FA 前获取邮箱、2FA 标记及用户版本快照，并通过服务端 WeakMap 记录安全链完成状态；不能从 Header、Query 或 Body 伪造此状态。Service 用实际用户参数再次授权；最终可串行化事务复核用户、账户、角色会话、OAuth 状态及安全快照。未启用 2FA 时，验证码以条件更新单次消费，与密钥插入同事务，失败回滚。仅创建响应返回完整新密钥，授权和操作审计不记录邮箱、验证码、名称或密钥。
+
+发送验证码复用同一安全链并在外部邮件分发前后复核安全快照；SMTP 不在数据库事务中。已发送邮件不能回滚，分发期间发生的并发安全变更会令请求失败，需要重新启动流程，不得据此放宽密钥写入校验。
+
 ### 策略版本与委派
 
 策略文档保存在不可变版本中，默认版本指针决定执行的策略。更新或恢复默认版本需要当前文档 hash，冲突后重新读取并确认，不自动重试覆盖。

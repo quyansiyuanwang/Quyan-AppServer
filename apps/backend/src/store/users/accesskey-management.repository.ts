@@ -1,10 +1,35 @@
-import { Prisma, type AccessKey } from "@prisma/client";
+import { Prisma, type AccessKey, type User } from "@prisma/client";
 import { maskSecret, toCanonicalCredential, MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
-import { ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
+import { CustomCode } from "@quyan/shared";
+import type { AccessKeyCreateInput } from "./accesskey.store";
 import type { AccessKeyDto } from "@/api/dto/users/accesskey.dto";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import type { IamManagementPage } from "@/iam/management-pagination";
+/** Captured before step-up; only trusted request state can supply this snapshot. */
+export type AccessKeyIssuanceSnapshot = Pick<
+  User,
+  "id" | "email" | "twoFactorEnabled" | "twoFactorPasskeyRequired" | "accountOwnerId" | "status"
+> & { revision: string };
+export interface AccessKeyIssuanceState {
+  principal: IamPrincipal;
+  snapshot: AccessKeyIssuanceSnapshot;
+  oauth?: { id: string; clientId: string };
+}
+const issuanceSelect = {
+  id: true,
+  email: true,
+  twoFactorEnabled: true,
+  twoFactorPasskeyRequired: true,
+  accountOwnerId: true,
+  status: true,
+  updateTime: true,
+} as const;
+const invalidVerificationCode = () =>
+  new BadRequestError("Invalid or expired access key verification code", CustomCode.VERIFICATION_CODE_INVALID, {
+    messageKey: "errors.verificationCodeInvalid",
+  });
 export type AccessKeyTarget = Pick<AccessKey, "id" | "userId" | "status" | "updateTime" | "createTime">;
 const targetSelect = { id: true, userId: true, status: true, updateTime: true, createTime: true } as const;
 export const accessKeyAuthorizationDenied = () =>
@@ -94,6 +119,101 @@ export class AccessKeyManagementRepository {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") throw conflict();
       throw error;
     }
+  }
+  private async issuanceSnapshot(tx: Prisma.TransactionClient, principal: IamPrincipal) {
+    const row = await tx.user.findUnique({ where: { id: principal.subjectUserId }, select: issuanceSelect });
+    if (
+      !row ||
+      row.status !== MANAGED_STATUS.ENABLED ||
+      !row.email ||
+      (row.accountOwnerId || row.id) !== principal.accountOwnerId
+    )
+      throw accessKeyAuthorizationDenied();
+    const { updateTime, ...snapshot } = row;
+    return { ...snapshot, revision: updateTime.toISOString() };
+  }
+  private async checkIssuance(tx: Prisma.TransactionClient, state: AccessKeyIssuanceState) {
+    const current = await this.issuanceSnapshot(tx, state.principal),
+      expected = state.snapshot;
+    if (
+      current.id !== expected.id ||
+      current.revision !== expected.revision ||
+      current.email !== expected.email ||
+      current.twoFactorEnabled !== expected.twoFactorEnabled ||
+      current.twoFactorPasskeyRequired !== expected.twoFactorPasskeyRequired ||
+      current.accountOwnerId !== expected.accountOwnerId ||
+      current.status !== expected.status
+    )
+      throw conflict();
+    if (state.oauth) {
+      const token = await tx.oAuthAccessToken.findUnique({
+        where: { id: state.oauth.id },
+        select: {
+          userId: true,
+          oauthClientId: true,
+          status: true,
+          revokedAt: true,
+          expiresAt: true,
+          scopes: true,
+          oauthClient: { select: { status: true, reviewStatus: true, scopes: true } },
+        },
+      });
+      if (
+        !token ||
+        token.userId !== current.id ||
+        token.oauthClientId !== state.oauth.clientId ||
+        token.status !== MANAGED_STATUS.ENABLED ||
+        token.revokedAt ||
+        token.expiresAt <= new Date() ||
+        !Array.isArray(token.scopes) ||
+        !token.scopes.includes("accesskey") ||
+        token.oauthClient.status !== MANAGED_STATUS.ENABLED ||
+        token.oauthClient.reviewStatus !== "approved" ||
+        !Array.isArray(token.oauthClient.scopes) ||
+        !token.oauthClient.scopes.includes("accesskey")
+      )
+        throw accessKeyAuthorizationDenied();
+    }
+  }
+  async captureIssuance(
+    principal: IamPrincipal,
+    oauth?: AccessKeyIssuanceState["oauth"],
+  ): Promise<AccessKeyIssuanceState> {
+    return this.transaction(principal, async (tx) => {
+      const state = {
+        principal: { ...principal },
+        snapshot: await this.issuanceSnapshot(tx, principal),
+        ...(oauth ? { oauth: { ...oauth } } : {}),
+      };
+      await this.checkIssuance(tx, state);
+      return state;
+    });
+  }
+  async checkIssuanceState(state: AccessKeyIssuanceState) {
+    await this.transaction(state.principal, (tx) => this.checkIssuance(tx, state));
+  }
+  async issue(state: AccessKeyIssuanceState, data: AccessKeyCreateInput, verificationCode?: string) {
+    return this.transaction(state.principal, async (tx) => {
+      await this.checkIssuance(tx, state);
+      if (data.userId !== state.principal.subjectUserId || data.userId !== state.snapshot.id)
+        throw accessKeyAuthorizationDenied();
+      if (!state.snapshot.twoFactorEnabled) {
+        const code = verificationCode?.trim();
+        if (!code) throw invalidVerificationCode();
+        const record = await tx.emailVerification.findFirst({
+          where: { email: state.snapshot.email!, code, used: false, expiresAt: { gt: new Date() } },
+          select: { id: true },
+          orderBy: { createTime: "desc" },
+        });
+        if (!record) throw invalidVerificationCode();
+        const consumed = await tx.emailVerification.updateMany({
+          where: { id: record.id, used: false, expiresAt: { gt: new Date() } },
+          data: { used: true },
+        });
+        if (consumed.count !== 1) throw invalidVerificationCode();
+      }
+      return tx.accessKey.create({ data });
+    });
   }
   async assertPrincipal(principal: IamPrincipal) {
     await this.transaction(principal, async () => undefined);

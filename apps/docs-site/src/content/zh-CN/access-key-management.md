@@ -39,6 +39,27 @@
 - 创建敏感凭证时，可能需要额外验证。
 - 访问密钥应像密码一样保密，不应出现在公开截图或聊天记录中。
 
+## 创建权限和安全验证
+
+启用 IAM 强制授权后，创建访问密钥需要 `quyan:ram:CreateAccessKey`，发送创建验证码需要独立的 `quyan:ram:SendAccessKeyCreationVerificationCode`。这两项操作的资源是当前执行用户，而不是尚未生成的密钥：
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": ["quyan:ram:CreateAccessKey", "quyan:ram:SendAccessKeyCreationVerificationCode"],
+    "Resource": "acs:quyan:*:<accountId>:user/<userId>"
+  }
+}
+```
+
+替换为当前账号和当前执行用户的 ID。两项权限不会自动授予；创建权限不包含列表或撤销权限，也不能替其他用户创建密钥。匹配的 Deny 优先。
+
+未启用二次验证时，创建必须提交有效、未使用的邮箱验证码；同一验证码只能完成一次创建。验证码消费和密钥写入一起成功或一起回滚。启用二次验证后仍需通过已有安全挑战，但不需要额外邮箱验证码，也不会发送该验证码。
+
+验证过程中邮箱、二次验证设置、账户状态或角色会话发生变化，请重新认证并重新发起流程；冲突不会产生新密钥。第三方 OAuth 应用仍可在 `accesskey` scope、用户授权和上述权限约束下发起创建；这不允许它们读取或删除已有密钥。完整新密钥仅在创建成功时返回，请立即保存。
+
 ## 撤销权限和资源范围
 
 启用 IAM 策略授权后，删除访问密钥需要 `quyan:ram:DeleteAccessKey`。策略可以限定到当前用户的一把密钥：

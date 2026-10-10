@@ -46,6 +46,13 @@ describe("AccessKeyController OAuth restrictions", () => {
     expect(result).toEqual({ id: "ak-1", key: "ak_value" });
   });
 
+  it("forwards trusted request context to the OAuth-compatible code-sending service", async () => {
+    const req = { user: { userId: "user-1" }, oauthAccessToken: { id: "fixture", scopes: ["accesskey"] } } as any;
+    accessKeyServiceMock.sendAccessKeyCreationVerificationCodeForUser.mockResolvedValue(true);
+    await new AccessKeyController().sendAccessKeyCreationVerificationCode(req);
+    expect(accessKeyServiceMock.sendAccessKeyCreationVerificationCodeForUser).toHaveBeenCalledWith("user-1", req);
+  });
+
   it("rejects listing existing keys for OAuth-authorized third-party apps", async () => {
     const controller = new AccessKeyController();
     const request = {
