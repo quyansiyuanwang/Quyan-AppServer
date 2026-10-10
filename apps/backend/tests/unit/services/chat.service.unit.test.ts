@@ -1,4 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { AIResourceConfigService } from "../../../src/services/infrastructure/ai-resource-config.service";
+import { AIResourceService, aiResourceContext } from "../../../src/services/infrastructure/ai-resource.service";
+import { contentSafetyAttemptContext } from "../../../src/services/system/content-safety-attempt";
 import { ChatService } from "../../../src/services/chat/chat.service";
 import { BadRequestError, ForbiddenError, NotFoundError, PayloadTooLargeError } from "../../../src/util/errors";
 
@@ -194,7 +197,12 @@ describe("ChatService", () => {
     contentSafetyService,
   );
 
+  const resourceConfig = AIResourceConfigService.getInstance();
+  let originalResources = resourceConfig.current;
+  afterEach(() => resourceConfig.apply(originalResources));
+
   beforeEach(() => {
+    originalResources = resourceConfig.current;
     vi.clearAllMocks();
     relayUsageRepository.create.mockResolvedValue(undefined);
     contentSafetyService.getPublicConfig.mockResolvedValue({
@@ -313,6 +321,94 @@ describe("ChatService", () => {
       }),
     );
   });
+  it("refuses oversized stateless input before token lookup or upstream side effects", async () => {
+    configureStatelessGeneration();
+    resourceConfig.apply({
+      ...originalResources,
+      chat: { resourceLimits: { ...originalResources.chat.resourceLimits, inputLimitBytes: 4 } },
+    });
+    await expect(
+      service.generateTextForUser("user-1", "五个字节", "gpt-4o-mini", "token-1", {
+        maxOutputCharacters: 100,
+      }),
+    ).rejects.toMatchObject({ statusCode: 413 });
+    expect(relayTokenRepository.findByIdWithChannel).not.toHaveBeenCalled();
+    expect(aiProvider.streamChat).not.toHaveBeenCalled();
+    expect(messageRepo.create).not.toHaveBeenCalled();
+    expect(AIResourceService.getInstance().snapshot().active).toBe(0);
+  });
+
+  it("enforces byte output limits independently of the draft character limit and releases its lease", async () => {
+    configureStatelessGeneration();
+    resourceConfig.apply({
+      ...originalResources,
+      chat: { resourceLimits: { ...originalResources.chat.resourceLimits, outputLimitBytes: 4 } },
+    });
+    await expect(
+      service.generateTextForUser("user-1", "x", "gpt-4o-mini", "token-1", {
+        maxOutputCharacters: 100,
+      }),
+    ).rejects.toMatchObject({ statusCode: 413 });
+    expect(messageRepo.create).not.toHaveBeenCalled();
+    expect(AIResourceService.getInstance().snapshot().active).toBe(0);
+  });
+
+  it("runs stateless upstream work inside the resource and safety scopes and cleans up on success", async () => {
+    configureStatelessGeneration();
+    aiProvider.streamChat.mockImplementationOnce(() => {
+      expect(aiResourceContext.getStore()?.active).toBe(true);
+      expect(contentSafetyAttemptContext.getStore()).toBeDefined();
+      return createChatStream();
+    });
+    await expect(
+      service.generateTextForUser("user-1", "x", "gpt-4o-mini", "token-1", {
+        maxOutputCharacters: 100,
+      }),
+    ).resolves.toBe("hello");
+    expect(AIResourceService.getInstance().snapshot().active).toBe(0);
+    expect(aiResourceContext.getStore()).toBeUndefined();
+    expect(contentSafetyAttemptContext.getStore()).toBeUndefined();
+  });
+
+  it("rejects an audit replacement that exceeds the draft character limit without returning a partial draft", async () => {
+    configureStatelessGeneration();
+    contentSafetyService.getPublicConfig.mockResolvedValueOnce({
+      requestEnabled: true,
+      requestAction: "unreachable",
+      requestAiEnabled: false,
+      responseEnabled: true,
+      responseAction: "unreachable",
+      responseAiEnabled: true,
+    });
+    contentSafetyService.evaluate
+      .mockResolvedValueOnce({
+        text: "x",
+        action: "allow",
+        matched: false,
+        auditInputTokens: 0,
+        auditOutputTokens: 0,
+        auditDurationMs: 0,
+        auditCost: 0,
+      })
+      .mockResolvedValueOnce({
+        text: "replacement too long",
+        action: "replace",
+        matched: true,
+        auditInputTokens: 0,
+        auditOutputTokens: 0,
+        auditDurationMs: 0,
+        auditCost: 0,
+      });
+    await expect(
+      service.generateTextForUser("user-1", "x", "gpt-4o-mini", "token-1", {
+        maxOutputCharacters: 5,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(usageChargeService.chargeUsage).toHaveBeenCalled();
+    expect(messageRepo.create).not.toHaveBeenCalled();
+    expect(AIResourceService.getInstance().snapshot().active).toBe(0);
+  });
+
   it("preserves whitespace-only chunks in structured generation", async () => {
     configureStatelessGeneration();
     async function* structured() {

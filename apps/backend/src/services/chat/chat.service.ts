@@ -701,6 +701,10 @@ export class ChatService {
             });
             if (audited.action === "unreachable") throw new ContentSafetyBlockedError();
             assertAnswerBudget(Buffer.byteLength(audited.text));
+            if (generation && audited.text.length > generation.maxOutputCharacters)
+              throw new BadRequestError("Generation output exceeds the limit", undefined, {
+                messageKey: "chat.generationOutputTooLarge",
+              });
             assistantContent = audited.text;
             assistantBytes = Buffer.byteLength(assistantContent);
           }
