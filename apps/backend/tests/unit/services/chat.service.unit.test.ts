@@ -350,6 +350,8 @@ describe("ChatService", () => {
       }),
     ).rejects.toMatchObject({ statusCode: 413 });
     expect(messageRepo.create).not.toHaveBeenCalled();
+    expect(usageChargeService.chargeUsage).not.toHaveBeenCalled();
+    expect(relayUsageRepository.create).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 413 }));
     expect(AIResourceService.getInstance().snapshot().active).toBe(0);
   });
 
