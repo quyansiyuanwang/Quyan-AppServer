@@ -7,14 +7,17 @@ import {
   isIamActionResourceCompatible,
 } from "@quyan/shared";
 import { articleArn, isCanonicalArticleId } from "@/iam/resources/article-resources";
-import { articleResourceResolver } from "@/iam/request/article-resource-resolvers";
+import { articleResourceResolver, articleSlugResourceResolver } from "@/iam/request/article-resource-resolvers";
 import { ArticleManagementRepository } from "@/store/content/article-management.repository";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { legacyPermissionsToPolicy } from "@/iam/legacy-policy";
 import type { TypedRequest } from "@/types/express";
+const { repository } = vi.hoisted(() => ({
+  repository: { findTarget: vi.fn(), findTargetBySlug: vi.fn() },
+}));
 vi.mock("@/store/content/article-management.repository", () => ({
-  ArticleManagementRepository: { getInstance: () => ({ findTarget: vi.fn() }) },
+  ArticleManagementRepository: { getInstance: () => repository },
 }));
 const action = actionForPermission(Permission.ARTICLE_PUBLISH);
 describe("article publication resource contract", () => {
@@ -79,6 +82,23 @@ describe("article publication resource contract", () => {
       }).decision,
     ).toBe("ImplicitDeny");
   });
+  it("resolves a validated slug through the account-owned repository projection", async () => {
+    repository.findTargetBySlug.mockResolvedValue({ id: "article-2" });
+    const request = { params: { slug: "release_notes" } } as unknown as TypedRequest;
+    await expect(
+      articleSlugResourceResolver({
+        request,
+        principal: {
+          subjectUserId: "actor",
+          principalUserId: "actor",
+          accountOwnerId: "owner",
+          subjectType: "sub_user",
+        },
+      }),
+    ).resolves.toBe("acs:article:*:owner:article/article-2");
+    expect(repository.findTargetBySlug).toHaveBeenCalledWith("release_notes", "owner");
+  });
+
   it("rejects malformed IDs before touching the database", async () => {
     const request = { params: { id: "*" }, body: { accountId: "foreign" } } as unknown as TypedRequest;
     const principal = {

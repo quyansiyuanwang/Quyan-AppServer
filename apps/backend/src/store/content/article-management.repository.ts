@@ -118,6 +118,25 @@ export class ArticleManagementRepository {
   ): Promise<ArticleManagementTarget | undefined> {
     return (await this.findTargets([id], accountOwnerId, client))?.[0];
   }
+  async findTargetBySlug(
+    slug: string,
+    accountOwnerId: string,
+    client: ArticleManagementClient = prisma,
+  ): Promise<ArticleManagementTarget | undefined> {
+    if (!/^[a-z0-9_-]{1,200}$/.test(slug)) return undefined;
+    const target = await client.article.findFirst({
+      where: {
+        slug,
+        status: MANAGED_STATUS.ENABLED,
+        author: {
+          status: MANAGED_STATUS.ENABLED,
+          OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }],
+        },
+      },
+      select: managementSelect,
+    });
+    return target ?? undefined;
+  }
   /** Bounded scalar batch projection; maintain requested order without accepting SQL collation aliases. */
   async findTargets(
     ids: readonly string[],

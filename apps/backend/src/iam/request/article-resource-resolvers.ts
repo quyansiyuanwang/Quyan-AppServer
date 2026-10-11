@@ -3,6 +3,13 @@ import type { BatchResourceResolver, ResourceResolver } from "./resource-resolve
 import { articleArn, isCanonicalArticleId } from "../resources/article-resources";
 import { ArticleManagementRepository } from "@/store/content/article-management.repository";
 /** Account identity comes exclusively from authentication; stored author ownership is checked first. */
+export const articleSlugResourceResolver: ResourceResolver = async ({ request, principal }) => {
+  const slug = request.params.slug;
+  if (typeof slug !== "string" || !/^[a-z0-9_-]{1,200}$/.test(slug)) return undefined;
+  const target = await ArticleManagementRepository.getInstance().findTargetBySlug(slug, principal.accountOwnerId);
+  return target ? articleArn(principal.accountOwnerId, target.id) : undefined;
+};
+
 export const articleResourceResolver: ResourceResolver = async ({ request, principal }) => {
   const id = request.params.id;
   if (!isCanonicalArticleId(id)) return undefined;

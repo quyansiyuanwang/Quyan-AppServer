@@ -35,7 +35,11 @@ import {
   updateArticleBodySchema,
 } from "@/api/schema/article/article.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
-import { articleResourceResolver, articleReorderResourceResolver } from "@/iam/request/article-resource-resolvers";
+import {
+  articleResourceResolver,
+  articleReorderResourceResolver,
+  articleSlugResourceResolver,
+} from "@/iam/request/article-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
@@ -87,6 +91,11 @@ export class ArticleController extends Controller {
 
   @Get("{id}")
   @Security("jwt")
+  @CheckPermission(Permission.ARTICLE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Read",
+    resourceKind: "single-resource",
+    resource: articleResourceResolver,
+  })
   @Middlewares(validateParams(articleIdParamsSchema))
   public async getArticle(@Path() id: string, @Request() request: TypedRequest): Promise<ArticleDto> {
     return this.service.getArticle(id, request.user!.userId);
@@ -94,6 +103,11 @@ export class ArticleController extends Controller {
 
   @Get("slug/{slug}")
   @Security("jwt")
+  @CheckPermission(Permission.ARTICLE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Read",
+    resourceKind: "single-resource",
+    resource: articleSlugResourceResolver,
+  })
   @Middlewares(validateParams(articleSlugParamsSchema))
   public async getArticleBySlug(@Path() slug: string, @Request() request: TypedRequest): Promise<ArticleDto> {
     return this.service.getArticleBySlug(slug, request.user!.userId);
@@ -201,7 +215,11 @@ export class ArticleController extends Controller {
   /** Set a published article as the default displayed article */
   @Post("{id}/set-default")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Update",
+    resourceKind: "single-resource",
+    resource: articleResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(articleIdParamsSchema))
   public async setDefaultArticle(@Path() id: string, @Request() request: TypedRequest): Promise<ArticleDto> {
     return this.service.setDefaultArticle(id, request.user!.userId, request);
@@ -210,7 +228,11 @@ export class ArticleController extends Controller {
   /** Clear the default article designation */
   @Post("clear-default")
   @Security("jwt")
-  @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt")
+  @CheckPermission(Permission.ARTICLE_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:article:Update",
+    resourceKind: "account",
+    resource: ramAccountResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware)
   public async clearDefaultArticle(@Request() request: TypedRequest): Promise<{ success: boolean }> {
     await this.service.clearDefaultArticle(request.user!.userId, request);
