@@ -16,11 +16,12 @@ import {
 import { RelayChannelProbeAccountService } from "@/services/relay/relay-channel-probe-account.service";
 import { RelayChannelProbeService } from "@/services/relay/relay-channel-probe.service";
 import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import type { TypedRequest } from "@/types/express";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
+import { relayChannelProbeResourceResolver } from "@/iam/request/resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import {
   applyRelayChannelProbeRunsBodySchema,
@@ -78,7 +79,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Get("{channelId}/profile")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:probe:Read",
+    resourceKind: "single-resource",
+    resource: relayChannelProbeResourceResolver,
+  })
   @Middlewares(validateParams(relayChannelProbeChannelParamsSchema))
   public getProfile(@Path() channelId: string, @Request() request: TypedRequest): Promise<RelayChannelProbeProfileDto> {
     return this.service.getProfile(channelId, request.user!.userId);
@@ -86,7 +91,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Put("{channelId}/profile")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:probe:Execute",
+    resourceKind: "single-resource",
+    resource: relayChannelProbeResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -105,7 +114,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Delete("{channelId}/profile")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:probe:Execute",
+    resourceKind: "single-resource",
+    resource: relayChannelProbeResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -120,7 +133,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("{channelId}/runs")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:probe:Execute",
+    resourceKind: "single-resource",
+    resource: relayChannelProbeResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -140,7 +157,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("{channelId}/runs/reset")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:probe:Execute",
+    resourceKind: "single-resource",
+    resource: relayChannelProbeResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -206,7 +227,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Get("{channelId}/runs")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:probe:Read",
+    resourceKind: "single-resource",
+    resource: relayChannelProbeResourceResolver,
+  })
   @Middlewares(validateParams(relayChannelProbeChannelParamsSchema), validateQuery(relayChannelProbeRunsQuerySchema))
   public listRuns(
     @Path() channelId: string,
@@ -220,7 +245,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Delete("{channelId}/runs")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:probe:Execute",
+    resourceKind: "single-resource",
+    resource: relayChannelProbeResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(

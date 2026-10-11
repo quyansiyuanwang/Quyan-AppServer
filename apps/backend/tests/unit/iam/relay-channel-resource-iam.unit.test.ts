@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relayChannelResourceResolver } from "@/iam/request/resource-resolvers";
+import { relayChannelProbeResourceResolver, relayChannelResourceResolver } from "@/iam/request/resource-resolvers";
 import type { TypedRequest } from "@/types/express";
 
 const principal = {
@@ -15,6 +15,13 @@ describe("relay channel IAM resource resolver", () => {
   it("builds a channel ARN from the validated route identifier and trusted account", async () => {
     await expect(relayChannelResourceResolver({ request: request("channel-1"), principal })).toBe(
       "acs:relay:*:account-1:channel/channel-1",
+    );
+  });
+
+  it("resolves probe routes from channelId without widening the resource", async () => {
+    const probeRequest = { params: { channelId: "channel-2" } } as unknown as TypedRequest;
+    await expect(relayChannelProbeResourceResolver({ request: probeRequest, principal })).toBe(
+      "acs:relay:*:account-1:channel/channel-2",
     );
   });
 

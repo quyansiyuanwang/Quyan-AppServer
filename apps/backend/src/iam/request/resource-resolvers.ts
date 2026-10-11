@@ -34,6 +34,10 @@ export const relayChannelResourceResolver = accountEntityResourceResolver(
   "relay-channel",
   (request) => request.params.id,
 );
+export const relayChannelProbeResourceResolver = accountEntityResourceResolver(
+  "relay-channel",
+  (request) => request.params.channelId,
+);
 
 /** Reject the entire batch when any identifier is invalid; never omit an unresolved target. */
 export function accountEntityBatchResourceResolver(
