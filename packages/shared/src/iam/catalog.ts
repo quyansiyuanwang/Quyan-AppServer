@@ -279,7 +279,37 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },
     { operation: 'GetJsonEndpoint', accessLevel: 'Read', resourceTypes: ['developer/project'] },
     { operation: 'UpdateJsonEndpoint', accessLevel: 'Write', resourceTypes: ['developer/project'] },
+    { operation: 'GetProductCatalog', accessLevel: 'Read', resourceTypes: ['quyan/account'] },
     { operation: 'ListProductInstances', accessLevel: 'List', resourceTypes: ['quyan/account'] },
+    { operation: 'GetProductUsage', accessLevel: 'Read', resourceTypes: ['quyan/account'] },
+    { operation: 'ListProductCallLogs', accessLevel: 'List', resourceTypes: ['quyan/account'] },
+    { operation: 'CreateProductInstance', accessLevel: 'Write', resourceTypes: ['quyan/account'] },
+    {
+      operation: 'UpdateProductInstance',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/project'],
+    },
+    {
+      operation: 'DeleteProductInstance',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/project'],
+    },
+    { operation: 'ListProductSubjects', accessLevel: 'List', resourceTypes: ['quyan/account'] },
+    {
+      operation: 'ListProductInstanceKeys',
+      accessLevel: 'List',
+      resourceTypes: ['developer/project'],
+    },
+    {
+      operation: 'CreateProductInstanceKey',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/project'],
+    },
+    {
+      operation: 'RevokeProductInstanceKey',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/project'],
+    },
   ].map(
     (definition): IamActionDefinition => ({
       ...definition,

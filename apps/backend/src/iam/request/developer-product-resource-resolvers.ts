@@ -1,5 +1,5 @@
 import { DeveloperProductInstanceRepository } from "@/store/developer/developer-product-instance.repository";
-import type { DeveloperProductCode } from "@quyan/shared";
+import { DEVELOPER_PRODUCT_CODES, isDeveloperProductCode, type DeveloperProductCode } from "@quyan/shared";
 import type { ResourceResolver } from "./resource-resolvers";
 import {
   developerKvKeySchema,
@@ -16,7 +16,7 @@ import { ramAccountResourceResolver } from "./resource-resolvers";
 
 const instances = DeveloperProductInstanceRepository.getInstance();
 
-const productCodes: readonly DeveloperProductCode[] = ["json_endpoint", "kv", "short_link", "secret", "status", "push"];
+const productCodes: readonly DeveloperProductCode[] = DEVELOPER_PRODUCT_CODES;
 
 function instanceId(request: Parameters<ResourceResolver>[0]["request"]): string | undefined {
   const value = request.params.instanceId;
@@ -42,6 +42,13 @@ function projectResolver(productCode: DeveloperProductCode): ResourceResolver {
     return projectId ? developerProjectArn(principal.accountOwnerId, projectId) : undefined;
   };
 }
+
+/** Resolve the backing project using the shared product-code catalog. */
+export const developerProductInstanceProjectResourceResolver: ResourceResolver = async ({ request, principal }) => {
+  const product = request.params.product;
+  if (typeof product !== "string" || !isDeveloperProductCode(product)) return undefined;
+  return projectResolver(product)({ request, principal });
+};
 
 function itemResolver(
   productCode: DeveloperProductCode,

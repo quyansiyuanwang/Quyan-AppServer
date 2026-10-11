@@ -11,6 +11,7 @@ vi.mock("@/store/developer/developer-product-instance.repository", () => ({
 import {
   developerProductKvItemResourceResolver,
   developerProductKvProjectResourceResolver,
+  developerProductInstanceProjectResourceResolver,
   developerProductSecretInstanceProjectResourceResolver,
   developerProductSecretInstanceResourceResolver,
 } from "@/iam/request/developer-product-resource-resolvers";
@@ -35,6 +36,23 @@ describe("developer product resource IAM resolvers", () => {
       developerProductKvProjectResourceResolver({ request: request({ instanceId: "instance-1" }), principal }),
     ).resolves.toBe("acs:developer:*:account-1:project/project-1");
     expect(findActiveBackingProjectId).toHaveBeenCalledWith("instance-1", "kv", "account-1");
+  });
+
+  it("resolves self-service instance routes from the shared product catalog", async () => {
+    await expect(
+      developerProductInstanceProjectResourceResolver({
+        request: request({ product: "kv", instanceId: "instance-1" }),
+        principal,
+      }),
+    ).resolves.toBe("acs:developer:*:account-1:project/project-1");
+    expect(findActiveBackingProjectId).toHaveBeenCalledWith("instance-1", "kv", "account-1");
+
+    await expect(
+      developerProductInstanceProjectResourceResolver({
+        request: request({ product: "unknown", instanceId: "instance-1" }),
+        principal,
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it("uses the exact KV item ARN while keeping the product instance as the ownership boundary", async () => {
@@ -83,6 +101,14 @@ describe("developer product resource IAM resolvers", () => {
     expect(getIamActionDefinition("quyan:developer:ListProductInstances")).toMatchObject({
       resourceTypes: ["quyan/account"],
       accessLevel: "List",
+    });
+    expect(getIamActionDefinition("quyan:developer:CreateProductInstance")).toMatchObject({
+      resourceTypes: ["quyan/account"],
+      accessLevel: "Write",
+    });
+    expect(getIamActionDefinition("quyan:developer:RevokeProductInstanceKey")).toMatchObject({
+      resourceTypes: ["developer/project"],
+      accessLevel: "Write",
     });
   });
 });
