@@ -451,6 +451,22 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.NOTIFICATION_MANAGE,
     }),
   ),
+  ...[
+    { service: 'ojqa', operation: 'GetUsage', accessLevel: 'Read' },
+    { service: 'system', operation: 'GetClientIp', accessLevel: 'Read' },
+    { service: 'reurl', operation: 'Generate', accessLevel: 'Write' },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:' + definition.service + ':' + definition.operation,
+      resourceTypes: ['quyan/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      sensitive: definition.accessLevel === 'Write',
+      authorizationStage: 'declared',
+    }),
+  ),
   {
     action: 'quyan:user:GetCurrentUser',
     service: 'user',

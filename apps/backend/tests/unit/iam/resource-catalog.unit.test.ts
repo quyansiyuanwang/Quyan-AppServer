@@ -88,6 +88,14 @@ describe("IAM service and resource catalog", () => {
     });
   });
 
+  it("registers self-scoped utility actions in the shared catalog", () => {
+    for (const action of ["quyan:ojqa:GetUsage", "quyan:system:GetClientIp", "quyan:reurl:Generate"])
+      expect(getIamActionDefinition(action)).toMatchObject({
+        resourceTypes: ["quyan/user"],
+        authorizationStage: "declared",
+      });
+  });
+
   it("declares real project actions without an implicit self-service project grant", () => {
     expect(getIamActionDefinition("quyan:developer:CreateProject")).toMatchObject({
       accessLevel: "Write",

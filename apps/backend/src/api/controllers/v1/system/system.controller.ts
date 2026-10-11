@@ -14,6 +14,8 @@ import {
 import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import { SystemService } from "@/services/system/system.service";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import type {
   BuildInfoDTO,
   ConsumptionStatsDTO,
@@ -169,6 +171,13 @@ export class SystemController extends Controller {
   @Get("client-ip")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "Success")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:GetClientIp",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getClientIp(@Request() request: TypedRequest): Promise<{ ip: string }> {
     return { ip: extractClientIp(request) };
   }
