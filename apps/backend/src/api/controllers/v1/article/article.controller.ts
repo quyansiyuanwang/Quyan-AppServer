@@ -76,17 +76,31 @@ export class ArticleController extends Controller {
 
   @Get("published")
   @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:article:ListArticles",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listPublishedArticles(@Request() request: TypedRequest): Promise<ArticleListItemDto[]> {
-    return this.service.listPublishedArticles(request.user!.userId);
+    return this.service.listPublishedArticles(request.user!.userId, request);
   }
 
   /** Returns the designated default article, or null if none is set */
   @Get("default")
   @Security("jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:article:ListArticles",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Ok")
   @Response(HttpStatusCode.NoContent, "No Content")
   public async getDefaultArticle(@Request() request: TypedRequest): Promise<ArticleDto | null> {
-    return this.service.getDefaultArticle(request.user!.userId);
+    return this.service.getDefaultArticle(request.user!.userId, request);
   }
 
   @Get("{id}")

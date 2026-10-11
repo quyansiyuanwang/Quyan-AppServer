@@ -344,25 +344,58 @@ export class ArticleService {
     return rows.filter((_, index) => decisions[index]);
   }
 
-  async listPublishedArticles(userId: string): Promise<ArticleListItemDto[]> {
-    // Only show published articles
-    const articles = await this.repository.findAll({
-      publishStatus: "published",
-    });
+  async listPublishedArticles(userId: string, request?: Request): Promise<ArticleListItemDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (!request)
+        throw new ForbiddenError("Article list request identity missing", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const rows = await ArticleManagementService.getInstance().list(userId, request as TypedRequest, {
+        publishStatus: "published",
+      });
+      const accessible = await this.filterArticleRequirements(rows, userId);
+      return Promise.all(accessible.map((row) => this.toArticleListItemDto(row)));
+    }
 
-    // Filter by permissions
-    const accessible = await Promise.all(
-      articles.map(async (article) => {
-        try {
-          await this.checkArticleAccess(article, userId);
-          return article;
-        } catch {
-          return null;
-        }
-      }),
-    );
+    const articles = await this.repository.findAll({ publishStatus: "published" });
+    const accessible = (
+      await Promise.all(
+        articles.map(async (article) => {
+          try {
+            await this.checkArticleAccess(article, userId);
+            return article;
+          } catch {
+            return null;
+          }
+        }),
+      )
+    ).filter((article): article is NonNullable<typeof article> => article !== null);
 
-    return Promise.all(accessible.filter((a) => a !== null).map((a) => this.toArticleListItemDto(a!)));
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        const iamRows = await ArticleManagementService.getInstance().list(
+          userId,
+          request as TypedRequest,
+          { publishStatus: "published" },
+          new Set(accessible.map((article) => article.id)),
+        );
+        const iamAccessible = await this.filterArticleRequirements(iamRows, userId);
+        const iamIds = new Set(iamAccessible.map((article) => article.id));
+        if (iamIds.size !== accessible.length || accessible.some((article) => !iamIds.has(article.id)))
+          getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn("IAM published article list differs", {
+            action: "quyan:article:ListArticles",
+            legacyCount: accessible.length,
+            iamCount: iamIds.size,
+          });
+      } catch {
+        getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn(
+          "IAM published article list shadow evaluation unavailable",
+          { action: "quyan:article:ListArticles", reason: "iam-list-unavailable" },
+        );
+      }
+    }
+
+    return Promise.all(accessible.map((article) => this.toArticleListItemDto(article)));
   }
 
   async listPublicArticles(): Promise<ArticleListItemDto[]> {
@@ -461,7 +494,7 @@ export class ArticleService {
     };
   }
 
-  async getDefaultArticle(userId: string): Promise<ArticleDto | null> {
+  async getDefaultArticle(userId: string, request?: Request): Promise<ArticleDto | null> {
     const article = await this.repository.findDefault();
     if (!article) return null;
 
@@ -469,6 +502,37 @@ export class ArticleService {
       await this.checkArticleAccess(article, userId);
     } catch {
       return null;
+    }
+
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (!request)
+        throw new ForbiddenError("Article default request identity missing", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const rows = await ArticleManagementService.getInstance().list(userId, request as TypedRequest, {
+        publishStatus: "published",
+      });
+      if (!rows.some((row) => row.id === article.id && row.isDefault)) return null;
+    } else if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        const rows = await ArticleManagementService.getInstance().list(
+          userId,
+          request as TypedRequest,
+          { publishStatus: "published" },
+          new Set([article.id]),
+        );
+        if (!rows.some((row) => row.id === article.id && row.isDefault))
+          getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn("IAM default article access differs", {
+            action: "quyan:article:ListArticles",
+            legacyCount: 1,
+            iamCount: 0,
+          });
+      } catch {
+        getLogger("ArticleListAuthorization", LogCategory.SECURITY).warn(
+          "IAM default article shadow evaluation unavailable",
+          { action: "quyan:article:ListArticles", reason: "iam-list-unavailable" },
+        );
+      }
     }
 
     this.repository.incrementViewCount(article.id).catch(() => {});
