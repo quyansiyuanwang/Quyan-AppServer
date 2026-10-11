@@ -58,6 +58,28 @@ describe("IAM service and resource catalog", () => {
     );
     expect(IAM_AUTHENTICATED_SELF_ACTIONS.every((action) => !action.includes("*"))).toBe(true);
   });
+  it("registers every relay channel operation with a channel resource target", () => {
+    const relayPermissions = [
+      Permission.RELAY_CHANNEL_CREATE,
+      Permission.RELAY_CHANNEL_READ,
+      Permission.RELAY_CHANNEL_UPDATE,
+      Permission.RELAY_CHANNEL_DELETE,
+      Permission.RELAY_CHANNEL_EXPORT,
+      Permission.RELAY_CHANNEL_HEALTH_READ,
+      Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+      Permission.RELAY_CHANNEL_PROBE_READ,
+      Permission.RELAY_CHANNEL_PROBE_EXECUTE,
+      Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+      Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST,
+      Permission.RELAY_CHANNEL_SUBMIT,
+      Permission.RELAY_CHANNEL_REVIEW,
+      Permission.RELAY_CHANNEL_PROVIDER_READ,
+      Permission.RELAY_CHANNEL_PROVIDER_SETTLE,
+    ];
+    for (const permission of relayPermissions)
+      expect(getIamActionDefinition(actionForPermission(permission))?.resourceTypes).toContain("relay/channel");
+  });
+
   it("declares real project actions without an implicit self-service project grant", () => {
     expect(getIamActionDefinition("quyan:developer:CreateProject")).toMatchObject({
       accessLevel: "Write",
