@@ -54,6 +54,8 @@ import { isMonthlyPassCoverageDescription } from "@/util/monthly-pass-coverage.u
 import { normalizeRelayDisplaySnapshotName } from "@/util/relay";
 import { BalanceTransferService } from "@/services/billing/balance-transfer.service";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 type UsageDataMap = Map<
   string,
@@ -294,6 +296,13 @@ export class BalanceController extends Controller {
 
   @Get("account")
   @Security("jwt", ["balance:read"])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:GetAccount",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getMyBalance(@Request() request: TypedRequest): Promise<BalanceAccountResponse> {
     const userId = request.user!.userId;
     const account = await this.balanceService.getBalance(userId);
@@ -308,6 +317,13 @@ export class BalanceController extends Controller {
 
   @Get("usage")
   @Security("jwt", ["balance:read"])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:GetUsage",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getUsage(@Request() request: TypedRequest): Promise<UserBalanceResponse> {
     const userId = request.user!.userId;
     const account = await this.balanceService.getBalance(userId);
@@ -386,12 +402,26 @@ export class BalanceController extends Controller {
 
   @Get("transfers/config")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:GetTransferConfig",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getTransferConfig(@Request() _request: TypedRequest): Promise<BalanceTransferConfigDto> {
     return await this.balanceTransferService.getConfig();
   }
 
   @Post("gift-codes")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:CreateGiftCode",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -407,6 +437,13 @@ export class BalanceController extends Controller {
 
   @Get("gift-codes")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:ListGiftCodes",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(balanceGiftCodeListQuerySchema))
   public async getMyGiftCodes(
     @Request() request: TypedRequest,
@@ -418,6 +455,13 @@ export class BalanceController extends Controller {
 
   @Delete("gift-codes/{id}")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:CancelGiftCode",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -433,6 +477,13 @@ export class BalanceController extends Controller {
 
   @Post("transfers")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:CreateTransfer",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -448,6 +499,13 @@ export class BalanceController extends Controller {
 
   @Get("transactions")
   @Security("jwt", ["balance:read"])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:ListTransactions",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(balanceTransactionsQuerySchema))
   public async getMyTransactions(
     @Query() type?: string,
