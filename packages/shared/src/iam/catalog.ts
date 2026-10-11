@@ -212,6 +212,11 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       resourceTypes: ['developer/project', 'developer/project-api-key'],
     },
     {
+      operation: 'CreateProjectApiKey',
+      accessLevel: 'Write',
+      resourceTypes: ['developer/project'],
+    },
+    {
       operation: 'RevokeProjectApiKey',
       accessLevel: 'Write',
       resourceTypes: ['developer/project-api-key'],

@@ -226,9 +226,14 @@ export class DeveloperProjectController extends Controller {
 
   @Post("{projectId}/keys")
   @Middlewares(
-    replayProtectionMiddleware,
+    replayProtectionMiddleware as RequestHandler,
     validateParams(projectIdParamsSchema),
     validateBody(createProjectApiKeyBodySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:developer:CreateProjectApiKey",
+      resourceKind: "single-resource",
+      resource: developerProjectResourceResolver,
+    }),
   )
   public async createKey(
     @Path() projectId: string,

@@ -80,6 +80,14 @@ describe("IAM service and resource catalog", () => {
       expect(getIamActionDefinition(actionForPermission(permission))?.resourceTypes).toContain("relay/channel");
   });
 
+  it("registers project API key creation on the project resource", () => {
+    expect(getIamActionDefinition("quyan:developer:CreateProjectApiKey")).toMatchObject({
+      accessLevel: "Write",
+      resourceTypes: ["developer/project"],
+      authorizationStage: "declared",
+    });
+  });
+
   it("declares real project actions without an implicit self-service project grant", () => {
     expect(getIamActionDefinition("quyan:developer:CreateProject")).toMatchObject({
       accessLevel: "Write",
