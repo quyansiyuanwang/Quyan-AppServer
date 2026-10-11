@@ -60,7 +60,13 @@ import type {
   RelayChannelSubmissionStatus,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
-import { RequireAllPermissions, RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
+import {
+  CheckPermission,
+  PermissionCheckMode,
+  RequireAllPermissions,
+  RequireAnyPermission,
+  RequirePermission,
+} from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -93,6 +99,7 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
+import { relayChannelResourceResolver } from "@/iam/request/resource-resolvers";
 
 @Route("v1/relay-channels")
 @Tags("Relay Channels")
@@ -376,7 +383,18 @@ export class RelayChannelController extends Controller {
 
   @Put("{id}/provider-config")
   @Security("jwt")
-  @RequireAnyPermission([Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE])
+  @CheckPermission([Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE], PermissionCheckMode.ANY, "jwt", [
+    {
+      action: "quyan:relay:channel:Review",
+      resourceKind: "single-resource",
+      resource: relayChannelResourceResolver,
+    },
+    {
+      action: "quyan:relay:channel:Update",
+      resourceKind: "single-resource",
+      resource: relayChannelResourceResolver,
+    },
+  ])
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -514,7 +532,18 @@ export class RelayChannelController extends Controller {
 
   @Get("{id}")
   @Security("jwt")
-  @RequireAnyPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW])
+  @CheckPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW], PermissionCheckMode.ANY, "jwt", [
+    {
+      action: "quyan:relay:channel:Read",
+      resourceKind: "single-resource",
+      resource: relayChannelResourceResolver,
+    },
+    {
+      action: "quyan:relay:channel:Review",
+      resourceKind: "single-resource",
+      resource: relayChannelResourceResolver,
+    },
+  ])
   @Middlewares(validateParams(relayChannelIdParamsSchema))
   public async getChannel(@Path() id: string, @Request() request: TypedRequest): Promise<RelayChannelDto> {
     return this.channelService.getChannel(id, request.user!.userId);
@@ -571,7 +600,11 @@ export class RelayChannelController extends Controller {
 
   @Put("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Update",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -605,7 +638,11 @@ export class RelayChannelController extends Controller {
 
   @Post("{id}/duplicate")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_CREATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Create",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -639,7 +676,11 @@ export class RelayChannelController extends Controller {
 
   @Patch("{id}/toggle")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Update",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -668,7 +709,11 @@ export class RelayChannelController extends Controller {
 
   @Delete("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_DELETE)
+  @CheckPermission(Permission.RELAY_CHANNEL_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Delete",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

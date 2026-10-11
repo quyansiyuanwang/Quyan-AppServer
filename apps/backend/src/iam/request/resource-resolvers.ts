@@ -30,6 +30,11 @@ export function accountEntityResourceResolver(
   };
 }
 
+export const relayChannelResourceResolver = accountEntityResourceResolver(
+  "relay-channel",
+  (request) => request.params.id,
+);
+
 /** Reject the entire batch when any identifier is invalid; never omit an unresolved target. */
 export function accountEntityBatchResourceResolver(
   kind: "user" | "group" | "role" | "policy" | "authorization" | "resource-group" | "role-session" | "relay-channel",
