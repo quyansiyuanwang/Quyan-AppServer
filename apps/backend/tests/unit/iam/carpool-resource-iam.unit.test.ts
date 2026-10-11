@@ -1,12 +1,27 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findOrder } = vi.hoisted(() => ({ findOrder: vi.fn() }));
+const { findOrder, findTemplate, findInvite } = vi.hoisted(() => ({
+  findOrder: vi.fn(),
+  findTemplate: vi.fn(),
+  findInvite: vi.fn(),
+}));
 vi.mock("@/store/billing/carpool.repository", () => ({
-  CarpoolRepository: { getInstance: () => ({ findOrder }) },
+  CarpoolRepository: {
+    getInstance: () => ({
+      findMemberOrderTarget: findOrder,
+      findPublishedTemplate: findTemplate,
+      findUsableInviteOrder: findInvite,
+    }),
+  },
 }));
 
 import { getIamActionDefinition, isIamActionResourceCompatible } from "@quyan/shared";
-import { carpoolOrderResourceResolver } from "@/iam/request/carpool-resource-resolvers";
+import {
+  carpoolOrderResourceResolver,
+  carpoolCreateOrderResourceResolver,
+  carpoolAcceptInviteResourceResolver,
+} from "@/iam/request/carpool-resource-resolvers";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import type { TypedRequest } from "@/types/express";
@@ -34,7 +49,7 @@ describe("carpool IAM resource contract", () => {
     );
     findOrder.mockResolvedValueOnce({ id: "order-1", members: [{ userId: "user-2" }] });
     await expect(carpoolOrderResourceResolver({ request: request("order-1"), principal })).resolves.toBeUndefined();
-    expect(findOrder).toHaveBeenCalledWith("order-1");
+    expect(findOrder).toHaveBeenCalledWith("order-1", "user-1", "account-1");
   });
 
   it("rejects malformed identifiers before querying the repository", async () => {
@@ -66,12 +81,48 @@ describe("carpool IAM resource contract", () => {
     expect(isIamActionResourceCompatible(action, "acs:carpool:*:account-1:template/template-1")).toBe(false);
   });
 
+  it("requires both the user and the selected published template when creating an order", async () => {
+    findTemplate.mockResolvedValue({ id: "template-1" });
+    const req = { body: { packageTemplateId: "template-1", accountId: "foreign" } } as unknown as TypedRequest<
+      Record<string, unknown>
+    >;
+    await expect(carpoolCreateOrderResourceResolver({ request: req, principal })).resolves.toEqual([
+      "acs:quyan:*:account-1:user/user-1",
+      "acs:carpool:*:account-1:template/template-1",
+    ]);
+    findTemplate.mockResolvedValueOnce({ id: "other-template" });
+    await expect(carpoolCreateOrderResourceResolver({ request: req, principal })).resolves.toBeUndefined();
+    findTemplate.mockClear();
+    req.body = { packageTemplateId: "*" };
+    await expect(carpoolCreateOrderResourceResolver({ request: req, principal })).resolves.toBeUndefined();
+    expect(findTemplate).not.toHaveBeenCalled();
+  });
+
+  it("resolves invitations through a hashed token without treating possession as authorization", async () => {
+    const token = "fixture-" + "a".repeat(32);
+    const req = { body: { token, orderId: "forged-order", accountId: "foreign" } } as unknown as TypedRequest<
+      Record<string, unknown>
+    >;
+    findInvite.mockResolvedValue({ orderId: "order-1" });
+    await expect(carpoolAcceptInviteResourceResolver({ request: req, principal })).resolves.toEqual([
+      "acs:quyan:*:account-1:user/user-1",
+      "acs:carpool:*:account-1:order/order-1",
+    ]);
+    expect(findInvite).toHaveBeenCalledWith(createHash("sha256").update(token).digest("hex"), expect.any(Date));
+    findInvite.mockResolvedValueOnce(null);
+    await expect(carpoolAcceptInviteResourceResolver({ request: req, principal })).resolves.toBeUndefined();
+    findInvite.mockClear();
+    req.body = { token: "short" };
+    await expect(carpoolAcceptInviteResourceResolver({ request: req, principal })).resolves.toBeUndefined();
+    expect(findInvite).not.toHaveBeenCalled();
+  });
+
   it("registers order actions against the concrete carpool order resource", () => {
     expect(getIamActionDefinition("quyan:carpool:GetOrder")).toMatchObject({
       resourceTypes: ["carpool/order"],
     });
     expect(getIamActionDefinition("quyan:carpool:CreateOrder")).toMatchObject({
-      resourceTypes: ["quyan/user"],
+      resourceTypes: ["quyan/user", "carpool/template"],
     });
   });
 });

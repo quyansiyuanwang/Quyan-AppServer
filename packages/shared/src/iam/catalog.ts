@@ -840,11 +840,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
   ...[
     { operation: 'ListPublishedTemplates', accessLevel: 'List', resourceTypes: ['quyan/account'] },
     { operation: 'ListPackageCatalog', accessLevel: 'List', resourceTypes: ['quyan/account'] },
-    { operation: 'ListMyOrders', accessLevel: 'List', resourceTypes: ['quyan/user'] },
-    { operation: 'CreateOrder', accessLevel: 'Write', resourceTypes: ['quyan/user'] },
+    {
+      operation: 'ListMyOrders',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/user', 'carpool/order'],
+    },
+    {
+      operation: 'CreateOrder',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user', 'carpool/template'],
+    },
     { operation: 'GetOrder', accessLevel: 'Read', resourceTypes: ['carpool/order'] },
     { operation: 'CreateInvite', accessLevel: 'Write', resourceTypes: ['carpool/order'] },
-    { operation: 'AcceptInvite', accessLevel: 'Write', resourceTypes: ['quyan/user'] },
+    {
+      operation: 'AcceptInvite',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user', 'carpool/order'],
+    },
     { operation: 'AllocateRatios', accessLevel: 'Write', resourceTypes: ['carpool/order'] },
     { operation: 'ConfirmMember', accessLevel: 'Write', resourceTypes: ['carpool/order'] },
     { operation: 'LeaveOrder', accessLevel: 'Write', resourceTypes: ['carpool/order'] },

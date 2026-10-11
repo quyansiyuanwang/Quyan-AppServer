@@ -352,3 +352,13 @@ KV 和密钥可作为资源组成员，移除成员后下一次请求即失去�
 ```
 
 附加一个条件更严格的 Allow 不会缩小既有默认 Allow。需要限制默认能力时，应使用匹配操作和资源的 Deny。资源账户由认证主体决定，客户端提交的账户 ID 或 Action Header 不能改变授权目标。legacy 模式保留旧规则，shadow 模式比较 IAM 与原有列表结果，enforce 模式拒绝资源解析或授权数据读取失败的请求。
+
+## 拼车订单资源授权
+
+在 enforce 模式下，`quyan:carpool:ListMyOrders` 对 `acs:carpool:*:<accountId>:order/<orderId>` 逐条评估；订单列表和总数只包括允许查看的订单。授权前还会验证当前用户的有效成员关联，给非成员一个订单 ARN 的 Allow 不会获得订单内容。读取详情使用 `quyan:carpool:GetOrder`，列表授权不自动授予详情或写入能力。
+
+创建订单使用 `quyan:carpool:CreateOrder`，需要同时允许当前用户 ARN 和所选公开套餐 ARN `acs:carpool:*:<accountId>:template/<templateId>`。接受邀请使用 `quyan:carpool:AcceptInvite`，需要同时允许当前用户 ARN 和服务端根据有效邀请找到的订单 ARN。邀请令牌不是授权凭证，不会写入资源 ARN 或 IAM 审计日志。篡改请求中的订单 ID、账户 ID 或 Action Header 不能改变这些目标。
+
+邀请、比例分配、确认份额、退出、取消和提交分别使用 `quyan:carpool:CreateInvite`、`AllocateRatios`、`ConfirmMember`、`LeaveOrder`、`CancelOrder`、`SubmitOrder`（后五项使用相同的 `quyan:carpool:` 前缀），目标均为具体订单 ARN。IAM Allow 不取代成员和发起人校验，也不绕过订单状态、邀请有效期、份额比例或余额要求。没有匹配 Allow 时默认拒绝，任意匹配的 Deny 优先。
+
+legacy 保留原来的成员规则，shadow 保留业务结果并比较 IAM 列表范围，enforce 在资源解析、策略读取或最终权限复核失败时拒绝请求。套餐运营和管理员履约接口另有管理权限，自助订单授权不会授予这些能力。

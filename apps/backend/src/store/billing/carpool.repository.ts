@@ -1,3 +1,4 @@
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { prisma } from "@/config/database";
 import { Prisma } from "@prisma/client";
 
@@ -10,6 +11,14 @@ export const carpoolOrderInclude = {
   events: { orderBy: { createTime: "asc" } },
 } satisfies Prisma.CarpoolOrderInclude;
 export type CarpoolOrderRecord = Prisma.CarpoolOrderGetPayload<{ include: typeof carpoolOrderInclude }>;
+
+const memberTargetSelect = {
+  id: true,
+  createTime: true,
+  updateTime: true,
+  members: { where: { status: 1 }, select: { userId: true } },
+} satisfies Prisma.CarpoolOrderSelect;
+export type CarpoolMemberOrderTarget = Prisma.CarpoolOrderGetPayload<{ select: typeof memberTargetSelect }>;
 
 export class CarpoolRepository {
   private static instance: CarpoolRepository;
@@ -73,6 +82,82 @@ export class CarpoolRepository {
         take: pageSize,
       }),
     ]);
+  }
+  private memberOrderWhere(
+    userId: string,
+    accountOwnerId: string,
+    state?: string,
+    keyword?: string,
+  ): Prisma.CarpoolOrderWhereInput {
+    return {
+      status: 1,
+      members: {
+        some: {
+          userId,
+          status: 1,
+          user: { status: 1, OR: [{ id: accountOwnerId, accountOwnerId: null }, { accountOwnerId }] },
+        },
+      },
+      ...(state ? { state } : {}),
+      ...(keyword ? { OR: [{ packageName: { contains: keyword } }, { id: { contains: keyword } }] } : {}),
+    };
+  }
+  findMemberOrderTarget(id: string, userId: string, accountOwnerId: string) {
+    return prisma.carpoolOrder.findFirst({
+      where: { ...this.memberOrderWhere(userId, accountOwnerId), id },
+      select: memberTargetSelect,
+    });
+  }
+  scanMemberOrderTargets(
+    userId: string,
+    accountOwnerId: string,
+    state?: string,
+    keyword?: string,
+    after?: CarpoolMemberOrderTarget,
+  ) {
+    return prisma.carpoolOrder.findMany({
+      where: {
+        ...this.memberOrderWhere(userId, accountOwnerId, state, keyword),
+        ...(after
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { createTime: { lt: after.createTime } },
+                    { createTime: after.createTime, id: { lt: after.id } },
+                  ],
+                },
+              ],
+            }
+          : {}),
+      },
+      select: memberTargetSelect,
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+    });
+  }
+  readMemberOrderTargets(userId: string, accountOwnerId: string, targets: readonly CarpoolMemberOrderTarget[]) {
+    if (!targets.length) return Promise.resolve([]);
+    return prisma.carpoolOrder.findMany({
+      where: {
+        ...this.memberOrderWhere(userId, accountOwnerId),
+        OR: targets.map((target) => ({ id: target.id, updateTime: target.updateTime })),
+      },
+      include: carpoolOrderInclude,
+    });
+  }
+  findUsableInviteOrder(tokenHash: string, now: Date) {
+    return prisma.carpoolInvite.findFirst({
+      where: {
+        tokenHash,
+        status: 1,
+        revokedAt: null,
+        usedAt: null,
+        expiresAt: { gt: now },
+        order: { status: 1, state: "open" },
+      },
+      select: { orderId: true },
+    });
   }
   findOrder(id: string) {
     return prisma.carpoolOrder.findUnique({ where: { id }, include: carpoolOrderInclude });

@@ -45,9 +45,16 @@ import {
   updateCarpoolPackageTemplateBodySchema,
 } from "@/api/schema/billing/carpool.schema";
 import type { TypedRequest } from "@/types/express";
-import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { carpoolOrderResourceResolver } from "@/iam/request/carpool-resource-resolvers";
+import {
+  carpoolOrderResourceResolver,
+  carpoolCreateOrderResourceResolver,
+  carpoolAcceptInviteResourceResolver,
+} from "@/iam/request/carpool-resource-resolvers";
 
 @Route("v1/carpools")
 @Tags("Carpool")
@@ -147,9 +154,9 @@ export class CarpoolController extends Controller {
   @Get("me")
   @Security("jwt")
   @Middlewares(
-    iamAuthenticatedAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:carpool:ListMyOrders",
-      resourceKind: "single-resource",
+      resourceKind: "collection",
       resource: iamAuthenticatedUserResourceResolver,
     }),
   )
@@ -161,7 +168,7 @@ export class CarpoolController extends Controller {
     @Query() state?: string,
     @Query() keyword?: string,
   ): Promise<CarpoolOrderListResponse> {
-    return this.service.listMine(request.user!.userId, page, pageSize, state, keyword);
+    return this.service.listMine(request.user!.userId, page, pageSize, state, keyword, request);
   }
   @Get("admin")
   @Security("jwt")
@@ -203,8 +210,8 @@ export class CarpoolController extends Controller {
   @Middlewares(
     iamAuthenticatedAuthorizationMiddleware({
       action: "quyan:carpool:CreateOrder",
-      resourceKind: "single-resource",
-      resource: iamAuthenticatedUserResourceResolver,
+      resourceKind: "batch",
+      resource: carpoolCreateOrderResourceResolver,
     }),
   )
   @Middlewares(replayProtectionMiddleware, validateBody(createCarpoolOrderBodySchema))
@@ -249,8 +256,8 @@ export class CarpoolController extends Controller {
   @Middlewares(
     iamAuthenticatedAuthorizationMiddleware({
       action: "quyan:carpool:AcceptInvite",
-      resourceKind: "single-resource",
-      resource: iamAuthenticatedUserResourceResolver,
+      resourceKind: "batch",
+      resource: carpoolAcceptInviteResourceResolver,
     }),
   )
   @Middlewares(replayProtectionMiddleware, validateBody(acceptCarpoolInviteBodySchema))

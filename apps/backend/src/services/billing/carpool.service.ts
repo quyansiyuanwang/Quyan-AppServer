@@ -1,3 +1,7 @@
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getLogger, LogCategory } from "@/util/logger";
+import { CarpoolOrderIamService } from "./carpool-order-iam.service";
 import crypto from "crypto";
 import { Decimal } from "@prisma/client/runtime/library";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
@@ -338,7 +342,11 @@ export class CarpoolService {
     if (!admin && !order.members.some((member) => member.userId === userId)) throw new ForbiddenError();
     return this.dto(order, admin ? undefined : userId, admin);
   }
-  async listMine(userId: string, page = 1, pageSize = 20, state?: string, keyword?: string) {
+  async listMine(userId: string, page = 1, pageSize = 20, state?: string, keyword?: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await CarpoolOrderIamService.getInstance().list(userId, page, pageSize, state, keyword, request);
+      return { ...result, records: result.records.map((record) => this.dto(record, userId)) };
+    }
     const [total, records] = await this.repository.findOrdersForUser(
       userId,
       Math.max(1, page),
@@ -346,6 +354,31 @@ export class CarpoolService {
       state,
       keyword,
     );
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        const projected = await CarpoolOrderIamService.getInstance().list(
+          userId,
+          page,
+          pageSize,
+          state,
+          keyword,
+          request,
+        );
+        if (
+          projected.total !== total ||
+          projected.records.map((record) => record.id).join() !== records.map((record) => record.id).join()
+        )
+          getLogger("CarpoolOrderIam", LogCategory.SECURITY).warn("Carpool IAM shadow population differs", {
+            action: "quyan:carpool:ListMyOrders",
+            reason: "resource-population-difference",
+          });
+      } catch {
+        getLogger("CarpoolOrderIam", LogCategory.SECURITY).warn("Carpool IAM shadow evaluation unavailable", {
+          action: "quyan:carpool:ListMyOrders",
+          reason: "iam-evaluation-unavailable",
+        });
+      }
+    }
     return { total, records: records.map((item) => this.dto(item, userId)) };
   }
   async listAdmin(state?: string, page = 1, pageSize = 20, keyword?: string) {

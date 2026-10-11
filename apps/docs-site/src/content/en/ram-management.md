@@ -352,3 +352,13 @@ For example, this policy blocks viewing and cancelling a specific gift code whil
 ```
 
 Adding an Allow with stricter conditions does not narrow an existing default Allow. Use a Deny matching the operation and resource to restrict default capabilities. Authentication determines the resource account; client-supplied account IDs and Action headers cannot change the target. legacy retains the previous rules, shadow compares IAM and legacy list results, and enforce denies requests when resource resolution or authorization data retrieval fails.
+
+## Carpool order resource authorization
+
+In enforce mode, `quyan:carpool:ListMyOrders` evaluates each `acs:carpool:*:<accountId>:order/<orderId>` resource. List records and totals include only orders allowed for viewing. Storage checks the authenticated user's active membership before authorization; granting an order ARN to a nonmember does not expose its content. Detail reads use `quyan:carpool:GetOrder`; list permission does not automatically grant detail reads or writes.
+
+Creating an order uses `quyan:carpool:CreateOrder` and requires Allow on both the authenticated user's ARN and the chosen published package ARN, `acs:carpool:*:<accountId>:template/<templateId>`. Accepting an invitation uses `quyan:carpool:AcceptInvite` and requires Allow on both the user's ARN and the order ARN resolved by the server from a valid invitation. Invitation tokens are not authorization grants and never enter resource ARNs or IAM audit logs. Forged order IDs, account IDs, and Action headers cannot change these targets.
+
+Inviting, allocating ratios, confirming a share, leaving, cancelling, and submitting use `quyan:carpool:CreateInvite`, `AllocateRatios`, `ConfirmMember`, `LeaveOrder`, `CancelOrder`, and `SubmitOrder` respectively (the latter five share the `quyan:carpool:` prefix). Each targets a concrete order ARN. IAM Allow does not replace membership or initiator checks or bypass order state, invitation expiry, share ratios, or balance requirements. No matching Allow means denial, and any matching Deny takes precedence.
+
+legacy retains the previous membership rules, shadow preserves business results and compares the IAM list population, and enforce rejects requests when resolution, policy retrieval, or final grant revalidation fails. Package operations and administrative fulfillment have separate management permissions; self-service order grants do not provide those capabilities.
