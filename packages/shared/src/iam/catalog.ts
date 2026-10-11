@@ -260,6 +260,9 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     { operation: 'UseSecret', accessLevel: 'Write', resourceTypes: ['developer/secret'] },
     { operation: 'GetProjectUsage', accessLevel: 'Read', resourceTypes: ['developer/project'] },
     { operation: 'UpdateStatusPage', accessLevel: 'Write', resourceTypes: ['developer/project'] },
+    { operation: 'GetJsonEndpoint', accessLevel: 'Read', resourceTypes: ['developer/project'] },
+    { operation: 'UpdateJsonEndpoint', accessLevel: 'Write', resourceTypes: ['developer/project'] },
+    { operation: 'ListProductInstances', accessLevel: 'List', resourceTypes: ['quyan/account'] },
   ].map(
     (definition): IamActionDefinition => ({
       ...definition,

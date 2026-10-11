@@ -452,8 +452,9 @@ export class DeveloperProductPlatformService {
     actorUserId: string,
     productCode: DeveloperProductCode,
     permission: Permission,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<DeveloperProductInstanceDto[]> {
-    await this.assertProductPermission(actorUserId, productCode, permission);
+    if (!options.iamAuthorized) await this.assertProductPermission(actorUserId, productCode, permission);
     const user = await prisma.user.findUnique({
       where: { id: actorUserId },
       select: { id: true, accountOwnerId: true },
@@ -632,8 +633,9 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
     permission: Permission,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<any> {
-    await this.assertProductPermission(actorUserId, productCode, permission);
+    if (!options.iamAuthorized) await this.assertProductPermission(actorUserId, productCode, permission);
     const instance = await prisma.developerProductInstance.findFirst({
       where: { id: instanceId, status: 1, entitlement: { productCode, status: 1 } },
       include: { entitlement: true },
@@ -658,8 +660,9 @@ export class DeveloperProductPlatformService {
     productCode: DeveloperProductCode,
     instanceId: string,
     permission: Permission,
+    options: { iamAuthorized?: boolean } = {},
   ): Promise<{ backingProjectId: string; accountOwnerId: string }> {
-    const instance = await this.getAuthorizedInstance(actorUserId, productCode, instanceId, permission);
+    const instance = await this.getAuthorizedInstance(actorUserId, productCode, instanceId, permission, options);
     return { backingProjectId: instance.backingProjectId, accountOwnerId: instance.entitlement.accountOwnerId };
   }
 
