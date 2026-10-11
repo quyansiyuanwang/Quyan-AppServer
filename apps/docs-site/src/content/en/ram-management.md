@@ -331,3 +331,24 @@ Channels use `acs:developer:*:<accountId>:push-channel/<projectId>/<channelId>`.
 ## Project Delivery record authorization
 
 Delivery records use `acs:developer:*:<accountId>:push-delivery/<projectId>/<deliveryId>`. ListPushDeliveries and GetPushDelivery independently control lists and details; channel management does not imply record access. Row filtering and resource groups verify the record and channel share an active project and account. No message body or raw error is returned. Failures expose a fixed failureReason; the old error field is no longer populated, preventing historical credential disclosure. See [Push Aggregation](./developer-product-push) for APIs, pagination, and deletion effects.
+
+## Balance and gift-code resource authorization
+
+In enforce mode, personal balance reads, usage, transfer configuration, gift-code creation, transfers, and redemption use `quyan:balance:GetAccount`, `GetUsage`, `GetTransferConfig`, `CreateGiftCode`, `CreateTransfer`, and `RedeemCode` respectively (the latter five share the `quyan:balance:` prefix). Their target is `acs:quyan:*:<accountId>:user/<userId>`. These operations have a narrow default self-service Allow for the authenticated user; a matching explicit Deny takes precedence. Sending a transfer grants no authority to inspect or manage the recipient's account. Balance, fee, 2FA, and replay checks still apply.
+
+User-created balance gift codes have concrete ARNs: `acs:balance:*:<accountId>:gift-code/<creatorUserId>/<giftCodeId>`. `quyan:balance:ListGiftCodes` evaluates each resource, and `quyan:balance:CancelGiftCode` checks the specified gift code. The default self-service scope covers only codes created by the authenticated user; knowing a code ID grants no authority over another user's codes. Both list records and totals include only codes allowed for viewing, and the list cannot reveal the redemption strings of denied resources.
+
+For example, this policy blocks viewing and cancelling a specific gift code while retaining the default capabilities for other codes. Replace the account, user, and gift-code IDs with your own real resources:
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Deny",
+    "Action": ["quyan:balance:ListGiftCodes", "quyan:balance:CancelGiftCode"],
+    "Resource": "acs:balance:*:account-id:gift-code/user-id/gift-code-id"
+  }
+}
+```
+
+Adding an Allow with stricter conditions does not narrow an existing default Allow. Use a Deny matching the operation and resource to restrict default capabilities. Authentication determines the resource account; client-supplied account IDs and Action headers cannot change the target. legacy retains the previous rules, shadow compares IAM and legacy list results, and enforce denies requests when resource resolution or authorization data retrieval fails.

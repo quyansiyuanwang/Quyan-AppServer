@@ -12,9 +12,7 @@ describe("self-service IAM action catalog", () => {
       "quyan:balance:GetAccount",
       "quyan:balance:GetUsage",
       "quyan:balance:GetTransferConfig",
-      "quyan:balance:ListGiftCodes",
       "quyan:balance:CreateGiftCode",
-      "quyan:balance:CancelGiftCode",
       "quyan:balance:CreateTransfer",
       "quyan:balance:ListTransactions",
       "quyan:carpool:ListMyOrders",
@@ -35,6 +33,12 @@ describe("self-service IAM action catalog", () => {
         authorizationStage: "declared",
       });
 
+    expect(getIamActionDefinition("quyan:balance:ListGiftCodes")).toMatchObject({
+      resourceTypes: ["quyan/user", "balance/gift-code"],
+    });
+    expect(getIamActionDefinition("quyan:balance:CancelGiftCode")).toMatchObject({
+      resourceTypes: ["balance/gift-code"],
+    });
     expect(getIamActionDefinition("quyan:monthly_pass:ListPublishedTemplates")).toMatchObject({
       resourceTypes: ["quyan/account"],
     });

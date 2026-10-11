@@ -1,3 +1,7 @@
+import { getLogger, LogCategory } from "@/util/logger";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { BalanceGiftCodeIamService } from "./balance-gift-code-iam.service";
 import crypto from "crypto";
 import type { Request } from "express";
 import { BadRequestError } from "@/util/errors";
@@ -84,7 +88,11 @@ export class BalanceTransferService {
     return this.toGiftCodeDto(giftCode);
   }
 
-  async listGiftCodes(senderId: string, page = 1, pageSize = 20) {
+  async listGiftCodes(senderId: string, page = 1, pageSize = 20, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await BalanceGiftCodeIamService.getInstance().list(senderId, page, pageSize, request);
+      return { ...result, records: result.records.map((record) => this.toGiftCodeDto(record)) };
+    }
     const normalizedPage = Math.max(1, Math.floor(page));
     const normalizedPageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
     const { total, records } = await this.repository.listGiftCodes(
@@ -92,6 +100,29 @@ export class BalanceTransferService {
       (normalizedPage - 1) * normalizedPageSize,
       normalizedPageSize,
     );
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        const projected = await BalanceGiftCodeIamService.getInstance().list(
+          senderId,
+          normalizedPage,
+          normalizedPageSize,
+          request,
+        );
+        if (
+          projected.total !== total ||
+          projected.records.map((record) => record.id).join() !== records.map((record) => record.id).join()
+        )
+          getLogger("BalanceGiftCodeIam", LogCategory.SECURITY).warn("Gift code IAM shadow population differs", {
+            action: "quyan:balance:ListGiftCodes",
+            reason: "resource-population-difference",
+          });
+      } catch {
+        getLogger("BalanceGiftCodeIam", LogCategory.SECURITY).warn("Gift code IAM shadow evaluation unavailable", {
+          action: "quyan:balance:ListGiftCodes",
+          reason: "iam-evaluation-unavailable",
+        });
+      }
+    }
     return {
       total,
       records: records.map((record) => this.toGiftCodeDto(record)),

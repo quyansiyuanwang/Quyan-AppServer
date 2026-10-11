@@ -331,3 +331,24 @@ KV 和密钥可作为资源组成员，移除成员后下一次请求即失去�
 ## 项目投递记录授权
 
 投递记录使用 `acs:developer:*:<accountId>:push-delivery/<projectId>/<deliveryId>`。`ListPushDeliveries` 与 `GetPushDelivery` 独立控制列表和详情，渠道管理权限不包含记录访问。逐项列表过滤与资源组都验证记录及渠道属于同一有效项目和账户，不返回消息正文或原始错误。失败记录提供固定 failureReason，旧 error 字段不再填充，以防历史错误泄露凭据；完整接口、分页和删除影响见 [推送聚合](./developer-product-push)。
+
+## 余额与兑换码资源授权
+
+在 enforce 模式下，自己的余额读取、用量、转账配置、创建兑换码、转账和兑换分别使用 `quyan:balance:GetAccount`、`GetUsage`、`GetTransferConfig`、`CreateGiftCode`、`CreateTransfer`、`RedeemCode`（后五项使用相同的 `quyan:balance:` 前缀），目标为 `acs:quyan:*:<accountId>:user/<userId>`。这些操作具有受限的默认自助 Allow，仅限当前认证用户；匹配的显式 Deny 仍然优先。转账不会授予查看或管理收款人账户的权限，余额、费率、2FA 和重放保护校验继续生效。
+
+用户创建的余额兑换码使用具体 ARN：`acs:balance:*:<accountId>:gift-code/<creatorUserId>/<giftCodeId>`。`quyan:balance:ListGiftCodes` 逐条评估该资源，`quyan:balance:CancelGiftCode` 检查指定兑换码资源。默认自助范围只包含当前用户创建的兑换码；知道兑换码 ID 不会获得查看或取消他人兑换码的权限。列表的记录和总数都只包括允许查看的兑换码，不能通过列表获取被拒绝资源的兑换字符串。
+
+例如，以下策略在保留其他兑换码默认能力的同时，阻止查看和取消指定兑换码。示例中的账户、用户和兑换码 ID 必须替换为自己的真实资源：
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Deny",
+    "Action": ["quyan:balance:ListGiftCodes", "quyan:balance:CancelGiftCode"],
+    "Resource": "acs:balance:*:account-id:gift-code/user-id/gift-code-id"
+  }
+}
+```
+
+附加一个条件更严格的 Allow 不会缩小既有默认 Allow。需要限制默认能力时，应使用匹配操作和资源的 Deny。资源账户由认证主体决定，客户端提交的账户 ID 或 Action Header 不能改变授权目标。legacy 模式保留旧规则，shadow 模式比较 IAM 与原有列表结果，enforce 模式拒绝资源解析或授权数据读取失败的请求。

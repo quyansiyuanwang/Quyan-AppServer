@@ -1,3 +1,4 @@
+import { balanceGiftCodeResourceResolver } from "@/iam/request/balance-resource-resolvers";
 import {
   Controller,
   Delete,
@@ -54,7 +55,10 @@ import { isMonthlyPassCoverageDescription } from "@/util/monthly-pass-coverage.u
 import { normalizeRelayDisplaySnapshotName } from "@/util/relay";
 import { BalanceTransferService } from "@/services/billing/balance-transfer.service";
 import { RelayChannelService } from "@/services/relay/relay-channel.service";
-import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 type UsageDataMap = Map<
@@ -438,9 +442,9 @@ export class BalanceController extends Controller {
   @Get("gift-codes")
   @Security("jwt")
   @Middlewares(
-    iamAuthenticatedAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:balance:ListGiftCodes",
-      resourceKind: "single-resource",
+      resourceKind: "collection",
       resource: iamAuthenticatedUserResourceResolver,
     }),
   )
@@ -450,7 +454,7 @@ export class BalanceController extends Controller {
     @Query() page?: number,
     @Query() pageSize?: number,
   ): Promise<BalanceGiftCodeListResponse> {
-    return await this.balanceTransferService.listGiftCodes(request.user!.userId, page, pageSize);
+    return await this.balanceTransferService.listGiftCodes(request.user!.userId, page, pageSize, request);
   }
 
   @Delete("gift-codes/{id}")
@@ -459,7 +463,7 @@ export class BalanceController extends Controller {
     iamAuthenticatedAuthorizationMiddleware({
       action: "quyan:balance:CancelGiftCode",
       resourceKind: "single-resource",
-      resource: iamAuthenticatedUserResourceResolver,
+      resource: balanceGiftCodeResourceResolver,
     }),
   )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })

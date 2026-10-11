@@ -64,6 +64,7 @@ describe("IAM service and resource catalog", () => {
       "quyan:oauth:DecideAuthorization",
       "quyan:auth_center:GetAuthorizationPreview",
       "quyan:auth_center:DecideAuthorization",
+      "quyan:balance:RedeemCode",
     ]);
     for (const action of IAM_AUTHENTICATED_SELF_ACTIONS)
       expect(

@@ -74,6 +74,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('chat', 'message'),
   resource('carpool', 'template'),
   resource('carpool', 'order'),
+  { ...resource('balance', 'gift-code', 2), authenticatedSelfScope: 'children' },
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
   resource('notification', 'delivery-log', 2),
@@ -822,7 +823,12 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       ...definition,
       action: 'quyan:balance:' + definition.operation,
       service: 'balance',
-      resourceTypes: ['quyan/user'],
+      resourceTypes:
+        definition.operation === 'CancelGiftCode'
+          ? ['balance/gift-code']
+          : definition.operation === 'ListGiftCodes'
+            ? ['quyan/user', 'balance/gift-code']
+            : ['quyan/user'],
       apiRoutes: [],
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
@@ -882,6 +888,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       defaultAuthorizationScope: 'self',
     }),
   ),
+  {
+    action: 'quyan:balance:RedeemCode',
+    service: 'balance',
+    operation: 'RedeemCode',
+    accessLevel: 'Write',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    defaultAuthorizationScope: 'self',
+  },
   {
     action: 'quyan:iam:SimulatePolicy',
     service: 'iam',

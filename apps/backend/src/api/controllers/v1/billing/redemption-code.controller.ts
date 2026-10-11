@@ -1,3 +1,5 @@
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Controller,
   Get,
@@ -66,6 +68,13 @@ export class RedemptionCodeController extends Controller {
 
   @Post("redeem")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:balance:RedeemCode",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateBody(redeemCodeBodySchema))
   async redeemCode(@Body() body: RedeemCodeDto, @Request() request: TypedRequest): Promise<{ balance: number }> {
     if (body.code.startsWith("ugc_"))
