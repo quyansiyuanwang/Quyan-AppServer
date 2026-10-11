@@ -17,6 +17,9 @@ describe("self-service IAM action catalog", () => {
       "quyan:balance:CancelGiftCode",
       "quyan:balance:CreateTransfer",
       "quyan:balance:ListTransactions",
+      "quyan:carpool:ListMyOrders",
+      "quyan:carpool:CreateOrder",
+      "quyan:carpool:AcceptInvite",
       "quyan:monthly_pass:ListMyPasses",
       "quyan:monthly_pass:ClaimPublishedTemplate",
       "quyan:remote_terminal:ListMyEntitlements",
@@ -36,6 +39,26 @@ describe("self-service IAM action catalog", () => {
       resourceTypes: ["quyan/account"],
     });
     expect(getIamActionDefinition("quyan:remote_terminal:ListPublishedTemplates")).toMatchObject({
+      resourceTypes: ["quyan/account"],
+    });
+    for (const action of [
+      "quyan:carpool:GetOrder",
+      "quyan:carpool:CreateInvite",
+      "quyan:carpool:AllocateRatios",
+      "quyan:carpool:ConfirmMember",
+      "quyan:carpool:LeaveOrder",
+      "quyan:carpool:CancelOrder",
+      "quyan:carpool:SubmitOrder",
+    ])
+      expect(getIamActionDefinition(action)).toMatchObject({
+        resourceTypes: ["carpool/order"],
+        authorizationStage: "declared",
+      });
+
+    expect(getIamActionDefinition("quyan:carpool:ListPublishedTemplates")).toMatchObject({
+      resourceTypes: ["quyan/account"],
+    });
+    expect(getIamActionDefinition("quyan:carpool:ListPackageCatalog")).toMatchObject({
       resourceTypes: ["quyan/account"],
     });
   });

@@ -44,6 +44,14 @@ describe("IAM service and resource catalog", () => {
       "quyan:notification:ConfirmPixelOpenedInboxRead",
       "quyan:user:GetCurrentUser",
       "quyan:notification:ListEvents",
+      "quyan:balance:GetAccount",
+      "quyan:balance:GetUsage",
+      "quyan:balance:GetTransferConfig",
+      "quyan:balance:ListGiftCodes",
+      "quyan:balance:CreateGiftCode",
+      "quyan:balance:CancelGiftCode",
+      "quyan:balance:CreateTransfer",
+      "quyan:balance:ListTransactions",
     ]);
     for (const action of IAM_AUTHENTICATED_SELF_ACTIONS)
       expect(
