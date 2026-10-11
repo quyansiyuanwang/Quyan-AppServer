@@ -52,6 +52,18 @@ describe("IAM service and resource catalog", () => {
       "quyan:balance:CancelGiftCode",
       "quyan:balance:CreateTransfer",
       "quyan:balance:ListTransactions",
+      "quyan:auth:ListExternalIdentities",
+      "quyan:auth:BindExternalIdentity",
+      "quyan:auth:UnbindExternalIdentity",
+      "quyan:auth:CreateCentralLoginFlow",
+      "quyan:auth:ConsumeCentralLoginFlow",
+      "quyan:auth:ScanQrLogin",
+      "quyan:auth:ConfirmQrLogin",
+      "quyan:oauth:ListScopes",
+      "quyan:oauth:GetAuthorizationPreview",
+      "quyan:oauth:DecideAuthorization",
+      "quyan:auth_center:GetAuthorizationPreview",
+      "quyan:auth_center:DecideAuthorization",
     ]);
     for (const action of IAM_AUTHENTICATED_SELF_ACTIONS)
       expect(

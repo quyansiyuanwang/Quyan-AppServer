@@ -179,6 +179,30 @@ describe("IAM identity policy loading", () => {
         ).decision,
       ).toBe("ImplicitDeny");
   });
+  it.each([
+    "quyan:auth:ListExternalIdentities",
+    "quyan:auth:BindExternalIdentity",
+    "quyan:auth:UnbindExternalIdentity",
+    "quyan:auth:CreateCentralLoginFlow",
+    "quyan:auth:ConsumeCentralLoginFlow",
+    "quyan:auth:ScanQrLogin",
+    "quyan:auth:ConfirmQrLogin",
+    "quyan:oauth:ListScopes",
+    "quyan:oauth:GetAuthorizationPreview",
+    "quyan:oauth:DecideAuthorization",
+    "quyan:auth_center:GetAuthorizationPreview",
+    "quyan:auth_center:DecideAuthorization",
+  ])("bounds authenticated flow Action %s to the subject and lets explicit Deny override it", async (action) => {
+    const resource = "acs:quyan:*:owner:user/child";
+    expect((await service.authorize({ principal, action, resource })).decision).toBe("Allow");
+    for (const target of ["acs:quyan:*:owner:user/other", "acs:quyan:*:owner:account", "*"])
+      expect((await service.authorize({ principal, action, resource: target })).decision).toBe("ImplicitDeny");
+    policies.listPoliciesForTargets.mockResolvedValueOnce([
+      { ...binding("deny-auth-flow", "Deny", action), targetId: principal.principalUserId },
+    ]);
+    expect((await service.authorize({ principal, action, resource })).decision).toBe("ExplicitDeny");
+  });
+
   it("lets explicit Deny override the authenticated self baseline", async () => {
     policies.listPoliciesForTarget.mockResolvedValue([binding("deny-self-view", "Deny", "quyan:permission:Manage")]);
     expect(

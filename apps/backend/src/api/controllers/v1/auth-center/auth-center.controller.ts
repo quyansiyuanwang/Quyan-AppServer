@@ -1,3 +1,5 @@
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Body,
   Controller,
@@ -49,6 +51,13 @@ export class AuthCenterController extends Controller {
 
   @Get("authorize")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:GetAuthorizationPreview",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Auth Center authorization preview loaded")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "Invalid authorization request")
   public async authorize(
@@ -78,6 +87,13 @@ export class AuthCenterController extends Controller {
 
   @Post("authorize")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:DecideAuthorization",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Auth Center authorization decision accepted")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "Invalid authorization request")
   @Middlewares(validateBody(authCenterAuthorizeDecisionBodySchema))
