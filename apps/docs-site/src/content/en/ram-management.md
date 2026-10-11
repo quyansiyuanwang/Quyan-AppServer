@@ -362,3 +362,9 @@ Creating an order uses `quyan:carpool:CreateOrder` and requires Allow on both th
 Inviting, allocating ratios, confirming a share, leaving, cancelling, and submitting use `quyan:carpool:CreateInvite`, `AllocateRatios`, `ConfirmMember`, `LeaveOrder`, `CancelOrder`, and `SubmitOrder` respectively (the latter five share the `quyan:carpool:` prefix). Each targets a concrete order ARN. IAM Allow does not replace membership or initiator checks or bypass order state, invitation expiry, share ratios, or balance requirements. No matching Allow means denial, and any matching Deny takes precedence.
 
 legacy retains the previous membership rules, shadow preserves business results and compares the IAM list population, and enforce rejects requests when resolution, policy retrieval, or final grant revalidation fails. Package operations and administrative fulfillment have separate management permissions; self-service order grants do not provide those capabilities.
+
+## Chat, gift-code, and carpool resource groups
+
+Resource groups can contain chat conversations, messages, balance gift codes, and carpool orders. Actual ownership is checked when adding a resource and on every authorization: chat resources require an active conversation owner; gift codes require the creator to match the user in the ARN; carpool orders require at least one active member in the account who has not left. Deleting a resource, disabling its owner, or removing the last eligible member stops the group from granting an Allow for that resource. Any other grants still follow the normal policy rules.
+
+Published, active carpool templates can also be included to limit the offerings an account may use. This ARN scopes the account's use of a shared template and does not confer template ownership or administration rights. Unpublished, archived, or disabled templates cannot supply resource-group grants.

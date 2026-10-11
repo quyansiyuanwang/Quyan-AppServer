@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/config/database";
+import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
 import { BalanceTransferRepository } from "@/store/billing/balance-transfer.repository";
 import { BalanceGiftCodeIamService } from "@/services/billing/balance-gift-code-iam.service";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
@@ -51,6 +52,19 @@ beforeEach(async () => {
 });
 
 describe("balance gift code IAM storage boundaries", () => {
+  it("checks resource-group ownership from the creator and never accepts case or parent aliases", async () => {
+    const code = await createCode();
+    const groups = RamResourceGroupRepository.getInstance();
+    expect(await groups.resourceExistsInAccount(balanceGiftCodeArn(owner, actor, code.id), owner)).toBe(true);
+    expect(await groups.resourceExistsInAccount(balanceGiftCodeArn(owner, peer, code.id), owner)).toBe(false);
+    expect(await groups.resourceExistsInAccount(balanceGiftCodeArn(foreign, actor, code.id), foreign)).toBe(false);
+    expect(await groups.resourceExistsInAccount(balanceGiftCodeArn(owner, actor, code.id.toUpperCase()), owner)).toBe(
+      false,
+    );
+    await prisma.balanceGiftCode.update({ where: { id: code.id }, data: { status: -1 } });
+    expect(await groups.resourceExistsInAccount(balanceGiftCodeArn(owner, actor, code.id), owner)).toBe(false);
+  });
+
   it("scans metadata for only the account-owned creator and never loads code strings", async () => {
     const code = await createCode();
     await createCode(peer);

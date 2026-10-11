@@ -165,6 +165,46 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
             (item.user.accountOwnerId || item.user.id) === accountOwnerId,
         );
       }
+      case "balance/gift-code": {
+        const record = await prisma.balanceGiftCode.findFirst({
+          where: { id: childId, createdBy: id, ...active, createdByUser: { ...active, ...userOwner } },
+          select: { id: true, createdBy: true },
+        });
+        return record?.id === childId && record.createdBy === id;
+      }
+      case "chat/conversation": {
+        const record = await prisma.conversation.findFirst({
+          where: { id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true },
+        });
+        return record?.id === id;
+      }
+      case "chat/message": {
+        const record = await prisma.message.findFirst({
+          where: { id, ...active, conversation: { ...active, user: { ...active, ...userOwner } } },
+          select: { id: true },
+        });
+        return record?.id === id;
+      }
+      case "carpool/order": {
+        const record = await prisma.carpoolOrder.findFirst({
+          where: {
+            id,
+            ...active,
+            members: { some: { ...active, state: { not: "left" }, user: { ...active, ...userOwner } } },
+          },
+          select: { id: true },
+        });
+        return record?.id === id;
+      }
+      case "carpool/template": {
+        // Published templates are shared offerings; the ARN scopes use to this account, never template ownership.
+        const record = await prisma.carpoolPackageTemplate.findFirst({
+          where: { id, ...active, publishStatus: "published", monthlyPassTemplate: active },
+          select: { id: true },
+        });
+        return record?.id === id;
+      }
       case "article/article":
         return Boolean(await ArticleManagementRepository.getInstance().findTarget(id, accountOwnerId));
       case "developer/project": {

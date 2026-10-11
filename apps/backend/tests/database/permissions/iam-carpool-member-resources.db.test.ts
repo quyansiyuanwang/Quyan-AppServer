@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/config/database";
+import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
 import { CarpoolRepository } from "@/store/billing/carpool.repository";
 import { CarpoolOrderIamService } from "@/services/billing/carpool-order-iam.service";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
@@ -67,6 +68,35 @@ beforeEach(async () => {
 });
 
 describe("carpool member IAM storage boundaries", () => {
+  it("revokes resource-group membership when the last account member leaves", async () => {
+    const target = await order();
+    const groups = RamResourceGroupRepository.getInstance();
+    const arn = carpoolArn(owner, "order", target.id);
+    expect(await groups.resourceExistsInAccount(arn, owner)).toBe(true);
+    expect(await groups.resourceExistsInAccount(carpoolArn(peer, "order", target.id), peer)).toBe(false);
+    expect(await groups.resourceExistsInAccount(carpoolArn(owner, "order", target.id.toUpperCase()), owner)).toBe(
+      false,
+    );
+    await prisma.carpoolMember.updateMany({ where: { orderId: target.id }, data: { state: "left" } });
+    expect(await groups.resourceExistsInAccount(arn, owner)).toBe(false);
+    await prisma.carpoolMember.create({ data: { orderId: target.id, userId: peer } });
+    expect(await groups.resourceExistsInAccount(arn, owner)).toBe(true);
+    await prisma.user.update({ where: { id: peer }, data: { status: 0 } });
+    expect(await groups.resourceExistsInAccount(arn, owner)).toBe(false);
+  });
+
+  it("accepts only published active shared templates for resource-group use", async () => {
+    const groups = RamResourceGroupRepository.getInstance();
+    const arn = carpoolArn(owner, "template", templateId);
+    expect(await groups.resourceExistsInAccount(arn, owner)).toBe(false);
+    await prisma.carpoolPackageTemplate.update({ where: { id: templateId }, data: { publishStatus: "published" } });
+    expect(await groups.resourceExistsInAccount(arn, owner)).toBe(true);
+    expect(await groups.resourceExistsInAccount(carpoolArn(owner, "template", templateId.toUpperCase()), owner)).toBe(
+      false,
+    );
+    await prisma.carpoolPackageTemplate.update({ where: { id: templateId }, data: { status: -1 } });
+    expect(await groups.resourceExistsInAccount(arn, owner)).toBe(false);
+  });
   it("selects metadata only for an active account member before loading order contents", async () => {
     const own = await order();
     await order(peer);
