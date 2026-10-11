@@ -225,7 +225,23 @@ export class RelayChannelController extends Controller {
 
   @Get("{id}/health")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_HEALTH_READ)
+  @CheckPermission(
+    [Permission.RELAY_CHANNEL_HEALTH_READ, Permission.RELAY_CHANNEL_POOL_METADATA_READ],
+    PermissionCheckMode.ALL,
+    "jwt",
+    [
+      {
+        action: "quyan:relay:channel:health:Read",
+        resourceKind: "single-resource",
+        resource: relayChannelResourceResolver,
+      },
+      {
+        action: "quyan:relay:channel:pool_metadata:Read",
+        resourceKind: "single-resource",
+        resource: relayChannelResourceResolver,
+      },
+    ],
+  )
   @Middlewares(validateParams(relayChannelIdParamsSchema))
   public async getChannelHealth(
     @Path() id: string,
@@ -243,7 +259,11 @@ export class RelayChannelController extends Controller {
 
   @Patch("{id}/health-config")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Update",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -277,7 +297,11 @@ export class RelayChannelController extends Controller {
 
   @Delete("{id}/health")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Update",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -329,7 +353,11 @@ export class RelayChannelController extends Controller {
 
   @Delete("submissions/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @CheckPermission(Permission.RELAY_CHANNEL_SUBMIT, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Submit",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -347,7 +375,11 @@ export class RelayChannelController extends Controller {
 
   @Patch("submissions/{id}/service-status")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @CheckPermission(Permission.RELAY_CHANNEL_SUBMIT, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Submit",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -365,7 +397,11 @@ export class RelayChannelController extends Controller {
 
   @Post("{id}/review-submission")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_REVIEW)
+  @CheckPermission(Permission.RELAY_CHANNEL_REVIEW, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Review",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -412,7 +448,11 @@ export class RelayChannelController extends Controller {
 
   @Post("{id}/change-requests")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @CheckPermission(Permission.RELAY_CHANNEL_SUBMIT, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:channel:Submit",
+    resourceKind: "single-resource",
+    resource: relayChannelResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
