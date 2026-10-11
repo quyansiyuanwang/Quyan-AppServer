@@ -49,6 +49,8 @@ import {
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import type { TypedRequest } from "@/types/express";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
 @Route("v1/monthly-passes")
@@ -69,6 +71,13 @@ export class MonthlyPassController extends Controller {
 
   @Get("templates/published")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListPublishedTemplates",
+      resourceKind: "single-resource",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listPublishedTemplates(): Promise<MonthlyPassTemplateDto[]> {
     return this.monthlyPassService.listPublishedTemplates();
   }
@@ -179,7 +188,14 @@ export class MonthlyPassController extends Controller {
 
   @Get("me")
   @Security("jwt")
-  @Middlewares(validateQuery(listMyMonthlyPassesQuerySchema))
+  @Middlewares(
+    validateQuery(listMyMonthlyPassesQuerySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListMyPasses",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listCurrentUserPasses(
     @Request() request: TypedRequest,
     @Query() page?: number,
@@ -192,6 +208,13 @@ export class MonthlyPassController extends Controller {
   @Post("me/claim")
   @Security("jwt")
   @Middlewares(replayProtectionMiddleware, validateBody(claimMonthlyPassTemplateBodySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ClaimPublishedTemplate",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async claimPublishedTemplate(
     @Body() body: ClaimMonthlyPassTemplateRequest,
     @Request() request: TypedRequest,

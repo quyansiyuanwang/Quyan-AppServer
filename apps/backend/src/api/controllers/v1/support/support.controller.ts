@@ -29,6 +29,8 @@ import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-prote
 import { SSEStreamService } from "@/util/streaming/sse";
 import { skipResponseWrapper } from "@/util/response-wrapper";
 import type { TypedRequest } from "@/types/express";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import type { SuccessResponse } from "@/api/response";
 
 @Route("v1/support")
@@ -39,6 +41,13 @@ export class SupportController extends Controller {
 
   @Get("availability")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:GetAvailability",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async availability(): Promise<SuccessResponse<SupportAvailabilityDto>> {
     const config = await this.supportService.getConfig();
     return {
@@ -54,12 +63,26 @@ export class SupportController extends Controller {
 
   @Get("conversation")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:GetConversation",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async conversation(@Request() request: TypedRequest): Promise<SuccessResponse<SupportConversationDto>> {
     return { code: 0, message: "Success", data: await this.supportService.getConversation(request.user!.userId) };
   }
 
   @Delete("conversation")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:ClearConversation",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async clearConversation(@Request() request: TypedRequest): Promise<SuccessResponse<void>> {
@@ -93,6 +116,13 @@ export class SupportController extends Controller {
 
   @Post("messages")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:SendMessage",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async messages(@Body() body: SendSupportMessageDto, @Request() request: TypedRequest): Promise<void> {
@@ -117,6 +147,13 @@ export class SupportController extends Controller {
 
   @Post("handoff")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:support:Handoff",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async handoff(

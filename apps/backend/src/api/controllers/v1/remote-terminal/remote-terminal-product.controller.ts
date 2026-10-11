@@ -49,6 +49,8 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { RemoteTerminalProductService } from "@/services/remote-terminal/remote-terminal-product.service";
 import type { TypedRequest } from "@/types/express";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
@@ -71,6 +73,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("templates/published")
   @Security("jwt")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListPublishedTemplates",
+      resourceKind: "single-resource",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listPublishedTemplates(): Promise<RemoteTerminalProductTemplateDto[]> {
     return this.remoteTerminalProductService.listPublishedTemplates();
   }
@@ -185,7 +194,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("me/entitlements")
   @Security("jwt")
-  @Middlewares(validateQuery(listRemoteTerminalEntitlementsQuerySchema))
+  @Middlewares(
+    validateQuery(listRemoteTerminalEntitlementsQuerySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListMyEntitlements",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listCurrentUserEntitlements(
     @Request() request: TypedRequest,
     @Query() page?: number,
@@ -214,6 +230,13 @@ export class RemoteTerminalProductController extends Controller {
   @Post("me/entitlements/claim")
   @Security("jwt")
   @Middlewares(replayProtectionMiddleware, validateBody(claimRemoteTerminalProductTemplateBodySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ClaimPublishedTemplate",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async claimPublishedTemplate(
     @Body() body: ClaimRemoteTerminalProductTemplateRequest,
     @Request() request: TypedRequest,
@@ -296,6 +319,13 @@ export class RemoteTerminalProductController extends Controller {
     validateParams(entitlementIdParamsSchema),
     validateBody(rotateRemoteTerminalRegistrationTokenBodySchema),
   )
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:RotateMyRegistrationToken",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async rotateCurrentUserRegistrationToken(
     @Path() id: string,
     @Body() body: RotateRemoteTerminalRegistrationTokenRequest,
@@ -311,7 +341,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("me/entitlements/{id}/install-token")
   @Security("jwt")
-  @Middlewares(validateParams(entitlementIdParamsSchema))
+  @Middlewares(
+    validateParams(entitlementIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:GetMyInstallToken",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getMyInstallToken(
     @Path() id: string,
     @Request() request: TypedRequest,
@@ -335,7 +372,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("me/devices")
   @Security("jwt")
-  @Middlewares(validateQuery(listRemoteTerminalDevicesQuerySchema))
+  @Middlewares(
+    validateQuery(listRemoteTerminalDevicesQuerySchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListMyDevices",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listCurrentUserDevices(
     @Request() request: TypedRequest,
     @Query() page?: number,
@@ -347,7 +391,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("me/devices/{id}/unbind-reminder")
   @Security("jwt")
-  @Middlewares(validateParams(remoteTerminalDeviceBindingIdParamsSchema))
+  @Middlewares(
+    validateParams(remoteTerminalDeviceBindingIdParamsSchema),
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:GetMyUnbindReminder",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getCurrentUserDeviceUnbindReminder(
     @Path() id: string,
     @Request() request: TypedRequest,
