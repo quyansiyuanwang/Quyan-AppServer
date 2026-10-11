@@ -124,6 +124,8 @@ const businessResources: Partial<Record<Permission, string[]>> = {
   [Permission.RELAY_CHANNEL_REVIEW]: ['relay/channel'],
   [Permission.RELAY_CHANNEL_PROVIDER_READ]: ['relay/channel'],
   [Permission.RELAY_CHANNEL_PROVIDER_SETTLE]: ['relay/channel'],
+  [Permission.USER_CHANGE_SELF_PASSWORD]: ['quyan/user'],
+  [Permission.USER_CHANGE_OTHERS_PASSWORD]: ['quyan/user'],
   // Creation authorizes the trusted parent account before an article identity exists.
   [Permission.ARTICLE_CREATE]: [],
   [Permission.ARTICLE_READ]: ['article/article'],
@@ -312,6 +314,29 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: false,
       authorizationStage: 'declared',
       defaultAuthorizationScope: 'self',
+    }),
+  ),
+  ...[
+    { operation: 'ClearTrustedWindow', accessLevel: 'Write' },
+    { operation: 'ListTrustedDevices', accessLevel: 'List' },
+    { operation: 'DeleteTrustedDevice', accessLevel: 'Write' },
+    { operation: 'GetTwoFactorStatus', accessLevel: 'Read' },
+    { operation: 'BeginTwoFactorSetup', accessLevel: 'Write' },
+    { operation: 'ConfirmTwoFactorSetup', accessLevel: 'Write' },
+    { operation: 'DisableTwoFactor', accessLevel: 'Write' },
+    { operation: 'RegenerateTwoFactorRecoveryCodes', accessLevel: 'Write' },
+    { operation: 'UpdateTwoFactorPasskeyPolicy', accessLevel: 'Write' },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:user:' + definition.operation,
+      service: 'user',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: ['quyan/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
     }),
   ),
   ...[
