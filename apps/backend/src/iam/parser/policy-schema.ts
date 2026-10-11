@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   IAM_ACTION_CATALOG,
+  isKnownIamAction,
   getIamActionDefinition,
   getIamResourcePatternTypes,
   resolveIamStatementActions,
@@ -27,7 +28,13 @@ const pattern = z
   );
 const action = pattern
   .refine((value) => /^[A-Za-z0-9_*.-]+(?::[A-Za-z0-9_*.-]+)*$/.test(value), "Invalid action pattern")
-  .refine((value) => IAM_ACTION_CATALOG.some((action) => matchIamPattern(value, action)), "Unknown platform action");
+  .refine(
+    (value) =>
+      value.includes("*")
+        ? IAM_ACTION_CATALOG.some((action) => matchIamPattern(value, action))
+        : isKnownIamAction(value),
+    "Unknown platform action",
+  );
 const resource = pattern
   .refine(
     (value) => value === "*" || /^acs:[a-z0-9*-]+:[A-Za-z0-9_*-]*:[A-Za-z0-9_*-]+:[A-Za-z0-9_.+/@*-]+$/.test(value),
@@ -64,25 +71,22 @@ export const iamStatementSchema = z
       });
       return;
     }
+    // Resolve this statement's catalog subset once. Never cache caller-owned policy objects:
+    // persisted documents must still be validated on every evaluation, including mutations.
+    const exactActions = new Set(actions.filter((pattern) => !pattern.includes("*")));
+    const wildcardActions = actions.filter((pattern) => pattern.includes("*"));
+    const matchedActions = IAM_ACTION_CATALOG.filter(
+      (action) => exactActions.has(action) || wildcardActions.some((pattern) => matchIamPattern(pattern, action)),
+    ).map((action) => getIamActionDefinition(action)!);
     const conditionKeys = Object.values(statement.Condition ?? {}).flatMap((clause) => Object.keys(clause));
     for (const key of new Set(conditionKeys))
-      if (
-        IAM_ACTION_CATALOG.some(
-          (action) =>
-            actions.some((pattern) => matchIamPattern(pattern, action)) &&
-            !getIamActionDefinition(action)!.conditionKeys.includes(key),
-        )
-      )
+      if (matchedActions.some((action) => !action.conditionKeys.includes(key)))
         context.addIssue({ code: "custom", path: ["Condition"], message: "Condition key is incompatible with Action" });
     const resources = [statement.Resource].flat();
     resources.forEach((resource, index) => {
       const types = getIamResourcePatternTypes(resource);
       if (!types.length) return;
-      const compatible = IAM_ACTION_CATALOG.some(
-        (action) =>
-          actions.some((pattern) => matchIamPattern(pattern, action)) &&
-          types.some((type) => getIamActionDefinition(action)!.resourceTypes.includes(type.id)),
-      );
+      const compatible = matchedActions.some((action) => types.some((type) => action.resourceTypes.includes(type.id)));
       if (!compatible)
         context.addIssue({
           code: "custom",
