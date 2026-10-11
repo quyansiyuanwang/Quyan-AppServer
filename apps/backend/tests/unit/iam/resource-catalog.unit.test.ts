@@ -42,6 +42,7 @@ describe("IAM service and resource catalog", () => {
       "quyan:notification:ListInbox",
       "quyan:notification:MarkInboxRead",
       "quyan:notification:ConfirmPixelOpenedInboxRead",
+      "quyan:user:GetCurrentUser",
       "quyan:notification:ListEvents",
     ]);
     for (const action of IAM_AUTHENTICATED_SELF_ACTIONS)

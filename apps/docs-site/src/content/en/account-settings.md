@@ -48,6 +48,27 @@ Configure notification preferences, email delivery, and webhooks. See `notificat
 - Clearing cached data can reset temporary UI state such as theme and language preferences, and may sign you out.
 - Access keys, passkeys, and trusted devices open in drawers within the Account Security page. See `access-key-management`, `passkey-management`, and `trusted-device-management` for details.
 
+## Personal profile permissions and resource scope
+
+With IAM enforcement enabled, reading the current profile uses `quyan:user:GetCurrentUser` on `acs:quyan:*:<accountId>:user/<userId>`. Authenticated identities have a default grant only for their own profile; a matching explicit Deny still blocks it. This capability does not permit querying other users or administering accounts.
+
+Changing the display name requires the separate `quyan:user:UpdateProfile` permission. Reading a profile does not automatically grant editing. A policy can target the current user:
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:user:UpdateProfile",
+    "Resource": "acs:quyan:*:<accountId>:user/<userId>"
+  }
+}
+```
+
+Replace the placeholders with the actual account and current user IDs. Display-name updates cannot change email, password, account status, or group membership. Even wildcard grants do not permit editing other users through the personal profile endpoint.
+
+If a profile changes during a request, reading or editing it may return a conflict. Refresh and confirm the edit again; concurrent changes are not automatically overwritten. An invalid account or role session blocks the operation. Third-party OAuth applications additionally need the `profile` scope (including its historical permission alias); the scope does not replace IAM editing permission.
+
 ## Related pages
 
 - `access-key-management`

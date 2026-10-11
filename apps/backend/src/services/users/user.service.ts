@@ -1,3 +1,6 @@
+import { UserProfileIamService } from "./user-profile-iam.service";
+import { userProfileAuthorizationDenied } from "@/store/users/user-profile-management.repository";
+import type { TypedRequest } from "@/types/express";
 import {
   UserDto,
   CreateUserDto,
@@ -196,6 +199,10 @@ export class UserService {
     };
   }
 
+  async getCurrentUser(userId: string, request?: TypedRequest): Promise<UserDto> {
+    return UserProfileIamService.getInstance().get(userId, request);
+  }
+
   async getUserById(id: string): Promise<UserDto | null> {
     const user = await this.userRepository.findById(id);
     return user ? await this.mapUserToDto(user) : null;
@@ -374,6 +381,23 @@ export class UserService {
    * 用户修改自己的姓名
    */
   async updateProfile(userId: string, data: UpdateProfileDto, request?: Request): Promise<UserDto> {
+    if (request) {
+      const result = await UserProfileIamService.getInstance().update(userId, data, request as TypedRequest);
+      await this.businessLogService.logOperation({
+        operationType: OperationType.USER_PROFILE_UPDATE,
+        operationCategory: OperationCategory.USER_MANAGEMENT,
+        actorUserId: userId,
+        targetUserId: userId,
+        targetResourceType: "USER",
+        description: "Updated personal profile",
+        success: true,
+        ipAddress: this.getClientIP(request),
+        userAgent: request.headers["user-agent"],
+        requestId: request.headers["x-request-id"] as string | undefined,
+      });
+      return result;
+    }
+    if (env.security.iamAuthorizationMode === "enforce") throw userProfileAuthorizationDenied();
     const user = await this.userRepository.findById(userId);
     if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 
@@ -392,8 +416,6 @@ export class UserService {
       changes: updateData,
       success: true,
       ipAddress: this.getClientIP(request),
-      userAgent: request?.headers["user-agent"],
-      requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
     return await this.mapUserToDto(updatedUser);

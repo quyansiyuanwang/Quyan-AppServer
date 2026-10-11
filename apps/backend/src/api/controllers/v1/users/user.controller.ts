@@ -1,3 +1,5 @@
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Get,
   Path,
@@ -53,7 +55,7 @@ import { Permission } from "@/constant/permission";
 import { NotFoundError, ForbiddenError, BadRequestError } from "@/util/errors";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { permissionService } from "@/services/users/permission.service";
 import { passwordEncryptionService } from "@/services/auth/password-encryption.service";
 import { hashPassword } from "@/util/crypto";
@@ -275,17 +277,15 @@ export class UserController extends Controller {
   @Security("jwt", ["profile"])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:GetCurrentUser",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async getCurrentUser(@Request() request: TypedRequest): Promise<GetUserByIdResponse> {
-    // 从 token 中获取当前用户 ID
-    const userId = request.user?.userId;
-
-    if (!userId) throw new NotFoundError("用户信息不存在", undefined, { messageKey: "user.userInfoNotFound" });
-
-    const user = await this.userService.getUserById(userId);
-
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
-    return user;
+    return this.userService.getCurrentUser(request.user!.userId, request);
   }
 
   /**
@@ -298,7 +298,11 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_UPDATE_SELF_PROFILE)
+  @CheckPermission(Permission.USER_UPDATE_SELF_PROFILE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:UpdateProfile",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(updateProfileBodySchema))
   public async updateProfile(
     @Body() body: UpdateProfileDto,

@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'account-settings',
+  updatedAt: '2026-10-11',
   category: {
     en: 'Account',
     'zh-CN': '账号',
