@@ -1,4 +1,4 @@
-import { BadRequestError, ContentSafetyBlockedError } from "@/util/errors";
+import { BadRequestError, ContentSafetyBlockedError, PayloadTooLargeError } from "@/util/errors";
 import { matchesRetryStatusRule } from "@/util/relay/relay-failover-status-rule.util";
 import { RELAY_COMPOSITION_POLICY, compositionError } from "@/util/relay/relay-composition.util";
 import type { RelayTokenWithRelations } from "@/store/relay/relay-token.store";
@@ -138,7 +138,13 @@ export class RelayCompositeExecutorService {
             last = error;
           }
           if ((last as { messageKey?: string }).messageKey === "relayToken.compositionBudget") throw last;
-          if (last instanceof ContentSafetyBlockedError || host.committed() || host.cancelled()) throw last;
+          if (
+            last instanceof ContentSafetyBlockedError ||
+            last instanceof PayloadTooLargeError ||
+            host.committed() ||
+            host.cancelled()
+          )
+            throw last;
           const failure = last as {
             upstreamStatus?: number;
             response?: { status?: number };

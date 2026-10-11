@@ -1,3 +1,8 @@
+import {
+  assertRelayRequestBodyCapacity,
+  relayDeclaredBodyTooLarge,
+  relayStreamFailureStatus,
+} from "@/util/relay/relay-capacity.util";
 import { jsonSerializedLength } from "@/util/json-serialized-length";
 import { parseRelayRequestBody, relayRawRequestBody } from "@/util/relay/relay-request-payload";
 import { withContentSafetyAttempt, resetContentSafetyAttempt } from "@/services/system/content-safety-attempt";
@@ -70,7 +75,6 @@ import { Prisma, RelayToken, RelayChannel } from "@prisma/client";
 import {
   BadRequestError,
   ForbiddenError,
-  GatewayTimeoutError,
   ContentSafetyBlockedError,
   LockBackendUnavailableError,
   PayloadTooLargeError,
@@ -621,10 +625,6 @@ export class RelayProxyService {
     return resolveRelayRequestFormat(req);
   }
 
-  private resolveRequestedModelConfig(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto | null {
-    return this.resolveRequestedModelConfigs(modelPricing, requestedModel)[0] || null;
-  }
-
   private resolveRequestedModelConfigs(modelPricing: ModelPricingDto[], requestedModel: string): ModelPricingDto[] {
     const normalizedRequestedModel = requestedModel.trim();
     if (!normalizedRequestedModel) return [];
@@ -642,22 +642,23 @@ export class RelayProxyService {
     channel: RelayChannel,
     requestedModelId: string,
     candidateConfigs: ModelPricingDto[],
+    requestFormat?: RelayRequestFormat,
   ): ModelPricingDto | null {
     const allowedModelNames = parseRelayChannelAllowedModelNames(channel);
+    const compatibleConfigs = requestFormat
+      ? candidateConfigs.filter((config) => supportsRelayRequestFormat(config.supportedFormats, requestFormat))
+      : candidateConfigs;
 
     // null means unrestricted; an explicit empty list denies every model.
-    if (allowedModelNames === null) return candidateConfigs[0] || null;
+    if (allowedModelNames === null) return compatibleConfigs[0] || null;
 
-    // Channel restrictions historically stored display names. Accept the
-    // canonical model ID as well so request validation remains ID-based.
-    for (const config of candidateConfigs)
-      if (
-        isModelNameAllowed(allowedModelNames, config.model || "") ||
-        isModelNameAllowed(allowedModelNames, resolveModelId(config))
-      )
-        return config;
-
-    return null;
+    // Prefer the channel's explicit pricing name. An ID may also be the name
+    // of one catalog entry while other entries share that same upstream ID.
+    return (
+      compatibleConfigs.find((config) => isModelNameAllowed(allowedModelNames, config.model || "")) ??
+      compatibleConfigs.find((config) => isModelNameAllowed(allowedModelNames, resolveModelId(config))) ??
+      null
+    );
   }
 
   private validateChannelModelConfig(
@@ -2228,6 +2229,7 @@ export class RelayProxyService {
         params.channel,
         effectiveModelName,
         effectiveModelConfigs,
+        params.requestFormat,
       );
       if (!channelModelConfig && effectiveModelName !== params.requestedModel) {
         // Fallback for channels that list the original request model directly.
@@ -2236,6 +2238,7 @@ export class RelayProxyService {
           params.channel,
           params.requestedModel,
           originalModelConfigs,
+          params.requestFormat,
         );
       }
       this.validateChannelModelConfig(params.channel, channelModelConfig, effectiveModelName);
@@ -2411,7 +2414,7 @@ export class RelayProxyService {
   private shouldFailoverOnError(error: unknown): boolean {
     // 余额不足错误不应该 failover，因为切换渠道也会遇到同样的问题
     if (error instanceof RelayChannelSkipError && error.reason === "insufficient-balance") return false;
-    if (error instanceof ContentSafetyBlockedError) return false;
+    if (error instanceof ContentSafetyBlockedError || error instanceof PayloadTooLargeError) return false;
     const cancellation = error as { code?: string; name?: string } | undefined;
     if (cancellation?.code === "ERR_CANCELED" || cancellation?.name === "AbortError") return false;
 
@@ -2422,8 +2425,7 @@ export class RelayProxyService {
   private sendStreamTransportError(res: any, error: unknown): void {
     if (res.headersSent || res.writableEnded) return;
 
-    const statusCode =
-      error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502;
+    const statusCode = relayStreamFailureStatus(error);
     const message = error instanceof Error ? error.message : "Upstream request failed";
 
     res.status(statusCode).json({
@@ -3288,8 +3290,9 @@ export class RelayProxyService {
         messageKey: "relayProxy.modelNotConfigured",
       });
 
-    // Use the first candidate for format check (pricing model)
-    const firstModelConfig = candidateModelConfigs[0];
+    const formatModelConfigs = perChannelMappedModelNames.flatMap((modelId) =>
+      this.resolveRequestedModelConfigs(modelPricing, modelId),
+    );
 
     // Token allowedModels check: match against BOTH original and mapped model.
     // A token might allow "gpt-5-codex" directly, or it might allow "deepseek-v4-flash"
@@ -3316,11 +3319,11 @@ export class RelayProxyService {
         );
     }
 
-    if (firstModelConfig && !supportsRelayRequestFormat(firstModelConfig.supportedFormats, requestFormat))
+    if (!formatModelConfigs.some((config) => supportsRelayRequestFormat(config.supportedFormats, requestFormat)))
       throw new BadRequestError(
-        `Model ${normalizedRequestedModel} does not support ${requestFormat} format. Supported formats: ${
-          firstModelConfig.supportedFormats || "openai-chat-completions,anthropic,gemini"
-        }`,
+        `Model ${normalizedRequestedModel} does not support ${requestFormat} format. Supported formats: ${formatModelConfigs
+          .map((config) => config.supportedFormats)
+          .join(", ")}`,
         undefined,
         { messageKey: "relayProxy.modelFormatUnsupported" },
       );
@@ -3489,13 +3492,19 @@ export class RelayProxyService {
               effectiveModelName === pricingModelName
                 ? candidateModelConfigs
                 : this.resolveRequestedModelConfigs(modelPricing, effectiveModelName);
-            let channelModelConfig = this.resolveChannelModelConfig(channel, effectiveModelName, effectiveModelConfigs);
+            let channelModelConfig = this.resolveChannelModelConfig(
+              channel,
+              effectiveModelName,
+              effectiveModelConfigs,
+              requestFormat,
+            );
             if (!channelModelConfig && effectiveModelName !== normalizedRequestedModel) {
               // Fallback for channels that list the original request model directly.
               channelModelConfig = this.resolveChannelModelConfig(
                 channel,
                 normalizedRequestedModel,
                 candidateModelConfigs,
+                requestFormat,
               );
             }
             this.validateChannelModelConfig(channel, channelModelConfig, effectiveModelName);
@@ -3543,28 +3552,8 @@ export class RelayProxyService {
 
             selectedModelName = channelModelConfig.model.trim() || normalizedRequestedModel;
 
-            // Apply model mapping: resolve effective billing model (computed above)
-
-            // If mapping resolved to a different model, re-resolve pricing config for billing
-            if (effectiveModelName !== normalizedRequestedModel) {
-              const mappedConfig = this.resolveRequestedModelConfig(modelPricing, effectiveModelName);
-              if (mappedConfig) {
-                selectedRateConfig = {
-                  pricingType: mappedConfig.pricingType || "token-based",
-                  fixedPrice: mappedConfig.fixedPrice != null ? Number(mappedConfig.fixedPrice) : undefined,
-                  input: mappedConfig.inputPrice / TOKEN_PRICE_DIVISOR,
-                  output: mappedConfig.outputPrice / TOKEN_PRICE_DIVISOR,
-                  multiplier: 1,
-                  cacheCreationMultiplier: Number(mappedConfig.cacheCreationMultiplier),
-                  cacheReadMultiplier: Number(mappedConfig.cacheReadMultiplier),
-                };
-                selectedModelName = mappedConfig.model.trim() || effectiveModelName;
-
-                // Also update upstream model ID to the mapped model's provider/model
-                const mappedModelId = resolveModelId(mappedConfig);
-                if (mappedModelId) selectedModelId = mappedModelId;
-              }
-            }
+            // Preserve the pricing name and rates selected for this channel.
+            // Other catalog entries can share this same upstream model ID.
 
             // Track original model for billing description when model mapping is active
             relayOriginalRequestedModel =
@@ -3671,7 +3660,8 @@ export class RelayProxyService {
               requestFormat,
               req.path,
             );
-            if (tokenNormalizerBody !== undefined) convertedBody = tokenNormalizerBody;
+            if (tokenNormalizerBody !== undefined)
+              convertedBody = this.buildForwardBody(tokenNormalizerBody, requestFormat, selectedModelId);
             else if (requestFormat === "anthropic") {
               convertedBody = normalizeAnthropicRequestBeforeSend(
                 convertedBody,
@@ -3736,6 +3726,7 @@ export class RelayProxyService {
             }
 
             wireBody ??= this.buildForwardBodyBuffer(convertedBody);
+            assertRelayRequestBodyCapacity(wireBody, req.headers?.["content-type"]);
             const toolsWithCache = convertedBody?.tools?.filter((t: any) => t.cache_control).length || 0;
             const messagesWithCache = convertedBody?.messages?.filter((m: any) => m.cache_control).length || 0;
             const systemHasCache =
@@ -4013,6 +4004,15 @@ export class RelayProxyService {
                 })
               ),
             );
+            if (
+              relayDeclaredBodyTooLarge(getUpstreamHeaderValue(response.headers, "content-length"), maxResponseBytes)
+            ) {
+              (response.data as Readable).destroy?.();
+              throw new PayloadTooLargeError("Upstream response body exceeds the response limit", undefined, {
+                messageKey: "relayProxy.upstreamResponseTooLarge",
+                messageParams: { limitMb: resourceGuard.maxUpstreamResponseBodyMb },
+              });
+            }
             const streamedResponse = await this.readStreamBodyLimited(
               response.data as Readable,
               maxResponseBytes,
@@ -4611,8 +4611,7 @@ export class RelayProxyService {
               if (getCompositeContext(req)) throw error;
               this.sendStreamTransportError(res, error);
               return {
-                status:
-                  error instanceof ContentSafetyBlockedError ? 403 : error instanceof GatewayTimeoutError ? 504 : 502,
+                status: relayStreamFailureStatus(error),
                 headers: {},
                 data: {},
               };

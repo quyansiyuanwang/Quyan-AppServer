@@ -34,18 +34,49 @@ describe("createRequestSizeGuard", () => {
       ip: "127.0.0.1",
       removeListener: vi.fn(),
       destroy: vi.fn(),
+      resume: vi.fn(),
     }) as unknown as Request & EventEmitter;
 
-    mockRes = {
+    mockRes = Object.assign(new EventEmitter(), {
+      locals: {},
+      removeHeader: vi.fn(),
+      write: vi.fn(() => {
+        Object.assign(mockRes, { headersSent: true });
+        return true;
+      }),
+      end: vi.fn(() => {
+        Object.assign(mockRes, { writableEnded: true });
+        return mockRes as Response;
+      }),
       headersSent: false,
       status: vi.fn().mockReturnThis(),
-      json: vi.fn().mockReturnThis(),
-    };
+      json: vi.fn((body) => {
+        mockRes.end!(JSON.stringify(body));
+        return mockRes as Response;
+      }),
+    }) as unknown as Partial<Response>;
 
     mockNext = vi.fn();
   });
 
   describe("Content-Length pre-check (Layer 1)", () => {
+    it("sends rejection headers before upload ends and delays only the final response chunk", () => {
+      const guard = createRequestSizeGuard({ maxJsonBytes: 100, maxMultipartBytes: 100, maxOtherBytes: 100 });
+      mockReq.headers = { "content-type": "application/json", "content-length": "200" };
+      const originalEnd = mockRes.end;
+      guard(mockReq, mockRes as Response, mockNext);
+      expect(mockNext).toHaveBeenCalledWith(expect.any(PayloadTooLargeError));
+      mockRes.status!(413);
+      mockRes.json!({ code: 1002 });
+      expect(mockRes.write).toHaveBeenCalledWith('{"code":1002}');
+      expect(mockRes.removeHeader).toHaveBeenCalledWith("Content-Length");
+      expect(originalEnd).not.toHaveBeenCalled();
+      mockReq.emit("end");
+      expect(originalEnd).toHaveBeenCalledOnce();
+      expect(mockReq.listenerCount("end")).toBe(0);
+      expect(mockReq.listenerCount("aborted")).toBe(0);
+    });
+
     it("should reject JSON request exceeding maxJsonBytes via Content-Length", () => {
       const guard = createRequestSizeGuard({
         maxJsonBytes: 5 * 1024 * 1024,
@@ -157,7 +188,8 @@ describe("createRequestSizeGuard", () => {
         code: 1002,
         message: expect.stringContaining("Request body too large"),
       });
-      expect(mockReq.destroy).toHaveBeenCalledWith(expect.any(Error));
+      expect(mockReq.destroy).not.toHaveBeenCalled();
+      expect(mockReq.resume).toHaveBeenCalledOnce();
     });
 
     it("should allow request when actual bytes are within limit", async () => {
@@ -198,7 +230,8 @@ describe("createRequestSizeGuard", () => {
       mockReq.emit("data", "b".repeat(60)); // Total 120 bytes > 100
 
       expect(mockRes.status).toHaveBeenCalledWith(413);
-      expect(mockReq.destroy).toHaveBeenCalled();
+      expect(mockReq.destroy).not.toHaveBeenCalled();
+      expect(mockReq.resume).toHaveBeenCalledOnce();
     });
 
     it("should not send response if headers already sent", async () => {
@@ -223,7 +256,7 @@ describe("createRequestSizeGuard", () => {
       expect(mockReq.destroy).toHaveBeenCalled();
     });
 
-    it("should attach error listener before destroying request", async () => {
+    it("should stop body parsing safely without resetting the error response", async () => {
       const guard = createRequestSizeGuard({
         maxJsonBytes: 100,
         maxMultipartBytes: 4 * 1024 * 1024,
@@ -241,7 +274,8 @@ describe("createRequestSizeGuard", () => {
       mockReq.emit("data", Buffer.alloc(200));
 
       expect(onceSpy).toHaveBeenCalledWith("error", expect.any(Function));
-      expect(mockReq.destroy).toHaveBeenCalled();
+      expect(mockReq.destroy).not.toHaveBeenCalled();
+      expect(mockReq.resume).toHaveBeenCalledOnce();
     });
 
     it("should only terminate once even with multiple chunks", async () => {
@@ -262,7 +296,8 @@ describe("createRequestSizeGuard", () => {
       mockReq.emit("data", Buffer.alloc(60)); // Should not trigger again
 
       expect(mockRes.status).toHaveBeenCalledTimes(1);
-      expect(mockReq.destroy).toHaveBeenCalledTimes(1);
+      expect(mockReq.destroy).not.toHaveBeenCalled();
+      expect(mockReq.resume).toHaveBeenCalledOnce();
     });
   });
 
