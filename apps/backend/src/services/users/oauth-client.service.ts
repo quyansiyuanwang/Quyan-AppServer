@@ -30,6 +30,8 @@ import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { OAuthClientIamService } from "./oauth-client-iam.service";
 import { PlatformOAuthClientMutationIamService } from "./platform-oauth-client-mutation-iam.service";
+import { PlatformOAuthReviewMutationIamService } from "./platform-oauth-review-mutation-iam.service";
+import type { PlatformOAuthReviewMutationAction } from "@/store/users/platform-oauth-review-mutation.store";
 import { PlatformOAuthReviewIamService } from "./platform-oauth-review-iam.service";
 import { PlatformOAuthClientIamService } from "./platform-oauth-client-iam.service";
 import { OAuthClientMutationIamService } from "./oauth-client-mutation-iam.service";
@@ -39,6 +41,7 @@ import {
   updateOAuthClientBodySchema,
   updateSystemOAuthClientBodySchema,
   createSystemOAuthClientBodySchema,
+  reviewOAuthClientBodySchema,
 } from "@/api/schema/users/oauth-client.schema";
 import { PermissionService } from "./permission.service";
 import { Permission } from "@quyan/shared";
@@ -67,6 +70,7 @@ export class OAuthClientService {
     private readonly platform = PlatformOAuthClientIamService.getInstance(),
     private readonly platformMutations = PlatformOAuthClientMutationIamService.getInstance(),
     private readonly platformReviews = PlatformOAuthReviewIamService.getInstance(),
+    private readonly reviewMutations = PlatformOAuthReviewMutationIamService.getInstance(),
   ) {}
 
   static getInstance(): OAuthClientService {
@@ -581,7 +585,8 @@ export class OAuthClientService {
   }
 
   async deleteClientForReview(id: string, reviewerUserId: string, request?: Request): Promise<void> {
-    const existing = await this.repository.findById(id);
+    const prepared = await this.prepareReviewMutation("quyan:oauth:DeleteReviewedClient", reviewerUserId, id, request);
+    const existing = prepared?.existing ?? (await this.repository.findById(id));
     if (!existing)
       throw new NotFoundError("OAuth client not found", undefined, {
         messageKey: "oauth.clientNotFound",
@@ -595,7 +600,8 @@ export class OAuthClientService {
       });
     }
 
-    await this.repository.delete(id);
+    if (prepared) await this.reviewMutations.mutate(prepared.guard);
+    else await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_DELETE,
@@ -742,7 +748,14 @@ export class OAuthClientService {
     data: ReviewOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientDto> {
-    const existing = await this.repository.findById(id);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = reviewOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid OAuth review decision", undefined, { messageKey: "errors.badRequest" });
+      data = { ...parsed.data, reviewComment: parsed.data.reviewComment ?? undefined };
+    }
+    const prepared = await this.prepareReviewMutation("quyan:oauth:ReviewClient", reviewerUserId, id, request);
+    const existing = prepared?.existing ?? (await this.repository.findById(id));
     if (!existing)
       throw new NotFoundError("OAuth client not found", undefined, {
         messageKey: "oauth.clientNotFound",
@@ -754,12 +767,11 @@ export class OAuthClientService {
         messageParams: { client: "OAuth" },
       });
 
-    const updated = await this.repository.update(id, {
-      reviewStatus: data.reviewStatus,
-      reviewComment: this.normalizeNullableText(data.reviewComment),
-      reviewedAt: new Date(),
-      reviewedByUserId: reviewerUserId,
-    });
+    const decision = { reviewStatus: data.reviewStatus, reviewComment: this.normalizeNullableText(data.reviewComment) };
+    const updated = prepared
+      ? await this.reviewMutations.mutate(prepared.guard, decision)
+      : await this.repository.update(id, { ...decision, reviewedAt: new Date(), reviewedByUserId: reviewerUserId });
+    if (!updated) throw iamAccountDenied();
 
     await this.businessLogService.logOperation({
       operationType:
@@ -782,6 +794,35 @@ export class OAuthClientService {
     });
 
     return this.toDto(updated);
+  }
+
+  private async prepareReviewMutation(
+    action: PlatformOAuthReviewMutationAction,
+    userId: string,
+    id: string,
+    request?: Request,
+  ) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const prepared = await this.reviewMutations.prepare(action, userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+      return prepared;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_REVIEW_UPDATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.reviewMutations.prepare(action, userId, id, request as TypedRequest, false));
+    }
+    return undefined;
   }
 
   private async requireOwnedClient(id: string, userId: string): Promise<OAuthClient> {

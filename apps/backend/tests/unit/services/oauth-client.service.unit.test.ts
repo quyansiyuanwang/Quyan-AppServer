@@ -1,3 +1,6 @@
+vi.mock("@/services/users/platform-oauth-review-mutation-iam.service", () => ({
+  PlatformOAuthReviewMutationIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/users/platform-oauth-review-iam.service", () => ({
   PlatformOAuthReviewIamService: { getInstance: vi.fn() },
 }));

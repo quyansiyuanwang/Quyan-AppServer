@@ -32,12 +32,13 @@ import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import type { TypedRequest } from "@/types/express";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   platformOAuthClientResourceResolver,
   platformOAuthControlResourceResolver,
+  platformOAuthReviewClientResourceResolver,
 } from "@/iam/request/platform-oauth-resource-resolvers";
 import { oauthClientResourceResolver } from "@/iam/request/oauth-client-resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
@@ -234,7 +235,11 @@ export class OAuthClientController extends Controller {
 
   @Post("{id}/review")
   @Security("jwt")
-  @RequirePermission(Permission.OAUTH_CLIENT_REVIEW_UPDATE)
+  @CheckPermission(Permission.OAUTH_CLIENT_REVIEW_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:ReviewClient",
+    resourceKind: "single-resource",
+    resource: platformOAuthReviewClientResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "OAuth 应用不存在")
   @Middlewares(validateParams(oauthClientIdParamsSchema), validateBody(reviewOAuthClientBodySchema))
@@ -248,7 +253,11 @@ export class OAuthClientController extends Controller {
 
   @Delete("{id}/review")
   @Security("jwt")
-  @RequirePermission(Permission.OAUTH_CLIENT_REVIEW_UPDATE)
+  @CheckPermission(Permission.OAUTH_CLIENT_REVIEW_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:DeleteReviewedClient",
+    resourceKind: "single-resource",
+    resource: platformOAuthReviewClientResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "OAuth 应用不存在")
   @Middlewares(validateParams(oauthClientIdParamsSchema))

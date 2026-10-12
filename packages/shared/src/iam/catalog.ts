@@ -1023,6 +1023,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
   },
+  ...['ReviewClient', 'DeleteReviewedClient'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:oauth:' + operation,
+      service: 'oauth',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes: ['platform/oauth-review-client'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.OAUTH_CLIENT_REVIEW_UPDATE,
+    }),
+  ),
   {
     action: 'quyan:oauth:ListClientReviews',
     service: 'oauth',

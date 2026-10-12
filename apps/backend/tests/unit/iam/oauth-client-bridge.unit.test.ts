@@ -1,3 +1,6 @@
+vi.mock("@/services/users/platform-oauth-review-mutation-iam.service", () => ({
+  PlatformOAuthReviewMutationIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/users/platform-oauth-review-iam.service", () => ({
   PlatformOAuthReviewIamService: { getInstance: vi.fn() },
 }));
@@ -53,6 +56,7 @@ let iam: any,
   platform: any,
   platformMutations: any,
   platformReviews: any,
+  reviewMutations: any,
   service: OAuthClientService,
   request: TypedRequest;
 beforeEach(() => {
@@ -102,17 +106,24 @@ beforeEach(() => {
     update: vi.fn().mockImplementation(async (data: any) => ({ ...record, ...data })),
   };
   platformReviews = {
-    list: vi
-      .fn()
-      .mockResolvedValue({
-        items: [{ ...record, user: { id: "actor", username: "fixture" }, reviewedBy: null }],
-        total: 1,
-        page: 1,
-        pageSize: 10,
-      }),
+    list: vi.fn().mockResolvedValue({
+      items: [{ ...record, user: { id: "actor", username: "fixture" }, reviewedBy: null }],
+      total: 1,
+      page: 1,
+      pageSize: 10,
+    }),
     diagnose: vi.fn().mockResolvedValue(undefined),
   };
   repo.findReviewList = vi.fn().mockResolvedValue({ items: [], total: 0 });
+  reviewMutations = {
+    prepare: vi
+      .fn()
+      .mockResolvedValue({
+        existing: { ...record, userId: "foreign", isSystemClient: false, reviewStatus: "pending" },
+        guard: { action: "quyan:oauth:ReviewClient" },
+      }),
+    mutate: vi.fn().mockResolvedValue({ ...record, isSystemClient: false, reviewStatus: "approved" }),
+  };
   service = new (OAuthClientService as unknown as new (...args: any[]) => OAuthClientService)(
     repo,
     { logOperation: vi.fn() },
@@ -122,6 +133,7 @@ beforeEach(() => {
     platform,
     platformMutations,
     platformReviews,
+    reviewMutations,
   );
 
   request = {
@@ -473,5 +485,56 @@ describe("platform OAuth review list mode bridge", () => {
     expect(repo.findReviewList).toHaveBeenCalledTimes(1);
     permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
     await expect(service.listClientsForReview({}, request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("OAuth review mutation mode bridge", () => {
+  it("uses the guarded review decision and its fixed action in enforce", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    await service.reviewClient("client", "actor", { reviewStatus: "approved", reviewComment: " ok " }, request);
+    expect(reviewMutations.prepare).toHaveBeenCalledWith("quyan:oauth:ReviewClient", "actor", "client", request);
+    expect(reviewMutations.mutate).toHaveBeenCalledWith(expect.anything(), {
+      reviewStatus: "approved",
+      reviewComment: "ok",
+    });
+    expect(repo.findById).not.toHaveBeenCalled();
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+  it("deletes through a distinct action and never falls back after Deny", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    await service.deleteClientForReview("client", "actor", request);
+    expect(reviewMutations.prepare).toHaveBeenCalledWith(
+      "quyan:oauth:DeleteReviewedClient",
+      "actor",
+      "client",
+      request,
+    );
+    expect(repo.delete).not.toHaveBeenCalled();
+    reviewMutations.prepare.mockRejectedValue(new Error("fixture review deny"));
+    await expect(service.deleteClientForReview("client", "actor", request)).rejects.toThrow("fixture review deny");
+    expect(repo.findById).not.toHaveBeenCalled();
+  });
+  it("rejects unknown decision fields and nonpending reviews", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    await expect(
+      service.reviewClient("client", "actor", { reviewStatus: "approved", userId: "foreign" } as any, request),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    reviewMutations.prepare.mockResolvedValue({ existing: { ...record, reviewStatus: "approved" }, guard: {} });
+    await expect(service.reviewClient("client", "actor", { reviewStatus: "approved" }, request)).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect(reviewMutations.mutate).not.toHaveBeenCalled();
+  });
+  it("shadow retains current-role permissions and performs one old write", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    repo.findById.mockResolvedValue({ ...record, reviewStatus: "pending", isSystemClient: false });
+    reviewMutations.prepare.mockRejectedValue(new Error("fixture shadow deny"));
+    await service.reviewClient("client", "actor", { reviewStatus: "rejected" }, request);
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OAUTH_CLIENT_REVIEW_UPDATE], {
+      assumedRoleSessionId: "session",
+    });
+    expect(reviewMutations.prepare).toHaveBeenCalledWith("quyan:oauth:ReviewClient", "actor", "client", request, false);
+    expect(repo.update).toHaveBeenCalledTimes(1);
+    expect(reviewMutations.mutate).not.toHaveBeenCalled();
   });
 });
