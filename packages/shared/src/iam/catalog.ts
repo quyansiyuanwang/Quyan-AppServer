@@ -76,6 +76,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('carpool', 'order'),
   resource('script', 'script', 2),
   resource('script', 'execution', 2),
+  resource('ticket', 'ticket', 2),
   { ...resource('balance', 'gift-code', 2), authenticatedSelfScope: 'children' },
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
@@ -116,6 +117,10 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_POLICY_DETACH]: ['policy', 'user', 'group', 'role', 'authorization'],
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
+  [Permission.TICKET_SUBMIT]: ['quyan/user'],
+  [Permission.TICKET_SELF_READ]: ['ticket/ticket'],
+  [Permission.TICKET_SELF_UPDATE]: ['ticket/ticket'],
+  [Permission.TICKET_COMMENT]: ['ticket/ticket'],
   [Permission.SCRIPT_READ]: ['quyan/user', 'script/script', 'script/execution'],
   [Permission.SCRIPT_CREATE]: ['quyan/user', 'script/script'],
   [Permission.SCRIPT_DELETE]: ['script/script'],
@@ -840,6 +845,49 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
       defaultAuthorizationScope: 'self',
+    }),
+  ),
+  ...[
+    {
+      operation: 'CreateTicket',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user'],
+      legacyPermission: Permission.TICKET_SUBMIT,
+    },
+    {
+      operation: 'ListOwnTickets',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/user', 'ticket/ticket'],
+      legacyPermission: Permission.TICKET_SELF_READ,
+    },
+    {
+      operation: 'GetOwnTicket',
+      accessLevel: 'Read',
+      resourceTypes: ['ticket/ticket'],
+      legacyPermission: Permission.TICKET_SELF_READ,
+    },
+    {
+      operation: 'UpdateOwnTicket',
+      accessLevel: 'Write',
+      resourceTypes: ['ticket/ticket'],
+      legacyPermission: Permission.TICKET_SELF_UPDATE,
+    },
+    {
+      operation: 'AddOwnComment',
+      accessLevel: 'Write',
+      resourceTypes: ['ticket/ticket'],
+      legacyPermission: Permission.TICKET_COMMENT,
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:ticket:' + definition.operation,
+      service: 'ticket',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: definition.accessLevel === 'Write',
+      authorizationStage: 'declared',
     }),
   ),
   ...[
