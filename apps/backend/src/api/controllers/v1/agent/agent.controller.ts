@@ -44,7 +44,12 @@ import { skipResponseWrapper } from "@/util/response-wrapper";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
-import { agentMachineResourceResolver, agentWorkspaceResourceResolver } from "@/iam/request/agent-resource-resolvers";
+import { AGENT_TASK_LIMITS } from "@/services/agent/agent-task.policy";
+import {
+  agentMachineResourceResolver,
+  agentWorkspaceResourceResolver,
+  agentTaskResourceResolver,
+} from "@/iam/request/agent-resource-resolvers";
 
 @Route("v1/agent")
 @Tags("Agent")
@@ -185,9 +190,13 @@ export class AgentController extends Controller {
   @Security("jwt")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
-  @RequirePermission(Permission.AGENT_TASK_RUN)
+  @CheckPermission(Permission.AGENT_TASK_RUN, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:CancelTask",
+    resourceKind: "single-resource",
+    resource: agentTaskResourceResolver,
+  })
   async cancelRun(@Path() taskId: string, @Request() request: TypedRequest): Promise<ApiSuccessResponse<void>> {
-    await this.service.cancelRun(request.user!.userId, taskId);
+    await this.service.cancelRun(request.user!.userId, taskId, request);
     return { code: 0, message: "Success" };
   }
 
@@ -218,28 +227,38 @@ export class AgentController extends Controller {
 
   @Get("runs/{taskId}/events")
   @Security("jwt")
-  @RequirePermission(Permission.AGENT_TASK_RUN)
+  @CheckPermission(Permission.AGENT_TASK_RUN, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:GetTaskEvents",
+    resourceKind: "single-resource",
+    resource: agentTaskResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "SSE stream")
   @Response(HttpStatusCode.NoContent, "No content")
   async streamEvents(@Path() taskId: string, @Query() after = 0, @Request() request: TypedRequest): Promise<void> {
     if (!request.res) throw new Error("Missing response object");
+    const initialEvents = await this.service.listEvents(request.user!.userId, taskId, after, request);
     skipResponseWrapper(request);
     const res = request.res;
     this.sse.initStream(res);
-    let cursor = Number(after) || 0;
+    let cursor = after;
+    let initial = true;
     let idle = 0;
     try {
-      while (!res.writableEnded && !res.destroyed && idle < 600) {
-        const events = await this.service.listEvents(request.user!.userId, taskId, cursor);
+      while (!res.writableEnded && !res.destroyed && idle < AGENT_TASK_LIMITS.streamMaxIdlePolls) {
+        const events = initial
+          ? initialEvents
+          : await this.service.listEvents(request.user!.userId, taskId, cursor, request);
+        initial = false;
         if (events.length) {
           idle = 0;
           for (const event of events) {
+            await this.service.assertTaskEventsAuthorized(request.user!.userId, taskId, request);
             cursor = event.sequence;
             await this.sse.sendChunk(res, { ...(event.payload as object), sequence: event.sequence });
           }
         } else idle += 1;
         if (events.some((event) => ["complete", "error"].includes(event.eventType))) break;
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, AGENT_TASK_LIMITS.streamPollIntervalMs));
       }
       if (!res.writableEnded && !res.destroyed) {
         await this.sse.sendChunk(res, { type: "done", done: true });

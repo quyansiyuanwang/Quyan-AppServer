@@ -80,6 +80,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('mcp', 'server', 2),
   resource('agent', 'machine', 2),
   resource('agent', 'workspace', 2),
+  resource('agent', 'task', 2),
   { ...resource('balance', 'gift-code', 2), authenticatedSelfScope: 'children' },
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
@@ -120,6 +121,7 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_POLICY_DETACH]: ['policy', 'user', 'group', 'role', 'authorization'],
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
+  [Permission.AGENT_TASK_RUN]: ['agent/task'],
   [Permission.AGENT_WORKSPACE_READ]: ['agent/machine', 'agent/workspace'],
   [Permission.AGENT_WORKSPACE_WRITE]: ['quyan/user', 'agent/machine', 'agent/workspace'],
   [Permission.MCP_SERVER_READ]: ['mcp/server'],
@@ -855,6 +857,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   ...[
+    {
+      operation: 'GetTaskEvents',
+      accessLevel: 'Read',
+      resourceTypes: ['agent/task'],
+      legacyPermission: Permission.AGENT_TASK_RUN,
+    },
+    {
+      operation: 'CancelTask',
+      accessLevel: 'Write',
+      resourceTypes: ['agent/task'],
+      legacyPermission: Permission.AGENT_TASK_RUN,
+    },
     {
       operation: 'ListWorkspaces',
       accessLevel: 'List',

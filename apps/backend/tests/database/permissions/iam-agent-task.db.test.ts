@@ -1,0 +1,152 @@
+import { randomUUID } from "node:crypto";
+import { beforeEach, describe, expect, it } from "vitest";
+import { prisma } from "@/config/database";
+import { AgentRepository } from "@/store/agent/agent.repository";
+import { AgentTaskIamService } from "@/services/agent/agent-task-iam.service";
+import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
+import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
+import { parseIamPolicy } from "@/iam/parser/policy-parser";
+import { agentTaskArn } from "@/iam/resources/agent-resources";
+import { AGENT_TASK_LIMITS } from "@/services/agent/agent-task.policy";
+import type { TypedRequest } from "@/types/express";
+const repository = AgentRepository.getInstance();
+let owner: string, actor: string, other: string, foreign: string;
+const user = async (accountOwnerId?: string) =>
+  (
+    await prisma.user.create({
+      data: {
+        username: "task-fixture-" + randomUUID(),
+        password: "fixture-only",
+        accountOwnerId,
+        permissionAdds: [],
+        permissionRemoves: [],
+      },
+    })
+  ).id;
+beforeEach(async () => {
+  owner = await user();
+  actor = await user(owner);
+  other = await user(owner);
+  foreign = await user();
+});
+const task = async (userId = actor) => {
+  const workspace = await repository.createWorkspace({ userId, name: "fixture", policy: {}, limits: {} });
+  const token = await prisma.relayToken.create({ data: { userId, token: "fixture-only-" + randomUUID() } });
+  const conversation = await prisma.conversation.create({ data: { userId, relayTokenId: token.id } });
+  return repository.createTask({
+    userId,
+    workspaceId: workspace.id,
+    conversationId: conversation.id,
+    relayTokenId: token.id,
+    model: "fixture",
+    prompt: "private-prompt",
+    maxSteps: 1,
+    budget: undefined,
+  });
+};
+const request = () =>
+  ({
+    user: { userId: actor },
+    authContext: { principalUserId: actor, accountOwnerId: owner },
+    headers: {},
+  }) as unknown as TypedRequest;
+describe("Agent task events and cancellation storage boundaries", () => {
+  it("reads only scoped metadata and bounded, ordered event payload pages", async () => {
+    const selected = await task();
+    await prisma.agentRunEvent.createMany({
+      data: Array.from({ length: AGENT_TASK_LIMITS.eventsPerPage + 1 }, (_, index) => ({
+        taskId: selected.id,
+        sequence: index + 1,
+        eventType: "assistant_delta",
+        payload: { content: "private" },
+      })),
+    });
+    const target = (await repository.findTaskTarget(selected.id, actor, owner))!;
+    expect(target).not.toHaveProperty("prompt");
+    expect(target).not.toHaveProperty("relayTokenId");
+    expect(await repository.findTaskTarget(selected.id, other, owner)).toBeNull();
+    expect(await repository.findTaskTarget(selected.id, actor, foreign)).toBeNull();
+    const first = await repository.listTaskEvents(target, owner, 0);
+    expect(first).toHaveLength(AGENT_TASK_LIMITS.eventsPerPage);
+    expect(first[0].sequence).toBe(1);
+    expect(
+      (await repository.listTaskEvents(target, owner, first[first.length - 1].sequence)).map((row) => row.sequence),
+    ).toEqual([AGENT_TASK_LIMITS.eventsPerPage + 1]);
+    expect(await repository.listTaskEvents(target, foreign, 0)).toEqual([]);
+    await prisma.user.update({ where: { id: actor }, data: { status: 0 } });
+    expect(await repository.listTaskEvents(target, owner, 0)).toEqual([]);
+  });
+  it("rejects stale or cross-account cancellations and cancelled tasks cannot restart", async () => {
+    const selected = await task(),
+      target = (await repository.findTaskTarget(selected.id, actor, owner))!;
+    await expect(repository.cancelTaskTarget(target, foreign)).rejects.toMatchObject({ statusCode: 403 });
+    await repository.cancelTaskTarget(target, owner);
+    await expect(repository.cancelTaskTarget(target, owner)).rejects.toMatchObject({ statusCode: 403 });
+    expect(await repository.startQueuedTask(selected.id, "worker", new Date(Date.now() + 1000))).toBe(false);
+    expect(await repository.failRunningTask(selected.id, "worker")).toBe(false);
+    expect((await prisma.agentTask.findUnique({ where: { id: selected.id } }))?.taskStatus).toBe("cancelled");
+    await expect(
+      repository.cancelTaskTarget((await repository.findTaskTarget(selected.id, actor, owner))!, owner),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+  it("requires the current worker lease and cancellation wins over late failure updates", async () => {
+    const selected = await task();
+    expect(await repository.startQueuedTask(selected.id, "worker", new Date(Date.now() + 1000))).toBe(true);
+    expect(await repository.startQueuedTask(selected.id, "other-worker", new Date(Date.now() + 1000))).toBe(false);
+    expect(await repository.failRunningTask(selected.id, "other-worker")).toBe(false);
+    await repository.cancelTaskTarget((await repository.findTaskTarget(selected.id, actor, owner))!, owner);
+    expect(await repository.failRunningTask(selected.id, "worker")).toBe(false);
+  });
+  it("checks resource groups and rejects foreign or removed workspace relationships", async () => {
+    const selected = await task(),
+      groups = RamResourceGroupRepository.getInstance();
+    expect(await groups.resourceExistsInAccount(agentTaskArn(owner, actor, selected.id), owner)).toBe(true);
+    expect(await groups.resourceExistsInAccount(agentTaskArn(owner, other, selected.id), owner)).toBe(false);
+    const foreignTask = await task(foreign);
+    await prisma.agentTask.update({ where: { id: selected.id }, data: { workspaceId: foreignTask.workspaceId } });
+    expect(await repository.findTaskTarget(selected.id, actor, owner)).toBeNull();
+    expect(await groups.resourceExistsInAccount(agentTaskArn(owner, actor, selected.id), owner)).toBe(false);
+  });
+  it("enforces real policy bindings and revocation without exposing payloads", async () => {
+    const selected = await task();
+    await repository.appendEvent(selected.id, "assistant_delta", { content: "private" });
+    const parsed = parseIamPolicy({
+      Version: "1",
+      Statement: [
+        {
+          Effect: "Allow",
+          Action: ["quyan:agent:GetTaskEvents", "quyan:agent:CancelTask"],
+          Resource: agentTaskArn(owner, actor, selected.id),
+        },
+      ],
+    });
+    const policy = await RamPolicyRepository.getInstance().createPolicy({
+      accountOwnerId: owner,
+      name: "task-policy-" + randomUUID(),
+      permissions: [],
+      iamVersion: { ...parsed, createdBy: owner },
+    });
+    const binding = await prisma.ramAuthorization.create({
+      data: {
+        accountOwnerId: owner,
+        principalType: "user",
+        principalId: actor,
+        policyId: policy.id,
+        scopeType: "account",
+        scopeKey: "account",
+        createdBy: owner,
+      },
+    });
+    expect((await AgentTaskIamService.getInstance().listEvents(actor, selected.id, 0, request()))[0].payload).toEqual({
+      content: "private",
+    });
+    await prisma.ramAuthorization.update({ where: { id: binding.id }, data: { status: -1 } });
+    await expect(AgentTaskIamService.getInstance().listEvents(actor, selected.id, 0, request())).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await expect(AgentTaskIamService.getInstance().cancel(actor, selected.id, request())).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect((await prisma.agentTask.findUnique({ where: { id: selected.id } }))?.taskStatus).toBe("queued");
+  });
+});

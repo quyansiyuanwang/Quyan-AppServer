@@ -406,3 +406,7 @@ MCP 服务资源使用 `acs:mcp:*:<accountId>:server/<userId>/<serverId>`。`quy
 创建工作区需要当前用户资源上的 `quyan:agent:CreateWorkspace`；选择远程机器时，还需要该机器资源上的 `quyan:agent:UseMachine`。可见机器不等于允许使用机器。服务器在创建前校验机器归属和数据版本，并在启动运行环境前重新授权；创建响应不额外显示关联机器的名称和状态，这些信息通过独立授权的列表读取。
 
 删除工作区需要该工作区的 `quyan:agent:DeleteWorkspace`；关联远程机器时还需要该机器的 `quyan:agent:UseMachine`。删除会先释放运行环境再移除工作区。释放失败时，工作区保留并标记失败，可在恢复运行环境连接和权限后重试。删除过程中不接受重复删除或较旧创建操作对状态的覆盖。
+
+## Agent 任务事件和取消
+
+任务使用 `acs:agent:*:<accountId>:task/<userId>/<taskId>`。`quyan:agent:GetTaskEvents` 控制事件内容读取，服务器按顺序分批读取，并在事件流持续期间、发送每条事件前重新授权；授权被撤销后停止发送。`quyan:agent:CancelTask` 只允许取消仍在排队、运行或等待批准的任务，并检查当前任务状态和版本。已结束任务不能再次取消，旧 worker 不能把取消后的任务改回运行中。任务仍须属于当前用户和账户，并关联有效的自有工作区与对话。

@@ -24,6 +24,7 @@ import { resolveMappedModel } from "@/util/model-mapping.util";
 
 import type { TypedRequest } from "@/types/express";
 import { AgentMachineIamService } from "./agent-machine-iam.service";
+import { AgentTaskIamService } from "./agent-task-iam.service";
 import { AgentWorkspaceLifecycleService } from "./agent-workspace-lifecycle.service";
 import { AgentWorkspaceIamService } from "./agent-workspace-iam.service";
 import type { PublicAgentMachine, PublicAgentWorkspace, AgentWorkspaceTarget } from "@/store/agent/agent.repository";
@@ -376,7 +377,12 @@ export class AgentService {
       maxSteps: body.maxSteps || limits.maxSteps || 30,
       budget: body.budget ?? limits.budget,
     });
-    void this.run(row.id);
+    void this.run(row.id).catch(() => {
+      getLogger("AgentTask", LogCategory.SECURITY).warn("Agent task worker failed", {
+        reason: "task-worker-unavailable",
+        taskId: row.id,
+      });
+    });
     return {
       id: row.id,
       workspaceId: row.workspaceId,
@@ -395,13 +401,47 @@ export class AgentService {
     );
   }
 
-  async listEvents(userId: string, taskId: string, after = 0) {
+  async assertTaskEventsAuthorized(userId: string, taskId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (request?.iamDecisions)
+        request.iamDecisions = request.iamDecisions.filter(
+          (decision) => decision.action !== "quyan:agent:GetTaskEvents",
+        );
+      await AgentTaskIamService.getInstance().authorize(taskId, userId, "quyan:agent:GetTaskEvents", request);
+      return;
+    }
+    const permission = await PermissionService.getInstance().checkUserPermissions(userId, [Permission.AGENT_TASK_RUN], {
+      assumedRoleSessionId: request?.user?.roleSessionId,
+    });
+    if (!permission.hasPermission)
+      throw new ForbiddenError("Legacy task events denied", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    if (env.security.iamAuthorizationMode === "shadow" && request) {
+      try {
+        await AgentTaskIamService.getInstance().authorize(taskId, userId, "quyan:agent:GetTaskEvents", request);
+      } catch {
+        getLogger("AgentTaskIam", LogCategory.SECURITY).warn("Task events shadow evaluation failed", {
+          reason: "iam-events-unavailable",
+        });
+      }
+    }
+  }
+
+  async listEvents(userId: string, taskId: string, after = 0, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return AgentTaskIamService.getInstance().listEvents(userId, taskId, after, request);
+    await this.assertTaskEventsAuthorized(userId, taskId, request);
     const task = await this.repository.findTaskForUser(taskId, userId);
     if (!task) throw new NotFoundError("Agent task not found", undefined, { messageKey: "agent.taskNotFound" });
     return this.repository.listEvents(taskId, after);
   }
 
-  async cancelRun(userId: string, taskId: string) {
+  async cancelRun(userId: string, taskId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      await AgentTaskIamService.getInstance().cancel(userId, taskId, request);
+      return;
+    }
     const task = await this.repository.findTaskForUser(taskId, userId);
     if (!task) throw new NotFoundError("Agent task not found", undefined, { messageKey: "agent.taskNotFound" });
     await this.repository.updateTask(taskId, { taskStatus: "cancelled", lastError: "Cancelled by user" });
@@ -496,19 +536,11 @@ export class AgentService {
   }
 
   private async run(taskId: string) {
-    await this.repository
-      .updateTask(taskId, {
-        taskStatus: "running",
-        leaseOwner: randomUUID(),
-        leaseExpiresAt: new Date(Date.now() + 3600_000),
-      })
-      .catch(() => undefined);
+    const leaseOwner = randomUUID();
+    if (!(await this.repository.startQueuedTask(taskId, leaseOwner, new Date(Date.now() + 3600_000)))) return;
     await this.appendEvent(taskId, { type: "task", taskId, status: "running", done: false });
-    // Model/tool execution is delegated to a remote runtime in production. A task stays
-    // resumable and explicit instead of ever executing arbitrary commands on the API host.
-    await this.repository
-      .updateTask(taskId, { taskStatus: "failed", lastError: "Remote Agent runtime is not connected" })
-      .catch(() => undefined);
+    // Production execution remains delegated to the remote runtime; cancellation wins over late workers.
+    if (!(await this.repository.failRunningTask(taskId, leaseOwner))) return;
     await this.appendEvent(taskId, {
       type: "error",
       taskId,

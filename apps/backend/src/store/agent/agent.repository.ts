@@ -1,8 +1,9 @@
 import { prisma } from "@/config/database";
-import type { AgentRuntimeMachine, AgentWorkspace, McpServer, Prisma } from "@prisma/client";
+import type { AgentRuntimeMachine, AgentWorkspace, AgentTask, McpServer, Prisma } from "@prisma/client";
 
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
-import { ForbiddenError } from "@/util/errors";
+import { AGENT_TASK_LIMITS } from "@/services/agent/agent-task.policy";
+import { BadRequestError, ForbiddenError } from "@/util/errors";
 const machineAccountScope = (userId: string, accountOwnerId: string): Prisma.AgentRuntimeMachineWhereInput => ({
   userId,
   status: 1,
@@ -80,6 +81,23 @@ export type AgentMachineSummary = Pick<AgentRuntimeMachine, "id" | "userId" | "n
 export type PublicAgentWorkspace = Prisma.AgentWorkspaceGetPayload<{ select: typeof agentWorkspacePublicSelect }> & {
   machine?: AgentMachineSummary | null;
 };
+
+export type AgentTaskTarget = Pick<AgentTask, "id" | "userId" | "workspaceId" | "taskStatus" | "updateTime">;
+const taskAccountScope = (userId: string, accountOwnerId: string): Prisma.AgentTaskWhereInput => ({
+  userId,
+  status: 1,
+  user: {
+    status: 1,
+    OR: [
+      { id: accountOwnerId, accountOwnerId: null },
+      { accountOwnerId, accountOwner: { status: 1, accountOwnerId: null } },
+    ],
+  },
+  workspace: { userId, status: 1 },
+  conversation: { userId, status: 1 },
+});
+const taskStateChanged = () =>
+  new BadRequestError("Agent task state changed", undefined, { messageKey: "agent.taskStateChanged" });
 
 const mcpAccountScope = (userId: string, accountOwnerId: string): Prisma.McpServerWhereInput => ({
   userId,
@@ -500,7 +518,82 @@ export class AgentRepository {
   }
 
   findTaskForUser(id: string, userId: string) {
-    return prisma.agentTask.findFirst({ where: { id, userId } });
+    return prisma.agentTask.findFirst({ where: { id, userId, status: 1 } });
+  }
+
+  findTaskTarget(id: string, userId: string, accountOwnerId: string) {
+    return prisma.agentTask.findFirst({
+      where: { id, ...taskAccountScope(userId, accountOwnerId) },
+      select: { id: true, userId: true, workspaceId: true, taskStatus: true, updateTime: true },
+    });
+  }
+
+  listTaskEvents(target: AgentTaskTarget, accountOwnerId: string, after: number) {
+    return prisma.agentRunEvent.findMany({
+      where: {
+        taskId: target.id,
+        sequence: { gt: after },
+        task: {
+          id: target.id,
+          workspaceId: target.workspaceId,
+          updateTime: target.updateTime,
+          ...taskAccountScope(target.userId, accountOwnerId),
+        },
+      },
+      orderBy: { sequence: "asc" },
+      take: AGENT_TASK_LIMITS.eventsPerPage,
+      select: { taskId: true, sequence: true, eventType: true, payload: true, createTime: true },
+    });
+  }
+
+  async cancelTaskTarget(target: AgentTaskTarget, accountOwnerId: string) {
+    if (!["queued", "running", "waiting_approval"].includes(target.taskStatus)) throw taskStateChanged();
+    const updated = await prisma.agentTask.updateMany({
+      where: {
+        id: target.id,
+        workspaceId: target.workspaceId,
+        taskStatus: target.taskStatus,
+        updateTime: target.updateTime,
+        ...taskAccountScope(target.userId, accountOwnerId),
+      },
+      data: {
+        taskStatus: "cancelled",
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        completedAt: new Date(),
+        lastError: "Cancelled by user",
+        updateTime: nextRuntimeLease(target.updateTime),
+      },
+    });
+    if (updated.count !== 1) throw machineScopeChanged();
+  }
+
+  async startQueuedTask(id: string, leaseOwner: string, leaseExpiresAt: Date) {
+    const updated = await prisma.agentTask.updateMany({
+      where: {
+        id,
+        status: 1,
+        taskStatus: "queued",
+        user: { status: 1 },
+        workspace: { status: 1, runtimeStatus: { not: "stopping" } },
+      },
+      data: { taskStatus: "running", leaseOwner, leaseExpiresAt },
+    });
+    return updated.count === 1;
+  }
+
+  async failRunningTask(id: string, leaseOwner: string) {
+    const updated = await prisma.agentTask.updateMany({
+      where: { id, status: 1, taskStatus: "running", leaseOwner },
+      data: {
+        taskStatus: "failed",
+        lastError: "Remote Agent runtime is not connected",
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        completedAt: new Date(),
+      },
+    });
+    return updated.count === 1;
   }
 
   updateTask(id: string, data: Prisma.AgentTaskUpdateInput) {
@@ -522,6 +615,7 @@ export class AgentRepository {
     return prisma.agentRunEvent.findMany({
       where: { taskId, sequence: { gt: after } },
       orderBy: { sequence: "asc" },
+      take: AGENT_TASK_LIMITS.eventsPerPage,
     });
   }
 

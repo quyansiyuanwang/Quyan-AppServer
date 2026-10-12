@@ -107,6 +107,8 @@ const zhCN = {
     modelRequired: "Agent 模型不能为空",
     modelNotConfigured: "Agent 模型未配置",
     modelNotAllowed: "中转令牌不允许使用该模型",
+    taskStateChanged: "Agent 任务状态已变化，请刷新后重试",
+    invalidEventCursor: "Agent 事件游标无效",
     taskNotFound: "Agent 任务不存在",
     approvalUnavailable: "审批已不可用",
     cancelledByUser: "已由用户取消",

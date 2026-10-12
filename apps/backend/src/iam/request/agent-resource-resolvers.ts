@@ -1,5 +1,5 @@
 import { AgentRepository } from "@/store/agent/agent.repository";
-import { agentMachineArn, agentWorkspaceArn, isCanonicalAgentId } from "../resources/agent-resources";
+import { agentMachineArn, agentWorkspaceArn, agentTaskArn, isCanonicalAgentId } from "../resources/agent-resources";
 import type { ResourceResolver } from "./resource-resolvers";
 
 /** Only trusted account and owner metadata enters a machine ARN; never the registration token. */
@@ -25,4 +25,16 @@ export const agentWorkspaceResourceResolver: ResourceResolver = async ({ request
   );
   if (!target || target.id !== id || target.userId !== principal.subjectUserId) return undefined;
   return agentWorkspaceArn(principal.accountOwnerId, target.userId, target.id);
+};
+
+export const agentTaskResourceResolver: ResourceResolver = async ({ request, principal }) => {
+  const id = request.params.taskId;
+  if (!isCanonicalAgentId(id)) return undefined;
+  const target = await AgentRepository.getInstance().findTaskTarget(
+    id,
+    principal.subjectUserId,
+    principal.accountOwnerId,
+  );
+  if (!target || target.id !== id || target.userId !== principal.subjectUserId) return undefined;
+  return agentTaskArn(principal.accountOwnerId, target.userId, target.id);
 };

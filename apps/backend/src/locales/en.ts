@@ -101,6 +101,8 @@ const en = {
     modelRequired: "Agent model is required",
     modelNotConfigured: "Agent model is not configured",
     modelNotAllowed: "Relay token does not allow this model",
+    taskStateChanged: "Agent task state changed; reload before retrying",
+    invalidEventCursor: "Invalid Agent event cursor",
     taskNotFound: "Agent task not found",
     approvalUnavailable: "Approval is no longer available",
     cancelledByUser: "Cancelled by user",

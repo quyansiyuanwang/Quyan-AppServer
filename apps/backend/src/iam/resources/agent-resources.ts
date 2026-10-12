@@ -24,3 +24,13 @@ export function agentWorkspaceArn(accountOwnerId: string, userId: string, worksp
     path: "workspace/" + userId + "/" + workspaceId,
   });
 }
+
+export function agentTaskArn(accountOwnerId: string, userId: string, taskId: string): string {
+  if (!isCanonicalAgentId(userId) || !isCanonicalAgentId(taskId)) throw new Error("Invalid Agent task identifier");
+  return buildAcsResource({
+    service: "agent",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "task/" + userId + "/" + taskId,
+  });
+}
