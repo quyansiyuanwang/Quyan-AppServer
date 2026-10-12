@@ -45,6 +45,10 @@ vi.mock("@/services/system/config.service", () => ({
   ConfigService: { getInstance: vi.fn(() => configService) },
 }));
 
+vi.mock("@/services/system/platform-lifecycle-history-iam.service", () => ({
+  PlatformLifecycleHistoryIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/users/permission.service", () => ({ PermissionService: { getInstance: vi.fn() } }));
 vi.mock("@/services/system/platform-lifecycle-read-iam.service", () => ({
   PlatformLifecycleReadIamService: { getInstance: vi.fn() },
 }));

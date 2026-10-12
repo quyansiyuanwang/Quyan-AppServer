@@ -22,6 +22,14 @@ The list contains only authorized, active datasets. Candidate counts are read on
 
 Schedule reads independently require `quyan:system:data_lifecycle:GetSchedule` on `acs:platform:*:platform:lifecycle-schedule/default`. This grants schedule visibility, not schedule updates or task execution.
 
+## Run history and archive list permissions
+
+In IAM enforce mode, `quyan:system:data_lifecycle:ListRuns` controls run history visibility on `acs:platform:*:platform:lifecycle-run/<runId>`. Runs are filtered before pagination and totals are calculated; denied or inactive runs are omitted.
+
+Archive lists require `quyan:system:data_lifecycle:ListArtifacts` on both the parent run and `acs:platform:*:platform:lifecycle-artifact/<runId>/<artifactId>`. The archive count in run history includes only currently visible files. Runs without archive-list access show zero instead of exposing hidden file counts. File pagination and totals likewise include only authorized, active files.
+
+Authorized files retain the existing object key, checksum, size, expiry and deletion metadata; listing does not grant download access. Changes to runs, files, groups or authorization during loading cause the request to fail rather than release data obtained under stale access.
+
 ## Execution Rules
 
 1. The policy table shows how many records will be archived and deleted.

@@ -13,6 +13,10 @@ import { ObservabilityRepository } from "@/store/system/observability.repository
 import { DATA_LIFECYCLE_DATASETS, type DataLifecycleDataset } from "@/constant/data-maintenance-datasets";
 import { ConfigService } from "@/services/system/config.service";
 import { PlatformLifecycleReadIamService } from "./platform-lifecycle-read-iam.service";
+import { PlatformLifecycleHistoryIamService } from "./platform-lifecycle-history-iam.service";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { getIamPrincipal } from "@/iam/request/principal-context";
 import { isLifecycleDataset } from "@/iam/resources/platform-lifecycle-resources";
 import { lifecycleCandidatesQuerySchema } from "@/api/schema/system/data-lifecycle.schema";
 import type { TypedRequest } from "@/types/express";
@@ -53,6 +57,8 @@ export class DataLifecycleService {
     private readonly repository: ObservabilityRepository = ObservabilityRepository.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly iamReads = PlatformLifecycleReadIamService.getInstance(),
+    private readonly iamHistory = PlatformLifecycleHistoryIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   public static getInstance(): DataLifecycleService {
@@ -400,6 +406,47 @@ export class DataLifecycleService {
         } catch (error) {
           logger.error("Scheduled data lifecycle run failed", { dataset: policy.dataset, error: String(error) });
         }
+  }
+
+  private async legacyLifecycleRead(request: TypedRequest) {
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(
+          principal.subjectUserId,
+          [Permission.SYSTEM_DATA_LIFECYCLE_MANAGE],
+          { assumedRoleSessionId: principal.roleSessionId },
+        )
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  private async shadowLifecycleRead(read: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await read();
+    } catch {
+      getLogger("LifecycleHistoryIam", LogCategory.SECURITY).warn("Lifecycle history IAM shadow evaluation failed", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
+  public async listRunsRequest(page: number, pageSize: number, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iamHistory.listRuns(page, pageSize, request);
+    await this.legacyLifecycleRead(request);
+    await this.shadowLifecycleRead(() => this.iamHistory.listRuns(page, pageSize, request, false));
+    return this.listRuns(page, pageSize);
+  }
+  public async listArtifactsRequest(runId: string, page: number, pageSize: number, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.iamHistory.listArtifacts(runId, page, pageSize, request);
+    await this.legacyLifecycleRead(request);
+    await this.shadowLifecycleRead(() => this.iamHistory.listArtifacts(runId, page, pageSize, request, false));
+    return this.listArchiveArtifacts(runId, page, pageSize);
   }
 
   public listRuns(page: number, pageSize: number) {

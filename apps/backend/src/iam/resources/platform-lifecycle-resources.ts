@@ -21,3 +21,26 @@ export function platformLifecycleScheduleArn() {
     path: "lifecycle-schedule/default",
   });
 }
+
+export function isCanonicalLifecycleId(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(value);
+}
+export function platformLifecycleRunArn(id: string) {
+  if (!isCanonicalLifecycleId(id)) throw new Error("Invalid lifecycle run identity");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "lifecycle-run/" + id,
+  });
+}
+export function platformLifecycleArtifactArn(runId: string, id: string) {
+  if (!isCanonicalLifecycleId(runId) || !isCanonicalLifecycleId(id))
+    throw new Error("Invalid lifecycle artifact identity");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "lifecycle-artifact/" + runId + "/" + id,
+  });
+}

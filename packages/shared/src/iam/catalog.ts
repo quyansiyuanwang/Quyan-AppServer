@@ -103,6 +103,17 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'lifecycle-run'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':lifecycle-run/{resourceId}',
+  },
+  {
+    ...resource('platform', 'lifecycle-artifact', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':lifecycle-artifact/{parentId}/{resourceId}',
+  },
+  {
     ...resource('platform', 'lifecycle-dataset'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':lifecycle-dataset/{resourceId}',
@@ -1698,6 +1709,24 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...['ListRuns', 'ListArtifacts'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:system:data_lifecycle:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: 'List',
+      resourceTypes:
+        operation === 'ListRuns'
+          ? ['platform/lifecycle-run']
+          : ['platform/lifecycle-run', 'platform/lifecycle-artifact'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+    }),
+  ),
   ...['ListPolicies', 'PreviewPolicy', 'ListCandidates', 'GetSchedule'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:data_lifecycle:' + operation,

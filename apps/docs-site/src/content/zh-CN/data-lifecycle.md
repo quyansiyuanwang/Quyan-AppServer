@@ -22,6 +22,14 @@ API 日志、通知日志和 AI 请求日志默认保留 90 天；业务日志�
 
 调度读取由 `quyan:system:data_lifecycle:GetSchedule` 单独控制，资源为 `acs:platform:*:platform:lifecycle-schedule/default`。它只允许读取计划，不允许修改计划或执行任务。
 
+## 运行历史与归档列表权限
+
+IAM 强制授权下，`quyan:system:data_lifecycle:ListRuns` 控制 `acs:platform:*:platform:lifecycle-run/<runId>` 的运行历史可见性。列表先按运行资源过滤，再计算分页与总数；已拒绝或禁用的运行不会展示。
+
+归档列表需要 `quyan:system:data_lifecycle:ListArtifacts` 同时允许父运行资源及 `acs:platform:*:platform:lifecycle-artifact/<runId>/<artifactId>` 文件资源。运行列表中的归档数量只统计当前可见的文件；未获准查看归档列表的运行显示数量为零，不透露隐藏文件的数量。文件分页与总数也只包含已授权的有效文件。
+
+已授权文件保留对象键、校验值、大小、过期和删除状态等原有元数据；列表权限本身不允许下载文件。查询期间若运行、文件、用户组或授权变化，请求会失败，避免返回过期授权下取得的数据。
+
 ## 执行规则
 
 1. 页面会在策略表中显示当前将归档和将删除的记录数。

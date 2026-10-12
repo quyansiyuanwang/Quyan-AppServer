@@ -53,6 +53,7 @@ import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   platformLifecycleDatasetResourceResolver,
   platformLifecycleScheduleResourceResolver,
+  platformLifecycleRunResourceResolver,
 } from "@/iam/request/platform-lifecycle-resource-resolvers";
 
 @Route("v1/data-lifecycle")
@@ -210,13 +211,20 @@ export class DataLifecycleController extends Controller {
 
   @Get("runs")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:ListRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(lifecycleRunsQuerySchema))
   public async listRuns(
+    @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<DataLifecycleRunListResponse> {
-    const result = await this.service.listRuns(page, pageSize);
+    const result = await this.service.listRunsRequest(page, pageSize, request);
     return {
       ...result,
       page,
@@ -227,14 +235,21 @@ export class DataLifecycleController extends Controller {
 
   @Get("runs/{runId}/artifacts")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:ListArtifacts",
+      resourceKind: "single-resource",
+      resource: platformLifecycleRunResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(lifecycleRunParamsSchema), validateQuery(lifecycleArtifactsQuerySchema))
   public async listArtifacts(
+    @Request() request: TypedRequest,
     @Path() runId: string,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<ArchiveArtifactListResponse> {
-    const result = await this.service.listArchiveArtifacts(runId, page, pageSize);
+    const result = await this.service.listArtifactsRequest(runId, page, pageSize, request);
     return {
       ...result,
       page,
