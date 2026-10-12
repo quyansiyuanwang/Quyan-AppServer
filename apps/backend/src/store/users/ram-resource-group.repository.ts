@@ -70,6 +70,13 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
     const active = { status: AccountStatus.ACTIVE };
     const userOwner = { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] };
     switch (type.id) {
+      case "json-endpoint/endpoint": {
+        const endpoint = await prisma.jsonEndpoint.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return endpoint?.id === childId && endpoint.userId === id;
+      }
       case "quyan/passkey": {
         const passkey = await prisma.passkeyCredential.findFirst({
           where: { id: childId, userId: id, user: { ...active, ...userOwner } },

@@ -16,6 +16,8 @@ export interface IamActionDefinition {
   defaultAuthorizationScope?: 'self'
   /** Registered migration alias only; clients cannot choose the endpoint Action. */
   legacyPermission?: Permission
+  /** Multiple former permissions may converge on one fixed native endpoint Action. */
+  legacyPermissions?: Permission[]
 }
 export interface IamServiceDefinition {
   code: string
@@ -68,6 +70,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'role-session'),
   resource('quyan', 'access-key', 2),
   resource('quyan', 'passkey', 2),
+  resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
   resource('developer', 'project'),
@@ -775,6 +778,37 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.PASSKEY_MANAGE,
     }),
   ),
+  ...[
+    {
+      operation: 'ListEndpoints',
+      accessLevel: 'List',
+      resourceTypes: ['json-endpoint/endpoint'],
+      legacyPermissions: [Permission.JSON_ENDPOINT_READ, Permission.JSON_ENDPOINT_MANAGE],
+    },
+    {
+      operation: 'GetEndpoint',
+      accessLevel: 'Read',
+      resourceTypes: ['json-endpoint/endpoint'],
+      legacyPermissions: [Permission.JSON_ENDPOINT_READ, Permission.JSON_ENDPOINT_MANAGE],
+    },
+    {
+      operation: 'ListEndpointOwners',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/user'],
+      legacyPermissions: [Permission.JSON_ENDPOINT_MANAGE],
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:json_endpoint:' + definition.operation,
+      service: 'json_endpoint',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+    }),
+  ),
   ...['CreateAccessKey', 'SendAccessKeyCreationVerificationCode'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:ram:' + operation,
@@ -1227,7 +1261,9 @@ export function iamActionsForLegacyPermission(permission: Permission): string[] 
   return [
     actionForPermission(permission),
     ...IAM_ACTION_DEFINITIONS.filter(
-      (definition) => definition.legacyPermission === permission,
+      (definition) =>
+        definition.legacyPermission === permission ||
+        definition.legacyPermissions?.includes(permission),
     ).map((definition) => definition.action),
   ]
 }

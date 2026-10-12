@@ -61274,6 +61274,13 @@
 					"legacyPermission": {
 						"$ref": "#/components/schemas/Permission",
 						"description": "Registered migration alias only; clients cannot choose the endpoint Action."
+					},
+					"legacyPermissions": {
+						"items": {
+							"$ref": "#/components/schemas/Permission"
+						},
+						"type": "array",
+						"description": "Multiple former permissions may converge on one fixed native endpoint Action."
 					}
 				},
 				"required": [

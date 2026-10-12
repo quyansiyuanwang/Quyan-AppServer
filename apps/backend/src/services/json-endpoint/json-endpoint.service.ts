@@ -20,6 +20,13 @@ import type { Request } from "express";
 import bcrypt from "bcrypt";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { extractClientIp } from "@/util/ip-extractor";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { JsonEndpointIamService } from "./json-endpoint-iam.service";
+import { jsonEndpointDenied } from "@/store/system/json-endpoint-management.repository";
+import { jsonEndpointDto, jsonEndpointPublicPath } from "./json-endpoint-view";
+import { getLogger, LogCategory } from "@/util/logger";
 
 const ACCESS_MODE_STATIC_PASSWORD = "static-password";
 const ACCESS_MODE_PUBLIC_KEY = "public-key";
@@ -49,6 +56,7 @@ export class JsonEndpointService {
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly permissionService: PermissionService = PermissionService.getInstance(),
     private readonly redisService: RedisService = RedisService.getInstance(),
+    private readonly iam = JsonEndpointIamService.getInstance(),
   ) {}
 
   public static getInstance(): JsonEndpointService {
@@ -170,32 +178,37 @@ export class JsonEndpointService {
    * 映射到 DTO
    */
   private getPublicPath(endpoint: JsonEndpoint, ownerUsername: string): string {
-    return endpoint.isRootSlug ? `/v1/json/${endpoint.slug}` : `/v1/json/${ownerUsername}/${endpoint.slug}`;
+    return jsonEndpointPublicPath(endpoint, ownerUsername);
+  }
+  private mapToDto(endpoint: JsonEndpoint, ownerUsername: string): JsonEndpointDto {
+    return jsonEndpointDto(endpoint, ownerUsername);
   }
 
-  private mapToDto(endpoint: JsonEndpoint, ownerUsername: string): JsonEndpointDto {
-    return {
-      id: endpoint.id,
-      userId: endpoint.userId,
-      ownerUsername,
-      name: endpoint.name,
-      slug: endpoint.slug,
-      isRootSlug: endpoint.isRootSlug,
-      publicUrl: this.getPublicPath(endpoint, ownerUsername),
-      description: endpoint.description || undefined,
-      jsonContent: endpoint.jsonContent,
-      isPublic: endpoint.isPublic,
-      hasPassword: this.resolveAccessMode(endpoint) === ACCESS_MODE_STATIC_PASSWORD && !!endpoint.apiKey,
-      hasPublicKey: this.resolveAccessMode(endpoint) === ACCESS_MODE_PUBLIC_KEY && !!endpoint.publicKey,
-      accessMode: this.resolveAccessMode(endpoint),
-      publicKey: endpoint.publicKey || undefined,
-      publicKeyFingerprint: endpoint.publicKeyFingerprint || undefined,
-      signatureAlgorithm: endpoint.signatureAlgorithm || undefined,
-      accessCount: endpoint.accessCount,
-      lastAccessAt: endpoint.lastAccessAt?.toISOString(),
-      createTime: endpoint.createTime.toISOString(),
-      updateTime: endpoint.updateTime.toISOString(),
-    };
+  private async legacyReadGuard(userId: string, request?: TypedRequest, owners = false) {
+    const principal = request && getIamPrincipal(request);
+    if (request && (!principal || principal.subjectUserId !== userId)) throw jsonEndpointDenied();
+    const options = { assumedRoleSessionId: principal?.roleSessionId };
+    const manage = await this.permissionService.checkUserPermissions(
+      userId,
+      [Permission.JSON_ENDPOINT_MANAGE],
+      options,
+    );
+    const read = owners
+      ? undefined
+      : await this.permissionService.checkUserPermissions(userId, [Permission.JSON_ENDPOINT_READ], options);
+    if (!manage.hasPermission && !read?.hasPermission) throw jsonEndpointDenied();
+    return manage.hasPermission;
+  }
+  private async shadowRead(action: string, evaluate: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await evaluate();
+    } catch {
+      getLogger("JsonEndpointIamBridge", LogCategory.SECURITY).warn("JSON Endpoint IAM shadow evaluation denied", {
+        action,
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
   }
 
   private async getOwnerUsername(userId: string): Promise<string> {
@@ -301,19 +314,24 @@ export class JsonEndpointService {
   /**
    * 获取端点详情
    */
-  async getEndpoint(id: string, userId: string): Promise<JsonEndpointDto> {
+  async getEndpoint(id: string, userId: string, request?: TypedRequest): Promise<JsonEndpointDto> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.get(userId, id, request);
+    const canManage = await this.legacyReadGuard(userId, request);
+    await this.shadowRead("quyan:json_endpoint:GetEndpoint", () => this.iam.get(userId, id, request));
     const endpoint = await this.repository.findById(id);
     if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
 
-    await this.assertCanAccessEndpoint(endpoint, userId);
+    if (endpoint.userId !== userId && !canManage) throw jsonEndpointDenied();
     return this.mapToDto(endpoint, await this.getOwnerUsername(endpoint.userId));
   }
 
   /**
    * 列出用户的所有端点
    */
-  async listEndpoints(userId: string, ownerUserId?: string): Promise<JsonEndpointDto[]> {
-    const canManage = await this.canManage(userId);
+  async listEndpoints(userId: string, ownerUserId?: string, request?: TypedRequest): Promise<JsonEndpointDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.list(userId, ownerUserId, request);
+    const canManage = await this.legacyReadGuard(userId, request);
+    await this.shadowRead("quyan:json_endpoint:ListEndpoints", () => this.iam.list(userId, ownerUserId, request));
     if (ownerUserId && ownerUserId !== userId && !canManage)
       throw new ForbiddenError("无权查看其他用户端点", undefined, { messageKey: "jsonEndpoint.viewOthersDenied" });
     const endpoints =
@@ -325,9 +343,10 @@ export class JsonEndpointService {
     );
   }
 
-  async listOwnerOptions(actorUserId: string): Promise<JsonEndpointOwnerOptionDto[]> {
-    if (!(await this.canManage(actorUserId)))
-      throw new ForbiddenError("无权管理端点所属用户", undefined, { messageKey: "jsonEndpoint.manageOwnerDenied" });
+  async listOwnerOptions(actorUserId: string, request?: TypedRequest): Promise<JsonEndpointOwnerOptionDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.owners(actorUserId, request);
+    await this.legacyReadGuard(actorUserId, request, true);
+    await this.shadowRead("quyan:json_endpoint:ListEndpointOwners", () => this.iam.owners(actorUserId, request));
     const users = await this.userRepository.listNonDeleted();
     return users
       .filter((user) => user.status === 1)

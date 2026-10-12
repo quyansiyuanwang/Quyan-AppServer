@@ -424,3 +424,11 @@ Passkey management does not use the entire account as its resource. Registration
 Listing and deletion use `quyan:auth:ListPasskeys` and `quyan:auth:DeletePasskey` on `acs:quyan:*:<accountId>:passkey/<userId>/<passkeyId>`. The `passkeyId` is the `id` returned by the credential list, not the browser's WebAuthn `credentialId`. The deletion API still accepts `credentialId`; the server resolves and authorizes the real credential. Lists include only authorized credentials and never return public keys or signature counters. A registration grant alone does not disclose existing credential identifiers through registration options.
 
 Authorization does not override ownership: users can manage only their own Passkeys, even with wildcard grants. A matching Deny overrides Allow. Invalid accounts, users, role sessions, or authorization data cause rejection. Anonymous Passkey login does not require a prior IAM grant. Registration challenges can succeed only once; start a new registration after challenge expiration, concurrent use, or a failed registration attempt.
+
+## JSON Endpoint reads and owner selection
+
+In IAM enforce mode, management lists and details use `quyan:json_endpoint:ListEndpoints` and `quyan:json_endpoint:GetEndpoint` on `acs:json-endpoint:*:<accountId>:endpoint/<userId>/<endpointId>`. The server isolates the current account before evaluating individual endpoints. Unauthorized endpoints are omitted from lists, and detail access is rejected. Custom policies may grant specific endpoints belonging to another user in the same account, but never endpoints in other accounts.
+
+The owner selector uses the separate `quyan:json_endpoint:ListEndpointOwners` Action on `acs:quyan:*:<accountId>:user/<userId>`. Reading an endpoint does not grant permission to enumerate all account usernames. Management APIs do not return access passwords or password hashes. The old endpoint-read permission remains limited to the user's own endpoints; the old management permission covers endpoints in the current account, not every account on the platform.
+
+This section covers management reads only. Public JSON password checks, Ed25519 signatures, time validity, and nonce replay protection are unchanged. Creation, updates, and deletion still use the existing permission bridge; these read Actions do not authorize those operations.

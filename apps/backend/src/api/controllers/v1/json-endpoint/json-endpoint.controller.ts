@@ -24,7 +24,7 @@ import type {
   JsonEndpointDto,
   JsonEndpointOwnerOptionDto,
 } from "@/api/dto/json-endpoint/json-endpoint.dto";
-import { RequireAnyPermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequireAnyPermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type { ErrorResponse } from "@/api/response";
@@ -35,6 +35,9 @@ import {
 } from "@/api/schema/json-endpoint/json-endpoint.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { jsonEndpointResourceResolver } from "@/iam/request/json-endpoint-resource-resolvers";
 
 @Route("v1/json-endpoints")
 @Tags("JSON Endpoint Management")
@@ -61,9 +64,15 @@ export class JsonEndpointController extends Controller {
 
   @Get("owners")
   @Security("jwt")
-  @RequireAnyPermission([Permission.JSON_ENDPOINT_MANAGE])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:json_endpoint:ListEndpointOwners",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listOwnerOptions(@Request() request: TypedRequest): Promise<JsonEndpointOwnerOptionDto[]> {
-    return this.service.listOwnerOptions(request.user!.userId);
+    return this.service.listOwnerOptions(request.user!.userId, request);
   }
 
   /**
@@ -71,7 +80,13 @@ export class JsonEndpointController extends Controller {
    */
   @Get("")
   @Security("jwt")
-  @RequireAnyPermission([Permission.JSON_ENDPOINT_READ, Permission.JSON_ENDPOINT_MANAGE])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:json_endpoint:ListEndpoints",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(replayProtectionMiddleware)
   public async listEndpoints(
@@ -79,7 +94,7 @@ export class JsonEndpointController extends Controller {
     @Query() ownerUserId?: string,
   ): Promise<JsonEndpointDto[]> {
     const userId = request.user!.userId;
-    return this.service.listEndpoints(userId, ownerUserId);
+    return this.service.listEndpoints(userId, ownerUserId, request);
   }
 
   /**
@@ -87,13 +102,24 @@ export class JsonEndpointController extends Controller {
    */
   @Get("{id}")
   @Security("jwt")
-  @RequireAnyPermission([Permission.JSON_ENDPOINT_READ, Permission.JSON_ENDPOINT_MANAGE])
+  @CheckPermission([Permission.JSON_ENDPOINT_READ, Permission.JSON_ENDPOINT_MANAGE], PermissionCheckMode.ANY, "jwt", [
+    {
+      action: "quyan:json_endpoint:GetEndpoint",
+      resourceKind: "single-resource",
+      resource: jsonEndpointResourceResolver,
+    },
+    {
+      action: "quyan:json_endpoint:GetEndpoint",
+      resourceKind: "single-resource",
+      resource: jsonEndpointResourceResolver,
+    },
+  ])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "端点不存在")
   @Middlewares(validateParams(jsonEndpointIdParamsSchema))
   public async getEndpoint(@Path() id: string, @Request() request: TypedRequest): Promise<JsonEndpointDto> {
     const userId = request.user!.userId;
-    return this.service.getEndpoint(id, userId);
+    return this.service.getEndpoint(id, userId, request);
   }
 
   /**

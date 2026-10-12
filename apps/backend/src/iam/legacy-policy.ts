@@ -66,11 +66,28 @@ export function legacyPermissionsToPrincipalPolicy(
     actionForPermission(Permission.ARTICLE_UPDATE),
     actionForPermission(Permission.ARTICLE_DELETE),
   ]);
+  const nativeJsonRead = new Set(["quyan:json_endpoint:ListEndpoints", "quyan:json_endpoint:GetEndpoint"]);
+  const ownJsonRead = !parseLegacyPermissions(input).includes(Permission.JSON_ENDPOINT_MANAGE);
   const statements: NormalizedIamPolicyDocument["Statement"] = [];
   for (const statement of document.Statement) {
     const limited = statement.Action.filter((action) => authorOnly.has(action));
     const list: string[] = statement.Action.filter((action) => action === "quyan:article:ListArticles");
-    const other = statement.Action.filter((action) => !authorOnly.has(action) && !list.includes(action));
+    const jsonRead = ownJsonRead ? statement.Action.filter((action) => nativeJsonRead.has(action)) : [];
+    if (jsonRead.length)
+      statements.push({
+        Effect: "Allow",
+        Sid: "LegacyJsonEndpointOwnRead",
+        Action: jsonRead,
+        Resource: [
+          IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "json-endpoint/endpoint")!
+            .arnTemplate.replace("{accountId}", accountOwnerId)
+            .replace("{parentId}", principalUserId)
+            .replace("{resourceId}", "*"),
+        ],
+      });
+    const other = statement.Action.filter(
+      (action) => !authorOnly.has(action) && !list.includes(action) && !jsonRead.includes(action),
+    );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>
         getIamResourcePatternTypes(resource).some((type) => type.id === "article/article"),

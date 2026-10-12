@@ -424,3 +424,11 @@ Passkey 管理不再以整个账户作为资源。注册选项和注册验证分
 列表与删除分别使用 `quyan:auth:ListPasskeys`、`quyan:auth:DeletePasskey`，资源为 `acs:quyan:*:<accountId>:passkey/<userId>/<passkeyId>`。`passkeyId` 是列表返回的 `id`，不是浏览器的 WebAuthn `credentialId`；删除 API 仍接受 `credentialId`，服务端会查找真实凭据并授权。列表只显示获准的凭据，不返回公钥或签名计数器。仅有注册权限不会通过注册选项暴露已有凭据标识。
 
 授权不会改变凭据所有权：只能管理当前用户的 Passkey，不能因通配符而查看或删除其他用户的凭据。匹配的 Deny 优先于 Allow；账户、用户、角色会话或授权失效时请求被拒绝。匿名 Passkey 登录流程不要求预先拥有 IAM 权限。注册挑战只能成功使用一次；挑战过期、并发使用或注册失败后，请重新发起注册。
+
+## JSON Endpoint 读取与所属用户
+
+IAM 强制模式下，管理列表和详情分别使用 `quyan:json_endpoint:ListEndpoints`、`quyan:json_endpoint:GetEndpoint`，资源为 `acs:json-endpoint:*:<accountId>:endpoint/<userId>/<endpointId>`。服务端先限定当前账户，再逐端点授权；未授权端点不会出现在列表中，详情访问被拒绝。可以通过自定义策略授予同账户中指定用户的指定端点，但不能读取其他账户端点。
+
+所属用户选择器使用独立的 `quyan:json_endpoint:ListEndpointOwners`，资源为 `acs:quyan:*:<accountId>:user/<userId>`。读取某个端点不等于能枚举账户的所有用户名。管理 API 不返回访问密码或密码哈希。旧的端点读取权限仍只覆盖自己的端点；旧的端点管理权限覆盖当前账户内的端点，而不是全站账户。
+
+本节只描述管理端读取授权；公开 JSON 的密码、Ed25519 签名、时效与 nonce 防重放规则不受影响。创建、修改和删除尚继续使用原有权限桥接，不能将本节读取 Action 用于这些操作。
