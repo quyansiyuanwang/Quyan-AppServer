@@ -1,3 +1,6 @@
+import { BalanceTransactionIamService } from "./balance-transaction-iam.service";
+import type { ManagedTransactionQuery } from "@/store/billing/balance-transaction-management.store";
+import { BALANCE_TRANSACTION_POLICY } from "./balance-transaction-policy";
 import { IamAccountUserMutationService } from "@/services/users/iam-account-user-mutation.service";
 import { env } from "@/config/env";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -15,9 +18,6 @@ import type { BalanceStore } from "@/store/billing/balance.store";
 import type { UserStore } from "@/store/users/user.store";
 import { BALANCE_ACCOUNT_STATUS, RECORD_STATUS } from "@/constant/status";
 
-const BALANCE_TRANSACTION_RETENTION_DAYS = 30;
-const RETENTION_WINDOW_MS = BALANCE_TRANSACTION_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-
 export class BalanceService {
   private static instance: BalanceService;
 
@@ -27,6 +27,7 @@ export class BalanceService {
     private readonly userIam = IamAccountUserAuthorizationService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
     private readonly userMutationIam = IamAccountUserMutationService.getInstance(),
+    private readonly transactionIam = BalanceTransactionIamService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -143,6 +144,23 @@ export class BalanceService {
     });
   }
 
+  async getManagedTransactions(query: ManagedTransactionQuery, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.transactionIam.list(query, request);
+    await this.legacyRead(request);
+    await this.shadowRead(() => this.transactionIam.list(query, request, true), request);
+    return {
+      ...(await this.getTransactions(
+        query.userId,
+        query.type,
+        query.page,
+        query.pageSize,
+        query.model,
+        query.startTime,
+        query.endTime,
+      )),
+      display: undefined,
+    };
+  }
   async getTransactions(
     userId?: string,
     type?: string,
@@ -152,7 +170,7 @@ export class BalanceService {
     startTime?: Date,
     endTime?: Date,
   ) {
-    const cutoffTime = new Date(Date.now() - RETENTION_WINDOW_MS);
+    const cutoffTime = new Date(Date.now() - BALANCE_TRANSACTION_POLICY.retentionWindowMs);
     const effectiveStart = startTime && startTime > cutoffTime ? startTime : cutoffTime;
     const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
     const normalizedPageSize = Number.isFinite(pageSize) && pageSize > 0 ? Math.min(100, Math.floor(pageSize)) : 20;

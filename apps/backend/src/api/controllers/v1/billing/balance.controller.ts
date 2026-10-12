@@ -36,7 +36,6 @@ import type {
   CreateBalanceTransferDto,
 } from "@/api/dto/billing/balance-transfer.dto";
 import type { UserBalanceResponse } from "@/api/dto/billing/user-balance.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { BalanceTransaction } from "@prisma/client";
 import type { TypedRequest } from "@/types/express";
@@ -65,7 +64,7 @@ import {
   iamAuthenticatedAuthorizationMiddleware,
   iamCollectionAuthorizationMiddleware,
 } from "@/iam/middleware/iam-authorization.middleware";
-import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { ramAccountResourceResolver, iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 type UsageDataMap = Map<
   string,
@@ -577,7 +576,13 @@ export class BalanceController extends Controller {
 
   @Get("transactions/all")
   @Security("jwt")
-  @RequirePermission(Permission.BALANCE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:balance:ListUserTransactions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(balanceAllTransactionsQuerySchema))
   public async getAllTransactions(
     @Query() userId?: string,
@@ -588,25 +593,28 @@ export class BalanceController extends Controller {
     @Query() tokenName?: string,
     @Query() startTime?: string,
     @Query() endTime?: string,
+    @Request() request?: TypedRequest,
   ): Promise<TransactionListResponse> {
     const start = startTime ? new Date(startTime) : undefined;
     const end = endTime ? new Date(endTime) : undefined;
 
     const pageSize = limit || 20;
     const page = offset ? Math.floor(offset / pageSize) + 1 : 1;
-    const result = await this.balanceService.getTransactions(userId, type, page, pageSize, model, start, end);
+    const { display, ...result } = await this.balanceService.getManagedTransactions(
+      { userId, type, page, pageSize, model, startTime: start, endTime: end, tokenName },
+      request,
+    );
 
     const relatedIds = result.records.filter((r) => r.relatedId).map((r) => r.relatedId!);
     const transferIds = result.records
       .filter((r) => (r.type === "peer_transfer_in" || r.type === "peer_transfer_out") && r.relatedId)
       .map((r) => r.relatedId!);
-    const [{ tokenNameMap, usageDataMap }, transferDataMap] = await Promise.all([
-      this.buildUsageMaps(relatedIds),
-      this.buildTransferDisplayDataMap(transferIds),
-    ]);
+    const [{ tokenNameMap, usageDataMap }, transferDataMap] = display
+      ? [display, display.transferDataMap]
+      : await Promise.all([this.buildUsageMaps(relatedIds), this.buildTransferDisplayDataMap(transferIds)]);
 
     let filteredRecords = result.records;
-    if (tokenName)
+    if (tokenName && !display)
       filteredRecords = filteredRecords.filter((r) => r.relatedId && tokenNameMap.get(r.relatedId) === tokenName);
 
     return {

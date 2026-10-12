@@ -70,6 +70,15 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
     const active = { status: AccountStatus.ACTIVE };
     const userOwner = { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] };
     switch (type.id) {
+      case "balance/transaction": {
+        const owner = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
+        if (!owner) return false;
+        const row = await prisma.balanceTransaction.findFirst({
+          where: { id: childId, userId: owner.id, ...active },
+          select: { id: true, userId: true },
+        });
+        return row?.id === childId && row.userId === id;
+      }
       case "quyan/online-session": {
         const session = await prisma.userOnlineSession.findFirst({
           where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },

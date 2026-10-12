@@ -1,3 +1,6 @@
+vi.mock("@/services/billing/balance-transaction-iam.service", () => ({
+  BalanceTransactionIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/users/iam-account-user-mutation.service", () => ({
   IamAccountUserMutationService: { getInstance: vi.fn() },
 }));
