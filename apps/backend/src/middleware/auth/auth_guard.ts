@@ -17,7 +17,7 @@ import { UserRepository } from "@/store/users/user.repository";
 import { RamRoleRepository } from "@/store/users/ram-role.repository";
 import { extractRelayToken } from "@/util/relay";
 import { RedisService } from "@/services/infrastructure/redis.service";
-import { buildForceOfflineAuthSessionKey, extractAuthSessionId } from "@/util/auth-session";
+import { buildForceOfflineUserKey, buildForceOfflineAuthSessionKey, extractAuthSessionId } from "@/util/auth-session";
 import { OAuthAuthorizationRepository } from "@/store/oauth/oauth-authorization.repository";
 import { Permission } from "@/constant/permission";
 import { getOAuthScopeAliases, isCredentialOfType } from "@quyan/shared";
@@ -28,8 +28,6 @@ const userRepository = UserRepository.getInstance();
 const ramRoleRepository = RamRoleRepository.getInstance();
 const redisService = RedisService.getInstance();
 const oauthAuthorizationRepository = OAuthAuthorizationRepository.getInstance();
-
-const getForceOfflineUserKey = (userId: string) => `user:force_offline:${userId}`;
 
 const hashOpaqueToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -294,7 +292,7 @@ export async function authMiddleware(req: TypedRequest, res: Response, next: Nex
     }
 
     const currentUpdatedAt = user.updateTime.toISOString();
-    const forcedOffline = await redisService.get(getForceOfflineUserKey(payload.userId));
+    const forcedOffline = await redisService.get(buildForceOfflineUserKey(payload.userId));
     if (forcedOffline) {
       logger.warn(`User force-offlined: userId=${payload.userId}, ${req.method} ${req.path} from ${req.ip}`);
       sendApplicationError(
@@ -566,7 +564,7 @@ export async function expressAuthentication(
     }
 
     const currentUpdatedAt = user.updateTime.toISOString();
-    const forcedOffline = await redisService.get(getForceOfflineUserKey(payload.userId));
+    const forcedOffline = await redisService.get(buildForceOfflineUserKey(payload.userId));
     if (forcedOffline) {
       logger.warn(
         `User force-offlined: userId=${payload.userId}, ${request.method} ${request.path} from ${request.ip}`,

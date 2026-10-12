@@ -23,6 +23,23 @@ describe("RedisService circuit breaker", () => {
     vi.useRealTimers();
   });
 
+  it("confirms expiring revocation writes and treats outages as unknown instead of success", async () => {
+    const client = {
+      setex: vi.fn().mockResolvedValueOnce("OK").mockRejectedValueOnce(new Error("fixture outage")),
+      set: vi.fn().mockResolvedValue("OK"),
+      quit: vi.fn(),
+    };
+    createRedisClientMock.mockReturnValue(client as any);
+    const service = RedisService.getInstance();
+    expect(await service.setWithResult("fixture-marker", "fixture-value", 30)).toBe(true);
+    expect(client.setex).toHaveBeenCalledWith("fixture-marker", 30, "fixture-value");
+    expect(await service.setWithResult("fixture-marker", "fixture-value", 30)).toBeNull();
+    expect(await service.setWithResult("fixture-marker", "fixture-value")).toBe(true);
+  });
+  it("does not confirm unexpected Redis replies", async () => {
+    createRedisClientMock.mockReturnValue({ setex: vi.fn().mockResolvedValue(null), quit: vi.fn() } as any);
+    expect(await RedisService.getInstance().setWithResult("fixture-marker", "fixture-value", 30)).toBe(false);
+  });
   it("opens circuit after repeated failures and short-circuits subsequent requests", async () => {
     const redisClientMock = {
       get: vi.fn().mockRejectedValue(new Error("boom")),

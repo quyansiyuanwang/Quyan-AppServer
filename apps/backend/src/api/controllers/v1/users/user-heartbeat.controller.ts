@@ -1,6 +1,9 @@
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { onlineUserResourceResolver } from "@/iam/request/online-monitor-resource-resolvers";
+import {
+  onlineUserResourceResolver,
+  onlineSessionResourceResolver,
+} from "@/iam/request/online-monitor-resource-resolvers";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import {
   Controller,
@@ -37,7 +40,6 @@ import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-au
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import { UserHeartbeatService } from "@/services/users/user-heartbeat.service";
 import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { extractAuthSessionId } from "@/util/auth-session";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 
@@ -179,12 +181,20 @@ export class UserHeartbeatController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
-  @RequirePermission(Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE)
+  @CheckPermission(Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:ForceOfflineSession",
+    resourceKind: "single-resource",
+    resource: onlineSessionResourceResolver,
+  })
   public async forceOfflineSession(
     @Path() sessionId: string,
     @Request() request: TypedRequest,
   ): Promise<ForceOfflineSessionResponse> {
-    return this.heartbeatService.forceOfflineSessionWithCurrentSession(sessionId, extractAuthSessionId(request));
+    return this.heartbeatService.forceOfflineSessionWithCurrentSession(
+      sessionId,
+      extractAuthSessionId(request),
+      request,
+    );
   }
 
   @Post("monitor/users/{userId}/force-offline")
@@ -194,8 +204,15 @@ export class UserHeartbeatController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
-  @RequirePermission(Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE)
-  public async forceOfflineUser(@Path() userId: string): Promise<ForceOfflineUserResponse> {
-    return this.heartbeatService.forceOfflineUser(userId);
+  @CheckPermission(Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:ForceOfflineUser",
+    resourceKind: "single-resource",
+    resource: onlineUserResourceResolver,
+  })
+  public async forceOfflineUser(
+    @Path() userId: string,
+    @Request() request: TypedRequest,
+  ): Promise<ForceOfflineUserResponse> {
+    return this.heartbeatService.forceOfflineUser(userId, request);
   }
 }

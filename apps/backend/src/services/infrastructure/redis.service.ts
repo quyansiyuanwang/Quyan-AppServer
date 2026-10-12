@@ -434,10 +434,15 @@ export class RedisService {
    * @param ttl Time to live in seconds (optional)
    */
   public async set(key: string, value: string | number, ttl?: number): Promise<void> {
-    await this.executeWithCircuit("set", undefined, async () => {
-      if (ttl) await this.client!.setex(key, ttl, value.toString());
-      else await this.client!.set(key, value.toString());
-      return undefined;
+    await this.setWithResult(key, value, ttl);
+  }
+  /** Confirmed writes for authorization/revocation state; unavailable Redis returns null. */
+  public async setWithResult(key: string, value: string | number, ttl?: number): Promise<boolean | null> {
+    return this.executeWithCircuit("set", null, async () => {
+      const result = ttl
+        ? await this.client!.setex(key, ttl, value.toString())
+        : await this.client!.set(key, value.toString());
+      return result === "OK";
     });
   }
 

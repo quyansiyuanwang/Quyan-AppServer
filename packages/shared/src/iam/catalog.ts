@@ -888,6 +888,22 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.USER_ONLINE_MONITOR_READ,
     }),
   ),
+  ...[
+    { operation: 'ForceOfflineSession', resourceTypes: ['quyan/online-session'] },
+    { operation: 'ForceOfflineUser', resourceTypes: ['quyan/user'] },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:user:' + definition.operation,
+      service: 'user',
+      accessLevel: 'Write',
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE,
+    }),
+  ),
   ...['ListApiKeys', 'GetApiKey', 'GetApiKeyStats', 'RevealApiKey'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,
