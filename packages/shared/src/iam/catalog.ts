@@ -1202,6 +1202,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.MODEL_PRICING_UPDATE,
     }),
   ),
+  {
+    action: 'quyan:model_pricing:ImportPricing',
+    service: 'model_pricing',
+    operation: 'ImportPricing',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/model-pricing-control', 'platform/model-pricing'],
+    apiRoutes: ['POST /v1/model-pricing/import'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.MODEL_PRICING_UPDATE,
+  },
   ...(['ListPricing', 'GetPricing'] as const).map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

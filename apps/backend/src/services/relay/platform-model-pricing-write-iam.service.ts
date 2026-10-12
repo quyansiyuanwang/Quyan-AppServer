@@ -1,3 +1,4 @@
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { performance } from "node:perf_hooks";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
@@ -17,7 +18,11 @@ import type {
   PlatformModelPricingWriteStore,
   PlatformModelPricingWriteGuard,
 } from "@/store/relay/platform-model-pricing-write.store";
-import { normalizeModelPricingCreate, normalizeModelPricingUpdate } from "@/util/model-pricing-input";
+import {
+  normalizeModelPricingCreate,
+  normalizeModelPricingUpdate,
+  normalizeModelPricingImportBatch,
+} from "@/util/model-pricing-input";
 import { isModelPricingRecordId } from "@/iam/resources/platform-model-pricing-resources";
 import type { CreateModelPricingRequest, UpdateModelPricingRequest } from "@/api/dto/relay/model-pricing.dto";
 import type { TypedRequest } from "@/types/express";
@@ -65,6 +70,39 @@ export class PlatformModelPricingWriteIamService {
     });
     if (result.decision !== "Allow") throw iamAccountDenied();
   }
+  private async evaluateMany(principal: IamPrincipal, request: TypedRequest, action: string, ids: readonly string[]) {
+    if (!ids.length) return;
+    if (
+      ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+      new Set(ids).size !== ids.length ||
+      ids.some((id) => !isModelPricingRecordId(id))
+    )
+      throw iamAccountDenied();
+    const resources = ids.map((id) => platformModelPricingArn(id)),
+      start = performance.now();
+    const results = await this.iam.authorizeMany({
+      principal,
+      action,
+      resources,
+      context: requestConditionContext(request, principal),
+    });
+    if (!Array.isArray(results) || results.length !== resources.length || results.some((result) => !result))
+      throw iamAccountDenied();
+    results.forEach((result, i) => {
+      (request.iamDecisions ??= []).push({ ...result, action, resource: resources[i] });
+      auditIamDecision({
+        requestId: request.res?.locals.requestId,
+        principal,
+        action,
+        resource: resources[i],
+        result,
+        evaluationLatencyMs: performance.now() - start,
+        authorizationMode: env.security.iamAuthorizationMode === "shadow" ? "shadow" : "enforce",
+        ...(env.security.iamAuthorizationMode === "shadow" ? { legacyAllowed: true } : {}),
+      });
+    });
+    if (results.some((result) => result.decision !== "Allow")) throw iamAccountDenied();
+  }
   private async guard(
     userId: string,
     request: TypedRequest | undefined,
@@ -86,6 +124,7 @@ export class PlatformModelPricingWriteIamService {
       group: snapshot.group,
       users: { principal, targetUserId: userId, users: snapshot.users, recheck },
       recheckEntry: async (id) => this.evaluate(principal, identity.request, action, platformModelPricingArn(id)),
+      recheckEntries: async (ids) => this.evaluateMany(principal, identity.request, action, ids),
     };
     return guard;
   }
@@ -137,5 +176,40 @@ export class PlatformModelPricingWriteIamService {
       return undefined;
     }
     return operation === "update" ? this.repository.update(target, data, guard) : this.repository.remove(target, guard);
+  }
+  async importModels(
+    input: readonly CreateModelPricingRequest[],
+    userId: string,
+    request?: TypedRequest,
+    persist = true,
+  ) {
+    const models = normalizeModelPricingImportBatch(input);
+    const { principal } = this.principal(userId, request);
+    const targets = await this.repository.prepareImport(principal, models);
+    if (
+      targets.length !== models.length ||
+      targets.some(
+        (target, i) =>
+          target &&
+          (!isModelPricingRecordId(target.id) ||
+            target.model !== models[i].model ||
+            !(target.updateTime instanceof Date) ||
+            !Number.isFinite(target.updateTime.getTime())),
+      )
+    )
+      throw iamAccountDenied();
+    const guard = await this.guard(
+      userId,
+      request,
+      Permission.MODEL_PRICING_UPDATE,
+      "quyan:model_pricing:ImportPricing",
+      platformModelPricingCollectionArn(),
+    );
+    await guard.recheckEntries(targets.flatMap((target) => (target ? [target.id] : [])));
+    if (!persist) {
+      await guard.users.recheck();
+      return undefined;
+    }
+    return this.repository.importModels(models, targets, guard);
   }
 }

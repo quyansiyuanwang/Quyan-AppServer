@@ -55,6 +55,12 @@ Single-record creation, updates, and deletion require eligibility from a real gl
 
 If the target price, identity, eligibility, or authorization changes before saving, the operation fails without partially saving changes. Pricing modes and supported formats must be valid. Switching to per-request pricing requires a fixed price, which may be zero. Missing or unauthorized mutation targets return 403 in IAM enforcement mode. Two-factor verification and replay protection continue to apply.
 
+### Model pricing bulk import permissions
+
+Bulk imports use `quyan:model_pricing:ImportPricing` and require eligibility from a real global group with `MODEL_PRICING_UPDATE`, covering both the fixed creation scope and every affected record ARN. New models are checked against their actual generated ARN before saving. Deleted models retain their original ID when restored, so existing Deny statements continue to apply. If any record is denied, a pricing snapshot is stale, or authorization changes, the entire batch rolls back without skipping failed items.
+
+Each import accepts up to 499 distinct models. Names duplicated after trimming, unknown fields, and invalid pricing modes or formats are rejected. New models default to token-based pricing when the mode is omitted. Existing models retain an omitted pricing mode. Explicit fixed prices and supported formats are saved during import. Two-factor verification and replay protection continue to apply.
+
 ## Channel configuration overview
 
 Each channel is a logical route that tokens or system workflows can use. Channels come in three forms:

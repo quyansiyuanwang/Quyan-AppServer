@@ -373,6 +373,60 @@ export class ModelPricingService {
     });
   }
 
+  async importManagedModelPricing(
+    models: readonly CreateModelPricingRequest[],
+    actorUserId: string,
+    request: TypedRequest,
+  ) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== actorUserId ||
+      !["legacy", "shadow", "enforce"].includes(env.security.iamAuthorizationMode)
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const receipt = await this.iamWrites.importModels(models, actorUserId, request);
+      if (!receipt) throw iamAccountDenied();
+      await this.businessLogService.logOperation({
+        operationType: OperationType.MODEL_PRICING_IMPORT,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceId: "batch",
+        targetResourceType: "MODEL_PRICING",
+        description: "Imported model pricing",
+        changes: {
+          created: receipt.created,
+          updated: receipt.updated,
+          total: receipt.total,
+          recordIds: receipt.recordIds,
+        },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return { created: receipt.created, updated: receipt.updated, total: receipt.total };
+    }
+    if (
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.MODEL_PRICING_UPDATE], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamWrites.importModels(models, actorUserId, request, false);
+      } catch {
+        getLogger("ModelPricing", LogCategory.SECURITY).warn("Model pricing import shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.importModelPricing([...models], actorUserId, request);
+  }
   async importModelPricing(
     models: {
       model: string;

@@ -10,9 +10,14 @@ import {
   DEFAULT_CACHE_CREATION_MULTIPLIER,
   DEFAULT_CACHE_READ_MULTIPLIER,
   DEFAULT_MODEL_PRICING_SUPPORTED_FORMATS,
+  MODEL_PRICING_IMPORT_TRANSACTION_TIMEOUT_MS,
 } from "@/constant/pricing";
 import { isModelPricingRecordId } from "@/iam/resources/platform-model-pricing-resources";
-import { normalizeModelPricingCreate, normalizeModelPricingUpdate } from "@/util/model-pricing-input";
+import {
+  normalizeModelPricingCreate,
+  normalizeModelPricingUpdate,
+  normalizeModelPricingImportBatch,
+} from "@/util/model-pricing-input";
 import type { CreateModelPricingRequest, UpdateModelPricingRequest } from "@/api/dto/relay/model-pricing.dto";
 import type {
   PlatformModelPricingWriteStore,
@@ -43,9 +48,12 @@ export class PlatformModelPricingWriteRepository implements PlatformModelPricing
     if (current.id !== guard.group.id || current.updateTime.getTime() !== guard.group.updateTime.getTime())
       throw iamAccountDenied();
   }
-  private async transaction<T>(run: (tx: Prisma.TransactionClient) => Promise<T>) {
+  private async transaction<T>(run: (tx: Prisma.TransactionClient) => Promise<T>, timeout?: number) {
     try {
-      return await prisma.$transaction(run, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      return await prisma.$transaction(run, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        ...(timeout !== undefined ? { timeout } : {}),
+      });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2034"].includes(error.code))
         throw new ConflictError("Model pricing context changed", undefined, { messageKey: "errors.conflict" });
@@ -140,5 +148,82 @@ export class PlatformModelPricingWriteRepository implements PlatformModelPricing
       await guard.recheckEntry(current.id);
       return current;
     });
+  }
+  async prepareImport(principal: IamPrincipal, input: readonly CreateModelPricingRequest[]) {
+    await platformManagementGroupSnapshot(principal, Permission.MODEL_PRICING_UPDATE);
+    const models = normalizeModelPricingImportBatch(input);
+    const rows = await prisma.modelPricing.findMany({
+      where: { model: { in: models.map((item) => item.model) } },
+      select: metadata,
+    });
+    // Case-insensitive database aliases must not silently create a second identity projection.
+    if (rows.some((row) => !models.some((item) => item.model === row.model))) throw iamAccountDenied();
+    return models.map((item) => rows.find((row) => row.model === item.model) ?? null);
+  }
+  async importModels(
+    input: readonly CreateModelPricingRequest[],
+    targets: readonly (ModelPricingWriteTarget | null)[],
+    guard: PlatformModelPricingWriteGuard,
+  ) {
+    const models = normalizeModelPricingImportBatch(input);
+    if (targets.length !== models.length) throw iamAccountDenied();
+    return this.transaction(async (tx) => {
+      await this.identity(tx, guard);
+      const names = models.map((item) => item.model).sort();
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM model_pricing WHERE model IN (${Prisma.join(names)}) ORDER BY model FOR UPDATE`,
+      );
+      const current = await tx.modelPricing.findMany({ where: { model: { in: names } } });
+      if (current.some((row) => !names.includes(row.model))) throw iamAccountDenied();
+      for (let i = 0; i < models.length; i++) {
+        const row = current.find((row) => row.model === models[i].model),
+          expected = targets[i];
+        if (
+          !expected
+            ? Boolean(row)
+            : !row ||
+              row.id !== expected.id ||
+              row.model !== expected.model ||
+              row.status !== expected.status ||
+              row.updateTime.getTime() !== expected.updateTime.getTime()
+        )
+          throw iamAccountDenied();
+      }
+      await guard.recheckEntries(current.map((row) => row.id));
+      const receipt = { created: 0, updated: 0, total: models.length, recordIds: [] as string[] };
+      for (const item of models) {
+        const existing = current.find((row) => row.model === item.model);
+        const checked = existing
+          ? normalizeModelPricingUpdate(item, existing)
+          : normalizeModelPricingCreate({ ...item, pricingType: item.pricingType ?? "token-based" });
+        const data = {
+          ...this.prices(checked),
+          model: item.model,
+          inputPrice: new Prisma.Decimal(item.inputPrice),
+          outputPrice: new Prisma.Decimal(item.outputPrice),
+          cacheCreationMultiplier: new Prisma.Decimal(
+            item.cacheCreationMultiplier ?? DEFAULT_CACHE_CREATION_MULTIPLIER,
+          ),
+          cacheReadMultiplier: new Prisma.Decimal(item.cacheReadMultiplier ?? DEFAULT_CACHE_READ_MULTIPLIER),
+          ...(!existing
+            ? {
+                pricingType: item.pricingType ?? "token-based",
+                supportedFormats: item.supportedFormats || DEFAULT_MODEL_PRICING_SUPPORTED_FORMATS,
+              }
+            : {}),
+          status: RECORD_STATUS.ACTIVE,
+        };
+        const row = existing
+          ? await tx.modelPricing.update({ where: { id: existing.id }, data })
+          : await tx.modelPricing.create({ data });
+        receipt.recordIds.push(row.id);
+        if (existing) receipt.updated++;
+        else receipt.created++;
+      }
+      await guard.recheckEntries(receipt.recordIds);
+      await this.identity(tx, guard);
+      await guard.recheckEntries(receipt.recordIds);
+      return receipt;
+    }, MODEL_PRICING_IMPORT_TRANSACTION_TIMEOUT_MS);
   }
 }

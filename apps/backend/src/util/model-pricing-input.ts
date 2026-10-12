@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { RELAY_REQUEST_FORMATS } from "@quyan/shared";
 import type { ModelPricing } from "@prisma/client";
-import { createModelPricingBodySchema, updateModelPricingBodySchema } from "@/api/schema/relay/model-pricing.schema";
+import {
+  createModelPricingBodySchema,
+  updateModelPricingBodySchema,
+  importModelPricingBodySchema,
+} from "@/api/schema/relay/model-pricing.schema";
 import { BadRequestError } from "./errors";
 const createSchema = createModelPricingBodySchema
   .extend({ pricingType: z.enum(["token-based", "per-request"]) })
@@ -37,4 +41,11 @@ export function normalizeModelPricingUpdate(input: unknown, current?: ModelPrici
       invalid();
   }
   return data;
+}
+
+export function normalizeModelPricingImportBatch(input: unknown) {
+  const parsed = importModelPricingBodySchema.safeParse({ models: input });
+  if (!parsed.success) invalid();
+  parsed.data.models.forEach((item) => formats(item.supportedFormats));
+  return parsed.data.models;
 }

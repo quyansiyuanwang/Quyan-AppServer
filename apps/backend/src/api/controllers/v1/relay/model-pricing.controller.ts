@@ -1,6 +1,7 @@
 import {
   platformModelPricingCreateResource,
   platformModelPricingWriteResource,
+  platformModelPricingImportResources,
 } from "@/iam/request/platform-model-pricing-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
@@ -28,7 +29,7 @@ import type {
   UpdateModelPricingRequest,
   UpdateModelPricingResponse,
 } from "@/api/dto/relay/model-pricing.dto";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import {
   createModelPricingBodySchema,
@@ -84,7 +85,11 @@ export class ModelPricingController extends Controller {
 
   @Post("import")
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_UPDATE)
+  @CheckPermission(Permission.MODEL_PRICING_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:model_pricing:ImportPricing",
+    resourceKind: "batch",
+    resource: platformModelPricingImportResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -95,7 +100,7 @@ export class ModelPricingController extends Controller {
     @Body() body: ModelPricingImportRequest,
     @Request() request: TypedRequest,
   ): Promise<ModelPricingImportResponse> {
-    const result = await this.modelPricingService.importModelPricing(body.models, request.user!.userId, request);
+    const result = await this.modelPricingService.importManagedModelPricing(body.models, request.user!.userId, request);
     return { code: 0, message: "success", ...result };
   }
 
