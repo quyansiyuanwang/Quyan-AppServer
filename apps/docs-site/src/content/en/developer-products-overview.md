@@ -24,3 +24,9 @@ Disabling an instance immediately rejects external calls with `403`: the resourc
 Daily free quota is aggregated per account and product, so creating extra instances cannot increase it. Calls above quota continue only when overage billing is enabled in Operations and the account has sufficient balance. Validation failures, private-IP lookups, and verification messages that were not delivered are not billed.
 
 Refer to each product page for request details and use the least-privileged RAM action for every integration.
+
+## Reading quota override administration
+
+In IAM enforcement mode, the quota override administration list requires eligibility from a real global group with `DEVELOPER_QUOTA_MANAGE`, using `quyan:developer:ListQuotaOverrides` on `acs:platform:*:platform:developer-quota-override/<override record ID>`. Only authorized actual override records are returned, and a matching Deny takes priority. AssumeRole uses only the role's own record grants.
+
+If records, eligibility, policies, or role sessions change while reading, the result is withheld. Deleted records are hidden. Expired overrides remain visible for administrative cleanup; displaying them does not reactivate them.

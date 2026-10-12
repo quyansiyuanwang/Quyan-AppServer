@@ -132,6 +132,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':model-pricing-control/{resourceId}',
   },
   {
+    ...resource('platform', 'developer-quota-override'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':developer-quota-override/{resourceId}',
+  },
+  {
     ...resource('platform', 'model-pricing'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':model-pricing/{resourceId}',
@@ -1214,6 +1220,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.MODEL_PRICING_UPDATE,
+  },
+  {
+    action: 'quyan:developer:ListQuotaOverrides',
+    service: 'developer',
+    operation: 'ListQuotaOverrides',
+    accessLevel: 'List',
+    resourceTypes: ['platform/developer-quota-override'],
+    apiRoutes: ['GET /v1/products/admin/quota-overrides'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.DEVELOPER_QUOTA_MANAGE,
   },
   ...(['ListPricing', 'GetPricing'] as const).map(
     (operation): IamActionDefinition => ({
