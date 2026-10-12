@@ -52,6 +52,9 @@ import {
   relayConfigurationResources,
   relayProxyConfigurationResources,
   autoProxyPoolConfigurationResources,
+  ipBanConfigurationResources,
+  captchaConfigurationResources,
+  socialAuthConfigurationResources,
   notificationConfigurationResources,
   billingConfigurationResources,
   heartbeatConfigurationResources,
@@ -59,13 +62,16 @@ import {
 } from "@/iam/request/platform-configuration-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import {
   RELAY_CONFIGURATION_KEYS,
   RELAY_PROXY_CONFIGURATION_KEYS,
   AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+  IP_BAN_CONFIGURATION_KEYS,
+  CAPTCHA_CONFIGURATION_KEYS,
+  SOCIAL_AUTH_CONFIGURATION_KEYS,
 } from "@/constant/config-keysets";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
@@ -244,9 +250,15 @@ export class ConfigController extends Controller {
 
   @Get("ipban")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: ipBanConfigurationResources,
+  })
   public async getIpBanConfig(@Request() _request: TypedRequest) {
-    return await this.configService.getIpBanConfig();
+    return this.configService.getManagedConfiguration(IP_BAN_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getIpBanConfig(),
+    );
   }
 
   @Get("billing")
@@ -292,16 +304,28 @@ export class ConfigController extends Controller {
 
   @Get("captcha")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: captchaConfigurationResources,
+  })
   public async getCaptchaConfig(@Request() _request: TypedRequest): Promise<CaptchaConfigDto> {
-    return await this.configService.getCaptchaConfig();
+    return this.configService.getManagedConfiguration(CAPTCHA_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getCaptchaConfig(),
+    );
   }
 
   @Get("social-auth")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: socialAuthConfigurationResources,
+  })
   public async getSocialAuthConfig(@Request() _request: TypedRequest): Promise<SocialAuthConfigDto> {
-    return await this.configService.getSocialAuthConfig();
+    return this.configService.getManagedConfiguration(SOCIAL_AUTH_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getSocialAuthConfig(),
+    );
   }
 
   @Put("registration")
@@ -480,7 +504,11 @@ export class ConfigController extends Controller {
 
   @Put("ipban")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: ipBanConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -489,7 +517,7 @@ export class ConfigController extends Controller {
   )
   public async setIpBanConfig(@Body() body: SetIpBanConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.IP_BAN.ENABLED]: String(body.enabled),
         [CONFIG_KEYS.IP_BAN.LEVEL_1_THRESHOLD]: String(body.level1Threshold),
@@ -597,7 +625,11 @@ export class ConfigController extends Controller {
 
   @Put("captcha")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: captchaConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -606,7 +638,7 @@ export class ConfigController extends Controller {
   )
   public async setCaptchaConfig(@Body() body: SetCaptchaConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.CAPTCHA.PROVIDER]: body.provider,
         [CONFIG_KEYS.CAPTCHA.FALLBACK_PROVIDER]: body.fallbackProvider,
@@ -622,7 +654,11 @@ export class ConfigController extends Controller {
 
   @Put("social-auth")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: socialAuthConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -631,7 +667,7 @@ export class ConfigController extends Controller {
   )
   public async setSocialAuthConfig(@Body() body: SetSocialAuthConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.SOCIAL_AUTH.FRONTEND_BASE_URL]: body.frontendBaseUrl,
         [CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED]: String(body.qrLoginEnabled),

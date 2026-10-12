@@ -1,10 +1,6 @@
 import { buildAcsResource, IAM_PLATFORM_ACCOUNT_ID } from "@quyan/shared";
-import { CONFIG_KEYS } from "@/constant/config-keys";
-function keys(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  return value && typeof value === "object" ? Object.values(value).flatMap(keys) : [];
-}
-const registered = new Set(keys(CONFIG_KEYS));
+import { CONFIG_KEYS, configurationKeys } from "@/constant/config-keys";
+const registered = new Set(configurationKeys(CONFIG_KEYS));
 export const PLATFORM_CONFIGURATION_KEYS: readonly string[] = Object.freeze([...registered].sort());
 export function isRegisteredConfigurationKey(key: unknown): key is string {
   return typeof key === "string" && registered.has(key);

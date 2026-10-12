@@ -21,6 +21,9 @@ import {
   RELAY_CONFIGURATION_KEYS,
   RELAY_PROXY_CONFIGURATION_KEYS,
   AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+  IP_BAN_CONFIGURATION_KEYS,
+  CAPTCHA_CONFIGURATION_KEYS,
+  SOCIAL_AUTH_CONFIGURATION_KEYS,
 } from "@/constant/config-keysets";
 import { ALL_NOTIFICATION_EVENTS, NotificationEvent, THRESHOLD_EVENTS } from "@/constant/notification-event";
 import { env } from "@/config/env";
@@ -535,12 +538,7 @@ export class ConfigService {
   }
 
   async getCaptchaConfig(): Promise<CaptchaConfig> {
-    const keys = [
-      CONFIG_KEYS.CAPTCHA.PROVIDER,
-      CONFIG_KEYS.CAPTCHA.FALLBACK_PROVIDER,
-      CONFIG_KEYS.CAPTCHA.MIN_SCORE,
-      CONFIG_KEYS.CAPTCHA.TRUST_WINDOW_MINUTES,
-    ];
+    const keys = CAPTCHA_CONFIGURATION_KEYS;
     const configs = await this.getMultiple(keys);
     const envEnabled = env.auth.recaptcha.enabled;
     const provider = this.parseCaptchaProvider(
@@ -576,16 +574,7 @@ export class ConfigService {
 
   async getSocialAuthConfig(): Promise<SocialAuthConfig> {
     const envConfig = env.auth.social;
-    const keys = [
-      CONFIG_KEYS.SOCIAL_AUTH.FRONTEND_BASE_URL,
-      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED,
-      CONFIG_KEYS.SOCIAL_AUTH.STATE_TTL_SECONDS,
-      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_TTL_SECONDS,
-      CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_POLL_INTERVAL_SECONDS,
-      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.GITHUB),
-      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN),
-      ...Object.values(CONFIG_KEYS.SOCIAL_AUTH.WECHAT_WEB),
-    ];
+    const keys = SOCIAL_AUTH_CONFIGURATION_KEYS;
     const configs = await this.getMultiple(keys);
 
     return {
@@ -749,7 +738,7 @@ export class ConfigService {
   }
 
   async getIpBanConfig(): Promise<IpBanConfig> {
-    const keys = Object.values(CONFIG_KEYS.IP_BAN);
+    const keys = IP_BAN_CONFIGURATION_KEYS;
     const configs = await this.getMultiple(keys);
     return {
       enabled: configs[CONFIG_KEYS.IP_BAN.ENABLED] === "true",

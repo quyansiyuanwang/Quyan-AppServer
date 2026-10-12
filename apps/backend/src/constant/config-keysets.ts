@@ -1,4 +1,4 @@
-import { CONFIG_KEYS } from "./config-keys";
+import { CONFIG_KEYS, configurationKeys } from "./config-keys";
 
 /** Exact configuration dependencies shared by getters and IAM resource resolvers. */
 export const RELAY_CONFIGURATION_KEYS = Object.freeze([
@@ -18,3 +18,15 @@ export const AUTO_PROXY_POOL_CONFIGURATION_KEYS = Object.freeze([
   CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES,
   CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS,
 ]);
+
+export const IP_BAN_CONFIGURATION_KEYS = Object.freeze([
+  CONFIG_KEYS.IP_BAN.ENABLED,
+  CONFIG_KEYS.IP_BAN.LEVEL_1_THRESHOLD,
+  CONFIG_KEYS.IP_BAN.LEVEL_1_DURATION,
+  CONFIG_KEYS.IP_BAN.LEVEL_2_THRESHOLD,
+  CONFIG_KEYS.IP_BAN.LEVEL_2_DURATION,
+  CONFIG_KEYS.IP_BAN.LEVEL_3_THRESHOLD,
+  CONFIG_KEYS.IP_BAN.LEVEL_3_DURATION,
+]);
+export const CAPTCHA_CONFIGURATION_KEYS = Object.freeze(configurationKeys(CONFIG_KEYS.CAPTCHA));
+export const SOCIAL_AUTH_CONFIGURATION_KEYS = Object.freeze(configurationKeys(CONFIG_KEYS.SOCIAL_AUTH));

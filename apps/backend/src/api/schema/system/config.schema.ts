@@ -53,6 +53,7 @@ const callbackPathSchema = z
   });
 
 const urlOrEmptySchema = z.string().max(500).url().or(z.literal(""));
+const managedUrlSchema = urlOrEmptySchema.or(z.literal(SERVER_CONFIG_SECRET_PLACEHOLDER));
 
 export const setCaptchaConfigBodySchema = z
   .object({
@@ -74,10 +75,10 @@ const socialAuthGithubSchema = z.object({
   enabled: z.coerce.boolean(),
   clientId: z.string().max(200),
   clientSecret: z.string().max(500),
-  authorizeUrl: urlOrEmptySchema,
-  tokenUrl: urlOrEmptySchema,
-  userUrl: urlOrEmptySchema,
-  emailUrl: urlOrEmptySchema,
+  authorizeUrl: managedUrlSchema,
+  tokenUrl: managedUrlSchema,
+  userUrl: managedUrlSchema,
+  emailUrl: managedUrlSchema,
   scope: z.string().max(500),
   callbackPath: callbackPathSchema,
 });
@@ -86,16 +87,16 @@ const socialAuthWechatSchema = z.object({
   enabled: z.coerce.boolean(),
   appId: z.string().max(200),
   appSecret: z.string().max(500),
-  authorizeUrl: urlOrEmptySchema,
-  tokenUrl: urlOrEmptySchema,
-  userUrl: urlOrEmptySchema,
+  authorizeUrl: managedUrlSchema,
+  tokenUrl: managedUrlSchema,
+  userUrl: managedUrlSchema,
   scope: z.string().max(500),
   callbackPath: callbackPathSchema,
 });
 
 export const setSocialAuthConfigBodySchema = z
   .object({
-    frontendBaseUrl: urlOrEmptySchema,
+    frontendBaseUrl: managedUrlSchema,
     qrLoginEnabled: z.coerce.boolean(),
     stateTtlSeconds: z.coerce.number().int().min(60).max(3600),
     qrLoginTtlSeconds: z.coerce.number().int().min(60).max(1800),
@@ -269,7 +270,7 @@ export const setRelayProxyConfigBodySchema = z
   });
 
 export const setSiteConfigBodySchema = z.object({
-  backendPublicUrl: z.string().max(500).url().or(z.literal("")),
+  backendPublicUrl: managedUrlSchema,
 });
 
 export const setSmtpConfigBodySchema = z.object({

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { SERVER_CONFIG_SECRET_PLACEHOLDER, isSensitiveServerConfigValue } from "@quyan/shared";
-import { setAutoProxyPoolConfigBodySchema, setRelayProxyConfigBodySchema } from "@/api/schema/system/config.schema";
+import {
+  setAutoProxyPoolConfigBodySchema,
+  setRelayProxyConfigBodySchema,
+  setSiteConfigBodySchema,
+} from "@/api/schema/system/config.schema";
 describe("platform configuration schema", () => {
   it("accepts a preserved proxy presence marker but rejects unsafe protocols and an enabled empty URL", () => {
     expect(
@@ -30,4 +34,9 @@ describe("platform configuration schema", () => {
     expect(isSensitiveServerConfigValue("url", "https://example.test")).toBe(false);
     expect(isSensitiveServerConfigValue("maxOutputTokens", "2048")).toBe(false);
   });
+});
+
+it("preserves a masked site URL while continuing to reject invalid replacements", () => {
+  expect(setSiteConfigBodySchema.safeParse({ backendPublicUrl: SERVER_CONFIG_SECRET_PLACEHOLDER }).success).toBe(true);
+  expect(setSiteConfigBodySchema.safeParse({ backendPublicUrl: "invalid-fixture-url" }).success).toBe(false);
 });

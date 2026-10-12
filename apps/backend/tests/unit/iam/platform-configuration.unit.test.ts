@@ -22,6 +22,9 @@ import {
   relayConfigurationResources,
   relayProxyConfigurationResources,
   autoProxyPoolConfigurationResources,
+  ipBanConfigurationResources,
+  captchaConfigurationResources,
+  socialAuthConfigurationResources,
   notificationConfigurationResources,
   billingConfigurationResources,
   heartbeatConfigurationResources,
@@ -32,6 +35,9 @@ import {
   RELAY_CONFIGURATION_KEYS,
   RELAY_PROXY_CONFIGURATION_KEYS,
   AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+  IP_BAN_CONFIGURATION_KEYS,
+  CAPTCHA_CONFIGURATION_KEYS,
+  SOCIAL_AUTH_CONFIGURATION_KEYS,
 } from "@/constant/config-keysets";
 import { SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
 import { Project } from "ts-morph";
@@ -160,6 +166,9 @@ describe("platform configuration IAM", () => {
       ["registration", Object.values(CONFIG_KEYS.REGISTRATION), registrationConfigurationResources],
       ["smtp", Object.values(CONFIG_KEYS.SMTP), smtpConfigurationResources],
       ["site", Object.values(CONFIG_KEYS.SITE), siteConfigurationResources],
+      ["ipban", IP_BAN_CONFIGURATION_KEYS, ipBanConfigurationResources],
+      ["captcha", CAPTCHA_CONFIGURATION_KEYS, captchaConfigurationResources],
+      ["social-auth", SOCIAL_AUTH_CONFIGURATION_KEYS, socialAuthConfigurationResources],
       ["relay", RELAY_CONFIGURATION_KEYS, relayConfigurationResources],
       ["relay/proxy", RELAY_PROXY_CONFIGURATION_KEYS, relayProxyConfigurationResources],
       ["auto-proxy-pool", AUTO_PROXY_POOL_CONFIGURATION_KEYS, autoProxyPoolConfigurationResources],
@@ -183,7 +192,11 @@ describe("platform configuration IAM", () => {
         });
       expect(await resolver({ request, principal })).toEqual([...keys].sort().map(platformConfigurationArn));
     }
-    expect(routes.find((r) => r.key === "GET /v1/config/public/registration")?.security).toEqual([]);
+    for (const path of ["registration", "captcha", "social-auth"])
+      expect(routes.find((r) => r.key === "GET /v1/config/public/" + path)?.security).toEqual([]);
+    expect(
+      routes.filter((r) => r.security.includes("jwt")).every((r) => r.coverage === "explicit" && r.issues.length === 0),
+    ).toBe(true);
   });
   it("requires the complete registered key set before a typed configuration read", async () => {
     const guard = await service.prepareRead(Object.values(CONFIG_KEYS.SITE), request);

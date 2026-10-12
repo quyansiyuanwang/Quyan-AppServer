@@ -2,10 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/services/system/platform-configuration-iam.service", () => ({
   PlatformConfigurationIamService: { getInstance: vi.fn() },
 }));
+import { setSocialAuthConfigBodySchema } from "@/api/schema/system/config.schema";
 import { ConfigService } from "@/services/system/config.service";
 import { env } from "@/config/env";
 import { CONFIG_KEYS } from "@/constant/config-keys";
-import { RELAY_CONFIGURATION_KEYS, RELAY_PROXY_CONFIGURATION_KEYS } from "@/constant/config-keysets";
+import {
+  RELAY_CONFIGURATION_KEYS,
+  RELAY_PROXY_CONFIGURATION_KEYS,
+  SOCIAL_AUTH_CONFIGURATION_KEYS,
+  CAPTCHA_CONFIGURATION_KEYS,
+  IP_BAN_CONFIGURATION_KEYS,
+} from "@/constant/config-keysets";
 import { Permission, SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
 import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
 import { AI_RESOURCE_DEFAULTS } from "@/config/ai-resource-policy";
@@ -169,4 +176,35 @@ it("redacts legacy configuration audits including social secrets and credential-
     request,
   );
   for (const [entry] of audit.logOperation.mock.calls) expect(entry.changes.value).toBe("***");
+});
+
+it("preserves nested social credentials without widening a save and leaves internal readers usable", async () => {
+  repo.findByKeys = vi.fn().mockResolvedValue([
+    { key: CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CLIENT_SECRET, value: "fixture-github-secret" },
+    { key: CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.APP_SECRET, value: "fixture-wechat-secret" },
+  ]);
+  const social = await service.getManagedConfiguration(SOCIAL_AUTH_CONFIGURATION_KEYS, request, () =>
+    service.getSocialAuthConfig(),
+  );
+  expect(social.github.clientSecret).toBe(SERVER_CONFIG_SECRET_PLACEHOLDER);
+  expect(social.wechatOpen.appSecret).toBe(SERVER_CONFIG_SECRET_PLACEHOLDER);
+  expect(setSocialAuthConfigBodySchema.safeParse(social).success).toBe(true);
+  await service.setManagedConfiguration(
+    {
+      [CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CLIENT_SECRET]: social.github.clientSecret,
+      [CONFIG_KEYS.SOCIAL_AUTH.WECHAT_OPEN.APP_SECRET]: social.wechatOpen.appSecret,
+      [CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED]: "false",
+    },
+    "actor",
+    request,
+  );
+  expect(iam.update).toHaveBeenCalledWith({ [CONFIG_KEYS.SOCIAL_AUTH.QR_LOGIN_ENABLED]: "false" }, expect.anything());
+  iam.prepareRead.mockClear();
+  expect((await service.getSocialAuthConfig()).github.clientSecret).toBe("fixture-github-secret");
+  await service.getCaptchaConfig();
+  await service.getIpBanConfig();
+  expect(iam.prepareRead).not.toHaveBeenCalled();
+  expect(repo.findByKeys).toHaveBeenCalledWith([...CAPTCHA_CONFIGURATION_KEYS]);
+  expect(repo.findByKeys).toHaveBeenCalledWith([...IP_BAN_CONFIGURATION_KEYS]);
+  expect(IP_BAN_CONFIGURATION_KEYS).not.toContain(CONFIG_KEYS.IP_BAN.ERROR_WEIGHTS);
 });
