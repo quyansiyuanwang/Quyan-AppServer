@@ -34,6 +34,12 @@ import {
   optimizePreviewBodySchema,
 } from "@/api/schema/system/data-maintenance.schema";
 import type { TypedRequest } from "@/types/express";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { platformMaintenanceRunResourceResolver } from "@/iam/request/platform-maintenance-resource-resolvers";
 import { BadRequestError } from "@/util/errors";
 
 @Route("v1/data-maintenance")
@@ -146,23 +152,36 @@ export class DataMaintenanceController extends Controller {
 
   @Get("runs")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:ListRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(maintenanceRunsQuerySchema))
   public async listRuns(
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
     @Query() operation?: string,
     @Query() runStatus?: string,
+    @Request() request?: TypedRequest,
   ): Promise<DataMaintenanceRunListResponse> {
-    const result = await this.service.listRuns(page, pageSize, { operation, runStatus });
+    const result = await this.service.listRuns(page, pageSize, { operation, runStatus }, request);
     return { ...result, page, pageSize } as DataMaintenanceRunListResponse;
   }
 
   @Get("runs/{runId}")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:GetRun",
+      resourceKind: "single-resource",
+      resource: platformMaintenanceRunResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(maintenanceRunParamsSchema))
-  public async getRun(@Path() runId: string): Promise<DataMaintenanceRunDTO> {
-    return (await this.service.getRun(runId)) as any;
+  public async getRun(@Path() runId: string, @Request() request: TypedRequest): Promise<DataMaintenanceRunDTO> {
+    return (await this.service.getRun(runId, request)) as any;
   }
 }

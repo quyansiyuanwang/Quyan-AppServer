@@ -103,6 +103,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'maintenance-run'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':maintenance-run/{resourceId}',
+  },
+  {
     ...resource('platform', 'config'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':config/{resourceId}',
@@ -1678,6 +1683,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...['ListRuns', 'GetRun'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:system:data_maintenance:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: operation === 'ListRuns' ? 'List' : 'Read',
+      resourceTypes: ['platform/maintenance-run'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
+    }),
+  ),
   {
     action: 'quyan:auth_center:CreateClient',
     service: 'auth_center',

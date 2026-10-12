@@ -3,6 +3,12 @@ import { gunzipSync } from "zlib";
 import OSS from "ali-oss";
 import { Prisma } from "@prisma/client";
 import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { PlatformMaintenanceRunIamService } from "./platform-maintenance-run-iam.service";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import { createObjectStorageClient } from "@/services/infrastructure/object-storage-client";
@@ -146,7 +152,11 @@ export class DataMaintenanceService {
   private static instance: DataMaintenanceService;
   private ossClient: OSS | null = null;
 
-  private constructor(private readonly repository = ObservabilityRepository.getInstance()) {}
+  private constructor(
+    private readonly repository = ObservabilityRepository.getInstance(),
+    private readonly iamReads = PlatformMaintenanceRunIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
+  ) {}
 
   public static getInstance(): DataMaintenanceService {
     if (!this.instance) this.instance = new DataMaintenanceService();
@@ -290,15 +300,59 @@ export class DataMaintenanceService {
     }
   }
 
-  public listRuns(page: number, pageSize: number, filters?: { operation?: string; runStatus?: string }) {
+  public async listRuns(
+    page: number,
+    pageSize: number,
+    filters?: { operation?: string; runStatus?: string },
+    request?: TypedRequest,
+  ) {
+    const query = { ...filters, page, pageSize };
+    if (env.security.iamAuthorizationMode === "enforce") return this.iamReads.list(query, request);
+    await this.assertLegacyRead(request);
+    if (request) await this.shadowRead(() => this.iamReads.diagnose(query, request));
     return this.repository.listMaintenanceRuns(page, pageSize, filters);
   }
 
-  public async getRun(id: string) {
+  public async getRun(id: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const run = await this.iamReads.get(id, request);
+      if (!run) throw iamAccountDenied();
+      return run;
+    }
+    await this.assertLegacyRead(request);
+    if (request) await this.shadowRead(() => this.iamReads.get(id, request, false));
     const run = await this.repository.getMaintenanceRun(id);
     if (!run)
       throw new NotFoundError("Maintenance run not found", undefined, { messageKey: "dataMaintenance.runNotFound" });
     return run;
+  }
+
+  private async assertLegacyRead(request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      !(
+        await this.permissions.checkUserPermissions(
+          principal.subjectUserId,
+          [Permission.SYSTEM_DATA_MAINTENANCE_MANAGE],
+          {
+            assumedRoleSessionId: principal.roleSessionId,
+          },
+        )
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  private async shadowRead(read: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await read();
+    } catch {
+      getLogger("DataMaintenanceIamBridge", LogCategory.SECURITY).warn("Maintenance IAM shadow evaluation failed", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
   }
 
   public async processQueuedRuns(limit = 3): Promise<void> {
