@@ -1,3 +1,5 @@
+import { PlatformOjPricingWriteIamService } from "./platform-oj-pricing-write-iam.service";
+import type { CreateOJModelPricingRequest, UpdateOJModelPricingRequest } from "@/api/dto/oj-submitter/oj-qa.dto";
 import { PlatformOjPricingReadIamService } from "./platform-oj-pricing-read-iam.service";
 import { env } from "@/config/env";
 import { Permission } from "@quyan/shared";
@@ -25,6 +27,7 @@ export class OJPricingService {
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly iamReads = PlatformOjPricingReadIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
+    private readonly iamWrites = PlatformOjPricingWriteIamService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -46,7 +49,7 @@ export class OJPricingService {
       updateTime: p.updateTime,
     };
   }
-  private async legacyReadPermission(request: TypedRequest) {
+  private async legacyReadPermission(request: TypedRequest, permission = Permission.OJ_PRICING_READ) {
     const principal = request && getIamPrincipal(request);
     if (
       !principal ||
@@ -54,7 +57,7 @@ export class OJPricingService {
       principal.subjectUserId !== principal.principalUserId ||
       !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
       !(
-        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.OJ_PRICING_READ], {
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [permission], {
           assumedRoleSessionId: principal.roleSessionId,
         })
       ).hasPermission
@@ -98,6 +101,74 @@ export class OJPricingService {
       }
     }
     return this.getPricing(model);
+  }
+  private async managedWrite(
+    operation: "create" | "update" | "delete",
+    model: string | undefined,
+    data: CreateOJModelPricingRequest | UpdateOJModelPricingRequest,
+    actorUserId: string,
+    request: TypedRequest,
+  ) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== actorUserId ||
+      !["legacy", "shadow", "enforce"].includes(env.security.iamAuthorizationMode)
+    )
+      throw iamAccountDenied();
+    const evaluate = (persist: boolean) =>
+      operation === "create"
+        ? this.iamWrites.create(data as CreateOJModelPricingRequest, actorUserId, request, persist)
+        : this.iamWrites.mutate(operation, model!, data, actorUserId, request, persist);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const row = await evaluate(true);
+      if (!row) throw iamAccountDenied();
+      await this.businessLogService.logOperation({
+        operationType:
+          operation === "create"
+            ? OperationType.OJ_PRICING_CREATE
+            : operation === "update"
+              ? OperationType.OJ_PRICING_UPDATE
+              : OperationType.OJ_PRICING_DELETE,
+        operationCategory: OperationCategory.OJ_SUBMITTER,
+        actorUserId,
+        targetResourceId: row.id,
+        targetResourceType: "OJ_MODEL_PRICING",
+        description: `OJ model pricing ${operation}`,
+        ...(operation === "delete" ? {} : { changes: data }),
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return row;
+    }
+    await this.legacyReadPermission(request, Permission.OJ_PRICING_UPDATE);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await evaluate(false);
+      } catch {
+        getLogger("OJPricing", LogCategory.SECURITY).warn("OJ pricing mutation shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return undefined;
+  }
+  async createManagedPricing(data: CreateOJModelPricingRequest, actorUserId: string, request: TypedRequest) {
+    const row = await this.managedWrite("create", undefined, data, actorUserId, request);
+    return row ? this.pricingDto(row) : this.createPricing(data, actorUserId, request);
+  }
+  async updateManagedPricing(
+    model: string,
+    data: UpdateOJModelPricingRequest,
+    actorUserId: string,
+    request: TypedRequest,
+  ) {
+    const row = await this.managedWrite("update", model, data, actorUserId, request);
+    return row ? this.pricingDto(row) : this.updatePricing(model, data, actorUserId, request);
+  }
+  async deleteManagedPricing(model: string, actorUserId: string, request: TypedRequest) {
+    const row = await this.managedWrite("delete", model, {}, actorUserId, request);
+    return row ? { success: true } : this.deletePricing(model, actorUserId, request);
   }
   /**
    * 获取所有定价

@@ -1,6 +1,10 @@
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { platformOjPricingDetailResource } from "@/iam/request/platform-oj-pricing-resource-resolvers";
+import {
+  platformOjPricingDetailResource,
+  platformOjPricingCreateResource,
+  platformOjPricingWriteResource,
+} from "@/iam/request/platform-oj-pricing-resource-resolvers";
 import {
   Controller,
   Post,
@@ -21,7 +25,7 @@ import type {
   CreateOJModelPricingRequest,
   UpdateOJModelPricingRequest,
 } from "@/api/dto/oj-submitter/oj-qa.dto";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import {
   createOJModelPricingBodySchema,
@@ -99,14 +103,18 @@ export class OJPricingController extends Controller {
    */
   @Post()
   @Security("jwt")
-  @RequirePermission(Permission.OJ_PRICING_UPDATE)
+  @CheckPermission(Permission.OJ_PRICING_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oj:CreatePricing",
+    resourceKind: "collection",
+    resource: platformOjPricingCreateResource,
+  })
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(createOJModelPricingBodySchema))
   public async createPricing(
     @Body() body: CreateOJModelPricingRequest,
     @Request() request: TypedRequest,
   ): Promise<OJModelPricingDto> {
-    const pricing = await this.ojPricingService.createPricing(body, request.user!.userId, request);
+    const pricing = await this.ojPricingService.createManagedPricing(body, request.user!.userId, request);
 
     return {
       id: pricing.id,
@@ -127,7 +135,11 @@ export class OJPricingController extends Controller {
    */
   @Put("{model}")
   @Security("jwt")
-  @RequirePermission(Permission.OJ_PRICING_UPDATE)
+  @CheckPermission(Permission.OJ_PRICING_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oj:UpdatePricing",
+    resourceKind: "single-resource",
+    resource: platformOjPricingWriteResource,
+  })
   @ReplayProtected()
   @Middlewares(
     replayProtectionMiddleware,
@@ -139,7 +151,7 @@ export class OJPricingController extends Controller {
     @Body() body: UpdateOJModelPricingRequest,
     @Request() request: TypedRequest,
   ): Promise<OJModelPricingDto> {
-    const pricing = await this.ojPricingService.updatePricing(model, body, request.user!.userId, request);
+    const pricing = await this.ojPricingService.updateManagedPricing(model, body, request.user!.userId, request);
 
     return {
       id: pricing.id,
@@ -160,11 +172,15 @@ export class OJPricingController extends Controller {
    */
   @Delete("{model}")
   @Security("jwt")
-  @RequirePermission(Permission.OJ_PRICING_UPDATE)
+  @CheckPermission(Permission.OJ_PRICING_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oj:DeletePricing",
+    resourceKind: "single-resource",
+    resource: platformOjPricingWriteResource,
+  })
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateParams(ojPricingModelParamsSchema))
   public async deletePricing(@Path() model: string, @Request() request: TypedRequest): Promise<{ success: boolean }> {
-    await this.ojPricingService.deletePricing(model, request.user!.userId, request);
+    await this.ojPricingService.deleteManagedPricing(model, request.user!.userId, request);
 
     return { success: true };
   }

@@ -11,3 +11,12 @@ export function platformOjPricingArn(id: string) {
     path: "oj-pricing/" + id,
   });
 }
+
+export function platformOjPricingCollectionArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "oj-pricing-control/default",
+  });
+}

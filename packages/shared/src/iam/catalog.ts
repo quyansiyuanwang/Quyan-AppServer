@@ -121,6 +121,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':legal-policy-control/{resourceId}',
   },
   {
+    ...resource('platform', 'oj-pricing-control'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':oj-pricing-control/{resourceId}',
+  },
+  {
     ...resource('platform', 'oj-pricing'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':oj-pricing/{resourceId}',
@@ -1121,6 +1126,32 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.DEBUG_OPENAPI_READ,
   },
+  ...(['CreatePricing', 'UpdatePricing', 'DeletePricing'] as const).map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:oj:' + operation,
+      service: 'oj',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes:
+        operation === 'CreatePricing'
+          ? ['platform/oj-pricing-control', 'platform/oj-pricing']
+          : ['platform/oj-pricing'],
+      apiRoutes: [
+        (operation === 'CreatePricing'
+          ? 'POST'
+          : operation === 'UpdatePricing'
+            ? 'PUT'
+            : 'DELETE') +
+          ' /v1/products/oj-submitter/pricing' +
+          (operation === 'CreatePricing' ? '' : '/{model}'),
+      ],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.OJ_PRICING_UPDATE,
+    }),
+  ),
   ...(['ListPricing', 'GetPricing'] as const).map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

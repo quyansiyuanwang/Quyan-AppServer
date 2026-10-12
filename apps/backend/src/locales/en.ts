@@ -997,6 +997,7 @@ const en = {
   ojSubmitter: {
     apiKeyNotFound: "API key not found",
     pricingNotFound: "Pricing not found for model: {{model}}",
+    pricingEntryAlreadyExists: "Model pricing already exists",
     pricingAlreadyExists: "Pricing already exists for model: {{model}}",
     invalidApiKey: "Invalid API key",
     apiKeyExpired: "API key has expired",

@@ -8,3 +8,13 @@ export const platformOjPricingDetailResource: ResourceResolver = async ({ reques
   const target = await PlatformOjPricingReadRepository.getInstance().target(principal, parsed.data.model);
   return target ? platformOjPricingArn(target.id) : undefined;
 };
+
+import { PlatformOjPricingWriteRepository } from "@/store/oj-submitter/platform-oj-pricing-write.repository";
+import { platformOjPricingCollectionArn } from "../resources/platform-oj-pricing-resources";
+export const platformOjPricingCreateResource: ResourceResolver = () => platformOjPricingCollectionArn();
+export const platformOjPricingWriteResource: ResourceResolver = async ({ request, principal }) => {
+  const parsed = ojPricingModelParamsSchema.safeParse(request.params);
+  if (!parsed.success) return undefined;
+  const target = await PlatformOjPricingWriteRepository.getInstance().target(principal, parsed.data.model);
+  return target ? platformOjPricingArn(target.id) : undefined;
+};

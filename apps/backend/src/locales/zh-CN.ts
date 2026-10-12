@@ -998,6 +998,7 @@ const zhCN = {
   ojSubmitter: {
     apiKeyNotFound: "API Key 不存在",
     pricingNotFound: "未找到模型 {{model}} 的定价",
+    pricingEntryAlreadyExists: "模型定价已存在",
     pricingAlreadyExists: "模型 {{model}} 的定价已存在",
     invalidApiKey: "API Key 无效",
     apiKeyExpired: "API Key 已过期",

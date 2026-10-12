@@ -48,6 +48,12 @@ With IAM enforcement, management reads require `OJ_PRICING_READ` eligibility in 
 
 The list loads display prices only after each record is authorized. A matching Deny overrides Allow. Missing, deleted or unauthorized detail records return 403 in enforce mode. Price, qualification, policy or role-session changes during a read prevent returning the result. AssumeRole uses its role's grants. Internal billing calculations retain their existing pricing lookup flow.
 
+## IAM pricing write permissions
+
+Creating, updating, and deleting require eligibility from a real global group with `OJ_PRICING_UPDATE`, using `quyan:oj:CreatePricing`, `quyan:oj:UpdatePricing`, and `quyan:oj:DeletePricing` respectively. Creation checks both `acs:platform:*:platform:oj-pricing-control/default` and the actual new record ARN. Updates and deletions check the actual record ARN. Model names are lookup inputs and cannot change the authorization scope.
+
+A matching Deny blocks the entire operation. If identity, eligibility, policies, role sessions, or the target price change before saving, the operation fails without partially saving price changes. Deleted models cannot be directly recreated. Missing or unauthorized mutation targets return 403 in IAM enforcement mode. Replay protection applies to all three write endpoints.
+
 ## Notes
 
 - Pricing changes can affect cost reporting and any user-visible estimates.
