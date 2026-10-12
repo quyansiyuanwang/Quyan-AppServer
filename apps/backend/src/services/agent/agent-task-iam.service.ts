@@ -20,7 +20,11 @@ export class AgentTaskIamService {
   async authorize(
     id: string,
     userId: string,
-    action: "quyan:agent:GetTaskEvents" | "quyan:agent:CancelTask",
+    action:
+      | "quyan:agent:GetTaskEvents"
+      | "quyan:agent:CancelTask"
+      | "quyan:agent:ListTaskApprovals"
+      | "quyan:agent:DecideApproval",
     request?: TypedRequest,
   ) {
     const identity = trustedAgentIdentity(userId, request);

@@ -1,5 +1,5 @@
 import { prisma } from "@/config/database";
-import type { AgentRuntimeMachine, AgentWorkspace, AgentTask, McpServer, Prisma } from "@prisma/client";
+import type { AgentRuntimeMachine, AgentWorkspace, AgentTask, AgentApproval, McpServer, Prisma } from "@prisma/client";
 
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { AGENT_TASK_LIMITS } from "@/services/agent/agent-task.policy";
@@ -83,6 +83,7 @@ export type PublicAgentWorkspace = Prisma.AgentWorkspaceGetPayload<{ select: typ
 };
 
 export type AgentTaskTarget = Pick<AgentTask, "id" | "userId" | "workspaceId" | "taskStatus" | "updateTime">;
+export type AgentApprovalTarget = Pick<AgentApproval, "id" | "taskId" | "stepId" | "createTime" | "expiresAt">;
 const taskAccountScope = (userId: string, accountOwnerId: string): Prisma.AgentTaskWhereInput => ({
   userId,
   status: 1,
@@ -617,6 +618,117 @@ export class AgentRepository {
       orderBy: { sequence: "asc" },
       take: AGENT_TASK_LIMITS.eventsPerPage,
     });
+  }
+
+  scanApprovalTargets(target: AgentTaskTarget, accountOwnerId: string, after?: AgentApprovalTarget) {
+    return prisma.agentApproval.findMany({
+      where: {
+        taskId: target.id,
+        status: "pending",
+        expiresAt: { gt: new Date() },
+        task: {
+          id: target.id,
+          workspaceId: target.workspaceId,
+          taskStatus: "waiting_approval",
+          ...taskAccountScope(target.userId, accountOwnerId),
+        },
+        step: { taskId: target.id },
+        ...(after
+          ? { OR: [{ createTime: { gt: after.createTime } }, { createTime: after.createTime, id: { gt: after.id } }] }
+          : {}),
+      },
+      select: { id: true, taskId: true, stepId: true, createTime: true, expiresAt: true },
+      orderBy: [{ createTime: "asc" }, { id: "asc" }],
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+    });
+  }
+
+  findApprovalTarget(id: string, target: AgentTaskTarget, accountOwnerId: string) {
+    return prisma.agentApproval.findFirst({
+      where: {
+        id,
+        taskId: target.id,
+        status: "pending",
+        expiresAt: { gt: new Date() },
+        task: {
+          id: target.id,
+          workspaceId: target.workspaceId,
+          taskStatus: "waiting_approval",
+          ...taskAccountScope(target.userId, accountOwnerId),
+        },
+        step: { taskId: target.id },
+      },
+      select: { id: true, taskId: true, stepId: true, createTime: true, expiresAt: true },
+    });
+  }
+
+  async readApprovalTargets(
+    target: AgentTaskTarget,
+    accountOwnerId: string,
+    approvals: readonly AgentApprovalTarget[],
+  ) {
+    if (!approvals.length) return [];
+    return prisma.agentApproval.findMany({
+      where: {
+        taskId: target.id,
+        status: "pending",
+        expiresAt: { gt: new Date() },
+        task: {
+          id: target.id,
+          workspaceId: target.workspaceId,
+          taskStatus: "waiting_approval",
+          ...taskAccountScope(target.userId, accountOwnerId),
+        },
+        step: { taskId: target.id },
+        OR: approvals.map((approval) => ({ id: approval.id, stepId: approval.stepId, expiresAt: approval.expiresAt })),
+      },
+      select: { id: true, taskId: true, status: true, toolCall: true, expiresAt: true },
+      orderBy: [{ createTime: "asc" }, { id: "asc" }],
+    });
+  }
+
+  async decideApprovalTarget(
+    target: AgentTaskTarget,
+    accountOwnerId: string,
+    approval: AgentApprovalTarget,
+    decision: "approved" | "rejected",
+  ) {
+    if (approval.taskId !== target.id || target.taskStatus !== "waiting_approval") throw taskStateChanged();
+    await prisma.$transaction(
+      async (tx) => {
+        const task = await tx.agentTask.updateMany({
+          where: {
+            id: target.id,
+            workspaceId: target.workspaceId,
+            taskStatus: "waiting_approval",
+            updateTime: target.updateTime,
+            ...taskAccountScope(target.userId, accountOwnerId),
+          },
+          data: {
+            taskStatus: decision === "approved" ? "running" : "failed",
+            lastError: decision === "approved" ? null : "Tool call rejected",
+            updateTime: nextRuntimeLease(target.updateTime),
+          },
+        });
+        if (task.count !== 1) throw machineScopeChanged();
+        const changed = await tx.agentApproval.updateMany({
+          where: {
+            id: approval.id,
+            taskId: target.id,
+            stepId: approval.stepId,
+            status: "pending",
+            expiresAt: { gt: new Date(), equals: approval.expiresAt },
+            step: { taskId: target.id },
+          },
+          data: { status: decision, decidedBy: target.userId, decidedAt: new Date() },
+        });
+        if (changed.count !== 1)
+          throw new BadRequestError("Approval is no longer available", undefined, {
+            messageKey: "agent.approvalUnavailable",
+          });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   listPendingApprovals(taskId: string, userId: string) {

@@ -410,3 +410,7 @@ Deleting a workspace requires `quyan:agent:DeleteWorkspace` on that workspace an
 ## Agent task events and cancellation
 
 Tasks use `acs:agent:*:<accountId>:task/<userId>/<taskId>`. `quyan:agent:GetTaskEvents` controls event payload reads. The server reads ordered, bounded pages and rechecks authorization throughout the stream and before sending each event; permission revocation stops delivery. `quyan:agent:CancelTask` cancels only queued, running or approval-waiting tasks and checks their current state and data version. Terminal tasks cannot be cancelled again, and stale workers cannot return a cancelled task to running. Tasks must still belong to the current user and account and reference an active workspace and conversation owned by that user.
+
+## Agent approval resource authorization
+
+Approvals use `acs:agent:*:<accountId>:approval/<userId>/<taskId>/<approvalId>`. Reading pending approvals requires `quyan:agent:ListTaskApprovals` on the task; each tool call also requires `quyan:agent:GetApproval` on its approval resource. Approving or rejecting requires `quyan:agent:DecideApproval` on both the task and approval. The server checks ownership of the task, workspace, conversation and step and accepts only pending, unexpired approvals. The decision and task state change in one transaction; an older approval cannot resume a cancelled task.

@@ -410,3 +410,7 @@ MCP 服务资源使用 `acs:mcp:*:<accountId>:server/<userId>/<serverId>`。`quy
 ## Agent 任务事件和取消
 
 任务使用 `acs:agent:*:<accountId>:task/<userId>/<taskId>`。`quyan:agent:GetTaskEvents` 控制事件内容读取，服务器按顺序分批读取，并在事件流持续期间、发送每条事件前重新授权；授权被撤销后停止发送。`quyan:agent:CancelTask` 只允许取消仍在排队、运行或等待批准的任务，并检查当前任务状态和版本。已结束任务不能再次取消，旧 worker 不能把取消后的任务改回运行中。任务仍须属于当前用户和账户，并关联有效的自有工作区与对话。
+
+## Agent 批准资源授权
+
+批准使用 `acs:agent:*:<accountId>:approval/<userId>/<taskId>/<approvalId>`。读取待批准列表需要任务上的 `quyan:agent:ListTaskApprovals`，每项工具调用内容还需该批准资源上的 `quyan:agent:GetApproval`。提交批准或拒绝需要任务和批准资源上的 `quyan:agent:DecideApproval`。服务器同时核验任务、工作区、对话和步骤归属；只允许处理未过期、仍为待批准状态的操作。决定与任务状态在同一事务中更新，已取消任务不能通过较旧批准操作恢复运行。

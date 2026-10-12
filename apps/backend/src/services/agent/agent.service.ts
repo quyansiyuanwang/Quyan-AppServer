@@ -24,6 +24,7 @@ import { resolveMappedModel } from "@/util/model-mapping.util";
 
 import type { TypedRequest } from "@/types/express";
 import { AgentMachineIamService } from "./agent-machine-iam.service";
+import { AgentApprovalIamService } from "./agent-approval-iam.service";
 import { AgentTaskIamService } from "./agent-task-iam.service";
 import { AgentWorkspaceLifecycleService } from "./agent-workspace-lifecycle.service";
 import { AgentWorkspaceIamService } from "./agent-workspace-iam.service";
@@ -447,8 +448,11 @@ export class AgentService {
     await this.repository.updateTask(taskId, { taskStatus: "cancelled", lastError: "Cancelled by user" });
   }
 
-  async getApprovals(userId: string, taskId: string): Promise<AgentApprovalResponse[]> {
-    const rows = await this.repository.listPendingApprovals(taskId, userId);
+  async getApprovals(userId: string, taskId: string, request?: TypedRequest): Promise<AgentApprovalResponse[]> {
+    const rows =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await AgentApprovalIamService.getInstance().list(userId, taskId, request)
+        : await this.repository.listPendingApprovals(taskId, userId);
     return rows.map((row) => ({
       id: row.id,
       taskId: row.taskId,
@@ -458,7 +462,17 @@ export class AgentService {
     }));
   }
 
-  async decideApproval(userId: string, taskId: string, approvalId: string, decision: "approved" | "rejected") {
+  async decideApproval(
+    userId: string,
+    taskId: string,
+    approvalId: string,
+    decision: "approved" | "rejected",
+    request?: TypedRequest,
+  ) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      await AgentApprovalIamService.getInstance().decide(userId, taskId, approvalId, decision, request);
+      return;
+    }
     const approval = await this.repository.findPendingApproval(approvalId, taskId, userId);
     if (!approval || approval.expiresAt < new Date())
       throw new BadRequestError("Approval is no longer available", undefined, {

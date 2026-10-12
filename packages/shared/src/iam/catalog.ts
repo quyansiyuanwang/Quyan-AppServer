@@ -48,7 +48,13 @@ const resource = (
         ':*:{accountId}:' +
         type +
         '/' +
-        (identifierSegments === 2 ? '{parentId}/{resourceId}' : '{resourceId}'),
+        Array.from({ length: identifierSegments }, (_, index) =>
+          index === identifierSegments - 1
+            ? '{resourceId}'
+            : index === identifierSegments - 2
+              ? '{parentId}'
+              : '{ancestorId}',
+        ).join('/'),
 })
 export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = Object.freeze([
   resource('quyan', 'account', 0),
@@ -81,6 +87,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('agent', 'machine', 2),
   resource('agent', 'workspace', 2),
   resource('agent', 'task', 2),
+  resource('agent', 'approval', 3),
   { ...resource('balance', 'gift-code', 2), authenticatedSelfScope: 'children' },
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
@@ -121,6 +128,7 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_POLICY_DETACH]: ['policy', 'user', 'group', 'role', 'authorization'],
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
+  [Permission.AGENT_APPROVAL]: ['agent/task', 'agent/approval'],
   [Permission.AGENT_TASK_RUN]: ['agent/task'],
   [Permission.AGENT_WORKSPACE_READ]: ['agent/machine', 'agent/workspace'],
   [Permission.AGENT_WORKSPACE_WRITE]: ['quyan/user', 'agent/machine', 'agent/workspace'],
@@ -857,6 +865,24 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   ...[
+    {
+      operation: 'ListTaskApprovals',
+      accessLevel: 'List',
+      resourceTypes: ['agent/task'],
+      legacyPermission: Permission.AGENT_APPROVAL,
+    },
+    {
+      operation: 'GetApproval',
+      accessLevel: 'Read',
+      resourceTypes: ['agent/approval'],
+      legacyPermission: Permission.AGENT_APPROVAL,
+    },
+    {
+      operation: 'DecideApproval',
+      accessLevel: 'Write',
+      resourceTypes: ['agent/task', 'agent/approval'],
+      legacyPermission: Permission.AGENT_APPROVAL,
+    },
     {
       operation: 'GetTaskEvents',
       accessLevel: 'Read',

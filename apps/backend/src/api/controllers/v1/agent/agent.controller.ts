@@ -35,7 +35,7 @@ import {
   createAgentMachineBodySchema,
 } from "@/api/schema/agent/agent.schema";
 import { validateBody } from "@/middleware/validation";
-import { RequirePermission, CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { SSEStreamService } from "@/util/streaming/sse";
@@ -49,6 +49,7 @@ import {
   agentMachineResourceResolver,
   agentWorkspaceResourceResolver,
   agentTaskResourceResolver,
+  agentApprovalResourcesResolver,
 } from "@/iam/request/agent-resource-resolvers";
 
 @Route("v1/agent")
@@ -202,26 +203,38 @@ export class AgentController extends Controller {
 
   @Get("runs/{taskId}/approvals")
   @Security("jwt")
-  @RequirePermission(Permission.AGENT_APPROVAL)
+  @CheckPermission(Permission.AGENT_APPROVAL, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:ListTaskApprovals",
+    resourceKind: "single-resource",
+    resource: agentTaskResourceResolver,
+  })
   async listApprovals(
     @Path() taskId: string,
     @Request() request: TypedRequest,
   ): Promise<ApiSuccessResponse<AgentApprovalResponse[]>> {
-    return { code: 0, message: "Success", data: await this.service.getApprovals(request.user!.userId, taskId) };
+    return {
+      code: 0,
+      message: "Success",
+      data: await this.service.getApprovals(request.user!.userId, taskId, request),
+    };
   }
 
   @Post("runs/{taskId}/approvals/{approvalId}")
   @Security("jwt")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(decideAgentApprovalBodySchema))
-  @RequirePermission(Permission.AGENT_APPROVAL)
+  @CheckPermission(Permission.AGENT_APPROVAL, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:DecideApproval",
+    resourceKind: "batch",
+    resource: agentApprovalResourcesResolver,
+  })
   async decideApproval(
     @Path() taskId: string,
     @Path() approvalId: string,
     @Body() body: DecideAgentApprovalRequest,
     @Request() request: TypedRequest,
   ): Promise<ApiSuccessResponse<void>> {
-    await this.service.decideApproval(request.user!.userId, taskId, approvalId, body.decision);
+    await this.service.decideApproval(request.user!.userId, taskId, approvalId, body.decision, request);
     return { code: 0, message: "Success" };
   }
 

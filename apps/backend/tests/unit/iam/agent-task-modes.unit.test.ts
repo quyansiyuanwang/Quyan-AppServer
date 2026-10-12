@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   check: vi.fn(),
   warn: vi.fn(),
+  approvals: vi.fn(),
+  decide: vi.fn(),
 }));
 vi.mock("@/config/env", () => ({
   env: {
@@ -39,6 +41,9 @@ vi.mock("@/services/users/permission.service", () => ({
   PermissionService: { getInstance: () => ({ checkUserPermissions: mocks.check }) },
 }));
 vi.mock("@/util/logger", () => ({ getLogger: () => ({ warn: mocks.warn }), LogCategory: { SECURITY: "security" } }));
+vi.mock("@/services/agent/agent-approval-iam.service", () => ({
+  AgentApprovalIamService: { getInstance: () => ({ list: mocks.approvals, decide: mocks.decide }) },
+}));
 import { AgentService } from "@/services/agent/agent.service";
 const repository = mockDeep<AgentRepository>(),
   pricing = mockDeep<ModelPricingRepository>();
@@ -91,5 +96,16 @@ describe("Agent task event and cancellation modes", () => {
     expect(mocks.warn).toHaveBeenCalledWith("Task events shadow evaluation failed", {
       reason: "iam-events-unavailable",
     });
+  });
+  it("enforces approval resource checks before tool-call hydration and decision mutation", async () => {
+    mocks.approvals.mockResolvedValue([]);
+    await expect(service.getApprovals("actor", "task", request())).resolves.toEqual([]);
+    mocks.approvals.mockRejectedValue(new Error("denied"));
+    mocks.decide.mockRejectedValue(new Error("denied"));
+    await expect(service.getApprovals("actor", "task", request())).rejects.toThrow("denied");
+    await expect(service.decideApproval("actor", "task", "approval", "approved", request())).rejects.toThrow("denied");
+    expect(repository.listPendingApprovals).not.toHaveBeenCalled();
+    expect(repository.updateApproval).not.toHaveBeenCalled();
+    expect(repository.updateTask).not.toHaveBeenCalled();
   });
 });

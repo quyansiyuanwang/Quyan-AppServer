@@ -107,6 +107,51 @@ describe("Agent task events and cancellation storage boundaries", () => {
     expect(await repository.findTaskTarget(selected.id, actor, owner)).toBeNull();
     expect(await groups.resourceExistsInAccount(agentTaskArn(owner, actor, selected.id), owner)).toBe(false);
   });
+  it("atomically decides pending approvals and cannot resume cancelled or expired tasks", async () => {
+    const selected = await task();
+    await prisma.agentTask.update({ where: { id: selected.id }, data: { taskStatus: "waiting_approval" } });
+    const step = await prisma.agentTaskStep.create({ data: { taskId: selected.id, sequence: 1, kind: "tool" } });
+    const approval = await prisma.agentApproval.create({
+      data: {
+        taskId: selected.id,
+        stepId: step.id,
+        expiresAt: new Date(Date.now() + 60_000),
+        toolCall: { command: "private" },
+      },
+    });
+    const target = (await repository.findTaskTarget(selected.id, actor, owner))!;
+    const metadata = (await repository.findApprovalTarget(approval.id, target, owner))!;
+    expect(metadata).not.toHaveProperty("toolCall");
+    expect((await repository.readApprovalTargets(target, owner, [metadata]))[0].toolCall).toEqual({
+      command: "private",
+    });
+    await expect(repository.decideApprovalTarget(target, foreign, metadata, "approved")).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect((await prisma.agentApproval.findUnique({ where: { id: approval.id } }))?.status).toBe("pending");
+    await prisma.agentApproval.update({
+      where: { id: approval.id },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+    await expect(repository.decideApprovalTarget(target, owner, metadata, "approved")).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    expect((await prisma.agentTask.findUnique({ where: { id: selected.id } }))?.taskStatus).toBe("waiting_approval");
+    await prisma.agentApproval.update({ where: { id: approval.id }, data: { expiresAt: metadata.expiresAt } });
+    await repository.cancelTaskTarget(target, owner);
+    await expect(repository.decideApprovalTarget(target, owner, metadata, "approved")).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect((await prisma.agentApproval.findUnique({ where: { id: approval.id } }))?.status).toBe("pending");
+    await prisma.agentTask.update({ where: { id: selected.id }, data: { taskStatus: "waiting_approval" } });
+    const current = (await repository.findTaskTarget(selected.id, actor, owner))!;
+    await repository.decideApprovalTarget(current, owner, metadata, "rejected");
+    expect((await prisma.agentApproval.findUnique({ where: { id: approval.id } }))?.status).toBe("rejected");
+    expect((await prisma.agentTask.findUnique({ where: { id: selected.id } }))?.taskStatus).toBe("failed");
+    await expect(repository.decideApprovalTarget(current, owner, metadata, "approved")).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
   it("enforces real policy bindings and revocation without exposing payloads", async () => {
     const selected = await task();
     await repository.appendEvent(selected.id, "assistant_delta", { content: "private" });

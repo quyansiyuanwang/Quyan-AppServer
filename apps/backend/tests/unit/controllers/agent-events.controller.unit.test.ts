@@ -33,6 +33,7 @@ vi.mock("@/iam/request/agent-resource-resolvers", () => ({
   agentMachineResourceResolver: vi.fn(),
   agentWorkspaceResourceResolver: vi.fn(),
   agentTaskResourceResolver: vi.fn(),
+  agentApprovalResourcesResolver: vi.fn(),
 }));
 import { AgentController } from "@/api/controllers/v1/agent/agent.controller";
 const event = (sequence: number) => ({

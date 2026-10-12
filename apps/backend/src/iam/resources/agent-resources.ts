@@ -34,3 +34,13 @@ export function agentTaskArn(accountOwnerId: string, userId: string, taskId: str
     path: "task/" + userId + "/" + taskId,
   });
 }
+
+export function agentApprovalArn(accountOwnerId: string, userId: string, taskId: string, approvalId: string): string {
+  if (![userId, taskId, approvalId].every(isCanonicalAgentId)) throw new Error("Invalid Agent approval identifier");
+  return buildAcsResource({
+    service: "agent",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "approval/" + userId + "/" + taskId + "/" + approvalId,
+  });
+}

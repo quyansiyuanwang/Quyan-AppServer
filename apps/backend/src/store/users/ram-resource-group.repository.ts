@@ -66,7 +66,7 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
   async resourceExistsInAccount(resourceArn: string, accountOwnerId: string): Promise<boolean> {
     const type = getIamResourceType(resourceArn);
     if (!type || resourceArn.split(":")[3] !== accountOwnerId) return false;
-    const [, id, childId] = resourceArn.split(":")[4].split("/");
+    const [, id, childId, nestedId] = resourceArn.split(":")[4].split("/");
     const active = { status: AccountStatus.ACTIVE };
     const userOwner = { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] };
     switch (type.id) {
@@ -81,6 +81,28 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
           select: { id: true, userId: true },
         });
         return execution?.id === childId && execution.userId === id;
+      }
+      case "agent/approval": {
+        const approval = await prisma.agentApproval.findFirst({
+          where: {
+            id: nestedId,
+            taskId: childId,
+            status: "pending",
+            expiresAt: { gt: new Date() },
+            step: { taskId: childId },
+            task: {
+              id: childId,
+              userId: id,
+              ...active,
+              taskStatus: "waiting_approval",
+              user: { ...active, ...userOwner },
+              workspace: { userId: id, ...active },
+              conversation: { userId: id, ...active },
+            },
+          },
+          select: { id: true, taskId: true },
+        });
+        return approval?.id === nestedId && approval.taskId === childId;
       }
       case "agent/task": {
         const task = await prisma.agentTask.findFirst({

@@ -40,6 +40,7 @@ vi.mock("@/util/logger", () => ({ getLogger: () => ({ warn: vi.fn() }), LogCateg
 vi.mock("@/services/agent/mcp-server-iam.service", () => ({ McpServerIamService: { getInstance: vi.fn() } }));
 vi.mock("@/services/agent/agent-workspace-iam.service", () => ({ AgentWorkspaceIamService: { getInstance: vi.fn() } }));
 vi.mock("@/services/agent/agent-task-iam.service", () => ({ AgentTaskIamService: { getInstance: vi.fn() } }));
+vi.mock("@/services/agent/agent-approval-iam.service", () => ({ AgentApprovalIamService: { getInstance: vi.fn() } }));
 import { AgentService } from "@/services/agent/agent.service";
 const repository = mockDeep<AgentRepository>(),
   pricing = mockDeep<ModelPricingRepository>();
