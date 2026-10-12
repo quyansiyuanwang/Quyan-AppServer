@@ -28,6 +28,7 @@ describe("RelayChannelService", () => {
     findVisibleByName: vi.fn(),
     findActiveById: vi.fn(),
     findVisibleById: vi.fn(),
+    findVisibleSelectionMetadataById: vi.fn(),
     withTransaction: vi.fn(async (callback: (tx: any) => Promise<unknown>) => callback(transactionClient)),
     create: vi.fn(),
     updateById: vi.fn(),
@@ -1285,6 +1286,21 @@ describe("RelayChannelService", () => {
     expect(result.map((item) => item.id)).toEqual(["role-whitelist-channel"]);
   });
 
+  it("checks channel business selection with metadata without loading full channel configuration", async () => {
+    relayChannelRepository.findVisibleSelectionMetadataById.mockResolvedValue({
+      id: "meta-channel",
+      name: "fixture",
+      status: 1,
+      updateTime: now,
+      visibilityMode: "public",
+      visibilityConfig: null,
+      channelType: "standalone",
+    });
+    const result = await service.assertChannelBusinessSelectableMetadataById("meta-channel", "actor-user");
+    expect(result.id).toBe("meta-channel");
+    expect(relayChannelRepository.findVisibleById).not.toHaveBeenCalled();
+    expect(relayChannelRepository.findVisibleSelectionMetadataById).toHaveBeenCalledWith("meta-channel");
+  });
   it("throws NotFoundError when getting a missing channel", async () => {
     relayChannelRepository.findVisibleById.mockResolvedValue(null);
 

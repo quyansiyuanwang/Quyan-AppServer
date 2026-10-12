@@ -1,3 +1,6 @@
+vi.mock("@/services/oj-submitter/oj-apikey-mutation-iam.service", () => ({
+  OjApiKeyMutationIamService: { getInstance: vi.fn() },
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Project } from "ts-morph";
 import { readFileSync } from "node:fs";

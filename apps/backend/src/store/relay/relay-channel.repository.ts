@@ -108,6 +108,20 @@ export class RelayChannelRepository implements RelayChannelStore {
     });
   }
 
+  async findVisibleSelectionMetadataById(id: string) {
+    return prisma.relayChannel.findFirst({
+      where: { id, status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        updateTime: true,
+        visibilityMode: true,
+        visibilityConfig: true,
+        channelType: true,
+      },
+    });
+  }
   async findVisibleById(id: string): Promise<RelayChannel | null> {
     return prisma.relayChannel.findFirst({
       where: {

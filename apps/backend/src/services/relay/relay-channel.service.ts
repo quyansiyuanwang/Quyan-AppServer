@@ -1,3 +1,4 @@
+import type { RelayChannelSelectionMetadata } from "@/store/relay/relay-channel.store";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
@@ -1195,8 +1196,18 @@ export class RelayChannelService {
     return channel;
   }
 
-  async assertChannelBusinessSelectableById(id: string, actorUserId: string): Promise<RelayChannel> {
-    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+  /** Business selections must not load credentials or upstream configuration just to check visibility. */
+  async assertChannelBusinessSelectableMetadataById(
+    id: string,
+    actorUserId: string,
+  ): Promise<RelayChannelSelectionMetadata> {
+    const channel = await this.relayChannelRepository.findVisibleSelectionMetadataById(id);
+    if (!channel || !(await this.canUserAccessChannel(channel, actorUserId)))
+      throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
+    this.assertBusinessSelectionType(channel);
+    return channel;
+  }
+  private assertBusinessSelectionType(channel: Pick<RelayChannel, "visibilityMode" | "channelType">) {
     if ((channel.visibilityMode as RelayChannelVisibilityMode | undefined) === "hidden")
       throw new BadRequestError("Hidden relay channels can only be used as pooled channel members", undefined, {
         messageKey: "relay.hiddenChannelPoolOnly",
@@ -1207,7 +1218,10 @@ export class RelayChannelService {
         undefined,
         { messageKey: "relayChannel.automaticPoolTokenModeOnly" },
       );
-
+  }
+  async assertChannelBusinessSelectableById(id: string, actorUserId: string): Promise<RelayChannel> {
+    const channel = await this.assertChannelAccessibleById(id, actorUserId);
+    this.assertBusinessSelectionType(channel);
     return channel;
   }
 
@@ -1406,7 +1420,7 @@ export class RelayChannelService {
   }
 
   private async canUserAccessChannel(
-    channel: RelayChannel,
+    channel: Pick<RelayChannel, "visibilityMode" | "visibilityConfig">,
     actorUserId: string,
     allowManagementBypass = true,
   ): Promise<boolean> {

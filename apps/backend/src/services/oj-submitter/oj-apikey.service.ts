@@ -1,3 +1,4 @@
+import { OjApiKeyMutationIamService } from "./oj-apikey-mutation-iam.service";
 import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -34,6 +35,7 @@ export class OJAPIKeyService {
     private readonly relayChannelService: RelayChannelService = RelayChannelService.getInstance(),
     private readonly iam = OjApiKeyIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
+    private readonly mutations = OjApiKeyMutationIamService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -188,12 +190,32 @@ export class OJAPIKeyService {
     data: { name?: string; expiresAt?: Date | null; channelId?: string | null },
     request?: Request,
   ) {
-    const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
-
-    if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
-    if (data.channelId) await this.relayChannelService.assertChannelBusinessSelectableById(data.channelId, userId);
-
-    const updated = await this.ojApiKeyRepository.updateById(id, data);
+    let updated;
+    if (env.security.iamAuthorizationMode === "enforce")
+      updated = await this.mutations.update(id, userId, data, request as TypedRequest);
+    else {
+      if (request) {
+        const principal = getIamPrincipal(request as TypedRequest);
+        if (!principal || principal.subjectUserId !== userId || principal.principalUserId !== userId)
+          throw ojApiKeyDenied();
+        if (
+          !(
+            await this.permissions.checkUserPermissions(userId, [Permission.OJ_APIKEY_UPDATE], {
+              assumedRoleSessionId: principal.roleSessionId,
+            })
+          ).hasPermission
+        )
+          throw ojApiKeyDenied();
+        await this.shadowRead(
+          () => this.mutations.prepareUpdate(id, userId, data, request as TypedRequest),
+          request as TypedRequest,
+        );
+      }
+      const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
+      if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
+      if (data.channelId) await this.relayChannelService.assertChannelBusinessSelectableById(data.channelId, userId);
+      updated = await this.ojApiKeyRepository.updateById(id, data);
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OJ_APIKEY_UPDATE,

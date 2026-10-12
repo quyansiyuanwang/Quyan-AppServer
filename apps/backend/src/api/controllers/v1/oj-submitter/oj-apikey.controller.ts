@@ -158,7 +158,11 @@ export class OJAPIKeyController extends Controller {
    */
   @Put("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.OJ_APIKEY_UPDATE)
+  @CheckPermission(Permission.OJ_APIKEY_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oj:UpdateApiKey",
+    resourceKind: "single-resource",
+    resource: ojApiKeyResourceResolver,
+  })
   @Middlewares(validateParams(ojApiKeyIdParamsSchema), validateBody(updateOJAPIKeyBodySchema))
   public async updateAPIKey(
     @Path() id: string,
