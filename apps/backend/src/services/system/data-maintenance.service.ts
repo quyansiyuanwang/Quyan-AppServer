@@ -10,6 +10,9 @@ import { PermissionService } from "@/services/users/permission.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PlatformMaintenanceRunIamService } from "./platform-maintenance-run-iam.service";
 import { PlatformMaintenancePreviewIamService } from "./platform-maintenance-preview-iam.service";
+import { PlatformMaintenanceOptimizeIamService } from "./platform-maintenance-optimize-iam.service";
+import { optimizeBodySchema } from "@/api/schema/system/data-maintenance.schema";
+import type { OptimizeRequest } from "@/api/dto/system/data-maintenance.dto";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import { createObjectStorageClient } from "@/services/infrastructure/object-storage-client";
@@ -158,6 +161,7 @@ export class DataMaintenanceService {
     private readonly iamReads = PlatformMaintenanceRunIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
     private readonly previews = PlatformMaintenancePreviewIamService.getInstance(),
+    private readonly optimizeWrites = PlatformMaintenanceOptimizeIamService.getInstance(),
   ) {}
 
   public static getInstance(): DataMaintenanceService {
@@ -188,6 +192,29 @@ export class DataMaintenanceService {
       totalRows: items.reduce((sum, item) => sum + item.rowCount, 0),
       totalBytes: items.reduce((sum, item) => sum + item.dataBytes + item.indexBytes, 0),
     };
+  }
+
+  public async createOptimizeRequest(input: OptimizeRequest, request: TypedRequest) {
+    const parsed = optimizeBodySchema.strict().safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid maintenance optimization request", undefined, {
+        messageKey: "errors.badRequest",
+      });
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.optimizeWrites.prepare(parsed.data.datasets, request);
+      if (!guard) throw iamAccountDenied();
+      const preview = await this.optimizePreview([...guard.datasets]);
+      return this.optimizeWrites.create(guard, preview, this.maintenanceRequestId(request));
+    }
+    await this.assertLegacyRead(request);
+    await this.shadowRead(() => this.optimizeWrites.prepare(parsed.data.datasets, request, false));
+    return this.createOptimizeRun(parsed.data.datasets, request.user?.userId, this.maintenanceRequestId(request));
+  }
+  private maintenanceRequestId(request: TypedRequest) {
+    const id = request.headers["x-request-id"];
+    if (id !== undefined && (typeof id !== "string" || id.length > 128))
+      throw new BadRequestError("Invalid maintenance request identity", undefined, { messageKey: "errors.badRequest" });
+    return id;
   }
 
   public async createOptimizeRun(datasets: string[], actorUserId?: string, requestId?: string) {

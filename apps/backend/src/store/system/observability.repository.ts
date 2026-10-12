@@ -3,10 +3,15 @@ import { prisma } from "@/config/database";
 
 import {
   DATA_LIFECYCLE_DATASETS,
+  DATA_MAINTENANCE_TABLES,
   type DataLifecycleDataset,
   type DataMaintenanceDataset,
 } from "@/constant/data-maintenance-datasets";
-export { DATA_LIFECYCLE_DATASETS, DATA_MAINTENANCE_DATASETS } from "@/constant/data-maintenance-datasets";
+export {
+  DATA_LIFECYCLE_DATASETS,
+  DATA_MAINTENANCE_DATASETS,
+  DATA_MAINTENANCE_TABLES,
+} from "@/constant/data-maintenance-datasets";
 export type { DataLifecycleDataset, DataMaintenanceDataset } from "@/constant/data-maintenance-datasets";
 
 export const DATA_LIFECYCLE_DEFAULTS: Record<DataLifecycleDataset, number> = {
@@ -44,16 +49,6 @@ const dataSetDelegates: Record<DatabaseLifecycleDataset, string> = {
   ai_request_logs: "aIRequestLog",
   relay_usages: "relayUsage",
   monthly_pass_usages: "monthlyPassUsage",
-};
-
-export const DATA_MAINTENANCE_TABLES: Record<DataMaintenanceDataset, string> = {
-  api_logs: "api_logs",
-  business_logs: "business_logs",
-  notification_logs: "notification_logs",
-  track_events: "track_events",
-  heatmap_points: "heatmap_points",
-  relay_usages: "relay_usages",
-  monthly_pass_usages: "monthly_pass_usages",
 };
 
 export interface ErrorGroupQuery {

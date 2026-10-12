@@ -1688,6 +1688,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  {
+    action: 'quyan:system:data_maintenance:CreateOptimizeRun',
+    service: 'system',
+    operation: 'CreateOptimizeRun',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/maintenance-dataset'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
+  },
   ...['PreviewOptimize', 'PreviewImport'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:data_maintenance:' + operation,

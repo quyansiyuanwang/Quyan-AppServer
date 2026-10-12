@@ -1,4 +1,4 @@
-import { optimizePreviewBodySchema } from "@/api/schema/system/data-maintenance.schema";
+import { optimizeBodySchema, optimizePreviewBodySchema } from "@/api/schema/system/data-maintenance.schema";
 import { isMaintenanceDataset, platformMaintenanceDatasetArn } from "../resources/platform-maintenance-resources";
 import type { BatchResourceResolver, ResourceResolver } from "./resource-resolvers";
 import { isCanonicalMaintenanceRunId, platformMaintenanceRunArn } from "../resources/platform-maintenance-resources";
@@ -10,4 +10,9 @@ export const platformMaintenanceDatasetResourceResolver: ResourceResolver = ({ r
 export const platformMaintenanceDatasetBatchResourceResolver: BatchResourceResolver = ({ request }) => {
   const result = optimizePreviewBodySchema.strict().safeParse(request.body);
   return result.success ? [...new Set(result.data.datasets)].map(platformMaintenanceDatasetArn) : undefined;
+};
+
+export const platformMaintenanceOptimizeBatchResourceResolver: BatchResourceResolver = ({ request }) => {
+  const parsed = optimizeBodySchema.strict().safeParse(request.body);
+  return parsed.success ? [...new Set(parsed.data.datasets)].map(platformMaintenanceDatasetArn) : undefined;
 };

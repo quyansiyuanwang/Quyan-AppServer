@@ -43,6 +43,7 @@ import {
   platformMaintenanceRunResourceResolver,
   platformMaintenanceDatasetResourceResolver,
   platformMaintenanceDatasetBatchResourceResolver,
+  platformMaintenanceOptimizeBatchResourceResolver,
 } from "@/iam/request/platform-maintenance-resource-resolvers";
 import { BadRequestError } from "@/util/errors";
 
@@ -78,7 +79,13 @@ export class DataMaintenanceController extends Controller {
 
   @Post("optimize")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:CreateOptimizeRun",
+      resourceKind: "batch",
+      resource: platformMaintenanceOptimizeBatchResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "data_maintenance_optimize", requireExplicitToken: true })
@@ -97,11 +104,7 @@ export class DataMaintenanceController extends Controller {
       throw new BadRequestError("Confirmation phrase is invalid", undefined, {
         messageKey: "system.invalidConfirmationPhrase",
       });
-    return this.service.createOptimizeRun(
-      body.datasets,
-      request.user?.userId,
-      request.headers["x-request-id"] as string | undefined,
-    ) as any;
+    return this.service.createOptimizeRequest(body, request) as any;
   }
 
   @Post("imports/preview/{dataset}")
