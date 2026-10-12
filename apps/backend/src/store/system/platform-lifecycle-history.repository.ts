@@ -16,8 +16,11 @@ import type {
   PlatformLifecycleHistoryStore,
   LifecycleRunTarget,
   LifecycleArtifactTarget,
+  PlatformLifecycleDownloadStore,
 } from "./platform-lifecycle-history.store";
-export class PlatformLifecycleHistoryRepository implements PlatformLifecycleHistoryStore {
+export class PlatformLifecycleHistoryRepository
+  implements PlatformLifecycleHistoryStore, PlatformLifecycleDownloadStore
+{
   private static instance: PlatformLifecycleHistoryRepository;
   static getInstance() {
     return (this.instance ??= new PlatformLifecycleHistoryRepository());
@@ -63,6 +66,23 @@ export class PlatformLifecycleHistoryRepository implements PlatformLifecycleHist
       lifecycleRun: { id: run.id, status: 1, dataset: run.dataset, updateTime: run.updateTime },
       ...(targets ? { OR: targets.map((t) => ({ id: t.id, updateTime: t.updateTime })) } : {}),
     };
+  }
+  async targetDownload(principal: IamPrincipal, id: string) {
+    await this.actor(principal);
+    if (!isCanonicalLifecycleId(id)) throw iamAccountDenied();
+    const target = await prisma.archiveArtifact.findFirst({
+      where: {
+        id,
+        status: 1,
+        deletedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        lifecycleRun: { status: 1 },
+      },
+      select: { ...LIFECYCLE_ARTIFACT_TARGET_SELECT, lifecycleRun: { select: LIFECYCLE_RUN_TARGET_SELECT } },
+    });
+    if (target && (!isLifecycleDataset(target.dataset) || target.dataset !== target.lifecycleRun.dataset))
+      throw iamAccountDenied();
+    return target;
   }
   async scanRuns(principal: IamPrincipal, after?: string) {
     await this.actor(principal);

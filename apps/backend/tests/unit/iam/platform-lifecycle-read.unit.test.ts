@@ -14,6 +14,9 @@ vi.mock("@/store/users/iam-account-principal", async () => {
   };
 });
 vi.mock("@/util/logger", () => ({ LogCategory: { SECURITY: "security" }, getLogger: () => ({ warn: vi.fn() }) }));
+vi.mock("@/store/system/platform-lifecycle-history.repository", () => ({
+  PlatformLifecycleHistoryRepository: { getInstance: vi.fn() },
+}));
 import { env } from "@/config/env";
 import { getIamActionDefinition, getIamResourceType } from "@quyan/shared";
 import { PlatformLifecycleReadIamService } from "@/services/system/platform-lifecycle-read-iam.service";

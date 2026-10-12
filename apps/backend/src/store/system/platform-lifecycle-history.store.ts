@@ -51,3 +51,19 @@ export interface PlatformLifecycleHistoryStore {
     targets: readonly LifecycleArtifactTarget[],
   ): Promise<LifecycleArtifactView[]>;
 }
+
+export type LifecycleDownloadTarget = LifecycleArtifactTarget & { lifecycleRun: LifecycleRunTarget };
+export interface PlatformLifecycleDownloadStore {
+  targetDownload(principal: IamPrincipal, id: string): Promise<LifecycleDownloadTarget | null>;
+  checkRuns(principal: IamPrincipal, targets: readonly LifecycleRunTarget[]): Promise<LifecycleRunTarget[]>;
+  checkArtifacts(
+    principal: IamPrincipal,
+    run: LifecycleRunTarget,
+    targets: readonly LifecycleArtifactTarget[],
+  ): Promise<LifecycleArtifactTarget[]>;
+  hydrateArtifacts(
+    principal: IamPrincipal,
+    run: LifecycleRunTarget,
+    targets: readonly LifecycleArtifactTarget[],
+  ): Promise<LifecycleArtifactView[]>;
+}

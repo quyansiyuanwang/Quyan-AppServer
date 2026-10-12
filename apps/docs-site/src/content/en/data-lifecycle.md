@@ -30,6 +30,12 @@ Archive lists require `quyan:system:data_lifecycle:ListArtifacts` on both the pa
 
 Authorized files retain the existing object key, checksum, size, expiry and deletion metadata; listing does not grant download access. Changes to runs, files, groups or authorization during loading cause the request to fail rather than release data obtained under stale access.
 
+## Archive download permissions
+
+In IAM enforce mode, downloads independently require `quyan:system:data_lifecycle:DownloadArtifact` on `acs:platform:*:platform:lifecycle-artifact/<runId>/<artifactId>`. The server verifies the actual parent run from the file record; clients cannot choose another parent or object key. Listing, preview and run-history access do not include downloads.
+
+Only active, undeleted, unexpired files attached to active runs can be downloaded. The server authorizes before OSS reads, rechecks before cold-archive restoration and signing, and checks again before returning restore status or a temporary URL. Revocation or file changes during the request cause rejection; an OSS restore already requested is not automatically undone by subsequent revocation. Signed URLs remain valid for 300 seconds; later revocation cannot retroactively invalidate an OSS link already delivered. Do not share these links.
+
 ## Execution Rules
 
 1. The policy table shows how many records will be archived and deleted.

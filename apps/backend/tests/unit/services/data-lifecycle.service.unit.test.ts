@@ -45,6 +45,9 @@ vi.mock("@/services/system/config.service", () => ({
   ConfigService: { getInstance: vi.fn(() => configService) },
 }));
 
+vi.mock("@/services/system/platform-lifecycle-download-iam.service", () => ({
+  PlatformLifecycleDownloadIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/system/platform-lifecycle-history-iam.service", () => ({
   PlatformLifecycleHistoryIamService: { getInstance: vi.fn() },
 }));

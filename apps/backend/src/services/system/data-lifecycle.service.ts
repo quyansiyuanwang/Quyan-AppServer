@@ -14,6 +14,10 @@ import { DATA_LIFECYCLE_DATASETS, type DataLifecycleDataset } from "@/constant/d
 import { ConfigService } from "@/services/system/config.service";
 import { PlatformLifecycleReadIamService } from "./platform-lifecycle-read-iam.service";
 import { PlatformLifecycleHistoryIamService } from "./platform-lifecycle-history-iam.service";
+import {
+  PlatformLifecycleDownloadIamService,
+  type LifecycleDownloadGuard,
+} from "./platform-lifecycle-download-iam.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@quyan/shared";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -58,6 +62,7 @@ export class DataLifecycleService {
     private readonly configService: ConfigService = ConfigService.getInstance(),
     private readonly iamReads = PlatformLifecycleReadIamService.getInstance(),
     private readonly iamHistory = PlatformLifecycleHistoryIamService.getInstance(),
+    private readonly iamDownloads = PlatformLifecycleDownloadIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
   ) {}
 
@@ -457,12 +462,26 @@ export class DataLifecycleService {
     return this.repository.listArchiveArtifacts(runId, page, pageSize);
   }
 
-  public async getArchiveDownloadInfo(artifactId: string) {
+  public async getArchiveDownloadRequest(artifactId: string, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.iamDownloads.prepare(artifactId, request);
+      if (!guard) throw iamAccountDenied();
+      return this.getArchiveDownloadInfo(artifactId, guard);
+    }
+    await this.legacyLifecycleRead(request);
+    await this.shadowLifecycleRead(() => this.iamDownloads.prepare(artifactId, request, false));
+    return this.getArchiveDownloadInfo(artifactId);
+  }
+  public async getArchiveDownloadInfo(artifactId: string, guard?: LifecycleDownloadGuard) {
+    if (guard) {
+      if (guard.artifact.id !== artifactId) throw iamAccountDenied();
+      await guard.recheck();
+    }
     if (!env.integrations.objectStorage.archive.enabled)
       throw new BadRequestError("Archive OSS is not configured", undefined, {
         messageKey: "dataLifecycle.archiveOssNotConfigured",
       });
-    const artifact = await this.repository.getArchiveArtifact(artifactId);
+    const artifact = guard ? guard.artifact : await this.repository.getArchiveArtifact(artifactId);
     if (!artifact || artifact.deletedAt)
       throw new NotFoundError("Archive artifact not found", undefined, {
         messageKey: "dataLifecycle.artifactNotFound",
@@ -471,6 +490,7 @@ export class DataLifecycleService {
     const head = (await client.head(artifact.objectKey)) as {
       res?: { headers?: Record<string, string | string[] | undefined> };
     };
+    if (guard) await guard.recheck();
     const headers = head.res?.headers ?? {};
     const storageClass = String(headers["x-oss-storage-class"] ?? "").toLowerCase();
     const restoreHeader = String(headers["x-oss-restore"] ?? "");
@@ -495,7 +515,9 @@ export class DataLifecycleService {
         name: string,
         options: { type: string },
       ) => Promise<unknown>;
+      if (guard) await guard.recheck();
       await restore(artifact.objectKey, { type: restoreType });
+      if (guard) await guard.recheck();
       return {
         url: null,
         expiresInSeconds: 0,
@@ -504,8 +526,11 @@ export class DataLifecycleService {
       };
     }
 
+    if (guard) await guard.recheck();
+    const url = client.signatureUrl(artifact.objectKey, { expires: 300, method: "GET" });
+    if (guard) await guard.recheck();
     return {
-      url: client.signatureUrl(artifact.objectKey, { expires: 300, method: "GET" }),
+      url,
       expiresInSeconds: 300,
       restoreRequired: false,
       restoreStatus: "ready" as const,

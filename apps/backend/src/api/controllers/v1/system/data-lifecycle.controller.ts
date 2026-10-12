@@ -54,6 +54,7 @@ import {
   platformLifecycleDatasetResourceResolver,
   platformLifecycleScheduleResourceResolver,
   platformLifecycleRunResourceResolver,
+  platformLifecycleArtifactResourceResolver,
 } from "@/iam/request/platform-lifecycle-resource-resolvers";
 
 @Route("v1/data-lifecycle")
@@ -260,7 +261,13 @@ export class DataLifecycleController extends Controller {
 
   @Post("artifacts/{artifactId}/download")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:DownloadArtifact",
+      resourceKind: "single-resource",
+      resource: platformLifecycleArtifactResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -268,7 +275,10 @@ export class DataLifecycleController extends Controller {
     replayProtectionMiddleware,
     validateParams(lifecycleArtifactParamsSchema),
   )
-  public async download(@Path() artifactId: string): Promise<ArchiveDownloadResponse> {
-    return this.service.getArchiveDownloadInfo(artifactId);
+  public async download(
+    @Request() request: TypedRequest,
+    @Path() artifactId: string,
+  ): Promise<ArchiveDownloadResponse> {
+    return this.service.getArchiveDownloadRequest(artifactId, request);
   }
 }

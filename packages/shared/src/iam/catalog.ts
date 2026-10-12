@@ -1709,6 +1709,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  {
+    action: 'quyan:system:data_lifecycle:DownloadArtifact',
+    service: 'system',
+    operation: 'DownloadArtifact',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/lifecycle-artifact'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+  },
   ...['ListRuns', 'ListArtifacts'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:data_lifecycle:' + operation,
