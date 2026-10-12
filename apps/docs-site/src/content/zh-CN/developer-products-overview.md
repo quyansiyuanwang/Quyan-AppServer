@@ -41,4 +41,6 @@ IAM 强制模式下，配额覆盖管理列表需要真实全局组中的 `DEVEL
 
 IAM 强制模式下，管理配置列表需要真实全局组中的 `DEVELOPER_PRODUCT_CONFIG_MANAGE` 资格，使用 `quyan:developer:ListProductConfigurations`，资源为 `acs:platform:*:platform:developer-product-config/<配置记录 ID>`。列表只返回授权且已保存的实际产品配置，按产品代码排序；不会为了读取自动创建其他产品的配置。
 
+在 IAM 强制模式下，配置写入还需要授权对应产品范围 `acs:platform:*:platform:developer-product-config-control/<productCode>` 和真实配置记录 `acs:platform:*:platform:developer-product-config/<配置ID>`，Action 为 `quyan:developer:UpsertProductConfiguration`。首次保存时同样检查新记录；恢复配置保留原 ID。任一范围被显式拒绝、操作期间撤权或配置发生并发变化，写入都不会部分生效。保存单个产品不会自动初始化其他产品的配置。
+
 匹配的 Deny 优先，AssumeRole 只使用角色自身授权。配置、资格、策略或角色会话在读取期间变化时，结果不会返回。管理配置中的限额和设置在逐记录授权后才加载。

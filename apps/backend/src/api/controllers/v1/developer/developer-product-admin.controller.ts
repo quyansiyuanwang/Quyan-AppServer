@@ -1,4 +1,5 @@
 import { DeveloperProductConfigAdminService } from "@/services/developer/developer-product-config-admin.service";
+import { platformDeveloperConfigUpsertResources } from "@/iam/request/platform-developer-config-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { Body, Controller, Get, Middlewares, Path, Put, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
@@ -25,7 +26,7 @@ import {
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { DeveloperProductCode } from "@quyan/shared";
 
@@ -49,7 +50,11 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Put("{product}/config")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:UpsertProductConfiguration",
+    resourceKind: "batch",
+    resource: platformDeveloperConfigUpsertResources,
+  })
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(productCodeParamsSchema),
@@ -58,8 +63,9 @@ export class DeveloperProductAdminController extends Controller {
   public async updateConfig(
     @Path() product: DeveloperProductCode,
     @Body() body: UpdateDeveloperProductConfigDto,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductConfigDto> {
-    return this.service.updateConfig(product, body);
+    return this.configurations.update(product, body, request.user!.userId, request);
   }
 
   @Get("accounts")

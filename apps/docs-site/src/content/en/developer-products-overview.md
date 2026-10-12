@@ -41,4 +41,6 @@ The target user, account, or project must be active. If subject ownership, targe
 
 In IAM enforcement mode, the administrative configuration list requires eligibility from a real global group with `DEVELOPER_PRODUCT_CONFIG_MANAGE`, using `quyan:developer:ListProductConfigurations` on `acs:platform:*:platform:developer-product-config/<configuration record ID>`. Only authorized, persisted product configurations are returned, sorted by product code. Reading does not automatically create other products' configuration records.
 
+In IAM enforcement mode, configuration writes require `quyan:developer:UpsertProductConfiguration` on both the product scope `acs:platform:*:platform:developer-product-config-control/<productCode>` and the actual configuration `acs:platform:*:platform:developer-product-config/<configurationId>`. New records are checked before commit, and restored configurations keep their original IDs. An explicit denial, revoked authorization, or a concurrent configuration change prevents a partial write. Saving one product does not initialize configurations for other products.
+
 A matching Deny takes priority, and AssumeRole uses only the role's own grants. If configurations, eligibility, policies, or role sessions change while reading, the result is withheld. Administrative limits and settings are loaded only after each record is authorized.
