@@ -44,3 +44,9 @@ In IAM enforcement mode, the administrative configuration list requires eligibil
 In IAM enforcement mode, configuration writes require `quyan:developer:UpsertProductConfiguration` on both the product scope `acs:platform:*:platform:developer-product-config-control/<productCode>` and the actual configuration `acs:platform:*:platform:developer-product-config/<configurationId>`. New records are checked before commit, and restored configurations keep their original IDs. An explicit denial, revoked authorization, or a concurrent configuration change prevents a partial write. Saving one product does not initialize configurations for other products.
 
 A matching Deny takes priority, and AssumeRole uses only the role's own grants. If configurations, eligibility, policies, or role sessions change while reading, the result is withheld. Administrative limits and settings are loaded only after each record is authorized.
+
+## Product account list permissions
+
+In IAM enforcement mode, both the complete and product-filtered account lists use `quyan:developer:ListProductAccounts` on `acs:platform:*:platform:developer-product-account/<actual product account record ID>`. The actor must belong to a real global group with `DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE` platform eligibility. Only authorized, non-deleted persisted records with an active primary account are returned. Disabled or expired product records remain available for administrative cleanup. Quotas and primary-account display information are read only after each record is authorized.
+
+Changes to records, primary accounts, policies, platform eligibility, or role sessions during the read prevent stale results from being returned. Product filtering is applied during retrieval, and the list is ordered by most recent update. Queries do not create product records for other accounts.

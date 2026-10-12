@@ -44,3 +44,9 @@ IAM 强制模式下，管理配置列表需要真实全局组中的 `DEVELOPER_P
 在 IAM 强制模式下，配置写入还需要授权对应产品范围 `acs:platform:*:platform:developer-product-config-control/<productCode>` 和真实配置记录 `acs:platform:*:platform:developer-product-config/<配置ID>`，Action 为 `quyan:developer:UpsertProductConfiguration`。首次保存时同样检查新记录；恢复配置保留原 ID。任一范围被显式拒绝、操作期间撤权或配置发生并发变化，写入都不会部分生效。保存单个产品不会自动初始化其他产品的配置。
 
 匹配的 Deny 优先，AssumeRole 只使用角色自身授权。配置、资格、策略或角色会话在读取期间变化时，结果不会返回。管理配置中的限额和设置在逐记录授权后才加载。
+
+## 产品账户列表权限
+
+在 IAM 强制模式下，全部产品账户列表和按产品筛选的账户列表使用 `quyan:developer:ListProductAccounts`，资源为 `acs:platform:*:platform:developer-product-account/<实际产品账户记录ID>`。操作者必须属于真实全局组，并具备 `DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE` 平台管理资格。仅返回授权允许、未删除、所属主账户有效的已保存记录；禁用使用或已过期的产品记录仍可供管理员清理。配额和主账户展示信息在逐条授权后读取。
+
+记录、主账户、策略、平台资格或角色会话在读取期间变化时不会返回过期结果。产品筛选在读取时执行，列表按最近更新时间排序；查询不会为其他账户自动创建产品记录。

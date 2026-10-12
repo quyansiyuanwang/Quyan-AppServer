@@ -140,6 +140,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       ':developer-quota-subject/{subjectType}/{subjectId}/{service}',
   },
   {
+    ...resource('platform', 'developer-product-account'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':developer-product-account/{resourceId}',
+  },
+  {
     ...resource('platform', 'developer-product-config-control'),
     accountScope: 'platform',
     arnTemplate:
@@ -1278,6 +1284,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.DEVELOPER_QUOTA_MANAGE,
     }),
   ),
+  {
+    action: 'quyan:developer:ListProductAccounts',
+    service: 'developer',
+    operation: 'ListProductAccounts',
+    accessLevel: 'List',
+    resourceTypes: ['platform/developer-product-account'],
+    apiRoutes: ['GET /v1/admin/products/accounts', 'GET /v1/admin/products/{product}/accounts'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+  },
   {
     action: 'quyan:developer:UpsertProductConfiguration',
     service: 'developer',

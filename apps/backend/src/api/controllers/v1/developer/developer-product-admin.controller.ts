@@ -1,3 +1,4 @@
+import { DeveloperProductAccountAdminService } from "@/services/developer/developer-product-account-admin.service";
 import { DeveloperProductConfigAdminService } from "@/services/developer/developer-product-config-admin.service";
 import { platformDeveloperConfigUpsertResources } from "@/iam/request/platform-developer-config-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -34,6 +35,7 @@ import type { DeveloperProductCode } from "@quyan/shared";
 @Tags("Developer Product Administration")
 @Security("jwt")
 export class DeveloperProductAdminController extends Controller {
+  private readonly accounts = DeveloperProductAccountAdminService.getInstance();
   private readonly configurations = DeveloperProductConfigAdminService.getInstance();
   private readonly service = DeveloperProductPlatformService.getInstance();
 
@@ -69,16 +71,31 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Get("accounts")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  public async listAccounts(): Promise<DeveloperProductAccountDto[]> {
-    return this.service.listAccounts();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccounts",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listAccounts(@Request() request: TypedRequest): Promise<DeveloperProductAccountDto[]> {
+    return this.accounts.list(request);
   }
 
   @Get("{product}/accounts")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productCodeParamsSchema))
-  public async listProductAccounts(@Path() product: DeveloperProductCode): Promise<DeveloperProductAccountDto[]> {
-    return this.service.listAccounts(product);
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccounts",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productCodeParamsSchema),
+  )
+  public async listProductAccounts(
+    @Path() product: DeveloperProductCode,
+    @Request() request: TypedRequest,
+  ): Promise<DeveloperProductAccountDto[]> {
+    return this.accounts.list(request, product);
   }
 
   @Get("{product}/users")
