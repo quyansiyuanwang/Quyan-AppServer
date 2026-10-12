@@ -1285,6 +1285,22 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   {
+    action: 'quyan:developer:GetProductAccountUsage',
+    service: 'developer',
+    operation: 'GetProductAccountUsage',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/developer-product-account'],
+    apiRoutes: [
+      'GET /v1/admin/products/{product}/accounts/{accountId}/usage',
+      'GET /v1/admin/products/{product}/users/{userId}/usage',
+    ],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+  },
+  {
     action: 'quyan:developer:ListProductAccounts',
     service: 'developer',
     operation: 'ListProductAccounts',

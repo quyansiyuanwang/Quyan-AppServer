@@ -1,3 +1,7 @@
+import {
+  platformDeveloperUsageAccountResource,
+  platformDeveloperUsageUserResource,
+} from "@/iam/request/platform-developer-usage-resource-resolvers";
 import { DeveloperProductAccountAdminService } from "@/services/developer/developer-product-account-admin.service";
 import { DeveloperProductConfigAdminService } from "@/services/developer/developer-product-config-admin.service";
 import { platformDeveloperConfigUpsertResources } from "@/iam/request/platform-developer-config-resource-resolvers";
@@ -137,13 +141,18 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Get("{product}/users/{userId}/usage")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:GetProductAccountUsage",
+    resourceKind: "single-resource",
+    resource: platformDeveloperUsageUserResource,
+  })
   @Middlewares(validateParams(productUserParamsSchema))
   public async getManagedUsage(
     @Path() product: DeveloperProductCode,
     @Path() userId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductUsageDto> {
-    return this.service.getManagedUsage(product, userId);
+    return this.accounts.usage(request, product, { userId });
   }
 
   @Get("{product}/users/{userId}/calls")
@@ -157,13 +166,18 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Get("{product}/accounts/{accountId}/usage")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:GetProductAccountUsage",
+    resourceKind: "single-resource",
+    resource: platformDeveloperUsageAccountResource,
+  })
   @Middlewares(validateParams(productAccountParamsSchema))
   public async getUsage(
     @Path() product: DeveloperProductCode,
     @Path() accountId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductUsageDto> {
-    return this.service.getUsageForProduct(product, accountId);
+    return this.accounts.usage(request, product, { accountId });
   }
 
   @Get("{product}/accounts/{accountId}/calls")
