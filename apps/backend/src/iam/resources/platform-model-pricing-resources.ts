@@ -11,3 +11,12 @@ export function platformModelPricingArn(id: string) {
     path: "model-pricing/" + id,
   });
 }
+
+export function platformModelPricingCollectionArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "model-pricing-control/default",
+  });
+}

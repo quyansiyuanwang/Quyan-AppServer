@@ -1,3 +1,7 @@
+import {
+  platformModelPricingCreateResource,
+  platformModelPricingWriteResource,
+} from "@/iam/request/platform-model-pricing-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
@@ -24,7 +28,7 @@ import type {
   UpdateModelPricingRequest,
   UpdateModelPricingResponse,
 } from "@/api/dto/relay/model-pricing.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import {
   createModelPricingBodySchema,
@@ -97,7 +101,11 @@ export class ModelPricingController extends Controller {
 
   @Post()
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_UPDATE)
+  @CheckPermission(Permission.MODEL_PRICING_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:model_pricing:CreatePricing",
+    resourceKind: "collection",
+    resource: platformModelPricingCreateResource,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -108,13 +116,17 @@ export class ModelPricingController extends Controller {
     @Body() body: CreateModelPricingRequest,
     @Request() request: TypedRequest,
   ): Promise<CreateModelPricingResponse> {
-    const model = await this.modelPricingService.createModelPricing(body, request.user!.userId, request);
+    const model = await this.modelPricingService.createManagedModelPricing(body, request.user!.userId, request);
     return { code: 0, message: "success", data: model };
   }
 
   @Put("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_UPDATE)
+  @CheckPermission(Permission.MODEL_PRICING_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:model_pricing:UpdatePricing",
+    resourceKind: "single-resource",
+    resource: platformModelPricingWriteResource,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -127,13 +139,17 @@ export class ModelPricingController extends Controller {
     @Body() body: UpdateModelPricingRequest,
     @Request() request: TypedRequest,
   ): Promise<UpdateModelPricingResponse> {
-    const model = await this.modelPricingService.updateModelPricing(id, body, request.user!.userId, request);
+    const model = await this.modelPricingService.updateManagedModelPricing(id, body, request.user!.userId, request);
     return { code: 0, message: "success", data: model };
   }
 
   @Delete("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_UPDATE)
+  @CheckPermission(Permission.MODEL_PRICING_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:model_pricing:DeletePricing",
+    resourceKind: "single-resource",
+    resource: platformModelPricingWriteResource,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -144,7 +160,7 @@ export class ModelPricingController extends Controller {
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<DeleteModelPricingResponse> {
-    await this.modelPricingService.deleteModelPricing(id, request.user!.userId, request);
+    await this.modelPricingService.deleteManagedModelPricing(id, request.user!.userId, request);
     return { code: 0, message: "success" };
   }
 }

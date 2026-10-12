@@ -126,6 +126,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':oj-pricing-control/{resourceId}',
   },
   {
+    ...resource('platform', 'model-pricing-control'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':model-pricing-control/{resourceId}',
+  },
+  {
     ...resource('platform', 'model-pricing'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':model-pricing/{resourceId}',
@@ -1170,6 +1176,32 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.MODEL_PRICING_READ,
   },
+  ...(['CreatePricing', 'UpdatePricing', 'DeletePricing'] as const).map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:model_pricing:' + operation,
+      service: 'model_pricing',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes:
+        operation === 'CreatePricing'
+          ? ['platform/model-pricing-control', 'platform/model-pricing']
+          : ['platform/model-pricing'],
+      apiRoutes: [
+        (operation === 'CreatePricing'
+          ? 'POST'
+          : operation === 'UpdatePricing'
+            ? 'PUT'
+            : 'DELETE') +
+          ' /v1/model-pricing' +
+          (operation === 'CreatePricing' ? '' : '/{id}'),
+      ],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.MODEL_PRICING_UPDATE,
+    }),
+  ),
   ...(['ListPricing', 'GetPricing'] as const).map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

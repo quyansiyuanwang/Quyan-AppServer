@@ -49,6 +49,12 @@ If you need to answer questions like “who can see this channel?”, “which u
 
 In IAM enforcement mode, pricing exports require eligibility from a real global group with `MODEL_PRICING_READ`, using `quyan:model_pricing:ExportModels` on `acs:platform:*:platform:model-pricing/<record ID>`. Exports include only authorized actual records, and a matching Deny takes priority. If prices, eligibility, policies, or role sessions change while reading, the export is withheld. AssumeRole uses the role's own grants. The public model pricing list retains its existing access behavior.
 
+### Model pricing write permissions
+
+Single-record creation, updates, and deletion require eligibility from a real global group with `MODEL_PRICING_UPDATE`, using `quyan:model_pricing:CreatePricing`, `quyan:model_pricing:UpdatePricing`, and `quyan:model_pricing:DeletePricing`. Creation checks both `acs:platform:*:platform:model-pricing-control/default` and the actual record ARN. Updates and deletions use the actual record ID. Restoring a deleted model keeps its original ID, so resource Deny statements remain effective.
+
+If the target price, identity, eligibility, or authorization changes before saving, the operation fails without partially saving changes. Pricing modes and supported formats must be valid. Switching to per-request pricing requires a fixed price, which may be zero. Missing or unauthorized mutation targets return 403 in IAM enforcement mode. Two-factor verification and replay protection continue to apply.
+
 ## Channel configuration overview
 
 Each channel is a logical route that tokens or system workflows can use. Channels come in three forms:

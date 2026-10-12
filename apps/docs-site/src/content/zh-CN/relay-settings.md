@@ -49,6 +49,12 @@
 
 IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_READ` 资格，使用 `quyan:model_pricing:ExportModels`，资源为 `acs:platform:*:platform:model-pricing/<记录 ID>`。导出仅包含获得授权的实际记录，匹配的 Deny 优先；读取期间价格、资格、策略或角色会话变化时不会返回导出结果。AssumeRole 只使用角色自身授权。公开模型价格列表继续按原有方式访问。
 
+### 模型定价写入权限
+
+单条新增、更新和删除需要真实全局组中的 `MODEL_PRICING_UPDATE` 资格，分别使用 `quyan:model_pricing:CreatePricing`、`quyan:model_pricing:UpdatePricing` 和 `quyan:model_pricing:DeletePricing`。新增同时检查 `acs:platform:*:platform:model-pricing-control/default` 及实际记录 ARN；更新、删除使用实际记录 ID。恢复已删除模型沿用原 ID，资源上的 Deny 仍有效。
+
+目标价格、身份、资格或授权在保存前变化时，操作失败且不会部分保存。计价方式及支持格式须有效；切换为按次计费需要固定价格，固定价格可以为零。不存在或未授权的修改目标在 IAM 强制模式下返回 403。2FA 验证和重放保护继续适用。
+
 ## 渠道配置总览
 
 每个渠道都代表一条可被令牌或系统路由使用的逻辑出口。渠道分为三类：
