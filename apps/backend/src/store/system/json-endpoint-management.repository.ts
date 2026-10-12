@@ -1,5 +1,5 @@
 import { MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
-import type { UpdateJsonEndpointParams } from "./json-endpoint.store";
+import type { CreateJsonEndpointParams, UpdateJsonEndpointParams } from "./json-endpoint.store";
 import { prisma } from "@/config/database";
 import { Prisma } from "@prisma/client";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -8,6 +8,7 @@ import type {
   JsonEndpointManagementStore,
   JsonEndpointTarget,
   JsonEndpointOwnerTarget,
+  JsonEndpointCreationOwner,
 } from "./json-endpoint-management.store";
 export const jsonEndpointDenied = () =>
   new ForbiddenError("JSON Endpoint resource unavailable", undefined, {
@@ -135,6 +136,45 @@ export class JsonEndpointManagementRepository implements JsonEndpointManagementS
       orderBy: [{ createTime: "desc" }, { id: "desc" }],
     });
     return rows.map(({ apiKey, user, ...row }) => ({ ...row, hasPassword: !!apiKey, ownerUsername: user.username }));
+  }
+  async creationOwner(principal: IamPrincipal, ownerUserId: string) {
+    await this.assertActor(principal);
+    return prisma.user.findFirst({
+      where: { ...accountUsers(principal.accountOwnerId), id: ownerUserId },
+      select: { id: true, username: true, updateTime: true },
+    });
+  }
+  async userSlugExists(userId: string, slug: string) {
+    return !!(await prisma.jsonEndpoint.findUnique({ where: { userId_slug: { userId, slug } }, select: { id: true } }));
+  }
+  async createTarget(principal: IamPrincipal, owner: JsonEndpointCreationOwner, data: CreateJsonEndpointParams) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          await this.assertActor(principal, tx);
+          const current = await tx.user.findFirst({
+            where: {
+              ...accountUsers(principal.accountOwnerId),
+              id: owner.id,
+              updateTime: owner.updateTime,
+              username: owner.username,
+            },
+            select: { id: true },
+          });
+          if (!current || data.userId !== current.id) throw jsonEndpointDenied();
+          const created = await tx.jsonEndpoint.create({ data, select: publicSelect });
+          const { apiKey, user, ...row } = created;
+          return { ...row, hasPassword: !!apiKey, ownerUsername: user.username };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034")
+        throw new ConflictError("JSON Endpoint owner changed after authorization", undefined, {
+          messageKey: "errors.conflict",
+        });
+      throw error;
+    }
   }
   async rootSlugExists(slug: string) {
     // Namespace uniqueness is global; never hydrate another account's content/configuration.

@@ -16,9 +16,10 @@ import type {
   JsonEndpointTarget,
   JsonEndpointPublicView,
   JsonEndpointOwnerTarget,
+  JsonEndpointCreationOwner,
 } from "@/store/system/json-endpoint-management.store";
 import type { TypedRequest } from "@/types/express";
-import type { UpdateJsonEndpointParams } from "@/store/system/json-endpoint.store";
+import type { CreateJsonEndpointParams, UpdateJsonEndpointParams } from "@/store/system/json-endpoint.store";
 import { jsonEndpointDto } from "./json-endpoint-view";
 export class JsonEndpointIamService {
   private static instance: JsonEndpointIamService;
@@ -150,6 +151,47 @@ export class JsonEndpointIamService {
           }),
       )
     ).sort((a, b) => a.username.localeCompare(b.username));
+  }
+  async authorizeCreation(userId: string, ownerUserId: string, rootSlug: boolean, request?: TypedRequest) {
+    const { request: trusted, principal } = await this.actor(userId, request);
+    if (!isCanonicalJsonEndpointId(ownerUserId)) throw jsonEndpointDenied();
+    const owner = await this.repository.creationOwner(principal, ownerUserId);
+    if (!owner || owner.id !== ownerUserId) throw jsonEndpointDenied();
+    const resource = buildAcsResource({
+      service: "quyan",
+      region: "*",
+      accountId: principal.accountOwnerId,
+      path: "user/" + owner.id,
+    });
+    if ((await this.allowed(trusted, principal, "quyan:json_endpoint:CreateEndpoint", [resource])).length !== 1)
+      throw jsonEndpointDenied();
+    if (
+      rootSlug &&
+      (await this.allowed(trusted, principal, "quyan:json_endpoint:SetRootSlug", [resource])).length !== 1
+    )
+      throw jsonEndpointDenied();
+    return { principal, owner };
+  }
+  async create(
+    userId: string,
+    state: { principal: IamPrincipal; owner: JsonEndpointCreationOwner },
+    data: CreateJsonEndpointParams,
+    request?: TypedRequest,
+  ) {
+    if (data.userId !== state.owner.id || (data.isRootSlug ? data.rootSlug !== data.slug : data.rootSlug != null))
+      throw jsonEndpointDenied();
+    const current = await this.authorizeCreation(userId, data.userId, data.isRootSlug === true, request);
+    if (
+      current.principal.accountOwnerId !== state.principal.accountOwnerId ||
+      current.owner.id !== state.owner.id ||
+      current.owner.updateTime.getTime() !== state.owner.updateTime.getTime() ||
+      current.owner.username !== state.owner.username
+    )
+      throw jsonEndpointDenied();
+    return this.repository.createTarget(current.principal, state.owner, data);
+  }
+  userSlugExists(userId: string, slug: string) {
+    return this.repository.userSlugExists(userId, slug);
   }
   rootSlugExists(slug: string) {
     return this.repository.rootSlugExists(slug);

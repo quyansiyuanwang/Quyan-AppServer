@@ -315,3 +315,81 @@ describe("JSON Endpoint versioned configuration updates", () => {
     await expect(service.configuration(actor, selected.id, request())).rejects.toMatchObject({ statusCode: 403 });
   });
 });
+
+describe("JSON Endpoint creation ownership and transactions", () => {
+  const input = (userId: string) => ({
+    userId,
+    name: "fixture",
+    slug: "new-" + randomUUID(),
+    jsonContent: {},
+    isPublic: true,
+    isRootSlug: false,
+    rootSlug: null,
+  });
+  it("checks the owner revision and account during the creation transaction", async () => {
+    const selected = (await repository.creationOwner(principal(), peer))!,
+      data = input(peer);
+    await expect(repository.createTarget(principal(foreign), selected, data)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await expect(repository.createTarget(principal(), selected, { ...data, userId: actor })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await prisma.user.update({
+      where: { id: peer },
+      data: { name: "changed", updateTime: new Date(selected.updateTime.getTime() + 1_000) },
+    });
+    await expect(repository.createTarget(principal(), selected, data)).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.jsonEndpoint.count({ where: { userId: peer } })).toBe(0);
+    const result = await repository.createTarget(
+      principal(),
+      (await repository.creationOwner(principal(), peer))!,
+      data,
+    );
+    expect(result.userId).toBe(peer);
+    expect(result).not.toHaveProperty("apiKey");
+  });
+  it("old Create cannot assign a peer owner or create a root slug", async () => {
+    await prisma.user.update({ where: { id: actor }, data: { permissionAdds: [Permission.JSON_ENDPOINT_CREATE] } });
+    const state = await service.authorizeCreation(actor, actor, false, request());
+    expect((await service.create(actor, state, input(actor), request())).userId).toBe(actor);
+    await expect(service.authorizeCreation(actor, peer, false, request())).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.authorizeCreation(actor, actor, true, request())).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("exact peer-parent grants support creation but never cross-account assignment", async () => {
+    const grant = await bind({
+      Version: "1",
+      Statement: {
+        Effect: "Allow",
+        Action: "quyan:json_endpoint:CreateEndpoint",
+        Resource: "acs:quyan:*:" + owner + ":user/" + peer,
+      },
+    });
+    const state = await service.authorizeCreation(actor, peer, false, request());
+    await expect(service.authorizeCreation(actor, foreign, false, request())).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await prisma.ramAuthorization.update({ where: { id: grant.id }, data: { status: -1 } });
+    await expect(service.create(actor, state, input(peer), request())).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.jsonEndpoint.count({ where: { userId: peer } })).toBe(0);
+  });
+  it("root-slug creation needs its own grant on the target owner and retains namespace uniqueness", async () => {
+    await bind({
+      Version: "1",
+      Statement: {
+        Effect: "Allow",
+        Action: ["quyan:json_endpoint:CreateEndpoint", "quyan:json_endpoint:SetRootSlug"],
+        Resource: "acs:quyan:*:" + owner + ":user/" + peer,
+      },
+    });
+    const state = await service.authorizeCreation(actor, peer, true, request()),
+      data = input(peer);
+    const created = await service.create(actor, state, { ...data, isRootSlug: true, rootSlug: data.slug }, request());
+    expect(created.isRootSlug).toBe(true);
+    expect(await repository.rootSlugExists(data.slug)).toBe(true);
+    expect(await repository.userSlugExists(peer, data.slug)).toBe(true);
+    await expect(
+      repository.createTarget(principal(), state.owner, { ...input(peer), isRootSlug: true, rootSlug: data.slug }),
+    ).rejects.toMatchObject({ code: "P2002" });
+  });
+});

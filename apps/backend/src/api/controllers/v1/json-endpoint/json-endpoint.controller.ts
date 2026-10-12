@@ -24,7 +24,7 @@ import type {
   JsonEndpointDto,
   JsonEndpointOwnerOptionDto,
 } from "@/api/dto/json-endpoint/json-endpoint.dto";
-import { CheckPermission, PermissionCheckMode, RequireAnyPermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type { ErrorResponse } from "@/api/response";
@@ -37,7 +37,10 @@ import { validateBody, validateParams } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { jsonEndpointResourceResolver } from "@/iam/request/json-endpoint-resource-resolvers";
+import {
+  jsonEndpointCreationResourceResolver,
+  jsonEndpointResourceResolver,
+} from "@/iam/request/json-endpoint-resource-resolvers";
 
 @Route("v1/json-endpoints")
 @Tags("JSON Endpoint Management")
@@ -50,7 +53,18 @@ export class JsonEndpointController extends Controller {
    */
   @Post("")
   @Security("jwt")
-  @RequireAnyPermission([Permission.JSON_ENDPOINT_CREATE, Permission.JSON_ENDPOINT_MANAGE])
+  @CheckPermission([Permission.JSON_ENDPOINT_CREATE, Permission.JSON_ENDPOINT_MANAGE], PermissionCheckMode.ANY, "jwt", [
+    {
+      action: "quyan:json_endpoint:CreateEndpoint",
+      resourceKind: "single-resource",
+      resource: jsonEndpointCreationResourceResolver,
+    },
+    {
+      action: "quyan:json_endpoint:CreateEndpoint",
+      resourceKind: "single-resource",
+      resource: jsonEndpointCreationResourceResolver,
+    },
+  ])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "创建失败")
   @Middlewares(replayProtectionMiddleware, validateBody(createJsonEndpointBodySchema))

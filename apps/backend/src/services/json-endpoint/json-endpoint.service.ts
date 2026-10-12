@@ -217,21 +217,6 @@ export class JsonEndpointService {
     return owner.username;
   }
 
-  private async canManage(actorUserId: string): Promise<boolean> {
-    return this.permissionService.hasPermission(actorUserId, Permission.JSON_ENDPOINT_MANAGE);
-  }
-
-  private async assertCanAccessEndpoint(endpoint: JsonEndpoint, actorUserId: string): Promise<void> {
-    if (endpoint.userId === actorUserId) return;
-    if (!(await this.canManage(actorUserId)))
-      throw new ForbiddenError("无权管理此端点", undefined, { messageKey: "jsonEndpoint.manageDenied" });
-  }
-
-  private async assertCanSetRootSlug(actorUserId: string): Promise<void> {
-    if (!(await this.permissionService.hasPermission(actorUserId, Permission.JSON_ENDPOINT_ROOT_SLUG)))
-      throw new ForbiddenError("无权设置根 slug", undefined, { messageKey: "jsonEndpoint.rootSlugDenied" });
-  }
-
   /**
    * 验证 slug 格式
    */
@@ -250,19 +235,49 @@ export class JsonEndpointService {
     // 验证 slug 格式
     this.validateSlug(data.slug);
 
-    const canManage = await this.canManage(userId);
-    const ownerUserId = data.ownerUserId || userId;
-    if (ownerUserId !== userId && !canManage)
-      throw new ForbiddenError("无权指定端点所属用户", undefined, { messageKey: "jsonEndpoint.assignOwnerDenied" });
-    const ownerUsername = await this.getOwnerUsername(ownerUserId);
-    const isRootSlug = data.isRootSlug === true;
-    if (isRootSlug) {
-      await this.assertCanSetRootSlug(userId);
-      if (await this.repository.findByRootSlug(data.slug))
-        throw new BadRequestError("根 Slug 已被使用", undefined, { messageKey: "jsonEndpoint.rootSlugTaken" });
-    } else if (await this.repository.findByUserAndSlug(ownerUsername, data.slug)) {
-      throw new BadRequestError("该用户下 Slug 已被使用", undefined, { messageKey: "jsonEndpoint.userSlugTaken" });
+    const ownerUserId = data.ownerUserId || userId,
+      isRootSlug = data.isRootSlug === true;
+    const state =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await this.iam.authorizeCreation(userId, ownerUserId, isRootSlug, request as TypedRequest | undefined)
+        : undefined;
+    if (!state) {
+      const principal = request && getIamPrincipal(request as TypedRequest);
+      if (request && (!principal || principal.subjectUserId !== userId)) throw jsonEndpointDenied();
+      const options = { assumedRoleSessionId: principal?.roleSessionId };
+      const manage = await this.permissionService.checkUserPermissions(
+          userId,
+          [Permission.JSON_ENDPOINT_MANAGE],
+          options,
+        ),
+        own = await this.permissionService.checkUserPermissions(userId, [Permission.JSON_ENDPOINT_CREATE], options);
+      if ((!manage.hasPermission && !own.hasPermission) || (ownerUserId !== userId && !manage.hasPermission))
+        throw jsonEndpointDenied();
+      if (isRootSlug) {
+        const root = await this.permissionService.checkUserPermissions(
+          userId,
+          [Permission.JSON_ENDPOINT_ROOT_SLUG],
+          options,
+        );
+        if (!root.hasPermission)
+          throw new ForbiddenError("Root slug permission denied", undefined, {
+            messageKey: "jsonEndpoint.rootSlugDenied",
+          });
+      }
+      await this.shadowRead("quyan:json_endpoint:CreateEndpoint", () =>
+        this.iam.authorizeCreation(userId, ownerUserId, isRootSlug, request as TypedRequest | undefined),
+      );
     }
+    const ownerUsername = state?.owner.username ?? (await this.getOwnerUsername(ownerUserId));
+    if (isRootSlug) {
+      if (state ? await this.iam.rootSlugExists(data.slug) : await this.repository.findByRootSlug(data.slug))
+        throw new BadRequestError("Root slug is occupied", undefined, { messageKey: "jsonEndpoint.rootSlugTaken" });
+    } else if (
+      state
+        ? await this.iam.userSlugExists(ownerUserId, data.slug)
+        : await this.repository.findByUserAndSlug(ownerUsername, data.slug)
+    )
+      throw new BadRequestError("User slug is occupied", undefined, { messageKey: "jsonEndpoint.userSlugTaken" });
 
     const accessMode = data.isPublic ? undefined : (data.accessMode ?? ACCESS_MODE_STATIC_PASSWORD);
     if (accessMode === ACCESS_MODE_STATIC_PASSWORD && !data.isPublic && !data.password)
@@ -282,7 +297,7 @@ export class JsonEndpointService {
     const accessConfig = this.createAccessConfig(data.isPublic, accessMode, passwordHash, normalizedPublicKey);
 
     // 创建端点
-    const endpoint = await this.repository.create({
+    const createData = {
       userId: ownerUserId,
       name: data.name,
       slug: data.slug,
@@ -291,7 +306,10 @@ export class JsonEndpointService {
       ...accessConfig,
       isRootSlug,
       rootSlug: isRootSlug ? data.slug : null,
-    });
+    };
+    const endpoint = state
+      ? await this.iam.create(userId, state, createData, request as TypedRequest | undefined)
+      : await this.repository.create(createData);
 
     // 记录业务日志
     await this.businessLogService.logOperation({
@@ -308,7 +326,7 @@ export class JsonEndpointService {
       requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
-    return this.mapToDto(endpoint, ownerUsername);
+    return jsonEndpointDto(endpoint, ownerUsername);
   }
 
   /**

@@ -60,6 +60,8 @@ beforeEach(() => {
   } as unknown as TypedRequest;
   repository = {
     delete: vi.fn(),
+    create: vi.fn().mockResolvedValue(endpoint),
+    findByUserAndSlug: vi.fn().mockResolvedValue(null),
     update: vi.fn().mockResolvedValue(endpoint),
     findByRootSlug: vi.fn().mockResolvedValue(null),
     findById: vi.fn().mockResolvedValue(endpoint),
@@ -76,6 +78,11 @@ beforeEach(() => {
     })),
   };
   iam = {
+    userSlugExists: vi.fn().mockResolvedValue(false),
+    authorizeCreation: vi
+      .fn()
+      .mockResolvedValue({ principal: {}, owner: { id: "actor", username: "fixture", updateTime: new Date(0) } }),
+    create: vi.fn().mockResolvedValue({ ...endpoint, ownerUsername: "fixture", hasPassword: true }),
     rootSlugExists: vi.fn().mockResolvedValue(false),
     delete: vi.fn().mockResolvedValue(endpoint),
     configuration: vi.fn().mockResolvedValue({ principal: {}, target: { id: "endpoint" }, endpoint }),
@@ -106,7 +113,7 @@ describe("JSON Endpoint read rollout and resolvers", () => {
     expect(reads).toHaveLength(3);
     expect(reads.every((r) => r.coverage === "explicit" && r.issues.length === 0)).toBe(true);
     expect(routes.find((r) => r.key.startsWith("DELETE "))?.coverage).toBe("explicit");
-    expect(routes.filter((r) => r.key.startsWith("POST ")).every((r) => r.coverage === "legacy")).toBe(true);
+    expect(routes.filter((r) => r.key.startsWith("POST ")).every((r) => r.coverage === "explicit")).toBe(true);
   });
   it("enforce uses IAM-only payload paths and no legacy global reads", async () => {
     await service.listEndpoints("actor", "peer", request);
@@ -270,5 +277,52 @@ describe("JSON Endpoint update rollout", () => {
     expect(iam.authorizeUpdate).toHaveBeenCalledWith("actor", "endpoint", request);
     expect(iam.update).not.toHaveBeenCalled();
     expect(repository.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("JSON Endpoint creation rollout", () => {
+  const data = { name: "fixture", slug: "fixture", jsonContent: {}, isPublic: true };
+  it("enforce authorizes both before configuration work and at guarded commit", async () => {
+    expect(await service.createEndpoint(data, "actor", request)).not.toHaveProperty("apiKey");
+    expect(iam.authorizeCreation).toHaveBeenCalledWith("actor", "actor", false, request);
+    expect(iam.create).toHaveBeenCalledWith(
+      "actor",
+      expect.any(Object),
+      expect.objectContaining({ userId: "actor", rootSlug: null }),
+      request,
+    );
+    expect(repository.create).not.toHaveBeenCalled();
+    expect(users.findById).not.toHaveBeenCalled();
+    expect(repository.findByUserAndSlug).not.toHaveBeenCalled();
+  });
+  it("root creation requires the additional operation before checking global namespace occupancy", async () => {
+    await service.createEndpoint({ ...data, isRootSlug: true }, "actor", request);
+    expect(iam.authorizeCreation).toHaveBeenCalledWith("actor", "actor", true, request);
+    expect(iam.rootSlugExists).toHaveBeenCalledWith("fixture");
+    expect(repository.findByRootSlug).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("%s preserves old creation permission and peer-owner boundaries", async (mode) => {
+    mocks.mode = mode;
+    permission.checkUserPermissions.mockImplementation(async (_id: string, required: Permission[]) => ({
+      hasPermission: required.includes(Permission.JSON_ENDPOINT_CREATE),
+    }));
+    await service.createEndpoint(data, "actor", request);
+    expect(repository.create).toHaveBeenCalledTimes(1);
+    await expect(service.createEndpoint({ ...data, ownerUserId: "peer" }, "actor", request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await expect(service.createEndpoint({ ...data, isRootSlug: true }, "actor", request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(repository.create).toHaveBeenCalledTimes(1);
+  });
+  it("shadow has no duplicate mutation and does not expose failed policy contents", async () => {
+    mocks.mode = "shadow";
+    permission.checkUserPermissions.mockResolvedValue({ hasPermission: true });
+    iam.authorizeCreation.mockRejectedValue(new Error("sensitive policy contents"));
+    await service.createEndpoint(data, "actor", request);
+    expect(repository.create).toHaveBeenCalledTimes(1);
+    expect(iam.create).not.toHaveBeenCalled();
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain("sensitive policy contents");
   });
 });

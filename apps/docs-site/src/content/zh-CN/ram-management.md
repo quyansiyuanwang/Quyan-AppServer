@@ -435,4 +435,4 @@ IAM 强制模式下，管理列表和详情分别使用 `quyan:json_endpoint:Lis
 
 公开 JSON 的密码、Ed25519 签名、时效与 nonce 防重放规则不受影响。修改需要 `quyan:json_endpoint:UpdateEndpoint`，仍使用具体端点 ARN。启用或停用根 slug 还需同一资源上的 `quyan:json_endpoint:SetRootSlug`，普通修改权限不能代替根 slug 权限。服务端保留已有密码和签名访问配置，提交前复查授权、账户与资源版本。旧的修改权限仍仅覆盖自己的端点。
 
-创建尚继续使用原有权限桥接，读取、删除或修改 Action 不能用于创建。
+创建使用 `quyan:json_endpoint:CreateEndpoint`，因为此时端点尚无 ID，资源是目标所属用户的 `acs:quyan:*:<accountId>:user/<userId>`。默认创建在当前用户下；指定其他用户时需要明确授予该用户资源，且所属用户必须在同一账户内。创建根 slug 额外需要该用户资源上的 `quyan:json_endpoint:SetRootSlug`。服务器在处理访问配置前及提交前分别校验权限；目标用户改名、版本变化、禁用或撤权时不会创建端点。旧的创建权限继续只覆盖当前用户，读取、删除或修改 Action 不能代替创建权限。

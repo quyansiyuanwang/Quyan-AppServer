@@ -62,6 +62,8 @@ beforeEach(() => {
   };
   repository = {
     assertActor: vi.fn(),
+    creationOwner: vi.fn().mockResolvedValue({ id: "actor", username: "fixture", updateTime: new Date(0) }),
+    createTarget: vi.fn().mockResolvedValue(view()),
     readConfiguration: vi.fn().mockResolvedValue(view()),
     updateTarget: vi.fn().mockResolvedValue(view()),
     assertOwner: vi.fn(),
@@ -320,5 +322,71 @@ describe("JSON Endpoint authorized configuration and update", () => {
       }).decision,
     ).toBe("ImplicitDeny");
     expect(getIamActionDefinition("quyan:json_endpoint:SetRootSlug")?.defaultAuthorizationScope).toBeUndefined();
+  });
+});
+
+describe("JSON Endpoint parent-scoped creation", () => {
+  const data = {
+    userId: "actor",
+    name: "fixture",
+    slug: "fixture",
+    jsonContent: {},
+    isPublic: true,
+    isRootSlug: false,
+    rootSlug: null,
+  };
+  it("grants creation only on the trusted target user, not a client account", async () => {
+    const state = await service.authorizeCreation("actor", "actor", false, request);
+    await service.create("actor", state, data, request);
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "quyan:json_endpoint:CreateEndpoint",
+        resources: ["acs:quyan:*:owner:user/actor"],
+      }),
+    );
+    expect(repository.createTarget).toHaveBeenCalledWith(principal, state.owner, data);
+  });
+  it("old Create is own-user-only while Manage covers users in the account", () => {
+    const action = "quyan:json_endpoint:CreateEndpoint",
+      own = "acs:quyan:*:owner:user/actor",
+      peer = "acs:quyan:*:owner:user/peer";
+    const document = legacyPermissionsToPrincipalPolicy([Permission.JSON_ENDPOINT_CREATE], "owner", "actor")!;
+    expect(evaluatePolicies([{ policyId: "old", document }], { action, resource: own }).decision).toBe("Allow");
+    expect(evaluatePolicies([{ policyId: "old", document }], { action, resource: peer }).decision).toBe("ImplicitDeny");
+    expect(iamActionsForLegacyPermission(Permission.JSON_ENDPOINT_MANAGE)).toContain(action);
+    expect(getIamActionDefinition(action)?.conditionalActions).toEqual(["quyan:json_endpoint:SetRootSlug"]);
+  });
+  it("requires separate root-slug permission derived from actual create data", async () => {
+    const state = await service.authorizeCreation("actor", "actor", false, request);
+    iam.authorizeMany.mockImplementation(async ({ action }: { action: string }) => [
+      { ...allow, decision: action === "quyan:json_endpoint:SetRootSlug" ? "ImplicitDeny" : "Allow" },
+    ]);
+    await expect(
+      service.create("actor", state, { ...data, isRootSlug: true, rootSlug: "fixture" }, request),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.createTarget).not.toHaveBeenCalled();
+  });
+  it("refuses changed owner snapshots and misbound input before creation", async () => {
+    const state = await service.authorizeCreation("actor", "actor", false, request);
+    await expect(service.create("actor", state, { ...data, userId: "peer" }, request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await expect(
+      service.create("actor", state, { ...data, isRootSlug: true, rootSlug: "other" }, request),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    repository.creationOwner.mockResolvedValue({ ...state.owner, updateTime: new Date(1) });
+    await expect(service.create("actor", state, data, request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.createTarget).not.toHaveBeenCalled();
+  });
+  it("diagnostic creation authorization is never a write", async () => {
+    await service.authorizeCreation("actor", "actor", false, request);
+    expect(repository.createTarget).not.toHaveBeenCalled();
+  });
+  it.each(["ExplicitDeny", "ImplicitDeny"])("refuses %s before creation", async (decision) => {
+    iam.authorizeMany.mockResolvedValue([{ ...allow, decision }]);
+    await expect(service.authorizeCreation("actor", "actor", false, request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(repository.createTarget).not.toHaveBeenCalled();
   });
 });

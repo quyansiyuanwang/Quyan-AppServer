@@ -90,8 +90,29 @@ export function legacyPermissionsToPrincipalPolicy(
             .replace("{resourceId}", "*"),
         ],
       });
+    const jsonCreate: string[] = ownJsonAccess
+      ? statement.Action.filter((action) => action === "quyan:json_endpoint:CreateEndpoint")
+      : [];
+    if (jsonCreate.length)
+      statements.push({
+        Effect: "Allow",
+        Sid: "LegacyJsonEndpointOwnCreate",
+        Action: jsonCreate,
+        Resource: [
+          buildAcsResource({
+            service: "quyan",
+            region: "*",
+            accountId: accountOwnerId,
+            path: "user/" + principalUserId,
+          }),
+        ],
+      });
     const other = statement.Action.filter(
-      (action) => !authorOnly.has(action) && !list.includes(action) && !jsonAccess.includes(action),
+      (action) =>
+        !authorOnly.has(action) &&
+        !list.includes(action) &&
+        !jsonAccess.includes(action) &&
+        !jsonCreate.includes(action),
     );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>

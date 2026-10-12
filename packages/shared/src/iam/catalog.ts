@@ -848,6 +848,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     legacyPermission: Permission.JSON_ENDPOINT_ROOT_SLUG,
   },
+  {
+    action: 'quyan:json_endpoint:CreateEndpoint',
+    service: 'json_endpoint',
+    operation: 'CreateEndpoint',
+    accessLevel: 'Write',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [],
+    conditionalActions: ['quyan:json_endpoint:SetRootSlug'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermissions: [Permission.JSON_ENDPOINT_CREATE, Permission.JSON_ENDPOINT_MANAGE],
+  },
   ...['CreateAccessKey', 'SendAccessKeyCreationVerificationCode'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:ram:' + operation,
