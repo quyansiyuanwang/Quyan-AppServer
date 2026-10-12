@@ -4,6 +4,11 @@ import { getIamPrincipal } from "@/iam/request/principal-context";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { DeveloperProductPlatformService } from "./developer-product-platform.service";
 import { PermissionService } from "@/services/users/permission.service";
+import { PlatformDeveloperAccountWriteIamService } from "./platform-developer-account-write-iam.service";
+import BusinessLogService from "@/services/system/businesslog.service";
+import { OperationType, OperationCategory } from "@/constant/operation-type";
+import { buildBusinessLogRequestContext } from "@/util/business-log-context";
+import type { UpdateDeveloperProductAccountDto } from "@/api/dto/developer/product-platform.dto";
 import { PlatformDeveloperInstanceReadIamService } from "./platform-developer-instance-read-iam.service";
 import { PlatformDeveloperCallLogReadIamService } from "./platform-developer-call-log-read-iam.service";
 import { PlatformDeveloperUsageReadIamService } from "./platform-developer-usage-read-iam.service";
@@ -23,6 +28,8 @@ export class DeveloperProductAccountAdminService {
     private readonly iamUsage = PlatformDeveloperUsageReadIamService.getInstance(),
     private readonly iamCalls = PlatformDeveloperCallLogReadIamService.getInstance(),
     private readonly iamInstances = PlatformDeveloperInstanceReadIamService.getInstance(),
+    private readonly iamWrites = PlatformDeveloperAccountWriteIamService.getInstance(),
+    private readonly businessLog = BusinessLogService.getInstance(),
   ) {}
   static getInstance() {
     return (this.instance ??= new DeveloperProductAccountAdminService());
@@ -46,6 +53,69 @@ export class DeveloperProductAccountAdminService {
       createTime: row.createTime.toISOString(),
       updateTime: row.updateTime.toISOString(),
     };
+  }
+  async update(
+    request: TypedRequest,
+    actorId: string,
+    product: DeveloperProductCode,
+    ownerId: string,
+    body: UpdateDeveloperProductAccountDto,
+  ) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const row = await this.iamWrites.upsert(product, ownerId, body, actorId, request);
+      if (!row) throw iamAccountDenied();
+      const account = this.dto(row);
+      await this.businessLog.logOperation({
+        operationType: OperationType.DEVELOPER_PRODUCT_ACCOUNT_UPDATE,
+        operationCategory: OperationCategory.SYSTEM,
+        actorUserId: actorId,
+        targetResourceId: row.id,
+        targetResourceType: "DEVELOPER_PRODUCT_ACCOUNT",
+        description: "Developer product account update",
+        changes: {
+          accountOwnerId: row.accountOwnerId,
+          productCode: row.productCode,
+          dailyFreeQuota: row.dailyFreeQuota,
+          overageEnabled: row.overageEnabled,
+          instanceLimit: row.instanceLimit,
+        },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return {
+        userId: row.accountOwnerId,
+        username: row.accountOwner.username,
+        displayName: row.accountOwner.displayName ?? undefined,
+        account,
+      };
+    }
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== actorId ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(
+          principal.subjectUserId,
+          [Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE],
+          { assumedRoleSessionId: principal.roleSessionId },
+        )
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamWrites.upsert(product, ownerId, body, actorId, request, false);
+      } catch {
+        getLogger("DeveloperProductAccount", LogCategory.SECURITY).warn(
+          "Product account update shadow evaluation failed",
+          { reason: "iam-evaluation-denied-or-unavailable" },
+        );
+      }
+    }
+    return this.legacy.updateManagedAccount(actorId, product, ownerId, body);
   }
   async instances(request: TypedRequest, product: DeveloperProductCode, userId: string) {
     if (env.security.iamAuthorizationMode === "enforce") {

@@ -1,3 +1,4 @@
+import { platformDeveloperAccountUpsertResources } from "@/iam/request/platform-developer-account-write-resource-resolvers";
 import {
   platformDeveloperUsageAccountResource,
   platformDeveloperUsageUserResource,
@@ -115,7 +116,11 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Put("{product}/users/{userId}/account")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:UpsertProductAccount",
+    resourceKind: "batch",
+    resource: platformDeveloperAccountUpsertResources,
+  })
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(productUserParamsSchema),
@@ -127,7 +132,7 @@ export class DeveloperProductAdminController extends Controller {
     @Body() body: UpdateDeveloperProductAccountDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperProductManagedAccountDto> {
-    return this.service.updateManagedAccount(request.user!.userId, product, userId, body);
+    return this.accounts.update(request, request.user!.userId, product, userId, body);
   }
 
   @Get("{product}/users/{userId}/instances")

@@ -152,6 +152,14 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':developer-product-call-log/{resourceId}',
   },
   {
+    ...resource('platform', 'developer-product-account-scope', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' +
+      IAM_PLATFORM_ACCOUNT_ID +
+      ':developer-product-account-scope/{accountOwnerId}/{productCode}',
+  },
+  {
     ...resource('platform', 'developer-product-account'),
     accountScope: 'platform',
     arnTemplate:
@@ -1296,6 +1304,22 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.DEVELOPER_QUOTA_MANAGE,
     }),
   ),
+  {
+    action: 'quyan:developer:UpsertProductAccount',
+    service: 'developer',
+    operation: 'UpsertProductAccount',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'platform/developer-product-account-scope',
+      'platform/developer-product-account',
+    ],
+    apiRoutes: ['PUT /v1/admin/products/{product}/users/{userId}/account'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+  },
   {
     action: 'quyan:developer:ListProductAccountInstances',
     service: 'developer',
