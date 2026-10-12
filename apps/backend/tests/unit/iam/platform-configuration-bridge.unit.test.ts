@@ -16,6 +16,8 @@ beforeEach(() => {
   iam = {
     list: vi.fn().mockResolvedValue({ configs: { [CONFIG_KEYS.SMTP.HOST]: "mail" }, aiResourcesAllowed: false }),
     prepareUpdate: vi.fn().mockResolvedValue({ action: "quyan:system:UpdateConfigurations" }),
+    prepareRead: vi.fn().mockResolvedValue({ action: "quyan:system:ListConfigurations" }),
+    recheck: vi.fn(),
     update: vi
       .fn()
       .mockImplementation(async (values: any) =>
@@ -89,5 +91,43 @@ describe("managed configuration mode bridge", () => {
     expect(iam.update).not.toHaveBeenCalled();
     permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
     await expect(service.getManagedConfigs(request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("masks typed configuration secrets and rechecks the complete read before returning", async () => {
+    const read = vi.fn().mockResolvedValue({
+      host: "mail",
+      password: "fixture-secret",
+      github: { clientSecret: "fixture-nested-secret" },
+      maxOutputTokens: 2048,
+    });
+    const result = await service.getManagedConfiguration(Object.values(CONFIG_KEYS.SMTP), request, read);
+    expect(result).toEqual({
+      host: "mail",
+      password: SERVER_CONFIG_SECRET_PLACEHOLDER,
+      github: { clientSecret: SERVER_CONFIG_SECRET_PLACEHOLDER },
+      maxOutputTokens: 2048,
+    });
+    expect(iam.prepareRead).toHaveBeenCalledWith(Object.values(CONFIG_KEYS.SMTP), request);
+    expect(iam.recheck).toHaveBeenCalled();
+    iam.recheck.mockRejectedValue(new Error("fixture stale configuration"));
+    await expect(service.getManagedConfiguration(Object.values(CONFIG_KEYS.SMTP), request, read)).rejects.toThrow(
+      "fixture stale configuration",
+    );
+    iam.prepareRead.mockRejectedValue(new Error("fixture read deny"));
+    read.mockClear();
+    await expect(service.getManagedConfiguration(Object.values(CONFIG_KEYS.SMTP), request, read)).rejects.toThrow(
+      "fixture read deny",
+    );
+    expect(read).not.toHaveBeenCalled();
+  });
+  it("preserves masked SMTP credentials while still honoring explicit replacement or clear", async () => {
+    await service.setManagedConfiguration(
+      { [CONFIG_KEYS.SMTP.HOST]: "mail", [CONFIG_KEYS.SMTP.PASSWORD]: SERVER_CONFIG_SECRET_PLACEHOLDER },
+      "actor",
+      request,
+    );
+    expect(iam.prepareUpdate).toHaveBeenCalledWith([CONFIG_KEYS.SMTP.HOST], "actor", request);
+    expect(iam.update.mock.calls[0][0]).toEqual({ [CONFIG_KEYS.SMTP.HOST]: "mail" });
+    await service.setManagedConfiguration({ [CONFIG_KEYS.SMTP.PASSWORD]: "" }, "actor", request);
+    expect(iam.update.mock.calls[1][0]).toEqual({ [CONFIG_KEYS.SMTP.PASSWORD]: "" });
   });
 });

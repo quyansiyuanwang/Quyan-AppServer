@@ -165,6 +165,25 @@ export class PlatformConfigurationIamService {
     const targets = await this.repository.targets(principal, keys);
     return this.guard("quyan:system:UpdateConfigurations", keys, targets, principal, identity.request);
   }
+  async prepareRead(keys: readonly string[], request?: TypedRequest) {
+    if (
+      !keys.length ||
+      keys.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+      new Set(keys).size !== keys.length ||
+      keys.some((key) => !isRegisteredConfigurationKey(key))
+    )
+      throw iamAccountDenied();
+    const identity = await this.identity(request),
+      { principal } = identity;
+    await this.repository.groupSnapshot(principal);
+    if ((await this.allowed(principal, identity.request, "quyan:system:ListConfigurations", keys)).size !== keys.length)
+      throw iamAccountDenied();
+    const targets = await this.repository.targets(principal, keys);
+    return this.guard("quyan:system:ListConfigurations", keys, targets, principal, identity.request);
+  }
+  recheck(guard: PlatformConfigurationGuard) {
+    return this.repository.recheck(guard);
+  }
   update(updates: Readonly<Record<string, string>>, guard: PlatformConfigurationGuard) {
     return this.repository.update(updates, guard);
   }

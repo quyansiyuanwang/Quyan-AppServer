@@ -44,7 +44,12 @@ import type {
   AutoProxyPoolConfigDto,
   SetAutoProxyPoolConfigDto,
 } from "@/api/dto/system/config.dto";
-import { platformConfigurationBatchResolver } from "@/iam/request/platform-configuration-resource-resolvers";
+import {
+  platformConfigurationBatchResolver,
+  registrationConfigurationResources,
+  smtpConfigurationResources,
+  siteConfigurationResources,
+} from "@/iam/request/platform-configuration-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
@@ -148,9 +153,15 @@ export class ConfigController extends Controller {
 
   @Get("registration")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: registrationConfigurationResources,
+  })
   public async getRegistrationConfig(@Request() _request: TypedRequest) {
-    return await this.configService.getRegistrationConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.REGISTRATION), _request, () =>
+      this.configService.getRegistrationConfig(),
+    );
   }
 
   @Get("relay")
@@ -169,16 +180,28 @@ export class ConfigController extends Controller {
 
   @Get("smtp")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: smtpConfigurationResources,
+  })
   public async getSmtpConfig(@Request() _request: TypedRequest) {
-    return await this.configService.getSmtpConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.SMTP), _request, () =>
+      this.configService.getSmtpConfig(),
+    );
   }
 
   @Get("site")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: siteConfigurationResources,
+  })
   public async getSiteConfig(@Request() _request: TypedRequest): Promise<SiteConfigDto> {
-    return await this.configService.getSiteConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.SITE), _request, () =>
+      this.configService.getSiteConfig(),
+    );
   }
 
   @Get("notification")
@@ -234,7 +257,11 @@ export class ConfigController extends Controller {
 
   @Put("registration")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: registrationConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -243,7 +270,7 @@ export class ConfigController extends Controller {
   )
   public async setRegistrationConfig(@Body() body: SetRegistrationConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.REGISTRATION.ENABLED]: String(body.enabled),
         [CONFIG_KEYS.REGISTRATION.MAX_ACCOUNTS_PER_EMAIL]: String(body.maxAccountsPerEmail),
@@ -310,7 +337,11 @@ export class ConfigController extends Controller {
 
   @Put("smtp")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: smtpConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -319,7 +350,7 @@ export class ConfigController extends Controller {
   )
   public async setSmtpConfig(@Body() body: SetSmtpConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.SMTP.HOST]: body.host,
         [CONFIG_KEYS.SMTP.PORT]: String(body.port),
@@ -338,7 +369,11 @@ export class ConfigController extends Controller {
 
   @Put("site")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: siteConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -347,7 +382,7 @@ export class ConfigController extends Controller {
   )
   public async setSiteConfig(@Body() body: SetSiteConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.SITE.BACKEND_PUBLIC_URL]: body.backendPublicUrl,
       },

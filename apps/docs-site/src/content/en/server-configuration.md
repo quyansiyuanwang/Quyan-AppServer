@@ -41,6 +41,14 @@ Use this page to maintain global server-side settings. All write operations requ
 - All writes require a **step-up 2FA challenge**.
 - Requires `SYSTEM_CONFIG` permission.
 
+## Resource-level configuration permissions
+
+Membership in a deployment administrator group with `SYSTEM_CONFIG` is required to manage global settings. Deployments enforcing IAM additionally require `quyan:system:ListConfigurations` for reads or `quyan:system:UpdateConfigurations` for saves on `acs:platform:*:platform:config-item/<configuration-key>`. An ordinary account owner or account policy cannot grant deployment administrator eligibility.
+
+Reading the registration, SMTP, or site section checks every configuration key in that section; a denied key rejects the whole read. The generic configuration list shows only authorized keys. If any key in a save is unauthorized, another administrator has changed the configuration, or authorization expires before commit, the whole save fails without partial changes. The public registration endpoint continues to expose only public settings needed for the registration entry point.
+
+With IAM enforcement, SMTP passwords are shown as `[configured]`. Keeping that placeholder preserves the existing password; a new value replaces it, and an explicitly submitted empty string clears it. The placeholder is never stored as a password.
+
 ## Common actions
 
 1. Expand the section you need to adjust.

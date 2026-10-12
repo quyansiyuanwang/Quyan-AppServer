@@ -1,3 +1,4 @@
+import { CONFIG_KEYS } from "@/constant/config-keys";
 import type { BatchResourceResolver } from "./resource-resolvers";
 import { isRegisteredConfigurationKey, platformConfigurationArn } from "../resources/platform-configuration-resources";
 import { IAM_AUTHORIZATION_LIMITS } from "../authorization-limits";
@@ -17,3 +18,15 @@ export const platformConfigurationBatchResolver: BatchResourceResolver = ({ requ
     return undefined;
   return keys.sort().map(platformConfigurationArn);
 };
+
+function registeredConfigurationResources(keys: readonly string[]): BatchResourceResolver {
+  if (!keys.length || new Set(keys).size !== keys.length || keys.some((key) => !isRegisteredConfigurationKey(key)))
+    throw new Error("Invalid registered configuration resolver");
+  const resources = Object.freeze([...keys].sort().map(platformConfigurationArn));
+  return () => [...resources];
+}
+export const registrationConfigurationResources = registeredConfigurationResources(
+  Object.values(CONFIG_KEYS.REGISTRATION),
+);
+export const smtpConfigurationResources = registeredConfigurationResources(Object.values(CONFIG_KEYS.SMTP));
+export const siteConfigurationResources = registeredConfigurationResources(Object.values(CONFIG_KEYS.SITE));

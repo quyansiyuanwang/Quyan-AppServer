@@ -14,7 +14,12 @@ vi.mock("@/store/users/iam-account-principal", async () => {
 });
 import { PlatformConfigurationIamService } from "@/services/system/platform-configuration-iam.service";
 import { platformConfigurationArn } from "@/iam/resources/platform-configuration-resources";
-import { platformConfigurationBatchResolver } from "@/iam/request/platform-configuration-resource-resolvers";
+import {
+  platformConfigurationBatchResolver,
+  registrationConfigurationResources,
+  smtpConfigurationResources,
+  siteConfigurationResources,
+} from "@/iam/request/platform-configuration-resource-resolvers";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
 import { Project } from "ts-morph";
@@ -128,5 +133,43 @@ describe("platform configuration IAM", () => {
       return targets.map((t) => ({ ...t, value: "fixture-value" }));
     });
     await expect(service.list(request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("declares both operations for registration, SMTP and site with fixed resource sets", async () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/system/config.controller.ts");
+    const routes = collectIamRoutes(project.getSourceFiles(), process.cwd());
+    const principal = {
+      subjectUserId: "actor",
+      principalUserId: "actor",
+      accountOwnerId: "owner",
+      subjectType: "sub_user" as const,
+    };
+    for (const [path, keys, resolver] of [
+      ["registration", Object.values(CONFIG_KEYS.REGISTRATION), registrationConfigurationResources],
+      ["smtp", Object.values(CONFIG_KEYS.SMTP), smtpConfigurationResources],
+      ["site", Object.values(CONFIG_KEYS.SITE), siteConfigurationResources],
+    ] as const) {
+      for (const [verb, action] of [
+        ["GET", "quyan:system:ListConfigurations"],
+        ["PUT", "quyan:system:UpdateConfigurations"],
+      ])
+        expect(routes.find((r) => r.key === verb + " /v1/config/" + path)).toMatchObject({
+          coverage: "explicit",
+          actions: [action],
+          issues: [],
+        });
+      expect(await resolver({ request, principal })).toEqual([...keys].sort().map(platformConfigurationArn));
+    }
+    expect(routes.find((r) => r.key === "GET /v1/config/public/registration")?.security).toEqual([]);
+  });
+  it("requires the complete registered key set before a typed configuration read", async () => {
+    const guard = await service.prepareRead(Object.values(CONFIG_KEYS.SITE), request);
+    expect(guard.action).toBe("quyan:system:ListConfigurations");
+    iam.authorizeMany.mockImplementation(async ({ resources }: any) =>
+      resources.map((r: string) => (r.endsWith("/smtp.password") ? deny : allow)),
+    );
+    await expect(service.prepareRead(Object.values(CONFIG_KEYS.SMTP), request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
   });
 });

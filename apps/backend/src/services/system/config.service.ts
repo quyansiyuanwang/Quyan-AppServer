@@ -1,7 +1,12 @@
 import { PlatformConfigurationIamService } from "./platform-configuration-iam.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { PermissionService } from "@/services/users/permission.service";
-import { Permission, isSensitiveServerConfigKey, SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
+import {
+  Permission,
+  isSensitiveServerConfigKey,
+  SERVER_CONFIG_SECRET_PLACEHOLDER,
+  writableServerConfigs,
+} from "@quyan/shared";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import type { TypedRequest } from "@/types/express";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -307,6 +312,45 @@ export class ConfigService {
       }
     }
     return { configs: await this.getAllConfigs(), aiResourcesAllowed: true };
+  }
+
+  private maskManagedConfiguration<T>(value: T): T {
+    if (Array.isArray(value)) return value.map((item) => this.maskManagedConfiguration(item)) as T;
+    if (!value || typeof value !== "object" || value instanceof Date) return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        typeof item === "string" && item && isSensitiveServerConfigKey(key)
+          ? SERVER_CONFIG_SECRET_PLACEHOLDER
+          : this.maskManagedConfiguration(item),
+      ]),
+    ) as T;
+  }
+
+  async getManagedConfiguration<T>(keys: readonly string[], request: TypedRequest, read: () => Promise<T>): Promise<T> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.configurationIam.prepareRead(keys, request);
+      if (!guard) throw iamAccountDenied();
+      const result = this.maskManagedConfiguration(await read());
+      await this.configurationIam.recheck(guard);
+      return result;
+    }
+    await this.assertConfigurationPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.configurationIam.prepareRead(keys, request);
+      } catch {
+        getLogger("PlatformConfigurationBridge", LogCategory.SECURITY).warn(
+          "Configuration read shadow evaluation failed",
+          { reason: "iam-evaluation-denied-or-unavailable" },
+        );
+      }
+    }
+    return read();
+  }
+
+  async setManagedConfiguration(configs: Record<string, string>, userId: string, request: TypedRequest) {
+    return this.setManagedConfigs(writableServerConfigs(configs), userId, request);
   }
 
   async setManagedConfigs(configs: Record<string, string>, userId: string, request: TypedRequest) {

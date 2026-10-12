@@ -224,4 +224,29 @@ describe("platform configuration authorization database", () => {
     await prisma.ramRoleSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
     await expect(service.update(updates, guard)).rejects.toMatchObject({ statusCode: 403 });
   });
+  it("rechecks typed-family reads even when another key was previously absent", async () => {
+    await globalGroup();
+    await prisma.serverConfig.create({ data: { key: CONFIG_KEYS.SMTP.HOST, value: "mail" } });
+    const guard = await service.prepareRead(Object.values(CONFIG_KEYS.SMTP), request());
+    await service.recheck(guard);
+    await prisma.serverConfig.create({ data: { key: CONFIG_KEYS.SMTP.PASSWORD, value: "fixture-secret" } });
+    await expect(service.recheck(guard)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("requires every SMTP read key and cannot reuse a read guard to write", async () => {
+    await globalGroup();
+    const read = await service.prepareRead(Object.values(CONFIG_KEYS.SITE), request());
+    await expect(service.update(updates, read)).rejects.toMatchObject({ statusCode: 403 });
+    await bind({
+      Version: "1",
+      Statement: {
+        Effect: "Deny",
+        Action: "quyan:system:ListConfigurations",
+        Resource: platformConfigurationArn(CONFIG_KEYS.SMTP.PASSWORD),
+      },
+    });
+    await expect(service.prepareRead(Object.values(CONFIG_KEYS.SMTP), request())).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(await service.prepareRead(Object.values(CONFIG_KEYS.SITE), request())).toBeDefined();
+  });
 });
