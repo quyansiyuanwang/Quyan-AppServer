@@ -1644,7 +1644,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.OAUTH_CLIENT_UPDATE,
     }),
   ),
-  ...['RotateClientSecret', 'SubmitClientReview', 'DeleteClient'].map(
+  ...['UpdateClient', 'RotateClientSecret', 'SubmitClientReview', 'DeleteClient'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:auth_center:' + operation,
       service: 'auth_center',

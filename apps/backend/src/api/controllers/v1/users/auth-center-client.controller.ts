@@ -117,7 +117,13 @@ export class AuthCenterClientController extends Controller {
 
   @Put("{id}")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:UpdateClient",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")

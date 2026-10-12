@@ -27,6 +27,40 @@ export class AuthCenterClientMutationRepository implements AuthCenterClientMutat
     if (deleting) {
       if (guard.action !== "quyan:auth_center:DeleteClient" || keys.length !== 1 || data.status !== -1)
         throw iamAccountDenied();
+    } else if (guard.action === "quyan:auth_center:UpdateClient") {
+      const allowed = [
+        "name",
+        "description",
+        "redirectUris",
+        "scopes",
+        "homepageUrl",
+        "logoUrl",
+        "policyUrl",
+        "tosUrl",
+        "clientType",
+        "grantTypes",
+        "isPkceRequired",
+        "accessTokenLifetime",
+        "refreshTokenLifetime",
+        "clientSecretHash",
+        "clientSecretPreview",
+        "reviewStatus",
+        "reviewComment",
+        "submittedAt",
+        "reviewedAt",
+        "reviewedByUserId",
+      ];
+      if (
+        keys.some((k) => !allowed.includes(k)) ||
+        (keys.includes("scopes") && !guard.scopeCheck) ||
+        (keys.includes("reviewStatus") && data.reviewStatus !== "draft") ||
+        ["reviewComment", "submittedAt", "reviewedAt", "reviewedByUserId"].some(
+          (k) => keys.includes(k) && data[k as keyof AuthCenterClientUpdateInput] !== null,
+        ) ||
+        (["clientSecretHash", "clientSecretPreview"].some((k) => keys.includes(k)) &&
+          (data.clientType !== "public" || data.clientSecretHash !== null || data.clientSecretPreview !== null))
+      )
+        throw iamAccountDenied();
     } else if (guard.action === "quyan:auth_center:RotateClientSecret") {
       if (
         keys.length !== 2 ||
@@ -74,6 +108,7 @@ export class AuthCenterClientMutationRepository implements AuthCenterClientMutat
             throw iamAccountDenied();
           await assertIamAccountUserMutation(tx, users, target.userId);
           await assertOAuthClientIdentity(identity, tx, "auth_center_client");
+          await guard.scopeCheck?.();
           await tx.$queryRaw(Prisma.sql`SELECT id FROM auth_center_clients WHERE id = ${target.id} FOR UPDATE`);
           const where = {
             id: target.id,
@@ -81,9 +116,12 @@ export class AuthCenterClientMutationRepository implements AuthCenterClientMutat
             status: 1,
             updateTime: target.updateTime,
           };
-          if ((await tx.authCenterClient.updateMany({ where, data })).count !== 1) throw iamAccountDenied();
+          if (!Object.keys(data).length) {
+            if (!(await tx.authCenterClient.findFirst({ where, select: { id: true } }))) throw iamAccountDenied();
+          } else if ((await tx.authCenterClient.updateMany({ where, data })).count !== 1) throw iamAccountDenied();
           await assertIamAccountUserMutation(tx, users, target.userId);
           await assertOAuthClientIdentity(identity, tx, "auth_center_client");
+          await guard.scopeCheck?.();
           const row = await tx.authCenterClient.findFirst({
             where: { id: target.id, userId: target.userId, status: deleting ? -1 : 1 },
             select: AUTH_CENTER_CLIENT_VIEW_SELECT,

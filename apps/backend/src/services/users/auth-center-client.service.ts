@@ -24,6 +24,7 @@ import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { PermissionService } from "./permission.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
+import { updateAuthCenterClientBodySchema } from "@/api/schema/users/auth-center-client.schema";
 import { AuthCenterClientMutationIamService } from "./auth-center-client-mutation-iam.service";
 import type { AuthCenterClientMutationAction } from "@/store/users/auth-center-client-mutation.store";
 import { AuthCenterClientIamService } from "./auth-center-client-iam.service";
@@ -182,7 +183,15 @@ export class AuthCenterClientService {
     data: UpdateAuthCenterClientDto,
     request?: Request,
   ): Promise<AuthCenterClientDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = updateAuthCenterClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid auth center application update", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = parsed.data;
+    }
+    const { existing, guard } = await this.prepareWrite("quyan:auth_center:UpdateClient", userId, id, request);
     const nextClientType = data.clientType ?? existing.clientType;
     const nextGrantTypes = Object.prototype.hasOwnProperty.call(data, "grantTypes")
       ? this.normalizeGrantTypes(data.grantTypes, nextClientType)
@@ -207,7 +216,11 @@ export class AuthCenterClientService {
 
     const updateData: AuthCenterClientUpdateInput = {};
     if (data.scopes !== undefined)
-      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(
+        userId,
+        data.scopes,
+        guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+      );
 
     if (Object.prototype.hasOwnProperty.call(data, "name") && data.name !== undefined)
       updateData.name = data.name.trim();
@@ -215,7 +228,11 @@ export class AuthCenterClientService {
       updateData.description = this.normalizeNullableText(data.description);
     if (Object.prototype.hasOwnProperty.call(data, "redirectUris")) updateData.redirectUris = nextRedirectUris;
     if (Object.prototype.hasOwnProperty.call(data, "scopes") && data.scopes)
-      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(
+        userId,
+        data.scopes,
+        guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+      );
     if (Object.prototype.hasOwnProperty.call(data, "homepageUrl"))
       updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
     if (Object.prototype.hasOwnProperty.call(data, "logoUrl"))
@@ -248,7 +265,17 @@ export class AuthCenterClientService {
       updateData.reviewedByUserId = null;
     }
 
-    const updated = await this.repository.update(id, updateData);
+    if (guard && updateData.scopes) {
+      const scopes = [...updateData.scopes];
+      guard.scopeCheck = async () => {
+        await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+          assumedRoleSessionId: guard.identity.principal.roleSessionId,
+        });
+      };
+    }
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_UPDATE,
