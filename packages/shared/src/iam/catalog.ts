@@ -80,6 +80,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('balance', 'transaction', 2),
   resource('oj', 'api-key', 2),
   resource('oauth', 'client', 2),
+  resource('auth-center', 'client', 2),
   {
     ...resource('platform', 'oauth-client'),
     accountScope: 'platform',
@@ -1655,6 +1656,20 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: false,
       authorizationStage: 'declared',
       legacyPermission: Permission.OAUTH_CLIENT_READ,
+    }),
+  ),
+  ...['ListClients', 'GetClient'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:auth_center:' + operation,
+      service: 'auth_center',
+      operation,
+      accessLevel: operation === 'ListClients' ? 'List' : 'Read',
+      resourceTypes: ['auth-center/client'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: false,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.AUTH_CENTER_CLIENT_READ,
     }),
   ),
   ...['ListApiKeys', 'GetApiKey', 'GetApiKeyStats', 'RevealApiKey'].map(

@@ -36,6 +36,12 @@ import {
 import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
+import {
+  iamCollectionAuthorizationMiddleware,
+  iamAuthenticatedAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { authCenterClientResourceResolver } from "@/iam/request/auth-center-client-resource-resolvers";
 import { AuthCenterClientService } from "@/services/users/auth-center-client.service";
 import type { TypedRequest } from "@/types/express";
 import { RequirePermission } from "@/util/permission/permission-decorator";
@@ -67,10 +73,16 @@ export class AuthCenterClientController extends Controller {
 
   @Get("")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:auth_center:ListClients",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async listClients(@Request() request: TypedRequest): Promise<AuthCenterClientDto[]> {
-    return this.service.listClients(request.user!.userId);
+    return this.service.listClients(request.user!.userId, request);
   }
 
   @Get("review")
@@ -89,12 +101,18 @@ export class AuthCenterClientController extends Controller {
 
   @Get("{id}")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:GetClient",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
   @Middlewares(validateParams(authCenterClientIdParamsSchema))
   public async getClient(@Path() id: string, @Request() request: TypedRequest): Promise<AuthCenterClientDto> {
-    return this.service.getClient(id, request.user!.userId);
+    return this.service.getClient(id, request.user!.userId, request);
   }
 
   @Put("{id}")

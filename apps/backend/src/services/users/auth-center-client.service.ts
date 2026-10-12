@@ -19,7 +19,15 @@ import type { AuthCenterClientStore, AuthCenterClientUpdateInput } from "@/store
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
-import { maskSecret } from "@quyan/shared";
+import { maskSecret, Permission } from "@quyan/shared";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { PermissionService } from "./permission.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { AuthCenterClientIamService } from "./auth-center-client-iam.service";
+import type { AuthCenterClientView } from "@/store/users/auth-center-client-management.store";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
 
 const DEFAULT_SCOPES = ["profile"];
 const REVIEW_STATUS = {
@@ -38,6 +46,8 @@ export class AuthCenterClientService {
   private constructor(
     private readonly repository: AuthCenterClientStore = AuthCenterClientRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iam = AuthCenterClientIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance(): AuthCenterClientService {
@@ -118,12 +128,47 @@ export class AuthCenterClientService {
     };
   }
 
-  async listClients(userId: string): Promise<AuthCenterClientDto[]> {
+  private async legacyRead(userId: string, request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== userId ||
+      principal.principalUserId !== userId ||
+      !(
+        await this.permissions.checkUserPermissions(userId, [Permission.AUTH_CENTER_CLIENT_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  private async shadowRead(operation: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await operation();
+    } catch {
+      getLogger("AuthCenterClientIamBridge", LogCategory.SECURITY).warn(
+        "Auth center client IAM shadow evaluation failed",
+        {
+          reason: "iam-evaluation-denied-or-unavailable",
+        },
+      );
+    }
+  }
+  async listClients(userId: string, request?: TypedRequest): Promise<AuthCenterClientDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.iam.list(userId, request)).map((item) => this.toDto(item));
+    await this.legacyRead(userId, request);
+    if (request) await this.shadowRead(() => this.iam.diagnoseList(userId, request));
     const clients = await this.repository.findByUserId(userId);
     return clients.map((item) => this.toDto(item));
   }
 
-  async getClient(id: string, userId: string): Promise<AuthCenterClientDto> {
+  async getClient(id: string, userId: string, request?: TypedRequest): Promise<AuthCenterClientDto> {
+    if (env.security.iamAuthorizationMode === "enforce") return this.toDto((await this.iam.get(userId, id, request))!);
+    await this.legacyRead(userId, request);
+    if (request) await this.shadowRead(() => this.iam.get(userId, id, request, false));
     const client = await this.requireOwnedClient(id, userId);
     return this.toDto(client);
   }
@@ -500,7 +545,7 @@ export class AuthCenterClientService {
     return value.filter((item): item is string => typeof item === "string");
   }
 
-  private toDto(client: AuthCenterClient): AuthCenterClientDto {
+  private toDto(client: AuthCenterClient | AuthCenterClientView): AuthCenterClientDto {
     return {
       id: client.id,
       userId: client.userId,
@@ -527,7 +572,7 @@ export class AuthCenterClientService {
       lastUsedAt: client.lastUsedAt?.toISOString(),
       createTime: client.createTime.toISOString(),
       updateTime: client.updateTime.toISOString(),
-      hasClientSecret: !!client.clientSecretHash,
+      hasClientSecret: "hasClientSecret" in client ? client.hasClientSecret : !!client.clientSecretHash,
     };
   }
 }

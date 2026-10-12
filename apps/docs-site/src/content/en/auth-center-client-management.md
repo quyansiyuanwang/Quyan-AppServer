@@ -213,3 +213,11 @@ Submitting for review belongs to the app maintenance flow. The final approve/rej
 - [`auth-center-client-review-management`](/en/auth-center-client-review-management)
 - [`oauth-app-management`](/en/oauth-app-management)
 - [`api-documentation`](/en/api-documentation)
+
+## IAM resource scope
+
+When IAM enforcement is enabled, the application list includes only your own applications allowed by `quyan:auth_center:ListClients`. Opening an application also requires `quyan:auth_center:GetClient`; list access does not automatically grant detail access.
+
+The application ARN is `acs:auth-center:*:<accountId>:client/<userId>/<clientId>`. Here, `clientId` is the application record ID, not the public identifier used for login integration. The account and user identifiers come from the authenticated identity. A policy cannot grant access to another user's or another account's applications. You can add your own applications to a resource group and grant access within that group.
+
+Applications with no matching Allow or a matching Deny are excluded from the list, and detail requests are denied. List and detail responses expose only the secret preview and whether a secret is configured, never the raw secret or its hash. Creation, secret rotation, and review still require their respective permissions and retain the existing step-up verification requirements.

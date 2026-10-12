@@ -42,7 +42,11 @@ export const OAUTH_CLIENT_VIEW_SELECT = {
   refreshTokenLifetime: true,
   lastUsedAt: true,
 } as const;
-export async function assertOAuthClientIdentity(identity: OAuthClientIdentity, tx: Prisma.TransactionClient = prisma) {
+export async function assertOAuthClientIdentity(
+  identity: OAuthClientIdentity,
+  tx: Prisma.TransactionClient = prisma,
+  requiredScope = "oauth_client",
+) {
   await assertIamAccountPrincipal(identity.principal, tx);
   if (!identity.oauth) return;
   const token = await tx.oAuthAccessToken.findFirst({
@@ -58,7 +62,7 @@ export async function assertOAuthClientIdentity(identity: OAuthClientIdentity, t
     select: { scopes: true, oauthClient: { select: { scopes: true } } },
   });
   const hasScope = (scopes: unknown) =>
-    Array.isArray(scopes) && getOAuthScopeAliases("oauth_client").some((s) => scopes.includes(s));
+    Array.isArray(scopes) && getOAuthScopeAliases(requiredScope).some((s) => scopes.includes(s));
   if (!token || !hasScope(token.scopes) || !hasScope(token.oauthClient.scopes)) throw iamAccountDenied();
 }
 

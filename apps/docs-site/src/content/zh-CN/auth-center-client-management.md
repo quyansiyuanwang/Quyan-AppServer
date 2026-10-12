@@ -213,3 +213,11 @@
 - [`auth-center-client-review-management`](/zh-CN/auth-center-client-review-management)
 - [`oauth-app-management`](/zh-CN/oauth-app-management)
 - [`api-documentation`](/zh-CN/api-documentation)
+
+## IAM 资源范围
+
+在启用 IAM 强制授权的环境中，应用列表只展示你有 `quyan:auth_center:ListClients` 权限的自有应用；打开应用详情还需要 `quyan:auth_center:GetClient`。列表权限不自动授予详情权限。
+
+应用资源 ARN 为 `acs:auth-center:*:<accountId>:client/<userId>/<clientId>`。其中 `clientId` 是应用记录 ID，而不是登录接入用的公开客户端标识。账号和用户标识由登录身份确定，策略不能让你读取其他用户或其他账号的应用。可将自有应用加入资源组，以资源组范围授权。
+
+没有匹配的 Allow 或存在匹配的 Deny 时，应用不会出现在列表中；详情请求会被拒绝。列表和详情只返回密钥预览及是否配置密钥，不返回原始密钥或其 hash。创建、轮换密钥、审核等操作仍需各自的权限，并保留原有的二次验证要求。

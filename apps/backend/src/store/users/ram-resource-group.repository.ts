@@ -86,6 +86,13 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         });
         return session?.id === childId && session.userId === id;
       }
+      case "auth-center/client": {
+        const client = await prisma.authCenterClient.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return client?.id === childId && client.userId === id;
+      }
       case "oauth/client": {
         const client = await prisma.oAuthClient.findFirst({
           where: { id: childId, userId: id, ...active, isSystemClient: false, user: { ...active, ...userOwner } },
