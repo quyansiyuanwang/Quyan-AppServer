@@ -1,3 +1,6 @@
+import { DeveloperProductConfigAdminService } from "@/services/developer/developer-product-config-admin.service";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { Body, Controller, Get, Middlewares, Path, Put, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
 import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
@@ -30,12 +33,19 @@ import type { DeveloperProductCode } from "@quyan/shared";
 @Tags("Developer Product Administration")
 @Security("jwt")
 export class DeveloperProductAdminController extends Controller {
+  private readonly configurations = DeveloperProductConfigAdminService.getInstance();
   private readonly service = DeveloperProductPlatformService.getInstance();
 
   @Get("configs")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_CONFIG_MANAGE)
-  public async listConfigs(): Promise<DeveloperProductConfigDto[]> {
-    return this.service.listConfigs();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductConfigurations",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listConfigs(@Request() request: TypedRequest): Promise<DeveloperProductConfigDto[]> {
+    return this.configurations.list(request);
   }
 
   @Put("{product}/config")

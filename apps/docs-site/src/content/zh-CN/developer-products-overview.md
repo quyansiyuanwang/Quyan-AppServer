@@ -36,3 +36,9 @@ IAM 强制模式下，配额覆盖管理列表需要真实全局组中的 `DEVEL
 创建或更新使用 `quyan:developer:UpsertQuotaOverride`，删除使用 `quyan:developer:DeleteQuotaOverride`；操作需要真实全局组中的 `DEVELOPER_QUOTA_MANAGE` 资格。创建或更新同时检查 `acs:platform:*:platform:developer-quota-subject/<user 或 project>/<主体 ID>/<服务>` 和实际覆盖记录 ARN。服务段使用 `ip`、`verification`、`push`，通用覆盖使用 `all`。恢复已删除的覆盖保留原记录 ID，原资源上的 Deny 继续有效。
 
 目标用户、账户或项目必须有效；在保存前主体归属、目标版本、资格或授权变化时，操作失败且不会部分保存。到期时间须在未来；删除可以清理不再需要的覆盖。IAM 强制模式下，缺少或未授权的删除目标返回 403。写入接口继续执行重放保护。
+
+## 产品配置读取权限
+
+IAM 强制模式下，管理配置列表需要真实全局组中的 `DEVELOPER_PRODUCT_CONFIG_MANAGE` 资格，使用 `quyan:developer:ListProductConfigurations`，资源为 `acs:platform:*:platform:developer-product-config/<配置记录 ID>`。列表只返回授权且已保存的实际产品配置，按产品代码排序；不会为了读取自动创建其他产品的配置。
+
+匹配的 Deny 优先，AssumeRole 只使用角色自身授权。配置、资格、策略或角色会话在读取期间变化时，结果不会返回。管理配置中的限额和设置在逐记录授权后才加载。

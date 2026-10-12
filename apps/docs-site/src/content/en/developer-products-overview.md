@@ -36,3 +36,9 @@ If records, eligibility, policies, or role sessions change while reading, the re
 Creation and updates use `quyan:developer:UpsertQuotaOverride`; deletion uses `quyan:developer:DeleteQuotaOverride`. They require eligibility from a real global group with `DEVELOPER_QUOTA_MANAGE`. Creation and updates check both `acs:platform:*:platform:developer-quota-subject/<user or project>/<subject ID>/<service>` and the actual override record ARN. The service segment is `ip`, `verification`, or `push`; general overrides use `all`. Restoring a deleted override keeps its original ID, so existing resource Deny statements remain effective.
 
 The target user, account, or project must be active. If subject ownership, target versions, eligibility, or authorization changes before saving, the operation fails without partially saving changes. Expiry must be in the future. Deletion can clean up overrides that are no longer needed. Missing or unauthorized deletion targets return 403 in IAM enforcement mode. Write endpoints retain replay protection.
+
+## Product configuration read permissions
+
+In IAM enforcement mode, the administrative configuration list requires eligibility from a real global group with `DEVELOPER_PRODUCT_CONFIG_MANAGE`, using `quyan:developer:ListProductConfigurations` on `acs:platform:*:platform:developer-product-config/<configuration record ID>`. Only authorized, persisted product configurations are returned, sorted by product code. Reading does not automatically create other products' configuration records.
+
+A matching Deny takes priority, and AssumeRole uses only the role's own grants. If configurations, eligibility, policies, or role sessions change while reading, the result is withheld. Administrative limits and settings are loaded only after each record is authorized.
