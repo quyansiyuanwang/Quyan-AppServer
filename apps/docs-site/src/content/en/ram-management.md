@@ -384,3 +384,9 @@ Saving a history with `quyan:script:SaveExecution` checks the current user's res
 Tickets use `acs:ticket:*:<accountId>:ticket/<userId>/<ticketId>`. Creating a ticket with `quyan:ticket:CreateTicket` checks the current user's resource. Reading, updating and adding comments use `quyan:ticket:GetOwnTicket`, `quyan:ticket:UpdateOwnTicket` and `quyan:ticket:AddOwnComment` against the specific ticket.
 
 `quyan:ticket:ListOwnTickets` authorizes each ticket before pagination and counting. Unauthorized ticket bodies and contact details are not returned. Account policies do not override ownership: self-service endpoints cannot access another user's tickets, even in the same account. Internal comments remain hidden from the submitter, and closed tickets cannot be edited or commented on. Active tickets can join resource groups in their own account. Authentication alone does not grant these ticket operations.
+
+## MCP server configuration resource authorization
+
+MCP servers use `acs:mcp:*:<accountId>:server/<userId>/<serverId>`. `quyan:mcp:ListServers` authorizes each configuration; denied configurations are excluded. The server reads only permitted endpoints, tool allowlists and a credential-existence marker, not credential ciphertext.
+
+Creating a configuration with `quyan:mcp:CreateServer` checks the current user's resource and verifies that the user is active in the current account. MCP configurations can join resource groups in their account. Self-service management cannot access a foreign account's, another user's or a deleted configuration. Configuration authorization does not approve Agent tasks or tool execution; their own permissions and runtime safety constraints still apply.

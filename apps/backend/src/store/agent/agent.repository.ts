@@ -1,5 +1,21 @@
 import { prisma } from "@/config/database";
-import type { Prisma } from "@prisma/client";
+import type { McpServer, Prisma } from "@prisma/client";
+
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
+import { ForbiddenError } from "@/util/errors";
+const mcpAccountScope = (userId: string, accountOwnerId: string): Prisma.McpServerWhereInput => ({
+  userId,
+  status: 1,
+  user: { status: 1, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+});
+export type McpServerTarget = Pick<McpServer, "id" | "userId" | "name" | "updateTime">;
+/** An existence marker only; public configuration reads must never load credential ciphertext. */
+const mcpPublicCredential = { credential: { select: { id: true } } } as const;
+export type PublicMcpServer = McpServer & { credential: { id: string } | null };
+const mcpScopeChanged = () =>
+  new ForbiddenError("MCP server authorization snapshot changed", undefined, {
+    messageKey: "permission.insufficientPermission",
+  });
 
 export class AgentRepository {
   private static instance: AgentRepository;
@@ -143,29 +159,74 @@ export class AgentRepository {
     return prisma.agentApproval.update({ where: { id }, data });
   }
 
+  scanMcpTargets(userId: string, accountOwnerId: string, after?: McpServerTarget) {
+    return prisma.mcpServer.findMany({
+      where: {
+        AND: [
+          mcpAccountScope(userId, accountOwnerId),
+          ...(after ? [{ OR: [{ name: { gt: after.name } }, { name: after.name, id: { gt: after.id } }] }] : []),
+        ],
+      },
+      select: { id: true, userId: true, name: true, updateTime: true },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+    });
+  }
+  async readMcpTargets(
+    userId: string,
+    accountOwnerId: string,
+    targets: readonly McpServerTarget[],
+  ): Promise<PublicMcpServer[]> {
+    if (!targets.length) return [];
+    return prisma.mcpServer.findMany({
+      where: {
+        AND: [
+          mcpAccountScope(userId, accountOwnerId),
+          { OR: targets.map((target) => ({ id: target.id, updateTime: target.updateTime })) },
+        ],
+      },
+      include: mcpPublicCredential,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    });
+  }
+
   findMcpServers(userId: string) {
     return prisma.mcpServer.findMany({
       where: { userId, status: 1 },
       orderBy: { name: "asc" },
-      include: { credential: true },
+      include: mcpPublicCredential,
     });
   }
 
-  createMcpServer(data: {
-    userId: string;
-    name: string;
-    endpoint?: string;
-    transport: string;
-    toolAllowlist: Prisma.InputJsonValue;
-    credential?: {
-      create: {
-        ciphertext: string;
-        iv: string;
-        authTag: string;
+  async createMcpServer(
+    data: {
+      userId: string;
+      name: string;
+      endpoint?: string;
+      transport: string;
+      toolAllowlist: Prisma.InputJsonValue;
+      credential?: {
+        create: {
+          ciphertext: string;
+          iv: string;
+          authTag: string;
+        };
       };
-    };
-  }) {
-    return prisma.mcpServer.create({ data, include: { credential: true } });
+    },
+    accountOwnerId?: string,
+  ): Promise<PublicMcpServer> {
+    if (!accountOwnerId) return prisma.mcpServer.create({ data, include: mcpPublicCredential });
+    return prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.findFirst({
+          where: { id: data.userId, status: 1, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+          select: { id: true },
+        });
+        if (user?.id !== data.userId) throw mcpScopeChanged();
+        return tx.mcpServer.create({ data, include: mcpPublicCredential });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   markRuntimeAgentReady(agentId: string) {

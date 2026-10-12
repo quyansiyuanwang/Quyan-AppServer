@@ -384,3 +384,9 @@ legacy 保留原来的成员规则，shadow 保留业务结果并比较 IAM 列�
 工单资源使用 `acs:ticket:*:<accountId>:ticket/<userId>/<ticketId>`。创建工单的 `quyan:ticket:CreateTicket` 检查当前用户资源；查询、修改和追加评论分别使用 `quyan:ticket:GetOwnTicket`、`quyan:ticket:UpdateOwnTicket`、`quyan:ticket:AddOwnComment` 检查指定工单。
 
 `quyan:ticket:ListOwnTickets` 逐工单授权后再分页和计数，不返回无权限的工单内容或联系信息。账户策略不能取消自有工单的归属限制；同账户的其他用户工单也不能通过自有接口访问。内部评论对提交者隐藏，已结束工单不能修改或追加评论。有效工单可以加入同账户资源组。登录本身不自动授予这些工单操作权限。
+
+## MCP 服务配置资源授权
+
+MCP 服务资源使用 `acs:mcp:*:<accountId>:server/<userId>/<serverId>`。`quyan:mcp:ListServers` 按配置逐项授权，拒绝的配置不会出现在列表中；服务端只读取允许配置的端点、工具清单和凭据是否存在的标记，不读取凭据密文。
+
+创建配置的 `quyan:mcp:CreateServer` 检查当前用户资源，并确认用户属于当前账户且有效。MCP 配置可以加入同账户资源组；跨账户、非本人或已删除的配置不能通过自有管理接口访问。配置授权不等于批准 Agent 执行任务或使用工具，这些操作仍受各自权限和运行安全约束控制。

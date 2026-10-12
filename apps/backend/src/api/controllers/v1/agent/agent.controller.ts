@@ -35,11 +35,14 @@ import {
   createAgentMachineBodySchema,
 } from "@/api/schema/agent/agent.schema";
 import { validateBody } from "@/middleware/validation";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { RequirePermission, CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { SSEStreamService } from "@/util/streaming/sse";
 import { skipResponseWrapper } from "@/util/response-wrapper";
+
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
 @Route("v1/agent")
 @Tags("Agent")
@@ -112,22 +115,36 @@ export class AgentController extends Controller {
 
   @Get("mcp-servers")
   @Security("jwt")
-  @RequirePermission(Permission.MCP_SERVER_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:mcp:ListServers",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   async listMcpServers(@Request() request: TypedRequest): Promise<ApiSuccessResponse<McpServerResponse[]>> {
-    return { code: 0, message: "Success", data: await this.service.listMcpServers(request.user!.userId) };
+    return { code: 0, message: "Success", data: await this.service.listMcpServers(request.user!.userId, request) };
   }
 
   @Post("mcp-servers")
   @Security("jwt")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(createMcpServerBodySchema))
-  @RequirePermission(Permission.MCP_SERVER_WRITE)
+  @CheckPermission(Permission.MCP_SERVER_WRITE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:mcp:CreateServer",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   async createMcpServer(
     @Body() body: CreateMcpServerRequest,
     @Request() request: TypedRequest,
   ): Promise<ApiSuccessResponse<McpServerResponse>> {
     this.setStatus(HttpStatusCode.Created);
-    return { code: 0, message: "Success", data: await this.service.createMcpServer(request.user!.userId, body) };
+    return {
+      code: 0,
+      message: "Success",
+      data: await this.service.createMcpServer(request.user!.userId, body, request),
+    };
   }
 
   @Post("runs/{taskId}/cancel")

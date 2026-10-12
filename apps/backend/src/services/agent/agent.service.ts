@@ -21,6 +21,12 @@ import { parseRelayTokenAllowedModelIds } from "@/util/relay";
 import { isModelIdAllowed, resolveModelId } from "@/util/model-resolution.util";
 import { resolveMappedModel } from "@/util/model-mapping.util";
 
+import type { TypedRequest } from "@/types/express";
+import { McpServerIamService } from "./mcp-server-iam.service";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { getLogger, LogCategory } from "@/util/logger";
+
 const workspaceRuntime = new RootlessDockerWorkspaceProvider();
 const remoteRuntime = AgentRuntimeGateway.getInstance();
 
@@ -290,8 +296,31 @@ export class AgentService {
     });
   }
 
-  async listMcpServers(userId: string): Promise<McpServerResponse[]> {
-    const rows = await this.repository.findMcpServers(userId);
+  async listMcpServers(userId: string, request?: TypedRequest): Promise<McpServerResponse[]> {
+    let rows;
+    if (env.security.iamAuthorizationMode === "enforce")
+      rows = await McpServerIamService.getInstance().list(userId, request);
+    else {
+      const permission = await PermissionService.getInstance().checkUserPermissions(
+        userId,
+        [Permission.MCP_SERVER_READ],
+        { assumedRoleSessionId: request?.user?.roleSessionId },
+      );
+      if (!permission.hasPermission)
+        throw new ForbiddenError("Legacy MCP listing denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      rows = await this.repository.findMcpServers(userId);
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await McpServerIamService.getInstance().list(userId, request);
+        } catch {
+          getLogger("McpServerIam", LogCategory.SECURITY).warn("MCP server shadow evaluation failed", {
+            reason: "iam-list-unavailable",
+          });
+        }
+      }
+    }
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -303,16 +332,23 @@ export class AgentService {
     }));
   }
 
-  async createMcpServer(userId: string, body: CreateMcpServerRequest) {
+  async createMcpServer(userId: string, body: CreateMcpServerRequest, request?: TypedRequest) {
+    const principal =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await McpServerIamService.getInstance().authorizeCreate(userId, request)
+        : undefined;
     const encrypted = body.credential ? this.encrypt(body.credential) : undefined;
-    const row = await this.repository.createMcpServer({
-      userId,
-      name: body.name.trim(),
-      endpoint: body.endpoint,
-      transport: body.transport || "streamable-http",
-      toolAllowlist: body.toolAllowlist || [],
-      ...(encrypted ? { credential: { create: encrypted } } : {}),
-    });
+    const row = await this.repository.createMcpServer(
+      {
+        userId,
+        name: body.name.trim(),
+        endpoint: body.endpoint,
+        transport: body.transport || "streamable-http",
+        toolAllowlist: body.toolAllowlist || [],
+        ...(encrypted ? { credential: { create: encrypted } } : {}),
+      },
+      principal?.accountOwnerId,
+    );
     return {
       id: row.id,
       name: row.name,

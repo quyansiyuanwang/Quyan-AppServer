@@ -77,6 +77,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('script', 'script', 2),
   resource('script', 'execution', 2),
   resource('ticket', 'ticket', 2),
+  resource('mcp', 'server', 2),
   { ...resource('balance', 'gift-code', 2), authenticatedSelfScope: 'children' },
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
@@ -117,6 +118,8 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_POLICY_DETACH]: ['policy', 'user', 'group', 'role', 'authorization'],
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
+  [Permission.MCP_SERVER_READ]: ['mcp/server'],
+  [Permission.MCP_SERVER_WRITE]: ['quyan/user', 'mcp/server'],
   [Permission.TICKET_SUBMIT]: ['quyan/user'],
   [Permission.TICKET_SELF_READ]: ['ticket/ticket'],
   [Permission.TICKET_SELF_UPDATE]: ['ticket/ticket'],
@@ -845,6 +848,31 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
       defaultAuthorizationScope: 'self',
+    }),
+  ),
+  ...[
+    {
+      operation: 'ListServers',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/user', 'mcp/server'],
+      legacyPermission: Permission.MCP_SERVER_READ,
+    },
+    {
+      operation: 'CreateServer',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user'],
+      legacyPermission: Permission.MCP_SERVER_WRITE,
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:mcp:' + definition.operation,
+      service: 'mcp',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: definition.accessLevel === 'Write',
+      authorizationStage: 'declared',
     }),
   ),
   ...[
