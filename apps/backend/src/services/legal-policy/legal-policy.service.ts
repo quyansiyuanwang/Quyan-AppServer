@@ -1,3 +1,12 @@
+import { PlatformLegalPolicyReadIamService } from "./platform-legal-policy-read-iam.service";
+import type { LegalPolicyListReadRow } from "@/store/content/platform-legal-policy-read.store";
+import { env } from "@/config/env";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
+import type { TypedRequest } from "@/types/express";
 import type { Request } from "express";
 import { Prisma, type LegalPolicyVersion } from "@prisma/client";
 import { LEGAL_POLICY_TYPES, LegalPolicyPublishStatus, type LegalPolicyType } from "@/constant/legal-policy";
@@ -26,6 +35,8 @@ export class LegalPolicyService {
     private readonly repository: LegalPolicyStore = LegalPolicyRepository.getInstance(),
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iamReads = PlatformLegalPolicyReadIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   public static getInstance(): LegalPolicyService {
@@ -34,6 +45,60 @@ export class LegalPolicyService {
     return LegalPolicyService.instance;
   }
 
+  private async legacyReadPermission(request: TypedRequest) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.LEGAL_POLICY_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  async listManagedPolicies(request: TypedRequest): Promise<LegalPolicyListItemDto[]> {
+    const project = (rows: LegalPolicyListReadRow[]) =>
+      Promise.all(rows.map((row) => this.toLegalPolicyListItemDto(row)));
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamReads.list(request, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    await this.legacyReadPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.list(request, project, false);
+      } catch {
+        getLogger("LegalPolicy", LogCategory.SECURITY).warn("Legal policy list shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.listPolicies();
+  }
+  async getManagedPolicy(id: string, request: TypedRequest): Promise<LegalPolicyDto> {
+    const project = (row: LegalPolicyVersion) => this.toLegalPolicyDto(row);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamReads.detail(id, request, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    await this.legacyReadPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.detail(id, request, project, false);
+      } catch {
+        getLogger("LegalPolicy", LogCategory.SECURITY).warn("Legal policy detail shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.getPolicy(id);
+  }
   public async createPolicy(dto: CreateLegalPolicyDto, actorUserId: string, request: Request): Promise<LegalPolicyDto> {
     const policy = await this.createDraftPolicy(dto, actorUserId);
 
@@ -265,7 +330,7 @@ export class LegalPolicyService {
     };
   }
 
-  private async toLegalPolicyListItemDto(policy: LegalPolicyVersion): Promise<LegalPolicyListItemDto> {
+  private async toLegalPolicyListItemDto(policy: LegalPolicyListReadRow): Promise<LegalPolicyListItemDto> {
     const [creator, updater] = await Promise.all([
       this.userRepository.findById(policy.createdBy),
       policy.updatedBy ? this.userRepository.findById(policy.updatedBy) : Promise.resolve(null),

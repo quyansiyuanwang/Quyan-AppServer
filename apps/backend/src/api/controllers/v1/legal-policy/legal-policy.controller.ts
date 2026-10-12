@@ -1,3 +1,6 @@
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { platformLegalPolicyDetailResource } from "@/iam/request/platform-legal-policy-resource-resolvers";
 import {
   Body,
   Controller,
@@ -13,7 +16,7 @@ import {
   Tags,
 } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express.d";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams } from "@/middleware/validation";
@@ -48,18 +51,27 @@ export class LegalPolicyController extends Controller {
 
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:legal_policy:ListVersions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listPolicies(@Request() request: TypedRequest): Promise<LegalPolicyListItemDto[]> {
-    void request;
-    return this.service.listPolicies();
+    return this.service.listManagedPolicies(request);
   }
 
   @Get("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_READ)
+  @CheckPermission(Permission.LEGAL_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:GetVersion",
+    resourceKind: "single-resource",
+    resource: platformLegalPolicyDetailResource,
+  })
   @Middlewares(validateParams(legalPolicyIdParamsSchema))
-  public async getPolicy(@Path() id: string): Promise<LegalPolicyDto> {
-    return this.service.getPolicy(id);
+  public async getPolicy(@Path() id: string, @Request() request: TypedRequest): Promise<LegalPolicyDto> {
+    return this.service.getManagedPolicy(id, request);
   }
 
   @Put("{id}")

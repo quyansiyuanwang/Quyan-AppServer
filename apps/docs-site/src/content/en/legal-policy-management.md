@@ -57,6 +57,12 @@ Publishing a new version triggers a **forced re-consent** check:
 | Delete version              | `LEGAL_POLICY_DELETE`  |
 | Publish / unpublish version | `LEGAL_POLICY_PUBLISH` |
 
+## IAM version read access
+
+With IAM enforcement, the management list and detail APIs require `LEGAL_POLICY_READ` eligibility in an actual deployment-wide group. Listing uses `quyan:legal_policy:ListVersions`; details use `quyan:legal_policy:GetVersion`. Both authorize the actual version resource `acs:platform:*:platform:legal-policy/<version-id>`. The creator is an audit actor, not an account owner for the policy.
+
+The version list includes only authorized versions and loads summaries without draft content. Details require a separate Allow before loading content. A matching Deny takes priority. Missing, deleted or unauthorized detail resources return 403 in enforce mode. Results are withheld if a version, qualification, policy or role session changes during the read. AssumeRole uses role grants. Public published-policy and consent flows retain their existing access rules.
+
 ## Notes
 
 - Only one version per type can be published at a time; publishing a new version automatically archives the previous one.

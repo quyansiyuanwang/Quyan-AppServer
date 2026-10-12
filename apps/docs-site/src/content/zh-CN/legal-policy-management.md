@@ -57,6 +57,12 @@
 | 删除版本            | `LEGAL_POLICY_DELETE`  |
 | 发布 / 取消发布版本 | `LEGAL_POLICY_PUBLISH` |
 
+## IAM 版本读取权限
+
+IAM 强制模式下，管理列表和详情 API 需要真实部署全局组中的 `LEGAL_POLICY_READ` 资格。列表使用 `quyan:legal_policy:ListVersions`，详情使用 `quyan:legal_policy:GetVersion`，两者均按实际版本资源 `acs:platform:*:platform:legal-policy/<版本 ID>` 授权。创建人仅为审计操作者，不表示协议所属账户。
+
+版本列表只包含已授权版本，读取摘要时不加载草稿正文。详情需要单独通过 Allow 检查后才加载正文，匹配的 Deny 优先。强制模式下，不存在、已删除或未获授权的详情资源返回 403。读取期间版本、资格、策略或角色会话发生变化时，结果不会返回。AssumeRole 使用角色自身授权。公开已发布协议与同意流程保持原有访问规则。
+
 ## 说明
 
 - 同一类型同时只能有一个发布版本；发布新版本时旧版本自动变为历史记录。

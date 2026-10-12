@@ -116,6 +116,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':ip-whitelist-control/{resourceId}',
   },
   {
+    ...resource('platform', 'legal-policy'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':legal-policy/{resourceId}',
+  },
+  {
     ...resource('platform', 'ip-whitelist'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':ip-whitelist/{resourceId}',
@@ -1067,6 +1072,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       authorizationStage: 'declared',
       authorizationBoundary: 'platform',
       legacyPermission: permission,
+    }),
+  ),
+  ...(['ListVersions', 'GetVersion'] as const).map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:legal_policy:' + operation,
+      service: 'legal_policy',
+      operation,
+      accessLevel: operation === 'ListVersions' ? 'List' : 'Read',
+      resourceTypes: ['platform/legal-policy'],
+      apiRoutes: [
+        operation === 'ListVersions' ? 'GET /v1/legal-policies' : 'GET /v1/legal-policies/{id}',
+      ],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.LEGAL_POLICY_READ,
     }),
   ),
   ...(['CreateEntry', 'DeleteEntry'] as const).map(
