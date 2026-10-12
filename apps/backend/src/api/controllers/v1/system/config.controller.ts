@@ -49,6 +49,10 @@ import {
   registrationConfigurationResources,
   smtpConfigurationResources,
   siteConfigurationResources,
+  notificationConfigurationResources,
+  billingConfigurationResources,
+  heartbeatConfigurationResources,
+  remoteTerminalUnbindConfigurationResources,
 } from "@/iam/request/platform-configuration-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
@@ -206,9 +210,15 @@ export class ConfigController extends Controller {
 
   @Get("notification")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: notificationConfigurationResources,
+  })
   public async getNotificationConfig(@Request() _request: TypedRequest): Promise<NotificationConfigDto> {
-    return await this.configService.getNotificationConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.NOTIFICATION), _request, () =>
+      this.configService.getNotificationConfig(),
+    );
   }
 
   @Get("ipban")
@@ -220,25 +230,43 @@ export class ConfigController extends Controller {
 
   @Get("billing")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: billingConfigurationResources,
+  })
   public async getBillingConfig(@Request() _request: TypedRequest): Promise<BillingConfigDto> {
-    return await this.configService.getBillingConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.BILLING), _request, () =>
+      this.configService.getBillingConfig(),
+    );
   }
 
   @Get("heartbeat")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: heartbeatConfigurationResources,
+  })
   public async getHeartbeatConfig(@Request() _request: TypedRequest): Promise<HeartbeatConfigDto> {
-    return await this.configService.getHeartbeatConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.HEARTBEAT), _request, () =>
+      this.configService.getHeartbeatConfig(),
+    );
   }
 
   @Get("remote-terminal/unbind")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: remoteTerminalUnbindConfigurationResources,
+  })
   public async getRemoteTerminalUnbindConfig(
     @Request() _request: TypedRequest,
   ): Promise<RemoteTerminalUnbindConfigDto> {
-    return await this.configService.getRemoteTerminalUnbindConfig();
+    return this.configService.getManagedConfiguration(Object.values(CONFIG_KEYS.REMOTE_TERMINAL), _request, () =>
+      this.configService.getRemoteTerminalUnbindConfig(),
+    );
   }
 
   @Get("captcha")
@@ -395,7 +423,11 @@ export class ConfigController extends Controller {
 
   @Put("notification")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: notificationConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -404,7 +436,7 @@ export class ConfigController extends Controller {
   )
   public async setNotificationConfig(@Body() body: SetNotificationConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.NOTIFICATION.DEFAULT_SUBSCRIBED_EVENTS]: JSON.stringify(body.defaultSubscribedEvents),
         [CONFIG_KEYS.NOTIFICATION.DEFAULT_THRESHOLDS]: JSON.stringify(body.defaultThresholds),
@@ -447,7 +479,11 @@ export class ConfigController extends Controller {
 
   @Put("billing")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: billingConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -456,7 +492,7 @@ export class ConfigController extends Controller {
   )
   public async setBillingConfig(@Body() body: SetBillingConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.BILLING.RECHARGE_RATIO]: String(body.rechargeRatio),
         [CONFIG_KEYS.BILLING.GIFT_CODE_ENABLED]: String(body.giftCodeEnabled),
@@ -474,7 +510,11 @@ export class ConfigController extends Controller {
 
   @Put("heartbeat")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: heartbeatConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -483,7 +523,7 @@ export class ConfigController extends Controller {
   )
   public async setHeartbeatConfig(@Body() body: SetHeartbeatConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.HEARTBEAT.INTERVAL_SECONDS]: String(body.intervalSeconds),
         [CONFIG_KEYS.HEARTBEAT.TIMEOUT_SECONDS]: String(body.timeoutSeconds),
@@ -497,7 +537,11 @@ export class ConfigController extends Controller {
 
   @Put("remote-terminal/unbind")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: remoteTerminalUnbindConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -509,7 +553,7 @@ export class ConfigController extends Controller {
     @Request() request: TypedRequest,
   ) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.REMOTE_TERMINAL.UNBIND_MAX_COUNT]: String(body.maxCount),
         [CONFIG_KEYS.REMOTE_TERMINAL.UNBIND_WINDOW_HOURS]: String(body.windowHours),

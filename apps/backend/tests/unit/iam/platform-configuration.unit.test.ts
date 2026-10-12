@@ -19,6 +19,10 @@ import {
   registrationConfigurationResources,
   smtpConfigurationResources,
   siteConfigurationResources,
+  notificationConfigurationResources,
+  billingConfigurationResources,
+  heartbeatConfigurationResources,
+  remoteTerminalUnbindConfigurationResources,
 } from "@/iam/request/platform-configuration-resource-resolvers";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
@@ -134,7 +138,7 @@ describe("platform configuration IAM", () => {
     });
     await expect(service.list(request)).rejects.toMatchObject({ statusCode: 403 });
   });
-  it("declares both operations for registration, SMTP and site with fixed resource sets", async () => {
+  it("declares both operations for configuration sections with fixed resource sets", async () => {
     const project = new Project({ skipAddingFilesFromTsConfig: true });
     project.addSourceFileAtPath("src/api/controllers/v1/system/config.controller.ts");
     const routes = collectIamRoutes(project.getSourceFiles(), process.cwd());
@@ -148,6 +152,14 @@ describe("platform configuration IAM", () => {
       ["registration", Object.values(CONFIG_KEYS.REGISTRATION), registrationConfigurationResources],
       ["smtp", Object.values(CONFIG_KEYS.SMTP), smtpConfigurationResources],
       ["site", Object.values(CONFIG_KEYS.SITE), siteConfigurationResources],
+      ["notification", Object.values(CONFIG_KEYS.NOTIFICATION), notificationConfigurationResources],
+      ["billing", Object.values(CONFIG_KEYS.BILLING), billingConfigurationResources],
+      ["heartbeat", Object.values(CONFIG_KEYS.HEARTBEAT), heartbeatConfigurationResources],
+      [
+        "remote-terminal/unbind",
+        Object.values(CONFIG_KEYS.REMOTE_TERMINAL),
+        remoteTerminalUnbindConfigurationResources,
+      ],
     ] as const) {
       for (const [verb, action] of [
         ["GET", "quyan:system:ListConfigurations"],

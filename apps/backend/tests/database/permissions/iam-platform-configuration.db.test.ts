@@ -250,3 +250,40 @@ describe("platform configuration authorization database", () => {
     expect(await service.prepareRead(Object.values(CONFIG_KEYS.SITE), request())).toBeDefined();
   });
 });
+
+describe("typed configuration family authorization", () => {
+  it.each([
+    ["billing", Object.values(CONFIG_KEYS.BILLING)],
+    ["notification", Object.values(CONFIG_KEYS.NOTIFICATION)],
+    ["heartbeat", Object.values(CONFIG_KEYS.HEARTBEAT)],
+    ["remote-terminal", Object.values(CONFIG_KEYS.REMOTE_TERMINAL)],
+  ])("denies %s reads and writes when one family member is explicitly denied", async (_family, keys) => {
+    await globalGroup();
+    await bind({
+      Version: "1",
+      Statement: {
+        Effect: "Deny",
+        Action: ["quyan:system:ListConfigurations", "quyan:system:UpdateConfigurations"],
+        Resource: platformConfigurationArn(keys[keys.length - 1]),
+      },
+    });
+    await expect(service.prepareRead(keys, request())).rejects.toMatchObject({ statusCode: 403 });
+    await expect(prepare(keys)).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.serverConfig.count({ where: { key: { in: keys } } })).toBe(0);
+  });
+  it("rolls back an entire notification save if the deployment grant is revoked before commit", async () => {
+    const group = await globalGroup();
+    const keys = Object.values(CONFIG_KEYS.NOTIFICATION);
+    const guard = await prepare(keys);
+    const originalRecheck = guard.users.recheck;
+    let count = 0;
+    guard.users.recheck = async () => {
+      await originalRecheck();
+      if (++count === 2) throw new Error("fixture final notification deny");
+    };
+    await expect(service.update(Object.fromEntries(keys.map((key) => [key, "[]"])), guard)).rejects.toThrow();
+    expect(await prisma.serverConfig.count({ where: { key: { in: keys } } })).toBe(0);
+    await prisma.group.update({ where: { id: group.id }, data: { permissions: [] } });
+    await expect(service.prepareRead(keys, request())).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
