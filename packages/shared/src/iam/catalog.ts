@@ -78,6 +78,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('script', 'execution', 2),
   resource('ticket', 'ticket', 2),
   resource('mcp', 'server', 2),
+  resource('agent', 'machine', 2),
   { ...resource('balance', 'gift-code', 2), authenticatedSelfScope: 'children' },
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
@@ -118,6 +119,8 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_POLICY_DETACH]: ['policy', 'user', 'group', 'role', 'authorization'],
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
+  [Permission.AGENT_WORKSPACE_READ]: ['agent/machine'],
+  [Permission.AGENT_WORKSPACE_WRITE]: ['quyan/user', 'agent/machine'],
   [Permission.MCP_SERVER_READ]: ['mcp/server'],
   [Permission.MCP_SERVER_WRITE]: ['quyan/user', 'mcp/server'],
   [Permission.TICKET_SUBMIT]: ['quyan/user'],
@@ -848,6 +851,37 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
       defaultAuthorizationScope: 'self',
+    }),
+  ),
+  ...[
+    {
+      operation: 'ListMachines',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/user', 'agent/machine'],
+      legacyPermission: Permission.AGENT_WORKSPACE_READ,
+    },
+    {
+      operation: 'CreateMachine',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user'],
+      legacyPermission: Permission.AGENT_WORKSPACE_WRITE,
+    },
+    {
+      operation: 'DeleteMachine',
+      accessLevel: 'Write',
+      resourceTypes: ['agent/machine'],
+      legacyPermission: Permission.AGENT_WORKSPACE_WRITE,
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:agent:' + definition.operation,
+      service: 'agent',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: definition.accessLevel === 'Write',
+      authorizationStage: 'declared',
     }),
   ),
   ...[

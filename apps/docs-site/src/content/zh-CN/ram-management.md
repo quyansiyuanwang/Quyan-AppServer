@@ -390,3 +390,9 @@ legacy 保留原来的成员规则，shadow 保留业务结果并比较 IAM 列�
 MCP 服务资源使用 `acs:mcp:*:<accountId>:server/<userId>/<serverId>`。`quyan:mcp:ListServers` 按配置逐项授权，拒绝的配置不会出现在列表中；服务端只读取允许配置的端点、工具清单和凭据是否存在的标记，不读取凭据密文。
 
 创建配置的 `quyan:mcp:CreateServer` 检查当前用户资源，并确认用户属于当前账户且有效。MCP 配置可以加入同账户资源组；跨账户、非本人或已删除的配置不能通过自有管理接口访问。配置授权不等于批准 Agent 执行任务或使用工具，这些操作仍受各自权限和运行安全约束控制。
+
+## Agent 机器资源授权
+
+机器使用 `acs:agent:*:<accountId>:machine/<userId>/<machineId>`。`quyan:agent:ListMachines` 逐机器授权，列表只展示允许的机器状态和能力，不读取注册凭据哈希。`quyan:agent:CreateMachine` 检查当前用户资源，确认用户属于当前有效账户后创建机器；注册 Token 仅在创建成功响应中提供，列表不返回。
+
+`quyan:agent:DeleteMachine` 检查指定机器资源，并校验真实用户、账户和数据版本后撤销机器。自有管理接口不能管理他人或跨账户机器。有效机器可以加入同账户资源组；机器注册权限不等于工作区创建、任务执行或工具批准权限。

@@ -1,8 +1,33 @@
 import { prisma } from "@/config/database";
-import type { McpServer, Prisma } from "@prisma/client";
+import type { AgentRuntimeMachine, McpServer, Prisma } from "@prisma/client";
 
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { ForbiddenError } from "@/util/errors";
+const machineAccountScope = (userId: string, accountOwnerId: string): Prisma.AgentRuntimeMachineWhereInput => ({
+  userId,
+  status: 1,
+  user: { status: 1, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+});
+export type AgentMachineTarget = Pick<AgentRuntimeMachine, "id" | "userId" | "createTime" | "updateTime">;
+export const agentMachinePublicSelect = {
+  id: true,
+  userId: true,
+  name: true,
+  status: true,
+  runtime: true,
+  runtimeStatus: true,
+  agentId: true,
+  capabilities: true,
+  lastHeartbeatAt: true,
+  createTime: true,
+  updateTime: true,
+} as const;
+export type PublicAgentMachine = Prisma.AgentRuntimeMachineGetPayload<{ select: typeof agentMachinePublicSelect }>;
+const machineScopeChanged = () =>
+  new ForbiddenError("Agent machine authorization snapshot changed", undefined, {
+    messageKey: "permission.insufficientPermission",
+  });
+
 const mcpAccountScope = (userId: string, accountOwnerId: string): Prisma.McpServerWhereInput => ({
   userId,
   status: 1,
@@ -52,16 +77,87 @@ export class AgentRepository {
     });
   }
 
+  findMachineTarget(id: string, userId: string, accountOwnerId: string) {
+    return prisma.agentRuntimeMachine.findFirst({
+      where: { id, ...machineAccountScope(userId, accountOwnerId) },
+      select: { id: true, userId: true, createTime: true, updateTime: true },
+    });
+  }
+  scanMachineTargets(userId: string, accountOwnerId: string, after?: AgentMachineTarget) {
+    return prisma.agentRuntimeMachine.findMany({
+      where: {
+        AND: [
+          machineAccountScope(userId, accountOwnerId),
+          ...(after
+            ? [
+                {
+                  OR: [
+                    { createTime: { lt: after.createTime } },
+                    { createTime: after.createTime, id: { lt: after.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      select: { id: true, userId: true, createTime: true, updateTime: true },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+    });
+  }
+  async readMachineTargets(
+    userId: string,
+    accountOwnerId: string,
+    targets: readonly AgentMachineTarget[],
+  ): Promise<PublicAgentMachine[]> {
+    if (!targets.length) return [];
+    return prisma.agentRuntimeMachine.findMany({
+      where: {
+        AND: [
+          machineAccountScope(userId, accountOwnerId),
+          { OR: targets.map((target) => ({ id: target.id, updateTime: target.updateTime })) },
+        ],
+      },
+      select: agentMachinePublicSelect,
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+    });
+  }
+  async deleteMachineTarget(target: AgentMachineTarget, accountOwnerId: string) {
+    const result = await prisma.agentRuntimeMachine.updateMany({
+      where: { id: target.id, updateTime: target.updateTime, ...machineAccountScope(target.userId, accountOwnerId) },
+      data: { status: -1, runtimeStatus: "revoked" },
+    });
+    if (result.count !== 1) throw machineScopeChanged();
+  }
+
   findMachineForUser(id: string, userId: string) {
-    return prisma.agentRuntimeMachine.findFirst({ where: { id, userId, status: 1 } });
+    return prisma.agentRuntimeMachine.findFirst({ where: { id, userId, status: 1 }, select: agentMachinePublicSelect });
   }
 
   listMachines(userId: string) {
-    return prisma.agentRuntimeMachine.findMany({ where: { userId, status: 1 }, orderBy: { createTime: "desc" } });
+    return prisma.agentRuntimeMachine.findMany({
+      where: { userId, status: 1 },
+      orderBy: { createTime: "desc" },
+      select: agentMachinePublicSelect,
+    });
   }
 
-  createMachine(data: { userId: string; name: string; registrationHash: string }) {
-    return prisma.agentRuntimeMachine.create({ data });
+  async createMachine(
+    data: { userId: string; name: string; registrationHash: string },
+    accountOwnerId?: string,
+  ): Promise<PublicAgentMachine> {
+    if (!accountOwnerId) return prisma.agentRuntimeMachine.create({ data, select: agentMachinePublicSelect });
+    return prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.findFirst({
+          where: { id: data.userId, status: 1, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+          select: { id: true },
+        });
+        if (user?.id !== data.userId) throw machineScopeChanged();
+        return tx.agentRuntimeMachine.create({ data, select: agentMachinePublicSelect });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   updateMachine(id: string, data: Prisma.AgentRuntimeMachineUpdateInput) {

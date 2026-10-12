@@ -22,6 +22,8 @@ import { isModelIdAllowed, resolveModelId } from "@/util/model-resolution.util";
 import { resolveMappedModel } from "@/util/model-mapping.util";
 
 import type { TypedRequest } from "@/types/express";
+import { AgentMachineIamService } from "./agent-machine-iam.service";
+import type { PublicAgentMachine } from "@/store/agent/agent.repository";
 import { McpServerIamService } from "./mcp-server-iam.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@quyan/shared";
@@ -82,7 +84,7 @@ export class AgentService {
     };
   }
 
-  private toMachineDto(row: any, registrationToken?: string): AgentMachineResponse {
+  private toMachineDto(row: PublicAgentMachine, registrationToken?: string): AgentMachineResponse {
     return {
       id: row.id,
       name: row.name,
@@ -100,21 +102,61 @@ export class AgentService {
     return { token, hash: createHash("sha256").update(token).digest("hex") };
   }
 
-  async listMachines(userId: string): Promise<AgentMachineResponse[]> {
-    return (await this.repository.listMachines(userId)).map((row) => this.toMachineDto(row));
+  async listMachines(userId: string, request?: TypedRequest): Promise<AgentMachineResponse[]> {
+    let rows;
+    if (env.security.iamAuthorizationMode === "enforce")
+      rows = await AgentMachineIamService.getInstance().list(userId, request);
+    else {
+      const permission = await PermissionService.getInstance().checkUserPermissions(
+        userId,
+        [Permission.AGENT_WORKSPACE_READ],
+        { assumedRoleSessionId: request?.user?.roleSessionId },
+      );
+      if (!permission.hasPermission)
+        throw new ForbiddenError("Legacy machine listing denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      rows = await this.repository.listMachines(userId);
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await AgentMachineIamService.getInstance().list(userId, request);
+        } catch {
+          getLogger("AgentMachineIam", LogCategory.SECURITY).warn("Machine list shadow evaluation failed", {
+            reason: "iam-list-unavailable",
+          });
+        }
+      }
+    }
+    return rows.map((row) => this.toMachineDto(row));
   }
 
-  async createMachine(userId: string, body: CreateAgentMachineRequest): Promise<AgentMachineResponse> {
+  async createMachine(
+    userId: string,
+    body: CreateAgentMachineRequest,
+    request?: TypedRequest,
+  ): Promise<AgentMachineResponse> {
+    const principal =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await AgentMachineIamService.getInstance().authorizeCreate(userId, request)
+        : undefined;
     const registration = this.createRegistrationToken();
-    const row = await this.repository.createMachine({
-      userId,
-      name: body.name.trim(),
-      registrationHash: registration.hash,
-    });
+    const row = await this.repository.createMachine(
+      {
+        userId,
+        name: body.name.trim(),
+        registrationHash: registration.hash,
+      },
+      principal?.accountOwnerId,
+    );
     return this.toMachineDto(row, registration.token);
   }
 
-  async deleteMachine(userId: string, id: string) {
+  async deleteMachine(userId: string, id: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const { target, principal } = await AgentMachineIamService.getInstance().authorizeTarget(id, userId, request);
+      await this.repository.deleteMachineTarget(target, principal.accountOwnerId);
+      return;
+    }
     const row = await this.repository.findMachineForUser(id, userId);
     if (!row) throw new NotFoundError("Agent machine not found", undefined, { messageKey: "agent.machineNotFound" });
     await this.repository.updateMachine(id, { status: -1, runtimeStatus: "revoked" });

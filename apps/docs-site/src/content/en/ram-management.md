@@ -390,3 +390,9 @@ Tickets use `acs:ticket:*:<accountId>:ticket/<userId>/<ticketId>`. Creating a ti
 MCP servers use `acs:mcp:*:<accountId>:server/<userId>/<serverId>`. `quyan:mcp:ListServers` authorizes each configuration; denied configurations are excluded. The server reads only permitted endpoints, tool allowlists and a credential-existence marker, not credential ciphertext.
 
 Creating a configuration with `quyan:mcp:CreateServer` checks the current user's resource and verifies that the user is active in the current account. MCP configurations can join resource groups in their account. Self-service management cannot access a foreign account's, another user's or a deleted configuration. Configuration authorization does not approve Agent tasks or tool execution; their own permissions and runtime safety constraints still apply.
+
+## Agent machine resource authorization
+
+Machines use `acs:agent:*:<accountId>:machine/<userId>/<machineId>`. `quyan:agent:ListMachines` authorizes each machine and shows only permitted state and capabilities, without reading registration credential hashes. `quyan:agent:CreateMachine` checks the current user's resource and verifies active account membership. The registration token is provided only in the successful creation response, not in lists.
+
+`quyan:agent:DeleteMachine` checks the specific machine and validates its actual user, account and data version before revocation. Self-service management cannot control another user's or a foreign account's machines. Active machines can join resource groups in their own account. Machine registration permissions do not grant workspace creation, task execution or tool approval permissions.

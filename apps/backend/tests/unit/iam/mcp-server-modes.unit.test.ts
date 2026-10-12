@@ -25,6 +25,7 @@ vi.mock("@/services/users/permission.service", () => ({
   PermissionService: { getInstance: () => ({ checkUserPermissions: mocks.check }) },
 }));
 vi.mock("@/util/logger", () => ({ getLogger: () => ({ warn: vi.fn() }), LogCategory: { SECURITY: "security" } }));
+vi.mock("@/services/agent/agent-machine-iam.service", () => ({ AgentMachineIamService: { getInstance: vi.fn() } }));
 import { AgentService } from "@/services/agent/agent.service";
 const repository = mockDeep<AgentRepository>(),
   pricing = mockDeep<ModelPricingRepository>();

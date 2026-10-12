@@ -44,6 +44,8 @@ import { skipResponseWrapper } from "@/util/response-wrapper";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
+import { agentMachineResourceResolver } from "@/iam/request/agent-resource-resolvers";
+
 @Route("v1/agent")
 @Tags("Agent")
 export class AgentController extends Controller {
@@ -52,31 +54,45 @@ export class AgentController extends Controller {
 
   @Get("machines")
   @Security("jwt")
-  @RequirePermission(Permission.AGENT_WORKSPACE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:agent:ListMachines",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   async listMachines(@Request() request: TypedRequest): Promise<ApiSuccessResponse<AgentMachineResponse[]>> {
-    return { code: 0, message: "Success", data: await this.service.listMachines(request.user!.userId) };
+    return { code: 0, message: "Success", data: await this.service.listMachines(request.user!.userId, request) };
   }
 
   @Post("machines")
   @Security("jwt")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(createAgentMachineBodySchema))
-  @RequirePermission(Permission.AGENT_WORKSPACE_WRITE)
+  @CheckPermission(Permission.AGENT_WORKSPACE_WRITE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:CreateMachine",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   async createMachine(
     @Body() body: CreateAgentMachineRequest,
     @Request() request: TypedRequest,
   ): Promise<ApiSuccessResponse<AgentMachineResponse>> {
     this.setStatus(HttpStatusCode.Created);
-    return { code: 0, message: "Success", data: await this.service.createMachine(request.user!.userId, body) };
+    return { code: 0, message: "Success", data: await this.service.createMachine(request.user!.userId, body, request) };
   }
 
   @Delete("machines/{machineId}")
   @Security("jwt")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
-  @RequirePermission(Permission.AGENT_WORKSPACE_WRITE)
+  @CheckPermission(Permission.AGENT_WORKSPACE_WRITE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:DeleteMachine",
+    resourceKind: "single-resource",
+    resource: agentMachineResourceResolver,
+  })
   async deleteMachine(@Path() machineId: string, @Request() request: TypedRequest): Promise<ApiSuccessResponse<void>> {
-    await this.service.deleteMachine(request.user!.userId, machineId);
+    await this.service.deleteMachine(request.user!.userId, machineId, request);
     return { code: 0, message: "Success" };
   }
 
