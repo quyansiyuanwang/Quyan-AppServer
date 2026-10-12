@@ -36,6 +36,12 @@ In IAM enforce mode, downloads independently require `quyan:system:data_lifecycl
 
 Only active, undeleted, unexpired files attached to active runs can be downloaded. The server authorizes before OSS reads, rechecks before cold-archive restoration and signing, and checks again before returning restore status or a temporary URL. Revocation or file changes during the request cause rejection; an OSS restore already requested is not automatically undone by subsequent revocation. Signed URLs remain valid for 300 seconds; later revocation cannot retroactively invalidate an OSS link already delivered. Do not share these links.
 
+## Policy and schedule update permissions
+
+In IAM enforce mode, `quyan:system:data_lifecycle:UpdatePolicy` controls enablement and hot-data retention on `acs:platform:*:platform:lifecycle-dataset/<dataset>`. `quyan:system:data_lifecycle:UpdateSchedule` controls the schedule switch and time on `acs:platform:*:platform:lifecycle-schedule/default`. Read access does not replace update access, and platform global-group eligibility remains required. Policy update responses retain candidate counts for that dataset, not raw candidate records.
+
+Saving rechecks identity, group, role session, resource versions and current authorization. Revocation or version conflicts inside the transaction reject or roll back the save. Both schedule settings are saved atomically rather than partially. Policy updates cannot change archive retention, dataset identity or background task status. Step-up authentication and replay protection remain required, and successful updates produce audit records.
+
 ## Execution Rules
 
 1. The policy table shows how many records will be archived and deleted.

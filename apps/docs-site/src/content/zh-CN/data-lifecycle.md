@@ -36,6 +36,12 @@ IAM 强制授权下，下载要求独立的 `quyan:system:data_lifecycle:Downloa
 
 下载只接受有效、未删除、未到期且关联有效运行的文件。服务端先授权再查询 OSS，在冷归档恢复和签名前复核，并在返回恢复状态或临时链接前再次检查。请求期间发生撤权或文件变化会被拒绝；已经发起的 OSS 恢复不会因之后撤权自动撤回。签名链接仍在 300 秒内有效，签发后的撤权不能追溯取消已经交付的 OSS 链接，请勿转发。
 
+## 策略与调度修改权限
+
+IAM 强制授权下，`quyan:system:data_lifecycle:UpdatePolicy` 控制 `acs:platform:*:platform:lifecycle-dataset/<dataset>` 的启用状态和热数据保留天数，`quyan:system:data_lifecycle:UpdateSchedule` 控制 `acs:platform:*:platform:lifecycle-schedule/default` 的调度开关和时间。读取权限不能替代修改权限，平台全局用户组资格仍是必要前提。策略修改响应保留该数据集的候选数量，但不包含候选原始记录。
+
+保存时会复核身份、用户组、角色会话、资源版本和最新授权；事务内撤权或版本冲突会拒绝或回滚保存。调度两项设置原子保存，不会只更新一半。策略不能通过此接口修改归档期限、数据集身份或后台任务状态。请求继续要求二次验证和重放保护，成功修改会产生审计记录。
+
 ## 执行规则
 
 1. 页面会在策略表中显示当前将归档和将删除的记录数。

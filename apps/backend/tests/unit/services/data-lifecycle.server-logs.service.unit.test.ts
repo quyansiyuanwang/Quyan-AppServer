@@ -49,6 +49,29 @@ vi.mock("@/store/system/observability.repository", () => ({
 
 import { promises as fs } from "fs";
 import path from "path";
+vi.mock("@/services/system/config.service", () => ({ ConfigService: { getInstance: vi.fn() } }));
+vi.mock("@/services/system/platform-lifecycle-read-iam.service", () => ({
+  PlatformLifecycleReadIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/system/platform-lifecycle-history-iam.service", () => ({
+  PlatformLifecycleHistoryIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/system/platform-lifecycle-download-iam.service", () => ({
+  PlatformLifecycleDownloadIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/system/platform-lifecycle-control-iam.service", () => ({
+  PlatformLifecycleControlIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/users/permission.service", () => ({ PermissionService: { getInstance: vi.fn() } }));
+vi.mock("@/services/system/businesslog.service", () => ({ default: { getInstance: vi.fn() } }));
+vi.mock("@/store/users/iam-account-principal", async () => {
+  const { ForbiddenError } = await import("@/util/errors");
+  return {
+    iamAccountDenied: () =>
+      new ForbiddenError("fixture unavailable", undefined, { messageKey: "permission.insufficientPermission" }),
+  };
+});
+
 import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
 
 describe("DataLifecycleService server log archival", () => {

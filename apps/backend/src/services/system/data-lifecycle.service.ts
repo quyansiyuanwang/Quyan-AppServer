@@ -14,6 +14,14 @@ import { DATA_LIFECYCLE_DATASETS, type DataLifecycleDataset } from "@/constant/d
 import { ConfigService } from "@/services/system/config.service";
 import { PlatformLifecycleReadIamService } from "./platform-lifecycle-read-iam.service";
 import { PlatformLifecycleHistoryIamService } from "./platform-lifecycle-history-iam.service";
+import { PlatformLifecycleControlIamService } from "./platform-lifecycle-control-iam.service";
+import BusinessLogService from "./businesslog.service";
+import { OperationType, OperationCategory } from "@/constant/operation-type";
+import { extractClientIp } from "@/util/ip-extractor";
+import {
+  updateLifecyclePolicyBodySchema,
+  updateLifecycleScheduleBodySchema,
+} from "@/api/schema/system/data-lifecycle.schema";
 import {
   PlatformLifecycleDownloadIamService,
   type LifecycleDownloadGuard,
@@ -63,6 +71,8 @@ export class DataLifecycleService {
     private readonly iamReads = PlatformLifecycleReadIamService.getInstance(),
     private readonly iamHistory = PlatformLifecycleHistoryIamService.getInstance(),
     private readonly iamDownloads = PlatformLifecycleDownloadIamService.getInstance(),
+    private readonly iamControls = PlatformLifecycleControlIamService.getInstance(),
+    private readonly businessLogs = BusinessLogService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
   ) {}
 
@@ -171,6 +181,77 @@ export class DataLifecycleService {
         : DEFAULT_SCHEDULE_TIME,
       timezone: SCHEDULE_TIMEZONE,
     };
+  }
+
+  private async auditLifecycleControl(
+    request: TypedRequest,
+    resourceType: string,
+    resourceId: string,
+    changes: Record<string, string | number | boolean>,
+  ) {
+    await this.businessLogs.logOperation({
+      operationType: OperationType.SYSTEM_CONFIG_UPDATE,
+      operationCategory: OperationCategory.SYSTEM,
+      actorUserId: getIamPrincipal(request)?.subjectUserId,
+      targetResourceType: resourceType,
+      targetResourceId: resourceId,
+      description: "Authorized lifecycle configuration updated",
+      changes,
+      success: true,
+      ipAddress: extractClientIp(request),
+    });
+  }
+  public async updatePolicyRequest(
+    dataset: string,
+    input: { enabled: boolean; hotRetentionDays: number },
+    request: TypedRequest,
+  ) {
+    const parsed = updateLifecyclePolicyBodySchema.strict().safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid lifecycle policy update", undefined, { messageKey: "errors.badRequest" });
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      await this.legacyLifecycleRead(request);
+      await this.shadowLifecycleRead(() =>
+        this.iamControls.prepare("quyan:system:data_lifecycle:UpdatePolicy", request, dataset, false),
+      );
+      return this.updatePolicy(dataset, parsed.data.enabled, parsed.data.hotRetentionDays);
+    }
+    const guard = await this.iamControls.prepare("quyan:system:data_lifecycle:UpdatePolicy", request, dataset);
+    if (!guard) throw iamAccountDenied();
+    const policy = await this.iamControls.updatePolicy(guard, parsed.data);
+    await this.auditLifecycleControl(request, "LIFECYCLE_POLICY", policy.id, { dataset, ...parsed.data });
+    const candidateCount = await this.countCandidates(
+      policy.dataset as DataLifecycleDataset,
+      this.cutoff(policy.hotRetentionDays),
+    );
+    await guard.users.recheck();
+    const current = await this.iamControls.policyTarget(guard);
+    if (
+      !current ||
+      current.id !== policy.id ||
+      current.status !== 1 ||
+      current.updateTime.getTime() !== policy.updateTime.getTime()
+    )
+      throw iamAccountDenied();
+    return { ...policy, candidateCount };
+  }
+  public async updateScheduleRequest(input: { enabled: boolean; time: string }, request: TypedRequest) {
+    const parsed = updateLifecycleScheduleBodySchema.strict().safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid lifecycle schedule update", undefined, { messageKey: "errors.badRequest" });
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      await this.legacyLifecycleRead(request);
+      await this.shadowLifecycleRead(() =>
+        this.iamControls.prepare("quyan:system:data_lifecycle:UpdateSchedule", request, undefined, false),
+      );
+      return this.updateSchedule(parsed.data, getIamPrincipal(request)?.subjectUserId, request);
+    }
+    const guard = await this.iamControls.prepare("quyan:system:data_lifecycle:UpdateSchedule", request);
+    if (!guard) throw iamAccountDenied();
+    await this.iamControls.updateSchedule(guard, parsed.data);
+    await this.auditLifecycleControl(request, "LIFECYCLE_SCHEDULE", "default", parsed.data);
+    await guard.users.recheck();
+    return { ...parsed.data, timezone: SCHEDULE_TIMEZONE };
   }
 
   public async updateSchedule(input: { enabled: boolean; time: string }, actorUserId?: string, request?: Request) {

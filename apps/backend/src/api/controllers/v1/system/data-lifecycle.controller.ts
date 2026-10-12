@@ -91,7 +91,13 @@ export class DataLifecycleController extends Controller {
 
   @Put("schedule")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:UpdateSchedule",
+      resourceKind: "single-resource",
+      resource: platformLifecycleScheduleResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -103,14 +109,20 @@ export class DataLifecycleController extends Controller {
     @Request() request: TypedRequest,
     @Body() body: UpdateDataLifecycleScheduleRequest,
   ): Promise<DataLifecycleScheduleDTO> {
-    const schedule = await this.service.updateSchedule(body, request.user?.userId, request);
+    const schedule = await this.service.updateScheduleRequest(body, request);
     await this.scheduler.refreshSchedule();
     return schedule;
   }
 
   @Put("policies/{dataset}")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:UpdatePolicy",
+      resourceKind: "single-resource",
+      resource: platformLifecycleDatasetResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -120,10 +132,11 @@ export class DataLifecycleController extends Controller {
     validateBody(updateLifecyclePolicyBodySchema),
   )
   public async updatePolicy(
+    @Request() request: TypedRequest,
     @Path() dataset: string,
     @Body() body: UpdateDataLifecyclePolicyRequest,
   ): Promise<DataLifecyclePolicyDTO> {
-    return this.service.updatePolicy(dataset, body.enabled, body.hotRetentionDays);
+    return this.service.updatePolicyRequest(dataset, body, request);
   }
 
   @Get("policies/{dataset}/preview")

@@ -64,6 +64,11 @@ vi.mock("@/store/users/iam-account-principal", async () => {
   };
 });
 
+vi.mock("@/services/system/platform-lifecycle-control-iam.service", () => ({
+  PlatformLifecycleControlIamService: { getInstance: vi.fn() },
+}));
+vi.mock("@/services/system/businesslog.service", () => ({ default: { getInstance: vi.fn() } }));
+
 import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
 
 describe("DataLifecycleService", () => {
