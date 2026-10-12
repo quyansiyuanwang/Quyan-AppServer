@@ -292,4 +292,39 @@ describe("Auth center client resource authorization database", () => {
     expect(await service.list(actor, request())).toEqual([]);
     await expect(service.get(actor, visible, request())).rejects.toMatchObject({ statusCode: 403 });
   });
+  it("accepts a current OAuth token carrying the canonical Auth Center read scope and still applies IAM per resource", async () => {
+    await grant();
+    const login = await prisma.oAuthClient.create({
+      data: {
+        userId: actor,
+        name: "fixture login",
+        clientId: "login-" + randomUUID(),
+        reviewStatus: "approved",
+        grantTypes: ["authorization_code"],
+        scopes: [Permission.AUTH_CENTER_CLIENT_READ],
+        redirectUris: [],
+      },
+    });
+    const token = await prisma.oAuthAccessToken.create({
+      data: {
+        userId: actor,
+        oauthClientId: login.id,
+        tokenHash: "fixture-" + randomUUID(),
+        scopes: [Permission.AUTH_CENTER_CLIENT_READ],
+        expiresAt: new Date(Date.now() + 60000),
+      },
+    });
+    const req = request();
+    req.oauthAccessToken = {
+      id: token.id,
+      oauthClientId: login.id,
+      userId: actor,
+      scopes: [Permission.AUTH_CENTER_CLIENT_READ],
+      expiresAt: token.expiresAt.toISOString(),
+    } as any;
+    expect((await service.list(actor, req)).map((r) => r.id)).toEqual([visible]);
+    await expect(service.get(actor, hidden, req)).rejects.toMatchObject({ statusCode: 403 });
+    await prisma.oAuthClient.update({ where: { id: login.id }, data: { scopes: ["profile"] } });
+    await expect(service.get(actor, visible, req)).rejects.toMatchObject({ statusCode: 403 });
+  });
 });

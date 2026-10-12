@@ -54,6 +54,7 @@ const emoji = {
     categories: {
       identity: '👤',
       notification: '🔔',
+      auth_center: '🏛️🔐',
       oauth: '🔐',
       accesskey: '🪪',
       security: '🛡️',
@@ -65,6 +66,7 @@ const emoji = {
       email: { label: '📧', description: '📧🔁' },
       notification: { label: '🔔', description: '🔔⚙️' },
       oauth_client: { label: '🔐📱', description: '🔐📱⚙️' },
+      auth_center_client: { label: '🏛️📱', description: '🏛️📱🔐🛂' },
       accesskey: { label: '🪪', description: '🪪⚙️' },
       passkey: { label: '🔑', description: '🔑⚙️' },
       two_factor: { label: '2️⃣🛡️', description: '2️⃣🛡️⚙️' },

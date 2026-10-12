@@ -56,6 +56,7 @@ const en = {
     categories: {
       identity: 'Account identity',
       notification: 'Notifications',
+      auth_center: 'Auth Center',
       oauth: 'OAuth',
       accesskey: 'AccessKey',
       security: 'Account security',
@@ -73,6 +74,11 @@ const en = {
         description: 'Manage notification preferences and records.',
       },
       oauth_client: { label: 'OAuth apps', description: 'Manage the current user’s OAuth apps.' },
+      auth_center_client: {
+        label: 'Auth Center apps',
+        description:
+          "Access the current user's Auth Center application management APIs; each operation still requires IAM authorization.",
+      },
       accesskey: { label: 'AccessKeys', description: 'Manage the current user’s AccessKeys.' },
       passkey: { label: 'Passkeys', description: 'Manage the current user’s Passkeys.' },
       two_factor: {

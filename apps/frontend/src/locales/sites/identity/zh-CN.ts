@@ -54,6 +54,7 @@ const zhCN = {
     categories: {
       identity: '账户身份',
       notification: '通知',
+      auth_center: '认证中心',
       oauth: 'OAuth',
       accesskey: 'AccessKey',
       security: '账户安全',
@@ -65,6 +66,10 @@ const zhCN = {
       email: { label: '邮箱', description: '发起邮箱变更验证并提交邮箱修改。' },
       notification: { label: '通知', description: '管理通知偏好和通知记录。' },
       oauth_client: { label: 'OAuth 应用', description: '管理当前用户自己的 OAuth 应用。' },
+      auth_center_client: {
+        label: '认证中心应用',
+        description: '访问当前用户的认证中心应用管理接口；具体操作仍受 IAM 策略控制。',
+      },
       accesskey: { label: 'AccessKey', description: '管理当前用户自己的 AccessKey。' },
       passkey: { label: 'Passkey', description: '管理当前用户自己的 Passkey。' },
       two_factor: { label: '双因素认证', description: '管理当前用户的双因素认证设置。' },

@@ -225,3 +225,5 @@
 在 IAM 强制授权模式下，提交审核、轮换密钥和删除分别需要 `quyan:auth_center:SubmitClientReview`、`quyan:auth_center:RotateClientSecret` 和 `quyan:auth_center:DeleteClient`，目标均为上述应用 ARN。读取权限不会自动授予这些操作。轮换成功只在该次响应中返回新密钥，请立即安全保存；后续列表和详情仍只显示预览。操作期间若授权被撤销或应用版本改变，写入会被拒绝或回滚。
 
 编辑应用需要 `quyan:auth_center:UpdateClient` 对应应用资源权限。修改 scopes 时还会检查当前身份能否授予该 scope；使用角色会话时，以角色权限为准。编辑不能直接批准审核或写入客户端密钥。修改已批准或已拒绝应用的配置会将审核状态重置为草稿；切换为公开客户端时会清除原有密钥，并继续执行 PKCE 与授权类型校验。
+
+使用 OAuth bearer token 调用应用管理接口时，需要可授予的 `auth_center_client` scope（或等价的认证中心应用读取权限 scope）。该 scope 用于进入管理接口，不能代替 IAM 策略授权；应用的读取、编辑、删除、审核提交和密钥轮换仍分别检查操作权限与资源范围。角色会话不能借用登录用户在角色之外的权限来授予 scope。

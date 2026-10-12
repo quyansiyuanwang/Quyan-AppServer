@@ -1,4 +1,4 @@
-import { Permission, getOAuthScopeCatalog, getOAuthScopeDefinition } from "@quyan/shared";
+import { Permission, getOAuthScopeCatalog, getOAuthScopeDefinition, getOAuthScopeAliases } from "@quyan/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { permissionService } from "../../../src/services/users/permission.service";
 import { oauthScopeService } from "../../../src/services/oauth/oauth-scope.service";
@@ -65,5 +65,67 @@ describe("OAuth scope catalog", () => {
       }),
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(full).toHaveBeenLastCalledWith("user-1", { assumedRoleSessionId: "narrow-role" });
+  });
+  it("registers the existing Auth Center management scope with a single read-permission alias", () => {
+    const definition = getOAuthScopeDefinition("auth_center_client");
+    expect(definition).toMatchObject({
+      category: "auth_center",
+      requiredPermissions: [Permission.AUTH_CENTER_CLIENT_READ],
+      riskLevel: "high",
+    });
+    expect(getOAuthScopeAliases("auth_center_client")).toEqual([
+      "auth_center_client",
+      Permission.AUTH_CENTER_CLIENT_READ,
+    ]);
+    expect(getOAuthScopeAliases(Permission.AUTH_CENTER_CLIENT_READ)).toContain("auth_center_client");
+    for (const unrelated of [
+      "oauth_client",
+      Permission.AUTH_CENTER_CLIENT_CREATE,
+      Permission.AUTH_CENTER_CLIENT_DELETE,
+    ])
+      expect(getOAuthScopeAliases(unrelated)).not.toContain("auth_center_client");
+  });
+  it("permits Auth Center scope issuance only when the current principal has its prerequisite", async () => {
+    const permissions = vi.spyOn(permissionService, "getUserFullPermissions");
+    permissions.mockResolvedValue({
+      userId: "actor",
+      accountOwnerId: "owner",
+      groupPermissions: [],
+      additionalPermissions: [],
+      removedPermissions: [],
+      effectivePermissions: [Permission.AUTH_CENTER_CLIENT_READ],
+    });
+    await expect(
+      oauthScopeService.normalizeAndAssertGrantable("actor", ["auth_center_client", "auth_center_client"]),
+    ).resolves.toEqual(["auth_center_client"]);
+    permissions.mockResolvedValue({
+      userId: "actor",
+      accountOwnerId: "owner",
+      groupPermissions: [],
+      additionalPermissions: [],
+      removedPermissions: [],
+      effectivePermissions: [],
+    });
+    await expect(oauthScopeService.normalizeAndAssertGrantable("actor", ["auth_center_client"])).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+  it("does not use the account user's broader grant for Auth Center scope issuance in a role session", async () => {
+    const permissions = vi
+      .spyOn(permissionService, "getUserFullPermissions")
+      .mockImplementation(async (_userId, options) => ({
+        userId: "actor",
+        accountOwnerId: "owner",
+        groupPermissions: [],
+        additionalPermissions: [],
+        removedPermissions: [],
+        effectivePermissions: options?.assumedRoleSessionId ? [] : [Permission.AUTH_CENTER_CLIENT_READ],
+      }));
+    await expect(
+      oauthScopeService.normalizeAndAssertGrantable("actor", ["auth_center_client"], {
+        assumedRoleSessionId: "restricted-role",
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(permissions).toHaveBeenLastCalledWith("actor", { assumedRoleSessionId: "restricted-role" });
   });
 });
