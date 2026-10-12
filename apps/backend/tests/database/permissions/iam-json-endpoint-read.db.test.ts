@@ -202,3 +202,60 @@ describe("JSON Endpoint scoped reads", () => {
     await expect(repository.hydrate(principal(), [target])).rejects.toMatchObject({ statusCode: 403 });
   });
 });
+
+describe("JSON Endpoint snapshot deletion", () => {
+  it("refuses stale, foreign and peer-misbound deletion snapshots", async () => {
+    const selected = await endpoint(),
+      target = (await repository.target(principal(), selected.id))!;
+    await expect(repository.deleteTarget(principal(foreign), target)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(repository.deleteTarget(principal(), { ...target, userId: peer })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await prisma.jsonEndpoint.update({
+      where: { id: selected.id },
+      data: { name: "changed", updateTime: new Date(target.updateTime.getTime() + 1_000) },
+    });
+    await expect(repository.deleteTarget(principal(), target)).rejects.toMatchObject({ statusCode: 403 });
+    expect((await prisma.jsonEndpoint.findUnique({ where: { id: selected.id } }))?.status).toBe(1);
+  });
+  it("soft deletes exactly one authorized snapshot and cannot delete it twice", async () => {
+    const selected = await endpoint(peer),
+      target = (await repository.target(principal(), selected.id))!;
+    const result = await repository.deleteTarget(principal(), target);
+    expect(Object.keys(result).sort()).toEqual(["id", "name", "slug", "userId"]);
+    expect((await prisma.jsonEndpoint.findUnique({ where: { id: selected.id } }))?.status).toBe(-1);
+    await expect(repository.deleteTarget(principal(), target)).rejects.toMatchObject({ statusCode: 403 });
+    expect(await repository.target(principal(), selected.id)).toBeNull();
+  });
+  it("checks account validity and role session inside deletion", async () => {
+    const selected = await endpoint(),
+      target = (await repository.target(principal(), selected.id))!;
+    await expect(
+      repository.deleteTarget(
+        { ...principal(), subjectType: "assumed_role", assumedRoleId: "role", roleSessionId: "missing" },
+        target,
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await prisma.user.update({ where: { id: owner }, data: { status: 0 } });
+    await expect(repository.deleteTarget(principal(), target)).rejects.toMatchObject({ statusCode: 403 });
+    expect((await prisma.jsonEndpoint.findUnique({ where: { id: selected.id } }))?.status).toBe(1);
+  });
+  it("native Delete cannot be rescued by read-only grants and observes binding revocation", async () => {
+    const selected = await endpoint(peer),
+      resource = jsonEndpointArn(owner, peer, selected.id);
+    await bind({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:json_endpoint:GetEndpoint", Resource: resource },
+    });
+    await expect(service.delete(actor, selected.id, request())).rejects.toMatchObject({ statusCode: 403 });
+    const deletion = await bind({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:json_endpoint:DeleteEndpoint", Resource: resource },
+    });
+    await prisma.ramAuthorization.update({ where: { id: deletion.id }, data: { status: -1 } });
+    await expect(service.delete(actor, selected.id, request())).rejects.toMatchObject({ statusCode: 403 });
+    await prisma.ramAuthorization.update({ where: { id: deletion.id }, data: { status: 1 } });
+    expect((await service.delete(actor, selected.id, request())).id).toBe(selected.id);
+    expect((await prisma.jsonEndpoint.findUnique({ where: { id: selected.id } }))?.status).toBe(-1);
+  });
+});

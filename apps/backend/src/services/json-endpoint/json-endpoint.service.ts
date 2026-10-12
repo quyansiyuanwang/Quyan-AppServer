@@ -449,12 +449,29 @@ export class JsonEndpointService {
    * 删除端点
    */
   async deleteEndpoint(id: string, userId: string, request?: Request): Promise<void> {
-    const endpoint = await this.repository.findById(id);
-    if (!endpoint) throw new NotFoundError("端点不存在", undefined, { messageKey: "errors.endpointNotFound" });
-
-    await this.assertCanAccessEndpoint(endpoint, userId);
-
-    await this.repository.delete(id);
+    let endpoint: Pick<JsonEndpoint, "id" | "name" | "slug" | "userId">;
+    if (env.security.iamAuthorizationMode === "enforce")
+      endpoint = await this.iam.delete(userId, id, request as TypedRequest | undefined);
+    else {
+      const principal = request && getIamPrincipal(request as TypedRequest);
+      if (request && (!principal || principal.subjectUserId !== userId)) throw jsonEndpointDenied();
+      const options = { assumedRoleSessionId: principal?.roleSessionId };
+      const manage = await this.permissionService.checkUserPermissions(
+          userId,
+          [Permission.JSON_ENDPOINT_MANAGE],
+          options,
+        ),
+        own = await this.permissionService.checkUserPermissions(userId, [Permission.JSON_ENDPOINT_DELETE], options);
+      if (!manage.hasPermission && !own.hasPermission) throw jsonEndpointDenied();
+      await this.shadowRead("quyan:json_endpoint:DeleteEndpoint", () =>
+        this.iam.authorizeDeletion(userId, id, request as TypedRequest | undefined),
+      );
+      const record = await this.repository.findById(id);
+      if (!record) throw new NotFoundError("Endpoint not found", undefined, { messageKey: "errors.endpointNotFound" });
+      if (record.userId !== userId && !manage.hasPermission) throw jsonEndpointDenied();
+      endpoint = record;
+      await this.repository.delete(id);
+    }
 
     // 记录业务日志
     await this.businessLogService.logOperation({

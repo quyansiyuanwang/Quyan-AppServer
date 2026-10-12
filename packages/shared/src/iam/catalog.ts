@@ -809,6 +809,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       authorizationStage: 'declared',
     }),
   ),
+  {
+    action: 'quyan:json_endpoint:DeleteEndpoint',
+    service: 'json_endpoint',
+    operation: 'DeleteEndpoint',
+    accessLevel: 'Write',
+    resourceTypes: ['json-endpoint/endpoint'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermissions: [Permission.JSON_ENDPOINT_DELETE, Permission.JSON_ENDPOINT_MANAGE],
+  },
   ...['CreateAccessKey', 'SendAccessKeyCreationVerificationCode'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:ram:' + operation,

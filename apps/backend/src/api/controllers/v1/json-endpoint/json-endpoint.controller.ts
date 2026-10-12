@@ -149,7 +149,18 @@ export class JsonEndpointController extends Controller {
    */
   @Delete("{id}")
   @Security("jwt")
-  @RequireAnyPermission([Permission.JSON_ENDPOINT_DELETE, Permission.JSON_ENDPOINT_MANAGE])
+  @CheckPermission([Permission.JSON_ENDPOINT_DELETE, Permission.JSON_ENDPOINT_MANAGE], PermissionCheckMode.ANY, "jwt", [
+    {
+      action: "quyan:json_endpoint:DeleteEndpoint",
+      resourceKind: "single-resource",
+      resource: jsonEndpointResourceResolver,
+    },
+    {
+      action: "quyan:json_endpoint:DeleteEndpoint",
+      resourceKind: "single-resource",
+      resource: jsonEndpointResourceResolver,
+    },
+  ])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "端点不存在")
   @Middlewares(replayProtectionMiddleware, validateParams(jsonEndpointIdParamsSchema))

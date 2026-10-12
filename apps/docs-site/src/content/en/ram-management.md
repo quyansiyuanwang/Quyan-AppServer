@@ -431,4 +431,6 @@ In IAM enforce mode, management lists and details use `quyan:json_endpoint:ListE
 
 The owner selector uses the separate `quyan:json_endpoint:ListEndpointOwners` Action on `acs:quyan:*:<accountId>:user/<userId>`. Reading an endpoint does not grant permission to enumerate all account usernames. Management APIs do not return access passwords or password hashes. The old endpoint-read permission remains limited to the user's own endpoints; the old management permission covers endpoints in the current account, not every account on the platform.
 
-This section covers management reads only. Public JSON password checks, Ed25519 signatures, time validity, and nonce replay protection are unchanged. Creation, updates, and deletion still use the existing permission bridge; these read Actions do not authorize those operations.
+Deletion requires the separate `quyan:json_endpoint:DeleteEndpoint` Action on the same resource type. Read grants do not authorize deletion. Policies and resource revisions are rechecked before deletion; concurrent changes, disabled accounts, invalid role sessions, or revoked grants block the operation. The old delete permission remains limited to the user's own endpoints; deleting another user's specific endpoint in the same account requires an explicit grant.
+
+Public JSON password checks, Ed25519 signatures, time validity, and nonce replay protection are unchanged. Creation and updates still use the existing permission bridge; read or delete Actions do not authorize those operations.

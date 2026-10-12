@@ -66,18 +66,22 @@ export function legacyPermissionsToPrincipalPolicy(
     actionForPermission(Permission.ARTICLE_UPDATE),
     actionForPermission(Permission.ARTICLE_DELETE),
   ]);
-  const nativeJsonRead = new Set(["quyan:json_endpoint:ListEndpoints", "quyan:json_endpoint:GetEndpoint"]);
-  const ownJsonRead = !parseLegacyPermissions(input).includes(Permission.JSON_ENDPOINT_MANAGE);
+  const nativeJsonOwnerActions = new Set([
+    "quyan:json_endpoint:ListEndpoints",
+    "quyan:json_endpoint:GetEndpoint",
+    "quyan:json_endpoint:DeleteEndpoint",
+  ]);
+  const ownJsonAccess = !parseLegacyPermissions(input).includes(Permission.JSON_ENDPOINT_MANAGE);
   const statements: NormalizedIamPolicyDocument["Statement"] = [];
   for (const statement of document.Statement) {
     const limited = statement.Action.filter((action) => authorOnly.has(action));
     const list: string[] = statement.Action.filter((action) => action === "quyan:article:ListArticles");
-    const jsonRead = ownJsonRead ? statement.Action.filter((action) => nativeJsonRead.has(action)) : [];
-    if (jsonRead.length)
+    const jsonAccess = ownJsonAccess ? statement.Action.filter((action) => nativeJsonOwnerActions.has(action)) : [];
+    if (jsonAccess.length)
       statements.push({
         Effect: "Allow",
-        Sid: "LegacyJsonEndpointOwnRead",
-        Action: jsonRead,
+        Sid: "LegacyJsonEndpointOwnAccess",
+        Action: jsonAccess,
         Resource: [
           IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "json-endpoint/endpoint")!
             .arnTemplate.replace("{accountId}", accountOwnerId)
@@ -86,7 +90,7 @@ export function legacyPermissionsToPrincipalPolicy(
         ],
       });
     const other = statement.Action.filter(
-      (action) => !authorOnly.has(action) && !list.includes(action) && !jsonRead.includes(action),
+      (action) => !authorOnly.has(action) && !list.includes(action) && !jsonAccess.includes(action),
     );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>

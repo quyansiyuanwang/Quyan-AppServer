@@ -54,10 +54,12 @@ beforeEach(() => {
   request = {
     user: { userId: "actor" },
     authContext: { principalUserId: "actor", accountOwnerId: "owner", roleSessionId: "session" },
+    ip: "127.0.0.1",
     params: { id: "endpoint" },
     headers: {},
   } as unknown as TypedRequest;
   repository = {
+    delete: vi.fn(),
     findById: vi.fn().mockResolvedValue(endpoint),
     findByUserId: vi.fn().mockResolvedValue([endpoint]),
     findAll: vi.fn().mockResolvedValue([endpoint]),
@@ -67,20 +69,20 @@ beforeEach(() => {
     listNonDeleted: vi.fn().mockResolvedValue([]),
   };
   permission = {
-    checkUserPermissions: vi
-      .fn()
-      .mockImplementation(async (_userId, required) => ({
-        hasPermission: required.includes(Permission.JSON_ENDPOINT_READ),
-      })),
+    checkUserPermissions: vi.fn().mockImplementation(async (_userId, required) => ({
+      hasPermission: required.includes(Permission.JSON_ENDPOINT_READ),
+    })),
   };
   iam = {
+    delete: vi.fn().mockResolvedValue(endpoint),
+    authorizeDeletion: vi.fn(),
     list: vi.fn().mockResolvedValue([]),
     get: vi.fn().mockResolvedValue({ id: "endpoint" }),
     owners: vi.fn().mockResolvedValue([]),
   };
   service = new (JsonEndpointService as unknown as new (...args: any[]) => JsonEndpointService)(
     repository,
-    {},
+    { logOperation: vi.fn() },
     users,
     permission,
     {},
@@ -97,7 +99,10 @@ describe("JSON Endpoint read rollout and resolvers", () => {
     const reads = routes.filter((r) => r.key.startsWith("GET "));
     expect(reads).toHaveLength(3);
     expect(reads.every((r) => r.coverage === "explicit" && r.issues.length === 0)).toBe(true);
-    expect(routes.filter((r) => !r.key.startsWith("GET ")).every((r) => r.coverage === "legacy")).toBe(true);
+    expect(routes.find((r) => r.key.startsWith("DELETE "))?.coverage).toBe("explicit");
+    expect(
+      routes.filter((r) => r.key.startsWith("POST ") || r.key.startsWith("PUT ")).every((r) => r.coverage === "legacy"),
+    ).toBe(true);
   });
   it("enforce uses IAM-only payload paths and no legacy global reads", async () => {
     await service.listEndpoints("actor", "peer", request);
@@ -162,5 +167,40 @@ describe("JSON Endpoint read rollout and resolvers", () => {
     expect(await jsonEndpointResourceResolver({ request, principal })).toBeUndefined();
     request.params.id = "*";
     expect(await jsonEndpointResourceResolver({ request, principal })).toBeUndefined();
+  });
+});
+
+describe("JSON Endpoint delete rollout", () => {
+  it("enforce calls the snapshot-guarded IAM deletion only", async () => {
+    await service.deleteEndpoint("endpoint", "actor", request);
+    expect(iam.delete).toHaveBeenCalledWith("actor", "endpoint", request);
+    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.findById).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("%s refuses missing permissions before metadata or mutation", async (mode) => {
+    mocks.mode = mode;
+    permission.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.deleteEndpoint("endpoint", "actor", request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.findById).not.toHaveBeenCalled();
+    expect(repository.delete).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("%s Delete cannot delete a peer resource", async (mode) => {
+    mocks.mode = mode;
+    permission.checkUserPermissions.mockImplementation(async (_id, required) => ({
+      hasPermission: required.includes(Permission.JSON_ENDPOINT_DELETE),
+    }));
+    repository.findById.mockResolvedValue({ ...endpoint, userId: "peer" });
+    await expect(service.deleteEndpoint("endpoint", "actor", request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.delete).not.toHaveBeenCalled();
+  });
+  it("shadow evaluates without a second mutation and safely logs evaluation failure", async () => {
+    mocks.mode = "shadow";
+    permission.checkUserPermissions.mockResolvedValue({ hasPermission: true });
+    iam.authorizeDeletion.mockRejectedValue(new Error("secret policy content"));
+    await service.deleteEndpoint("endpoint", "actor", request);
+    expect(iam.authorizeDeletion).toHaveBeenCalledWith("actor", "endpoint", request);
+    expect(iam.delete).not.toHaveBeenCalled();
+    expect(repository.delete).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain("secret policy content");
   });
 });

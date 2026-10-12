@@ -142,6 +142,21 @@ export class JsonEndpointIamService {
       )
     ).sort((a, b) => a.username.localeCompare(b.username));
   }
+  async authorizeDeletion(userId: string, id: string, request?: TypedRequest) {
+    const { request: trusted, principal } = await this.actor(userId, request);
+    if (!isCanonicalJsonEndpointId(id)) throw jsonEndpointDenied();
+    const target = await this.repository.target(principal, id);
+    if (!target || target.id !== id || !isCanonicalJsonEndpointId(target.userId)) throw jsonEndpointDenied();
+    const resource = jsonEndpointArn(principal.accountOwnerId, target.userId, target.id);
+    for (let check = 0; check < 2; check++)
+      if ((await this.allowed(trusted, principal, "quyan:json_endpoint:DeleteEndpoint", [resource])).length !== 1)
+        throw jsonEndpointDenied();
+    return { principal, target };
+  }
+  async delete(userId: string, id: string, request?: TypedRequest) {
+    const { principal, target } = await this.authorizeDeletion(userId, id, request);
+    return this.repository.deleteTarget(principal, target);
+  }
   async get(userId: string, id: string, request?: TypedRequest) {
     const { request: trusted, principal } = await this.actor(userId, request);
     if (!isCanonicalJsonEndpointId(id)) throw jsonEndpointDenied();

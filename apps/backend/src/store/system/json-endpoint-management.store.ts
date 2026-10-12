@@ -5,6 +5,10 @@ export type JsonEndpointPublicView = Omit<JsonEndpoint, "apiKey"> & { hasPasswor
 export type JsonEndpointOwnerTarget = { id: string; userId: string; createTime: Date; updateTime: Date };
 export interface JsonEndpointManagementStore {
   assertActor(principal: IamPrincipal): Promise<void>;
+  deleteTarget(
+    principal: IamPrincipal,
+    target: JsonEndpointTarget,
+  ): Promise<{ id: string; userId: string; name: string; slug: string }>;
   assertOwner(principal: IamPrincipal, userId: string): Promise<void>;
   scan(principal: IamPrincipal, ownerUserId?: string, after?: JsonEndpointTarget): Promise<JsonEndpointTarget[]>;
   target(principal: IamPrincipal, id: string): Promise<JsonEndpointTarget | null>;

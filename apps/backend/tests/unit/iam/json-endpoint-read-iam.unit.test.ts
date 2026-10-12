@@ -58,6 +58,7 @@ beforeEach(() => {
     assertOwner: vi.fn(),
     scan: vi.fn().mockResolvedValue([target()]),
     target: vi.fn().mockResolvedValue(target()),
+    deleteTarget: vi.fn().mockResolvedValue({ id: "ep-z", userId: "actor", name: "fixture", slug: "fixture" }),
     hydrate: vi
       .fn()
       .mockImplementation(async (_p, rows) => rows.map((t: { id: string; userId: string }) => view(t.id, t.userId))),
@@ -184,5 +185,69 @@ describe("JSON Endpoint read IAM", () => {
     iam.loadPolicies.mockRejectedValue(new Error("fixture unavailable"));
     await expect(service.list("actor", undefined, request)).rejects.toThrow("fixture unavailable");
     expect(repository.scan).not.toHaveBeenCalled();
+  });
+});
+
+describe("JSON Endpoint resource deletion", () => {
+  it("registers a sensitive exact-resource write with Read excluded", () => {
+    const action = "quyan:json_endpoint:DeleteEndpoint";
+    expect(getIamActionDefinition(action)).toMatchObject({
+      sensitive: true,
+      resourceTypes: ["json-endpoint/endpoint"],
+    });
+    expect(iamActionsForLegacyPermission(Permission.JSON_ENDPOINT_DELETE)).toContain(action);
+    expect(iamActionsForLegacyPermission(Permission.JSON_ENDPOINT_MANAGE)).toContain(action);
+    expect(iamActionsForLegacyPermission(Permission.JSON_ENDPOINT_READ)).not.toContain(action);
+  });
+  it("old Delete preserves own endpoints and never silently grants peer deletion", () => {
+    const action = "quyan:json_endpoint:DeleteEndpoint",
+      document = legacyPermissionsToPrincipalPolicy([Permission.JSON_ENDPOINT_DELETE], "owner", "actor")!;
+    expect(
+      evaluatePolicies([{ policyId: "legacy", document }], {
+        action,
+        resource: "acs:json-endpoint:*:owner:endpoint/actor/ep-z",
+      }).decision,
+    ).toBe("Allow");
+    expect(
+      evaluatePolicies([{ policyId: "legacy", document }], {
+        action,
+        resource: "acs:json-endpoint:*:owner:endpoint/peer/ep-z",
+      }).decision,
+    ).toBe("ImplicitDeny");
+  });
+  it("authorizes actual metadata and commits only the original snapshot", async () => {
+    await service.delete("actor", "ep-z", request);
+    expect(iam.authorizeMany).toHaveBeenCalledTimes(2);
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "quyan:json_endpoint:DeleteEndpoint",
+        resources: ["acs:json-endpoint:*:owner:endpoint/actor/ep-z"],
+      }),
+    );
+    expect(repository.deleteTarget).toHaveBeenCalledWith(principal, target());
+    expect(repository.hydrate).not.toHaveBeenCalled();
+  });
+  it.each(["ExplicitDeny", "ImplicitDeny"])("refuses %s before mutation", async (decision) => {
+    iam.authorizeMany.mockResolvedValue([{ ...allow, decision }]);
+    await expect(service.delete("actor", "ep-z", request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.deleteTarget).not.toHaveBeenCalled();
+  });
+  it("refuses a revocation between the two checks", async () => {
+    iam.authorizeMany.mockResolvedValueOnce([allow]).mockResolvedValueOnce([{ ...allow, decision: "ExplicitDeny" }]);
+    await expect(service.delete("actor", "ep-z", request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.deleteTarget).not.toHaveBeenCalled();
+  });
+  it("shadow-only evaluation cannot write", async () => {
+    await service.authorizeDeletion("actor", "ep-z", request);
+    expect(repository.deleteTarget).not.toHaveBeenCalled();
+  });
+  it("refuses absent or misbound records and authorization outages", async () => {
+    for (const row of [null, target("different"), target("ep-z", "bad/id")]) {
+      repository.target.mockResolvedValue(row);
+      await expect(service.delete("actor", "ep-z", request)).rejects.toMatchObject({ statusCode: 403 });
+    }
+    iam.loadPolicies.mockRejectedValue(new Error("fixture unavailable"));
+    await expect(service.delete("actor", "ep-z", request)).rejects.toThrow("fixture unavailable");
+    expect(repository.deleteTarget).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,8 @@
 import { MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
+import { Prisma } from "@prisma/client";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
-import { ForbiddenError } from "@/util/errors";
+import { ConflictError, ForbiddenError } from "@/util/errors";
 import type {
   JsonEndpointManagementStore,
   JsonEndpointTarget,
@@ -45,14 +46,14 @@ export class JsonEndpointManagementRepository implements JsonEndpointManagementS
   static getInstance() {
     return (this.instance ??= new JsonEndpointManagementRepository());
   }
-  async assertActor(principal: IamPrincipal) {
+  async assertActor(principal: IamPrincipal, tx: Prisma.TransactionClient = prisma) {
     if (principal.subjectUserId !== principal.principalUserId) throw jsonEndpointDenied();
     const [actor, owner] = await Promise.all([
-      prisma.user.findFirst({
+      tx.user.findFirst({
         where: { ...accountUsers(principal.accountOwnerId), id: principal.subjectUserId },
         select: { id: true },
       }),
-      prisma.user.findFirst({
+      tx.user.findFirst({
         where: { ...accountUsers(principal.accountOwnerId), id: principal.accountOwnerId },
         select: { id: true },
       }),
@@ -61,7 +62,7 @@ export class JsonEndpointManagementRepository implements JsonEndpointManagementS
     if (principal.subjectType === "assumed_role" || principal.assumedRoleId || principal.roleSessionId) {
       if (principal.subjectType !== "assumed_role" || !principal.assumedRoleId || !principal.roleSessionId)
         throw jsonEndpointDenied();
-      const session = await prisma.ramRoleSession.findFirst({
+      const session = await tx.ramRoleSession.findFirst({
         where: {
           id: principal.roleSessionId,
           subjectUserId: actor.id,
@@ -126,6 +127,37 @@ export class JsonEndpointManagementRepository implements JsonEndpointManagementS
       orderBy: [{ createTime: "desc" }, { id: "desc" }],
     });
     return rows.map(({ apiKey, user, ...row }) => ({ ...row, hasPassword: !!apiKey, ownerUsername: user.username }));
+  }
+  async deleteTarget(principal: IamPrincipal, target: JsonEndpointTarget) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          await this.assertActor(principal, tx);
+          const where = {
+            id: target.id,
+            userId: target.userId,
+            updateTime: target.updateTime,
+            status: MANAGED_STATUS.ENABLED,
+            user: accountUsers(principal.accountOwnerId),
+          };
+          const record = await tx.jsonEndpoint.findFirst({
+            where,
+            select: { id: true, userId: true, name: true, slug: true },
+          });
+          if (!record) throw jsonEndpointDenied();
+          const changed = await tx.jsonEndpoint.updateMany({ where, data: { status: MANAGED_STATUS.DELETED } });
+          if (changed.count !== 1) throw jsonEndpointDenied();
+          return record;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034")
+        throw new ConflictError("JSON Endpoint changed after authorization", undefined, {
+          messageKey: "errors.conflict",
+        });
+      throw error;
+    }
   }
   async scanOwners(principal: IamPrincipal, after?: JsonEndpointOwnerTarget) {
     await this.assertActor(principal);
