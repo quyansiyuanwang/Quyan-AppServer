@@ -11,6 +11,8 @@ import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PlatformMaintenanceRunIamService } from "./platform-maintenance-run-iam.service";
 import { PlatformMaintenancePreviewIamService } from "./platform-maintenance-preview-iam.service";
 import { PlatformMaintenanceOptimizeIamService } from "./platform-maintenance-optimize-iam.service";
+import { PlatformMaintenanceImportIamService } from "./platform-maintenance-import-iam.service";
+import type { MaintenanceImportGuard } from "@/store/system/platform-maintenance-import.store";
 import { optimizeBodySchema } from "@/api/schema/system/data-maintenance.schema";
 import type { OptimizeRequest } from "@/api/dto/system/data-maintenance.dto";
 import { BadRequestError, NotFoundError } from "@/util/errors";
@@ -162,6 +164,7 @@ export class DataMaintenanceService {
     private readonly permissions = PermissionService.getInstance(),
     private readonly previews = PlatformMaintenancePreviewIamService.getInstance(),
     private readonly optimizeWrites = PlatformMaintenanceOptimizeIamService.getInstance(),
+    private readonly importWrites = PlatformMaintenanceImportIamService.getInstance(),
   ) {}
 
   public static getInstance(): DataMaintenanceService {
@@ -286,7 +289,36 @@ export class DataMaintenanceService {
     };
   }
 
-  public async createImportRun(dataset: string, buffer: Buffer, actorUserId?: string, requestId?: string) {
+  public async createImportRequest(dataset: string, buffer: Buffer, request: TypedRequest) {
+    if (request.headers["x-maintenance-confirmation"] !== "IMPORT")
+      throw new BadRequestError("Confirmation phrase is invalid", undefined, {
+        messageKey: "system.invalidConfirmationPhrase",
+      });
+    assertDataset(dataset);
+    const requestId = this.maintenanceRequestId(request);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.importWrites.prepare([dataset], request);
+      if (!guard) throw iamAccountDenied();
+      return this.createImportRun(dataset, buffer, guard.users.principal.subjectUserId, requestId, guard);
+    }
+    await this.assertLegacyRead(request);
+    await this.shadowRead(() => this.importWrites.prepare([dataset], request, false));
+    return this.createImportRun(dataset, buffer, request.user?.userId, requestId);
+  }
+  public async createImportRun(
+    dataset: string,
+    buffer: Buffer,
+    actorUserId?: string,
+    requestId?: string,
+    guard?: MaintenanceImportGuard,
+  ) {
+    if (
+      guard &&
+      (guard.datasets.length !== 1 ||
+        guard.datasets[0] !== dataset ||
+        guard.users.principal.subjectUserId !== actorUserId)
+    )
+      throw iamAccountDenied();
     assertDataset(dataset);
     const preview = await this.previewImport(dataset, buffer);
     if (!preview.executable)
@@ -298,25 +330,35 @@ export class DataMaintenanceService {
     const sha256 = createHash("sha256").update(buffer).digest("hex");
     const objectKey = `${env.integrations.objectStorage.staging.prefix}/maintenance/import/${new Date().toISOString().slice(0, 10)}/${Date.now()}-${sha256}.ndjson.gz`;
     const client = this.getOssClient();
-    await client.put(objectKey, buffer, {
-      headers: {
-        "Content-Type": "application/gzip",
-        "x-oss-meta-sha256": sha256,
-        "x-oss-storage-class": TEMPORARY_IMPORT_STORAGE_CLASS,
-      },
-    });
-    const metadata = getOssHeaders(await client.head(objectKey));
-    if (
-      metadata["x-oss-meta-sha256"] !== sha256 ||
-      Number(metadata["content-length"] || 0) !== buffer.length ||
-      metadata["x-oss-storage-class"]?.toLowerCase() !== TEMPORARY_IMPORT_STORAGE_CLASS.toLowerCase()
-    ) {
-      await client.delete(objectKey).catch(() => undefined);
-      throw new BadRequestError("Uploaded archive verification failed", undefined, {
-        messageKey: "dataMaintenance.archiveVerificationFailed",
-      });
-    }
     try {
+      await client.put(objectKey, buffer, {
+        headers: {
+          "Content-Type": "application/gzip",
+          "x-oss-meta-sha256": sha256,
+          "x-oss-storage-class": TEMPORARY_IMPORT_STORAGE_CLASS,
+        },
+      });
+      const metadata = getOssHeaders(await client.head(objectKey));
+      if (
+        metadata["x-oss-meta-sha256"] !== sha256 ||
+        Number(metadata["content-length"] || 0) !== buffer.length ||
+        metadata["x-oss-storage-class"]?.toLowerCase() !== TEMPORARY_IMPORT_STORAGE_CLASS.toLowerCase()
+      ) {
+        throw new BadRequestError("Uploaded archive verification failed", undefined, {
+          messageKey: "dataMaintenance.archiveVerificationFailed",
+        });
+      }
+      if (guard)
+        return await this.importWrites.create(
+          guard,
+          {
+            objectKey,
+            totalCount: preview.totalCount,
+            invalidCount: preview.invalidCount,
+            duplicateCount: preview.duplicateCount,
+          },
+          requestId,
+        );
       return await this.repository.createMaintenanceRun({
         operation: "import",
         dataset,
@@ -331,10 +373,9 @@ export class DataMaintenanceService {
     } catch (error) {
       try {
         await this.getOssClient().delete(objectKey);
-      } catch (cleanupError) {
+      } catch {
         logger.warn("Failed to cleanup temporary archive after task creation failure", {
-          objectKey,
-          error: String(cleanupError),
+          reason: "maintenance-staging-cleanup-unavailable",
         });
       }
       throw error;

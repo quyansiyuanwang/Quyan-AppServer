@@ -41,3 +41,5 @@ API 日志、通知日志和 AI 请求日志默认保留 90 天；业务日志�
 表优化预览使用 `quyan:system:data_maintenance:PreviewOptimize`，导入预览使用 `quyan:system:data_maintenance:PreviewImport`，分别授权到 `acs:platform:*:platform:maintenance-dataset/<dataset>`。只能选择危险维护支持的数据集。优化预览中的全部数据集必须先通过授权，服务端才读取表统计；任一数据集命中 Deny 时整个请求被拒绝。导入预览返回校验计数和摘要，不返回原始导入记录。两种预览均保留二次验证、重放保护和验证码要求，预览权限不包含执行权限。
 
 创建表优化任务需要对每个选中数据集拥有 `quyan:system:data_maintenance:CreateOptimizeRun`，并具备平台维护资格。预览和历史读取权限不包含任务创建。请求保留 `OPTIMIZE` 确认、二次验证、重放保护及验证码要求，发起人、实际表名和初始排队状态均由服务端设置。入队事务提交前若身份、用户组、角色或授权变化，创建会被拒绝或回滚。此接口创建维护队列任务，不同步执行表优化。
+
+创建导入任务需要对选中数据集拥有 `quyan:system:data_maintenance:CreateImportRun` 并具备平台维护资格，预览或表优化权限不包含导入创建。请求保留 `IMPORT` 确认请求头、二次验证、重放保护及验证码要求。服务端先授权，再校验归档及上传，仅通过验证的临时上传对象才能入队。上传验证或入队授权失败会触发临时对象清理，队列响应不公开私有临时对象键。清理存储不可用时请求仍然失败并记录清理异常，不会转为已授权的导入。

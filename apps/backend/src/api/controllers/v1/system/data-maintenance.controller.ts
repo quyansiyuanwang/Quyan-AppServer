@@ -20,8 +20,6 @@ import type {
   OptimizeRequest,
 } from "@/api/dto/system/data-maintenance.dto";
 import { DataMaintenanceService } from "@/services/system/data-maintenance.service";
-import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { CaptchaProtected, captchaMiddleware } from "@/util/captcha-protected-decorator";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
@@ -141,7 +139,13 @@ export class DataMaintenanceController extends Controller {
   @Post("imports/{dataset}")
   @Consumes("application/gzip")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:CreateImportRun",
+      resourceKind: "single-resource",
+      resource: platformMaintenanceDatasetResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "data_maintenance_import", requireExplicitToken: true })
@@ -161,11 +165,10 @@ export class DataMaintenanceController extends Controller {
       throw new BadRequestError("Confirmation phrase is invalid", undefined, {
         messageKey: "system.invalidConfirmationPhrase",
       });
-    return this.service.createImportRun(
+    return this.service.createImportRequest(
       dataset,
       Buffer.isBuffer(request.body) ? request.body : Buffer.from([]),
-      request.user?.userId,
-      request.headers["x-request-id"] as string | undefined,
+      request,
     ) as any;
   }
 

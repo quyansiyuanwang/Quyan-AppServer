@@ -83,6 +83,10 @@ vi.mock("@/services/system/platform-maintenance-optimize-iam.service", () => ({
   PlatformMaintenanceOptimizeIamService: { getInstance: vi.fn() },
 }));
 
+vi.mock("@/services/system/platform-maintenance-import-iam.service", () => ({
+  PlatformMaintenanceImportIamService: { getInstance: vi.fn() },
+}));
+
 import { DataMaintenanceService } from "@/services/system/data-maintenance.service";
 
 function archive(rows: unknown[]): Buffer {
