@@ -27,7 +27,10 @@ import { Permission } from "@/constant/permission";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { platformIpWhitelistStatusResource } from "@/iam/request/platform-ip-whitelist-resource-resolvers";
 import { IPWhiteListService } from "@/services/system/ipwhitelist.service";
 import { IPWhiteList } from "@/store/security/ipwhitelist";
 import {
@@ -60,23 +63,37 @@ export class IPWhitelistController extends Controller {
   /** 获取白名单列表 */
   @Get("/list")
   @Security("jwt")
-  @RequirePermission(Permission.IP_WHITELIST_READ, "jwt")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ip_whitelist:ListEntries",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(ipWhitelistListQuerySchema))
   public async getAllIPWhitelists(
+    @Request() request: TypedRequest,
     @Query() limit?: number,
     @Query() offset?: number,
   ): Promise<GetAllIPWhitelistsResponse> {
-    const { whitelists, total } = await this.service.list(limit, offset);
+    const { whitelists, total } = await this.service.listManaged(limit, offset, request);
     return { whitelists: whitelists.map((whitelist) => this.toDto(whitelist)), total };
   }
 
   /** 检查 IP 是否在白名单 */
   @Get("/exists/{ip}")
   @Security("jwt")
-  @RequirePermission(Permission.IP_WHITELIST_READ, "jwt")
+  @CheckPermission(Permission.IP_WHITELIST_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ip_whitelist:GetStatus",
+    resourceKind: "single-resource",
+    resource: platformIpWhitelistStatusResource,
+  })
   @Middlewares(validateParams(ipWhitelistIpParamsSchema))
-  public async isExistsWhiteIp(@Path() ip: string): Promise<CheckIPWhitelistResponse> {
-    const isWhitelisted = await this.service.isWhitelisted(ip);
+  public async isExistsWhiteIp(
+    @Path() ip: string,
+    @Request() request: TypedRequest,
+  ): Promise<CheckIPWhitelistResponse> {
+    const isWhitelisted = await this.service.isManagedWhitelisted(ip, request);
     return { isWhitelisted };
   }
 

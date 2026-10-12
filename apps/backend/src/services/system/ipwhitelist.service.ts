@@ -1,3 +1,10 @@
+import { env } from "@/config/env";
+import { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { PlatformIpWhitelistReadIamService } from "./platform-ip-whitelist-read-iam.service";
+import type { TypedRequest } from "@/types/express";
 import { IPWhiteListRepository, IPWhiteList } from "@/store/security/ipwhitelist";
 import type { IPWhiteListStore } from "@/store/security/ipwhitelist.store";
 import { RedisService } from "@/services/infrastructure/redis.service";
@@ -18,6 +25,8 @@ export class IPWhiteListService {
     private readonly repository: IPWhiteListStore = IPWhiteListRepository.getInstance(),
     private readonly redis: RedisService = RedisService.getInstance(),
     private readonly businessLog: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iamReads = PlatformIpWhitelistReadIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance(): IPWhiteListService {
@@ -25,6 +34,44 @@ export class IPWhiteListService {
     return IPWhiteListService.instance;
   }
 
+  private async assertReadPermission(request: TypedRequest) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.IP_WHITELIST_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  async listManaged(limit: number | undefined, offset: number | undefined, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iamReads.list(limit, offset, request);
+    await this.assertReadPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.list(limit, offset, request, false);
+      } catch {
+        logger.warn("IP whitelist list shadow evaluation failed", { reason: "iam-evaluation-denied-or-unavailable" });
+      }
+    }
+    return this.list(limit, offset);
+  }
+  async isManagedWhitelisted(ip: string, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iamReads.status(ip, request);
+    await this.assertReadPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.status(ip, request);
+      } catch {
+        logger.warn("IP whitelist status shadow evaluation failed", { reason: "iam-evaluation-denied-or-unavailable" });
+      }
+    }
+    return this.isWhitelisted(ip);
+  }
   async isWhitelisted(ip: string): Promise<boolean> {
     try {
       if (!this.redis.isRedisAvailable()) return await this.repository.isWhitelisted(ip);

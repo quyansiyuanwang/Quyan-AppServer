@@ -110,6 +110,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':system/{resourceId}',
   },
+  {
+    ...resource('platform', 'ip-whitelist'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':ip-whitelist/{resourceId}',
+  },
   resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
@@ -1057,6 +1062,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       authorizationStage: 'declared',
       authorizationBoundary: 'platform',
       legacyPermission: permission,
+    }),
+  ),
+  ...['ListEntries', 'GetStatus'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:ip_whitelist:' + operation,
+      service: 'ip_whitelist',
+      operation,
+      accessLevel: operation === 'ListEntries' ? 'List' : 'Read',
+      resourceTypes: ['platform/ip-whitelist'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.IP_WHITELIST_READ,
     }),
   ),
   ...['ListConfigurations', 'UpdateConfigurations'].map(

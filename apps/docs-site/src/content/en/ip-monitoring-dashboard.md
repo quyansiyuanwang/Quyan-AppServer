@@ -34,6 +34,12 @@ Use this page to review IP risk data, blacklist state, and whitelist controls.
 - Add and remove entries.
 - All writes require **step-up 2FA**.
 
+## Whitelist read permissions
+
+With IAM enforcement, whitelist management reads require `IP_WHITELIST_READ` in an actual deployment-wide group. Listing uses `quyan:ip_whitelist:ListEntries`, and status checks use `quyan:ip_whitelist:GetStatus`. Both use `acs:platform:*:platform:ip-whitelist/<record-id>`. IPv4/IPv6 addresses locate an existing record; its resource ID always comes from the database, never from the address or a caller-supplied account.
+
+Authorization is applied per record before pagination, and `total` counts only authorized records. Status checks read the current expiry; an existing expired record returns `false`. Missing, deleted, or unauthorized records cannot be safely resolved for authorization and return 403 in enforce mode. Results are withheld if grants, role sessions, or records become invalid during a read. Automatic anti-abuse checks retain their internal whitelist read flow.
+
 ## Error weights and decay
 
 Error weights are the core of the IP ban system:
