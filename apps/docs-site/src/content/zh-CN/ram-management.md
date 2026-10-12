@@ -378,3 +378,9 @@ legacy 保留原来的成员规则，shadow 保留业务结果并比较 IAM 列�
 执行历史使用 `acs:script:*:<accountId>:execution/<userId>/<executionId>`。`quyan:script:ListExecutions` 同时检查每条历史和关联脚本（如果存在）的资源权限，过滤后最多返回最近 50 条；没有绑定脚本的历史仍按自身资源授权。已删除脚本的自有历史快照可以保留，但不能再为该脚本新增历史。执行历史也可加入同账户资源组。
 
 保存历史的 `quyan:script:SaveExecution` 检查当前用户资源，并在绑定脚本时同时检查指定脚本。不能关联他人的脚本、已删除的脚本或跨账户脚本。历史接口只保存执行快照，不在服务端执行脚本代码。
+
+## 自有工单资源授权
+
+工单资源使用 `acs:ticket:*:<accountId>:ticket/<userId>/<ticketId>`。创建工单的 `quyan:ticket:CreateTicket` 检查当前用户资源；查询、修改和追加评论分别使用 `quyan:ticket:GetOwnTicket`、`quyan:ticket:UpdateOwnTicket`、`quyan:ticket:AddOwnComment` 检查指定工单。
+
+`quyan:ticket:ListOwnTickets` 逐工单授权后再分页和计数，不返回无权限的工单内容或联系信息。账户策略不能取消自有工单的归属限制；同账户的其他用户工单也不能通过自有接口访问。内部评论对提交者隐藏，已结束工单不能修改或追加评论。有效工单可以加入同账户资源组。登录本身不自动授予这些工单操作权限。

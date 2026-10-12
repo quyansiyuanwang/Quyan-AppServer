@@ -34,7 +34,7 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { TicketService } from "@/services/ticket/ticket.service";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { RequirePermission, CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import {
   createTicketBodySchema,
   createTicketCommentBodySchema,
@@ -47,6 +47,10 @@ import {
   updateMyTicketBodySchema,
 } from "@/api/schema/ticket/ticket.schema";
 
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { ownTicketResourceResolver } from "@/iam/request/ticket-resource-resolvers";
+
 @Route("v1/tickets")
 @Tags("Ticket")
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "参数验证失败")
@@ -55,7 +59,11 @@ export class TicketController extends Controller {
 
   @Post("")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_SUBMIT)
+  @CheckPermission(Permission.TICKET_SUBMIT, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ticket:CreateTicket",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "提交失败")
   @Middlewares(replayProtectionMiddleware, validateBody(createTicketBodySchema))
@@ -65,7 +73,13 @@ export class TicketController extends Controller {
 
   @Get("my")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_SELF_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ticket:ListOwnTickets",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateQuery(ticketListQuerySchema))
   public async listMyTickets(
@@ -76,22 +90,34 @@ export class TicketController extends Controller {
     @Query() type?: "suggestion" | "bug" | "other",
     @Request() request?: TypedRequest,
   ): Promise<TicketListResponseDto> {
-    return this.service.listMyTickets(request!.user!.userId, { page, pageSize, keyword, workflowStatus, type });
+    return this.service.listMyTickets(
+      request!.user!.userId,
+      { page, pageSize, keyword, workflowStatus, type },
+      request,
+    );
   }
 
   @Get("my/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_SELF_READ)
+  @CheckPermission(Permission.TICKET_SELF_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ticket:GetOwnTicket",
+    resourceKind: "single-resource",
+    resource: ownTicketResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(validateParams(ticketIdParamsSchema))
   public async getMyTicketDetail(@Path() id: string, @Request() request: TypedRequest): Promise<TicketDetailDto> {
-    return this.service.getMyTicketDetail(id, request.user!.userId);
+    return this.service.getMyTicketDetail(id, request.user!.userId, request);
   }
 
   @Put("my/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_SELF_UPDATE)
+  @CheckPermission(Permission.TICKET_SELF_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ticket:UpdateOwnTicket",
+    resourceKind: "single-resource",
+    resource: ownTicketResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(replayProtectionMiddleware, validateParams(ticketIdParamsSchema), validateBody(updateMyTicketBodySchema))
@@ -105,7 +131,11 @@ export class TicketController extends Controller {
 
   @Post("my/{id}/comments")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_COMMENT)
+  @CheckPermission(Permission.TICKET_COMMENT, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:ticket:AddOwnComment",
+    resourceKind: "single-resource",
+    resource: ownTicketResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(

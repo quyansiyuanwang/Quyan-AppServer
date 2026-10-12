@@ -378,3 +378,9 @@ Scripts use `acs:script:*:<accountId>:script/<userId>/<scriptId>`. Creating a sc
 Execution histories use `acs:script:*:<accountId>:execution/<userId>/<executionId>`. `quyan:script:ListExecutions` checks each history resource and its linked script, if any, before returning up to the 50 most recent authorized records. Unlinked histories remain authorized against their own resources. Owned snapshots of deleted scripts can be retained, but new histories cannot be linked to a deleted script. Execution histories can also join resource groups in their account.
 
 Saving a history with `quyan:script:SaveExecution` checks the current user's resource and, when linked, the specific script. Another user's script, a deleted script, or a foreign-account script cannot be linked. The history API stores execution snapshots; it does not execute script code on the server.
+
+## Own ticket resource authorization
+
+Tickets use `acs:ticket:*:<accountId>:ticket/<userId>/<ticketId>`. Creating a ticket with `quyan:ticket:CreateTicket` checks the current user's resource. Reading, updating and adding comments use `quyan:ticket:GetOwnTicket`, `quyan:ticket:UpdateOwnTicket` and `quyan:ticket:AddOwnComment` against the specific ticket.
+
+`quyan:ticket:ListOwnTickets` authorizes each ticket before pagination and counting. Unauthorized ticket bodies and contact details are not returned. Account policies do not override ownership: self-service endpoints cannot access another user's tickets, even in the same account. Internal comments remain hidden from the submitter, and closed tickets cannot be edited or commented on. Active tickets can join resource groups in their own account. Authentication alone does not grant these ticket operations.
