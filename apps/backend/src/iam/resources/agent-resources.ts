@@ -13,3 +13,14 @@ export function agentMachineArn(accountOwnerId: string, userId: string, machineI
     path: "machine/" + userId + "/" + machineId,
   });
 }
+
+export function agentWorkspaceArn(accountOwnerId: string, userId: string, workspaceId: string): string {
+  if (!isCanonicalAgentId(userId) || !isCanonicalAgentId(workspaceId))
+    throw new Error("Invalid Agent workspace identifier");
+  return buildAcsResource({
+    service: "agent",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "workspace/" + userId + "/" + workspaceId,
+  });
+}

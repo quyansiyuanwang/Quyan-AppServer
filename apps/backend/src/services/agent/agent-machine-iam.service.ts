@@ -1,20 +1,11 @@
-import { performance } from "node:perf_hooks";
 import type { IamPrincipal } from "@quyan/shared";
-import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
-import { auditIamDecision } from "@/iam/audit/iam-audit.service";
-import { getIamPrincipal } from "@/iam/request/principal-context";
-import { requestConditionContext } from "@/iam/request/condition-context";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import { agentMachineArn, isCanonicalAgentId } from "@/iam/resources/agent-resources";
 import { AgentRepository, type AgentMachineTarget, type PublicAgentMachine } from "@/store/agent/agent.repository";
 import type { TypedRequest } from "@/types/express";
-import { ForbiddenError } from "@/util/errors";
-const denied = () =>
-  new ForbiddenError("Agent machine authorization unavailable", undefined, {
-    messageKey: "permission.insufficientPermission",
-  });
+import { agentIamDenied as denied, trustedAgentIdentity, filterAgentResources } from "./agent-iam-authorization";
 
 export class AgentMachineIamService {
   private static instance: AgentMachineIamService;
@@ -29,36 +20,10 @@ export class AgentMachineIamService {
     return (this.instance ??= new AgentMachineIamService());
   }
   private identity(userId: string, request?: TypedRequest) {
-    const principal = request && getIamPrincipal(request);
-    if (!request || !principal || principal.subjectUserId !== userId || !isCanonicalAgentId(userId)) throw denied();
-    return { request, principal };
+    return trustedAgentIdentity(userId, request);
   }
-  private async filter(request: TypedRequest, principal: IamPrincipal, action: string, resources: readonly string[]) {
-    if (!resources.length) return [];
-    const start = performance.now(),
-      results = await this.iam.authorizeMany({
-        principal,
-        action,
-        resources: [...resources],
-        context: requestConditionContext(request, principal),
-      });
-    if (results.length !== resources.length || resources.some((_, index) => !results[index])) throw denied();
-    results.forEach((result, index) => {
-      (request.iamDecisions ??= []).push({ ...result, action, resource: resources[index] });
-      auditIamDecision({
-        requestId: request.res?.locals.requestId,
-        principal,
-        action,
-        resource: resources[index],
-        result,
-        evaluationLatencyMs: performance.now() - start,
-        authorizationMode: env.security.iamAuthorizationMode === "shadow" ? "shadow" : "enforce",
-        ...(env.security.iamAuthorizationMode === "shadow" ? { legacyAllowed: true } : {}),
-        batchSize: resources.length,
-        batchIndex: index,
-      });
-    });
-    return resources.filter((_, index) => results[index].decision === "Allow");
+  private filter(request: TypedRequest, principal: IamPrincipal, action: string, resources: readonly string[]) {
+    return filterAgentResources(this.iam, request, principal, action, resources);
   }
   async authorizeCreate(userId: string, request?: TypedRequest) {
     const identity = this.identity(userId, request),

@@ -398,3 +398,7 @@ Machines use `acs:agent:*:<accountId>:machine/<userId>/<machineId>`. `quyan:agen
 `quyan:agent:DeleteMachine` checks the specific machine and validates its actual user, account and data version before revocation. Self-service management cannot control another user's or a foreign account's machines. Active machines can join resource groups in their own account. Machine registration permissions do not grant workspace creation, task execution or tool approval permissions.
 
 Revoking a machine closes its existing connection on the current server. Connections on other servers recheck machine validity on their next heartbeat, task send or response, and reject communication after revocation. Disabling a user or account or changing account ownership also invalidates the old connection. Reconnecting replaces the previous connection; task responses are accepted only from the authenticated connection that received the task.
+
+## Agent workspace list authorization
+
+Workspaces use `acs:agent:*:<accountId>:workspace/<userId>/<workspaceId>`. `quyan:agent:ListWorkspaces` evaluates each workspace; the list shows only permitted workspaces and their runtime policies and capacity settings. The linked machine's name and state also require `quyan:agent:ListMachines` permission on that machine; these fields are omitted without that permission. Account isolation and self-service ownership checks remain in place. Workspaces can join resource groups in their own account.

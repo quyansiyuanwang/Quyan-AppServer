@@ -23,7 +23,8 @@ import { resolveMappedModel } from "@/util/model-mapping.util";
 
 import type { TypedRequest } from "@/types/express";
 import { AgentMachineIamService } from "./agent-machine-iam.service";
-import type { PublicAgentMachine } from "@/store/agent/agent.repository";
+import { AgentWorkspaceIamService } from "./agent-workspace-iam.service";
+import type { PublicAgentMachine, PublicAgentWorkspace } from "@/store/agent/agent.repository";
 import { McpServerIamService } from "./mcp-server-iam.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@quyan/shared";
@@ -69,7 +70,7 @@ export class AgentService {
     };
   }
 
-  private toWorkspaceDto(row: any): AgentWorkspaceResponse {
+  private toWorkspaceDto(row: PublicAgentWorkspace): AgentWorkspaceResponse {
     return {
       id: row.id,
       name: row.name,
@@ -164,8 +165,31 @@ export class AgentService {
     remoteRuntime.revokeMachine(id);
   }
 
-  async listWorkspaces(userId: string) {
-    const rows = await this.repository.findWorkspaces(userId);
+  async listWorkspaces(userId: string, request?: TypedRequest) {
+    let rows: PublicAgentWorkspace[];
+    if (env.security.iamAuthorizationMode === "enforce")
+      rows = await AgentWorkspaceIamService.getInstance().list(userId, request);
+    else {
+      const permission = await PermissionService.getInstance().checkUserPermissions(
+        userId,
+        [Permission.AGENT_WORKSPACE_READ],
+        { assumedRoleSessionId: request?.user?.roleSessionId },
+      );
+      if (!permission.hasPermission)
+        throw new ForbiddenError("Legacy workspace listing denied", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      rows = await this.repository.findWorkspaces(userId);
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await AgentWorkspaceIamService.getInstance().list(userId, request);
+        } catch {
+          getLogger("AgentWorkspaceIam", LogCategory.SECURITY).warn("Workspace list shadow evaluation failed", {
+            reason: "iam-list-unavailable",
+          });
+        }
+      }
+    }
     return rows.map((row) => this.toWorkspaceDto(row));
   }
 

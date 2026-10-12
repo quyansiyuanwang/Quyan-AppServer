@@ -82,6 +82,13 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         });
         return execution?.id === childId && execution.userId === id;
       }
+      case "agent/workspace": {
+        const workspace = await prisma.agentWorkspace.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return workspace?.id === childId && workspace.userId === id;
+      }
       case "agent/machine": {
         const machine = await prisma.agentRuntimeMachine.findFirst({
           where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },

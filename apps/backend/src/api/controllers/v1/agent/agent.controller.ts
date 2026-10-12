@@ -98,9 +98,15 @@ export class AgentController extends Controller {
 
   @Get("workspaces")
   @Security("jwt")
-  @RequirePermission(Permission.AGENT_WORKSPACE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:agent:ListWorkspaces",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   async listWorkspaces(@Request() request: TypedRequest): Promise<ApiSuccessResponse<AgentWorkspaceResponse[]>> {
-    return { code: 0, message: "Success", data: await this.service.listWorkspaces(request.user!.userId) };
+    return { code: 0, message: "Success", data: await this.service.listWorkspaces(request.user!.userId, request) };
   }
 
   @Post("workspaces")

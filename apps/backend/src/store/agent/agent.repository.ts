@@ -1,5 +1,5 @@
 import { prisma } from "@/config/database";
-import type { AgentRuntimeMachine, McpServer, Prisma } from "@prisma/client";
+import type { AgentRuntimeMachine, AgentWorkspace, McpServer, Prisma } from "@prisma/client";
 
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { ForbiddenError } from "@/util/errors";
@@ -51,6 +51,30 @@ const machineScopeChanged = () =>
     messageKey: "permission.insufficientPermission",
   });
 
+const workspaceAccountScope = (userId: string, accountOwnerId: string): Prisma.AgentWorkspaceWhereInput => ({
+  userId,
+  status: 1,
+  user: { status: 1, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+});
+export type AgentWorkspaceTarget = Pick<AgentWorkspace, "id" | "userId" | "machineId" | "createTime" | "updateTime">;
+export const agentWorkspacePublicSelect = {
+  id: true,
+  userId: true,
+  status: true,
+  name: true,
+  runtime: true,
+  runtimeStatus: true,
+  policy: true,
+  limits: true,
+  createTime: true,
+  updateTime: true,
+  machineId: true,
+} as const;
+export type AgentMachineSummary = Pick<AgentRuntimeMachine, "id" | "userId" | "name" | "runtimeStatus">;
+export type PublicAgentWorkspace = Prisma.AgentWorkspaceGetPayload<{ select: typeof agentWorkspacePublicSelect }> & {
+  machine?: AgentMachineSummary | null;
+};
+
 const mcpAccountScope = (userId: string, accountOwnerId: string): Prisma.McpServerWhereInput => ({
   userId,
   status: 1,
@@ -75,8 +99,70 @@ export class AgentRepository {
   findWorkspaces(userId: string) {
     return prisma.agentWorkspace.findMany({
       where: { userId, status: 1 },
-      orderBy: { createTime: "desc" },
-      include: { machine: true },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      select: {
+        ...agentWorkspacePublicSelect,
+        machine: { select: { id: true, userId: true, name: true, runtimeStatus: true } },
+      },
+    });
+  }
+
+  scanWorkspaceTargets(userId: string, accountOwnerId: string, after?: AgentWorkspaceTarget) {
+    return prisma.agentWorkspace.findMany({
+      where: {
+        AND: [
+          workspaceAccountScope(userId, accountOwnerId),
+          ...(after
+            ? [
+                {
+                  OR: [
+                    { createTime: { lt: after.createTime } },
+                    { createTime: after.createTime, id: { lt: after.id } },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      select: { id: true, userId: true, machineId: true, createTime: true, updateTime: true },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+    });
+  }
+
+  async readWorkspaceTargets(
+    userId: string,
+    accountOwnerId: string,
+    targets: readonly AgentWorkspaceTarget[],
+  ): Promise<PublicAgentWorkspace[]> {
+    if (!targets.length) return Promise.resolve([]);
+    return prisma.agentWorkspace.findMany({
+      where: {
+        AND: [
+          workspaceAccountScope(userId, accountOwnerId),
+          {
+            OR: targets.map((target) => ({
+              id: target.id,
+              machineId: target.machineId,
+              updateTime: target.updateTime,
+            })),
+          },
+        ],
+      },
+      select: agentWorkspacePublicSelect,
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+    });
+  }
+
+  async readMachineSummaries(
+    userId: string,
+    accountOwnerId: string,
+    machineIds: readonly string[],
+  ): Promise<AgentMachineSummary[]> {
+    if (!machineIds.length) return Promise.resolve([]);
+    return prisma.agentRuntimeMachine.findMany({
+      where: { id: { in: [...machineIds] }, ...machineAccountScope(userId, accountOwnerId) },
+      select: { id: true, userId: true, name: true, runtimeStatus: true },
     });
   }
 
@@ -85,7 +171,13 @@ export class AgentRepository {
   }
 
   findWorkspaceById(id: string) {
-    return prisma.agentWorkspace.findUniqueOrThrow({ where: { id }, include: { machine: true } });
+    return prisma.agentWorkspace.findUniqueOrThrow({
+      where: { id },
+      select: {
+        ...agentWorkspacePublicSelect,
+        machine: { select: { id: true, userId: true, name: true, runtimeStatus: true } },
+      },
+    });
   }
 
   createWorkspace(data: {
