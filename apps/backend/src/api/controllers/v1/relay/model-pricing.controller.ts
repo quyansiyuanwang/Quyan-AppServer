@@ -1,3 +1,5 @@
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Body,
   Controller,
@@ -64,9 +66,15 @@ export class ModelPricingController extends Controller {
 
   @Get("export")
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_READ)
-  public async exportModelPricing(): Promise<ModelPricingExportData> {
-    const models = await this.modelPricingService.getModelPricing();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:model_pricing:ExportModels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async exportModelPricing(@Request() request: TypedRequest): Promise<ModelPricingExportData> {
+    const models = await this.modelPricingService.exportManagedModelPricing(request);
     return { models };
   }
 

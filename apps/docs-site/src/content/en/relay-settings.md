@@ -45,6 +45,10 @@ If you need to answer questions like “who can see this channel?”, “which u
 - Purpose: replace raw monitor IDs with clearer admin-facing labels.
 - Effect: changes presentation only, not actual routing logic.
 
+### Model pricing export permissions
+
+In IAM enforcement mode, pricing exports require eligibility from a real global group with `MODEL_PRICING_READ`, using `quyan:model_pricing:ExportModels` on `acs:platform:*:platform:model-pricing/<record ID>`. Exports include only authorized actual records, and a matching Deny takes priority. If prices, eligibility, policies, or role sessions change while reading, the export is withheld. AssumeRole uses the role's own grants. The public model pricing list retains its existing access behavior.
+
 ## Channel configuration overview
 
 Each channel is a logical route that tokens or system workflows can use. Channels come in three forms:

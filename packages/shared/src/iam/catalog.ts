@@ -126,6 +126,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':oj-pricing-control/{resourceId}',
   },
   {
+    ...resource('platform', 'model-pricing'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':model-pricing/{resourceId}',
+  },
+  {
     ...resource('platform', 'oj-pricing'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':oj-pricing/{resourceId}',
@@ -1152,6 +1157,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.OJ_PRICING_UPDATE,
     }),
   ),
+  {
+    action: 'quyan:model_pricing:ExportModels',
+    service: 'model_pricing',
+    operation: 'ExportModels',
+    accessLevel: 'List',
+    resourceTypes: ['platform/model-pricing'],
+    apiRoutes: ['GET /v1/model-pricing/export'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.MODEL_PRICING_READ,
+  },
   ...(['ListPricing', 'GetPricing'] as const).map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

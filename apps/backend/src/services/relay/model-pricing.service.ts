@@ -1,3 +1,11 @@
+import { env } from "@/config/env";
+import { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
+import type { TypedRequest } from "@/types/express";
+import { PlatformModelPricingReadIamService } from "./platform-model-pricing-read-iam.service";
 import type {
   ModelPricingDto,
   CreateModelPricingRequest,
@@ -22,6 +30,8 @@ export class ModelPricingService {
   private constructor(
     private readonly modelPricingRepository: ModelPricingStore = ModelPricingRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iamReads = PlatformModelPricingReadIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -44,6 +54,41 @@ export class ModelPricingService {
     };
   }
 
+  async exportManagedModelPricing(request: TypedRequest): Promise<ModelPricingDto[]> {
+    const project = (rows: ModelPricing[]) =>
+      rows.map((row) => {
+        if (!["token-based", "per-request"].includes(row.pricingType)) throw iamAccountDenied();
+        return this.toDto(row);
+      });
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamReads.list(request, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.MODEL_PRICING_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.list(request, project, false);
+      } catch {
+        getLogger("ModelPricing", LogCategory.SECURITY).warn("Model pricing export shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.getModelPricing();
+  }
   async getModelPricing(): Promise<ModelPricingDto[]> {
     const models = await this.modelPricingRepository.listActiveOrderedByModel();
 
