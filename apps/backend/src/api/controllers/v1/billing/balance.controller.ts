@@ -1,6 +1,7 @@
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import {
   iamAccountUserResourceResolver,
+  iamAccountUserBodyResourceResolver,
   iamAccountUsersResourceResolver,
 } from "@/iam/request/account-user-resource-resolver";
 import { balanceGiftCodeResourceResolver } from "@/iam/request/balance-resource-resolvers";
@@ -400,19 +401,27 @@ export class BalanceController extends Controller {
 
   @Post("recharge")
   @Security("jwt")
-  @RequirePermission(Permission.BALANCE_RECHARGE)
+  @CheckPermission(Permission.BALANCE_RECHARGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:balance:RechargeUserBalance",
+    resourceKind: "single-resource",
+    resource: iamAccountUserBodyResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(rechargeBodySchema),
   )
-  public async recharge(@Body() body: RechargeRequest): Promise<BalanceAccountResponse> {
-    const account = await this.balanceService.recharge(
+  public async recharge(
+    @Body() body: RechargeRequest,
+    @Request() request: TypedRequest,
+  ): Promise<BalanceAccountResponse> {
+    const account = await this.balanceService.rechargeManaged(
       body.userId,
       body.amount,
       body.description,
       body.countAsStatistics,
+      request,
     );
     return {
       id: account.id,

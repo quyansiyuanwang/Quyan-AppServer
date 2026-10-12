@@ -1,3 +1,6 @@
+vi.mock("@/services/users/iam-account-user-mutation.service", () => ({
+  IamAccountUserMutationService: { getInstance: vi.fn() },
+}));
 import { readFileSync } from "node:fs";
 import { Project } from "ts-morph";
 import { beforeEach, describe, expect, it, vi } from "vitest";

@@ -1,6 +1,8 @@
+import type { IamAccountUserMutationGuard } from "../users/iam-account-user-mutation";
 import type { BalanceAccount, BalanceTransaction, Prisma } from "@prisma/client";
 
 export interface RechargeParams {
+  iamGuard?: IamAccountUserMutationGuard;
   userId: string;
   amount: number;
   description?: string;

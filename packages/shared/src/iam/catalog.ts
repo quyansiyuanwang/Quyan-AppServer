@@ -917,6 +917,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     legacyPermission: Permission.SUPPORT_AI_ANALYTICS_READ,
   },
   {
+    action: 'quyan:balance:RechargeUserBalance',
+    service: 'balance',
+    operation: 'RechargeUserBalance',
+    accessLevel: 'Write',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.BALANCE_RECHARGE,
+  },
+  {
     action: 'quyan:balance:GetUserBalance',
     service: 'balance',
     operation: 'GetUserBalance',

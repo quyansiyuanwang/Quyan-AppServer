@@ -1,3 +1,4 @@
+import { IamAccountUserMutationService } from "@/services/users/iam-account-user-mutation.service";
 import { env } from "@/config/env";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { IamAccountUserAuthorizationService } from "@/services/users/iam-account-user-authorization.service";
@@ -25,6 +26,7 @@ export class BalanceService {
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly userIam = IamAccountUserAuthorizationService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
+    private readonly userMutationIam = IamAccountUserMutationService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -96,6 +98,35 @@ export class BalanceService {
     await this.legacyRead(request);
     await this.shadowRead(() => this.userIam.authorizeMany(action, userIds, request), request);
     return this.getBatchBalances(userIds);
+  }
+  async rechargeManaged(
+    userId: string,
+    amount: number,
+    description?: string,
+    countAsStatistics = false,
+    request?: TypedRequest,
+  ) {
+    if (amount === 0)
+      throw new BadRequestError("Invalid recharge amount", undefined, { messageKey: "billing.amountCannotBeZero" });
+    if (!Number.isFinite(amount))
+      throw new BadRequestError("Invalid recharge amount", undefined, { messageKey: "errors.badRequest" });
+    const action = "quyan:balance:RechargeUserBalance";
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const iamGuard = await this.userMutationIam.prepare(action, userId, request);
+      return this.balanceRepository.recharge({ userId, amount, description, countAsStatistics, iamGuard });
+    }
+    const principal = request && getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    if (
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.BALANCE_RECHARGE], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    await this.shadowRead(() => this.userMutationIam.prepare(action, userId, request), request);
+    return this.recharge(userId, amount, description, countAsStatistics);
   }
   async recharge(userId: string, amount: number, description?: string, countAsStatistics = false) {
     if (amount === 0)

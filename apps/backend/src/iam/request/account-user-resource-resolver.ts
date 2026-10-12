@@ -37,3 +37,13 @@ export const iamAccountUsersResourceResolver: BatchResourceResolver = async ({ r
     buildAcsResource({ service: "quyan", region: "*", accountId: principal.accountOwnerId, path: "user/" + id }),
   );
 };
+
+/** Body account identifiers never override the trusted principal account. */
+export const iamAccountUserBodyResourceResolver: ResourceResolver = async ({ request, principal }) => {
+  const id = (request.body as { userId?: unknown } | undefined)?.userId;
+  if (typeof id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(id)) return undefined;
+  const target = await IamAccountUserRepository.getInstance().target(principal, id);
+  return target?.id === id
+    ? buildAcsResource({ service: "quyan", region: "*", accountId: principal.accountOwnerId, path: "user/" + id })
+    : undefined;
+};
