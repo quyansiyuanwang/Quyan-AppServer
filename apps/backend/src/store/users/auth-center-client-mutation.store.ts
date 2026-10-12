@@ -1,4 +1,4 @@
-import type { AuthCenterClientUpdateInput } from "./auth-center-client.store";
+import type { AuthCenterClientCreateInput, AuthCenterClientUpdateInput } from "./auth-center-client.store";
 import type {
   OAuthClientIdentity,
   AuthCenterClientTarget,
@@ -17,7 +17,14 @@ export interface AuthCenterClientMutationGuard {
   users: IamAccountUserMutationGuard;
   scopeCheck?: () => Promise<void>;
 }
+export interface AuthCenterClientCreateGuard {
+  action: "quyan:auth_center:CreateClient";
+  identity: OAuthClientIdentity;
+  users: IamAccountUserMutationGuard;
+  scopeCheck: () => Promise<void>;
+}
 export interface AuthCenterClientMutationStore {
+  create(data: AuthCenterClientCreateInput, guard: AuthCenterClientCreateGuard): Promise<AuthCenterClientView>;
   update(data: AuthCenterClientUpdateInput, guard: AuthCenterClientMutationGuard): Promise<AuthCenterClientView>;
   revoke(guard: AuthCenterClientMutationGuard): Promise<AuthCenterClientView>;
 }

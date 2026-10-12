@@ -15,7 +15,11 @@ import type {
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { AuthCenterClientRepository } from "@/store/users/auth-center-client.repository";
-import type { AuthCenterClientStore, AuthCenterClientUpdateInput } from "@/store/users/auth-center-client.store";
+import type {
+  AuthCenterClientCreateInput,
+  AuthCenterClientStore,
+  AuthCenterClientUpdateInput,
+} from "@/store/users/auth-center-client.store";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
@@ -24,7 +28,10 @@ import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { PermissionService } from "./permission.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
-import { updateAuthCenterClientBodySchema } from "@/api/schema/users/auth-center-client.schema";
+import {
+  createAuthCenterClientBodySchema,
+  updateAuthCenterClientBodySchema,
+} from "@/api/schema/users/auth-center-client.schema";
 import { AuthCenterClientMutationIamService } from "./auth-center-client-mutation-iam.service";
 import type { AuthCenterClientMutationAction } from "@/store/users/auth-center-client-mutation.store";
 import { AuthCenterClientIamService } from "./auth-center-client-iam.service";
@@ -64,7 +71,42 @@ export class AuthCenterClientService {
     data: CreateAuthCenterClientDto,
     request?: Request,
   ): Promise<AuthCenterClientWithSecretDto> {
-    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
+    let guard;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = createAuthCenterClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid auth center application creation", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = {
+        ...parsed.data,
+        homepageUrl: parsed.data.homepageUrl ?? undefined,
+        logoUrl: parsed.data.logoUrl ?? undefined,
+        policyUrl: parsed.data.policyUrl ?? undefined,
+        tosUrl: parsed.data.tosUrl ?? undefined,
+      };
+      guard = await this.mutations.prepareCreate(userId, request as TypedRequest | undefined);
+    } else if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.AUTH_CENTER_CLIENT_CREATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.mutations.prepareCreate(userId, request as TypedRequest));
+    }
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(
+      userId,
+      data.scopes ?? DEFAULT_SCOPES,
+      guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+    );
+
     const clientType = data.clientType ?? "confidential";
     const grantTypes = this.normalizeGrantTypes(data.grantTypes, clientType);
     const redirectUris = this.normalizeStringArray(data.redirectUris);
@@ -83,7 +125,7 @@ export class AuthCenterClientService {
     const rawClientSecret = clientType === "public" ? "" : this.generateClientSecret();
     const clientSecretHash = rawClientSecret ? await bcrypt.hash(rawClientSecret, 10) : undefined;
 
-    const created = await this.repository.create({
+    const createData: AuthCenterClientCreateInput = {
       userId,
       name: data.name.trim(),
       description: this.normalizeOptionalText(data.description),
@@ -106,7 +148,17 @@ export class AuthCenterClientService {
       isPkceRequired,
       accessTokenLifetime: data.accessTokenLifetime ?? DEFAULT_ACCESS_TOKEN_LIFETIME,
       refreshTokenLifetime: data.refreshTokenLifetime ?? DEFAULT_REFRESH_TOKEN_LIFETIME,
-    });
+    };
+    const created = guard
+      ? await this.mutations.create(createData, {
+          ...guard,
+          scopeCheck: async () => {
+            await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+              assumedRoleSessionId: guard.identity.principal.roleSessionId,
+            });
+          },
+        })
+      : await this.repository.create(createData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_CREATE,

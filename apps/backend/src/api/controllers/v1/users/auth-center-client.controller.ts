@@ -40,7 +40,7 @@ import {
   iamCollectionAuthorizationMiddleware,
   iamAuthenticatedAuthorizationMiddleware,
 } from "@/iam/middleware/iam-authorization.middleware";
-import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { authCenterClientResourceResolver } from "@/iam/request/auth-center-client-resource-resolvers";
 import { AuthCenterClientService } from "@/services/users/auth-center-client.service";
 import type { TypedRequest } from "@/types/express";
@@ -55,7 +55,13 @@ export class AuthCenterClientController extends Controller {
 
   @Post("")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_CREATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:CreateClient",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "创建失败")

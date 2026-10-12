@@ -1,3 +1,4 @@
+import { buildAcsResource } from "@quyan/shared";
 import { performance } from "node:perf_hooks";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -9,11 +10,12 @@ import { AuthCenterClientManagementRepository } from "@/store/users/auth-center-
 import type { AuthCenterClientManagementStore } from "@/store/users/auth-center-client-management.store";
 import { AuthCenterClientMutationRepository } from "@/store/users/auth-center-client-mutation.repository";
 import type {
+  AuthCenterClientCreateGuard,
   AuthCenterClientMutationAction,
   AuthCenterClientMutationGuard,
   AuthCenterClientMutationStore,
 } from "@/store/users/auth-center-client-mutation.store";
-import type { AuthCenterClientUpdateInput } from "@/store/users/auth-center-client.store";
+import type { AuthCenterClientCreateInput, AuthCenterClientUpdateInput } from "@/store/users/auth-center-client.store";
 import { AuthCenterClientIamService } from "./auth-center-client-iam.service";
 import type { TypedRequest } from "@/types/express";
 export class AuthCenterClientMutationIamService {
@@ -27,6 +29,58 @@ export class AuthCenterClientMutationIamService {
   ) {}
   static getInstance() {
     return (this.instance ??= new AuthCenterClientMutationIamService());
+  }
+  async prepareCreate(userId: string, request?: TypedRequest) {
+    const actor = await this.reads.identity(userId, request),
+      { principal } = actor.identity;
+    const resource = buildAcsResource({
+      service: "quyan",
+      region: "*",
+      accountId: principal.accountOwnerId,
+      path: "user/" + userId,
+    });
+    const recheck = async () => {
+      const action = "quyan:auth_center:CreateClient",
+        start = performance.now(),
+        result = await this.iam.authorize({
+          principal,
+          action,
+          resource,
+          context: requestConditionContext(actor.request, principal),
+        });
+      if (!result) throw iamAccountDenied();
+      (actor.request.iamDecisions ??= []).push({ ...result, action, resource });
+      auditIamDecision({
+        requestId: actor.request.res?.locals.requestId,
+        principal,
+        action,
+        resource,
+        result,
+        evaluationLatencyMs: performance.now() - start,
+        authorizationMode: env.security.iamAuthorizationMode === "shadow" ? "shadow" : "enforce",
+        ...(env.security.iamAuthorizationMode === "shadow" ? { legacyAllowed: true } : {}),
+      });
+      if (result.decision !== "Allow") throw iamAccountDenied();
+    };
+    await recheck();
+    const ids = [...new Set([userId, principal.accountOwnerId])],
+      users = await this.users.targets(principal, ids);
+    if (
+      users.length !== ids.length ||
+      ids.some(
+        (id) =>
+          !users.some((u) => u.id === id && u.updateTime instanceof Date && Number.isFinite(u.updateTime.getTime())),
+      )
+    )
+      throw iamAccountDenied();
+    return {
+      action: "quyan:auth_center:CreateClient" as const,
+      identity: actor.identity,
+      users: { principal, targetUserId: userId, users, recheck },
+    };
+  }
+  create(data: AuthCenterClientCreateInput, guard: AuthCenterClientCreateGuard) {
+    return this.mutations.create(data, guard);
   }
   async prepare(
     action: AuthCenterClientMutationAction,
