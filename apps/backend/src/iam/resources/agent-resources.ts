@@ -44,3 +44,13 @@ export function agentApprovalArn(accountOwnerId: string, userId: string, taskId:
     path: "approval/" + userId + "/" + taskId + "/" + approvalId,
   });
 }
+
+export function agentRelayTokenArn(accountOwnerId: string, userId: string, tokenId: string): string {
+  if (!isCanonicalAgentId(userId) || !isCanonicalAgentId(tokenId)) throw new Error("Invalid Relay token identifier");
+  return buildAcsResource({
+    service: "relay",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "token/" + userId + "/" + tokenId,
+  });
+}

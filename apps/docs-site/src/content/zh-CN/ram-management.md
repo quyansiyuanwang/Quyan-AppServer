@@ -414,3 +414,5 @@ MCP 服务资源使用 `acs:mcp:*:<accountId>:server/<userId>/<serverId>`。`quy
 ## Agent 批准资源授权
 
 批准使用 `acs:agent:*:<accountId>:approval/<userId>/<taskId>/<approvalId>`。读取待批准列表需要任务上的 `quyan:agent:ListTaskApprovals`，每项工具调用内容还需该批准资源上的 `quyan:agent:GetApproval`。提交批准或拒绝需要任务和批准资源上的 `quyan:agent:DecideApproval`。服务器同时核验任务、工作区、对话和步骤归属；只允许处理未过期、仍为待批准状态的操作。决定与任务状态在同一事务中更新，已取消任务不能通过较旧批准操作恢复运行。
+
+创建任务需要所选工作区和对话上的 `quyan:agent:CreateTask`，以及实际使用的 Relay Token 资源上的 `quyan:agent:UseRelayToken`。Token 资源为 `acs:relay:*:<accountId>:token/<userId>/<tokenId>`；显式选择 Token 时不会沿用对话默认 Token 的授权。服务器只在授权后读取模型限制，并在创建事务中核验工作区、对话、Token 的账户归属和数据版本。已停用或过期 Token 不能用于创建任务，原有模型映射、允许模型、预算和步骤限制继续适用。

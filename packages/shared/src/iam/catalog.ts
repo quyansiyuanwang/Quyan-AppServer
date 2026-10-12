@@ -68,6 +68,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'role-session'),
   resource('quyan', 'access-key', 2),
   resource('relay', 'channel'),
+  resource('relay', 'token', 2),
   resource('developer', 'project'),
   resource('developer', 'kv-item', 2),
   resource('developer', 'secret', 2),
@@ -129,7 +130,12 @@ const ramResources: Partial<Record<Permission, string[]>> = {
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
   [Permission.AGENT_APPROVAL]: ['agent/task', 'agent/approval'],
-  [Permission.AGENT_TASK_RUN]: ['agent/task'],
+  [Permission.AGENT_TASK_RUN]: [
+    'agent/task',
+    'agent/workspace',
+    'chat/conversation',
+    'relay/token',
+  ],
   [Permission.AGENT_WORKSPACE_READ]: ['agent/machine', 'agent/workspace'],
   [Permission.AGENT_WORKSPACE_WRITE]: ['quyan/user', 'agent/machine', 'agent/workspace'],
   [Permission.MCP_SERVER_READ]: ['mcp/server'],
@@ -882,6 +888,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: 'Write',
       resourceTypes: ['agent/task', 'agent/approval'],
       legacyPermission: Permission.AGENT_APPROVAL,
+    },
+    {
+      operation: 'CreateTask',
+      accessLevel: 'Write',
+      resourceTypes: ['agent/workspace', 'chat/conversation'],
+      legacyPermission: Permission.AGENT_TASK_RUN,
+    },
+    {
+      operation: 'UseRelayToken',
+      accessLevel: 'Write',
+      resourceTypes: ['relay/token'],
+      legacyPermission: Permission.AGENT_TASK_RUN,
     },
     {
       operation: 'GetTaskEvents',

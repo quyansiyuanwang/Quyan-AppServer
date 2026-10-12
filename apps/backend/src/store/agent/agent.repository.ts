@@ -1,5 +1,14 @@
 import { prisma } from "@/config/database";
-import type { AgentRuntimeMachine, AgentWorkspace, AgentTask, AgentApproval, McpServer, Prisma } from "@prisma/client";
+import type {
+  AgentRuntimeMachine,
+  AgentWorkspace,
+  AgentTask,
+  AgentApproval,
+  Conversation,
+  RelayToken,
+  McpServer,
+  Prisma,
+} from "@prisma/client";
 
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { AGENT_TASK_LIMITS } from "@/services/agent/agent-task.policy";
@@ -82,6 +91,26 @@ export type PublicAgentWorkspace = Prisma.AgentWorkspaceGetPayload<{ select: typ
   machine?: AgentMachineSummary | null;
 };
 
+export type AgentConversationTarget = Pick<Conversation, "id" | "userId" | "relayTokenId" | "updateTime">;
+export type AgentRelayTokenTarget = Pick<RelayToken, "id" | "userId" | "expiresAt" | "updateTime">;
+export type AgentTaskCreationTargets = {
+  workspace: AgentWorkspaceTarget;
+  conversation: AgentConversationTarget;
+  token: AgentRelayTokenTarget;
+};
+const accountUserScope = (accountOwnerId: string): Prisma.UserWhereInput => ({
+  status: 1,
+  OR: [
+    { id: accountOwnerId, accountOwnerId: null },
+    { accountOwnerId, accountOwner: { status: 1, accountOwnerId: null } },
+  ],
+});
+const activeRelayTokenScope = (userId: string, accountOwnerId: string): Prisma.RelayTokenWhereInput => ({
+  userId,
+  status: 1,
+  user: accountUserScope(accountOwnerId),
+  OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+});
 export type AgentTaskTarget = Pick<AgentTask, "id" | "userId" | "workspaceId" | "taskStatus" | "updateTime">;
 export type AgentApprovalTarget = Pick<AgentApproval, "id" | "taskId" | "stepId" | "createTime" | "expiresAt">;
 const taskAccountScope = (userId: string, accountOwnerId: string): Prisma.AgentTaskWhereInput => ({
@@ -496,6 +525,39 @@ export class AgentRepository {
     return prisma.agentWorkspace.update({ where: { id }, data });
   }
 
+  findAgentConversationTarget(id: string, userId: string, accountOwnerId: string) {
+    return prisma.conversation.findFirst({
+      where: { id, userId, status: 1, user: accountUserScope(accountOwnerId) },
+      select: { id: true, userId: true, relayTokenId: true, updateTime: true },
+    });
+  }
+
+  findAgentRelayTokenTarget(id: string, userId: string, accountOwnerId: string) {
+    return prisma.relayToken.findFirst({
+      where: { id, ...activeRelayTokenScope(userId, accountOwnerId) },
+      select: { id: true, userId: true, expiresAt: true, updateTime: true },
+    });
+  }
+
+  readAgentWorkspaceConfiguration(target: AgentWorkspaceTarget, accountOwnerId: string) {
+    return prisma.agentWorkspace.findFirst({
+      where: {
+        id: target.id,
+        machineId: target.machineId,
+        updateTime: target.updateTime,
+        ...workspaceAccountScope(target.userId, accountOwnerId),
+      },
+      select: { id: true, userId: true, limits: true },
+    });
+  }
+
+  readAgentRelayTokenConfiguration(target: AgentRelayTokenTarget, accountOwnerId: string) {
+    return prisma.relayToken.findFirst({
+      where: { id: target.id, updateTime: target.updateTime, ...activeRelayTokenScope(target.userId, accountOwnerId) },
+      select: { id: true, userId: true, allowedModels: true, modelMapping: true },
+    });
+  }
+
   findConversationForUser(id: string, userId: string) {
     return prisma.conversation.findFirst({ where: { id, userId } });
   }
@@ -505,17 +567,72 @@ export class AgentRepository {
     return prisma.relayToken.findFirst({ where: { id, userId, status: 1 } });
   }
 
-  createTask(data: {
-    userId: string;
-    workspaceId: string;
-    conversationId: string;
-    relayTokenId: string;
-    model: string;
-    prompt: string;
-    maxSteps: number;
-    budget: number | undefined;
-  }) {
-    return prisma.agentTask.create({ data });
+  async createTask(
+    data: {
+      userId: string;
+      workspaceId: string;
+      conversationId: string;
+      relayTokenId: string;
+      model: string;
+      prompt: string;
+      maxSteps: number;
+      budget: number | undefined;
+    },
+    accountOwnerId?: string,
+    targets?: AgentTaskCreationTargets,
+  ) {
+    if (!accountOwnerId) return prisma.agentTask.create({ data });
+    if (
+      !targets ||
+      targets.workspace.id !== data.workspaceId ||
+      targets.conversation.id !== data.conversationId ||
+      targets.token.id !== data.relayTokenId ||
+      [targets.workspace, targets.conversation, targets.token].some((target) => target.userId !== data.userId)
+    )
+      throw machineScopeChanged();
+    return prisma.$transaction(
+      async (tx) => {
+        const workspace = await tx.agentWorkspace.findFirst({
+          where: {
+            id: data.workspaceId,
+            machineId: targets.workspace.machineId,
+            updateTime: targets.workspace.updateTime,
+            ...workspaceAccountScope(data.userId, accountOwnerId),
+            runtimeStatus: { notIn: ["stopping", "stopped"] },
+          },
+          select: { id: true },
+        });
+        const conversation = await tx.conversation.findFirst({
+          where: {
+            id: data.conversationId,
+            userId: data.userId,
+            status: 1,
+            updateTime: targets.conversation.updateTime,
+            relayTokenId: targets.conversation.relayTokenId,
+            user: accountUserScope(accountOwnerId),
+          },
+          select: { id: true },
+        });
+        const token = await tx.relayToken.findFirst({
+          where: {
+            id: data.relayTokenId,
+            updateTime: targets.token.updateTime,
+            ...activeRelayTokenScope(data.userId, accountOwnerId),
+          },
+          select: { id: true },
+        });
+        if (!workspace || !conversation || !token) throw machineScopeChanged();
+        if (targets.workspace.machineId) {
+          const machine = await tx.agentRuntimeMachine.findFirst({
+            where: { id: targets.workspace.machineId, ...machineAccountScope(data.userId, accountOwnerId) },
+            select: { id: true },
+          });
+          if (!machine) throw machineScopeChanged();
+        }
+        return tx.agentTask.create({ data });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   findTaskForUser(id: string, userId: string) {

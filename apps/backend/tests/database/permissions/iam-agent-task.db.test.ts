@@ -152,6 +152,49 @@ describe("Agent task events and cancellation storage boundaries", () => {
       statusCode: 403,
     });
   });
+  it("reads minimal token configuration and checks all task dependencies in the creation transaction", async () => {
+    const selected = await task();
+    const workspace = (await repository.findWorkspaceTarget(selected.workspaceId, actor, owner))!;
+    const conversation = (await repository.findAgentConversationTarget(selected.conversationId, actor, owner))!;
+    const token = (await repository.findAgentRelayTokenTarget(selected.relayTokenId, actor, owner))!;
+    expect(token).not.toHaveProperty("token");
+    expect(token).not.toHaveProperty("allowedModels");
+    const settings = await repository.readAgentRelayTokenConfiguration(token, owner);
+    expect(settings).not.toHaveProperty("token");
+    expect(settings).not.toHaveProperty("upstreamApiKey");
+    const targets = { workspace, conversation, token };
+    const data = {
+      userId: actor,
+      workspaceId: workspace.id,
+      conversationId: conversation.id,
+      relayTokenId: token.id,
+      model: "fixture",
+      prompt: "private",
+      maxSteps: 1,
+      budget: undefined,
+    };
+    await expect(repository.createTask(data, foreign, targets)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(repository.createTask(data, owner)).rejects.toMatchObject({ statusCode: 403 });
+    expect((await repository.createTask(data, owner, targets)).userId).toBe(actor);
+    const groups = RamResourceGroupRepository.getInstance();
+    expect(
+      await groups.resourceExistsInAccount("acs:relay:*:" + owner + ":token/" + actor + "/" + token.id, owner),
+    ).toBe(true);
+    expect(
+      await groups.resourceExistsInAccount("acs:relay:*:" + owner + ":token/" + other + "/" + token.id, owner),
+    ).toBe(false);
+    await prisma.relayToken.update({
+      where: { id: token.id },
+      data: { allowedModels: "changed", updateTime: new Date(token.updateTime.getTime() + 1000) },
+    });
+    expect(await repository.readAgentRelayTokenConfiguration(token, owner)).toBeNull();
+    await expect(repository.createTask(data, owner, targets)).rejects.toMatchObject({ statusCode: 403 });
+    await prisma.relayToken.update({ where: { id: token.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    expect(await repository.findAgentRelayTokenTarget(token.id, actor, owner)).toBeNull();
+    expect(
+      await groups.resourceExistsInAccount("acs:relay:*:" + owner + ":token/" + actor + "/" + token.id, owner),
+    ).toBe(false);
+  });
   it("enforces real policy bindings and revocation without exposing payloads", async () => {
     const selected = await task();
     await repository.appendEvent(selected.id, "assistant_delta", { content: "private" });

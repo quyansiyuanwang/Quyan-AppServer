@@ -24,6 +24,7 @@ import { resolveMappedModel } from "@/util/model-mapping.util";
 
 import type { TypedRequest } from "@/types/express";
 import { AgentMachineIamService } from "./agent-machine-iam.service";
+import { AgentTaskCreationIamService } from "./agent-task-creation-iam.service";
 import { AgentApprovalIamService } from "./agent-approval-iam.service";
 import { AgentTaskIamService } from "./agent-task-iam.service";
 import { AgentWorkspaceLifecycleService } from "./agent-workspace-lifecycle.service";
@@ -334,19 +335,43 @@ export class AgentService {
     else await this.repository.updateWorkspace(id, { runtimeStatus: "stopped" });
   }
 
-  async createRun(userId: string, conversationId: string, body: CreateAgentRunRequest): Promise<AgentRunResponse> {
+  async createRun(
+    userId: string,
+    conversationId: string,
+    body: CreateAgentRunRequest,
+    request?: TypedRequest,
+  ): Promise<AgentRunResponse> {
+    const authorization =
+      env.security.iamAuthorizationMode === "enforce"
+        ? await AgentTaskCreationIamService.getInstance().authorize(
+            userId,
+            conversationId,
+            body.workspaceId,
+            body.relayTokenId,
+            request,
+          )
+        : undefined;
+    const configuration = authorization
+      ? await AgentTaskCreationIamService.getInstance().configuration(authorization)
+      : undefined;
     const [workspace, conversation] = await Promise.all([
-      this.repository.findWorkspaceForUser(body.workspaceId, userId),
-      this.repository.findConversationForUser(conversationId, userId),
+      configuration
+        ? Promise.resolve(configuration.workspace)
+        : this.repository.findWorkspaceForUser(body.workspaceId, userId),
+      authorization
+        ? Promise.resolve(authorization.targets.conversation)
+        : this.repository.findConversationForUser(conversationId, userId),
     ]);
     if (!workspace)
       throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });
     if (!conversation)
       throw new NotFoundError("Conversation not found", undefined, { messageKey: "agent.conversationNotFound" });
-    const token = await this.repository.findRelayTokenForUser(
-      body.relayTokenId || conversation.relayTokenId || undefined,
-      userId,
-    );
+    const token =
+      configuration?.token ??
+      (await this.repository.findRelayTokenForUser(
+        body.relayTokenId || conversation.relayTokenId || undefined,
+        userId,
+      ));
     if (!token) throw new ForbiddenError("Invalid relay token", undefined, { messageKey: "relayToken.invalid" });
     const requestedModel = body.model.trim();
     if (!requestedModel)
@@ -368,16 +393,42 @@ export class AgentService {
         messageKey: "agent.modelNotAllowed",
       });
     const limits = workspace.limits as Record<string, number>;
-    const row = await this.repository.createTask({
-      userId,
-      workspaceId: workspace.id,
-      conversationId,
-      relayTokenId: token.id,
-      model: resolveModelId(modelConfig),
-      prompt: body.content,
-      maxSteps: body.maxSteps || limits.maxSteps || 30,
-      budget: body.budget ?? limits.budget,
-    });
+    if (authorization) {
+      const latest = await AgentTaskCreationIamService.getInstance().authorize(
+        userId,
+        conversationId,
+        body.workspaceId,
+        body.relayTokenId,
+        request,
+      );
+      if (
+        latest.principal.accountOwnerId !== authorization.principal.accountOwnerId ||
+        ["workspace", "conversation", "token"].some((key) => {
+          const resource = key as keyof typeof latest.targets;
+          return (
+            latest.targets[resource].id !== authorization.targets[resource].id ||
+            latest.targets[resource].updateTime.getTime() !== authorization.targets[resource].updateTime.getTime()
+          );
+        })
+      )
+        throw new ForbiddenError("Task creation authorization snapshot changed", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+    }
+    const row = await this.repository.createTask(
+      {
+        userId,
+        workspaceId: workspace.id,
+        conversationId,
+        relayTokenId: token.id,
+        model: resolveModelId(modelConfig),
+        prompt: body.content,
+        maxSteps: body.maxSteps || limits.maxSteps || 30,
+        budget: body.budget ?? limits.budget,
+      },
+      authorization?.principal.accountOwnerId,
+      authorization?.targets,
+    );
     void this.run(row.id).catch(() => {
       getLogger("AgentTask", LogCategory.SECURITY).warn("Agent task worker failed", {
         reason: "task-worker-unavailable",

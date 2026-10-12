@@ -6,6 +6,7 @@ import {
   agentApprovalArn,
   isCanonicalAgentId,
 } from "../resources/agent-resources";
+import { chatConversationArn } from "../resources/chat-resources";
 import type { ResourceResolver } from "./resource-resolvers";
 
 /** Only trusted account and owner metadata enters a machine ARN; never the registration token. */
@@ -60,5 +61,38 @@ export const agentApprovalResourcesResolver: import("./resource-resolvers").Batc
   return [
     agentTaskArn(principal.accountOwnerId, target.userId, taskId),
     agentApprovalArn(principal.accountOwnerId, target.userId, taskId, approvalId),
+  ];
+};
+
+export const agentTaskCreationResourcesResolver: import("./resource-resolvers").BatchResourceResolver = async ({
+  request,
+  principal,
+}) => {
+  const conversationId = request.params.conversationId,
+    workspaceId = (request.body as { workspaceId?: unknown })?.workspaceId;
+  if (!isCanonicalAgentId(conversationId) || !isCanonicalAgentId(workspaceId)) return undefined;
+  const repository = AgentRepository.getInstance();
+  const workspace = await repository.findWorkspaceTarget(
+    workspaceId,
+    principal.subjectUserId,
+    principal.accountOwnerId,
+  );
+  const conversation = await repository.findAgentConversationTarget(
+    conversationId,
+    principal.subjectUserId,
+    principal.accountOwnerId,
+  );
+  if (
+    !workspace ||
+    workspace.id !== workspaceId ||
+    workspace.userId !== principal.subjectUserId ||
+    !conversation ||
+    conversation.id !== conversationId ||
+    conversation.userId !== principal.subjectUserId
+  )
+    return undefined;
+  return [
+    agentWorkspaceArn(principal.accountOwnerId, workspace.userId, workspaceId),
+    chatConversationArn(principal.accountOwnerId, conversationId),
   ];
 };

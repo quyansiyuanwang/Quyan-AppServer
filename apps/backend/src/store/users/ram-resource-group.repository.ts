@@ -378,6 +378,19 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
         return record?.alias === childId && record.projectId === id;
       }
       // Shared/global channels have no account ownership. Only submission-owned channels may join a group.
+      case "relay/token": {
+        const token = await prisma.relayToken.findFirst({
+          where: {
+            id: childId,
+            userId: id,
+            ...active,
+            user: { ...active, ...userOwner },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+          },
+          select: { id: true, userId: true },
+        });
+        return token?.id === childId && token.userId === id;
+      }
       case "relay/channel":
         return Boolean(await prisma.relayChannel.findFirst({ where: { id, ...active, submittedBy: userOwner } }));
       default:

@@ -65,6 +65,10 @@ describe("agent workspace runtime safety", () => {
     });
 
     expect(result.model).toBe("gpt-4o-mini");
-    expect(repository.createTask).toHaveBeenCalledWith(expect.objectContaining({ model: "gpt-4o-mini" }));
+    expect(repository.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "gpt-4o-mini" }),
+      undefined,
+      undefined,
+    );
   });
 });

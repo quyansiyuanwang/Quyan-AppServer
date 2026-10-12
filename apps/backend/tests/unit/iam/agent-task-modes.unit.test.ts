@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   warn: vi.fn(),
   approvals: vi.fn(),
   decide: vi.fn(),
+  creation: vi.fn(),
+  configuration: vi.fn(),
 }));
 vi.mock("@/config/env", () => ({
   env: {
@@ -44,6 +46,11 @@ vi.mock("@/util/logger", () => ({ getLogger: () => ({ warn: mocks.warn }), LogCa
 vi.mock("@/services/agent/agent-approval-iam.service", () => ({
   AgentApprovalIamService: { getInstance: () => ({ list: mocks.approvals, decide: mocks.decide }) },
 }));
+vi.mock("@/services/agent/agent-task-creation-iam.service", () => ({
+  AgentTaskCreationIamService: {
+    getInstance: () => ({ authorize: mocks.creation, configuration: mocks.configuration }),
+  },
+}));
 import { AgentService } from "@/services/agent/agent.service";
 const repository = mockDeep<AgentRepository>(),
   pricing = mockDeep<ModelPricingRepository>();
@@ -53,10 +60,36 @@ const Service = AgentService as unknown as new (
 ) => AgentService;
 const service = new Service(repository, pricing);
 const request = () => ({ user: { userId: "actor", roleSessionId: "session" } }) as unknown as TypedRequest;
+const creationTargets = {
+  workspace: { id: "workspace", userId: "actor", machineId: null, createTime: new Date(1), updateTime: new Date(1) },
+  conversation: { id: "conversation", userId: "actor", relayTokenId: "token", updateTime: new Date(1) },
+  token: { id: "token", userId: "actor", expiresAt: null, updateTime: new Date(1) },
+};
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.mode = "enforce";
   mocks.events.mockResolvedValue([]);
+  mocks.creation.mockResolvedValue({ principal: { accountOwnerId: "owner" }, targets: creationTargets });
+  mocks.configuration.mockResolvedValue({
+    workspace: { id: "workspace", userId: "actor", limits: { maxSteps: 7, budget: 2 } },
+    token: {
+      id: "token",
+      userId: "actor",
+      allowedModels: "gpt-4o-mini",
+      modelMapping: { "customer-model": "gpt-4o-mini" },
+    },
+  });
+  pricing.listActiveOrderedByModel.mockResolvedValue([{ model: "GPT-4o Mini", provider: "gpt-4o-mini" }] as Awaited<
+    ReturnType<ModelPricingRepository["listActiveOrderedByModel"]>
+  >);
+  repository.createTask.mockResolvedValue({
+    id: "task",
+    workspaceId: "workspace",
+    taskStatus: "queued",
+    model: "gpt-4o-mini",
+    stepCount: 0,
+    createTime: new Date(1),
+  } as Awaited<ReturnType<AgentRepository["createTask"]>>);
   mocks.check.mockResolvedValue({ hasPermission: true });
   repository.listEvents.mockResolvedValue([]);
   repository.findTaskForUser.mockResolvedValue({ id: "task", userId: "actor" } as Awaited<
@@ -107,5 +140,62 @@ describe("Agent task event and cancellation modes", () => {
     expect(repository.listPendingApprovals).not.toHaveBeenCalled();
     expect(repository.updateApproval).not.toHaveBeenCalled();
     expect(repository.updateTask).not.toHaveBeenCalled();
+  });
+  it("creates tasks using authorized configuration and passes scoped snapshots to the write", async () => {
+    const result = await service.createRun(
+      "actor",
+      "conversation",
+      { content: "hello", model: "customer-model", workspaceId: "workspace" },
+      request(),
+    );
+    expect(result.model).toBe("gpt-4o-mini");
+    expect(mocks.creation).toHaveBeenCalledTimes(2);
+    expect(repository.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "actor",
+        workspaceId: "workspace",
+        conversationId: "conversation",
+        relayTokenId: "token",
+        model: "gpt-4o-mini",
+        maxSteps: 7,
+        budget: 2,
+      }),
+      "owner",
+      creationTargets,
+    );
+    expect(repository.findRelayTokenForUser).not.toHaveBeenCalled();
+    expect(repository.findWorkspaceForUser).not.toHaveBeenCalled();
+  });
+  it("denies creation before configuration reads and denies changed snapshots before writing", async () => {
+    const body = { content: "hello", model: "customer-model", workspaceId: "workspace" };
+    mocks.creation.mockRejectedValueOnce(new Error("denied"));
+    await expect(service.createRun("actor", "conversation", body, request())).rejects.toThrow("denied");
+    expect(mocks.configuration).not.toHaveBeenCalled();
+    expect(repository.createTask).not.toHaveBeenCalled();
+    mocks.creation
+      .mockResolvedValueOnce({ principal: { accountOwnerId: "owner" }, targets: creationTargets })
+      .mockResolvedValueOnce({
+        principal: { accountOwnerId: "owner" },
+        targets: { ...creationTargets, token: { ...creationTargets.token, updateTime: new Date(2) } },
+      });
+    await expect(service.createRun("actor", "conversation", body, request())).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(repository.createTask).not.toHaveBeenCalled();
+  });
+  it("preserves configured-model and token-model checks under resource authorization", async () => {
+    const body = { content: "hello", model: "customer-model", workspaceId: "workspace" };
+    pricing.listActiveOrderedByModel.mockResolvedValueOnce([]);
+    await expect(service.createRun("actor", "conversation", body, request())).rejects.toMatchObject({
+      statusCode: 400,
+    });
+    mocks.configuration.mockResolvedValueOnce({
+      workspace: { id: "workspace", limits: {} },
+      token: { id: "token", allowedModels: "different-model", modelMapping: { "customer-model": "gpt-4o-mini" } },
+    });
+    await expect(service.createRun("actor", "conversation", body, request())).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(repository.createTask).not.toHaveBeenCalled();
   });
 });
