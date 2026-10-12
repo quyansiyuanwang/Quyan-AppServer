@@ -45,6 +45,15 @@ import {
   updateLifecycleScheduleBodySchema,
 } from "@/api/schema/system/data-lifecycle.schema";
 import type { TypedRequest } from "@/types/express";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  platformLifecycleDatasetResourceResolver,
+  platformLifecycleScheduleResourceResolver,
+} from "@/iam/request/platform-lifecycle-resource-resolvers";
 
 @Route("v1/data-lifecycle")
 @Tags("DataLifecycle")
@@ -54,16 +63,28 @@ export class DataLifecycleController extends Controller {
 
   @Get("policies")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
-  public async listPolicies(): Promise<DataLifecyclePolicyDTO[]> {
-    return await this.service.listPolicies();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:ListPolicies",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async listPolicies(@Request() request: TypedRequest): Promise<DataLifecyclePolicyDTO[]> {
+    return await this.service.listPoliciesRequest(request);
   }
 
   @Get("schedule")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
-  public async getSchedule(): Promise<DataLifecycleScheduleDTO> {
-    return this.service.getSchedule();
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:GetSchedule",
+      resourceKind: "single-resource",
+      resource: platformLifecycleScheduleResourceResolver,
+    }),
+  )
+  public async getSchedule(@Request() request: TypedRequest): Promise<DataLifecycleScheduleDTO> {
+    return this.service.getScheduleRequest(request);
   }
 
   @Put("schedule")
@@ -105,22 +126,38 @@ export class DataLifecycleController extends Controller {
 
   @Get("policies/{dataset}/preview")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:PreviewPolicy",
+      resourceKind: "single-resource",
+      resource: platformLifecycleDatasetResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(lifecycleDatasetParamsSchema))
-  public async preview(@Path() dataset: string): Promise<DataLifecyclePreviewResponse> {
-    return this.service.preview(dataset);
+  public async preview(
+    @Request() request: TypedRequest,
+    @Path() dataset: string,
+  ): Promise<DataLifecyclePreviewResponse> {
+    return this.service.previewRequest(dataset, request);
   }
 
   @Get("policies/{dataset}/candidates")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:ListCandidates",
+      resourceKind: "single-resource",
+      resource: platformLifecycleDatasetResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(lifecycleDatasetParamsSchema), validateQuery(lifecycleCandidatesQuerySchema))
   public async listCandidates(
+    @Request() request: TypedRequest,
     @Path() dataset: string,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<DataLifecycleCandidateListResponse> {
-    const result = await this.service.listCandidates(dataset, page, pageSize);
+    const result = await this.service.listCandidatesRequest(dataset, page, pageSize, request);
     return { ...result, page, pageSize };
   }
 

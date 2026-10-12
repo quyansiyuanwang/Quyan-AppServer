@@ -45,6 +45,18 @@ vi.mock("@/services/system/config.service", () => ({
   ConfigService: { getInstance: vi.fn(() => configService) },
 }));
 
+vi.mock("@/services/system/platform-lifecycle-read-iam.service", () => ({
+  PlatformLifecycleReadIamService: { getInstance: vi.fn() },
+}));
+
+vi.mock("@/store/users/iam-account-principal", async () => {
+  const { ForbiddenError } = await import("@/util/errors");
+  return {
+    iamAccountDenied: () =>
+      new ForbiddenError("fixture unavailable", undefined, { messageKey: "permission.insufficientPermission" }),
+  };
+});
+
 import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
 
 describe("DataLifecycleService", () => {

@@ -103,6 +103,16 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'lifecycle-dataset'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':lifecycle-dataset/{resourceId}',
+  },
+  {
+    ...resource('platform', 'lifecycle-schedule'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':lifecycle-schedule/{resourceId}',
+  },
+  {
     ...resource('platform', 'maintenance-run'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':maintenance-run/{resourceId}',
@@ -1688,6 +1698,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...['ListPolicies', 'PreviewPolicy', 'ListCandidates', 'GetSchedule'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:system:data_lifecycle:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: operation.startsWith('List') ? 'List' : 'Read',
+      resourceTypes: [
+        operation === 'GetSchedule' ? 'platform/lifecycle-schedule' : 'platform/lifecycle-dataset',
+      ],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+    }),
+  ),
   {
     action: 'quyan:system:data_maintenance:CreateOptimizeRun',
     service: 'system',

@@ -14,6 +14,14 @@ API 日志、通知日志和 AI 请求日志默认保留 90 天；业务日志�
 
 余额流水不纳入自动归档或删除。
 
+## 生命周期读取权限
+
+启用 IAM 强制授权后，生命周期读取仍要求平台管理的全局用户组提供生命周期管理资格。策略列表使用 `quyan:system:data_lifecycle:ListPolicies`，预览使用 `quyan:system:data_lifecycle:PreviewPolicy`，候选记录使用 `quyan:system:data_lifecycle:ListCandidates`，资源为 `acs:platform:*:platform:lifecycle-dataset/<dataset>`。这些权限分别控制各数据集，不能相互替代，也不包含归档执行或策略修改权限。
+
+列表只包含已授权的有效数据集，服务端在授权后才读取候选数量。被拒绝的数据集不会出现在列表中，其统计和候选内容也不会被读取。候选摘要保持脱敏；未知数据集、安全上下文缺失或加载期间发生撤权时，请求会失败。服务器文件日志同样按 `server_logs` 数据集授权。
+
+调度读取由 `quyan:system:data_lifecycle:GetSchedule` 单独控制，资源为 `acs:platform:*:platform:lifecycle-schedule/default`。它只允许读取计划，不允许修改计划或执行任务。
+
 ## 执行规则
 
 1. 页面会在策略表中显示当前将归档和将删除的记录数。

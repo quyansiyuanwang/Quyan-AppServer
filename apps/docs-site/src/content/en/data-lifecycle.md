@@ -14,6 +14,14 @@ API logs, notification logs, and AI request logs default to 90 days. Business lo
 
 Balance transactions are never automatically archived or deleted.
 
+## Lifecycle read permissions
+
+In IAM enforce mode, lifecycle reads still require lifecycle management eligibility from a platform-managed global user group. The policy list uses `quyan:system:data_lifecycle:ListPolicies`, previews use `quyan:system:data_lifecycle:PreviewPolicy`, and candidates use `quyan:system:data_lifecycle:ListCandidates`, on `acs:platform:*:platform:lifecycle-dataset/<dataset>`. Each action independently controls the selected datasets; none grants archive execution or policy updates.
+
+The list contains only authorized, active datasets. Candidate counts are read only after authorization. Denied datasets are omitted without reading their counts or candidate contents. Candidate summaries remain redacted; unknown datasets, missing security context, or revocation during loading cause the request to fail. Server file logs are also authorized through the `server_logs` dataset.
+
+Schedule reads independently require `quyan:system:data_lifecycle:GetSchedule` on `acs:platform:*:platform:lifecycle-schedule/default`. This grants schedule visibility, not schedule updates or task execution.
+
 ## Execution Rules
 
 1. The policy table shows how many records will be archived and deleted.

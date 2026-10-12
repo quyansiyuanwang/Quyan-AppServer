@@ -9,12 +9,14 @@ import { CONFIG_KEYS } from "@/constant/config-keys";
 import { getLogger, LogCategory } from "@/util/logger";
 import { createObjectStorageClient } from "@/services/infrastructure/object-storage-client";
 import { BadRequestError, NotFoundError } from "@/util/errors";
-import {
-  DATA_LIFECYCLE_DATASETS,
-  ObservabilityRepository,
-  type DataLifecycleDataset,
-} from "@/store/system/observability.repository";
+import { ObservabilityRepository } from "@/store/system/observability.repository";
+import { DATA_LIFECYCLE_DATASETS, type DataLifecycleDataset } from "@/constant/data-maintenance-datasets";
 import { ConfigService } from "@/services/system/config.service";
+import { PlatformLifecycleReadIamService } from "./platform-lifecycle-read-iam.service";
+import { isLifecycleDataset } from "@/iam/resources/platform-lifecycle-resources";
+import { lifecycleCandidatesQuerySchema } from "@/api/schema/system/data-lifecycle.schema";
+import type { TypedRequest } from "@/types/express";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 
 const logger = getLogger("DataLifecycleService", LogCategory.SYSTEM);
 const ARCHIVE_BATCH_SIZE = 1000;
@@ -50,6 +52,7 @@ export class DataLifecycleService {
   private constructor(
     private readonly repository: ObservabilityRepository = ObservabilityRepository.getInstance(),
     private readonly configService: ConfigService = ConfigService.getInstance(),
+    private readonly iamReads = PlatformLifecycleReadIamService.getInstance(),
   ) {}
 
   public static getInstance(): DataLifecycleService {
@@ -59,6 +62,78 @@ export class DataLifecycleService {
 
   public async initialize(): Promise<void> {
     await this.repository.ensureLifecyclePolicies();
+  }
+
+  public async listPoliciesRequest(request: TypedRequest) {
+    return this.iamReads.readDatasets(
+      "quyan:system:data_lifecycle:ListPolicies",
+      DATA_LIFECYCLE_DATASETS,
+      request,
+      async (allowed) => {
+        if (env.security.iamAuthorizationMode !== "enforce") return this.listPolicies();
+        if (!allowed.size) return [];
+        const policies = (await this.repository.listLifecyclePolicies()).filter(
+          (p) => p.status === 1 && isLifecycleDataset(p.dataset) && allowed.has(p.dataset),
+        );
+        const result = await Promise.all(
+          policies.map(async (policy) => ({
+            ...policy,
+            candidateCount: await this.countCandidates(
+              policy.dataset as DataLifecycleDataset,
+              this.cutoff(policy.hotRetentionDays),
+            ),
+          })),
+        );
+        const current = await this.repository.listLifecyclePolicies();
+        if (
+          policies.some(
+            (p) =>
+              !current.some(
+                (c) =>
+                  c.id === p.id &&
+                  c.dataset === p.dataset &&
+                  c.status === 1 &&
+                  c.updateTime.getTime() === p.updateTime.getTime(),
+              ),
+          )
+        )
+          throw iamAccountDenied();
+        return result;
+      },
+    );
+  }
+  public async getScheduleRequest(request: TypedRequest) {
+    return this.iamReads.readSchedule(request, () => this.getSchedule());
+  }
+  public async previewRequest(dataset: string, request: TypedRequest) {
+    return this.iamReads.readDatasets("quyan:system:data_lifecycle:PreviewPolicy", [dataset], request, () =>
+      this.readActivePolicy(dataset, () => this.preview(dataset)),
+    );
+  }
+  public async listCandidatesRequest(dataset: string, page: number, pageSize: number, request: TypedRequest) {
+    const parsed = lifecycleCandidatesQuerySchema.strict().safeParse({ page, pageSize });
+    if (!parsed.success)
+      throw new BadRequestError("Invalid lifecycle candidate query", undefined, { messageKey: "errors.badRequest" });
+    return this.iamReads.readDatasets("quyan:system:data_lifecycle:ListCandidates", [dataset], request, () =>
+      this.readActivePolicy(dataset, () => this.listCandidates(dataset, page, pageSize)),
+    );
+  }
+
+  private async readActivePolicy<T>(dataset: string, read: () => Promise<T>): Promise<T> {
+    if (env.security.iamAuthorizationMode !== "enforce") return read();
+    if (!isLifecycleDataset(dataset)) throw iamAccountDenied();
+    const policy = await this.repository.getLifecyclePolicy(dataset);
+    if (!policy || policy.status !== 1) throw iamAccountDenied();
+    const result = await read();
+    const current = await this.repository.getLifecyclePolicy(dataset);
+    if (
+      !current ||
+      current.id !== policy.id ||
+      current.status !== 1 ||
+      current.updateTime.getTime() !== policy.updateTime.getTime()
+    )
+      throw iamAccountDenied();
+    return result;
   }
 
   public async listPolicies() {
