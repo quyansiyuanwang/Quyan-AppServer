@@ -1,3 +1,5 @@
+import { validateQuery } from "@/middleware/validation";
+import { supportAnalyticsQuerySchema } from "@/api/schema/support/support-analytics.schema";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { iamAccountUserResourceResolver } from "@/iam/request/account-user-resource-resolver";
 import {
@@ -31,8 +33,11 @@ import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-prote
 import { SSEStreamService } from "@/util/streaming/sse";
 import { skipResponseWrapper } from "@/util/response-wrapper";
 import type { TypedRequest } from "@/types/express";
-import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
-import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  iamCollectionAuthorizationMiddleware,
+  iamAuthenticatedAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver, iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import type { SuccessResponse } from "@/api/response";
 
 @Route("v1/support")
@@ -94,18 +99,26 @@ export class SupportController extends Controller {
 
   @Get("analytics")
   @Security("jwt")
-  @RequirePermission(Permission.SUPPORT_AI_ANALYTICS_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:support:GetUserUsageAnalytics",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(supportAnalyticsQuerySchema),
+  )
   public async analytics(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() startAt?: string,
     @Query() endAt?: string,
     @Query() userId?: string,
+    @Request() request?: TypedRequest,
   ): Promise<SuccessResponse<SupportAiAnalyticsDto>> {
     return {
       code: 0,
       message: "Success",
-      data: await this.supportService.getAnalytics({ page, pageSize, startAt, endAt, userId }),
+      data: await this.supportService.getManagedAnalytics({ page, pageSize, startAt, endAt, userId }, request),
     };
   }
 

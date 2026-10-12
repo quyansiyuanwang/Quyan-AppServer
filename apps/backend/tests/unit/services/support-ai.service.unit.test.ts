@@ -572,3 +572,100 @@ describe("SupportAiService monitored conversation IAM rollout", () => {
     });
   });
 });
+
+describe("SupportAiService managed analytics IAM rollout", () => {
+  const request = () =>
+    ({
+      user: { userId: "actor" },
+      authContext: { principalUserId: "actor", accountOwnerId: "owner", roleSessionId: "session" },
+      headers: {},
+    }) as unknown as TypedRequest;
+  const fixture = () => {
+    const repository = {
+        getAccountAnalytics: vi.fn().mockResolvedValue({ totalRequests: 2, totalUsers: 1 }),
+        getAnalytics: vi.fn().mockResolvedValue({ totalRequests: 20 }),
+      },
+      permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) },
+      collection = {
+        read: vi
+          .fn()
+          .mockImplementation(
+            async (_: string, _request: unknown, read: (ids: string[], principal: any) => Promise<unknown>) =>
+              read(["peer"], { accountOwnerId: "owner" }),
+          ),
+        authorizeCollection: vi.fn(),
+      };
+    return {
+      repository,
+      permissions,
+      collection,
+      service: new SupportAiServiceCtor({}, {}, {}, {}, repository, {}, {}, permissions, collection),
+    };
+  };
+  it("enforce aggregates only trusted user IDs and account identity from the collection boundary", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    const { service, repository, collection } = fixture(),
+      req = request();
+    expect(await service.getManagedAnalytics({ userId: "peer" }, req)).toMatchObject({ totalRequests: 2 });
+    expect(collection.read).toHaveBeenCalledWith(
+      "quyan:support:GetUserUsageAnalytics",
+      req,
+      expect.any(Function),
+      "peer",
+    );
+    expect(repository.getAccountAnalytics).toHaveBeenCalledWith({ accountOwnerId: "owner" }, { userId: "peer" }, [
+      "peer",
+    ]);
+    expect(repository.getAnalytics).not.toHaveBeenCalled();
+  });
+  it("enforce never falls back to global analytics when IAM fails", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    const { service, repository, collection } = fixture();
+    collection.read.mockRejectedValue(new Error("fixture denied"));
+    await expect(service.getManagedAnalytics({}, request())).rejects.toThrow("fixture denied");
+    expect(repository.getAnalytics).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("%s requires legacy analytics permission in the current role session", async (mode) => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = mode;
+    const { service, repository, permissions } = fixture();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.getManagedAnalytics({}, request())).rejects.toMatchObject({ statusCode: 403 });
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.SUPPORT_AI_ANALYTICS_READ], {
+      assumedRoleSessionId: "session",
+    });
+    expect(repository.getAnalytics).not.toHaveBeenCalled();
+  });
+  it("shadow evaluates user metadata and performs the original aggregate query once", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "shadow";
+    const { service, repository, collection } = fixture(),
+      req = request();
+    collection.authorizeCollection.mockRejectedValue(new Error("fixture denied"));
+    expect(await service.getManagedAnalytics({}, req)).toMatchObject({ totalRequests: 20 });
+    expect(collection.authorizeCollection).toHaveBeenCalledWith("quyan:support:GetUserUsageAnalytics", req, undefined);
+    expect(collection.read).not.toHaveBeenCalled();
+    expect(repository.getAccountAnalytics).not.toHaveBeenCalled();
+    expect(repository.getAnalytics).toHaveBeenCalledTimes(1);
+  });
+  it("rejects invalid dates and user identifiers before any aggregate query", async () => {
+    const { service, repository } = fixture();
+    for (const query of [{ startAt: "invalid" }, { userId: "*" }, { pageSize: 101 }, { startAt: "2999-01-01" }])
+      await expect(service.getManagedAnalytics(query, request())).rejects.toMatchObject({ statusCode: 400 });
+    expect(repository.getAnalytics).not.toHaveBeenCalled();
+    expect(repository.getAccountAnalytics).not.toHaveBeenCalled();
+  });
+  it("declares collection metadata and structured query validation", () => {
+    const filename = "src/api/controllers/v1/support/support.controller.ts",
+      project = new Project({ useInMemoryFileSystem: true }),
+      source = project.createSourceFile("/backend/" + filename, readFileSync(filename, "utf8"));
+    const route = collectIamRoutes([source], "/backend").find((r) => r.method === "analytics");
+    expect(route).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:support:GetUserUsageAnalytics"],
+      resourceKind: "collection",
+      issues: [],
+    });
+    const method = source.getClassOrThrow("SupportController").getMethodOrThrow("analytics");
+    expect(method.getDecorator("Middlewares")?.getText()).toContain("validateQuery(supportAnalyticsQuerySchema)");
+    expect(method.getText()).toContain("getManagedAnalytics");
+  });
+});

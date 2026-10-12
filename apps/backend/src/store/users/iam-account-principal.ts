@@ -49,6 +49,19 @@ export class IamAccountUserRepository {
   static getInstance() {
     return (this.instance ??= new IamAccountUserRepository());
   }
+  assertActor(principal: IamPrincipal) {
+    return assertIamAccountPrincipal(principal);
+  }
+  async scanTargets(principal: IamPrincipal, after?: string) {
+    await assertIamAccountPrincipal(principal);
+    if (after !== undefined && !/^[A-Za-z0-9_-]{1,128}$/.test(after)) throw iamAccountDenied();
+    return prisma.user.findMany({
+      where: { ...activeIamAccountUsers(principal.accountOwnerId), ...(after ? { id: { gt: after } } : {}) },
+      select: { id: true, updateTime: true },
+      orderBy: { id: "asc" },
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+    });
+  }
   async targets(principal: IamPrincipal, userIds: readonly string[]) {
     await assertIamAccountPrincipal(principal);
     if (

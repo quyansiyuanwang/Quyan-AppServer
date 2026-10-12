@@ -918,6 +918,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     legacyPermission: Permission.SUPPORT_AI_ANALYTICS_READ,
   },
   {
+    action: 'quyan:support:GetUserUsageAnalytics',
+    service: 'support',
+    operation: 'GetUserUsageAnalytics',
+    accessLevel: 'Read',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.SUPPORT_AI_ANALYTICS_READ,
+  },
+  {
     action: 'quyan:balance:ListUserTransactions',
     service: 'balance',
     operation: 'ListUserTransactions',

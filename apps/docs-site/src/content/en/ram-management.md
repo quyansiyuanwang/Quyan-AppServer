@@ -470,3 +470,9 @@ The server confirms the revocation marker before committing session closure. If 
 ## Reading another user's support conversation
 
 `quyan:support:GetUserConversation` authorizes the selected `acs:quyan:*:<accountId>:user/<userId>` resource. In IAM enforcement mode, the target must be an active user within the current account, even when a policy uses wildcards. This sensitive permission has no automatic self-service grant and does not authorize changing support configuration or accessing usage analytics. The server checks current authorization before reading the conversation and again before returning it. A revoked grant, changed user revision, invalid role session or disabled account blocks the response. Existing own-conversation operations keep their separate permissions.
+
+## Support usage analytics scope
+
+`quyan:support:GetUserUsageAnalytics` authorizes support usage analytics on `acs:quyan:*:<accountId>:user/<userId>`. It is separate from reading support conversations and has no default self-service grant. Enforce mode includes only authorized users in the current account when calculating requests, tokens, estimated costs and daily trends. User tables are paginated after authorization, and unauthorized users do not count toward totals. A selected-user query requires authorization on that user resource, and cross-account targets are denied. An empty authorized set yields zero statistics. Authorization and user revisions are checked before returning; revoked grants or changed user status or revisions prevent previously computed statistics from being returned.
+
+Query parameters cover page, page size, user and start/end time. Pages contain at most 100 users. The default window is the last 30 days, capped at 90 days. Invalid dates, date ordering and user identifiers produce parameter errors. Legacy and shadow modes retain existing permission checks, with shadow diagnostics evaluated against user resources.

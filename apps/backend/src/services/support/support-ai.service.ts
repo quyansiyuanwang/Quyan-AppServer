@@ -1,3 +1,5 @@
+import { IamAccountUserCollectionService } from "@/services/users/iam-account-user-collection.service";
+import { supportAnalyticsQuerySchema } from "@/api/schema/support/support-analytics.schema";
 import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { IamAccountUserAuthorizationService } from "@/services/users/iam-account-user-authorization.service";
@@ -172,6 +174,7 @@ export class SupportAiService {
     private readonly relayTokenService = new RelayTokenService(),
     private readonly userIam = IamAccountUserAuthorizationService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
+    private readonly userCollectionIam = IamAccountUserCollectionService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -996,6 +999,40 @@ export class SupportAiService {
     });
   }
 
+  async getManagedAnalytics(input: SupportAiAnalyticsQueryDto, request?: TypedRequest) {
+    const validated = supportAnalyticsQuerySchema.safeParse(input);
+    if (!validated.success)
+      throw new BadRequestError("Invalid support analytics query", undefined, { messageKey: "errors.badRequest" });
+    const query = validated.data,
+      action = "quyan:support:GetUserUsageAnalytics";
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.userCollectionIam.read(
+        action,
+        request,
+        (ids, principal) => this.usageRepository.getAccountAnalytics(principal, query, ids),
+        query.userId,
+      );
+    const principal = request && getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    if (
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.SUPPORT_AI_ANALYTICS_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow")
+      try {
+        await this.userCollectionIam.authorizeCollection(action, request, query.userId);
+      } catch {
+        getLogger("SupportAnalyticsIamBridge", LogCategory.SECURITY).warn("Support analytics IAM shadow denied", {
+          action,
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    return this.usageRepository.getAnalytics(query);
+  }
   async getAnalytics(query: SupportAiAnalyticsQueryDto) {
     return this.usageRepository.getAnalytics(query);
   }
