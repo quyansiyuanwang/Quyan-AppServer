@@ -230,7 +230,11 @@ export class OAuthClientController extends Controller {
 
   @Post("{id}/regenerate-secret")
   @Security("jwt", ["oauth_client"])
-  @RequirePermission(Permission.OAUTH_CLIENT_UPDATE)
+  @CheckPermission(Permission.OAUTH_CLIENT_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:RotateClientSecret",
+    resourceKind: "single-resource",
+    resource: oauthClientResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "OAuth 应用不存在")
@@ -248,7 +252,11 @@ export class OAuthClientController extends Controller {
 
   @Delete("{id}")
   @Security("jwt", ["oauth_client"])
-  @RequirePermission(Permission.OAUTH_CLIENT_DELETE)
+  @CheckPermission(Permission.OAUTH_CLIENT_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:DeleteClient",
+    resourceKind: "single-resource",
+    resource: oauthClientResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "OAuth 应用不存在")

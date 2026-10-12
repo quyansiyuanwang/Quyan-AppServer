@@ -19,6 +19,7 @@ vi.mock("@/store/users/iam-account-principal", async () => {
   };
 });
 import { env } from "@/config/env";
+import { Permission } from "@quyan/shared";
 import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
 import { OAuthClientService } from "@/services/users/oauth-client.service";
 import type { TypedRequest } from "@/types/express";
@@ -47,12 +48,14 @@ beforeEach(() => {
   };
   permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) };
   repo = { findByUserId: vi.fn().mockResolvedValue([record]), findById: vi.fn().mockResolvedValue(record) };
+  repo.delete = vi.fn().mockResolvedValue(record);
   repo.update = vi.fn().mockImplementation(async (_: string, data: any) => ({ ...record, ...data }));
   mutations = {
     prepare: vi.fn().mockResolvedValue({
       existing: { ...record, reviewStatus: "approved" },
       guard: { identity: { principal: { roleSessionId: "session" } } },
     }),
+    revoke: vi.fn().mockResolvedValue(record),
     update: vi.fn().mockImplementation(async (data: any) => ({ ...record, ...data })),
   };
   service = new (OAuthClientService as unknown as new (...args: any[]) => OAuthClientService)(
@@ -159,5 +162,49 @@ describe("OAuth application update business enforcement", () => {
     expect(mutations.update).not.toHaveBeenCalled();
     permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
     await expect(service.submitForReview("client", "actor", request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("OAuth secret rotation and deletion resource behavior", () => {
+  it("returns only the newly generated secret after a guarded rotation", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    const result = await service.regenerateSecret("client", "actor", request);
+    expect(result.clientSecret).toMatch(/^oauths_/);
+    expect(result).not.toHaveProperty("clientSecretHash");
+    expect(mutations.prepare).toHaveBeenCalledWith("quyan:oauth:RotateClientSecret", "actor", "client", request);
+    expect(mutations.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientSecretHash: expect.stringMatching(/^\$2/),
+        clientSecretPreview: expect.any(String),
+      }),
+      expect.anything(),
+    );
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+  it("refuses secret rotation for public applications before generating a write", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    mutations.prepare.mockResolvedValue({ existing: { ...record, clientType: "public" }, guard: {} });
+    await expect(service.regenerateSecret("client", "actor", request)).rejects.toMatchObject({ statusCode: 400 });
+    expect(mutations.update).not.toHaveBeenCalled();
+  });
+  it("deletes through the transactional resource boundary and has no legacy fallback", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    await service.deleteClient("client", "actor", request);
+    expect(mutations.prepare).toHaveBeenCalledWith("quyan:oauth:DeleteClient", "actor", "client", request);
+    expect(mutations.revoke).toHaveBeenCalled();
+    expect(repo.delete).not.toHaveBeenCalled();
+    mutations.revoke.mockRejectedValue(new Error("fixture final deny"));
+    await expect(service.deleteClient("client", "actor", request)).rejects.toThrow("fixture final deny");
+    expect(repo.delete).not.toHaveBeenCalled();
+  });
+  it("enforces delete legacy permission in shadow while diagnostics perform no writes", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    await service.deleteClient("client", "actor", request);
+    expect(mutations.prepare).toHaveBeenCalledWith("quyan:oauth:DeleteClient", "actor", "client", request, false);
+    expect(repo.delete).toHaveBeenCalled();
+    expect(mutations.revoke).not.toHaveBeenCalled();
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OAUTH_CLIENT_DELETE], {
+      assumedRoleSessionId: "session",
+    });
   });
 });

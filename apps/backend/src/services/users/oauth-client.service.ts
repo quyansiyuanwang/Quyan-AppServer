@@ -284,9 +284,13 @@ export class OAuthClientService {
         principal.subjectUserId !== userId ||
         principal.principalUserId !== userId ||
         !(
-          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_UPDATE], {
-            assumedRoleSessionId: principal.roleSessionId,
-          })
+          await this.permissions.checkUserPermissions(
+            userId,
+            [action === "quyan:oauth:DeleteClient" ? Permission.OAUTH_CLIENT_DELETE : Permission.OAUTH_CLIENT_UPDATE],
+            {
+              assumedRoleSessionId: principal.roleSessionId,
+            },
+          )
         ).hasPermission
       )
         throw iamAccountDenied();
@@ -395,7 +399,7 @@ export class OAuthClientService {
   }
 
   async deleteClient(id: string, userId: string, request?: Request): Promise<void> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:oauth:DeleteClient", userId, id, request);
 
     // 保护系统客户端不被删除
     if (existing.isSystemClient) {
@@ -404,7 +408,8 @@ export class OAuthClientService {
       });
     }
 
-    await this.repository.delete(id);
+    if (guard) await this.mutations.revoke(guard);
+    else await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_DELETE,
@@ -453,7 +458,7 @@ export class OAuthClientService {
   }
 
   async regenerateSecret(id: string, userId: string, request?: Request): Promise<OAuthClientWithSecretDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:oauth:RotateClientSecret", userId, id, request);
     if (existing.clientType === "public")
       throw new BadRequestError("Public OAuth client does not use client secret", undefined, {
         messageKey: "oauth.publicClientNoSecret",
@@ -461,10 +466,13 @@ export class OAuthClientService {
       });
 
     const rawClientSecret = this.generateClientSecret();
-    const updated = await this.repository.update(id, {
+    const updateData: OAuthClientUpdateInput = {
       clientSecretHash: await bcrypt.hash(rawClientSecret, 10),
       clientSecretPreview: maskSecret(rawClientSecret),
-    });
+    };
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_SECRET_ROTATE,

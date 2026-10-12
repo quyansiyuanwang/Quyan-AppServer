@@ -11,7 +11,17 @@ export class OAuthClientMutationRepository implements OAuthClientMutationStore {
   static getInstance() {
     return (this.instance ??= new OAuthClientMutationRepository());
   }
-  async update(data: OAuthClientUpdateInput, guard: OAuthClientMutationGuard) {
+  update(data: OAuthClientUpdateInput, guard: OAuthClientMutationGuard) {
+    return this.mutate(data, guard, false);
+  }
+  revoke(guard: OAuthClientMutationGuard) {
+    return this.mutate({ status: -1 }, guard, true);
+  }
+  private async mutate(
+    data: OAuthClientUpdateInput & { status?: number },
+    guard: OAuthClientMutationGuard,
+    deleting: boolean,
+  ) {
     try {
       return await prisma.$transaction(
         async (tx) => {
@@ -42,12 +52,12 @@ export class OAuthClientMutationRepository implements OAuthClientMutationStore {
           await assertOAuthClientIdentity(identity, tx);
           await guard.scopeCheck?.();
           const row = await tx.oAuthClient.findFirst({
-            where: { id: target.id, userId: target.userId, status: 1, isSystemClient: false },
+            where: { id: target.id, userId: target.userId, status: deleting ? -1 : 1, isSystemClient: false },
             select: OAUTH_CLIENT_VIEW_SELECT,
           });
           if (!row) throw iamAccountDenied();
           const hasClientSecret = !!(await tx.oAuthClient.count({
-            where: { id: target.id, userId: target.userId, status: 1, clientSecretHash: { not: null } },
+            where: { id: target.id, userId: target.userId, status: deleting ? -1 : 1, clientSecretHash: { not: null } },
           }));
           return { ...row, hasClientSecret };
         },

@@ -95,6 +95,9 @@ export class OAuthClientMutationIamService {
     };
     return { existing: rows[0], guard };
   }
+  revoke(guard: OAuthClientMutationGuard) {
+    return this.mutations.revoke(guard);
+  }
   update(data: OAuthClientUpdateInput, guard: OAuthClientMutationGuard) {
     return this.mutations.update(data, guard);
   }

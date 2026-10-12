@@ -139,4 +139,33 @@ describe("personal OAuth application update boundary", () => {
     });
     expect(mutations.update).not.toHaveBeenCalled();
   });
+  it("registers separate rotation and deletion actions and uses their resource guards", async () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/users/oauth-client.controller.ts");
+    const routes = collectIamRoutes(project.getSourceFiles(), process.cwd());
+    for (const [action, route, permission] of [
+      [
+        "quyan:oauth:RotateClientSecret",
+        "POST /v1/oauth-clients/{id}/regenerate-secret",
+        Permission.OAUTH_CLIENT_UPDATE,
+      ],
+      ["quyan:oauth:DeleteClient", "DELETE /v1/oauth-clients/{id}", Permission.OAUTH_CLIENT_DELETE],
+    ] as const) {
+      expect(getIamActionDefinition(action)).toMatchObject({
+        sensitive: true,
+        resourceTypes: ["oauth/client"],
+        accessLevel: "Write",
+      });
+      expect(iamActionsForLegacyPermission(permission)).toContain(action);
+      expect(routes.find((r) => r.key === route)).toMatchObject({
+        coverage: "explicit",
+        actions: [action],
+        issues: [],
+      });
+      await service.prepare(action, "actor", "client", request);
+      expect(iam.authorize).toHaveBeenLastCalledWith(
+        expect.objectContaining({ action, resource: "acs:oauth:*:owner:client/actor/client" }),
+      );
+    }
+  });
 });

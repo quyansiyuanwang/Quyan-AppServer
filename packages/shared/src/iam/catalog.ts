@@ -966,6 +966,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     legacyPermission: Permission.BALANCE_READ,
   },
+  ...['RotateClientSecret', 'DeleteClient'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:oauth:' + operation,
+      service: 'oauth',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes: ['oauth/client'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission:
+        operation === 'DeleteClient'
+          ? Permission.OAUTH_CLIENT_DELETE
+          : Permission.OAUTH_CLIENT_UPDATE,
+    }),
+  ),
   ...['UpdateClient', 'SubmitClientReview'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oauth:' + operation,
