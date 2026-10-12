@@ -7,3 +7,5 @@ export const platformConsumptionStatisticsResource: ResourceResolver = () => pla
 export const platformTrackingStatisticsResource: ResourceResolver = () => platformSystemArn("tracking-stats");
 export const platformFunnelStatisticsResource: ResourceResolver = () => platformSystemArn("tracking-funnel");
 export const platformHeatmapResource: ResourceResolver = () => platformSystemArn("heatmap-stats");
+
+export const platformOpenApiSpecificationResource: ResourceResolver = () => platformSystemArn("openapi-spec");

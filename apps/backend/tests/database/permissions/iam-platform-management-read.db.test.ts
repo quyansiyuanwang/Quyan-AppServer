@@ -69,6 +69,7 @@ const action = "quyan:system:GetStatistics",
   resource = platformSystemArn("stats");
 describe("platform management read authorization database", () => {
   it.each([
+    ["GetOpenApiSpecification", "openapi-spec", Permission.DEBUG_OPENAPI_READ],
     ["GetBuildInfo", "build-info", Permission.DEBUG_ACCESS],
     ["GetStatistics", "stats", Permission.SYSTEM_STATS_READ],
     ["GetConsumptionStatistics", "consumption-stats", Permission.SYSTEM_CONSUMPTION_STATS_READ],

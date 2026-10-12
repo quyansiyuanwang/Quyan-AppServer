@@ -346,6 +346,12 @@ const page = 1
 const pageSize = 20
 ```
 
+## Generated OpenAPI specification access
+
+`GET /docs/openapi.json` returns the raw generated OpenAPI document without the standard response envelope. Trusted local access retains the `local-or-jwt` authentication behavior. Remote JWT access requires `DEBUG_OPENAPI_READ`; with IAM enforcement, eligibility must come from a real deployment-wide group and the request must allow `quyan:system:GetOpenApiSpecification` on `acs:platform:*:platform:system/openapi-spec`.
+
+The path and Action are fixed by the server. Query parameters and headers cannot select another file or grant access. If authorization or the current role session becomes invalid during the read, the document is withheld. A matching Deny overrides Allow.
+
 ## Error handling guidance
 
 Documentation should not only show success cases. It should also show how failures are handled.

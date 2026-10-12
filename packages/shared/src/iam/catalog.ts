@@ -1103,6 +1103,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: permission,
     }),
   ),
+  {
+    action: 'quyan:system:GetOpenApiSpecification',
+    service: 'system',
+    operation: 'GetOpenApiSpecification',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/system'],
+    apiRoutes: ['GET /docs/openapi.json'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: false,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.DEBUG_OPENAPI_READ,
+  },
   ...(['PublishVersion', 'UnpublishVersion'] as const).map(
     (operation): IamActionDefinition => ({
       action: 'quyan:legal_policy:' + operation,

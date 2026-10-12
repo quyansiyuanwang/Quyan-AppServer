@@ -348,6 +348,12 @@ const page = 1
 const pageSize = 20 // 不要盲目传超大值
 ```
 
+## 生成的 OpenAPI 规范访问
+
+`GET /docs/openapi.json` 返回原始生成的 OpenAPI 文档，不使用通用响应包装。可信本地访问保留 `local-or-jwt` 认证行为。远程 JWT 访问需要 `DEBUG_OPENAPI_READ`；IAM 强制模式下，该资格必须来自真实部署全局组，并允许 `quyan:system:GetOpenApiSpecification` 对 `acs:platform:*:platform:system/openapi-spec` 的访问。
+
+路径和 Action 由服务端固定，查询参数和 Header 不能选择其他文件或授予权限。读取过程中授权或当前角色会话失效时，文档不会返回；匹配的 Deny 优先于 Allow。
+
 ## 错误处理建议
 
 不要只展示”成功示例”，还应展示失败时怎么处理。
