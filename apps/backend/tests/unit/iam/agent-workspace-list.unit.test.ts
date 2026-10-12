@@ -75,6 +75,35 @@ describe("Agent workspace list resource authorization", () => {
     expect(iamActionsForLegacyPermission(Permission.AGENT_WORKSPACE_READ)).toContain("quyan:agent:ListWorkspaces");
     expect(agentWorkspaceArn("owner", "actor", "workspace-1")).toBe("acs:agent:*:owner:workspace/actor/workspace-1");
   });
+  it("requires separate creation and selected-machine permissions before loading machine bodies", async () => {
+    iam.authorizeMany.mockResolvedValue([allow]);
+    repository.findMachineTarget.mockResolvedValue({
+      ...target("machine-1"),
+      machineId: undefined,
+    } as unknown as Awaited<ReturnType<AgentRepository["findMachineTarget"]>>);
+    expect(await service.authorizeCreate("actor", "machine-1", request())).toMatchObject({
+      principal: { accountOwnerId: "owner" },
+      machineTarget: { id: "machine-1" },
+    });
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "quyan:agent:CreateWorkspace", resources: ["acs:quyan:*:owner:user/actor"] }),
+    );
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "quyan:agent:UseMachine",
+        resources: ["acs:agent:*:owner:machine/actor/machine-1"],
+      }),
+    );
+    expect(iamActionsForLegacyPermission(Permission.AGENT_WORKSPACE_WRITE)).toContain("quyan:agent:UseMachine");
+    iam.authorizeMany.mockResolvedValueOnce([allow]).mockResolvedValueOnce([deny]);
+    await expect(service.authorizeCreate("actor", "machine-1", request())).rejects.toMatchObject({ statusCode: 403 });
+    repository.findMachineTarget.mockResolvedValueOnce({
+      ...target("machine-1"),
+      userId: "foreign",
+    } as unknown as Awaited<ReturnType<AgentRepository["findMachineTarget"]>>);
+    await expect(service.authorizeCreate("actor", "machine-1", request())).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.authorizeCreate("actor", "../machine", request())).rejects.toMatchObject({ statusCode: 403 });
+  });
   it("authorizes before loading policy and limits, and passes the trusted account", async () => {
     expect((await service.list("actor", request())).map((row) => row.id)).toEqual(["workspace-3", "workspace-1"]);
     expect(repository.readWorkspaceTargets).toHaveBeenCalledWith("actor", "owner", [

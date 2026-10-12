@@ -54,7 +54,13 @@ const machineScopeChanged = () =>
 const workspaceAccountScope = (userId: string, accountOwnerId: string): Prisma.AgentWorkspaceWhereInput => ({
   userId,
   status: 1,
-  user: { status: 1, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+  user: {
+    status: 1,
+    OR: [
+      { accountOwnerId, accountOwner: { status: 1, accountOwnerId: null } },
+      { id: accountOwnerId, accountOwnerId: null },
+    ],
+  },
 });
 export type AgentWorkspaceTarget = Pick<AgentWorkspace, "id" | "userId" | "machineId" | "createTime" | "updateTime">;
 export const agentWorkspacePublicSelect = {
@@ -180,16 +186,82 @@ export class AgentRepository {
     });
   }
 
-  createWorkspace(data: {
-    userId: string;
-    name: string;
-    policy: Prisma.InputJsonValue;
-    limits: Prisma.InputJsonValue;
-    machineId?: string;
-  }) {
-    return prisma.agentWorkspace.create({
-      data: { ...data, runtimeStatus: "provisioning" },
+  async createWorkspace(
+    data: {
+      userId: string;
+      name: string;
+      policy: Prisma.InputJsonValue;
+      limits: Prisma.InputJsonValue;
+      machineId?: string;
+    },
+    accountOwnerId?: string,
+    machineTarget?: AgentMachineTarget,
+  ) {
+    if (!accountOwnerId) return prisma.agentWorkspace.create({ data: { ...data, runtimeStatus: "provisioning" } });
+    return prisma.$transaction(
+      async (tx) => {
+        const user = await tx.user.findFirst({
+          where: {
+            id: data.userId,
+            status: 1,
+            OR: [
+              { accountOwnerId, accountOwner: { status: 1, accountOwnerId: null } },
+              { id: accountOwnerId, accountOwnerId: null },
+            ],
+          },
+          select: { id: true },
+        });
+        if (user?.id !== data.userId) throw machineScopeChanged();
+        if (data.machineId) {
+          if (!machineTarget || machineTarget.id !== data.machineId || machineTarget.userId !== data.userId)
+            throw machineScopeChanged();
+          const machine = await tx.agentRuntimeMachine.findFirst({
+            where: {
+              id: machineTarget.id,
+              updateTime: machineTarget.updateTime,
+              ...machineAccountScope(data.userId, accountOwnerId),
+            },
+            select: { id: true },
+          });
+          if (machine?.id !== machineTarget.id) throw machineScopeChanged();
+        } else if (machineTarget) throw machineScopeChanged();
+        return tx.agentWorkspace.create({ data: { ...data, runtimeStatus: "provisioning" } });
+      },
+      { isolationLevel: "Serializable" },
+    );
+  }
+
+  readMachineRuntimeTarget(target: AgentMachineTarget, accountOwnerId: string) {
+    return prisma.agentRuntimeMachine.findFirst({
+      where: { id: target.id, updateTime: target.updateTime, ...machineAccountScope(target.userId, accountOwnerId) },
+      select: agentMachinePublicSelect,
     });
+  }
+
+  async updateWorkspaceTarget(
+    target: AgentWorkspaceTarget,
+    accountOwnerId: string,
+    data: Prisma.AgentWorkspaceUpdateManyMutationInput,
+  ) {
+    return prisma.$transaction(
+      async (tx) => {
+        const updated = await tx.agentWorkspace.updateMany({
+          where: {
+            id: target.id,
+            machineId: target.machineId,
+            updateTime: target.updateTime,
+            ...workspaceAccountScope(target.userId, accountOwnerId),
+          },
+          data: { ...data, updateTime: nextRuntimeLease(target.updateTime) },
+        });
+        if (updated.count !== 1) throw machineScopeChanged();
+        return tx.agentWorkspace.findFirstOrThrow({
+          where: { id: target.id, userId: target.userId },
+          select: agentWorkspacePublicSelect,
+        });
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   findMachineTarget(id: string, userId: string, accountOwnerId: string) {

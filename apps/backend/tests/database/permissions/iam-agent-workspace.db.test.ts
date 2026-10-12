@@ -76,6 +76,33 @@ describe("Agent workspace storage and IAM boundaries", () => {
     });
     expect(await repository.readWorkspaceTargets(actor, owner, targets)).toEqual([]);
   });
+  it("checks trusted account and the selected machine snapshot in the creation transaction", async () => {
+    const selected = await machine();
+    const target = (await repository.findMachineTarget(selected.id, actor, owner))!;
+    const data = { userId: actor, name: "fixture", machineId: selected.id, policy: {}, limits: {} };
+    await expect(repository.createWorkspace(data, foreign, target)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(repository.createWorkspace(data, owner)).rejects.toMatchObject({ statusCode: 403 });
+    const created = await repository.createWorkspace(data, owner, target);
+    expect(created.machineId).toBe(selected.id);
+    const updated = await repository.updateWorkspaceTarget(created, owner, {
+      runtimeStatus: "ready",
+      runtimeHandle: "private-runtime-handle",
+    });
+    expect(updated.runtimeStatus).toBe("ready");
+    expect(updated).not.toHaveProperty("runtimeHandle");
+    await expect(repository.updateWorkspaceTarget(created, owner, { runtimeStatus: "failed" })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await expect(repository.updateWorkspaceTarget(updated, foreign, { runtimeStatus: "failed" })).rejects.toMatchObject(
+      { statusCode: 403 },
+    );
+    await prisma.agentRuntimeMachine.update({ where: { id: selected.id }, data: { status: -1 } });
+    await expect(repository.createWorkspace(data, owner, target)).rejects.toMatchObject({ statusCode: 403 });
+    await prisma.user.update({ where: { id: owner }, data: { status: 0 } });
+    await expect(
+      repository.createWorkspace({ userId: actor, name: "fixture", policy: {}, limits: {} }, owner),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
   it("verifies exact ownership and status before resource group membership", async () => {
     const row = await workspace();
     expect(await groups.resourceExistsInAccount(agentWorkspaceArn(owner, actor, row.id), owner)).toBe(true);

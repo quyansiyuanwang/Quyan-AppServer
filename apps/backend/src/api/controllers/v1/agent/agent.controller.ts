@@ -113,13 +113,21 @@ export class AgentController extends Controller {
   @Security("jwt")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(createAgentWorkspaceBodySchema))
-  @RequirePermission(Permission.AGENT_WORKSPACE_WRITE)
+  @CheckPermission(Permission.AGENT_WORKSPACE_WRITE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:CreateWorkspace",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   async createWorkspace(
     @Body() body: CreateAgentWorkspaceRequest,
     @Request() request: TypedRequest,
   ): Promise<ApiSuccessResponse<AgentWorkspaceResponse>> {
     this.setStatus(HttpStatusCode.Created);
-    return { code: 0, message: "Success", data: await this.service.createWorkspace(request.user!.userId, body) };
+    return {
+      code: 0,
+      message: "Success",
+      data: await this.service.createWorkspace(request.user!.userId, body, request),
+    };
   }
 
   @Delete("workspaces/{workspaceId}")

@@ -239,12 +239,18 @@ export class AgentRuntimeGateway {
     agentId: string,
     frame: { requestId: string; [key: string]: unknown },
     timeoutMs: number = AGENT_RUNTIME_LIMITS.requestTimeoutMs,
+    expectedMachine?: { machineId: string; userId: string },
   ): Promise<RuntimeFrame> {
     const connection = this.sockets.get(agentId);
     if (!connection) return Promise.reject(new Error("Remote Agent is not connected"));
     return new Promise((resolve, reject) => {
       void this.enqueue(connection, async () => {
-        await this.requireActive(connection);
+        const identity = await this.requireActive(connection);
+        if (
+          expectedMachine &&
+          (identity.id !== expectedMachine.machineId || identity.userId !== expectedMachine.userId)
+        )
+          throw new Error("Runtime target identity mismatch");
         if (
           !frame.requestId ||
           this.pendingRequests.has(frame.requestId) ||

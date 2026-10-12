@@ -402,3 +402,5 @@ Revoking a machine closes its existing connection on the current server. Connect
 ## Agent workspace list authorization
 
 Workspaces use `acs:agent:*:<accountId>:workspace/<userId>/<workspaceId>`. `quyan:agent:ListWorkspaces` evaluates each workspace; the list shows only permitted workspaces and their runtime policies and capacity settings. The linked machine's name and state also require `quyan:agent:ListMachines` permission on that machine; these fields are omitted without that permission. Account isolation and self-service ownership checks remain in place. Workspaces can join resource groups in their own account.
+
+Creating a workspace requires `quyan:agent:CreateWorkspace` on the current user resource. Selecting a remote machine also requires `quyan:agent:UseMachine` on that machine. Machine visibility does not grant permission to use it. The server checks machine ownership and its data version before creation, then rechecks authorization before provisioning the runtime. The creation response omits linked machine names and state; these are read through the separately authorized list.

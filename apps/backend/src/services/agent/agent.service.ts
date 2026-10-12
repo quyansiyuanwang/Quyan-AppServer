@@ -1,4 +1,5 @@
 import { ForbiddenError, NotFoundError, BadRequestError } from "@/util/errors";
+import type { Prisma } from "@prisma/client";
 import { randomUUID, createCipheriv, createHash, randomBytes } from "node:crypto";
 import { env } from "@/config/env";
 import type { AgentTaskStatus, AgentWorkspaceStatus, AgentStreamEvent, AgentToolCall } from "@quyan/shared";
@@ -24,7 +25,7 @@ import { resolveMappedModel } from "@/util/model-mapping.util";
 import type { TypedRequest } from "@/types/express";
 import { AgentMachineIamService } from "./agent-machine-iam.service";
 import { AgentWorkspaceIamService } from "./agent-workspace-iam.service";
-import type { PublicAgentMachine, PublicAgentWorkspace } from "@/store/agent/agent.repository";
+import type { PublicAgentMachine, PublicAgentWorkspace, AgentWorkspaceTarget } from "@/store/agent/agent.repository";
 import { McpServerIamService } from "./mcp-server-iam.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@quyan/shared";
@@ -193,63 +194,119 @@ export class AgentService {
     return rows.map((row) => this.toWorkspaceDto(row));
   }
 
-  async createWorkspace(userId: string, body: CreateAgentWorkspaceRequest) {
+  async createWorkspace(userId: string, body: CreateAgentWorkspaceRequest, request?: TypedRequest) {
+    const enforce = env.security.iamAuthorizationMode === "enforce";
+    let authorization = enforce
+      ? await AgentWorkspaceIamService.getInstance().authorizeCreate(userId, body.machineId, request)
+      : undefined;
     const policy = { ...defaults.policy, ...(body.policy || {}) };
     const limits = { ...defaults.limits, ...(body.limits || {}) };
-    const machine = body.machineId ? await this.repository.findMachineForUser(body.machineId, userId) : null;
+    let machine = body.machineId
+      ? authorization?.machineTarget
+        ? await this.repository.readMachineRuntimeTarget(
+            authorization.machineTarget,
+            authorization.principal.accountOwnerId,
+          )
+        : await this.repository.findMachineForUser(body.machineId, userId)
+      : null;
     if (body.machineId && !machine)
       throw new NotFoundError("Agent machine not found", undefined, { messageKey: "agent.machineNotFound" });
-    const row = await this.repository.createWorkspace({
-      userId,
-      name: body.name.trim(),
-      policy,
-      limits,
-      machineId: machine?.id,
-    });
+    const row = await this.repository.createWorkspace(
+      { userId, name: body.name.trim(), policy, limits, machineId: machine?.id },
+      authorization?.principal.accountOwnerId,
+      authorization?.machineTarget,
+    );
+    let target: AgentWorkspaceTarget = row;
+    let result: PublicAgentWorkspace = row;
+    let provisioned:
+      | { kind: "local"; handle: string }
+      | { kind: "remote"; agentId: string; machineId: string }
+      | undefined;
+    const update = async (data: Prisma.AgentWorkspaceUpdateManyMutationInput) => {
+      if (authorization) {
+        await AgentWorkspaceIamService.getInstance().authorizeCreate(userId, body.machineId, request);
+        result = await this.repository.updateWorkspaceTarget(target, authorization.principal.accountOwnerId, data);
+        target = result;
+      } else await this.repository.updateWorkspace(row.id, data);
+    };
     try {
+      // Policy bindings and machine state can change while the workspace row is being created.
+      if (enforce) {
+        authorization = await AgentWorkspaceIamService.getInstance().authorizeCreate(userId, body.machineId, request);
+        if (authorization.machineTarget) {
+          machine = await this.repository.readMachineRuntimeTarget(
+            authorization.machineTarget,
+            authorization.principal.accountOwnerId,
+          );
+          if (!machine)
+            throw new ForbiddenError("Workspace machine changed before provisioning", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
+        }
+      }
       if (!machine && env.runtime.agentRuntimeLocal) {
         const runtime = await workspaceRuntime.create(row.id, limits);
-        await this.repository.updateWorkspace(row.id, { runtimeStatus: "ready", runtimeHandle: runtime.handle });
+        provisioned = { kind: "local", handle: runtime.handle };
+        await update({ runtimeStatus: "ready", runtimeHandle: runtime.handle });
       } else if (machine) {
         if (!machine.agentId || machine.runtimeStatus !== "online")
-          await this.repository.updateWorkspace(row.id, {
+          await update({
             runtimeStatus: "provisioning",
             runtimeAgentId: machine.agentId,
             lastError: "Waiting for the selected remote machine to connect",
           });
         else {
-          const response = await remoteRuntime.request(machine.agentId, {
-            type: "workspace.create",
-            requestId: randomUUID(),
-            workspaceId: row.id,
-            limits: {
-              cpu: Number(limits.cpu),
-              memoryMb: Number(limits.memoryMb),
-              diskMb: Number(limits.diskMb),
-              timeoutSeconds: Number(limits.timeoutSeconds),
+          const response = await remoteRuntime.request(
+            machine.agentId,
+            {
+              type: "workspace.create",
+              requestId: randomUUID(),
+              workspaceId: row.id,
+              limits: {
+                cpu: Number(limits.cpu),
+                memoryMb: Number(limits.memoryMb),
+                diskMb: Number(limits.diskMb),
+                timeoutSeconds: Number(limits.timeoutSeconds),
+              },
             },
-          });
+            undefined,
+            { machineId: machine.id, userId },
+          );
+          provisioned = { kind: "remote", agentId: machine.agentId, machineId: machine.id };
           const data = response.data as Record<string, unknown> | undefined;
           const handle = data && typeof data.handle === "string" ? data.handle : undefined;
           if (!handle) throw new Error("Remote Agent returned no workspace handle");
-          await this.repository.updateWorkspace(row.id, {
+          await update({
             runtimeStatus: "ready",
             runtimeAgentId: machine.agentId,
             runtimeHandle: handle,
             lastError: null,
           });
         }
-      } else
-        await this.repository.updateWorkspace(row.id, {
-          runtimeStatus: "failed",
-          lastError: "No remote workspace agent is connected",
-        });
+      } else await update({ runtimeStatus: "failed", lastError: "No remote workspace agent is connected" });
     } catch (error) {
-      await this.repository.updateWorkspace(row.id, {
-        runtimeStatus: "failed",
-        lastError: error instanceof Error ? error.message : "Workspace provisioning failed",
-      });
+      if (provisioned) {
+        try {
+          if (provisioned.kind === "local") await workspaceRuntime.destroy(provisioned.handle);
+          else
+            await remoteRuntime.request(
+              provisioned.agentId,
+              { type: "workspace.destroy", requestId: randomUUID(), workspaceId: row.id },
+              undefined,
+              { machineId: provisioned.machineId, userId },
+            );
+        } catch {
+          getLogger("AgentWorkspaceRuntime", LogCategory.SECURITY).warn("Workspace provisioning cleanup failed", {
+            reason: "runtime-cleanup-unavailable",
+            workspaceId: row.id,
+          });
+        }
+      }
+      if (error instanceof ForbiddenError) throw error;
+      await update({ runtimeStatus: "failed", lastError: "Workspace provisioning failed" });
     }
+    // Creation returns its own configuration, without inheriting machine-list visibility.
+    if (enforce) return this.toWorkspaceDto(result);
     return this.toWorkspaceDto(await this.repository.findWorkspaceById(row.id));
   }
 

@@ -152,6 +152,18 @@ describe("Agent runtime connection authorization", () => {
     first.frame({ type: "response", requestId: "request-1", ok: true, data: { handle: "valid" } });
     await expect(pending).resolves.toMatchObject({ data: { handle: "valid" } });
   });
+  it("refuses task dispatch when the connected machine differs from the authorized target", async () => {
+    const socket = connect();
+    socket.frame(hello());
+    await flush();
+    await expect(
+      gateway.request("agent-1", { requestId: "request-1" }, undefined, {
+        machineId: "other-machine",
+        userId: "actor",
+      }),
+    ).rejects.toThrow("Runtime target identity mismatch");
+    expect(socket.send).not.toHaveBeenCalled();
+  });
   it("rechecks revocation before sending work and accepting responses", async () => {
     const socket = connect();
     socket.frame(hello());

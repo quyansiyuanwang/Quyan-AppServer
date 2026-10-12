@@ -868,6 +868,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.AGENT_WORKSPACE_READ,
     },
     {
+      operation: 'CreateWorkspace',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user'],
+      legacyPermission: Permission.AGENT_WORKSPACE_WRITE,
+    },
+    {
+      operation: 'UseMachine',
+      accessLevel: 'Write',
+      resourceTypes: ['agent/machine'],
+      legacyPermission: Permission.AGENT_WORKSPACE_WRITE,
+    },
+    {
       operation: 'CreateMachine',
       accessLevel: 'Write',
       resourceTypes: ['quyan/user'],

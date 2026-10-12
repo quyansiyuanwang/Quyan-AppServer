@@ -1,4 +1,5 @@
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { agentMachineArn, agentWorkspaceArn, isCanonicalAgentId } from "@/iam/resources/agent-resources";
 import { AgentRepository, type AgentWorkspaceTarget, type PublicAgentWorkspace } from "@/store/agent/agent.repository";
@@ -10,12 +11,40 @@ export class AgentWorkspaceIamService {
   private constructor(
     private readonly repository: Pick<
       AgentRepository,
-      "scanWorkspaceTargets" | "readWorkspaceTargets" | "readMachineSummaries"
+      "scanWorkspaceTargets" | "readWorkspaceTargets" | "readMachineSummaries" | "findMachineTarget"
     > = AgentRepository.getInstance(),
     private readonly iam = IamAuthorizationService.getInstance(),
   ) {}
   static getInstance() {
     return (this.instance ??= new AgentWorkspaceIamService());
+  }
+
+  async authorizeCreate(userId: string, machineId?: string, request?: TypedRequest) {
+    const identity = trustedAgentIdentity(userId, request);
+    const resource = await iamAuthenticatedUserResourceResolver(identity);
+    if (
+      typeof resource !== "string" ||
+      (
+        await filterAgentResources(this.iam, identity.request, identity.principal, "quyan:agent:CreateWorkspace", [
+          resource,
+        ])
+      ).length !== 1
+    )
+      throw denied();
+    if (!machineId) return { principal: identity.principal };
+    if (!isCanonicalAgentId(machineId)) throw denied();
+    const machineTarget = await this.repository.findMachineTarget(machineId, userId, identity.principal.accountOwnerId);
+    if (!machineTarget || machineTarget.id !== machineId || machineTarget.userId !== userId) throw denied();
+    const machineResource = agentMachineArn(identity.principal.accountOwnerId, userId, machineId);
+    if (
+      (
+        await filterAgentResources(this.iam, identity.request, identity.principal, "quyan:agent:UseMachine", [
+          machineResource,
+        ])
+      ).length !== 1
+    )
+      throw denied();
+    return { principal: identity.principal, machineTarget };
   }
 
   async list(userId: string, request?: TypedRequest): Promise<PublicAgentWorkspace[]> {
