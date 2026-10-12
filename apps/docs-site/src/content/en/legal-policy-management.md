@@ -69,6 +69,12 @@ In enforce mode, creating a draft uses `quyan:legal_policy:CreateVersion` on `ac
 
 A matching Deny or invalid identity, group, role session or version rolls back the change. Published versions remain immutable. Deleting a draft retains its version number; later drafts receive a new number. An active unpublished draft must be edited, published or deleted before another draft of that type can be created. Replay protection remains required.
 
+## IAM publication changes
+
+Publishing uses `quyan:legal_policy:PublishVersion`; unpublishing uses `quyan:legal_policy:UnpublishVersion`. The operation requires the existing `LEGAL_POLICY_PUBLISH` eligibility in a real deployment-wide group, plus authorization for every affected version ARN.
+
+Publishing checks the target and the current version it replaces. Unpublishing a current version checks the target and the latest remaining published fallback. If that fallback is denied, the operation fails; it does not choose an older version to bypass Deny. Missing fallback protection remains in place. The affected set and grants are rechecked inside one transaction; Deny, revocation, or concurrent changes roll back all publication changes. Public active-policy reads continue to return the committed current version.
+
 ## Notes
 
 - Only one version per type can be published at a time; publishing a new version automatically archives the previous one.

@@ -1,3 +1,5 @@
+import { PlatformLegalPolicyPublicationIamService } from "./platform-legal-policy-publication-iam.service";
+import type { LegalPolicyPublicationOperation } from "@/store/content/platform-legal-policy-publication.store";
 import { PlatformLegalPolicyWriteIamService } from "./platform-legal-policy-write-iam.service";
 import { getIamActionDefinition } from "@quyan/shared";
 import type { LegalPolicyDraftOperation } from "@/store/content/platform-legal-policy-write.store";
@@ -41,6 +43,7 @@ export class LegalPolicyService {
     private readonly iamReads = PlatformLegalPolicyReadIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
     private readonly iamWrites = PlatformLegalPolicyWriteIamService.getInstance(),
+    private readonly iamPublication = PlatformLegalPolicyPublicationIamService.getInstance(),
   ) {}
 
   public static getInstance(): LegalPolicyService {
@@ -259,6 +262,69 @@ export class LegalPolicyService {
     });
   }
 
+  async changeManagedPublication(
+    operation: LegalPolicyPublicationOperation,
+    id: string,
+    actorUserId: string,
+    request: TypedRequest,
+  ): Promise<LegalPolicyDto> {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      principal.subjectUserId !== actorUserId ||
+      !["PublishVersion", "UnpublishVersion"].includes(operation) ||
+      !["legacy", "shadow", "enforce"].includes(env.security.iamAuthorizationMode)
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      if (
+        !(
+          await this.permissions.checkUserPermissions(actorUserId, [Permission.LEGAL_POLICY_PUBLISH], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      if (env.security.iamAuthorizationMode === "shadow") {
+        try {
+          await this.iamPublication.change(operation, id, actorUserId, request, false);
+        } catch {
+          getLogger("LegalPolicy", LogCategory.SECURITY).warn("Legal publication shadow evaluation failed", {
+            action: "quyan:legal_policy:" + operation,
+            reason: "iam-evaluation-denied-or-unavailable",
+          });
+        }
+      }
+      return operation === "PublishVersion"
+        ? this.publishPolicy(id, actorUserId, request)
+        : this.unpublishPolicy(id, actorUserId, request);
+    }
+    const result = await this.iamPublication.change(operation, id, actorUserId, request);
+    if (!result) throw iamAccountDenied();
+    const { row, fallbackId, affectedIds } = result;
+    await this.businessLogService.logOperation({
+      operationType:
+        operation === "PublishVersion" ? OperationType.LEGAL_POLICY_PUBLISH : OperationType.LEGAL_POLICY_UNPUBLISH,
+      operationCategory: OperationCategory.LEGAL_POLICY,
+      actorUserId,
+      targetResourceId: row.id,
+      targetResourceType: "LegalPolicyVersion",
+      description: "法律协议版本发布状态变更：" + row.policyType + " v" + row.version,
+      metadata: {
+        policyType: row.policyType,
+        version: row.version,
+        fallbackCurrentId: fallbackId,
+        affectedVersionIds: affectedIds,
+      },
+      success: true,
+      requestId: request.headers["x-request-id"] as string | undefined,
+      ipAddress: extractClientIp(request),
+      userAgent: request.headers["user-agent"],
+    });
+    return this.toLegalPolicyDto(row);
+  }
   public async publishPolicy(id: string, actorUserId: string, request: Request): Promise<LegalPolicyDto> {
     const existing = await this.repository.findById(id);
     if (!existing)

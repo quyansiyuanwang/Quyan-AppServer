@@ -1103,6 +1103,24 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: permission,
     }),
   ),
+  ...(['PublishVersion', 'UnpublishVersion'] as const).map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:legal_policy:' + operation,
+      service: 'legal_policy',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes: ['platform/legal-policy'],
+      apiRoutes: [
+        'POST /v1/legal-policies/{id}/' +
+          (operation === 'PublishVersion' ? 'publish' : 'unpublish'),
+      ],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.LEGAL_POLICY_PUBLISH,
+    }),
+  ),
   ...(['ListVersions', 'GetVersion'] as const).map(
     (operation): IamActionDefinition => ({
       action: 'quyan:legal_policy:' + operation,

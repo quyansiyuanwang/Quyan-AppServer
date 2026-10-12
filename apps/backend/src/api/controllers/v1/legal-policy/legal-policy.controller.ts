@@ -5,6 +5,8 @@ import {
   platformLegalPolicyCreateResource,
   platformLegalPolicyUpdateResource,
   platformLegalPolicyDeleteResource,
+  platformLegalPolicyPublishResources,
+  platformLegalPolicyUnpublishResources,
 } from "@/iam/request/platform-legal-policy-resource-resolvers";
 import {
   Body,
@@ -21,7 +23,7 @@ import {
   Tags,
 } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express.d";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams } from "@/middleware/validation";
@@ -118,17 +120,25 @@ export class LegalPolicyController extends Controller {
 
   @Post("{id}/publish")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_PUBLISH)
+  @CheckPermission(Permission.LEGAL_POLICY_PUBLISH, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:PublishVersion",
+    resourceKind: "batch",
+    resource: platformLegalPolicyPublishResources,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(legalPolicyIdParamsSchema))
   public async publishPolicy(@Path() id: string, @Request() request: TypedRequest): Promise<LegalPolicyDto> {
-    return this.service.publishPolicy(id, request.user!.userId, request);
+    return this.service.changeManagedPublication("PublishVersion", id, request.user!.userId, request);
   }
 
   @Post("{id}/unpublish")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_PUBLISH)
+  @CheckPermission(Permission.LEGAL_POLICY_PUBLISH, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:UnpublishVersion",
+    resourceKind: "batch",
+    resource: platformLegalPolicyUnpublishResources,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(legalPolicyIdParamsSchema))
   public async unpublishPolicy(@Path() id: string, @Request() request: TypedRequest): Promise<LegalPolicyDto> {
-    return this.service.unpublishPolicy(id, request.user!.userId, request);
+    return this.service.changeManagedPublication("UnpublishVersion", id, request.user!.userId, request);
   }
 }

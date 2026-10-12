@@ -1,3 +1,6 @@
+vi.mock("@/store/content/platform-legal-policy-publication.repository", () => ({
+  PlatformLegalPolicyPublicationRepository: { getInstance: vi.fn() },
+}));
 vi.mock("@/store/content/platform-legal-policy-write.repository", () => ({
   PlatformLegalPolicyWriteRepository: { getInstance: vi.fn() },
 }));
