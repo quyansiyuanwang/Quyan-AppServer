@@ -137,7 +137,13 @@ export class AuthCenterClientController extends Controller {
 
   @Post("{id}/submit-review")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:SubmitClientReview",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
@@ -177,7 +183,13 @@ export class AuthCenterClientController extends Controller {
 
   @Post("{id}/regenerate-secret")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:RotateClientSecret",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
@@ -195,7 +207,13 @@ export class AuthCenterClientController extends Controller {
 
   @Delete("{id}")
   @Security("jwt", ["auth_center_client"])
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_DELETE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:DeleteClient",
+      resourceKind: "single-resource",
+      resource: authCenterClientResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")

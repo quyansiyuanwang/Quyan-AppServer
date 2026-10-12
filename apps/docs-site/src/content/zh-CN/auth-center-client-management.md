@@ -221,3 +221,5 @@
 应用资源 ARN 为 `acs:auth-center:*:<accountId>:client/<userId>/<clientId>`。其中 `clientId` 是应用记录 ID，而不是登录接入用的公开客户端标识。账号和用户标识由登录身份确定，策略不能让你读取其他用户或其他账号的应用。可将自有应用加入资源组，以资源组范围授权。
 
 没有匹配的 Allow 或存在匹配的 Deny 时，应用不会出现在列表中；详情请求会被拒绝。列表和详情只返回密钥预览及是否配置密钥，不返回原始密钥或其 hash。创建、轮换密钥、审核等操作仍需各自的权限，并保留原有的二次验证要求。
+
+在 IAM 强制授权模式下，提交审核、轮换密钥和删除分别需要 `quyan:auth_center:SubmitClientReview`、`quyan:auth_center:RotateClientSecret` 和 `quyan:auth_center:DeleteClient`，目标均为上述应用 ARN。读取权限不会自动授予这些操作。轮换成功只在该次响应中返回新密钥，请立即安全保存；后续列表和详情仍只显示预览。操作期间若授权被撤销或应用版本改变，写入会被拒绝或回滚。

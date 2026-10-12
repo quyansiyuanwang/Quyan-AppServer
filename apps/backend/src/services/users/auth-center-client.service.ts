@@ -24,6 +24,8 @@ import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { PermissionService } from "./permission.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
+import { AuthCenterClientMutationIamService } from "./auth-center-client-mutation-iam.service";
+import type { AuthCenterClientMutationAction } from "@/store/users/auth-center-client-mutation.store";
 import { AuthCenterClientIamService } from "./auth-center-client-iam.service";
 import type { AuthCenterClientView } from "@/store/users/auth-center-client-management.store";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
@@ -48,6 +50,7 @@ export class AuthCenterClientService {
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly iam = AuthCenterClientIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
+    private readonly mutations = AuthCenterClientMutationIamService.getInstance(),
   ) {}
 
   static getInstance(): AuthCenterClientService {
@@ -266,9 +269,42 @@ export class AuthCenterClientService {
     return this.toDto(updated);
   }
 
+  private async prepareWrite(action: AuthCenterClientMutationAction, userId: string, id: string, request?: Request) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const prepared = await this.mutations.prepare(action, userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+      return prepared;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(
+            userId,
+            [
+              action === "quyan:auth_center:DeleteClient"
+                ? Permission.AUTH_CENTER_CLIENT_DELETE
+                : Permission.AUTH_CENTER_CLIENT_UPDATE,
+            ],
+            {
+              assumedRoleSessionId: principal.roleSessionId,
+            },
+          )
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.mutations.prepare(action, userId, id, request as TypedRequest, false));
+    }
+    return { existing: await this.requireOwnedClient(id, userId), guard: undefined };
+  }
+
   async deleteClient(id: string, userId: string, request?: Request): Promise<void> {
-    const existing = await this.requireOwnedClient(id, userId);
-    await this.repository.delete(id);
+    const { existing, guard } = await this.prepareWrite("quyan:auth_center:DeleteClient", userId, id, request);
+    if (guard) await this.mutations.revoke(guard);
+    else await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_DELETE,
@@ -310,7 +346,7 @@ export class AuthCenterClientService {
   }
 
   async regenerateSecret(id: string, userId: string, request?: Request): Promise<AuthCenterClientWithSecretDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:auth_center:RotateClientSecret", userId, id, request);
     if (existing.clientType === "public")
       throw new BadRequestError("Public Auth Center client does not use client secret", undefined, {
         messageKey: "oauth.publicClientNoSecret",
@@ -318,10 +354,13 @@ export class AuthCenterClientService {
       });
 
     const rawClientSecret = this.generateClientSecret();
-    const updated = await this.repository.update(id, {
+    const updateData = {
       clientSecretHash: await bcrypt.hash(rawClientSecret, 10),
       clientSecretPreview: maskSecret(rawClientSecret),
-    });
+    };
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_SECRET_ROTATE,
@@ -342,7 +381,7 @@ export class AuthCenterClientService {
   }
 
   async submitForReview(id: string, userId: string, request?: Request): Promise<AuthCenterClientDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:auth_center:SubmitClientReview", userId, id, request);
 
     if (existing.reviewStatus === REVIEW_STATUS.PENDING)
       throw new BadRequestError("Auth Center client is already pending review", undefined, {
@@ -350,13 +389,16 @@ export class AuthCenterClientService {
         messageParams: { client: "Auth Center" },
       });
 
-    const updated = await this.repository.update(id, {
+    const updateData = {
       reviewStatus: REVIEW_STATUS.PENDING,
       submittedAt: new Date(),
       reviewComment: null,
       reviewedAt: null,
       reviewedByUserId: null,
-    });
+    };
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_SUBMIT_REVIEW,
