@@ -43,10 +43,17 @@ beforeEach(() => {
   iam = {
     revoke: vi.fn().mockResolvedValue({ id: "key", userId: "actor", name: "fixture" }),
     authorizeDeletion: vi.fn(),
+    list: vi.fn().mockResolvedValue([{ id: "visible" }]),
+    get: vi.fn().mockResolvedValue({ id: "visible" }),
+    stats: vi.fn().mockResolvedValue({ totalKeys: 1 }),
   };
   repository = {
     findActiveByIdAndUserId: vi.fn().mockResolvedValue({ id: "key", userId: "actor", name: "fixture" }),
     softDeleteById: vi.fn(),
+    listActiveByUserId: vi.fn().mockResolvedValue([]),
+    countActiveByUserId: vi.fn().mockResolvedValue(0),
+    countActiveUnexpiredByUserId: vi.fn().mockResolvedValue(0),
+    aggregateUsageByUserId: vi.fn().mockResolvedValue({ requestCount: 0, totalTokens: 0 }),
   };
   permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) };
   audit = { logOperation: vi.fn() };
@@ -114,5 +121,32 @@ describe("OJ API Key revocation rollout", () => {
     expect(method.getDecorator("TwoFactorChallengeProtected")).toBeDefined();
     expect(method.getDecorator("Middlewares")?.getText()).toContain("twoFactorChallengeMiddleware");
     expect(method.getDecorator("Middlewares")?.getText()).toContain("replayProtectionMiddleware");
+  });
+});
+
+describe("OJ read rollout", () => {
+  it("enforce routes all reads through resource authorization", async () => {
+    expect(await service.listAPIKeys("actor", request)).toEqual([{ id: "visible" }]);
+    expect(await service.getAPIKey("key", "actor", request)).toEqual({ id: "visible" });
+    expect(await service.getAPIKeyStats("actor", request)).toEqual({ totalKeys: 1 });
+    expect(repository.listActiveByUserId).not.toHaveBeenCalled();
+    expect(repository.findActiveByIdAndUserId).not.toHaveBeenCalled();
+    expect(repository.aggregateUsageByUserId).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("%s enforces old read permissions in the assumed session", async (mode) => {
+    mocks.mode = mode;
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.listAPIKeys("actor", request)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.getAPIKeyStats("actor", request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OJ_APIKEY_READ], {
+      assumedRoleSessionId: "session",
+    });
+    expect(repository.listActiveByUserId).not.toHaveBeenCalled();
+  });
+  it("shadow failures retain old behavior without logging credentials", async () => {
+    mocks.mode = "shadow";
+    iam.list.mockRejectedValue(new Error("private credential"));
+    expect(await service.listAPIKeys("actor", request)).toEqual([]);
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain("private credential");
   });
 });

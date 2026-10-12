@@ -59861,7 +59861,8 @@
 						"type": "string"
 					},
 					"key": {
-						"type": "string"
+						"type": "string",
+						"description": "Returned only when the caller can reveal this credential."
 					},
 					"requestCount": {
 						"type": "number",
@@ -59892,7 +59893,6 @@
 				},
 				"required": [
 					"id",
-					"key",
 					"requestCount",
 					"totalTokens",
 					"createTime"

@@ -442,3 +442,9 @@ IAM 强制模式下，管理列表和详情分别使用 `quyan:json_endpoint:Lis
 撤销自己的 OJ API Key 使用 `quyan:oj:DeleteApiKey`，资源为 `acs:oj:*:<accountId>:api-key/<userId>/<keyId>`。二次验证和重放保护仍然必需；通配符授权不会越过密钥所有权，不能删除其他用户的密钥。服务端检查实际密钥元数据、当前策略以及账户与角色会话状态，并在事务中检查资源版本后撤销。匹配的 Deny、授权撤销、并发修改或账户禁用会阻止操作。
 
 撤销检查不会读取或输出密钥值、历史密钥或 Relay 上游配置。旧的 OJ 删除权限通过兼容映射保留自己的密钥撤销能力；其他 OJ 密钥接口仍按现有权限桥接处理。
+
+## OJ API Key 读取与密钥值授权
+
+`quyan:oj:ListApiKeys`、`quyan:oj:GetApiKey` 和 `quyan:oj:GetApiKeyStats` 使用 `acs:oj:*:<accountId>:api-key/<userId>/<keyId>` 对自己的每个密钥分别授权。列表和用量统计只包含允许访问的密钥。只授权一个密钥不会暴露其他密钥的存在或用量；通配符授权也不能绕过归属和账户隔离。
+
+读取基本信息不会自动授予密钥值。只有敏感操作 `quyan:oj:RevealApiKey` 同时允许该资源时，响应才包含 `key` 字段。没有此权限时，允许读取的密钥仍显示在列表中，但不会显示密钥值和复制按钮；匹配的 Deny 同样阻止密钥值返回。关联渠道只显示名称，不返回上游配置。迁移期间，旧 OJ 读取权限保留原有的本人密钥访问范围。

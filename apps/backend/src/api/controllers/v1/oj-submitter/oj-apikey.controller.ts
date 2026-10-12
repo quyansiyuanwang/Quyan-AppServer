@@ -17,6 +17,8 @@ import type { CreateOJAPIKeyRequest, OJAPIKeyDto, UpdateOJAPIKeyRequest } from "
 import type { TypedRequest } from "@/types/express";
 import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { ojApiKeyResourceResolver } from "@/iam/request/oj-apikey-resource-resolvers";
 import {
   createOJAPIKeyBodySchema,
@@ -71,11 +73,17 @@ export class OJAPIKeyController extends Controller {
    */
   @Get()
   @Security("jwt")
-  @RequirePermission(Permission.OJ_APIKEY_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:oj:ListApiKeys",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listAPIKeys(@Request() request: TypedRequest): Promise<OJAPIKeyDto[]> {
     const userId = request.user!.userId;
 
-    const keys = await this.ojAPIKeyService.listAPIKeys(userId);
+    const keys = await this.ojAPIKeyService.listAPIKeys(userId, request);
 
     return keys.map((k) => ({
       id: k.id,
@@ -96,12 +104,16 @@ export class OJAPIKeyController extends Controller {
    */
   @Get("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.OJ_APIKEY_READ)
+  @CheckPermission(Permission.OJ_APIKEY_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oj:GetApiKey",
+    resourceKind: "single-resource",
+    resource: ojApiKeyResourceResolver,
+  })
   @Middlewares(validateParams(ojApiKeyIdParamsSchema))
   public async getAPIKey(@Path() id: string, @Request() request: TypedRequest): Promise<OJAPIKeyDto> {
     const userId = request.user!.userId;
 
-    const apiKey = await this.ojAPIKeyService.getAPIKey(id, userId);
+    const apiKey = await this.ojAPIKeyService.getAPIKey(id, userId, request);
 
     return {
       id: apiKey.id,
@@ -185,11 +197,17 @@ export class OJAPIKeyController extends Controller {
    */
   @Get("stats")
   @Security("jwt")
-  @RequirePermission(Permission.OJ_APIKEY_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:oj:GetApiKeyStats",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async getAPIKeyStats(@Request() request: TypedRequest) {
     const userId = request.user!.userId;
 
-    const stats = await this.ojAPIKeyService.getAPIKeyStats(userId);
+    const stats = await this.ojAPIKeyService.getAPIKeyStats(userId, request);
 
     return stats;
   }

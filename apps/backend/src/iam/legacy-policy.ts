@@ -75,6 +75,27 @@ export function legacyPermissionsToPrincipalPolicy(
   const ownJsonAccess = !parseLegacyPermissions(input).includes(Permission.JSON_ENDPOINT_MANAGE);
   const statements: NormalizedIamPolicyDocument["Statement"] = [];
   for (const statement of document.Statement) {
+    const ojAccess = statement.Action.filter((action) =>
+      [
+        "quyan:oj:ListApiKeys",
+        "quyan:oj:GetApiKey",
+        "quyan:oj:GetApiKeyStats",
+        "quyan:oj:RevealApiKey",
+        "quyan:oj:DeleteApiKey",
+      ].includes(action),
+    );
+    if (ojAccess.length)
+      statements.push({
+        Effect: "Allow",
+        Sid: "LegacyOjOwnKeys",
+        Action: ojAccess,
+        Resource: [
+          IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "oj/api-key")!
+            .arnTemplate.replace("{accountId}", accountOwnerId)
+            .replace("{parentId}", principalUserId)
+            .replace("{resourceId}", "*"),
+        ],
+      });
     const limited = statement.Action.filter((action) => authorOnly.has(action));
     const list: string[] = statement.Action.filter((action) => action === "quyan:article:ListArticles");
     const jsonAccess = ownJsonAccess ? statement.Action.filter((action) => nativeJsonOwnerActions.has(action)) : [];
@@ -112,7 +133,8 @@ export function legacyPermissionsToPrincipalPolicy(
         !authorOnly.has(action) &&
         !list.includes(action) &&
         !jsonAccess.includes(action) &&
-        !jsonCreate.includes(action),
+        !jsonCreate.includes(action) &&
+        !ojAccess.includes(action),
     );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>

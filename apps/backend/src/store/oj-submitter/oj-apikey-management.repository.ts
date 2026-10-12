@@ -1,6 +1,7 @@
 import { MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { ConflictError, ForbiddenError } from "@/util/errors";
 import type { OjApiKeyTarget, OjApiKeyManagementStore } from "./oj-apikey-management.store";
 export const ojApiKeyDenied = () =>
@@ -51,7 +52,66 @@ export class OjApiKeyManagementRepository implements OjApiKeyManagementStore {
     await this.actor(principal);
     return prisma.oJAPIKey.findFirst({
       where: { id, userId: principal.subjectUserId, status: MANAGED_STATUS.ENABLED },
-      select: { id: true, userId: true, status: true, updateTime: true },
+      select: { id: true, userId: true, status: true, createTime: true, updateTime: true },
+    });
+  }
+  async assertActor(principal: IamPrincipal) {
+    await this.actor(principal);
+  }
+  async scan(principal: IamPrincipal, after?: OjApiKeyTarget) {
+    await this.actor(principal);
+    return prisma.oJAPIKey.findMany({
+      where: {
+        userId: principal.subjectUserId,
+        status: MANAGED_STATUS.ENABLED,
+        ...(after
+          ? { OR: [{ createTime: { lt: after.createTime } }, { createTime: after.createTime, id: { lt: after.id } }] }
+          : {}),
+      },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+      select: { id: true, userId: true, status: true, createTime: true, updateTime: true },
+    });
+  }
+  async hydrate(principal: IamPrincipal, targets: OjApiKeyTarget[], revealIds: readonly string[]) {
+    await this.actor(principal);
+    if (!targets.length) return [];
+    if (
+      targets.some((t) => t.userId !== principal.subjectUserId) ||
+      revealIds.some((id) => !targets.some((t) => t.id === id))
+    )
+      throw ojApiKeyDenied();
+    const selected = new Set(revealIds);
+    const groups = [false, true].map((reveal) => targets.filter((t) => selected.has(t.id) === reveal));
+    const rows = await Promise.all(
+      groups.map(async (group, index) => {
+        if (!group.length) return [];
+        // The credential column is never selected for metadata-only grants. Channel configuration stays unread.
+        return prisma.oJAPIKey.findMany({
+          where: {
+            userId: principal.subjectUserId,
+            status: MANAGED_STATUS.ENABLED,
+            OR: group.map((t) => ({ id: t.id, updateTime: t.updateTime })),
+          },
+          select: {
+            id: true,
+            userId: true,
+            name: true,
+            requestCount: true,
+            totalTokens: true,
+            expiresAt: true,
+            lastUsedAt: true,
+            createTime: true,
+            channelId: true,
+            channel: { select: { name: true } },
+            ...(index ? { key: true } : {}),
+          },
+        });
+      }),
+    );
+    return rows.flat().map((row) => {
+      const { key, ...metadata } = row;
+      return { ...metadata, ...(selected.has(row.id) && typeof key === "string" ? { key } : {}) };
     });
   }
   async revoke(principal: IamPrincipal, target: OjApiKeyTarget) {

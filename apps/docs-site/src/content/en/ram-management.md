@@ -442,3 +442,9 @@ Creation uses `quyan:json_endpoint:CreateEndpoint`. Since the endpoint does not 
 Revoking an owned OJ API Key uses `quyan:oj:DeleteApiKey` on `acs:oj:*:<accountId>:api-key/<userId>/<keyId>`. Two-factor verification and replay protection remain required. Wildcard grants do not override key ownership and cannot revoke another user's key. The server checks actual key metadata, current policy, account and role-session validity, then validates the resource revision in the revocation transaction. Matching Deny, revoked grants, concurrent changes, or disabled accounts block the operation.
 
 Revocation checks do not read or return key values, historical keys, or Relay upstream configuration. The old OJ delete permission retains owned-key revocation through its migration mapping. Other OJ key endpoints still use the existing permission bridge.
+
+## OJ API Key reads and credential disclosure
+
+`quyan:oj:ListApiKeys`, `quyan:oj:GetApiKey`, and `quyan:oj:GetApiKeyStats` authorize each owned key on `acs:oj:*:<accountId>:api-key/<userId>/<keyId>`. Lists and usage totals include only allowed keys. A grant for one key does not reveal another key's existence or usage. Wildcard grants do not override ownership or account isolation.
+
+Reading metadata does not grant the credential value. The sensitive `quyan:oj:RevealApiKey` Action must also allow that same resource before its `key` field is returned. Without it, the key remains listed when metadata access is allowed, but its credential and copy button are absent. A matching Deny hides the credential even when metadata is allowed. Linked channels expose only their display name, never upstream configuration. Existing OJ read permissions retain their original owned-key behavior during migration.

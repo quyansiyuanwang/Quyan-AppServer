@@ -87,17 +87,43 @@ export class OJAPIKeyService {
     return canonicalizeOjApiKey(apiKey);
   }
 
+  private async legacyRead(userId: string, request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== userId || principal.principalUserId !== userId)
+      throw ojApiKeyDenied();
+    const result = await this.permissions.checkUserPermissions(userId, [Permission.OJ_APIKEY_READ], {
+      assumedRoleSessionId: principal.roleSessionId,
+    });
+    if (!result.hasPermission) throw ojApiKeyDenied();
+  }
+  private async shadowRead(operation: () => Promise<unknown>, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "shadow" || !request) return;
+    try {
+      await operation();
+    } catch {
+      getLogger("OjApiKeyIamBridge", LogCategory.SECURITY).warn("OJ API Key IAM shadow read denied", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
   /**
    * 获取用户的所有API密钥
    */
-  async listAPIKeys(userId: string) {
+  async listAPIKeys(userId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.list(userId, request);
+    await this.legacyRead(userId, request);
+    await this.shadowRead(() => this.iam.list(userId, request), request);
     return (await this.ojApiKeyRepository.listActiveByUserId(userId)).map(canonicalizeOjApiKey);
   }
 
   /**
    * 获取单个API密钥详情
    */
-  async getAPIKey(id: string, userId: string) {
+  async getAPIKey(id: string, userId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.get(userId, id, request);
+    await this.legacyRead(userId, request);
+    await this.shadowRead(() => this.iam.get(userId, id, request), request);
     const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
 
     if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
@@ -188,7 +214,10 @@ export class OJAPIKeyService {
   /**
    * 获取API密钥统计信息
    */
-  async getAPIKeyStats(userId: string) {
+  async getAPIKeyStats(userId: string, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.iam.stats(userId, request);
+    await this.legacyRead(userId, request);
+    await this.shadowRead(() => this.iam.stats(userId, request), request);
     const [totalKeys, activeKeys, usage] = await Promise.all([
       this.ojApiKeyRepository.countActiveByUserId(userId),
       this.ojApiKeyRepository.countActiveUnexpiredByUserId(userId),

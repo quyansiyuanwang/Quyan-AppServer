@@ -862,6 +862,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     legacyPermissions: [Permission.JSON_ENDPOINT_CREATE, Permission.JSON_ENDPOINT_MANAGE],
   },
+  ...['ListApiKeys', 'GetApiKey', 'GetApiKeyStats', 'RevealApiKey'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:oj:' + operation,
+      service: 'oj',
+      operation,
+      accessLevel: operation === 'ListApiKeys' ? 'List' : 'Read',
+      resourceTypes: ['oj/api-key'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: operation === 'RevealApiKey',
+      ...(operation === 'ListApiKeys' || operation === 'GetApiKey'
+        ? { conditionalActions: ['quyan:oj:RevealApiKey'] }
+        : {}),
+      authorizationStage: 'declared',
+      legacyPermission: Permission.OJ_APIKEY_READ,
+    }),
+  ),
   {
     action: 'quyan:oj:DeleteApiKey',
     service: 'oj',
