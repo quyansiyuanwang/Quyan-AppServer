@@ -18,7 +18,7 @@ import { HttpStatusCode } from "axios";
 import { UserScriptService } from "@/services/user-script/user-script.service";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { CreateUserScriptDto, UpdateUserScriptDto, UserScriptDto } from "@/api/dto/user-script/user-script.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type { ErrorResponse } from "@/api/response";
@@ -29,6 +29,10 @@ import {
 } from "@/api/schema/user-script/user-script.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
+
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { userScriptResourceResolver } from "@/iam/request/script-resource-resolvers";
 
 @Route("v1/user-scripts")
 @Tags("User Script Manager")
@@ -41,11 +45,17 @@ export class UserScriptController extends Controller {
    */
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.SCRIPT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:script:ListScripts",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async listScripts(@Request() request: TypedRequest): Promise<UserScriptDto[]> {
     const userId = request.user!.userId;
-    return this.service.listScripts(userId);
+    return this.service.listScripts(userId, request);
   }
 
   /**
@@ -53,7 +63,11 @@ export class UserScriptController extends Controller {
    */
   @Post("")
   @Security("jwt")
-  @RequirePermission(Permission.SCRIPT_CREATE)
+  @CheckPermission(Permission.SCRIPT_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:script:CreateScript",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "创建失败")
   @Middlewares(replayProtectionMiddleware, validateBody(createUserScriptBodySchema))
@@ -62,7 +76,7 @@ export class UserScriptController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<UserScriptDto> {
     const userId = request.user!.userId;
-    return this.service.createScript(body, userId);
+    return this.service.createScript(body, userId, request);
   }
 
   /**
@@ -70,7 +84,11 @@ export class UserScriptController extends Controller {
    */
   @Put("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.SCRIPT_CREATE)
+  @CheckPermission(Permission.SCRIPT_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:script:UpdateScript",
+    resourceKind: "single-resource",
+    resource: userScriptResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "脚本不存在")
   @Middlewares(
@@ -84,7 +102,7 @@ export class UserScriptController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<UserScriptDto> {
     const userId = request.user!.userId;
-    return this.service.updateScript(id, body, userId);
+    return this.service.updateScript(id, body, userId, request);
   }
 
   /**
@@ -92,13 +110,17 @@ export class UserScriptController extends Controller {
    */
   @Delete("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.SCRIPT_DELETE)
+  @CheckPermission(Permission.SCRIPT_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:script:DeleteScript",
+    resourceKind: "single-resource",
+    resource: userScriptResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "脚本不存在")
   @Middlewares(replayProtectionMiddleware, validateParams(userScriptIdParamsSchema))
   public async deleteScript(@Path() id: string, @Request() request: TypedRequest): Promise<boolean> {
     const userId = request.user!.userId;
-    await this.service.deleteScript(id, userId);
+    await this.service.deleteScript(id, userId, request);
     return true;
   }
 }

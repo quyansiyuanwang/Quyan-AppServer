@@ -74,6 +74,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('chat', 'message'),
   resource('carpool', 'template'),
   resource('carpool', 'order'),
+  resource('script', 'script', 2),
   { ...resource('balance', 'gift-code', 2), authenticatedSelfScope: 'children' },
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
@@ -114,6 +115,9 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_POLICY_DETACH]: ['policy', 'user', 'group', 'role', 'authorization'],
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
+  [Permission.SCRIPT_READ]: ['script/script'],
+  [Permission.SCRIPT_CREATE]: ['quyan/user', 'script/script'],
+  [Permission.SCRIPT_DELETE]: ['script/script'],
   [Permission.RELAY_CHANNEL_CREATE]: ['relay/channel'],
   [Permission.RELAY_CHANNEL_READ]: ['relay/channel'],
   [Permission.RELAY_CHANNEL_UPDATE]: ['relay/channel'],
@@ -835,6 +839,43 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
       defaultAuthorizationScope: 'self',
+    }),
+  ),
+  ...[
+    {
+      operation: 'ListScripts',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/user', 'script/script'],
+      legacyPermission: Permission.SCRIPT_READ,
+    },
+    {
+      operation: 'CreateScript',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user'],
+      legacyPermission: Permission.SCRIPT_CREATE,
+    },
+    {
+      operation: 'UpdateScript',
+      accessLevel: 'Write',
+      resourceTypes: ['script/script'],
+      legacyPermission: Permission.SCRIPT_CREATE,
+    },
+    {
+      operation: 'DeleteScript',
+      accessLevel: 'Write',
+      resourceTypes: ['script/script'],
+      legacyPermission: Permission.SCRIPT_DELETE,
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:script:' + definition.operation,
+      service: 'script',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: definition.accessLevel === 'Write',
+      authorizationStage: 'declared',
     }),
   ),
   ...[

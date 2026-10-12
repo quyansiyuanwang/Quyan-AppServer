@@ -368,3 +368,9 @@ legacy retains the previous membership rules, shadow preserves business results 
 Resource groups can contain chat conversations, messages, balance gift codes, and carpool orders. Actual ownership is checked when adding a resource and on every authorization: chat resources require an active conversation owner; gift codes require the creator to match the user in the ARN; carpool orders require at least one active member in the account who has not left. Deleting a resource, disabling its owner, or removing the last eligible member stops the group from granting an Allow for that resource. Any other grants still follow the normal policy rules.
 
 Published, active carpool templates can also be included to limit the offerings an account may use. This ARN scopes the account's use of a shared template and does not confer template ownership or administration rights. Unpublished, archived, or disabled templates cannot supply resource-group grants.
+
+## User script resource authorization
+
+Scripts use `acs:script:*:<accountId>:script/<userId>/<scriptId>`. Creating a script with `quyan:script:CreateScript` checks the current user's resource, `acs:quyan:*:<accountId>:user/<userId>`. Updating and deleting use `quyan:script:UpdateScript` and `quyan:script:DeleteScript` against the specific script resource.
+
+`quyan:script:ListScripts` authorizes each script individually. Unauthorized scripts are excluded, and their bodies are not read. Scripts can join resource groups in their own account; disabled, deleted, or foreign-account scripts cannot join. Resource policies do not remove the business rule that users can only update or delete their own scripts, and do not automatically grant script permissions to all authenticated users.
