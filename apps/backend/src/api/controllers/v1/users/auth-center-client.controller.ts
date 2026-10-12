@@ -93,7 +93,13 @@ export class AuthCenterClientController extends Controller {
 
   @Get("review")
   @Security("jwt")
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_REVIEW_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:auth_center:ListClientReviews",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateQuery(authCenterClientReviewListQuerySchema))
   public async listClientsForReview(
@@ -101,8 +107,9 @@ export class AuthCenterClientController extends Controller {
     @Query() pageSize: number = 10,
     @Query() reviewStatus?: "draft" | "pending" | "approved" | "rejected",
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<AuthCenterClientReviewListResponseDto> {
-    return this.service.listClientsForReview({ page, pageSize, reviewStatus, keyword });
+    return this.service.listClientsForReview({ page, pageSize, reviewStatus, keyword }, request);
   }
 
   @Get("{id}")

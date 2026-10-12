@@ -163,3 +163,11 @@ Read permission allows access to the page and list. Update permission is needed 
 - [`auth-center-app-management`](/en/auth-center-app-management)
 - [`oauth-app-review-management`](/en/oauth-app-review-management)
 - [`business-logs`](/en/business-logs)
+
+## IAM review resource scope
+
+When IAM enforcement is enabled, the review list requires both the review permission supplied by a platform-managed global group and `quyan:auth_center:ListClientReviews` on each application review resource. Account ownership, additional user permissions, and account-created groups cannot independently grant platform reviewer eligibility.
+
+The review ARN is `acs:platform:*:platform:auth-center-review-client/<recordId>`. The record ID is the application database record identifier, not its public login client identifier. This resource is separate from a user's own application management resource. A matching Deny excludes the application. Pagination and total counts include only applications the reviewer is authorized to see; filtering by status or keyword does not reveal other applications.
+
+Review responses show owner and reviewer names, a secret preview, and whether a secret is configured. They do not return the secret or its hash. If the application changes or the reviewer loses permission while data is being loaded, the request is denied.

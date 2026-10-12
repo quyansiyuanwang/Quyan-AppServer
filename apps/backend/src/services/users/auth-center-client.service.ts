@@ -35,6 +35,7 @@ import {
 import { AuthCenterClientMutationIamService } from "./auth-center-client-mutation-iam.service";
 import type { AuthCenterClientMutationAction } from "@/store/users/auth-center-client-mutation.store";
 import { AuthCenterClientIamService } from "./auth-center-client-iam.service";
+import { PlatformAuthCenterReviewIamService } from "./platform-auth-center-review-iam.service";
 import type { AuthCenterClientView } from "@/store/users/auth-center-client-management.store";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -59,6 +60,7 @@ export class AuthCenterClientService {
     private readonly iam = AuthCenterClientIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
     private readonly mutations = AuthCenterClientMutationIamService.getInstance(),
+    private readonly platformReviews = PlatformAuthCenterReviewIamService.getInstance(),
   ) {}
 
   static getInstance(): AuthCenterClientService {
@@ -500,7 +502,34 @@ export class AuthCenterClientService {
 
   async listClientsForReview(
     query: AuthCenterClientReviewListQueryDto,
+    request?: Request,
   ): Promise<AuthCenterClientReviewListResponseDto> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.platformReviews.list(query, request as TypedRequest | undefined);
+      return {
+        ...result,
+        items: result.items.map((item) => ({
+          ...this.toDto(item),
+          ownerUsername: item.user.username,
+          reviewerUsername: item.reviewedBy?.username ?? undefined,
+        })),
+      };
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        !(
+          await this.permissions.checkUserPermissions(
+            principal.subjectUserId,
+            [Permission.AUTH_CENTER_CLIENT_REVIEW_READ],
+            { assumedRoleSessionId: principal.roleSessionId },
+          )
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.platformReviews.diagnose(query, request as TypedRequest));
+    }
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
     const result = await this.repository.findReviewList({

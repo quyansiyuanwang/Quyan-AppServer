@@ -163,3 +163,11 @@
 - [`auth-center-app-management`](/zh-CN/auth-center-app-management)
 - [`oauth-app-review-management`](/zh-CN/oauth-app-review-management)
 - [`business-logs`](/zh-CN/business-logs)
+
+## IAM 审核资源范围
+
+启用 IAM 强制授权后，审核列表同时要求平台管理的全局用户组提供审核资格，以及对每个应用审核资源的 `quyan:auth_center:ListClientReviews` 授权。账户所有者、用户附加权限或账户自建用户组均不能单独获得平台审核资格。
+
+审核 ARN 为 `acs:platform:*:platform:auth-center-review-client/<recordId>`，其中记录 ID 是应用记录标识，不是登录集成使用的公开客户端标识。审核资源与用户自有应用的管理资源分开授权。命中 Deny 的应用不会出现在列表中；分页和总数仅包含审核者有权查看的应用，状态和关键词筛选不会泄露其他应用。
+
+审核响应提供所有者、审核者名称、密钥预览及是否配置密钥，不返回密钥或其哈希。加载数据时若应用发生变更或审核者权限被撤销，请求会被拒绝。

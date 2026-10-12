@@ -97,6 +97,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':oauth-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'auth-center-review-client'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
+  },
+  {
     ...resource('platform', 'config'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':config/{resourceId}',
@@ -1644,6 +1650,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.OAUTH_CLIENT_UPDATE,
     }),
   ),
+  {
+    action: 'quyan:auth_center:ListClientReviews',
+    service: 'auth_center',
+    operation: 'ListClientReviews',
+    accessLevel: 'List',
+    resourceTypes: ['platform/auth-center-review-client'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: false,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
+  },
   {
     action: 'quyan:auth_center:CreateClient',
     service: 'auth_center',
