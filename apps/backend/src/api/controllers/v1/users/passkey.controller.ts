@@ -44,7 +44,10 @@ import { extractClientFingerprint } from "@/util/client-fingerprint";
 import { extractTrustedDeviceToken } from "@/util/trusted-device-token";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { passkeyResourceResolver } from "@/iam/request/passkey-resource-resolvers";
 import { Permission } from "@/constant/permission";
 
 @Route("v1/passkey")
@@ -71,17 +74,25 @@ export class PasskeyController extends Controller {
 
   @Post("register/options")
   @Security("jwt")
-  @RequirePermission(Permission.PASSKEY_MANAGE)
+  @CheckPermission(Permission.PASSKEY_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:auth:GetPasskeyRegistrationOptions",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "生成注册选项成功")
   public async getRegistrationOptions(@Request() request: TypedRequest): Promise<PasskeyRegistrationOptionsResponse> {
     const userId = request.user!.userId;
-    const options = await this.passkeyService.generateRegistrationOptions(userId);
+    const options = await this.passkeyService.generateRegistrationOptions(userId, request);
     return { options: options };
   }
 
   @Post("register/verify")
   @Security("jwt")
-  @RequirePermission(Permission.PASSKEY_MANAGE)
+  @CheckPermission(Permission.PASSKEY_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:auth:RegisterPasskey",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "注册验证成功")
   @Middlewares(replayProtectionMiddleware, validateBody(passkeyRegistrationVerifyBodySchema))
   public async verifyRegistration(
@@ -89,7 +100,7 @@ export class PasskeyController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<PasskeyRegistrationVerifyResponse> {
     const userId = request.user!.userId;
-    return await this.passkeyService.verifyRegistration(userId, body.response as any, body.name);
+    return await this.passkeyService.verifyRegistration(userId, body.response as any, body.name, request);
   }
 
   @Post("auth/options")
@@ -163,17 +174,27 @@ export class PasskeyController extends Controller {
 
   @Get("list")
   @Security("jwt")
-  @RequirePermission(Permission.PASSKEY_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:auth:ListPasskeys",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "获取成功")
   public async listPasskeys(@Request() request: TypedRequest): Promise<PasskeyListResponse> {
     const userId = request.user!.userId;
-    const credentials = await this.passkeyService.listCredentials(userId);
+    const credentials = await this.passkeyService.listCredentials(userId, request);
     return { credentials };
   }
 
   @Delete("{credentialId}")
   @Security("jwt")
-  @RequirePermission(Permission.PASSKEY_MANAGE)
+  @CheckPermission(Permission.PASSKEY_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:auth:DeletePasskey",
+    resourceKind: "single-resource",
+    resource: passkeyResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "删除成功")
   @Middlewares(replayProtectionMiddleware, validateParams(passkeyCredentialIdParamsSchema))
   public async deletePasskey(
@@ -181,7 +202,7 @@ export class PasskeyController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<DeletePasskeyResponse> {
     const userId = request.user!.userId;
-    await this.passkeyService.deleteCredential(userId, credentialId);
+    await this.passkeyService.deleteCredential(userId, credentialId, request);
     return { success: true };
   }
 }

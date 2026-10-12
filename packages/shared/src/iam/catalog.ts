@@ -67,6 +67,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'resource-group'),
   resource('quyan', 'role-session'),
   resource('quyan', 'access-key', 2),
+  resource('quyan', 'passkey', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
   resource('developer', 'project'),
@@ -752,6 +753,28 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     legacyPermission: Permission.USER_UPDATE_SELF_PROFILE,
   },
+  ...[
+    {
+      operation: 'GetPasskeyRegistrationOptions',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user'],
+    },
+    { operation: 'RegisterPasskey', accessLevel: 'Write', resourceTypes: ['quyan/user'] },
+    { operation: 'ListPasskeys', accessLevel: 'List', resourceTypes: ['quyan/passkey'] },
+    { operation: 'DeletePasskey', accessLevel: 'Write', resourceTypes: ['quyan/passkey'] },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:auth:' + definition.operation,
+      service: 'auth',
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.PASSKEY_MANAGE,
+    }),
+  ),
   ...['CreateAccessKey', 'SendAccessKeyCreationVerificationCode'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:ram:' + operation,

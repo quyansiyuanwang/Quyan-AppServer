@@ -416,3 +416,11 @@ MCP 服务资源使用 `acs:mcp:*:<accountId>:server/<userId>/<serverId>`。`quy
 批准使用 `acs:agent:*:<accountId>:approval/<userId>/<taskId>/<approvalId>`。读取待批准列表需要任务上的 `quyan:agent:ListTaskApprovals`，每项工具调用内容还需该批准资源上的 `quyan:agent:GetApproval`。提交批准或拒绝需要任务和批准资源上的 `quyan:agent:DecideApproval`。服务器同时核验任务、工作区、对话和步骤归属；只允许处理未过期、仍为待批准状态的操作。决定与任务状态在同一事务中更新，已取消任务不能通过较旧批准操作恢复运行。
 
 创建任务需要所选工作区和对话上的 `quyan:agent:CreateTask`，以及实际使用的 Relay Token 资源上的 `quyan:agent:UseRelayToken`。Token 资源为 `acs:relay:*:<accountId>:token/<userId>/<tokenId>`；显式选择 Token 时不会沿用对话默认 Token 的授权。服务器只在授权后读取模型限制，并在创建事务中核验工作区、对话、Token 的账户归属和数据版本。已停用或过期 Token 不能用于创建任务，原有模型映射、允许模型、预算和步骤限制继续适用。
+
+## Passkey 资源授权
+
+Passkey 管理不再以整个账户作为资源。注册选项和注册验证分别需要 `quyan:auth:GetPasskeyRegistrationOptions`、`quyan:auth:RegisterPasskey`，资源为当前用户的 `acs:quyan:*:<accountId>:user/<userId>`。这些敏感操作没有默认自助授权，需要明确授予。
+
+列表与删除分别使用 `quyan:auth:ListPasskeys`、`quyan:auth:DeletePasskey`，资源为 `acs:quyan:*:<accountId>:passkey/<userId>/<passkeyId>`。`passkeyId` 是列表返回的 `id`，不是浏览器的 WebAuthn `credentialId`；删除 API 仍接受 `credentialId`，服务端会查找真实凭据并授权。列表只显示获准的凭据，不返回公钥或签名计数器。仅有注册权限不会通过注册选项暴露已有凭据标识。
+
+授权不会改变凭据所有权：只能管理当前用户的 Passkey，不能因通配符而查看或删除其他用户的凭据。匹配的 Deny 优先于 Allow；账户、用户、角色会话或授权失效时请求被拒绝。匿名 Passkey 登录流程不要求预先拥有 IAM 权限。注册挑战只能成功使用一次；挑战过期、并发使用或注册失败后，请重新发起注册。
