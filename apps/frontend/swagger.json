@@ -61270,6 +61270,14 @@
 							"declared"
 						]
 					},
+					"authorizationBoundary": {
+						"type": "string",
+						"enum": [
+							"platform"
+						],
+						"nullable": false,
+						"description": "Platform operations additionally require a persisted global group's existing management ceiling."
+					},
 					"defaultAuthorizationScope": {
 						"type": "string",
 						"enum": [
@@ -61344,6 +61352,13 @@
 					"identifierSegments": {
 						"type": "number",
 						"format": "double"
+					},
+					"accountScope": {
+						"type": "string",
+						"enum": [
+							"platform"
+						],
+						"nullable": false
 					},
 					"authenticatedSelfScope": {
 						"type": "string",

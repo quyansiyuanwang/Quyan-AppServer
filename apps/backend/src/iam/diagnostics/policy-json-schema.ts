@@ -1,6 +1,11 @@
 import { iamTrustPolicyDocumentSchema, IAM_ASSUME_ROLE_ACTION } from "../trust/trust-policy";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { IAM_ACTION_DEFINITIONS, IAM_CONDITION_KEY_CATALOG, IAM_RESOURCE_TYPE_CATALOG } from "@quyan/shared";
+import {
+  IAM_ACTION_DEFINITIONS,
+  IAM_CONDITION_KEY_CATALOG,
+  IAM_RESOURCE_TYPE_CATALOG,
+  IAM_PLATFORM_ACCOUNT_ID,
+} from "@quyan/shared";
 import { iamPolicyDocumentSchema, IAM_POLICY_LIMITS } from "../parser/policy-schema";
 /** Generated from the same Zod validator; custom catalog/ownership refinements require server diagnosis. */
 export function getIamPolicyJsonSchema(policyKind: "identity" | "trust" = "identity"): Record<string, unknown> {
@@ -23,10 +28,16 @@ export function getIamPolicyJsonSchema(policyKind: "identity" | "trust" = "ident
     ).map((action) => ({
       action: action.action,
       resourceTypes: [...action.resourceTypes],
+      ...(action.authorizationBoundary ? { authorizationBoundary: action.authorizationBoundary } : {}),
     })),
     "x-quyan-resource-types": IAM_RESOURCE_TYPE_CATALOG.filter(
       (type) => policyKind === "identity" || type.id === "quyan/role",
     ),
+    "x-quyan-platform-authorization": {
+      namespace: IAM_PLATFORM_ACCOUNT_ID,
+      requiresPersistedGlobalManagementGroup: true,
+      accountPoliciesCannotGrantGroupMembership: true,
+    },
     "x-quyan-condition-keys": IAM_CONDITION_KEY_CATALOG.filter((key) => key.supported),
   };
 }

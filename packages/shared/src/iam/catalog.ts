@@ -1,4 +1,5 @@
 import { IAM_GLOBAL_CONDITION_KEYS } from './condition'
+import { IAM_PLATFORM_ACCOUNT_ID } from './platform'
 import { ALL_PERMISSIONS, Permission } from '../permission'
 import { actionForPermission } from './legacy-permission-map'
 
@@ -14,6 +15,8 @@ export interface IamActionDefinition {
   conditionKeys: string[]
   sensitive: boolean
   authorizationStage: 'legacy' | 'declared'
+  /** Platform operations additionally require a persisted global group's existing management ceiling. */
+  authorizationBoundary?: 'platform'
   /** Baseline grant restricted to registered authenticated self identity/child ARNs. */
   defaultAuthorizationScope?: 'self'
   /** Registered migration alias only; clients cannot choose the endpoint Action. */
@@ -32,6 +35,7 @@ export interface IamResourceTypeDefinition {
   type: string
   arnTemplate: string
   identifierSegments: number
+  accountScope?: 'platform'
   /** Only explicitly registered user identities or their user-parented children receive self-service defaults. */
   authenticatedSelfScope?: 'identity' | 'children'
 }
@@ -76,6 +80,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('balance', 'transaction', 2),
   resource('oj', 'api-key', 2),
   resource('oauth', 'client', 2),
+  {
+    ...resource('platform', 'oauth-client'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':oauth-client/{resourceId}',
+  },
   resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
@@ -977,6 +986,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     sensitive: true,
     authorizationStage: 'declared',
     legacyPermission: Permission.OAUTH_CLIENT_CREATE,
+  },
+  {
+    action: 'quyan:oauth:ListSystemClients',
+    service: 'oauth',
+    operation: 'ListSystemClients',
+    accessLevel: 'List',
+    resourceTypes: ['platform/oauth-client'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
   },
   ...['RotateClientSecret', 'DeleteClient'].map(
     (operation): IamActionDefinition => ({

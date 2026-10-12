@@ -1,6 +1,7 @@
 import { IAM_RESOURCE_TYPE_CATALOG, getIamActionDefinition } from './catalog'
 import type { IamResourceTypeDefinition } from './catalog'
 import { matchIamPattern } from './pattern'
+import { IAM_PLATFORM_ACCOUNT_ID } from './platform'
 export interface IamPrincipal {
   subjectUserId: string
   principalUserId: string
@@ -30,12 +31,13 @@ export function getIamResourceType(resource: string): IamResourceTypeDefinition 
     !/^acs:[a-z][a-z0-9-]*:(?:\*|[A-Za-z0-9_-]*):[A-Za-z0-9_-]+:[A-Za-z0-9_.+/@-]+$/.test(resource)
   )
     return undefined
-  const [, service, , , path] = resource.split(':')
+  const [, service, , accountId, path] = resource.split(':')
   const [type, ...ids] = path!.split('/')
   return IAM_RESOURCE_TYPE_CATALOG.find(
     (definition) =>
       definition.service === service &&
       definition.type === type &&
+      (definition.accountScope !== 'platform' || accountId === IAM_PLATFORM_ACCOUNT_ID) &&
       ids.length === definition.identifierSegments &&
       ids.every((id) => id.length > 0),
   )
@@ -52,13 +54,15 @@ export function getIamResourcePatternTypes(pattern: string): readonly IamResourc
     !/^acs:[a-z0-9*-]+:[A-Za-z0-9_*-]*:[A-Za-z0-9_*-]+:[A-Za-z0-9_.+/@*-]+$/.test(pattern)
   )
     return []
-  const [, service, , , path] = pattern.split(':')
+  const [, service, , accountId, path] = pattern.split(':')
   const [type, ...ids] = path!.split('/')
   if (ids.some((id) => !id)) return []
   return IAM_RESOURCE_TYPE_CATALOG.filter(
     (definition) =>
       matchIamPattern(service!, definition.service) &&
       matchIamPattern(type!, definition.type) &&
+      (definition.accountScope !== 'platform' ||
+        matchIamPattern(accountId!, IAM_PLATFORM_ACCOUNT_ID)) &&
       ids.length <= definition.identifierSegments &&
       (ids.length === definition.identifierSegments ||
         (ids[ids.length - 1] ?? type!).includes('*')),
@@ -68,6 +72,16 @@ export function isIamResourceInAccount(resource: string, accountOwnerId: string)
   return (
     resource === '*' ||
     (getIamResourceType(resource) !== undefined && resource.split(':')[3] === accountOwnerId)
+  )
+}
+/** Identity-policy storage may reference the registered reserved platform namespace; runtime adds a global-group ceiling. */
+export function isIamPolicyResourceInAccount(pattern: string, accountOwnerId: string): boolean {
+  if (pattern === '*') return true
+  const types = getIamResourcePatternTypes(pattern)
+  return (
+    types.length > 0 &&
+    (matchIamPattern(pattern.split(':')[3] ?? '', accountOwnerId) ||
+      types.every((type) => type.accountScope === 'platform'))
   )
 }
 export function isIamActionResourceCompatible(action: string, resource: string): boolean {

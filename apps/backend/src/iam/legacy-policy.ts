@@ -7,6 +7,7 @@ import {
   buildAcsResource,
   getIamActionDefinition,
   IAM_RESOURCE_TYPE_CATALOG,
+  IAM_PLATFORM_ACCOUNT_ID,
 } from "@quyan/shared";
 import type { IamEffect, NormalizedIamPolicyDocument } from "@quyan/shared";
 import { IamPolicyValidationError } from "./parser/policy-parser";
@@ -39,7 +40,9 @@ export function legacyPermissionsToPolicy(
       .flatMap((action) => getIamActionDefinition(action)!.resourceTypes),
   );
   const resources = IAM_RESOURCE_TYPE_CATALOG.filter((type) => compatibleTypes.has(type.id)).map((type) =>
-    type.arnTemplate.replace("{accountId}", accountOwnerId).replace(/\{[^}]+\}/g, "*"),
+    type.arnTemplate
+      .replace("{accountId}", type.accountScope === "platform" ? IAM_PLATFORM_ACCOUNT_ID : accountOwnerId)
+      .replace(/\{[^}]+\}/g, "*"),
   );
   return {
     Version: "1",

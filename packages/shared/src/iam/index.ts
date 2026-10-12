@@ -1,4 +1,5 @@
 export * from './policy'
+export * from './platform'
 export * from './action'
 export * from './resource'
 export * from './decision'

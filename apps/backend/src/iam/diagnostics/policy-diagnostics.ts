@@ -1,6 +1,11 @@
 import { parseIamTrustPolicy, iamTrustPolicyDocumentSchema, iamPrincipalSelectorSchema } from "../trust/trust-policy";
 import type { IamDiagnostic, IamDiagnosticCode, IamPolicyDiagnosis } from "@quyan/shared";
-import { IAM_ACTION_DEFINITIONS, IAM_RESOURCE_TYPE_CATALOG, resolveIamStatementActions } from "@quyan/shared";
+import {
+  IAM_ACTION_DEFINITIONS,
+  IAM_RESOURCE_TYPE_CATALOG,
+  isIamPolicyResourceInAccount,
+  resolveIamStatementActions,
+} from "@quyan/shared";
 import type { ZodIssue } from "zod";
 import { findNodeAtLocation } from "jsonc-parser";
 import { iamPolicyDocumentSchema } from "../parser/policy-schema";
@@ -144,7 +149,8 @@ export function diagnoseIamPolicy(
         owner = parts[3],
         resourcePath = parts[4];
       const location = Array.isArray(statement.Resource) ? [...base, "Resource", resourceIndex] : [...base, "Resource"];
-      if (accountOwnerId && owner && !matchIamPattern(owner, accountOwnerId)) add("cross-account-resource", location);
+      if (accountOwnerId && owner && !isIamPolicyResourceInAccount(resource, accountOwnerId))
+        add("cross-account-resource", location);
       const types = IAM_RESOURCE_TYPE_CATALOG.filter(
         (type) => matchIamPattern(service, type.service) && matchIamPattern(resourcePath.split("/")[0], type.type),
       );

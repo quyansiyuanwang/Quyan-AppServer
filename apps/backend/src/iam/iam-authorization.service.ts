@@ -1,6 +1,12 @@
 import { GroupRepository } from "@/store/users/group.repository";
 import type { GroupStore } from "@/store/users/group.store";
-import { getIamResourcePatternTypes, isValidIamResource } from "@quyan/shared";
+import {
+  getIamResourcePatternTypes,
+  getIamResourceType,
+  getIamActionDefinition,
+  isValidIamResource,
+  IAM_PLATFORM_ACCOUNT_ID,
+} from "@quyan/shared";
 import { RamAuthorizationRepository } from "@/store/users/ram-authorization.repository";
 import { RamResourceGroupRepository } from "@/store/users/ram-resource-group.repository";
 import type { RamAuthorizationStore, IamAuthorizationTarget } from "@/store/users/ram-authorization.store";
@@ -17,7 +23,7 @@ import type { UserStore } from "@/store/users/user.store";
 import type { RamRoleStore } from "@/store/users/ram-role.store";
 import type { PolicyBindingInfo, RamPolicyStore } from "@/store/users/ram-policy.store";
 import { ForbiddenError } from "@/util/errors";
-import { legacyPermissionsToPolicy, legacyPermissionsToPrincipalPolicy } from "./legacy-policy";
+import { parseLegacyPermissions, legacyPermissionsToPolicy, legacyPermissionsToPrincipalPolicy } from "./legacy-policy";
 import { IAM_BACKFILL_CREATOR, isGeneratedLegacyPolicyDocument } from "./migration/legacy-policy-provenance";
 import { parseIamPolicy } from "./parser/policy-parser";
 import { IamResourceConditionService } from "./condition/resource-condition.service";
@@ -268,13 +274,53 @@ export class IamAuthorizationService {
       if (document) result.push({ policyId: binding.policyId, document });
     } else throw deny();
   }
+  private requestResourceInBoundary(action: string, resource: string, owner: string) {
+    const definition = getIamActionDefinition(action);
+    if (definition?.authorizationBoundary !== "platform") return isIamResourceInAccount(resource, owner);
+    const type = getIamResourceType(resource);
+    return Boolean(
+      type?.accountScope === "platform" &&
+        resource.split(":")[3] === IAM_PLATFORM_ACCOUNT_ID &&
+        definition.resourceTypes.includes(type.id),
+    );
+  }
+  /** Account policies cannot manufacture membership in a deployment-managed global group. */
+  private async assertPlatformCeiling(principal: IamPrincipal, action: string) {
+    const definition = getIamActionDefinition(action);
+    if (definition?.authorizationBoundary !== "platform") return;
+    const user = await this.users.findByIdWithGroup(principal.principalUserId),
+      group = user?.group;
+    if (
+      !user ||
+      principal.subjectUserId !== principal.principalUserId ||
+      user.id !== principal.principalUserId ||
+      user.status !== 1 ||
+      (user.accountOwnerId || user.id) !== principal.accountOwnerId ||
+      !group ||
+      group.id !== user.groupId ||
+      group.status !== 1 ||
+      group.accountOwnerId !== null ||
+      !definition.legacyPermission ||
+      !parseLegacyPermissions(group.permissions).includes(definition.legacyPermission)
+    )
+      throw deny();
+    const owner =
+      principal.accountOwnerId === user.id ? user : await this.users.findActiveById(principal.accountOwnerId);
+    if (!owner || owner.status !== 1 || (owner.accountOwnerId || owner.id) !== principal.accountOwnerId) throw deny();
+    // Draft/simulation callers must not bypass the persisted role-session validation used by live policy loading.
+    if (principal.assumedRoleId || principal.roleSessionId || principal.subjectType === "assumed_role")
+      await this.loadPolicies(principal);
+  }
   async authorize(input: {
     principal: IamPrincipal;
     action: string;
     resource: string;
     context?: IamConditionContext;
   }): Promise<IamEvaluationResult> {
-    if (!isKnownIamAction(input.action) || !isIamResourceInAccount(input.resource, input.principal.accountOwnerId))
+    if (
+      !isKnownIamAction(input.action) ||
+      !this.requestResourceInBoundary(input.action, input.resource, input.principal.accountOwnerId)
+    )
       return { decision: "ImplicitDeny", reason: "invalid-request", matchedStatements: [] };
     return (
       await this.evaluateLoadedPolicies({
@@ -294,7 +340,9 @@ export class IamAuthorizationService {
     if (
       !isKnownIamAction(input.action) ||
       !isSafeIamResourceBatch(input.resources) ||
-      input.resources.some((resource) => !isIamResourceInAccount(resource, input.principal.accountOwnerId))
+      input.resources.some(
+        (resource) => !this.requestResourceInBoundary(input.action, resource, input.principal.accountOwnerId),
+      )
     )
       throw deny();
     const policies = await this.loadPolicies(input.principal);
@@ -311,9 +359,12 @@ export class IamAuthorizationService {
     if (
       !isKnownIamAction(input.action) ||
       !isSafeIamResourceBatch(input.resources) ||
-      input.resources.some((resource) => !isIamResourceInAccount(resource, input.principal.accountOwnerId))
+      input.resources.some(
+        (resource) => !this.requestResourceInBoundary(input.action, resource, input.principal.accountOwnerId),
+      )
     )
       throw deny();
+    await this.assertPlatformCeiling(input.principal, input.action);
     const contexts = await this.resourceConditions.contexts(input);
     return input.resources.map((resource, index) =>
       contexts[index] === undefined

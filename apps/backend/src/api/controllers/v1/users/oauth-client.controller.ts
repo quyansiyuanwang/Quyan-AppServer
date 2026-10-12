@@ -78,10 +78,16 @@ export class OAuthClientController extends Controller {
 
   @Get("system")
   @Security("jwt")
-  @RequirePermission(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:oauth:ListSystemClients",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  public async listSystemClients(): Promise<OAuthClientDto[]> {
-    return this.service.listSystemClients();
+  public async listSystemClients(@Request() request: TypedRequest): Promise<OAuthClientDto[]> {
+    return this.service.listSystemClients(request);
   }
 
   @Post("system")

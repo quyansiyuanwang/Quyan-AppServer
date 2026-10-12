@@ -29,6 +29,7 @@ import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { OAuthClientIamService } from "./oauth-client-iam.service";
+import { PlatformOAuthClientIamService } from "./platform-oauth-client-iam.service";
 import { OAuthClientMutationIamService } from "./oauth-client-mutation-iam.service";
 import type { OAuthClientMutationAction } from "@/store/users/oauth-client-mutation.store";
 import { createOAuthClientBodySchema, updateOAuthClientBodySchema } from "@/api/schema/users/oauth-client.schema";
@@ -56,6 +57,7 @@ export class OAuthClientService {
     private readonly iam = OAuthClientIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
     private readonly mutations = OAuthClientMutationIamService.getInstance(),
+    private readonly platform = PlatformOAuthClientIamService.getInstance(),
   ) {}
 
   static getInstance(): OAuthClientService {
@@ -193,7 +195,24 @@ export class OAuthClientService {
     return clients.map((item) => this.toDto(item));
   }
 
-  async listSystemClients(): Promise<OAuthClientDto[]> {
+  async listSystemClients(request?: TypedRequest): Promise<OAuthClientDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.platform.list(request)).map((item) => this.toDto(item));
+    if (request) {
+      const principal = getIamPrincipal(request);
+      if (
+        !principal ||
+        !(
+          await this.permissions.checkUserPermissions(
+            principal.subjectUserId,
+            [Permission.OAUTH_CLIENT_SYSTEM_MANAGE],
+            { assumedRoleSessionId: principal.roleSessionId },
+          )
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.platform.diagnose(request);
+    }
     const clients = await this.repository.findSystemClients();
     return clients.map((item) => this.toDto(item));
   }

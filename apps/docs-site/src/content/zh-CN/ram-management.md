@@ -492,3 +492,5 @@ IAM 强制模式下，`quyan:user:ForceOfflineSession` 作用于实际的 `onlin
 轮换与删除分别使用敏感操作 `quyan:oauth:RotateClientSecret` 和 `quyan:oauth:DeleteClient`，资源仍是指定个人应用 ARN。更新权限不自动授予轮换，读取或轮换权限也不授予删除。轮换只适用于机密客户端，成功时只返回本次生成的新 Secret，请及时保存；读取接口不提供完整 Secret。事务内最终授权或资源版本复查失败时，轮换和删除都会回滚。系统应用不能通过这些个人应用操作管理。
 
 创建个人 OAuth 应用使用敏感操作 `quyan:oauth:CreateClient`，授权资源为认证用户的 `acs:quyan:*:<accountId>:user/<userId>`。此操作没有默认本人授权，只能为自己创建普通应用；应用初始为草稿，不能在创建时设置为系统应用或已批准。机密客户端的创建响应只返回本次生成的新 Secret，公共客户端不生成 Secret。创建事务会复查当前用户与账户版本、策略、角色会话、OAuth Token 和 Scope 可授予范围，任一复查失败均回滚新应用。创建权限不自动授予应用读取、修改、轮换、删除或提交审核权限。
+
+系统 OAuth 应用列表使用 `quyan:oauth:ListSystemClients`，逐应用资源为 `acs:platform:*:platform:oauth-client/<clientId>`。`platform` 是平台保留命名空间，不是调用者账户；普通账户所有者、自建账户用户组或通配符策略不能据此取得平台管理权限。操作者必须属于有效的全局管理组，且该组原有权限包含系统 OAuth 管理；再由 IAM 按具体应用、Condition 和显式 Deny 评估。移除该组的管理权限或禁用组后，读取被拒绝。列表仅包含授权的系统应用，不返回密钥哈希或 Token，也不能把这些平台资源加入普通账户资源组。

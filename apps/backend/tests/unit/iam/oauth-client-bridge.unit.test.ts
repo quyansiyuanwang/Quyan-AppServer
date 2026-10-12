@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/config/env", () => ({ env: { security: { iamAuthorizationMode: "legacy" } } }));
 vi.mock("@/util/logger", () => ({ LogCategory: { SECURITY: "security" }, getLogger: () => ({ warn: vi.fn() }) }));
+vi.mock("@/services/users/platform-oauth-client-iam.service", () => ({
+  PlatformOAuthClientIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/users/oauth-client-mutation-iam.service", () => ({
   OAuthClientMutationIamService: { getInstance: vi.fn() },
 }));
@@ -37,7 +40,13 @@ const record = {
   updateTime: new Date(0),
   hasClientSecret: true,
 };
-let iam: any, permissions: any, repo: any, mutations: any, service: OAuthClientService, request: TypedRequest;
+let iam: any,
+  permissions: any,
+  repo: any,
+  mutations: any,
+  platform: any,
+  service: OAuthClientService,
+  request: TypedRequest;
 beforeEach(() => {
   env.security.iamAuthorizationMode = "legacy";
   vi.mocked(oauthScopeService.normalizeAndAssertGrantable).mockReset().mockResolvedValue(["profile"]);
@@ -48,6 +57,8 @@ beforeEach(() => {
   };
   permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) };
   repo = { findByUserId: vi.fn().mockResolvedValue([record]), findById: vi.fn().mockResolvedValue(record) };
+  platform = { list: vi.fn().mockResolvedValue([record]), diagnose: vi.fn().mockResolvedValue(undefined) };
+  repo.findSystemClients = vi.fn().mockResolvedValue([record]);
   repo.create = vi.fn().mockImplementation(async (data: any) => ({ ...record, ...data }));
   repo.delete = vi.fn().mockResolvedValue(record);
   repo.update = vi.fn().mockImplementation(async (_: string, data: any) => ({ ...record, ...data }));
@@ -70,6 +81,7 @@ beforeEach(() => {
     iam,
     permissions,
     mutations,
+    platform,
   );
 
   request = {
@@ -260,5 +272,28 @@ describe("OAuth application resource-authorized creation", () => {
     expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OAUTH_CLIENT_CREATE], {
       assumedRoleSessionId: "session",
     });
+  });
+});
+
+describe("system OAuth application read mode boundary", () => {
+  it("enforce returns the platform-filtered view and never falls back to the old repository", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    await expect(service.listSystemClients(request)).resolves.toHaveLength(1);
+    expect(platform.list).toHaveBeenCalledWith(request);
+    expect(repo.findSystemClients).not.toHaveBeenCalled();
+    platform.list.mockRejectedValue(new Error("fixture platform ceiling denied"));
+    await expect(service.listSystemClients(request)).rejects.toThrow("fixture platform ceiling denied");
+    expect(repo.findSystemClients).not.toHaveBeenCalled();
+  });
+  it("shadow enforces the existing current-role permission and diagnoses only metadata", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    await expect(service.listSystemClients(request)).resolves.toHaveLength(1);
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OAUTH_CLIENT_SYSTEM_MANAGE], {
+      assumedRoleSessionId: "session",
+    });
+    expect(platform.diagnose).toHaveBeenCalledWith(request);
+    expect(platform.list).not.toHaveBeenCalled();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.listSystemClients(request)).rejects.toMatchObject({ statusCode: 403 });
   });
 });
