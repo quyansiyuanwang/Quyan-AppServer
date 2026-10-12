@@ -490,3 +490,5 @@ IAM 强制模式下，`quyan:user:ForceOfflineSession` 作用于实际的 `onlin
 `quyan:oauth:UpdateClient` 和 `quyan:oauth:SubmitClientReview` 分别控制指定个人应用的更新与提交审核，均使用同一个应用 ARN；更新权限不自动允许提交审核，读取权限也不授予修改。2FA 与重放保护继续生效。修改已通过或被拒绝的应用后，审核状态按原规则回到草稿。服务端在事务中锁定应用和可信用户，复查策略、应用版本、账户、角色会话和 OAuth Token；复查失败会回滚更新。修改 Scope 仍须证明其可被操作者当前角色会话授予，提交审核不会直接批准应用。
 
 轮换与删除分别使用敏感操作 `quyan:oauth:RotateClientSecret` 和 `quyan:oauth:DeleteClient`，资源仍是指定个人应用 ARN。更新权限不自动授予轮换，读取或轮换权限也不授予删除。轮换只适用于机密客户端，成功时只返回本次生成的新 Secret，请及时保存；读取接口不提供完整 Secret。事务内最终授权或资源版本复查失败时，轮换和删除都会回滚。系统应用不能通过这些个人应用操作管理。
+
+创建个人 OAuth 应用使用敏感操作 `quyan:oauth:CreateClient`，授权资源为认证用户的 `acs:quyan:*:<accountId>:user/<userId>`。此操作没有默认本人授权，只能为自己创建普通应用；应用初始为草稿，不能在创建时设置为系统应用或已批准。机密客户端的创建响应只返回本次生成的新 Secret，公共客户端不生成 Secret。创建事务会复查当前用户与账户版本、策略、角色会话、OAuth Token 和 Scope 可授予范围，任一复查失败均回滚新应用。创建权限不自动授予应用读取、修改、轮换、删除或提交审核权限。

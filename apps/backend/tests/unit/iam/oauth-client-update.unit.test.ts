@@ -168,4 +168,21 @@ describe("personal OAuth application update boundary", () => {
       );
     }
   });
+  it("authorizes creation on a trusted user parent without reading another application", async () => {
+    expect(getIamActionDefinition("quyan:oauth:CreateClient")).toMatchObject({
+      sensitive: true,
+      resourceTypes: ["quyan/user"],
+    });
+    expect(iamActionsForLegacyPermission(Permission.OAUTH_CLIENT_CREATE)).toContain("quyan:oauth:CreateClient");
+    const guard = await service.prepareCreate("actor", request);
+    expect(guard.users.users.map((u) => u.id).sort()).toEqual(["actor", "owner"]);
+    expect(iam.authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "quyan:oauth:CreateClient", resource: "acs:quyan:*:owner:user/actor" }),
+    );
+    expect(repo.target).not.toHaveBeenCalled();
+    expect(repo.hydrate).not.toHaveBeenCalled();
+    iam.authorize.mockResolvedValue({ decision: "ExplicitDeny" });
+    await expect(guard.users.recheck()).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.prepareCreate("actor", request)).rejects.toMatchObject({ statusCode: 403 });
+  });
 });

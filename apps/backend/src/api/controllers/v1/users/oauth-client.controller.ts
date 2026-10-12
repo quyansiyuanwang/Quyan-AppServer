@@ -34,7 +34,7 @@ import { validateBody, validateParams, validateQuery } from "@/middleware/valida
 import type { TypedRequest } from "@/types/express";
 import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
-import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { oauthClientResourceResolver } from "@/iam/request/oauth-client-resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { OAuthClientService } from "@/services/users/oauth-client.service";
@@ -56,7 +56,11 @@ export class OAuthClientController extends Controller {
 
   @Post("")
   @Security("jwt", ["oauth_client"])
-  @RequirePermission(Permission.OAUTH_CLIENT_CREATE)
+  @CheckPermission(Permission.OAUTH_CLIENT_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:CreateClient",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "创建失败")

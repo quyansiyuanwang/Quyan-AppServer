@@ -16,7 +16,11 @@ import type {
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OAuthClientRepository } from "@/store/users/oauth-client.repository";
-import type { OAuthClientStore, OAuthClientUpdateInput } from "@/store/users/oauth-client.store";
+import type {
+  OAuthClientCreateInput,
+  OAuthClientStore,
+  OAuthClientUpdateInput,
+} from "@/store/users/oauth-client.store";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { CustomCode, maskSecret } from "@quyan/shared";
@@ -27,7 +31,7 @@ import { getIamPrincipal } from "@/iam/request/principal-context";
 import { OAuthClientIamService } from "./oauth-client-iam.service";
 import { OAuthClientMutationIamService } from "./oauth-client-mutation-iam.service";
 import type { OAuthClientMutationAction } from "@/store/users/oauth-client-mutation.store";
-import { updateOAuthClientBodySchema } from "@/api/schema/users/oauth-client.schema";
+import { createOAuthClientBodySchema, updateOAuthClientBodySchema } from "@/api/schema/users/oauth-client.schema";
 import { PermissionService } from "./permission.service";
 import { Permission } from "@quyan/shared";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
@@ -60,12 +64,44 @@ export class OAuthClientService {
   }
 
   async createClient(userId: string, data: CreateOAuthClientDto, request?: Request): Promise<OAuthClientWithSecretDto> {
-    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
+    let guard;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = createOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid OAuth application creation", undefined, { messageKey: "errors.badRequest" });
+      data = {
+        ...parsed.data,
+        homepageUrl: parsed.data.homepageUrl ?? undefined,
+        logoUrl: parsed.data.logoUrl ?? undefined,
+        policyUrl: parsed.data.policyUrl ?? undefined,
+        tosUrl: parsed.data.tosUrl ?? undefined,
+      };
+      guard = await this.mutations.prepareCreate(userId, request as TypedRequest | undefined);
+    } else if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_CREATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.mutations.prepareCreate(userId, request as TypedRequest));
+    }
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(
+      userId,
+      data.scopes ?? DEFAULT_SCOPES,
+      guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+    );
     const clientId = this.generateClientId();
     const rawClientSecret = data.clientType === "public" ? "" : this.generateClientSecret();
     const clientSecretHash = rawClientSecret ? await bcrypt.hash(rawClientSecret, 10) : undefined;
 
-    const created = await this.repository.create({
+    const createData: OAuthClientCreateInput = {
       userId,
       name: data.name.trim(),
       description: this.normalizeOptionalText(data.description),
@@ -88,7 +124,17 @@ export class OAuthClientService {
       isPkceRequired: true,
       accessTokenLifetime: 3600,
       refreshTokenLifetime: 60 * 60 * 24 * 30,
-    });
+    };
+    const created = guard
+      ? await this.mutations.create(createData, {
+          ...guard,
+          scopeCheck: async () => {
+            await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+              assumedRoleSessionId: guard.identity.principal.roleSessionId,
+            });
+          },
+        })
+      : await this.repository.create(createData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_CREATE,

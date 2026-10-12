@@ -48,12 +48,18 @@ beforeEach(() => {
   };
   permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) };
   repo = { findByUserId: vi.fn().mockResolvedValue([record]), findById: vi.fn().mockResolvedValue(record) };
+  repo.create = vi.fn().mockImplementation(async (data: any) => ({ ...record, ...data }));
   repo.delete = vi.fn().mockResolvedValue(record);
   repo.update = vi.fn().mockImplementation(async (_: string, data: any) => ({ ...record, ...data }));
   mutations = {
     prepare: vi.fn().mockResolvedValue({
       existing: { ...record, reviewStatus: "approved" },
       guard: { identity: { principal: { roleSessionId: "session" } } },
+    }),
+    prepareCreate: vi.fn().mockResolvedValue({ identity: { principal: { roleSessionId: "session" } }, users: {} }),
+    create: vi.fn().mockImplementation(async (data: any) => {
+      const { clientSecretHash, ...view } = data;
+      return { ...record, ...view, hasClientSecret: !!clientSecretHash };
     }),
     revoke: vi.fn().mockResolvedValue(record),
     update: vi.fn().mockImplementation(async (data: any) => ({ ...record, ...data })),
@@ -204,6 +210,54 @@ describe("OAuth secret rotation and deletion resource behavior", () => {
     expect(repo.delete).toHaveBeenCalled();
     expect(mutations.revoke).not.toHaveBeenCalled();
     expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OAUTH_CLIENT_DELETE], {
+      assumedRoleSessionId: "session",
+    });
+  });
+});
+
+describe("OAuth application resource-authorized creation", () => {
+  const data = { name: "new app", redirectUris: ["https://example.com/callback"], scopes: ["profile"] };
+  it("returns the initial new confidential secret, authorizes the user parent and remains draft", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    const result = await service.createClient("actor", data, request);
+    expect(result).toMatchObject({ name: "new app", reviewStatus: "draft", hasClientSecret: true });
+    expect(result.clientSecret).toMatch(/^oauths_/);
+    expect(result).not.toHaveProperty("clientSecretHash");
+    expect(mutations.prepareCreate).toHaveBeenCalledWith("actor", request);
+    expect(mutations.create).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "actor", reviewStatus: "draft" }),
+      expect.anything(),
+    );
+    expect(repo.create).not.toHaveBeenCalled();
+    await mutations.create.mock.calls[0][1].scopeCheck();
+    expect(oauthScopeService.normalizeAndAssertGrantable).toHaveBeenLastCalledWith("actor", ["profile"], {
+      assumedRoleSessionId: "session",
+    });
+  });
+  it("public application creation does not generate a secret", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    const result = await service.createClient("actor", { ...data, clientType: "public" }, request);
+    expect(result).toMatchObject({ clientSecret: "", hasClientSecret: false });
+    expect(mutations.create.mock.calls[0][0].clientSecretHash).toBeUndefined();
+  });
+  it("refuses unknown fields and never falls back to legacy creation on IAM failure", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    await expect(
+      service.createClient("actor", { ...data, isSystemClient: true } as any, request),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    mutations.prepareCreate.mockRejectedValue(new Error("fixture denied"));
+    await expect(service.createClient("actor", data, request)).rejects.toThrow("fixture denied");
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(mutations.create).not.toHaveBeenCalled();
+  });
+  it("shadow prepares only metadata, then enforces the existing creation permission", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    mutations.prepareCreate.mockRejectedValue(new Error("fixture policy deny"));
+    await service.createClient("actor", { ...data, clientType: "public" }, request);
+    expect(mutations.prepareCreate).toHaveBeenCalledWith("actor", request);
+    expect(mutations.create).not.toHaveBeenCalled();
+    expect(repo.create).toHaveBeenCalled();
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OAUTH_CLIENT_CREATE], {
       assumedRoleSessionId: "session",
     });
   });
