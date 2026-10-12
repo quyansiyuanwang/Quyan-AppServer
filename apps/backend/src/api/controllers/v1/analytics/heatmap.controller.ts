@@ -1,8 +1,9 @@
+import { platformHeatmapResource } from "@/iam/request/platform-system-resource-resolvers";
 import { Route, Tags, Controller, SuccessResponse, Response, Post, Body, Request, Security } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { ErrorResponse } from "@/api/response";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import HeatmapService from "@/services/analytics/heatmap.service";
@@ -29,8 +30,12 @@ export class HeatmapController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.ANALYTICS_READ)
-  public async query(@Body() body: HeatmapQuery): Promise<HeatmapQueryResponse> {
-    return this.service.query(body);
+  @CheckPermission(Permission.ANALYTICS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:analytics:GetHeatmap",
+    resourceKind: "single-resource",
+    resource: platformHeatmapResource,
+  })
+  public async query(@Body() body: HeatmapQuery, @Request() request: TypedRequest): Promise<HeatmapQueryResponse> {
+    return this.service.queryManaged(body, request);
   }
 }

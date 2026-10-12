@@ -1,6 +1,13 @@
 import { buildAcsResource, IAM_PLATFORM_ACCOUNT_ID } from "@quyan/shared";
-export type PlatformSystemResource = "build-info" | "stats" | "consumption-stats";
-const resources: readonly PlatformSystemResource[] = ["build-info", "stats", "consumption-stats"];
+const resources = [
+  "build-info",
+  "stats",
+  "consumption-stats",
+  "tracking-stats",
+  "tracking-funnel",
+  "heatmap-stats",
+] as const;
+export type PlatformSystemResource = (typeof resources)[number];
 export function platformSystemArn(resource: PlatformSystemResource) {
   if (!resources.includes(resource)) throw new Error("Unregistered system information resource");
   return buildAcsResource({

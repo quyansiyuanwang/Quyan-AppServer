@@ -1109,6 +1109,27 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.IP_WHITELIST_READ,
     }),
   ),
+  ...(
+    [
+      ['GetTrackingStatistics', '/v1/track/stats'],
+      ['GetFunnelStatistics', '/v1/track/funnel'],
+      ['GetHeatmap', '/v1/heatmap/query'],
+    ] as const
+  ).map(
+    ([operation, route]): IamActionDefinition => ({
+      action: 'quyan:analytics:' + operation,
+      service: 'analytics',
+      operation,
+      accessLevel: 'Read',
+      resourceTypes: ['platform/system'],
+      apiRoutes: ['POST ' + route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.ANALYTICS_READ,
+    }),
+  ),
   ...['ListConfigurations', 'UpdateConfigurations'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:' + operation,
