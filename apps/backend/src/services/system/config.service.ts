@@ -3,7 +3,7 @@ import { getIamPrincipal } from "@/iam/request/principal-context";
 import { PermissionService } from "@/services/users/permission.service";
 import {
   Permission,
-  isSensitiveServerConfigKey,
+  isSensitiveServerConfigValue,
   SERVER_CONFIG_SECRET_PLACEHOLDER,
   writableServerConfigs,
 } from "@quyan/shared";
@@ -16,6 +16,12 @@ import { AI_RESOURCE_CONFIG_KEY } from "@/config/ai-resource-policy";
 import BusinessLogService from "./businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { CONFIG_KEYS } from "@/constant/config-keys";
+import { AUTO_PROXY_POOL_CONFIG_POLICY } from "@/constant/auto-proxy-pool-policy";
+import {
+  RELAY_CONFIGURATION_KEYS,
+  RELAY_PROXY_CONFIGURATION_KEYS,
+  AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+} from "@/constant/config-keysets";
 import { ALL_NOTIFICATION_EVENTS, NotificationEvent, THRESHOLD_EVENTS } from "@/constant/notification-event";
 import { env } from "@/config/env";
 import { ServerConfigRepository } from "@/store/system/server-config.repository";
@@ -45,8 +51,6 @@ const DEFAULT_RELAY_CUSTOM_KEY_MAX_TOKENS_PER_USER = 3;
 const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_WINDOW_MINUTES = 10;
 const DEFAULT_RELAY_CUSTOM_KEY_CREATE_LIMIT_MAX_COUNT = 5;
 const DEFAULT_SOCIAL_AUTH_QR_LOGIN_ENABLED = true;
-const DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES = 10;
-const DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS = 168;
 
 export interface RegistrationConfig {
   enabled: boolean;
@@ -262,7 +266,7 @@ export class ConfigService {
         actorUserId,
         targetResourceType: "SERVER_CONFIG",
         description: `配置项 '${key}' 已更新`,
-        changes: { key, value: /password|apiKey|proxy/i.test(key) ? "***" : value },
+        changes: { key, value: isSensitiveServerConfigValue(key, value) ? "***" : value },
         success: true,
         ipAddress: this.getClientIP(request),
         userAgent: request?.headers["user-agent"],
@@ -270,8 +274,8 @@ export class ConfigService {
       });
   }
 
-  async getMultiple(keys: string[]): Promise<Record<string, string>> {
-    const configs = await this.serverConfigRepository.findByKeys(keys);
+  async getMultiple(keys: readonly string[]): Promise<Record<string, string>> {
+    const configs = await this.serverConfigRepository.findByKeys([...keys]);
     const result: Record<string, string> = {};
     for (const config of configs) result[config.key] = config.value;
 
@@ -320,7 +324,7 @@ export class ConfigService {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
         key,
-        typeof item === "string" && item && isSensitiveServerConfigKey(key)
+        typeof item === "string" && item && isSensitiveServerConfigValue(key, item)
           ? SERVER_CONFIG_SECRET_PLACEHOLDER
           : this.maskManagedConfiguration(item),
       ]),
@@ -373,8 +377,7 @@ export class ConfigService {
       typeof configs !== "object" ||
       Array.isArray(configs) ||
       Object.entries(configs).some(
-        ([key, value]) =>
-          typeof value !== "string" || (isSensitiveServerConfigKey(key) && value === SERVER_CONFIG_SECRET_PLACEHOLDER),
+        ([, value]) => typeof value !== "string" || value === SERVER_CONFIG_SECRET_PLACEHOLDER,
       )
     )
       throw new BadRequestError("Invalid configuration values", undefined, { messageKey: "errors.badRequest" });
@@ -501,24 +504,21 @@ export class ConfigService {
   }
 
   async getAutoProxyPoolConfig(): Promise<AutoProxyPoolConfig> {
-    const keys = [
-      CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES,
-      CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS,
-    ];
+    const keys = AUTO_PROXY_POOL_CONFIGURATION_KEYS;
     const configs = await this.getMultiple(keys);
 
     return {
       cacheHitRateMinSamples: sanitizeInt(
         configs[CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES],
-        DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES,
-        1,
-        1000,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.default,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.min,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.max,
       ),
       cacheHitRateWindowHours: sanitizeInt(
         configs[CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS],
-        DEFAULT_AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS,
-        1,
-        24 * 365,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.default,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.min,
+        AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.max,
       ),
     };
   }
@@ -801,7 +801,7 @@ export class ConfigService {
   }
 
   async getRelayConfig(): Promise<RelayConfig> {
-    const configs = await this.getMultiple(Object.values(CONFIG_KEYS.RELAY));
+    const configs = await this.getMultiple(RELAY_CONFIGURATION_KEYS);
     return {
       upstreamUrl: configs[CONFIG_KEYS.RELAY.UPSTREAM_URL] || "",
       upstreamApiKey: configs[CONFIG_KEYS.RELAY.UPSTREAM_API_KEY] || "",
@@ -840,10 +840,7 @@ export class ConfigService {
   }
 
   async getRelayProxyConfig(): Promise<RelayProxyConfig> {
-    const configs = await this.getMultiple([
-      CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED,
-      CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL,
-    ]);
+    const configs = await this.getMultiple(RELAY_PROXY_CONFIGURATION_KEYS);
     const url = configs[CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL] || "";
     return {
       enabled: configs[CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED] === "true" && Boolean(url),

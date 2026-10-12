@@ -19,12 +19,20 @@ import {
   registrationConfigurationResources,
   smtpConfigurationResources,
   siteConfigurationResources,
+  relayConfigurationResources,
+  relayProxyConfigurationResources,
+  autoProxyPoolConfigurationResources,
   notificationConfigurationResources,
   billingConfigurationResources,
   heartbeatConfigurationResources,
   remoteTerminalUnbindConfigurationResources,
 } from "@/iam/request/platform-configuration-resource-resolvers";
 import { CONFIG_KEYS } from "@/constant/config-keys";
+import {
+  RELAY_CONFIGURATION_KEYS,
+  RELAY_PROXY_CONFIGURATION_KEYS,
+  AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+} from "@/constant/config-keysets";
 import { SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
 import { Project } from "ts-morph";
 import { collectIamRoutes } from "../../../scripts/iam/route-inventory";
@@ -152,6 +160,9 @@ describe("platform configuration IAM", () => {
       ["registration", Object.values(CONFIG_KEYS.REGISTRATION), registrationConfigurationResources],
       ["smtp", Object.values(CONFIG_KEYS.SMTP), smtpConfigurationResources],
       ["site", Object.values(CONFIG_KEYS.SITE), siteConfigurationResources],
+      ["relay", RELAY_CONFIGURATION_KEYS, relayConfigurationResources],
+      ["relay/proxy", RELAY_PROXY_CONFIGURATION_KEYS, relayProxyConfigurationResources],
+      ["auto-proxy-pool", AUTO_PROXY_POOL_CONFIGURATION_KEYS, autoProxyPoolConfigurationResources],
       ["notification", Object.values(CONFIG_KEYS.NOTIFICATION), notificationConfigurationResources],
       ["billing", Object.values(CONFIG_KEYS.BILLING), billingConfigurationResources],
       ["heartbeat", Object.values(CONFIG_KEYS.HEARTBEAT), heartbeatConfigurationResources],
@@ -184,4 +195,14 @@ describe("platform configuration IAM", () => {
       statusCode: 403,
     });
   });
+});
+
+it("masks credentials embedded in proxy URLs without exposing stored values", async () => {
+  repo.scan.mockResolvedValue([target(CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL)]);
+  repo.hydrate.mockImplementation(async (_: unknown, targets: any[]) =>
+    targets.map((t) => ({ ...t, value: "http://fixture-user:fixture-password@proxy.example.test:3128" })),
+  );
+  expect((await service.list(request)).configs[CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL]).toBe(
+    SERVER_CONFIG_SECRET_PLACEHOLDER,
+  );
 });

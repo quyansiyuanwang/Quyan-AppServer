@@ -1,4 +1,9 @@
 import { CONFIG_KEYS } from "@/constant/config-keys";
+import {
+  RELAY_CONFIGURATION_KEYS,
+  RELAY_PROXY_CONFIGURATION_KEYS,
+  AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+} from "@/constant/config-keysets";
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/config/database";
@@ -254,6 +259,9 @@ describe("platform configuration authorization database", () => {
 describe("typed configuration family authorization", () => {
   it.each([
     ["billing", Object.values(CONFIG_KEYS.BILLING)],
+    ["relay", [...RELAY_CONFIGURATION_KEYS]],
+    ["relay-proxy", [...RELAY_PROXY_CONFIGURATION_KEYS]],
+    ["auto-proxy-pool", [...AUTO_PROXY_POOL_CONFIGURATION_KEYS]],
     ["notification", Object.values(CONFIG_KEYS.NOTIFICATION)],
     ["heartbeat", Object.values(CONFIG_KEYS.HEARTBEAT)],
     ["remote-terminal", Object.values(CONFIG_KEYS.REMOTE_TERMINAL)],

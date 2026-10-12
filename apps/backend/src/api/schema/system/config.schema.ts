@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { AUTO_PROXY_POOL_CONFIG_POLICY } from "@/constant/auto-proxy-pool-policy";
+import { SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
 import type { MessageKey } from "@/locales";
 import { ALL_NOTIFICATION_EVENTS, THRESHOLD_EVENTS } from "@/constant/notification-event";
 import { TICKET_PRIORITIES, TICKET_TYPES } from "@/constant/ticket";
@@ -252,9 +254,14 @@ export const setRelayProxyConfigBodySchema = z
       .max(500)
       .url()
       .or(z.literal(""))
-      .refine((value) => !value || /^(https?|socks(?:4|5|5h)?):\/\//i.test(value), {
-        message: "Proxy URL must use HTTP, HTTPS, SOCKS4, SOCKS5, or SOCKS5H",
-      }),
+      .or(z.literal(SERVER_CONFIG_SECRET_PLACEHOLDER))
+      .refine(
+        (value) =>
+          value === SERVER_CONFIG_SECRET_PLACEHOLDER || !value || /^(https?|socks(?:4|5|5h)?):\/\//i.test(value),
+        {
+          message: "Proxy URL must use HTTP, HTTPS, SOCKS4, SOCKS5, or SOCKS5H",
+        },
+      ),
   })
   .refine((value) => !value.enabled || value.url.length > 0, {
     message: "Proxy URL is required when upstream proxy is enabled",
@@ -302,3 +309,18 @@ export const setIpBanConfigBodySchema = z.object({
   level3Threshold: z.coerce.number().int().min(0),
   level3Duration: z.coerce.number().int().min(-1),
 });
+
+export const setAutoProxyPoolConfigBodySchema = z
+  .object({
+    cacheHitRateMinSamples: z
+      .number()
+      .int()
+      .min(AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.min)
+      .max(AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateMinSamples.max),
+    cacheHitRateWindowHours: z
+      .number()
+      .int()
+      .min(AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.min)
+      .max(AUTO_PROXY_POOL_CONFIG_POLICY.cacheHitRateWindowHours.max),
+  })
+  .strict();

@@ -15721,6 +15721,12 @@
 							}
 						}
 					}
+				},
+				"X-Replay-Protected": true,
+				"X-Two-Factor-Challenge": {
+					"required": true,
+					"purpose": "stepup",
+					"method": "code"
 				}
 			}
 		},

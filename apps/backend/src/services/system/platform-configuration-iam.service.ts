@@ -21,7 +21,7 @@ import type {
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import {
-  isSensitiveServerConfigKey,
+  isSensitiveServerConfigValue,
   SERVER_CONFIG_SECRET_PLACEHOLDER,
   type IamPrincipal,
   type IamEvaluationResult,
@@ -245,7 +245,7 @@ export class PlatformConfigurationIamService {
       guards.push(guard);
       rows.forEach((row) => {
         configs[row.key] =
-          isSensitiveServerConfigKey(row.key) && row.value ? SERVER_CONFIG_SECRET_PLACEHOLDER : row.value;
+          isSensitiveServerConfigValue(row.key, row.value) && row.value ? SERVER_CONFIG_SECRET_PLACEHOLDER : row.value;
       });
     }
     for (const guard of guards) await this.repository.recheck(guard);

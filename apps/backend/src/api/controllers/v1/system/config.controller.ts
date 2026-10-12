@@ -49,6 +49,9 @@ import {
   registrationConfigurationResources,
   smtpConfigurationResources,
   siteConfigurationResources,
+  relayConfigurationResources,
+  relayProxyConfigurationResources,
+  autoProxyPoolConfigurationResources,
   notificationConfigurationResources,
   billingConfigurationResources,
   heartbeatConfigurationResources,
@@ -59,6 +62,11 @@ import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { CONFIG_KEYS } from "@/constant/config-keys";
+import {
+  RELAY_CONFIGURATION_KEYS,
+  RELAY_PROXY_CONFIGURATION_KEYS,
+  AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+} from "@/constant/config-keysets";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 import type { ErrorResponse } from "@/api/response";
@@ -72,6 +80,7 @@ import {
   setIpBanConfigBodySchema,
   setRegistrationConfigBodySchema,
   setRelayConfigBodySchema,
+  setAutoProxyPoolConfigBodySchema,
   setSocialAuthConfigBodySchema,
   setSmtpConfigBodySchema,
   setSiteConfigBodySchema,
@@ -170,16 +179,28 @@ export class ConfigController extends Controller {
 
   @Get("relay")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: relayConfigurationResources,
+  })
   public async getRelayConfig(@Request() _request: TypedRequest) {
-    return await this.configService.getRelayConfig();
+    return this.configService.getManagedConfiguration(RELAY_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getRelayConfig(),
+    );
   }
 
   @Get("relay/proxy")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: relayProxyConfigurationResources,
+  })
   public async getRelayProxyConfig(@Request() _request: TypedRequest): Promise<RelayProxyConfigDto> {
-    return await this.configService.getRelayProxyConfig();
+    return this.configService.getManagedConfiguration(RELAY_PROXY_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getRelayProxyConfig(),
+    );
   }
 
   @Get("smtp")
@@ -314,7 +335,11 @@ export class ConfigController extends Controller {
 
   @Put("relay")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: relayConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -323,7 +348,7 @@ export class ConfigController extends Controller {
   )
   public async setRelayConfig(@Body() body: SetRelayConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.RELAY.UPSTREAM_URL]: body.upstreamUrl,
         [CONFIG_KEYS.RELAY.UPSTREAM_API_KEY]: body.upstreamApiKey,
@@ -342,7 +367,11 @@ export class ConfigController extends Controller {
 
   @Put("relay/proxy")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: relayProxyConfigurationResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -351,7 +380,7 @@ export class ConfigController extends Controller {
   )
   public async setRelayProxyConfig(@Body() body: SetRelayProxyConfigDto, @Request() request: TypedRequest) {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(
+    await this.configService.setManagedConfiguration(
       {
         [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED]: String(body.enabled),
         [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL]: body.url,
@@ -647,10 +676,16 @@ export class ConfigController extends Controller {
    */
   @Get("auto-proxy-pool")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:ListConfigurations",
+    resourceKind: "batch",
+    resource: autoProxyPoolConfigurationResources,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async getAutoProxyPoolConfig(@Request() _request: TypedRequest): Promise<AutoProxyPoolConfigDto> {
-    return this.configService.getAutoProxyPoolConfig();
+    return this.configService.getManagedConfiguration(AUTO_PROXY_POOL_CONFIGURATION_KEYS, _request, () =>
+      this.configService.getAutoProxyPoolConfig(),
+    );
   }
 
   /**
@@ -658,16 +693,33 @@ export class ConfigController extends Controller {
    */
   @Put("auto-proxy-pool")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: autoProxyPoolConfigurationResources,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "Validation error")
   @Response<ErrorResponse>(HttpStatusCode.InternalServerError, "Internal server error")
+  @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
+    replayProtectionMiddleware,
+    validateBody(setAutoProxyPoolConfigBodySchema),
+  )
   public async setAutoProxyPoolConfig(
     @Request() request: TypedRequest,
     @Body() body: SetAutoProxyPoolConfigDto,
   ): Promise<{ message: string }> {
-    const currentUserId = request.user?.userId;
-    await this.configService.setAutoProxyPoolConfig(body, currentUserId, request);
+    const currentUserId = request.user!.userId;
+    await this.configService.setManagedConfiguration(
+      {
+        [CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_MIN_SAMPLES]: String(body.cacheHitRateMinSamples),
+        [CONFIG_KEYS.RELAY.AUTO_PROXY_POOL_CACHE_HIT_RATE_WINDOW_HOURS]: String(body.cacheHitRateWindowHours),
+      },
+      currentUserId,
+      request,
+    );
     setResponseMessageKey(request, "system.configUpdated");
     return { message: "自动代理池配置更新成功" };
   }

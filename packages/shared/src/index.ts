@@ -127,5 +127,6 @@ export type { CredentialClassification, CredentialType } from './credential'
 export {
   SERVER_CONFIG_SECRET_PLACEHOLDER,
   isSensitiveServerConfigKey,
+  isSensitiveServerConfigValue,
   writableServerConfigs,
 } from './server-config'

@@ -43,3 +43,13 @@ describe('configuration secret presence markers', () => {
     expect(requestMock.put).toHaveBeenCalledTimes(1)
   })
 })
+
+it('preserves credential-bearing proxy URLs displayed as presence markers', async () => {
+  await configService.setConfigs({
+    'relay.upstreamProxy.url': SERVER_CONFIG_SECRET_PLACEHOLDER,
+    'relay.upstreamProxy.enabled': 'true',
+  })
+  expect(requestMock.put.mock.calls[0][1].body.configs).toEqual({
+    'relay.upstreamProxy.enabled': 'true',
+  })
+})

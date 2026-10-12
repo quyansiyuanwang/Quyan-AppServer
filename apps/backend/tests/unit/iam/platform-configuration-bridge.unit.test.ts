@@ -5,6 +5,7 @@ vi.mock("@/services/system/platform-configuration-iam.service", () => ({
 import { ConfigService } from "@/services/system/config.service";
 import { env } from "@/config/env";
 import { CONFIG_KEYS } from "@/constant/config-keys";
+import { RELAY_CONFIGURATION_KEYS, RELAY_PROXY_CONFIGURATION_KEYS } from "@/constant/config-keysets";
 import { Permission, SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
 import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
 import { AI_RESOURCE_DEFAULTS } from "@/config/ai-resource-policy";
@@ -130,4 +131,42 @@ describe("managed configuration mode bridge", () => {
     await service.setManagedConfiguration({ [CONFIG_KEYS.SMTP.PASSWORD]: "" }, "actor", request);
     expect(iam.update.mock.calls[1][0]).toEqual({ [CONFIG_KEYS.SMTP.PASSWORD]: "" });
   });
+});
+
+it("limits relay reads to the declared dependencies and preserves credential-bearing URL markers", async () => {
+  repo.findByKeys = vi.fn().mockResolvedValue([
+    { key: CONFIG_KEYS.RELAY.UPSTREAM_API_KEY, value: "fixture-key" },
+    {
+      key: CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL,
+      value: "socks5h://fixture-user:fixture-password@proxy.example.test:1080",
+    },
+  ]);
+  const config = await service.getManagedConfiguration(RELAY_CONFIGURATION_KEYS, request, () =>
+    service.getRelayConfig(),
+  );
+  expect(config.upstreamApiKey).toBe(SERVER_CONFIG_SECRET_PLACEHOLDER);
+  expect(repo.findByKeys).toHaveBeenCalledWith([...RELAY_CONFIGURATION_KEYS]);
+  expect(RELAY_CONFIGURATION_KEYS).not.toContain(CONFIG_KEYS.RELAY.MODEL_RATES);
+  const proxy = await service.getManagedConfiguration(RELAY_PROXY_CONFIGURATION_KEYS, request, () =>
+    service.getRelayProxyConfig(),
+  );
+  expect(proxy.url).toBe(SERVER_CONFIG_SECRET_PLACEHOLDER);
+  await service.setManagedConfiguration(
+    { [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL]: proxy.url, [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED]: "true" },
+    "actor",
+    request,
+  );
+  expect(iam.update).toHaveBeenCalledWith({ [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_ENABLED]: "true" }, expect.anything());
+  await service.setManagedConfiguration({ [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL]: "" }, "actor", request);
+  expect(iam.update).toHaveBeenLastCalledWith({ [CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL]: "" }, expect.anything());
+});
+it("redacts legacy configuration audits including social secrets and credential-bearing URLs", async () => {
+  await service.set(CONFIG_KEYS.SOCIAL_AUTH.GITHUB.CLIENT_SECRET, "fixture-client-secret", "actor", request);
+  await service.set(
+    CONFIG_KEYS.RELAY.UPSTREAM_URL,
+    "https://fixture-user:fixture-password@upstream.example.test",
+    "actor",
+    request,
+  );
+  for (const [entry] of audit.logOperation.mock.calls) expect(entry.changes.value).toBe("***");
 });

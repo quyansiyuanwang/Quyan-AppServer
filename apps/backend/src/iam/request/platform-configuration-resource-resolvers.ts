@@ -1,3 +1,8 @@
+import {
+  RELAY_CONFIGURATION_KEYS,
+  RELAY_PROXY_CONFIGURATION_KEYS,
+  AUTO_PROXY_POOL_CONFIGURATION_KEYS,
+} from "@/constant/config-keysets";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import type { BatchResourceResolver } from "./resource-resolvers";
 import { isRegisteredConfigurationKey, platformConfigurationArn } from "../resources/platform-configuration-resources";
@@ -38,3 +43,6 @@ export const heartbeatConfigurationResources = registeredConfigurationResources(
 export const remoteTerminalUnbindConfigurationResources = registeredConfigurationResources(
   Object.values(CONFIG_KEYS.REMOTE_TERMINAL),
 );
+export const relayConfigurationResources = registeredConfigurationResources(RELAY_CONFIGURATION_KEYS);
+export const relayProxyConfigurationResources = registeredConfigurationResources(RELAY_PROXY_CONFIGURATION_KEYS);
+export const autoProxyPoolConfigurationResources = registeredConfigurationResources(AUTO_PROXY_POOL_CONFIGURATION_KEYS);
