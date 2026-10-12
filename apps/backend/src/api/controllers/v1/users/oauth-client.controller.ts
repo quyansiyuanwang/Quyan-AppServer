@@ -32,7 +32,10 @@ import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { oauthClientResourceResolver } from "@/iam/request/oauth-client-resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { OAuthClientService } from "@/services/users/oauth-client.service";
 import {
@@ -117,10 +120,16 @@ export class OAuthClientController extends Controller {
 
   @Get("")
   @Security("jwt", ["oauth_client"])
-  @RequirePermission(Permission.OAUTH_CLIENT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:oauth:ListClients",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async listClients(@Request() request: TypedRequest): Promise<OAuthClientDto[]> {
-    return this.service.listClients(request.user!.userId);
+    return this.service.listClients(request.user!.userId, request);
   }
 
   @Get("review")
@@ -139,12 +148,16 @@ export class OAuthClientController extends Controller {
 
   @Get("{id}")
   @Security("jwt", ["oauth_client"])
-  @RequirePermission(Permission.OAUTH_CLIENT_READ)
+  @CheckPermission(Permission.OAUTH_CLIENT_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:GetClient",
+    resourceKind: "single-resource",
+    resource: oauthClientResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "OAuth 应用不存在")
   @Middlewares(validateParams(oauthClientIdParamsSchema))
   public async getClient(@Path() id: string, @Request() request: TypedRequest): Promise<OAuthClientDto> {
-    return this.service.getClient(id, request.user!.userId);
+    return this.service.getClient(id, request.user!.userId, request);
   }
 
   @Put("{id}")

@@ -75,6 +75,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'online-session', 2),
   resource('balance', 'transaction', 2),
   resource('oj', 'api-key', 2),
+  resource('oauth', 'client', 2),
   resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
@@ -965,6 +966,20 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     legacyPermission: Permission.BALANCE_READ,
   },
+  ...['ListClients', 'GetClient'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:oauth:' + operation,
+      service: 'oauth',
+      operation,
+      accessLevel: operation === 'ListClients' ? 'List' : 'Read',
+      resourceTypes: ['oauth/client'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: false,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.OAUTH_CLIENT_READ,
+    }),
+  ),
   ...['ListApiKeys', 'GetApiKey', 'GetApiKeyStats', 'RevealApiKey'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

@@ -480,3 +480,9 @@ IAM 强制模式下，`quyan:user:ForceOfflineSession` 作用于实际的 `onlin
 `quyan:support:GetUserUsageAnalytics` 对 `acs:quyan:*:<accountId>:user/<userId>` 授权客服用量分析，与读取客服会话的权限分开，没有默认本人授权。IAM 强制模式只汇总当前账户内获准用户的请求数、Token、估算费用和每日趋势，用户表格在授权后分页，未获准用户不计入总数。指定用户查询必须通过该用户资源授权，跨账户目标会被拒绝；没有获准用户时显示零统计。返回前复查授权和用户版本，授权撤销或用户状态、版本变化会阻止返回已经计算的统计。
 
 查询参数支持页码、每页数量、用户及起止时间。每页最多 100 位用户，默认最近 30 天，时间窗口最多 90 天；无效时间、起止顺序和用户标识会返回参数错误。既有 legacy 和 shadow 模式保留原有权限检查，shadow 对用户资源进行诊断。
+
+## 个人 OAuth 应用读取授权
+
+个人应用使用 `acs:oauth:*:<accountId>:client/<userId>/<clientId>`。`quyan:oauth:ListClients` 逐项限制列表，`quyan:oauth:GetClient` 限制指定应用详情；这两项操作没有默认本人授权。匹配的 Deny 优先，未授权应用不会出现在列表中。通配符授权仍然只能读取认证用户自己的普通应用，不能查看其他用户或系统应用。
+
+应用可加入本账户资源组，移除成员后该授权范围失效。展示字段只在授权通过后读取，读取不会返回客户端密钥哈希或 Token；`hasClientSecret` 仅表示是否配置了密钥。服务端在返回前复查策略、应用版本、账户状态、角色会话和 OAuth Token 状态。OAuth 调用还必须满足 `oauth_client` Scope；菜单权限不能替代这些服务端检查。系统应用与审核接口保持各自的管理权限。

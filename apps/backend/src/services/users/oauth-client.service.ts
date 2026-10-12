@@ -21,6 +21,15 @@ import { BadRequestError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { CustomCode, maskSecret } from "@quyan/shared";
 import { oauthScopeService } from "@/services/oauth/oauth-scope.service";
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { OAuthClientIamService } from "./oauth-client-iam.service";
+import { PermissionService } from "./permission.service";
+import { Permission } from "@quyan/shared";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import type { OAuthClientView } from "@/store/users/oauth-client-management.store";
+import { getLogger, LogCategory } from "@/util/logger";
 
 const DEFAULT_GRANT_TYPES = ["authorization_code", "refresh_token"];
 const DEFAULT_SCOPES = ["profile"];
@@ -37,6 +46,8 @@ export class OAuthClientService {
   private constructor(
     private readonly repository: OAuthClientStore = OAuthClientRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iam = OAuthClientIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance(): OAuthClientService {
@@ -98,7 +109,36 @@ export class OAuthClientService {
     };
   }
 
-  async listClients(userId: string): Promise<OAuthClientDto[]> {
+  private async legacyRead(userId: string, request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== userId ||
+      principal.principalUserId !== userId ||
+      !(
+        await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  private async shadowRead(operation: () => Promise<unknown>) {
+    if (env.security.iamAuthorizationMode !== "shadow") return;
+    try {
+      await operation();
+    } catch {
+      getLogger("OAuthClientIamBridge", LogCategory.SECURITY).warn("OAuth client IAM shadow evaluation failed", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
+  async listClients(userId: string, request?: TypedRequest): Promise<OAuthClientDto[]> {
+    if (env.security.iamAuthorizationMode === "enforce")
+      return (await this.iam.list(userId, request)).map((item) => this.toDto(item));
+    await this.legacyRead(userId, request);
+    if (request) await this.shadowRead(() => this.iam.diagnoseList(userId, request));
     const clients = await this.repository.findByUserId(userId);
     return clients.map((item) => this.toDto(item));
   }
@@ -215,7 +255,14 @@ export class OAuthClientService {
     return this.toDto(updated);
   }
 
-  async getClient(id: string, userId: string): Promise<OAuthClientDto> {
+  async getClient(id: string, userId: string, request?: TypedRequest): Promise<OAuthClientDto> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const client = await this.iam.get(userId, id, request);
+      if (!client) throw iamAccountDenied();
+      return this.toDto(client);
+    }
+    await this.legacyRead(userId, request);
+    if (request) await this.shadowRead(() => this.iam.get(userId, id, request, false));
     const client = await this.requireOwnedClient(id, userId);
     return this.toDto(client);
   }
@@ -535,7 +582,7 @@ export class OAuthClientService {
     return value.filter((item): item is string => typeof item === "string");
   }
 
-  private toDto(client: OAuthClient): OAuthClientDto {
+  private toDto(client: OAuthClient | OAuthClientView): OAuthClientDto {
     return {
       id: client.id,
       userId: client.userId,
@@ -562,7 +609,7 @@ export class OAuthClientService {
       lastUsedAt: client.lastUsedAt?.toISOString(),
       createTime: client.createTime.toISOString(),
       updateTime: client.updateTime.toISOString(),
-      hasClientSecret: !!client.clientSecretHash,
+      hasClientSecret: "hasClientSecret" in client ? client.hasClientSecret : !!client.clientSecretHash,
       isSystemClient: client.isSystemClient,
     };
   }
