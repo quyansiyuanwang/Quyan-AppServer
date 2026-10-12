@@ -30,3 +30,9 @@ Key 绑定一个 RAM 主体，且调用时实时取该主体的有效权限。�
 IAM 强制模式下，配额覆盖管理列表需要真实全局组中的 `DEVELOPER_QUOTA_MANAGE` 资格，使用 `quyan:developer:ListQuotaOverrides`，资源为 `acs:platform:*:platform:developer-quota-override/<覆盖记录 ID>`。列表只返回获得授权的实际覆盖记录，匹配的 Deny 优先。AssumeRole 只使用角色自身的记录授权。
 
 记录、资格、策略或角色会话在读取期间变化时，结果不会返回。已删除的记录不会展示；已过期的覆盖仍可在管理列表中查看，方便清理，它们不会因此重新生效。
+
+## 配额覆盖写入权限
+
+创建或更新使用 `quyan:developer:UpsertQuotaOverride`，删除使用 `quyan:developer:DeleteQuotaOverride`；操作需要真实全局组中的 `DEVELOPER_QUOTA_MANAGE` 资格。创建或更新同时检查 `acs:platform:*:platform:developer-quota-subject/<user 或 project>/<主体 ID>/<服务>` 和实际覆盖记录 ARN。服务段使用 `ip`、`verification`、`push`，通用覆盖使用 `all`。恢复已删除的覆盖保留原记录 ID，原资源上的 Deny 继续有效。
+
+目标用户、账户或项目必须有效；在保存前主体归属、目标版本、资格或授权变化时，操作失败且不会部分保存。到期时间须在未来；删除可以清理不再需要的覆盖。IAM 强制模式下，缺少或未授权的删除目标返回 403。写入接口继续执行重放保护。

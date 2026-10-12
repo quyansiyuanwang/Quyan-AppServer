@@ -30,3 +30,9 @@ Refer to each product page for request details and use the least-privileged RAM 
 In IAM enforcement mode, the quota override administration list requires eligibility from a real global group with `DEVELOPER_QUOTA_MANAGE`, using `quyan:developer:ListQuotaOverrides` on `acs:platform:*:platform:developer-quota-override/<override record ID>`. Only authorized actual override records are returned, and a matching Deny takes priority. AssumeRole uses only the role's own record grants.
 
 If records, eligibility, policies, or role sessions change while reading, the result is withheld. Deleted records are hidden. Expired overrides remain visible for administrative cleanup; displaying them does not reactivate them.
+
+## Quota override write permissions
+
+Creation and updates use `quyan:developer:UpsertQuotaOverride`; deletion uses `quyan:developer:DeleteQuotaOverride`. They require eligibility from a real global group with `DEVELOPER_QUOTA_MANAGE`. Creation and updates check both `acs:platform:*:platform:developer-quota-subject/<user or project>/<subject ID>/<service>` and the actual override record ARN. The service segment is `ip`, `verification`, or `push`; general overrides use `all`. Restoring a deleted override keeps its original ID, so existing resource Deny statements remain effective.
+
+The target user, account, or project must be active. If subject ownership, target versions, eligibility, or authorization changes before saving, the operation fails without partially saving changes. Expiry must be in the future. Deletion can clean up overrides that are no longer needed. Missing or unauthorized deletion targets return 403 in IAM enforcement mode. Write endpoints retain replay protection.

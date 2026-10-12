@@ -132,6 +132,14 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':model-pricing-control/{resourceId}',
   },
   {
+    ...resource('platform', 'developer-quota-subject', 3),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' +
+      IAM_PLATFORM_ACCOUNT_ID +
+      ':developer-quota-subject/{subjectType}/{subjectId}/{service}',
+  },
+  {
     ...resource('platform', 'developer-quota-override'),
     accountScope: 'platform',
     arnTemplate:
@@ -1234,6 +1242,28 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.DEVELOPER_QUOTA_MANAGE,
   },
+  ...(['UpsertQuotaOverride', 'DeleteQuotaOverride'] as const).map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:developer:' + operation,
+      service: 'developer',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes:
+        operation === 'UpsertQuotaOverride'
+          ? ['platform/developer-quota-subject', 'platform/developer-quota-override']
+          : ['platform/developer-quota-override'],
+      apiRoutes: [
+        operation === 'UpsertQuotaOverride'
+          ? 'POST /v1/products/admin/quota-overrides'
+          : 'DELETE /v1/products/admin/quota-overrides/{id}',
+      ],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.DEVELOPER_QUOTA_MANAGE,
+    }),
+  ),
   ...(['ListPricing', 'GetPricing'] as const).map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

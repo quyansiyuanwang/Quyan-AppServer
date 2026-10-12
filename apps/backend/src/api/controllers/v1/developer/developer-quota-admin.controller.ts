@@ -1,3 +1,7 @@
+import {
+  platformDeveloperQuotaUpsertResources,
+  platformDeveloperQuotaDeleteResource,
+} from "@/iam/request/platform-developer-quota-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { Body, Controller, Delete, Get, Middlewares, Path, Post, Request, Route, Security, Tags } from "@tsoa/runtime";
@@ -7,7 +11,7 @@ import type { DeveloperQuotaOverrideDto, UpsertDeveloperQuotaOverrideDto } from 
 import { quotaOverrideIdParamsSchema, upsertQuotaOverrideBodySchema } from "@/api/schema/developer/developer.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams } from "@/middleware/validation";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 
 @Route("v1/products/admin/quota-overrides")
@@ -29,20 +33,28 @@ export class DeveloperQuotaAdminController extends Controller {
   }
 
   @Post()
-  @RequirePermission(Permission.DEVELOPER_QUOTA_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_QUOTA_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:UpsertQuotaOverride",
+    resourceKind: "batch",
+    resource: platformDeveloperQuotaUpsertResources,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(upsertQuotaOverrideBodySchema))
   public async upsert(
     @Body() body: UpsertDeveloperQuotaOverrideDto,
     @Request() request: TypedRequest,
   ): Promise<DeveloperQuotaOverrideDto> {
-    return this.service.upsert(body, request.user!.userId);
+    return this.service.upsertManaged(body, request.user!.userId, request);
   }
 
   @Delete("{id}")
-  @RequirePermission(Permission.DEVELOPER_QUOTA_MANAGE)
+  @CheckPermission(Permission.DEVELOPER_QUOTA_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:developer:DeleteQuotaOverride",
+    resourceKind: "single-resource",
+    resource: platformDeveloperQuotaDeleteResource,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(quotaOverrideIdParamsSchema))
-  public async remove(@Path() id: string): Promise<{ success: true }> {
-    await this.service.remove(id);
+  public async remove(@Path() id: string, @Request() request: TypedRequest): Promise<{ success: true }> {
+    await this.service.removeManaged(id, request.user!.userId, request);
     return { success: true };
   }
 }
