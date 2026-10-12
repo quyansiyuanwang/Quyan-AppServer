@@ -95,6 +95,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':oauth-review-client/{resourceId}',
   },
+  {
+    ...resource('platform', 'config'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':config/{resourceId}',
+  },
   resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
@@ -1023,6 +1028,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
   },
+  ...['GetConfig', 'UpdateConfig'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:support:' + operation,
+      service: 'support',
+      operation,
+      accessLevel: operation === 'GetConfig' ? 'Read' : 'Write',
+      resourceTypes: ['platform/config'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SUPPORT_AI_CONFIG,
+    }),
+  ),
   ...['ReviewClient', 'DeleteReviewedClient'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oauth:' + operation,

@@ -1,3 +1,9 @@
+import { SupportConfigIamService } from "./support-config-iam.service";
+import type { SupportConfigAction } from "@/store/support/support-config.store";
+import { updateSupportConfigSchema } from "@/api/schema/support/support-config.schema";
+import BusinessLogService from "@/services/system/businesslog.service";
+import { OperationType, OperationCategory } from "@/constant/operation-type";
+import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { IamAccountUserCollectionService } from "@/services/users/iam-account-user-collection.service";
 import { supportAnalyticsQuerySchema } from "@/api/schema/support/support-analytics.schema";
 import type { TypedRequest } from "@/types/express";
@@ -175,6 +181,8 @@ export class SupportAiService {
     private readonly userIam = IamAccountUserAuthorizationService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
     private readonly userCollectionIam = IamAccountUserCollectionService.getInstance(),
+    private readonly configIam = SupportConfigIamService.getInstance(),
+    private readonly configAudit = BusinessLogService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -260,9 +268,60 @@ export class SupportAiService {
     return this.configFrom(await this.values());
   }
 
+  async getAdminConfig(request?: TypedRequest) {
+    const userId = request && getIamPrincipal(request)?.subjectUserId;
+    const guard = await this.prepareConfig("quyan:support:GetConfig", userId ?? "", request);
+    if (!guard) return this.getConfig();
+    const result = this.configFrom(Object.fromEntries(guard.configs.map((row) => [row.key, row.value])));
+    await this.configIam.recheck(guard);
+    return result;
+  }
+
+  private async prepareConfig(action: SupportConfigAction, userId: string, request?: Request) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const guard = await this.configIam.prepare(action, userId, request as TypedRequest | undefined);
+      if (!guard) throw iamAccountDenied();
+      return guard;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.SUPPORT_AI_CONFIG], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      if (env.security.iamAuthorizationMode === "shadow") {
+        try {
+          await this.configIam.prepare(action, userId, request as TypedRequest);
+        } catch {
+          getLogger("SupportConfigIamBridge", LogCategory.SECURITY).warn(
+            "Support configuration shadow authorization failed",
+            { action, reason: "iam-evaluation-denied-or-unavailable" },
+          );
+        }
+      }
+    }
+    return undefined;
+  }
+
   async updateConfig(body: UpdateSupportAiConfigDto, actorUserId: string, request?: Request) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = updateSupportConfigSchema.safeParse(body);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid support configuration", undefined, { messageKey: "errors.badRequest" });
+      body = parsed.data;
+    }
+    const guard = await this.prepareConfig("quyan:support:UpdateConfig", actorUserId, request);
     const key = body.apiKey?.trim();
-    const current = await this.getConfig();
+    const current = guard
+      ? this.configFrom(Object.fromEntries(guard.configs.map((row) => [row.key, row.value])))
+      : await this.getConfig();
     const sessionRetentionDays = this.requireSessionRetentionDays(
       body.sessionRetentionDays ?? current.sessionRetentionDays,
     );
@@ -292,6 +351,21 @@ export class SupportAiService {
     ];
     if (key) updates.push([CONFIG_KEYS.SUPPORT_AI.API_KEY, this.encrypt(key)]);
     if (body.clearApiKey) updates.push([CONFIG_KEYS.SUPPORT_AI.API_KEY, ""]);
+    if (guard) {
+      const values = await this.configIam.update(Object.fromEntries(updates), guard);
+      await this.configAudit.logOperation({
+        operationType: OperationType.SYSTEM_CONFIG_UPDATE,
+        operationCategory: OperationCategory.SYSTEM,
+        actorUserId,
+        targetResourceType: "SERVER_CONFIG",
+        targetResourceId: "support-ai",
+        description: "Support configuration updated",
+        changes: { keys: updates.map(([configKey]) => configKey) },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return this.configFrom(values);
+    }
     for (const [configKey, value] of updates) await this.configService.set(configKey, value, actorUserId, request);
     return this.getConfig();
   }

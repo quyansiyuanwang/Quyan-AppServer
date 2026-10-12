@@ -502,3 +502,5 @@ IAM 强制模式下，`quyan:user:ForceOfflineSession` 作用于实际的 `onlin
 OAuth 审核列表使用 `quyan:oauth:ListClientReviews` 和资源 `acs:platform:*:platform:oauth-review-client/<clientId>`。操作者必须属于有效的全局审核组，并保留原有审核读取权限。列表只显示普通应用，先应用审核状态和关键词筛选，再逐应用检查策略，最后分页；总数只计算已授权应用。显示字段不包含密钥哈希或 Token。返回前再次检查权限、应用版本和组资格，发生变化时拒绝返回。系统应用由独立的系统应用列表管理。
 
 审核决定和审核侧删除分别需要 `quyan:oauth:ReviewClient`、`quyan:oauth:DeleteReviewedClient`，资源仍为对应应用的 `acs:platform:*:platform:oauth-review-client/<clientId>`。全局组必须保留审核更新权限，读取权限不自动授予审核或删除。只有待审核的普通应用可以批准或拒绝；审核侧删除可以删除普通应用，但不能删除系统应用。事务提交前会复查审核人、账户、全局组、角色会话、策略和应用版本，变化会拒绝操作；最终检查失败会回滚审核结果或删除。
+
+启用 IAM 强制授权后，配置读取和更新分别需要 `quyan:support:GetConfig` 与 `quyan:support:UpdateConfig`，资源固定为 `acs:platform:*:platform:config/support-ai`。操作者还必须属于保留 AI 客服配置权限的有效全局管理组；账户内自建组或通配符策略不能取得平台管理资格。读取权限不自动授予更新权限，显式 Deny 优先。保存时所有设置一起提交，权限撤销、配置并发修改或角色会话失效会拒绝整次更新，不会留下部分新配置。密钥保持加密存储，审计仅记录发生变化的配置项名称。

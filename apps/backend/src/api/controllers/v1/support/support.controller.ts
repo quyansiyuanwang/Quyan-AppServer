@@ -28,7 +28,7 @@ import type {
   UpdateSupportAiConfigDto,
 } from "@/api/dto/support/support.dto";
 import { SupportAiService } from "@/services/support/support-ai.service";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { supportConfigResourceResolver } from "@/iam/request/support-config-resource-resolver";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { SSEStreamService } from "@/util/streaming/sse";
 import { skipResponseWrapper } from "@/util/response-wrapper";
@@ -188,14 +188,22 @@ export class SupportController extends Controller {
 
   @Get("config")
   @Security("jwt")
-  @RequirePermission(Permission.SUPPORT_AI_CONFIG)
-  public async getConfig(): Promise<SuccessResponse<SupportAiConfigDto>> {
-    return { code: 0, message: "Success", data: await this.supportService.getConfig() };
+  @CheckPermission(Permission.SUPPORT_AI_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:support:GetConfig",
+    resourceKind: "single-resource",
+    resource: supportConfigResourceResolver,
+  })
+  public async getConfig(@Request() request: TypedRequest): Promise<SuccessResponse<SupportAiConfigDto>> {
+    return { code: 0, message: "Success", data: await this.supportService.getAdminConfig(request) };
   }
 
   @Post("config")
   @Security("jwt")
-  @RequirePermission(Permission.SUPPORT_AI_CONFIG)
+  @CheckPermission(Permission.SUPPORT_AI_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:support:UpdateConfig",
+    resourceKind: "single-resource",
+    resource: supportConfigResourceResolver,
+  })
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
   public async updateConfig(

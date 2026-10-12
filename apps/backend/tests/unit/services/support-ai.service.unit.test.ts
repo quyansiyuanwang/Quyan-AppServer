@@ -1,3 +1,4 @@
+vi.mock("@/services/support/support-config-iam.service", () => ({ SupportConfigIamService: { getInstance: vi.fn() } }));
 import { publishTestAIResources } from "../../util/ai-resource-config";
 import { createHash } from "crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";

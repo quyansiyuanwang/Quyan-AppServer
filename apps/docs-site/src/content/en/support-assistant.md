@@ -43,6 +43,8 @@ Operators with AI Support configuration permission can configure:
 
 Upstream API keys can only be written, replaced, or cleared; read APIs never return the plain value. Raising the round or output limit can increase the model calls and cost of a question.
 
+With IAM enforcement enabled, configuration reads and updates require `quyan:support:GetConfig` and `quyan:support:UpdateConfig` respectively on `acs:platform:*:platform:config/support-ai`. Operators must also belong to an active global management group that retains AI Support configuration permission; account-created groups and wildcard policies cannot obtain platform management eligibility. Read permission does not grant updates, and explicit Deny takes precedence. All settings save together: revoked grants, concurrent configuration edits or invalid role sessions reject the entire update rather than leaving partially changed settings. Keys remain encrypted, and audit events record only the names of changed settings.
+
 ## Related pages
 
 - `relay-token-management`
