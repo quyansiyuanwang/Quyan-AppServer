@@ -93,6 +93,7 @@ const en = {
   },
   agent: {
     credentialEncryptionNotConfigured: "Agent credential encryption is not configured",
+    workspaceCleanupFailed: "Workspace cleanup failed; the workspace was retained for retry",
     workspaceNotFound: "Agent workspace not found",
     workspaceProvisioningFailed: "Workspace provisioning failed",
     remoteRuntimeUnavailable: "No remote workspace agent is connected",

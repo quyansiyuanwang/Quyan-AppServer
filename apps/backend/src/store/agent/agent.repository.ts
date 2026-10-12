@@ -231,6 +231,67 @@ export class AgentRepository {
     );
   }
 
+  findWorkspaceTarget(id: string, userId: string, accountOwnerId: string) {
+    return prisma.agentWorkspace.findFirst({
+      where: { id, ...workspaceAccountScope(userId, accountOwnerId) },
+      select: { id: true, userId: true, machineId: true, createTime: true, updateTime: true },
+    });
+  }
+
+  readWorkspaceRuntimeTarget(target: AgentWorkspaceTarget, accountOwnerId: string) {
+    return prisma.agentWorkspace.findFirst({
+      where: {
+        id: target.id,
+        machineId: target.machineId,
+        updateTime: target.updateTime,
+        ...workspaceAccountScope(target.userId, accountOwnerId),
+      },
+      select: { id: true, userId: true, machineId: true, updateTime: true, runtimeHandle: true, runtimeAgentId: true },
+    });
+  }
+
+  async claimWorkspaceDeletion(target: AgentWorkspaceTarget, accountOwnerId: string): Promise<AgentWorkspaceTarget> {
+    return prisma.$transaction(
+      async (tx) => {
+        const updated = await tx.agentWorkspace.updateMany({
+          where: {
+            id: target.id,
+            machineId: target.machineId,
+            updateTime: target.updateTime,
+            runtimeStatus: { not: "stopping" },
+            ...workspaceAccountScope(target.userId, accountOwnerId),
+          },
+          data: { runtimeStatus: "stopping", updateTime: nextRuntimeLease(target.updateTime) },
+        });
+        if (updated.count !== 1) throw machineScopeChanged();
+        return tx.agentWorkspace.findFirstOrThrow({
+          where: { id: target.id, userId: target.userId },
+          select: { id: true, userId: true, machineId: true, createTime: true, updateTime: true },
+        });
+      },
+      { isolationLevel: "Serializable" },
+    );
+  }
+
+  releaseWorkspaceDeletion(target: AgentWorkspaceTarget, accountOwnerId: string, runtimeReleased: boolean) {
+    // Internal compensation only: never overwrite another operation or move the account scope.
+    return prisma.agentWorkspace.updateMany({
+      where: {
+        id: target.id,
+        machineId: target.machineId,
+        updateTime: target.updateTime,
+        runtimeStatus: "stopping",
+        ...workspaceAccountScope(target.userId, accountOwnerId),
+      },
+      data: {
+        runtimeStatus: "failed",
+        lastError: "Workspace cleanup failed",
+        ...(runtimeReleased ? { runtimeHandle: null, runtimeAgentId: null } : {}),
+        updateTime: nextRuntimeLease(target.updateTime),
+      },
+    });
+  }
+
   readMachineRuntimeTarget(target: AgentMachineTarget, accountOwnerId: string) {
     return prisma.agentRuntimeMachine.findFirst({
       where: { id: target.id, updateTime: target.updateTime, ...machineAccountScope(target.userId, accountOwnerId) },
@@ -559,6 +620,7 @@ export class AgentRepository {
         userId: identity.userId,
         status: 1,
         runtimeHandle: { not: null },
+        runtimeStatus: { in: ["provisioning", "ready"] },
         machine: runtimeMachineScope(identity),
       },
       data: { runtimeStatus: "ready" },

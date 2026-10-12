@@ -99,6 +99,7 @@ const zhCN = {
   },
   agent: {
     credentialEncryptionNotConfigured: "尚未配置 Agent 凭据加密",
+    workspaceCleanupFailed: "工作区清理失败，已保留工作区供重试",
     workspaceNotFound: "Agent 工作区不存在",
     workspaceProvisioningFailed: "工作区创建失败",
     remoteRuntimeUnavailable: "远程工作区 Agent 未连接",

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   localCreate: vi.fn(),
   localDestroy: vi.fn(),
   remoteRequest: vi.fn(),
+  delete: vi.fn(),
 }));
 vi.mock("@/config/env", () => ({
   env: {
@@ -42,6 +43,9 @@ vi.mock("@/services/users/permission.service", () => ({
   PermissionService: { getInstance: () => ({ checkUserPermissions: mocks.check }) },
 }));
 vi.mock("@/util/logger", () => ({ getLogger: () => ({ warn: vi.fn() }), LogCategory: { SECURITY: "security" } }));
+vi.mock("@/services/agent/agent-workspace-lifecycle.service", () => ({
+  AgentWorkspaceLifecycleService: { getInstance: () => ({ delete: mocks.delete }) },
+}));
 import { AgentService } from "@/services/agent/agent.service";
 const repository = mockDeep<AgentRepository>(),
   pricing = mockDeep<ModelPricingRepository>();
@@ -199,5 +203,16 @@ describe("Agent workspace list rollout", () => {
       ).rejects.toMatchObject({ statusCode: 404 });
       expect(mocks.create).not.toHaveBeenCalled();
     }
+  });
+  it("passes authenticated deletion to the lifecycle service and never falls back on denial", async () => {
+    await service.stopWorkspace("actor", "workspace", true, request);
+    expect(mocks.delete).toHaveBeenCalledWith("actor", "workspace", request);
+    expect(repository.findWorkspaceForUser).not.toHaveBeenCalled();
+    mocks.delete.mockRejectedValue(new Error("denied"));
+    await expect(service.stopWorkspace("actor", "workspace", true, request)).rejects.toThrow("denied");
+    expect(repository.updateWorkspace).not.toHaveBeenCalled();
+    await expect(service.stopWorkspace("actor", "workspace", false, request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
   });
 });

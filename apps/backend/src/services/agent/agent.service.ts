@@ -24,6 +24,7 @@ import { resolveMappedModel } from "@/util/model-mapping.util";
 
 import type { TypedRequest } from "@/types/express";
 import { AgentMachineIamService } from "./agent-machine-iam.service";
+import { AgentWorkspaceLifecycleService } from "./agent-workspace-lifecycle.service";
 import { AgentWorkspaceIamService } from "./agent-workspace-iam.service";
 import type { PublicAgentMachine, PublicAgentWorkspace, AgentWorkspaceTarget } from "@/store/agent/agent.repository";
 import { McpServerIamService } from "./mcp-server-iam.service";
@@ -310,7 +311,15 @@ export class AgentService {
     return this.toWorkspaceDto(await this.repository.findWorkspaceById(row.id));
   }
 
-  async stopWorkspace(userId: string, id: string, destroy = false) {
+  async stopWorkspace(userId: string, id: string, destroy = false, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      if (!destroy)
+        throw new ForbiddenError("Workspace stop authorization is unavailable", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      await AgentWorkspaceLifecycleService.getInstance().delete(userId, id, request);
+      return;
+    }
     const row = await this.repository.findWorkspaceForUser(id, userId);
     if (!row)
       throw new NotFoundError("Agent workspace not found", undefined, { messageKey: "agent.workspaceNotFound" });

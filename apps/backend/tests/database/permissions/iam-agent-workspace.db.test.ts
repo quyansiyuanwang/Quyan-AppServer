@@ -103,6 +103,27 @@ describe("Agent workspace storage and IAM boundaries", () => {
       repository.createWorkspace({ userId: actor, name: "fixture", policy: {}, limits: {} }, owner),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
+  it("fences concurrent deletion and provisioning and preserves failed cleanup for retry", async () => {
+    const row = await workspace();
+    const target = (await repository.findWorkspaceTarget(row.id, actor, owner))!;
+    expect(target).not.toHaveProperty("runtimeHandle");
+    await expect(repository.claimWorkspaceDeletion(target, foreign)).rejects.toMatchObject({ statusCode: 403 });
+    const claim = await repository.claimWorkspaceDeletion(target, owner);
+    await expect(repository.claimWorkspaceDeletion(target, owner)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(repository.claimWorkspaceDeletion(claim, owner)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      repository.updateWorkspaceTarget(target, owner, { runtimeStatus: "ready", runtimeHandle: "late-handle" }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await repository.readWorkspaceRuntimeTarget(target, owner)).toBeNull();
+    expect((await repository.releaseWorkspaceDeletion(target, owner, false)).count).toBe(0);
+    expect((await repository.releaseWorkspaceDeletion(claim, owner, true)).count).toBe(1);
+    const retry = (await repository.findWorkspaceTarget(row.id, actor, owner))!;
+    expect((await repository.readWorkspaceRuntimeTarget(retry, owner))?.runtimeHandle).toBeNull();
+    const next = await repository.claimWorkspaceDeletion(retry, owner);
+    await repository.updateWorkspaceTarget(next, owner, { status: -1, runtimeStatus: "stopped", runtimeHandle: null });
+    expect(await repository.findWorkspaceTarget(row.id, actor, owner)).toBeNull();
+    expect((await repository.releaseWorkspaceDeletion(next, owner, false)).count).toBe(0);
+  });
   it("verifies exact ownership and status before resource group membership", async () => {
     const row = await workspace();
     expect(await groups.resourceExistsInAccount(agentWorkspaceArn(owner, actor, row.id), owner)).toBe(true);

@@ -75,6 +75,47 @@ describe("Agent workspace list resource authorization", () => {
     expect(iamActionsForLegacyPermission(Permission.AGENT_WORKSPACE_READ)).toContain("quyan:agent:ListWorkspaces");
     expect(agentWorkspaceArn("owner", "actor", "workspace-1")).toBe("acs:agent:*:owner:workspace/actor/workspace-1");
   });
+  it("authorizes deletion and its machine dependency using metadata only", async () => {
+    const { AgentRepository } = await import("@/store/agent/agent.repository");
+    const { agentWorkspaceResourceResolver } = await import("@/iam/request/agent-resource-resolvers");
+    vi.mocked(AgentRepository.getInstance).mockReturnValue(repository);
+    repository.findWorkspaceTarget.mockResolvedValue(target("workspace-1"));
+    const req = request();
+    req.params = { workspaceId: "workspace-1" };
+    const principal = {
+      subjectUserId: "actor",
+      principalUserId: "actor",
+      accountOwnerId: "owner",
+      subjectType: "sub_user" as const,
+    };
+    expect(await agentWorkspaceResourceResolver({ request: req, principal })).toBe(
+      "acs:agent:*:owner:workspace/actor/workspace-1",
+    );
+    iam.authorizeMany.mockResolvedValue([allow]);
+    expect(await service.authorizeDelete("workspace-1", "actor", req)).toMatchObject({ target: { id: "workspace-1" } });
+    iam.authorizeMany.mockResolvedValueOnce([deny]);
+    await expect(service.authorizeDelete("workspace-1", "actor", req)).rejects.toMatchObject({ statusCode: 403 });
+    repository.findWorkspaceTarget.mockResolvedValueOnce({ ...target("workspace-1"), userId: "foreign" });
+    await expect(agentWorkspaceResourceResolver({ request: req, principal })).resolves.toBeUndefined();
+    repository.findWorkspaceTarget.mockResolvedValue(target("workspace-1", "machine-1"));
+    repository.findMachineTarget.mockResolvedValue({
+      id: "machine-1",
+      userId: "actor",
+      createTime: new Date(1),
+      updateTime: new Date(1),
+    });
+    iam.authorizeMany.mockResolvedValueOnce([allow]).mockResolvedValueOnce([deny]);
+    await expect(service.authorizeDelete("workspace-1", "actor", req)).rejects.toMatchObject({ statusCode: 403 });
+    const root = fileURLToPath(new URL("../../../", import.meta.url));
+    const routes = collectIamRoutes(
+      new Project({ skipAddingFilesFromTsConfig: true }).addSourceFilesAtPaths(
+        root + "src/api/controllers/v1/agent/agent.controller.ts",
+      ),
+      root,
+    ).filter((route) => route.key.includes("/workspaces"));
+    expect(routes).toHaveLength(3);
+    expect(routes.every((route) => route.coverage === "explicit" && !route.issues.length)).toBe(true);
+  });
   it("requires separate creation and selected-machine permissions before loading machine bodies", async () => {
     iam.authorizeMany.mockResolvedValue([allow]);
     repository.findMachineTarget.mockResolvedValue({

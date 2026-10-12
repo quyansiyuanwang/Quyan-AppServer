@@ -404,3 +404,5 @@ MCP 服务资源使用 `acs:mcp:*:<accountId>:server/<userId>/<serverId>`。`quy
 工作区使用 `acs:agent:*:<accountId>:workspace/<userId>/<workspaceId>`。`quyan:agent:ListWorkspaces` 逐工作区评估，列表仅展示允许的工作区及其运行策略和容量配置。关联机器名称和状态还需要该机器的 `quyan:agent:ListMachines` 权限；缺少该权限时不显示这些字段。账户隔离和本人归属检查始终保留，工作区可以加入同账户资源组。
 
 创建工作区需要当前用户资源上的 `quyan:agent:CreateWorkspace`；选择远程机器时，还需要该机器资源上的 `quyan:agent:UseMachine`。可见机器不等于允许使用机器。服务器在创建前校验机器归属和数据版本，并在启动运行环境前重新授权；创建响应不额外显示关联机器的名称和状态，这些信息通过独立授权的列表读取。
+
+删除工作区需要该工作区的 `quyan:agent:DeleteWorkspace`；关联远程机器时还需要该机器的 `quyan:agent:UseMachine`。删除会先释放运行环境再移除工作区。释放失败时，工作区保留并标记失败，可在恢复运行环境连接和权限后重试。删除过程中不接受重复删除或较旧创建操作对状态的覆盖。

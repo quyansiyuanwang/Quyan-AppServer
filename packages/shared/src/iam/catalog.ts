@@ -121,7 +121,7 @@ const ramResources: Partial<Record<Permission, string[]>> = {
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
   [Permission.AGENT_WORKSPACE_READ]: ['agent/machine', 'agent/workspace'],
-  [Permission.AGENT_WORKSPACE_WRITE]: ['quyan/user', 'agent/machine'],
+  [Permission.AGENT_WORKSPACE_WRITE]: ['quyan/user', 'agent/machine', 'agent/workspace'],
   [Permission.MCP_SERVER_READ]: ['mcp/server'],
   [Permission.MCP_SERVER_WRITE]: ['quyan/user', 'mcp/server'],
   [Permission.TICKET_SUBMIT]: ['quyan/user'],
@@ -866,6 +866,12 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: 'List',
       resourceTypes: ['quyan/user', 'agent/machine'],
       legacyPermission: Permission.AGENT_WORKSPACE_READ,
+    },
+    {
+      operation: 'DeleteWorkspace',
+      accessLevel: 'Write',
+      resourceTypes: ['agent/workspace'],
+      legacyPermission: Permission.AGENT_WORKSPACE_WRITE,
     },
     {
       operation: 'CreateWorkspace',

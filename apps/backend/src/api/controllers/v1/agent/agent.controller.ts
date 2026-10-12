@@ -44,7 +44,7 @@ import { skipResponseWrapper } from "@/util/response-wrapper";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 
-import { agentMachineResourceResolver } from "@/iam/request/agent-resource-resolvers";
+import { agentMachineResourceResolver, agentWorkspaceResourceResolver } from "@/iam/request/agent-resource-resolvers";
 
 @Route("v1/agent")
 @Tags("Agent")
@@ -134,12 +134,16 @@ export class AgentController extends Controller {
   @Security("jwt")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
-  @RequirePermission(Permission.AGENT_WORKSPACE_WRITE)
+  @CheckPermission(Permission.AGENT_WORKSPACE_WRITE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:agent:DeleteWorkspace",
+    resourceKind: "single-resource",
+    resource: agentWorkspaceResourceResolver,
+  })
   async destroyWorkspace(
     @Path() workspaceId: string,
     @Request() request: TypedRequest,
   ): Promise<ApiSuccessResponse<void>> {
-    await this.service.stopWorkspace(request.user!.userId, workspaceId, true);
+    await this.service.stopWorkspace(request.user!.userId, workspaceId, true, request);
     return { code: 0, message: "Success" };
   }
 

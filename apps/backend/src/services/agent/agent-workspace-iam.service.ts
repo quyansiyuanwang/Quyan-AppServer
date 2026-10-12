@@ -11,7 +11,11 @@ export class AgentWorkspaceIamService {
   private constructor(
     private readonly repository: Pick<
       AgentRepository,
-      "scanWorkspaceTargets" | "readWorkspaceTargets" | "readMachineSummaries" | "findMachineTarget"
+      | "scanWorkspaceTargets"
+      | "readWorkspaceTargets"
+      | "readMachineSummaries"
+      | "findMachineTarget"
+      | "findWorkspaceTarget"
     > = AgentRepository.getInstance(),
     private readonly iam = IamAuthorizationService.getInstance(),
   ) {}
@@ -45,6 +49,44 @@ export class AgentWorkspaceIamService {
     )
       throw denied();
     return { principal: identity.principal, machineTarget };
+  }
+
+  async authorizeDelete(id: string, userId: string, request?: TypedRequest) {
+    const identity = trustedAgentIdentity(userId, request);
+    if (!isCanonicalAgentId(id)) throw denied();
+    const target = await this.repository.findWorkspaceTarget(id, userId, identity.principal.accountOwnerId);
+    if (
+      !target ||
+      target.id !== id ||
+      target.userId !== userId ||
+      (target.machineId !== null && !isCanonicalAgentId(target.machineId))
+    )
+      throw denied();
+    const resource = agentWorkspaceArn(identity.principal.accountOwnerId, userId, id);
+    if (
+      (
+        await filterAgentResources(this.iam, identity.request, identity.principal, "quyan:agent:DeleteWorkspace", [
+          resource,
+        ])
+      ).length !== 1
+    )
+      throw denied();
+    if (!target.machineId) return { target, principal: identity.principal };
+    const machineTarget = await this.repository.findMachineTarget(
+      target.machineId,
+      userId,
+      identity.principal.accountOwnerId,
+    );
+    if (!machineTarget || machineTarget.id !== target.machineId || machineTarget.userId !== userId) throw denied();
+    if (
+      (
+        await filterAgentResources(this.iam, identity.request, identity.principal, "quyan:agent:UseMachine", [
+          agentMachineArn(identity.principal.accountOwnerId, userId, target.machineId),
+        ])
+      ).length !== 1
+    )
+      throw denied();
+    return { target, principal: identity.principal, machineTarget };
   }
 
   async list(userId: string, request?: TypedRequest): Promise<PublicAgentWorkspace[]> {
