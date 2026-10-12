@@ -30,6 +30,7 @@ import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { OAuthClientIamService } from "./oauth-client-iam.service";
 import { PlatformOAuthClientMutationIamService } from "./platform-oauth-client-mutation-iam.service";
+import { PlatformOAuthReviewIamService } from "./platform-oauth-review-iam.service";
 import { PlatformOAuthClientIamService } from "./platform-oauth-client-iam.service";
 import { OAuthClientMutationIamService } from "./oauth-client-mutation-iam.service";
 import type { OAuthClientMutationAction } from "@/store/users/oauth-client-mutation.store";
@@ -65,6 +66,7 @@ export class OAuthClientService {
     private readonly mutations = OAuthClientMutationIamService.getInstance(),
     private readonly platform = PlatformOAuthClientIamService.getInstance(),
     private readonly platformMutations = PlatformOAuthClientMutationIamService.getInstance(),
+    private readonly platformReviews = PlatformOAuthReviewIamService.getInstance(),
   ) {}
 
   static getInstance(): OAuthClientService {
@@ -685,7 +687,34 @@ export class OAuthClientService {
     return this.toDto(updated);
   }
 
-  async listClientsForReview(query: OAuthClientReviewListQueryDto): Promise<OAuthClientReviewListResponseDto> {
+  async listClientsForReview(
+    query: OAuthClientReviewListQueryDto,
+    request?: Request,
+  ): Promise<OAuthClientReviewListResponseDto> {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.platformReviews.list(query, request as TypedRequest | undefined);
+      return {
+        ...result,
+        items: result.items.map((item) => ({
+          ...this.toDto(item),
+          ownerUsername: item.user.username,
+          reviewerUsername: item.reviewedBy?.username ?? undefined,
+        })),
+      };
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        !(
+          await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.OAUTH_CLIENT_REVIEW_READ], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.platformReviews.diagnose(query, request as TypedRequest));
+    }
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 10;
     const result = await this.repository.findReviewList({

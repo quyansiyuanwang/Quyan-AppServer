@@ -2,12 +2,12 @@ import { prisma } from "@/config/database";
 import type { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
-import { parseLegacyPermissions } from "@/iam/legacy-policy";
-import { assertIamAccountPrincipal, iamAccountDenied } from "./iam-account-principal";
+import { iamAccountDenied } from "./iam-account-principal";
 import { OAUTH_CLIENT_VIEW_SELECT } from "./oauth-client-management.repository";
 import type { PlatformOAuthClientStore } from "./platform-oauth-client.store";
 import type { OAuthClientTarget } from "./oauth-client-management.store";
 import { isCanonicalOAuthClientId } from "@/iam/resources/oauth-client-resources";
+import { platformManagementGroupSnapshot } from "./platform-management-principal";
 const metadata = {
   id: true,
   userId: true,
@@ -17,23 +17,7 @@ const metadata = {
   updateTime: true,
 } as const;
 export async function platformOAuthGroupSnapshot(principal: IamPrincipal, tx: Prisma.TransactionClient = prisma) {
-  await assertIamAccountPrincipal(principal, tx);
-  const actor = await tx.user.findUnique({
-    where: { id: principal.subjectUserId },
-    select: {
-      groupId: true,
-      group: { select: { id: true, accountOwnerId: true, status: true, permissions: true, updateTime: true } },
-    },
-  });
-  if (
-    !actor?.group ||
-    actor.groupId !== actor.group.id ||
-    actor.group.status !== 1 ||
-    actor.group.accountOwnerId !== null ||
-    !parseLegacyPermissions(actor.group.permissions).includes(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)
-  )
-    throw iamAccountDenied();
-  return { id: actor.group.id, updateTime: actor.group.updateTime };
+  return platformManagementGroupSnapshot(principal, Permission.OAUTH_CLIENT_SYSTEM_MANAGE, tx);
 }
 export class PlatformOAuthClientRepository implements PlatformOAuthClientStore {
   private static instance: PlatformOAuthClientRepository;

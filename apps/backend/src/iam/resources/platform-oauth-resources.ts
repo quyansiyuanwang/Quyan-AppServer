@@ -19,3 +19,13 @@ export function platformOAuthControlArn() {
     path: "oauth-control/clients",
   });
 }
+
+export function platformOAuthReviewClientArn(id: string) {
+  if (!isCanonicalOAuthClientId(id)) throw new Error("Invalid OAuth application review identity");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "oauth-review-client/" + id,
+  });
+}

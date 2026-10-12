@@ -1,3 +1,6 @@
+vi.mock("@/services/users/platform-oauth-review-iam.service", () => ({
+  PlatformOAuthReviewIamService: { getInstance: vi.fn() },
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/config/env", () => ({ env: { security: { iamAuthorizationMode: "legacy" } } }));
 vi.mock("@/util/logger", () => ({ LogCategory: { SECURITY: "security" }, getLogger: () => ({ warn: vi.fn() }) }));
@@ -49,6 +52,7 @@ let iam: any,
   mutations: any,
   platform: any,
   platformMutations: any,
+  platformReviews: any,
   service: OAuthClientService,
   request: TypedRequest;
 beforeEach(() => {
@@ -97,6 +101,18 @@ beforeEach(() => {
     revoke: vi.fn().mockResolvedValue(record),
     update: vi.fn().mockImplementation(async (data: any) => ({ ...record, ...data })),
   };
+  platformReviews = {
+    list: vi
+      .fn()
+      .mockResolvedValue({
+        items: [{ ...record, user: { id: "actor", username: "fixture" }, reviewedBy: null }],
+        total: 1,
+        page: 1,
+        pageSize: 10,
+      }),
+    diagnose: vi.fn().mockResolvedValue(undefined),
+  };
+  repo.findReviewList = vi.fn().mockResolvedValue({ items: [], total: 0 });
   service = new (OAuthClientService as unknown as new (...args: any[]) => OAuthClientService)(
     repo,
     { logOperation: vi.fn() },
@@ -105,6 +121,7 @@ beforeEach(() => {
     mutations,
     platform,
     platformMutations,
+    platformReviews,
   );
 
   request = {
@@ -431,5 +448,30 @@ describe("system OAuth application creation behavior", () => {
     expect(platformMutations.create).not.toHaveBeenCalled();
     permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
     await expect(service.createSystemClient("actor", data, request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("platform OAuth review list mode bridge", () => {
+  it("enforce returns authorized counts and fails without legacy fallback", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    expect(await service.listClientsForReview({}, request)).toMatchObject({
+      total: 1,
+      items: [expect.objectContaining({ ownerUsername: "fixture" })],
+    });
+    platformReviews.list.mockRejectedValue(new Error("fixture review deny"));
+    await expect(service.listClientsForReview({}, request)).rejects.toThrow("fixture review deny");
+    expect(repo.findReviewList).not.toHaveBeenCalled();
+  });
+  it("shadow diagnoses while enforcing current-role review permissions", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    await service.listClientsForReview({}, request);
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OAUTH_CLIENT_REVIEW_READ], {
+      assumedRoleSessionId: "session",
+    });
+    expect(platformReviews.diagnose).toHaveBeenCalledWith({}, request);
+    expect(platformReviews.list).not.toHaveBeenCalled();
+    expect(repo.findReviewList).toHaveBeenCalledTimes(1);
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.listClientsForReview({}, request)).rejects.toMatchObject({ statusCode: 403 });
   });
 });

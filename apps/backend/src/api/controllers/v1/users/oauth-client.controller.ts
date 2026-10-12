@@ -156,7 +156,13 @@ export class OAuthClientController extends Controller {
 
   @Get("review")
   @Security("jwt")
-  @RequirePermission(Permission.OAUTH_CLIENT_REVIEW_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:oauth:ListClientReviews",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateQuery(oauthClientReviewListQuerySchema))
   public async listClientsForReview(
@@ -164,8 +170,9 @@ export class OAuthClientController extends Controller {
     @Query() pageSize: number = 10,
     @Query() reviewStatus?: "draft" | "pending" | "approved" | "rejected",
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<OAuthClientReviewListResponseDto> {
-    return this.service.listClientsForReview({ page, pageSize, reviewStatus, keyword });
+    return this.service.listClientsForReview({ page, pageSize, reviewStatus, keyword }, request);
   }
 
   @Get("{id}")

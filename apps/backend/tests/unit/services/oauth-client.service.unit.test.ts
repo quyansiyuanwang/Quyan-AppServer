@@ -1,3 +1,6 @@
+vi.mock("@/services/users/platform-oauth-review-iam.service", () => ({
+  PlatformOAuthReviewIamService: { getInstance: vi.fn() },
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/services/users/platform-oauth-client-mutation-iam.service", () => ({
   PlatformOAuthClientMutationIamService: { getInstance: vi.fn() },

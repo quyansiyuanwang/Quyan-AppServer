@@ -498,3 +498,5 @@ IAM 强制模式下，`quyan:user:ForceOfflineSession` 作用于实际的 `onlin
 系统应用更新使用敏感操作 `quyan:oauth:UpdateSystemClient`，资源为指定系统应用的 `acs:platform:*:platform:oauth-client/<clientId>`。列表权限不自动授予更新；平台管理组的原有权限范围仍是必要前提。服务器在事务中锁定可信用户、全局管理组和系统应用，并复查当前策略与版本；组权限移除、身份变化或并发修改会阻止写入。Scope 更新按当前角色会话验证可授予范围，并在提交前再次检查。系统应用类型、创建者、客户端 ID 与密钥不能通过此更新接口修改；2FA、重放保护以及生命周期上限继续生效。
 
 创建系统 OAuth 应用需要敏感操作 `quyan:oauth:CreateSystemClient`，资源固定为 `acs:platform:*:platform:oauth-control/clients`。已有的全局管理组权限仍是必要前提；普通账户策略不能制造平台管理资格。创建时检查当前角色会话可授予的 Scope，并在提交前复查策略、用户、全局组和 Scope，失败会回滚新应用。系统应用创建后为已批准状态，默认使用公共客户端且不生成密钥；机密客户端只在创建成功后返回本次新密钥。创建权限不自动包含列表或更新权限。
+
+OAuth 审核列表使用 `quyan:oauth:ListClientReviews` 和资源 `acs:platform:*:platform:oauth-review-client/<clientId>`。操作者必须属于有效的全局审核组，并保留原有审核读取权限。列表只显示普通应用，先应用审核状态和关键词筛选，再逐应用检查策略，最后分页；总数只计算已授权应用。显示字段不包含密钥哈希或 Token。返回前再次检查权限、应用版本和组资格，发生变化时拒绝返回。系统应用由独立的系统应用列表管理。
