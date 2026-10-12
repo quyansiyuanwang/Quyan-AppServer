@@ -23,6 +23,29 @@ export const agentMachinePublicSelect = {
   updateTime: true,
 } as const;
 export type PublicAgentMachine = Prisma.AgentRuntimeMachineGetPayload<{ select: typeof agentMachinePublicSelect }>;
+/** Runtime lease changes on every accepted state transition, fencing stale connections across workers. */
+export type AgentRuntimeIdentity = {
+  id: string;
+  userId: string;
+  accountOwnerId: string;
+  agentId: string;
+  updateTime: Date;
+};
+const runtimeMachineScope = (identity: AgentRuntimeIdentity): Prisma.AgentRuntimeMachineWhereInput => ({
+  id: identity.id,
+  userId: identity.userId,
+  agentId: identity.agentId,
+  updateTime: identity.updateTime,
+  status: 1,
+  user: {
+    status: 1,
+    OR: [
+      { id: identity.accountOwnerId, accountOwnerId: null },
+      { accountOwnerId: identity.accountOwnerId, accountOwner: { status: 1, accountOwnerId: null } },
+    ],
+  },
+});
+const nextRuntimeLease = (previous: Date) => new Date(Math.max(Date.now(), previous.getTime() + 1));
 const machineScopeChanged = () =>
   new ForbiddenError("Agent machine authorization snapshot changed", undefined, {
     messageKey: "permission.insufficientPermission",
@@ -164,26 +187,65 @@ export class AgentRepository {
     return prisma.agentRuntimeMachine.update({ where: { id }, data });
   }
 
-  findMachineByRegistrationHash(registrationHash: string) {
-    return prisma.agentRuntimeMachine.findFirst({ where: { registrationHash, status: 1 } });
+  async connectRuntimeMachine(registrationHash: string, agentId: string, capabilities: Prisma.InputJsonValue) {
+    return prisma.$transaction(
+      async (tx) => {
+        const machine = await tx.agentRuntimeMachine.findFirst({
+          where: {
+            registrationHash,
+            status: 1,
+            user: { status: 1, OR: [{ accountOwnerId: null }, { accountOwner: { status: 1, accountOwnerId: null } }] },
+          },
+          select: { id: true, userId: true, updateTime: true, user: { select: { accountOwnerId: true } } },
+        });
+        if (!machine) return null;
+        const identity: AgentRuntimeIdentity = {
+          id: machine.id,
+          userId: machine.userId,
+          accountOwnerId: machine.user.accountOwnerId ?? machine.userId,
+          agentId,
+          updateTime: nextRuntimeLease(machine.updateTime),
+        };
+        const updated = await tx.agentRuntimeMachine.updateMany({
+          where: { id: machine.id, status: 1, updateTime: machine.updateTime, registrationHash },
+          data: {
+            agentId,
+            capabilities,
+            runtimeStatus: "online",
+            lastHeartbeatAt: new Date(),
+            lastError: null,
+            updateTime: identity.updateTime,
+          },
+        });
+        return updated.count === 1 ? identity : null;
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
-  markMachineConnected(id: string, agentId: string, capabilities: Prisma.InputJsonValue) {
-    return prisma.agentRuntimeMachine.update({
-      where: { id },
-      data: { agentId, capabilities, runtimeStatus: "online", lastHeartbeatAt: new Date(), lastError: null },
+  async isRuntimeConnectionActive(identity: AgentRuntimeIdentity) {
+    return (await prisma.agentRuntimeMachine.count({ where: runtimeMachineScope(identity) })) === 1;
+  }
+
+  async markMachineHeartbeat(identity: AgentRuntimeIdentity, capabilities?: Prisma.InputJsonValue) {
+    const updateTime = nextRuntimeLease(identity.updateTime);
+    const updated = await prisma.agentRuntimeMachine.updateMany({
+      where: runtimeMachineScope(identity),
+      data: {
+        runtimeStatus: "online",
+        lastHeartbeatAt: new Date(),
+        updateTime,
+        ...(capabilities ? { capabilities } : {}),
+      },
     });
+    return updated.count === 1 ? { ...identity, updateTime } : null;
   }
 
-  markMachineHeartbeat(agentId: string, capabilities?: Prisma.InputJsonValue) {
+  markMachineOffline(identity: AgentRuntimeIdentity) {
     return prisma.agentRuntimeMachine.updateMany({
-      where: { agentId, status: 1 },
-      data: { runtimeStatus: "online", lastHeartbeatAt: new Date(), ...(capabilities ? { capabilities } : {}) },
+      where: runtimeMachineScope(identity),
+      data: { runtimeStatus: "offline", updateTime: nextRuntimeLease(identity.updateTime) },
     });
-  }
-
-  markMachineOffline(agentId: string) {
-    return prisma.agentRuntimeMachine.updateMany({ where: { agentId, status: 1 }, data: { runtimeStatus: "offline" } });
   }
 
   updateWorkspace(id: string, data: Prisma.AgentWorkspaceUpdateInput) {
@@ -325,9 +387,16 @@ export class AgentRepository {
     );
   }
 
-  markRuntimeAgentReady(agentId: string) {
+  markRuntimeAgentReady(identity: AgentRuntimeIdentity) {
     return prisma.agentWorkspace.updateMany({
-      where: { runtimeAgentId: agentId, status: 1 },
+      where: {
+        runtimeAgentId: identity.agentId,
+        machineId: identity.id,
+        userId: identity.userId,
+        status: 1,
+        runtimeHandle: { not: null },
+        machine: runtimeMachineScope(identity),
+      },
       data: { runtimeStatus: "ready" },
     });
   }

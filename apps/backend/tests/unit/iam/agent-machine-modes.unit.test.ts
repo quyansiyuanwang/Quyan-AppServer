@@ -4,7 +4,14 @@ import { mockDeep } from "vitest-mock-extended";
 import type { AgentRepository, PublicAgentMachine } from "@/store/agent/agent.repository";
 import type { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
 import type { TypedRequest } from "@/types/express";
-const mocks = vi.hoisted(() => ({ mode: "enforce", list: vi.fn(), create: vi.fn(), check: vi.fn(), target: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  mode: "enforce",
+  list: vi.fn(),
+  create: vi.fn(),
+  check: vi.fn(),
+  target: vi.fn(),
+  revoke: vi.fn(),
+}));
 vi.mock("@/config/env", () => ({
   env: {
     security: {
@@ -22,7 +29,9 @@ vi.mock("@/services/agent/agent-machine-iam.service", () => ({
 }));
 vi.mock("@/store/agent/agent.repository", () => ({ AgentRepository: { getInstance: vi.fn() } }));
 vi.mock("@/store/relay/model-pricing.repository", () => ({ ModelPricingRepository: { getInstance: vi.fn() } }));
-vi.mock("@/services/agent/agent-runtime.gateway", () => ({ AgentRuntimeGateway: { getInstance: vi.fn() } }));
+vi.mock("@/services/agent/agent-runtime.gateway", () => ({
+  AgentRuntimeGateway: { getInstance: () => ({ revokeMachine: mocks.revoke }) },
+}));
 vi.mock("@/services/agent/workspace-runtime.service", () => ({ RootlessDockerWorkspaceProvider: class {} }));
 vi.mock("@/services/users/permission.service", () => ({
   PermissionService: { getInstance: () => ({ checkUserPermissions: mocks.check }) },
@@ -93,15 +102,19 @@ describe("Agent machine rollout and registration safety", () => {
     await expect(service.deleteMachine("actor", "machine", request)).rejects.toThrow("denied");
     expect(repository.deleteMachineTarget).not.toHaveBeenCalled();
     expect(repository.updateMachine).not.toHaveBeenCalled();
+    expect(mocks.revoke).not.toHaveBeenCalled();
   });
   it("preserves legacy owner checks and uses fresh account snapshots in enforce", async () => {
     const target = { id: "machine", userId: "actor", createTime: row.createTime, updateTime: row.updateTime };
     mocks.target.mockResolvedValue({ target, principal: { accountOwnerId: "owner" } });
     await service.deleteMachine("actor", "machine", request);
+    expect(mocks.revoke).toHaveBeenCalledWith("machine");
     expect(repository.deleteMachineTarget).toHaveBeenCalledWith(target, "owner");
     mocks.mode = "legacy";
+    mocks.revoke.mockClear();
     repository.findMachineForUser.mockResolvedValue(null);
     await expect(service.deleteMachine("actor", "machine", request)).rejects.toMatchObject({ statusCode: 404 });
     expect(repository.updateMachine).not.toHaveBeenCalled();
+    expect(mocks.revoke).not.toHaveBeenCalled();
   });
 });

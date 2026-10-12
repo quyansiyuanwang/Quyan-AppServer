@@ -155,11 +155,13 @@ export class AgentService {
     if (env.security.iamAuthorizationMode === "enforce") {
       const { target, principal } = await AgentMachineIamService.getInstance().authorizeTarget(id, userId, request);
       await this.repository.deleteMachineTarget(target, principal.accountOwnerId);
+      remoteRuntime.revokeMachine(target.id);
       return;
     }
     const row = await this.repository.findMachineForUser(id, userId);
     if (!row) throw new NotFoundError("Agent machine not found", undefined, { messageKey: "agent.machineNotFound" });
     await this.repository.updateMachine(id, { status: -1, runtimeStatus: "revoked" });
+    remoteRuntime.revokeMachine(id);
   }
 
   async listWorkspaces(userId: string) {
@@ -203,7 +205,8 @@ export class AgentService {
               timeoutSeconds: Number(limits.timeoutSeconds),
             },
           });
-          const handle = typeof response.data?.handle === "string" ? response.data.handle : undefined;
+          const data = response.data as Record<string, unknown> | undefined;
+          const handle = data && typeof data.handle === "string" ? data.handle : undefined;
           if (!handle) throw new Error("Remote Agent returned no workspace handle");
           await this.repository.updateWorkspace(row.id, {
             runtimeStatus: "ready",
