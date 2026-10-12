@@ -47,4 +47,23 @@ describe("OAuth scope catalog", () => {
       "relay:usage:read",
     ]);
   });
+  it("never borrows user permissions outside the requested AssumeRole session", async () => {
+    const full = vi.spyOn(permissionService, "getUserFullPermissions").mockImplementation(async (_userId, options) => ({
+      userId: "user-1",
+      accountOwnerId: "user-1",
+      groupPermissions: [],
+      additionalPermissions: [],
+      removedPermissions: [],
+      effectivePermissions: options?.assumedRoleSessionId ? [] : [Permission.RELAY_TOKEN_CREATE],
+    }));
+    await expect(
+      oauthScopeService.normalizeAndAssertGrantable("user-1", [Permission.RELAY_TOKEN_CREATE]),
+    ).resolves.toEqual([Permission.RELAY_TOKEN_CREATE]);
+    await expect(
+      oauthScopeService.normalizeAndAssertGrantable("user-1", [Permission.RELAY_TOKEN_CREATE], {
+        assumedRoleSessionId: "narrow-role",
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(full).toHaveBeenLastCalledWith("user-1", { assumedRoleSessionId: "narrow-role" });
+  });
 });

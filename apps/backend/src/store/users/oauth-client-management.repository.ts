@@ -1,4 +1,5 @@
 import { prisma } from "@/config/database";
+import type { Prisma } from "@prisma/client";
 import { getOAuthScopeAliases } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isCanonicalOAuthClientId } from "@/iam/resources/oauth-client-resources";
@@ -17,7 +18,7 @@ const metadata = {
   updateTime: true,
 } as const;
 // No credential hashes or token relations are selected by this management read boundary.
-const view = {
+export const OAUTH_CLIENT_VIEW_SELECT = {
   ...metadata,
   reviewedByUserId: true,
   name: true,
@@ -41,29 +42,33 @@ const view = {
   refreshTokenLifetime: true,
   lastUsedAt: true,
 } as const;
+export async function assertOAuthClientIdentity(identity: OAuthClientIdentity, tx: Prisma.TransactionClient = prisma) {
+  await assertIamAccountPrincipal(identity.principal, tx);
+  if (!identity.oauth) return;
+  const token = await tx.oAuthAccessToken.findFirst({
+    where: {
+      id: identity.oauth.id,
+      oauthClientId: identity.oauth.clientId,
+      userId: identity.principal.subjectUserId,
+      status: 1,
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+      oauthClient: { status: 1, reviewStatus: "approved" },
+    },
+    select: { scopes: true, oauthClient: { select: { scopes: true } } },
+  });
+  const hasScope = (scopes: unknown) =>
+    Array.isArray(scopes) && getOAuthScopeAliases("oauth_client").some((s) => scopes.includes(s));
+  if (!token || !hasScope(token.scopes) || !hasScope(token.oauthClient.scopes)) throw iamAccountDenied();
+}
+
 export class OAuthClientManagementRepository implements OAuthClientManagementStore {
   private static instance: OAuthClientManagementRepository;
   static getInstance() {
     return (this.instance ??= new OAuthClientManagementRepository());
   }
-  async assertActor(identity: OAuthClientIdentity) {
-    await assertIamAccountPrincipal(identity.principal);
-    if (!identity.oauth) return;
-    const token = await prisma.oAuthAccessToken.findFirst({
-      where: {
-        id: identity.oauth.id,
-        oauthClientId: identity.oauth.clientId,
-        userId: identity.principal.subjectUserId,
-        status: 1,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-        oauthClient: { status: 1, reviewStatus: "approved" },
-      },
-      select: { scopes: true, oauthClient: { select: { scopes: true } } },
-    });
-    const hasScope = (scopes: unknown) =>
-      Array.isArray(scopes) && getOAuthScopeAliases("oauth_client").some((s) => scopes.includes(s));
-    if (!token || !hasScope(token.scopes) || !hasScope(token.oauthClient.scopes)) throw iamAccountDenied();
+  assertActor(identity: OAuthClientIdentity) {
+    return assertOAuthClientIdentity(identity);
   }
   private owned(identity: OAuthClientIdentity) {
     return {
@@ -118,7 +123,7 @@ export class OAuthClientManagementRepository implements OAuthClientManagementSto
     const where = { ...this.owned(identity), OR: targets.map((t) => ({ id: t.id, updateTime: t.updateTime })) };
     const rows = await prisma.oAuthClient.findMany({
       where,
-      select: view,
+      select: OAUTH_CLIENT_VIEW_SELECT,
       orderBy: [{ createTime: "desc" }, { id: "desc" }],
     });
     // Query presence only; never fetch the hash just to produce hasClientSecret.

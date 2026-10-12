@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/services/users/oauth-client-mutation-iam.service", () => ({
+  OAuthClientMutationIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/users/oauth-client-iam.service", () => ({ OAuthClientIamService: { getInstance: vi.fn() } }));
 import { OperationCategory, OperationType } from "../../../src/constant/operation-type";
 import { BadRequestError } from "../../../src/util/errors";

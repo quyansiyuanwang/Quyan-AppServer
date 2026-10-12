@@ -162,7 +162,11 @@ export class OAuthClientController extends Controller {
 
   @Put("{id}")
   @Security("jwt", ["oauth_client"])
-  @RequirePermission(Permission.OAUTH_CLIENT_UPDATE)
+  @CheckPermission(Permission.OAUTH_CLIENT_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:UpdateClient",
+    resourceKind: "single-resource",
+    resource: oauthClientResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "OAuth 应用不存在")
@@ -182,7 +186,11 @@ export class OAuthClientController extends Controller {
 
   @Post("{id}/submit-review")
   @Security("jwt", ["oauth_client"])
-  @RequirePermission(Permission.OAUTH_CLIENT_UPDATE)
+  @CheckPermission(Permission.OAUTH_CLIENT_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:SubmitClientReview",
+    resourceKind: "single-resource",
+    resource: oauthClientResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "OAuth 应用不存在")

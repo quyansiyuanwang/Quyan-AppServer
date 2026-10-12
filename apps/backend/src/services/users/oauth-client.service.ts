@@ -25,6 +25,9 @@ import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { OAuthClientIamService } from "./oauth-client-iam.service";
+import { OAuthClientMutationIamService } from "./oauth-client-mutation-iam.service";
+import type { OAuthClientMutationAction } from "@/store/users/oauth-client-mutation.store";
+import { updateOAuthClientBodySchema } from "@/api/schema/users/oauth-client.schema";
 import { PermissionService } from "./permission.service";
 import { Permission } from "@quyan/shared";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
@@ -48,6 +51,7 @@ export class OAuthClientService {
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly iam = OAuthClientIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
+    private readonly mutations = OAuthClientMutationIamService.getInstance(),
   ) {}
 
   static getInstance(): OAuthClientService {
@@ -267,13 +271,43 @@ export class OAuthClientService {
     return this.toDto(client);
   }
 
+  private async prepareWrite(action: OAuthClientMutationAction, userId: string, id: string, request?: Request) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const prepared = await this.mutations.prepare(action, userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+      return prepared;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_UPDATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.mutations.prepare(action, userId, id, request as TypedRequest, false));
+    }
+    return { existing: await this.requireOwnedClient(id, userId), guard: undefined };
+  }
+
   async updateClient(
     id: string,
     userId: string,
     data: UpdateOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = updateOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid OAuth application update", undefined, { messageKey: "errors.badRequest" });
+      data = parsed.data;
+    }
+    const { existing, guard } = await this.prepareWrite("quyan:oauth:UpdateClient", userId, id, request);
 
     // 系统客户端限制关键字段修改
     if (existing.isSystemClient) {
@@ -302,7 +336,11 @@ export class OAuthClientService {
     if (Object.prototype.hasOwnProperty.call(data, "redirectUris") && data.redirectUris)
       updateData.redirectUris = this.normalizeStringArray(data.redirectUris);
     if (Object.prototype.hasOwnProperty.call(data, "scopes") && data.scopes)
-      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(
+        userId,
+        data.scopes,
+        guard ? { assumedRoleSessionId: guard.identity.principal.roleSessionId } : undefined,
+      );
     if (Object.prototype.hasOwnProperty.call(data, "homepageUrl"))
       updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
     if (Object.prototype.hasOwnProperty.call(data, "logoUrl"))
@@ -325,7 +363,17 @@ export class OAuthClientService {
       updateData.reviewedByUserId = null;
     }
 
-    const updated = await this.repository.update(id, updateData);
+    if (guard && updateData.scopes) {
+      const scopes = [...updateData.scopes];
+      guard.scopeCheck = async () => {
+        await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+          assumedRoleSessionId: guard.identity.principal.roleSessionId,
+        });
+      };
+    }
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_UPDATE,
@@ -437,7 +485,7 @@ export class OAuthClientService {
   }
 
   async submitForReview(id: string, userId: string, request?: Request): Promise<OAuthClientDto> {
-    const existing = await this.requireOwnedClient(id, userId);
+    const { existing, guard } = await this.prepareWrite("quyan:oauth:SubmitClientReview", userId, id, request);
 
     if (existing.reviewStatus === REVIEW_STATUS.PENDING)
       throw new BadRequestError("OAuth client is already pending review", undefined, {
@@ -445,13 +493,16 @@ export class OAuthClientService {
         messageParams: { client: "OAuth" },
       });
 
-    const updated = await this.repository.update(id, {
+    const updateData: OAuthClientUpdateInput = {
       reviewStatus: REVIEW_STATUS.PENDING,
       submittedAt: new Date(),
       reviewComment: null,
       reviewedAt: null,
       reviewedByUserId: null,
-    });
+    };
+    const updated = guard
+      ? await this.mutations.update(updateData, guard)
+      : await this.repository.update(id, updateData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_SUBMIT_REVIEW,

@@ -486,3 +486,5 @@ IAM 强制模式下，`quyan:user:ForceOfflineSession` 作用于实际的 `onlin
 个人应用使用 `acs:oauth:*:<accountId>:client/<userId>/<clientId>`。`quyan:oauth:ListClients` 逐项限制列表，`quyan:oauth:GetClient` 限制指定应用详情；这两项操作没有默认本人授权。匹配的 Deny 优先，未授权应用不会出现在列表中。通配符授权仍然只能读取认证用户自己的普通应用，不能查看其他用户或系统应用。
 
 应用可加入本账户资源组，移除成员后该授权范围失效。展示字段只在授权通过后读取，读取不会返回客户端密钥哈希或 Token；`hasClientSecret` 仅表示是否配置了密钥。服务端在返回前复查策略、应用版本、账户状态、角色会话和 OAuth Token 状态。OAuth 调用还必须满足 `oauth_client` Scope；菜单权限不能替代这些服务端检查。系统应用与审核接口保持各自的管理权限。
+
+`quyan:oauth:UpdateClient` 和 `quyan:oauth:SubmitClientReview` 分别控制指定个人应用的更新与提交审核，均使用同一个应用 ARN；更新权限不自动允许提交审核，读取权限也不授予修改。2FA 与重放保护继续生效。修改已通过或被拒绝的应用后，审核状态按原规则回到草稿。服务端在事务中锁定应用和可信用户，复查策略、应用版本、账户、角色会话和 OAuth Token；复查失败会回滚更新。修改 Scope 仍须证明其可被操作者当前角色会话授予，提交审核不会直接批准应用。
