@@ -22,7 +22,14 @@ const principal = {
   accountOwnerId: "owner",
   subjectType: "sub_user",
 };
-const target = (id = "ep-z", userId = "actor") => ({ id, userId, createTime: new Date(0), updateTime: new Date(0) });
+const target = (id = "ep-z", userId = "actor") => ({
+  id,
+  userId,
+  createTime: new Date(0),
+  updateTime: new Date(0),
+  isRootSlug: false,
+  slug: "fixture",
+});
 const view = (id = "ep-z", userId = "actor") => ({
   ...target(id, userId),
   ownerUsername: "fixture",
@@ -55,6 +62,8 @@ beforeEach(() => {
   };
   repository = {
     assertActor: vi.fn(),
+    readConfiguration: vi.fn().mockResolvedValue(view()),
+    updateTarget: vi.fn().mockResolvedValue(view()),
     assertOwner: vi.fn(),
     scan: vi.fn().mockResolvedValue([target()]),
     target: vi.fn().mockResolvedValue(target()),
@@ -249,5 +258,67 @@ describe("JSON Endpoint resource deletion", () => {
     iam.loadPolicies.mockRejectedValue(new Error("fixture unavailable"));
     await expect(service.delete("actor", "ep-z", request)).rejects.toThrow("fixture unavailable");
     expect(repository.deleteTarget).not.toHaveBeenCalled();
+  });
+});
+
+describe("JSON Endpoint authorized configuration and update", () => {
+  it("loads password configuration only after UpdateEndpoint authorization", async () => {
+    const state = await service.configuration("actor", "ep-z", request);
+    expect(state.target).toEqual(target());
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "quyan:json_endpoint:UpdateEndpoint" }),
+    );
+    expect(repository.readConfiguration).toHaveBeenCalledWith(principal, target());
+    iam.authorizeMany.mockResolvedValue([{ ...allow, decision: "ExplicitDeny" }]);
+    repository.readConfiguration.mockClear();
+    await expect(service.configuration("actor", "ep-z", request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.readConfiguration).not.toHaveBeenCalled();
+  });
+  it("refuses changed or misbound configuration snapshots", async () => {
+    repository.readConfiguration.mockResolvedValue({ ...view(), updateTime: new Date(1) });
+    await expect(service.configuration("actor", "ep-z", request)).rejects.toMatchObject({ statusCode: 403 });
+    repository.readConfiguration.mockResolvedValue({ ...view(), userId: "peer" });
+    await expect(service.configuration("actor", "ep-z", request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("UpdateEndpoint alone cannot alter root slugs", async () => {
+    iam.authorizeMany.mockImplementation(async ({ action }: { action: string }) => [
+      { ...allow, decision: action === "quyan:json_endpoint:SetRootSlug" ? "ImplicitDeny" : "Allow" },
+    ]);
+    const state = await service.configuration("actor", "ep-z", request);
+    await expect(service.update("actor", state, { isRootSlug: true }, false, request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(repository.updateTarget).not.toHaveBeenCalled();
+    expect(getIamActionDefinition("quyan:json_endpoint:UpdateEndpoint")?.conditionalActions).toEqual([
+      "quyan:json_endpoint:SetRootSlug",
+    ]);
+  });
+  it("retains the initially authorized revision through commit", async () => {
+    const state = await service.configuration("actor", "ep-z", request);
+    await service.update("actor", state, { name: "updated" }, false, request);
+    expect(repository.updateTarget).toHaveBeenCalledWith(principal, target(), { name: "updated" });
+    repository.target.mockResolvedValue({ ...target(), updateTime: new Date(2) });
+    repository.updateTarget.mockClear();
+    await expect(service.update("actor", state, { name: "overwritten" }, false, request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(repository.updateTarget).not.toHaveBeenCalled();
+  });
+  it("old Update remains owner-only and native SetRootSlug is not a self grant", () => {
+    const document = legacyPermissionsToPrincipalPolicy([Permission.JSON_ENDPOINT_UPDATE], "owner", "actor")!;
+    const action = "quyan:json_endpoint:UpdateEndpoint";
+    expect(
+      evaluatePolicies([{ policyId: "legacy", document }], {
+        action,
+        resource: "acs:json-endpoint:*:owner:endpoint/actor/ep-z",
+      }).decision,
+    ).toBe("Allow");
+    expect(
+      evaluatePolicies([{ policyId: "legacy", document }], {
+        action,
+        resource: "acs:json-endpoint:*:owner:endpoint/peer/ep-z",
+      }).decision,
+    ).toBe("ImplicitDeny");
+    expect(getIamActionDefinition("quyan:json_endpoint:SetRootSlug")?.defaultAuthorizationScope).toBeUndefined();
   });
 });

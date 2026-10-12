@@ -1,4 +1,5 @@
 import { MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
+import type { UpdateJsonEndpointParams } from "./json-endpoint.store";
 import { prisma } from "@/config/database";
 import { Prisma } from "@prisma/client";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -12,7 +13,14 @@ export const jsonEndpointDenied = () =>
   new ForbiddenError("JSON Endpoint resource unavailable", undefined, {
     messageKey: "permission.insufficientPermission",
   });
-const targetSelect = { id: true, userId: true, createTime: true, updateTime: true } as const;
+const targetSelect = {
+  id: true,
+  userId: true,
+  createTime: true,
+  updateTime: true,
+  isRootSlug: true,
+  slug: true,
+} as const;
 const publicSelect = {
   ...targetSelect,
   status: true,
@@ -127,6 +135,62 @@ export class JsonEndpointManagementRepository implements JsonEndpointManagementS
       orderBy: [{ createTime: "desc" }, { id: "desc" }],
     });
     return rows.map(({ apiKey, user, ...row }) => ({ ...row, hasPassword: !!apiKey, ownerUsername: user.username }));
+  }
+  async rootSlugExists(slug: string) {
+    // Namespace uniqueness is global; never hydrate another account's content/configuration.
+    return !!(await prisma.jsonEndpoint.findUnique({ where: { rootSlug: slug }, select: { id: true } }));
+  }
+  async readConfiguration(principal: IamPrincipal, target: JsonEndpointTarget) {
+    await this.assertActor(principal);
+    // Hash/configuration needed to retain existing access mode; never returned from management APIs.
+    return prisma.jsonEndpoint.findFirst({
+      where: {
+        id: target.id,
+        userId: target.userId,
+        updateTime: target.updateTime,
+        status: MANAGED_STATUS.ENABLED,
+        user: accountUsers(principal.accountOwnerId),
+      },
+    });
+  }
+  async updateTarget(principal: IamPrincipal, target: JsonEndpointTarget, data: UpdateJsonEndpointParams) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          await this.assertActor(principal, tx);
+          const changed = await tx.jsonEndpoint.updateMany({
+            where: {
+              id: target.id,
+              userId: target.userId,
+              updateTime: target.updateTime,
+              status: MANAGED_STATUS.ENABLED,
+              user: accountUsers(principal.accountOwnerId),
+            },
+            data: { ...data, updateTime: new Date(Math.max(Date.now(), target.updateTime.getTime() + 1)) },
+          });
+          if (changed.count !== 1) throw jsonEndpointDenied();
+          const record = await tx.jsonEndpoint.findFirst({
+            where: {
+              id: target.id,
+              userId: target.userId,
+              status: MANAGED_STATUS.ENABLED,
+              user: accountUsers(principal.accountOwnerId),
+            },
+            select: publicSelect,
+          });
+          if (!record) throw jsonEndpointDenied();
+          const { apiKey, user, ...row } = record;
+          return { ...row, hasPassword: !!apiKey, ownerUsername: user.username };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034")
+        throw new ConflictError("JSON Endpoint changed after authorization", undefined, {
+          messageKey: "errors.conflict",
+        });
+      throw error;
+    }
   }
   async deleteTarget(principal: IamPrincipal, target: JsonEndpointTarget) {
     try {

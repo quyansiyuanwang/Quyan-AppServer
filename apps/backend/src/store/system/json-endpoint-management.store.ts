@@ -1,10 +1,21 @@
 import type { IamPrincipal } from "@quyan/shared";
+import type { UpdateJsonEndpointParams } from "./json-endpoint.store";
 import type { JsonEndpoint } from "@prisma/client";
-export type JsonEndpointTarget = Pick<JsonEndpoint, "id" | "userId" | "createTime" | "updateTime">;
+export type JsonEndpointTarget = Pick<
+  JsonEndpoint,
+  "id" | "userId" | "createTime" | "updateTime" | "isRootSlug" | "slug"
+>;
 export type JsonEndpointPublicView = Omit<JsonEndpoint, "apiKey"> & { hasPassword: boolean; ownerUsername: string };
 export type JsonEndpointOwnerTarget = { id: string; userId: string; createTime: Date; updateTime: Date };
 export interface JsonEndpointManagementStore {
   assertActor(principal: IamPrincipal): Promise<void>;
+  rootSlugExists(slug: string): Promise<boolean>;
+  readConfiguration(principal: IamPrincipal, target: JsonEndpointTarget): Promise<JsonEndpoint | null>;
+  updateTarget(
+    principal: IamPrincipal,
+    target: JsonEndpointTarget,
+    data: UpdateJsonEndpointParams,
+  ): Promise<JsonEndpointPublicView>;
   deleteTarget(
     principal: IamPrincipal,
     target: JsonEndpointTarget,

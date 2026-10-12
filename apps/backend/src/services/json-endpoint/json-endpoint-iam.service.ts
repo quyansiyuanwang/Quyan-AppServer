@@ -11,8 +11,14 @@ import {
   JsonEndpointManagementRepository,
   jsonEndpointDenied,
 } from "@/store/system/json-endpoint-management.repository";
-import type { JsonEndpointManagementStore, JsonEndpointTarget } from "@/store/system/json-endpoint-management.store";
+import type {
+  JsonEndpointManagementStore,
+  JsonEndpointTarget,
+  JsonEndpointPublicView,
+  JsonEndpointOwnerTarget,
+} from "@/store/system/json-endpoint-management.store";
 import type { TypedRequest } from "@/types/express";
+import type { UpdateJsonEndpointParams } from "@/store/system/json-endpoint.store";
 import { jsonEndpointDto } from "./json-endpoint-view";
 export class JsonEndpointIamService {
   private static instance: JsonEndpointIamService;
@@ -63,7 +69,10 @@ export class JsonEndpointIamService {
     });
     return resources.filter((_, index) => results[index].decision === "Allow");
   }
-  private async collection<T extends JsonEndpointTarget, V extends { id: string }>(
+  private async collection<
+    T extends Pick<JsonEndpointTarget, "id" | "userId" | "createTime" | "updateTime">,
+    V extends { id: string },
+  >(
     identity: { principal: IamPrincipal; request: TypedRequest },
     action: string,
     scan: (after?: T) => Promise<T[]>,
@@ -115,7 +124,7 @@ export class JsonEndpointIamService {
       if (!isCanonicalJsonEndpointId(ownerUserId)) throw jsonEndpointDenied();
       await this.repository.assertOwner(identity.principal, ownerUserId);
     }
-    const rows = await this.collection(
+    const rows = await this.collection<JsonEndpointTarget, JsonEndpointPublicView>(
       identity,
       "quyan:json_endpoint:ListEndpoints",
       (after) => this.repository.scan(identity.principal, ownerUserId, after),
@@ -127,7 +136,7 @@ export class JsonEndpointIamService {
   async owners(userId: string, request?: TypedRequest) {
     const identity = await this.actor(userId, request);
     return (
-      await this.collection(
+      await this.collection<JsonEndpointOwnerTarget, { id: string; username: string }>(
         identity,
         "quyan:json_endpoint:ListEndpointOwners",
         (after) => this.repository.scanOwners(identity.principal, after),
@@ -141,6 +150,58 @@ export class JsonEndpointIamService {
           }),
       )
     ).sort((a, b) => a.username.localeCompare(b.username));
+  }
+  rootSlugExists(slug: string) {
+    return this.repository.rootSlugExists(slug);
+  }
+  async authorizeUpdate(userId: string, id: string, request?: TypedRequest, rootSlugChange = false) {
+    const { request: trusted, principal } = await this.actor(userId, request);
+    if (!isCanonicalJsonEndpointId(id)) throw jsonEndpointDenied();
+    const target = await this.repository.target(principal, id);
+    if (!target || target.id !== id || !isCanonicalJsonEndpointId(target.userId)) throw jsonEndpointDenied();
+    const resource = jsonEndpointArn(principal.accountOwnerId, target.userId, target.id);
+    if ((await this.allowed(trusted, principal, "quyan:json_endpoint:UpdateEndpoint", [resource])).length !== 1)
+      throw jsonEndpointDenied();
+    if (
+      rootSlugChange &&
+      (await this.allowed(trusted, principal, "quyan:json_endpoint:SetRootSlug", [resource])).length !== 1
+    )
+      throw jsonEndpointDenied();
+    return { principal, target };
+  }
+  async configuration(userId: string, id: string, request?: TypedRequest) {
+    const state = await this.authorizeUpdate(userId, id, request);
+    const endpoint = await this.repository.readConfiguration(state.principal, state.target);
+    if (
+      !endpoint ||
+      endpoint.id !== id ||
+      endpoint.userId !== state.target.userId ||
+      endpoint.updateTime.getTime() !== state.target.updateTime.getTime()
+    )
+      throw jsonEndpointDenied();
+    return { ...state, endpoint };
+  }
+  async update(
+    userId: string,
+    state: { target: JsonEndpointTarget; principal: IamPrincipal },
+    data: UpdateJsonEndpointParams,
+    rootSlugChange: boolean,
+    request?: TypedRequest,
+  ) {
+    const requiresRootSlug =
+      rootSlugChange ||
+      (data.isRootSlug !== undefined && data.isRootSlug !== state.target.isRootSlug) ||
+      (data.rootSlug !== undefined && data.rootSlug !== (state.target.isRootSlug ? state.target.slug : null));
+    const current = await this.authorizeUpdate(userId, state.target.id, request, requiresRootSlug);
+    if (
+      current.principal.accountOwnerId !== state.principal.accountOwnerId ||
+      current.target.userId !== state.target.userId ||
+      current.target.updateTime.getTime() !== state.target.updateTime.getTime()
+    )
+      throw jsonEndpointDenied();
+    const view = await this.repository.updateTarget(current.principal, state.target, data);
+    if (view.id !== state.target.id || view.userId !== state.target.userId) throw jsonEndpointDenied();
+    return view;
   }
   async authorizeDeletion(userId: string, id: string, request?: TypedRequest) {
     const { request: trusted, principal } = await this.actor(userId, request);

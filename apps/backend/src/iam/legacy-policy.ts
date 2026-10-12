@@ -70,6 +70,7 @@ export function legacyPermissionsToPrincipalPolicy(
     "quyan:json_endpoint:ListEndpoints",
     "quyan:json_endpoint:GetEndpoint",
     "quyan:json_endpoint:DeleteEndpoint",
+    "quyan:json_endpoint:UpdateEndpoint",
   ]);
   const ownJsonAccess = !parseLegacyPermissions(input).includes(Permission.JSON_ENDPOINT_MANAGE);
   const statements: NormalizedIamPolicyDocument["Statement"] = [];

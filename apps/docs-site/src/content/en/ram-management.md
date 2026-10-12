@@ -433,4 +433,6 @@ The owner selector uses the separate `quyan:json_endpoint:ListEndpointOwners` Ac
 
 Deletion requires the separate `quyan:json_endpoint:DeleteEndpoint` Action on the same resource type. Read grants do not authorize deletion. Policies and resource revisions are rechecked before deletion; concurrent changes, disabled accounts, invalid role sessions, or revoked grants block the operation. The old delete permission remains limited to the user's own endpoints; deleting another user's specific endpoint in the same account requires an explicit grant.
 
-Public JSON password checks, Ed25519 signatures, time validity, and nonce replay protection are unchanged. Creation and updates still use the existing permission bridge; read or delete Actions do not authorize those operations.
+Public JSON password checks, Ed25519 signatures, time validity, and nonce replay protection are unchanged. Updates require `quyan:json_endpoint:UpdateEndpoint` on the specific endpoint ARN. Enabling or disabling a root slug additionally requires `quyan:json_endpoint:SetRootSlug` on that resource. Ordinary update permission cannot substitute for the root-slug grant. Existing password and signature access configuration is retained; authorization, account validity, and resource revisions are rechecked before commit. The old update permission remains limited to the user's own endpoints.
+
+Creation still uses the existing permission bridge; read, delete, or update Actions do not authorize creation.

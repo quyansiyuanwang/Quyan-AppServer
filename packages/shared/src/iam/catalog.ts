@@ -9,6 +9,8 @@ export interface IamActionDefinition {
   accessLevel: 'Read' | 'Write' | 'List'
   resourceTypes: string[]
   apiRoutes: string[]
+  /** Extra server Actions needed only for documented operation variants, not automatic grants. */
+  conditionalActions?: string[]
   conditionKeys: string[]
   sensitive: boolean
   authorizationStage: 'legacy' | 'declared'
@@ -820,6 +822,31 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     sensitive: true,
     authorizationStage: 'declared',
     legacyPermissions: [Permission.JSON_ENDPOINT_DELETE, Permission.JSON_ENDPOINT_MANAGE],
+  },
+  {
+    action: 'quyan:json_endpoint:UpdateEndpoint',
+    service: 'json_endpoint',
+    operation: 'UpdateEndpoint',
+    accessLevel: 'Write',
+    resourceTypes: ['json-endpoint/endpoint'],
+    apiRoutes: [],
+    conditionalActions: ['quyan:json_endpoint:SetRootSlug'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermissions: [Permission.JSON_ENDPOINT_UPDATE, Permission.JSON_ENDPOINT_MANAGE],
+  },
+  {
+    action: 'quyan:json_endpoint:SetRootSlug',
+    service: 'json_endpoint',
+    operation: 'SetRootSlug',
+    accessLevel: 'Write',
+    resourceTypes: ['json-endpoint/endpoint', 'quyan/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.JSON_ENDPOINT_ROOT_SLUG,
   },
   ...['CreateAccessKey', 'SendAccessKeyCreationVerificationCode'].map(
     (operation): IamActionDefinition => ({

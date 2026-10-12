@@ -433,4 +433,6 @@ IAM 强制模式下，管理列表和详情分别使用 `quyan:json_endpoint:Lis
 
 删除需要独立的 `quyan:json_endpoint:DeleteEndpoint`，资源与读取相同，但读取权限不能授权删除。删除前会复查策略和资源版本；并发修改、禁用账户、失效角色会话或授权撤销都会阻止删除。旧的删除权限仍仅覆盖自己的端点；同账户内指定他人端点必须获得明确授权。
 
-公开 JSON 的密码、Ed25519 签名、时效与 nonce 防重放规则不受影响。创建和修改尚继续使用原有权限桥接，读取或删除 Action 不能用于这些操作。
+公开 JSON 的密码、Ed25519 签名、时效与 nonce 防重放规则不受影响。修改需要 `quyan:json_endpoint:UpdateEndpoint`，仍使用具体端点 ARN。启用或停用根 slug 还需同一资源上的 `quyan:json_endpoint:SetRootSlug`，普通修改权限不能代替根 slug 权限。服务端保留已有密码和签名访问配置，提交前复查授权、账户与资源版本。旧的修改权限仍仅覆盖自己的端点。
+
+创建尚继续使用原有权限桥接，读取、删除或修改 Action 不能用于创建。

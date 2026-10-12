@@ -60,6 +60,8 @@ beforeEach(() => {
   } as unknown as TypedRequest;
   repository = {
     delete: vi.fn(),
+    update: vi.fn().mockResolvedValue(endpoint),
+    findByRootSlug: vi.fn().mockResolvedValue(null),
     findById: vi.fn().mockResolvedValue(endpoint),
     findByUserId: vi.fn().mockResolvedValue([endpoint]),
     findAll: vi.fn().mockResolvedValue([endpoint]),
@@ -74,7 +76,11 @@ beforeEach(() => {
     })),
   };
   iam = {
+    rootSlugExists: vi.fn().mockResolvedValue(false),
     delete: vi.fn().mockResolvedValue(endpoint),
+    configuration: vi.fn().mockResolvedValue({ principal: {}, target: { id: "endpoint" }, endpoint }),
+    authorizeUpdate: vi.fn(),
+    update: vi.fn().mockResolvedValue({ ...endpoint, ownerUsername: "fixture", hasPassword: true }),
     authorizeDeletion: vi.fn(),
     list: vi.fn().mockResolvedValue([]),
     get: vi.fn().mockResolvedValue({ id: "endpoint" }),
@@ -100,9 +106,7 @@ describe("JSON Endpoint read rollout and resolvers", () => {
     expect(reads).toHaveLength(3);
     expect(reads.every((r) => r.coverage === "explicit" && r.issues.length === 0)).toBe(true);
     expect(routes.find((r) => r.key.startsWith("DELETE "))?.coverage).toBe("explicit");
-    expect(
-      routes.filter((r) => r.key.startsWith("POST ") || r.key.startsWith("PUT ")).every((r) => r.coverage === "legacy"),
-    ).toBe(true);
+    expect(routes.filter((r) => r.key.startsWith("POST ")).every((r) => r.coverage === "legacy")).toBe(true);
   });
   it("enforce uses IAM-only payload paths and no legacy global reads", async () => {
     await service.listEndpoints("actor", "peer", request);
@@ -186,7 +190,7 @@ describe("JSON Endpoint delete rollout", () => {
   });
   it.each(["legacy", "shadow"])("%s Delete cannot delete a peer resource", async (mode) => {
     mocks.mode = mode;
-    permission.checkUserPermissions.mockImplementation(async (_id, required) => ({
+    permission.checkUserPermissions.mockImplementation(async (_id: string, required: Permission[]) => ({
       hasPermission: required.includes(Permission.JSON_ENDPOINT_DELETE),
     }));
     repository.findById.mockResolvedValue({ ...endpoint, userId: "peer" });
@@ -202,5 +206,69 @@ describe("JSON Endpoint delete rollout", () => {
     expect(iam.delete).not.toHaveBeenCalled();
     expect(repository.delete).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain("secret policy content");
+  });
+});
+
+describe("JSON Endpoint update rollout", () => {
+  it("enforce never loads unguarded access configuration and keeps static-password settings", async () => {
+    const result = await service.updateEndpoint("endpoint", { name: "updated" }, "actor", request);
+    expect(iam.configuration).toHaveBeenCalledWith("actor", "endpoint", request);
+    expect(iam.update).toHaveBeenCalledWith(
+      "actor",
+      expect.any(Object),
+      expect.objectContaining({ name: "updated", apiKey: "fixture-hash" }),
+      false,
+      request,
+    );
+    expect(repository.findById).not.toHaveBeenCalled();
+    expect(repository.update).not.toHaveBeenCalled();
+    expect(result).not.toHaveProperty("apiKey");
+  });
+  it("checks a distinct root-slug action before changing the global namespace", async () => {
+    iam.authorizeUpdate.mockRejectedValue(new Error("root action denied"));
+    await expect(service.updateEndpoint("endpoint", { isRootSlug: true }, "actor", request)).rejects.toThrow(
+      "root action denied",
+    );
+    expect(iam.authorizeUpdate).toHaveBeenCalledWith("actor", "endpoint", request, true);
+    expect(iam.update).not.toHaveBeenCalled();
+    iam.authorizeUpdate.mockResolvedValue({});
+    await service.updateEndpoint("endpoint", { isRootSlug: true }, "actor", request);
+    expect(iam.update).toHaveBeenCalledWith(
+      "actor",
+      expect.any(Object),
+      expect.objectContaining({ isRootSlug: true, rootSlug: "fixture" }),
+      true,
+      request,
+    );
+  });
+  it.each(["legacy", "shadow"])("%s refuses unauthorized update without reading config", async (mode) => {
+    mocks.mode = mode;
+    permission.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.updateEndpoint("endpoint", { name: "updated" }, "actor", request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(repository.findById).not.toHaveBeenCalled();
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+  it("legacy uses current role-session permissions for root-slug transitions", async () => {
+    mocks.mode = "legacy";
+    permission.checkUserPermissions.mockImplementation(async (_id: string, required: Permission[]) => ({
+      hasPermission: required.includes(Permission.JSON_ENDPOINT_UPDATE),
+    }));
+    await expect(service.updateEndpoint("endpoint", { isRootSlug: true }, "actor", request)).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(permission.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.JSON_ENDPOINT_ROOT_SLUG], {
+      assumedRoleSessionId: "session",
+    });
+    expect(repository.update).not.toHaveBeenCalled();
+  });
+  it("shadow update is diagnostic only and writes exactly once through the legacy path", async () => {
+    mocks.mode = "shadow";
+    permission.checkUserPermissions.mockResolvedValue({ hasPermission: true });
+    await service.updateEndpoint("endpoint", { name: "updated" }, "actor", request);
+    expect(iam.authorizeUpdate).toHaveBeenCalledWith("actor", "endpoint", request);
+    expect(iam.update).not.toHaveBeenCalled();
+    expect(repository.update).toHaveBeenCalledTimes(1);
   });
 });

@@ -127,7 +127,18 @@ export class JsonEndpointController extends Controller {
    */
   @Put("{id}")
   @Security("jwt")
-  @RequireAnyPermission([Permission.JSON_ENDPOINT_UPDATE, Permission.JSON_ENDPOINT_MANAGE])
+  @CheckPermission([Permission.JSON_ENDPOINT_UPDATE, Permission.JSON_ENDPOINT_MANAGE], PermissionCheckMode.ANY, "jwt", [
+    {
+      action: "quyan:json_endpoint:UpdateEndpoint",
+      resourceKind: "single-resource",
+      resource: jsonEndpointResourceResolver,
+    },
+    {
+      action: "quyan:json_endpoint:UpdateEndpoint",
+      resourceKind: "single-resource",
+      resource: jsonEndpointResourceResolver,
+    },
+  ])
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "端点不存在")
   @Middlewares(

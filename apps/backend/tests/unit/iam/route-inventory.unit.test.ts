@@ -152,3 +152,14 @@ describe("IAM import-aware route inventory", () => {
     );
   });
 });
+
+describe("conditional IAM Action catalog discovery", () => {
+  it("derives conditional server Actions from registered definitions rather than a second route map", async () => {
+    const { actionRouteCatalog } = await import("../../../scripts/iam/action-route-catalog");
+    const routes = inventory(explicit.replace("quyan:ram:CreateUser", "quyan:json_endpoint:UpdateEndpoint"));
+    const catalog = actionRouteCatalog(routes);
+    expect(catalog["quyan:json_endpoint:UpdateEndpoint"]).toEqual(["GET /test/item"]);
+    expect(catalog["quyan:json_endpoint:SetRootSlug"]).toEqual(["GET /test/item"]);
+    expect(catalog["quyan:json_endpoint:DeleteEndpoint"]).toBeUndefined();
+  });
+});

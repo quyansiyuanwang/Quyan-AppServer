@@ -61247,6 +61247,13 @@
 						},
 						"type": "array"
 					},
+					"conditionalActions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Extra server Actions needed only for documented operation variants, not automatic grants."
+					},
 					"conditionKeys": {
 						"items": {
 							"type": "string"

@@ -259,3 +259,59 @@ describe("JSON Endpoint snapshot deletion", () => {
     expect((await prisma.jsonEndpoint.findUnique({ where: { id: selected.id } }))?.status).toBe(-1);
   });
 });
+
+describe("JSON Endpoint versioned configuration updates", () => {
+  it("retains access hashes internally but never returns them after update", async () => {
+    const selected = await endpoint(),
+      target = (await repository.target(principal(), selected.id))!;
+    expect((await repository.readConfiguration(principal(), target))?.apiKey).toBe(selected.apiKey);
+    const updated = await repository.updateTarget(principal(), target, { name: "updated" });
+    expect(updated.name).toBe("updated");
+    expect(updated.updateTime.getTime()).toBeGreaterThan(target.updateTime.getTime());
+    expect(updated.hasPassword).toBe(true);
+    expect(updated).not.toHaveProperty("apiKey");
+    await expect(repository.updateTarget(principal(), target, { name: "stale" })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(await repository.readConfiguration(principal(), target)).toBeNull();
+    expect((await prisma.jsonEndpoint.findUnique({ where: { id: selected.id } }))?.name).toBe("updated");
+  });
+  it("checks account and resource ownership in the update transaction", async () => {
+    const selected = await endpoint(),
+      target = (await repository.target(principal(), selected.id))!;
+    await expect(repository.updateTarget(principal(foreign), target, { name: "bad" })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await expect(
+      repository.updateTarget(principal(), { ...target, userId: peer }, { name: "bad" }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await prisma.user.update({ where: { id: actor }, data: { status: 0 } });
+    await expect(repository.updateTarget(principal(), target, { name: "bad" })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect((await prisma.jsonEndpoint.findUnique({ where: { id: selected.id } }))?.name).toBe(selected.name);
+  });
+  it("allows exact peer updates but requires a separate root-slug grant and observes revocation", async () => {
+    const selected = await endpoint(peer),
+      resource = jsonEndpointArn(owner, peer, selected.id);
+    const binding = await bind({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:json_endpoint:UpdateEndpoint", Resource: resource },
+    });
+    const state = await service.configuration(actor, selected.id, request());
+    await expect(
+      service.update(actor, state, { isRootSlug: true, rootSlug: selected.slug }, true, request()),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect((await service.update(actor, state, { name: "updated" }, false, request())).name).toBe("updated");
+    const current = await service.configuration(actor, selected.id, request());
+    await bind({
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:json_endpoint:SetRootSlug", Resource: resource },
+    });
+    expect(
+      (await service.update(actor, current, { isRootSlug: true, rootSlug: selected.slug }, true, request())).isRootSlug,
+    ).toBe(true);
+    await prisma.ramAuthorization.update({ where: { id: binding.id }, data: { status: -1 } });
+    await expect(service.configuration(actor, selected.id, request())).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
