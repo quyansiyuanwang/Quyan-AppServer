@@ -504,3 +504,5 @@ OAuth 审核列表使用 `quyan:oauth:ListClientReviews` 和资源 `acs:platform
 审核决定和审核侧删除分别需要 `quyan:oauth:ReviewClient`、`quyan:oauth:DeleteReviewedClient`，资源仍为对应应用的 `acs:platform:*:platform:oauth-review-client/<clientId>`。全局组必须保留审核更新权限，读取权限不自动授予审核或删除。只有待审核的普通应用可以批准或拒绝；审核侧删除可以删除普通应用，但不能删除系统应用。事务提交前会复查审核人、账户、全局组、角色会话、策略和应用版本，变化会拒绝操作；最终检查失败会回滚审核结果或删除。
 
 启用 IAM 强制授权后，配置读取和更新分别需要 `quyan:support:GetConfig` 与 `quyan:support:UpdateConfig`，资源固定为 `acs:platform:*:platform:config/support-ai`。操作者还必须属于保留 AI 客服配置权限的有效全局管理组；账户内自建组或通配符策略不能取得平台管理资格。读取权限不自动授予更新权限，显式 Deny 优先。保存时所有设置一起提交，权限撤销、配置并发修改或角色会话失效会拒绝整次更新，不会留下部分新配置。密钥保持加密存储，审计仅记录发生变化的配置项名称。
+
+通用服务器配置接口在 IAM 强制模式下使用 `quyan:system:ListConfigurations` 和 `quyan:system:UpdateConfigurations`。每个已注册配置键都有独立资源，例如 `acs:platform:*:platform:config-item/smtp.host`；普通账户策略不能替代全局组中的服务器配置管理资格。列表只读取并返回已授权键，密钥值仅显示 `[configured]`，不会返回原值。保存会逐键授权，并在一个事务中提交全部变更；任意键被拒绝、配置版本变化或身份失效都会拒绝整次操作。客户端不会把密钥存在标记写回；明确输入新密钥可替换，明确清空可移除。通用接口访问客服配置还须通过对应的客服读取或更新 Action，不能绕过客服资源的 Deny。新客服上游密钥必须通过专用客服配置接口加密写入。AI 容量配置只有在写入成功后才会生效，其描述只对获准读取该配置键的主体返回。

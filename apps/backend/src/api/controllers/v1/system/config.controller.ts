@@ -44,7 +44,10 @@ import type {
   AutoProxyPoolConfigDto,
   SetAutoProxyPoolConfigDto,
 } from "@/api/dto/system/config.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { platformConfigurationBatchResolver } from "@/iam/request/platform-configuration-resource-resolvers";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -80,16 +83,29 @@ export class ConfigController extends Controller {
 
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:ListConfigurations",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async getAllConfigs(@Request() _request: TypedRequest): Promise<GetConfigResponse> {
-    const configs = await this.configService.getAllConfigs();
-    return { configs, aiResources: AIResourceConfigService.getInstance().describe() };
+    const result = await this.configService.getManagedConfigs(_request);
+    return {
+      configs: result.configs,
+      ...(result.aiResourcesAllowed ? { aiResources: AIResourceConfigService.getInstance().describe() } : {}),
+    };
   }
 
   @Put("")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:UpdateConfigurations",
+    resourceKind: "batch",
+    resource: platformConfigurationBatchResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "设置失败")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
@@ -100,7 +116,7 @@ export class ConfigController extends Controller {
   )
   public async setConfigs(@Body() body: SetConfigDto, @Request() request: TypedRequest): Promise<{ message: string }> {
     const currentUserId = request.user!.userId;
-    await this.configService.setMultiple(body.configs, currentUserId, request);
+    await this.configService.setManagedConfigs(body.configs, currentUserId, request);
     logger.info("服务器配置已更新");
     setResponseMessageKey(request, "system.configUpdated");
     return { message: "配置更新成功" };

@@ -1,3 +1,11 @@
+import { PlatformConfigurationIamService } from "./platform-configuration-iam.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission, isSensitiveServerConfigKey, SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import type { TypedRequest } from "@/types/express";
+import { getLogger, LogCategory } from "@/util/logger";
+import { BadRequestError } from "@/util/errors";
 import { AIResourceConfigService } from "@/services/infrastructure/ai-resource-config.service";
 import { AI_RESOURCE_CONFIG_KEY } from "@/config/ai-resource-policy";
 import BusinessLogService from "./businesslog.service";
@@ -216,6 +224,8 @@ export class ConfigService {
   private constructor(
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly serverConfigRepository: ServerConfigStore = ServerConfigRepository.getInstance(),
+    private readonly configurationIam = PlatformConfigurationIamService.getInstance(),
+    private readonly configurationPermissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance(): ConfigService {
@@ -267,6 +277,89 @@ export class ConfigService {
     if (configs[AI_RESOURCE_CONFIG_KEY] !== undefined)
       AIResourceConfigService.getInstance().parse(configs[AI_RESOURCE_CONFIG_KEY]);
     for (const [key, value] of Object.entries(configs)) await this.set(key, value, actorUserId, request);
+  }
+
+  private async assertConfigurationPermission(request: TypedRequest, userId?: string) {
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      principal.subjectUserId !== principal.principalUserId ||
+      (userId !== undefined && principal.subjectUserId !== userId) ||
+      !(
+        await this.configurationPermissions.checkUserPermissions(principal.subjectUserId, [Permission.SYSTEM_CONFIG], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+
+  async getManagedConfigs(request: TypedRequest) {
+    if (env.security.iamAuthorizationMode === "enforce") return this.configurationIam.list(request);
+    await this.assertConfigurationPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.configurationIam.list(request, false);
+      } catch {
+        getLogger("PlatformConfigurationBridge", LogCategory.SECURITY).warn("Configuration shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return { configs: await this.getAllConfigs(), aiResourcesAllowed: true };
+  }
+
+  async setManagedConfigs(configs: Record<string, string>, userId: string, request: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "enforce") {
+      await this.assertConfigurationPermission(request, userId);
+      if (env.security.iamAuthorizationMode === "shadow") {
+        try {
+          await this.configurationIam.prepareUpdate(Object.keys(configs), userId, request);
+        } catch {
+          getLogger("PlatformConfigurationBridge", LogCategory.SECURITY).warn(
+            "Configuration mutation shadow evaluation failed",
+            { reason: "iam-evaluation-denied-or-unavailable" },
+          );
+        }
+      }
+      return this.setMultiple(configs, userId, request);
+    }
+    if (
+      !configs ||
+      typeof configs !== "object" ||
+      Array.isArray(configs) ||
+      Object.entries(configs).some(
+        ([key, value]) =>
+          typeof value !== "string" || (isSensitiveServerConfigKey(key) && value === SERVER_CONFIG_SECRET_PLACEHOLDER),
+      )
+    )
+      throw new BadRequestError("Invalid configuration values", undefined, { messageKey: "errors.badRequest" });
+    const guard = await this.configurationIam.prepareUpdate(Object.keys(configs), userId, request);
+    if (!guard) throw iamAccountDenied();
+    // The dedicated support endpoint encrypts new credentials. Generic writes may clear, but never store plaintext.
+    if (configs[CONFIG_KEYS.SUPPORT_AI.API_KEY])
+      throw new BadRequestError("Use the support credential endpoint", undefined, { messageKey: "errors.badRequest" });
+    const resourceSettings =
+      configs[AI_RESOURCE_CONFIG_KEY] === undefined
+        ? undefined
+        : AIResourceConfigService.getInstance().parse(configs[AI_RESOURCE_CONFIG_KEY]);
+    const rows = await this.configurationIam.update(configs, guard);
+    if (resourceSettings) {
+      const row = rows.find((row) => row.key === AI_RESOURCE_CONFIG_KEY);
+      if (!row) throw iamAccountDenied();
+      AIResourceConfigService.getInstance().apply(resourceSettings, row.updateTime.toISOString());
+    }
+    await this.businessLogService.logOperation({
+      operationType: OperationType.SYSTEM_CONFIG_UPDATE,
+      operationCategory: OperationCategory.SYSTEM,
+      actorUserId: userId,
+      targetResourceType: "SERVER_CONFIG",
+      description: "Authorized server configuration updated",
+      changes: { keys: Object.keys(configs) },
+      success: true,
+      ipAddress: this.getClientIP(request),
+      userAgent: request.headers["user-agent"],
+    });
   }
 
   async getAllConfigs(): Promise<Record<string, string>> {

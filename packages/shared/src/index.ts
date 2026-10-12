@@ -123,3 +123,9 @@ export {
   toLegacyCredential,
 } from './credential'
 export type { CredentialClassification, CredentialType } from './credential'
+
+export {
+  SERVER_CONFIG_SECRET_PLACEHOLDER,
+  isSensitiveServerConfigKey,
+  writableServerConfigs,
+} from './server-config'

@@ -100,6 +100,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':config/{resourceId}',
   },
+  {
+    ...resource('platform', 'config-item'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':config-item/{resourceId}',
+  },
   resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
@@ -1028,6 +1033,26 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
   },
+  ...['ListConfigurations', 'UpdateConfigurations'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:system:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: operation === 'ListConfigurations' ? 'List' : 'Write',
+      resourceTypes: ['platform/config-item'],
+      apiRoutes: [],
+      conditionalActions: [
+        operation === 'ListConfigurations'
+          ? 'quyan:support:GetConfig'
+          : 'quyan:support:UpdateConfig',
+      ],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SYSTEM_CONFIG,
+    }),
+  ),
   ...['GetConfig', 'UpdateConfig'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:support:' + operation,
