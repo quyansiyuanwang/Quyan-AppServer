@@ -72,6 +72,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'role-session'),
   resource('quyan', 'access-key', 2),
   resource('quyan', 'passkey', 2),
+  resource('oj', 'api-key', 2),
   resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
@@ -860,6 +861,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     sensitive: true,
     authorizationStage: 'declared',
     legacyPermissions: [Permission.JSON_ENDPOINT_CREATE, Permission.JSON_ENDPOINT_MANAGE],
+  },
+  {
+    action: 'quyan:oj:DeleteApiKey',
+    service: 'oj',
+    operation: 'DeleteApiKey',
+    accessLevel: 'Write',
+    resourceTypes: ['oj/api-key'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.OJ_APIKEY_DELETE,
   },
   ...['CreateAccessKey', 'SendAccessKeyCreationVerificationCode'].map(
     (operation): IamActionDefinition => ({

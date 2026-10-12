@@ -70,6 +70,16 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
     const active = { status: AccountStatus.ACTIVE };
     const userOwner = { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] };
     switch (type.id) {
+      case "oj/api-key": {
+        // OJAPIKey deliberately has no Prisma User relation.
+        const owner = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
+        if (!owner) return false;
+        const key = await prisma.oJAPIKey.findFirst({
+          where: { id: childId, userId: owner.id, ...active },
+          select: { id: true, userId: true },
+        });
+        return key?.id === childId && key.userId === id;
+      }
       case "json-endpoint/endpoint": {
         const endpoint = await prisma.jsonEndpoint.findFirst({
           where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },

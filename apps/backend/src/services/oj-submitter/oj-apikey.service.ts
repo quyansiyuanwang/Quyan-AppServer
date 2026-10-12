@@ -1,3 +1,11 @@
+import { env } from "@/config/env";
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { OjApiKeyIamService } from "./oj-apikey-iam.service";
+import { ojApiKeyDenied } from "@/store/oj-submitter/oj-apikey-management.repository";
+import { getLogger, LogCategory } from "@/util/logger";
 import { NotFoundError } from "@/util/errors";
 import { getCredentialPrefix, toCanonicalCredential } from "@quyan/shared";
 import { randomBytes } from "crypto";
@@ -24,6 +32,8 @@ export class OJAPIKeyService {
     private readonly ojApiKeyRepository: OJAPIKeyStore = OJAPIKeyRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly relayChannelService: RelayChannelService = RelayChannelService.getInstance(),
+    private readonly iam = OjApiKeyIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -99,11 +109,34 @@ export class OJAPIKeyService {
    * 删除API密钥
    */
   async deleteAPIKey(id: string, userId: string, request?: Request) {
-    const key = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
-
-    if (!key) throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
-
-    await this.ojApiKeyRepository.softDeleteById(id);
+    let key: { id: string; userId: string; name: string | null };
+    if (env.security.iamAuthorizationMode === "enforce")
+      key = await this.iam.revoke(userId, id, request as TypedRequest | undefined);
+    else {
+      if (request) {
+        const principal = getIamPrincipal(request as TypedRequest);
+        if (!principal || principal.subjectUserId !== userId) throw ojApiKeyDenied();
+        const result = await this.permissions.checkUserPermissions(userId, [Permission.OJ_APIKEY_DELETE], {
+          assumedRoleSessionId: principal.roleSessionId,
+        });
+        if (!result.hasPermission) throw ojApiKeyDenied();
+      }
+      if (env.security.iamAuthorizationMode === "shadow" && request) {
+        try {
+          await this.iam.authorizeDeletion(userId, id, request as TypedRequest);
+        } catch {
+          getLogger("OjApiKeyIamBridge", LogCategory.SECURITY).warn("OJ API Key IAM shadow evaluation denied", {
+            action: "quyan:oj:DeleteApiKey",
+            reason: "iam-evaluation-denied-or-unavailable",
+          });
+        }
+      }
+      const record = await this.ojApiKeyRepository.findActiveByIdAndUserId(id, userId);
+      if (!record || record.userId !== userId)
+        throw new NotFoundError("API key not found", undefined, { messageKey: "ojSubmitter.apiKeyNotFound" });
+      key = record;
+      await this.ojApiKeyRepository.softDeleteById(id);
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OJ_APIKEY_DELETE,

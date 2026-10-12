@@ -15,8 +15,9 @@ import {
 import { OJAPIKeyService } from "@/services/oj-submitter/oj-apikey.service";
 import type { CreateOJAPIKeyRequest, OJAPIKeyDto, UpdateOJAPIKeyRequest } from "@/api/dto/oj-submitter/oj-qa.dto";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
+import { ojApiKeyResourceResolver } from "@/iam/request/oj-apikey-resource-resolvers";
 import {
   createOJAPIKeyBodySchema,
   ojApiKeyIdParamsSchema,
@@ -121,7 +122,11 @@ export class OJAPIKeyController extends Controller {
    */
   @Delete("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.OJ_APIKEY_DELETE)
+  @CheckPermission(Permission.OJ_APIKEY_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oj:DeleteApiKey",
+    resourceKind: "single-resource",
+    resource: ojApiKeyResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
