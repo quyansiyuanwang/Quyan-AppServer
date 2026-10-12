@@ -2,6 +2,12 @@
 
 此页面用于监控运行健康度、资源占用和服务摘要信息。
 
+## 管理权限
+
+系统统计是部署级报告。启用 IAM 强制授权时，需要实际部署管理员组中的 `SYSTEM_STATS_READ`，并允许 `quyan:system:GetStatistics` 操作 `acs:platform:*:platform:system/stats`。构建信息单独要求 `DEBUG_ACCESS` 与 `quyan:system:GetBuildInfo`，资源为 `acs:platform:*:platform:system/build-info`。普通账户所有者和账户内策略不能自行取得部署级管理资格。
+
+服务端在加载数据前和返回数据前检查授权。显式 Deny、管理员组权限被移除、账户被禁用或角色会话被撤销都会拒绝返回报告。
+
 ## 页面用途
 
 - 查看当前服务状态。

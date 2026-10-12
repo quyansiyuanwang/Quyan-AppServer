@@ -105,6 +105,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':config-item/{resourceId}',
   },
+  {
+    ...resource('platform', 'system'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':system/{resourceId}',
+  },
   resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
@@ -1033,6 +1038,27 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
   },
+  ...(
+    [
+      ['GetBuildInfo', Permission.DEBUG_ACCESS, 'build-info'],
+      ['GetStatistics', Permission.SYSTEM_STATS_READ, 'stats'],
+      ['GetConsumptionStatistics', Permission.SYSTEM_CONSUMPTION_STATS_READ, 'consumption-stats'],
+    ] as const
+  ).map(
+    ([operation, permission, route]): IamActionDefinition => ({
+      action: 'quyan:system:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: 'Read',
+      resourceTypes: ['platform/system'],
+      apiRoutes: ['GET /v1/system/' + route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: operation !== 'GetBuildInfo',
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: permission,
+    }),
+  ),
   ...['ListConfigurations', 'UpdateConfigurations'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:' + operation,

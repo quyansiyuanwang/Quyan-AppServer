@@ -2,6 +2,12 @@
 
 Use this page to analyze usage volume across users, models, channels, and relay tokens.
 
+## Management permissions
+
+This page shows a deployment-wide consumption report, including filter choices and dimensional details. With IAM enforcement, you need `SYSTEM_CONSUMPTION_STATS_READ` in an actual deployment administrator group and `quyan:system:GetConsumptionStatistics` on `acs:platform:*:platform:system/consumption-stats`. Ordinary account owners and account policies cannot grant deployment administrator eligibility.
+
+Time, user, model, and channel filters only change the report contents; they do not replace management authorization. Authorization is checked before reading and before returning the report. Explicit Deny, lost deployment eligibility, or a revoked role session prevents the report from being returned. Use personal billing and consumption records to view your own usage.
+
 ## Page purpose
 
 - Filter usage by time and resource dimensions.

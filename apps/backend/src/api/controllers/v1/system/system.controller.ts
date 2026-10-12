@@ -27,12 +27,21 @@ import type {
   SystemLogStatsDTO,
   SystemStatsDTO,
 } from "@/api/dto/system/system.dto";
-import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
+import {
+  CheckPermission,
+  PermissionCheckMode,
+  RequireAnyPermission,
+  RequirePermission,
+} from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import { NotFoundError } from "@/util/errors";
 import type { ErrorResponse } from "@/api/response";
-import { BUILD_INFO } from "@/generated/buildInfo";
+import {
+  platformBuildInfoResource,
+  platformSystemStatisticsResource,
+  platformConsumptionStatisticsResource,
+} from "@/iam/request/platform-system-resource-resolvers";
 import { LogRoute } from "@/util/logger-decorator";
 import { extractClientIp } from "@/util/ip-extractor";
 import {
@@ -57,9 +66,13 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.DEBUG_ACCESS)
-  public async getBuildInfo(): Promise<BuildInfoDTO> {
-    return BUILD_INFO;
+  @CheckPermission(Permission.DEBUG_ACCESS, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:GetBuildInfo",
+    resourceKind: "single-resource",
+    resource: platformBuildInfoResource,
+  })
+  public async getBuildInfo(@Request() request: TypedRequest): Promise<BuildInfoDTO> {
+    return this.systemService.getManagedBuildInfo(request);
   }
 
   @Get("stats")
@@ -67,10 +80,14 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_STATS_READ)
+  @CheckPermission(Permission.SYSTEM_STATS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:GetStatistics",
+    resourceKind: "single-resource",
+    resource: platformSystemStatisticsResource,
+  })
   @LogRoute({ message: "获取系统统计信息", logResponse: true })
   public async getSystemStats(@Request() _request: TypedRequest): Promise<SystemStatsDTO> {
-    const stats = await this.systemService.getSystemStats();
+    const stats = await this.systemService.getManagedSystemStats(_request);
     return stats;
   }
 
@@ -79,10 +96,15 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_CONSUMPTION_STATS_READ)
+  @CheckPermission(Permission.SYSTEM_CONSUMPTION_STATS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:system:GetConsumptionStatistics",
+    resourceKind: "single-resource",
+    resource: platformConsumptionStatisticsResource,
+  })
   @Middlewares(validateQuery(consumptionStatsQuerySchema))
   @LogRoute({ message: "获取消费统计信息", logResponse: true })
   public async getConsumptionStats(
+    @Request() request: TypedRequest,
     @Query() startDate?: string,
     @Query() endDate?: string,
     @Query() userIds?: string[],
@@ -90,14 +112,17 @@ export class SystemController extends Controller {
     @Query() channels?: string[],
     @Query() relayTokenIds?: string[],
   ): Promise<ConsumptionStatsDTO> {
-    return this.systemService.getConsumptionStats({
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      userIds,
-      models,
-      channels,
-      relayTokenIds,
-    });
+    return this.systemService.getManagedConsumptionStats(
+      {
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        userIds,
+        models,
+        channels,
+        relayTokenIds,
+      },
+      request,
+    );
   }
 
   @Get("logs")

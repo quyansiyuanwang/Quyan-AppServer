@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+vi.mock("@/services/system/platform-management-read-iam.service", () => ({
+  PlatformManagementReadIamService: { getInstance: vi.fn() },
+}));
 import { SystemService } from "@/services/system/system.service";
 import type { ConsumptionUsageRow } from "@/store/system/consumption-stats.store";
 import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay";

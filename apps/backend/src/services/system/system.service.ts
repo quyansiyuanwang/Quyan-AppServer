@@ -1,4 +1,7 @@
 import os from "os";
+import { PlatformManagementReadIamService } from "./platform-management-read-iam.service";
+import { platformSystemArn } from "@/iam/resources/platform-system-resources";
+import type { TypedRequest } from "@/types/express";
 import path from "path";
 import fs from "fs-extra";
 import { createInterface } from "readline";
@@ -453,6 +456,7 @@ export class SystemService {
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly groupRepository: GroupStore = GroupRepository.getInstance(),
     private readonly consumptionStatsRepository: ConsumptionStatsStore = ConsumptionStatsRepository.getInstance(),
+    private readonly managementReads = PlatformManagementReadIamService.getInstance(),
   ) {
     this.startedAt = Date.now();
   }
@@ -463,6 +467,30 @@ export class SystemService {
     return this.instance;
   }
 
+  async getManagedBuildInfo(request: TypedRequest) {
+    return this.managementReads.read(
+      "quyan:system:GetBuildInfo",
+      platformSystemArn("build-info"),
+      request,
+      async () => BUILD_INFO,
+    );
+  }
+  async getManagedSystemStats(request: TypedRequest) {
+    return this.managementReads.read("quyan:system:GetStatistics", platformSystemArn("stats"), request, () =>
+      this.getSystemStats(),
+    );
+  }
+  async getManagedConsumptionStats(
+    filters: Parameters<SystemService["getConsumptionStats"]>[0],
+    request: TypedRequest,
+  ) {
+    return this.managementReads.read(
+      "quyan:system:GetConsumptionStatistics",
+      platformSystemArn("consumption-stats"),
+      request,
+      () => this.getConsumptionStats(filters),
+    );
+  }
   async getSystemStats(): Promise<SystemStatsDTO> {
     const userCount = await this.userRepository.countAll();
     const groupCount = await this.groupRepository.countAll();
