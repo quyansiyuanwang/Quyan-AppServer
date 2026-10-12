@@ -37,6 +37,7 @@ import {
   createOAuthClientBodySchema,
   updateOAuthClientBodySchema,
   updateSystemOAuthClientBodySchema,
+  createSystemOAuthClientBodySchema,
 } from "@/api/schema/users/oauth-client.schema";
 import { PermissionService } from "./permission.service";
 import { Permission } from "@quyan/shared";
@@ -228,7 +229,41 @@ export class OAuthClientService {
     data: CreateSystemOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientWithSecretDto> {
-    const scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes ?? DEFAULT_SCOPES);
+    let guard;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = createSystemOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid system OAuth application creation", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = {
+        ...parsed.data,
+        homepageUrl: parsed.data.homepageUrl ?? undefined,
+        logoUrl: parsed.data.logoUrl ?? undefined,
+        policyUrl: parsed.data.policyUrl ?? undefined,
+        tosUrl: parsed.data.tosUrl ?? undefined,
+      };
+      guard = await this.platformMutations.prepareCreate(userId, request as TypedRequest | undefined);
+    } else if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_SYSTEM_MANAGE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.platformMutations.prepareCreate(userId, request as TypedRequest));
+    }
+    const scopes = await oauthScopeService.normalizeAndAssertGrantable(
+      userId,
+      data.scopes ?? DEFAULT_SCOPES,
+      guard ? { assumedRoleSessionId: guard.users.principal.roleSessionId } : undefined,
+    );
     const clientId = data.clientId.trim();
     const existing = await this.repository.findByClientId(clientId);
     if (existing)
@@ -237,7 +272,7 @@ export class OAuthClientService {
     const clientType = data.clientType ?? "public";
     const rawClientSecret = clientType === "public" ? "" : this.generateClientSecret();
     const clientSecretHash = rawClientSecret ? await bcrypt.hash(rawClientSecret, 10) : undefined;
-    const created = await this.repository.create({
+    const createData: OAuthClientCreateInput = {
       userId,
       name: data.name.trim(),
       description: this.normalizeOptionalText(data.description),
@@ -261,7 +296,17 @@ export class OAuthClientService {
       accessTokenLifetime: data.accessTokenLifetime ?? 3600,
       refreshTokenLifetime: data.refreshTokenLifetime ?? 60 * 60 * 24 * 7,
       isSystemClient: true,
-    });
+    };
+    const created = guard
+      ? await this.platformMutations.create(createData, {
+          ...guard,
+          scopeCheck: async () => {
+            await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, {
+              assumedRoleSessionId: guard.users.principal.roleSessionId,
+            });
+          },
+        })
+      : await this.repository.create(createData);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_CREATE,

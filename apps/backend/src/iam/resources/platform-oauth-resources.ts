@@ -9,3 +9,13 @@ export function platformOAuthClientArn(id: string) {
     path: "oauth-client/" + id,
   });
 }
+
+/** Fixed parent for system application issuance before a generated record ID exists. */
+export function platformOAuthControlArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "oauth-control/clients",
+  });
+}

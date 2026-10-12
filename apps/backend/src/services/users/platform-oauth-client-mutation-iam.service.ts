@@ -4,17 +4,18 @@ import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { requestConditionContext } from "@/iam/request/condition-context";
 import { auditIamDecision } from "@/iam/audit/iam-audit.service";
-import { platformOAuthClientArn } from "@/iam/resources/platform-oauth-resources";
+import { platformOAuthClientArn, platformOAuthControlArn } from "@/iam/resources/platform-oauth-resources";
 import { isCanonicalOAuthClientId } from "@/iam/resources/oauth-client-resources";
 import { IamAccountUserRepository, iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PlatformOAuthClientRepository } from "@/store/users/platform-oauth-client.repository";
 import type { PlatformOAuthClientStore } from "@/store/users/platform-oauth-client.store";
 import { PlatformOAuthClientMutationRepository } from "@/store/users/platform-oauth-client-mutation.repository";
 import type {
+  PlatformOAuthClientCreateGuard,
   PlatformOAuthClientMutationGuard,
   PlatformOAuthClientMutationStore,
 } from "@/store/users/platform-oauth-client-mutation.store";
-import type { OAuthClientUpdateInput } from "@/store/users/oauth-client.store";
+import type { OAuthClientCreateInput, OAuthClientUpdateInput } from "@/store/users/oauth-client.store";
 import type { TypedRequest } from "@/types/express";
 export class PlatformOAuthClientMutationIamService {
   private static instance: PlatformOAuthClientMutationIamService;
@@ -26,6 +27,60 @@ export class PlatformOAuthClientMutationIamService {
   ) {}
   static getInstance() {
     return (this.instance ??= new PlatformOAuthClientMutationIamService());
+  }
+  async prepareCreate(userId: string, request?: TypedRequest) {
+    const identity = request && getIamPrincipal(request);
+    if (
+      !request ||
+      !identity ||
+      request.oauthAccessToken ||
+      identity.subjectUserId !== userId ||
+      identity.principalUserId !== userId ||
+      !isCanonicalOAuthClientId(userId)
+    )
+      throw iamAccountDenied();
+    const principal = { ...identity };
+    await this.iam.loadPolicies(principal);
+    const group = await this.repository.groupSnapshot(principal),
+      action = "quyan:oauth:CreateSystemClient",
+      resource = platformOAuthControlArn();
+    const recheck = async () => {
+      const start = performance.now(),
+        result = await this.iam.authorize({
+          principal,
+          action,
+          resource,
+          context: requestConditionContext(request, principal),
+        });
+      if (!result) throw iamAccountDenied();
+      (request.iamDecisions ??= []).push({ ...result, action, resource });
+      auditIamDecision({
+        requestId: request.res?.locals.requestId,
+        principal,
+        action,
+        resource,
+        result,
+        evaluationLatencyMs: performance.now() - start,
+        authorizationMode: env.security.iamAuthorizationMode === "shadow" ? "shadow" : "enforce",
+        ...(env.security.iamAuthorizationMode === "shadow" ? { legacyAllowed: true } : {}),
+      });
+      if (result.decision !== "Allow") throw iamAccountDenied();
+    };
+    await recheck();
+    const ids = [...new Set([userId, principal.accountOwnerId])],
+      users = await this.users.targets(principal, ids);
+    if (
+      users.length !== ids.length ||
+      ids.some(
+        (id) =>
+          !users.some((u) => u.id === id && u.updateTime instanceof Date && Number.isFinite(u.updateTime.getTime())),
+      )
+    )
+      throw iamAccountDenied();
+    return { group, users: { principal, targetUserId: userId, users, recheck } };
+  }
+  create(data: OAuthClientCreateInput, guard: PlatformOAuthClientCreateGuard) {
+    return this.mutations.create(data, guard);
   }
   async prepareUpdate(userId: string, id: string, request?: TypedRequest, hydrate = true) {
     const identity = request && getIamPrincipal(request);

@@ -17,7 +17,10 @@ vi.mock("@/store/users/iam-account-principal", async () => {
   };
 });
 import { PlatformOAuthClientMutationIamService } from "@/services/users/platform-oauth-client-mutation-iam.service";
-import { platformOAuthClientResourceResolver } from "@/iam/request/platform-oauth-resource-resolvers";
+import {
+  platformOAuthClientResourceResolver,
+  platformOAuthControlResourceResolver,
+} from "@/iam/request/platform-oauth-resource-resolvers";
 import { getIamActionDefinition, Permission, iamActionsForLegacyPermission } from "@quyan/shared";
 import { Project } from "ts-morph";
 import { collectIamRoutes } from "../../../scripts/iam/route-inventory";
@@ -122,5 +125,51 @@ describe("system OAuth application update authorization", () => {
     await expect(service.prepareUpdate("actor", "../app", request)).rejects.toMatchObject({ statusCode: 403 });
     request.oauthAccessToken = { id: "token" } as any;
     await expect(service.prepareUpdate("actor", "system-app", request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("system OAuth application creation authorization", () => {
+  it("uses the fixed platform parent and a distinct sensitive action", async () => {
+    const action = "quyan:oauth:CreateSystemClient";
+    expect(getIamActionDefinition(action)).toMatchObject({
+      sensitive: true,
+      authorizationBoundary: "platform",
+      resourceTypes: ["platform/oauth-control"],
+    });
+    expect(iamActionsForLegacyPermission(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)).toContain(action);
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/users/oauth-client.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find((r) => r.key === "POST /v1/oauth-clients/system"),
+    ).toMatchObject({ coverage: "explicit", actions: [action], issues: [] });
+    const principal = {
+      subjectUserId: "actor",
+      principalUserId: "actor",
+      accountOwnerId: "owner",
+      subjectType: "sub_user" as const,
+    };
+    expect(await platformOAuthControlResourceResolver({ request, principal })).toBe(
+      "acs:platform:*:platform:oauth-control/clients",
+    );
+    await service.prepareCreate("actor", request);
+    expect(iam.authorize).toHaveBeenCalledWith(
+      expect.objectContaining({ action, resource: "acs:platform:*:platform:oauth-control/clients" }),
+    );
+    expect(repo.target).not.toHaveBeenCalled();
+    expect(repo.hydrate).not.toHaveBeenCalled();
+  });
+  it("rechecks the grant and trusted identities and never creates during preparation", async () => {
+    const prepared = await service.prepareCreate("actor", request);
+    expect(prepared.users.users.map((u) => u.id).sort()).toEqual(["actor", "owner"]);
+    iam.authorize.mockResolvedValue({ decision: "ExplicitDeny" });
+    await expect(prepared.users.recheck()).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.prepareCreate("actor", request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(mutations.update).not.toHaveBeenCalled();
+  });
+  it("rejects missing or inconsistent identity and OAuth tokens", async () => {
+    await expect(service.prepareCreate("actor")).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.prepareCreate("other", request)).rejects.toMatchObject({ statusCode: 403 });
+    request.oauthAccessToken = { id: "token" } as any;
+    await expect(service.prepareCreate("actor", request)).rejects.toMatchObject({ statusCode: 403 });
   });
 });

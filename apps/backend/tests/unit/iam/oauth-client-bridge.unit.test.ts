@@ -61,21 +61,23 @@ beforeEach(() => {
   };
   permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) };
   repo = { findByUserId: vi.fn().mockResolvedValue([record]), findById: vi.fn().mockResolvedValue(record) };
+  repo.findByClientId = vi.fn().mockResolvedValue(null);
   platformMutations = {
-    prepareUpdate: vi
-      .fn()
-      .mockResolvedValue({
-        existing: { ...record, userId: "platform-creator", isSystemClient: true },
-        guard: { users: { principal: { roleSessionId: "session" } } },
-      }),
-    update: vi
-      .fn()
-      .mockImplementation(async (data: any) => ({
-        ...record,
-        userId: "platform-creator",
-        isSystemClient: true,
-        ...data,
-      })),
+    prepareCreate: vi.fn().mockResolvedValue({ users: { principal: { roleSessionId: "session" } } }),
+    create: vi.fn().mockImplementation(async (data: any) => {
+      const { clientSecretHash, ...view } = data;
+      return { ...record, ...view, hasClientSecret: !!clientSecretHash };
+    }),
+    prepareUpdate: vi.fn().mockResolvedValue({
+      existing: { ...record, userId: "platform-creator", isSystemClient: true },
+      guard: { users: { principal: { roleSessionId: "session" } } },
+    }),
+    update: vi.fn().mockImplementation(async (data: any) => ({
+      ...record,
+      userId: "platform-creator",
+      isSystemClient: true,
+      ...data,
+    })),
   };
   platform = { list: vi.fn().mockResolvedValue([record]), diagnose: vi.fn().mockResolvedValue(undefined) };
   repo.findSystemClients = vi.fn().mockResolvedValue([record]);
@@ -357,5 +359,77 @@ describe("system OAuth application update behavior", () => {
     expect(platformMutations.prepareUpdate).toHaveBeenCalledWith("actor", "client", request, false);
     expect(repo.update).toHaveBeenCalled();
     expect(platformMutations.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("system OAuth application creation behavior", () => {
+  const data = {
+    clientId: "fixture-system",
+    name: "system",
+    redirectUris: ["https://example.com/callback"],
+    scopes: ["profile"],
+  };
+  it("creates an approved public system app after authorization and current-role scope checks", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    const created = await service.createSystemClient("actor", data, request);
+    expect(created).toMatchObject({
+      isSystemClient: true,
+      reviewStatus: "approved",
+      clientType: "public",
+      clientSecret: "",
+      hasClientSecret: false,
+    });
+    expect(platformMutations.prepareCreate).toHaveBeenCalledWith("actor", request);
+    expect(repo.create).not.toHaveBeenCalled();
+    expect(oauthScopeService.normalizeAndAssertGrantable).toHaveBeenCalledWith("actor", ["profile"], {
+      assumedRoleSessionId: "session",
+    });
+    const [input, guard] = platformMutations.create.mock.calls[0];
+    expect(input).toMatchObject({ userId: "actor", reviewedByUserId: "actor", isPkceRequired: true });
+    await guard.scopeCheck();
+    expect(oauthScopeService.normalizeAndAssertGrantable).toHaveBeenCalledTimes(2);
+  });
+  it("returns only the new confidential secret and preserves lifetime constraints", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    const created = await service.createSystemClient(
+      "actor",
+      { ...data, clientType: "confidential", accessTokenLifetime: 600 },
+      request,
+    );
+    expect(created.clientSecret.length).toBeGreaterThan(20);
+    expect(created).not.toHaveProperty("clientSecretHash");
+    expect(platformMutations.create.mock.calls[0][0]).toMatchObject({
+      accessTokenLifetime: 600,
+      clientSecretHash: expect.stringMatching(/^\$2/),
+    });
+    await expect(
+      service.createSystemClient("actor", { ...data, accessTokenLifetime: 1 }, request),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+  it("rejects unknown fields, Deny and existing IDs without a write or legacy fallback", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    await expect(
+      service.createSystemClient("actor", { ...data, userId: "foreign" } as any, request),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    platformMutations.prepareCreate.mockRejectedValue(new Error("fixture platform deny"));
+    await expect(service.createSystemClient("actor", data, request)).rejects.toThrow("fixture platform deny");
+    expect(repo.findByClientId).not.toHaveBeenCalled();
+    platformMutations.prepareCreate.mockResolvedValue({ users: { principal: { roleSessionId: "session" } } });
+    repo.findByClientId.mockResolvedValue(record);
+    await expect(service.createSystemClient("actor", data, request)).rejects.toMatchObject({ statusCode: 400 });
+    expect(platformMutations.create).not.toHaveBeenCalled();
+    expect(repo.create).not.toHaveBeenCalled();
+  });
+  it("shadow retains current-role legacy checks and performs exactly one legacy creation", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    platformMutations.prepareCreate.mockRejectedValue(new Error("fixture shadow deny"));
+    await service.createSystemClient("actor", data, request);
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OAUTH_CLIENT_SYSTEM_MANAGE], {
+      assumedRoleSessionId: "session",
+    });
+    expect(repo.create).toHaveBeenCalledTimes(1);
+    expect(platformMutations.create).not.toHaveBeenCalled();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.createSystemClient("actor", data, request)).rejects.toMatchObject({ statusCode: 403 });
   });
 });
