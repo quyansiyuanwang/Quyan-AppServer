@@ -72,6 +72,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'role-session'),
   resource('quyan', 'access-key', 2),
   resource('quyan', 'passkey', 2),
+  resource('quyan', 'online-session', 2),
   resource('oj', 'api-key', 2),
   resource('json-endpoint', 'endpoint', 2),
   resource('relay', 'channel'),
@@ -862,6 +863,31 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     legacyPermissions: [Permission.JSON_ENDPOINT_CREATE, Permission.JSON_ENDPOINT_MANAGE],
   },
+  ...[
+    {
+      operation: 'ListOnlineSessions',
+      resourceTypes: ['quyan/online-session'],
+      accessLevel: 'List',
+    },
+    { operation: 'GetOnlineUser', resourceTypes: ['quyan/user'], accessLevel: 'Read' },
+    {
+      operation: 'GetOnlineUserTimeline',
+      resourceTypes: ['quyan/online-session'],
+      accessLevel: 'List',
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      action: 'quyan:user:' + definition.operation,
+      service: 'user',
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.USER_ONLINE_MONITOR_READ,
+    }),
+  ),
   ...['ListApiKeys', 'GetApiKey', 'GetApiKeyStats', 'RevealApiKey'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

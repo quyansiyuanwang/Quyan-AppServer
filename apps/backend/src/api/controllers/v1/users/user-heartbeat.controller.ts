@@ -1,3 +1,7 @@
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { onlineUserResourceResolver } from "@/iam/request/online-monitor-resource-resolvers";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import {
   Controller,
   Delete,
@@ -96,8 +100,15 @@ export class UserHeartbeatController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_ONLINE_MONITOR_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:user:ListOnlineSessions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async getOverview(
+    @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 10,
     @Query() keyword?: string,
@@ -105,7 +116,7 @@ export class UserHeartbeatController extends Controller {
     @Query() location?: string,
     @Query() status?: "online" | "offline",
   ): Promise<UserOnlineMonitorOverviewResponse> {
-    return this.heartbeatService.getOverview({ page, pageSize, keyword, ipAddress, location, status });
+    return this.heartbeatService.getOverview({ page, pageSize, keyword, ipAddress, location, status }, request);
   }
 
   @Get("monitor/users/{userId}")
@@ -113,9 +124,16 @@ export class UserHeartbeatController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_ONLINE_MONITOR_READ)
-  public async getUserDetail(@Path() userId: string): Promise<UserOnlineMonitorDetailDto> {
-    return this.heartbeatService.getUserDetail(userId);
+  @CheckPermission(Permission.USER_ONLINE_MONITOR_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:GetOnlineUser",
+    resourceKind: "single-resource",
+    resource: onlineUserResourceResolver,
+  })
+  public async getUserDetail(
+    @Path() userId: string,
+    @Request() request: TypedRequest,
+  ): Promise<UserOnlineMonitorDetailDto> {
+    return this.heartbeatService.getUserDetail(userId, request);
   }
 
   @Get("monitor/users/{userId}/timeline")
@@ -123,8 +141,15 @@ export class UserHeartbeatController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_ONLINE_MONITOR_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:user:GetOnlineUserTimeline",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async getUserTimeline(
+    @Request() request: TypedRequest,
     @Path() userId: string,
     @Query() page: number = 1,
     @Query() pageSize: number = 10,
@@ -133,15 +158,18 @@ export class UserHeartbeatController extends Controller {
     @Query() startDate?: string,
     @Query() endDate?: string,
   ): Promise<UserOnlineMonitorTimelineGroupedResponse> {
-    return this.heartbeatService.getUserTimeline({
-      userId,
-      page,
-      pageSize,
-      onlineOnly,
-      offlineOnly,
-      startDate,
-      endDate,
-    });
+    return this.heartbeatService.getUserTimeline(
+      {
+        userId,
+        page,
+        pageSize,
+        onlineOnly,
+        offlineOnly,
+        startDate,
+        endDate,
+      },
+      request,
+    );
   }
 
   @Post("monitor/sessions/{sessionId}/force-offline")

@@ -448,3 +448,9 @@ IAM 强制模式下，管理列表和详情分别使用 `quyan:json_endpoint:Lis
 `quyan:oj:ListApiKeys`、`quyan:oj:GetApiKey` 和 `quyan:oj:GetApiKeyStats` 使用 `acs:oj:*:<accountId>:api-key/<userId>/<keyId>` 对自己的每个密钥分别授权。列表和用量统计只包含允许访问的密钥。只授权一个密钥不会暴露其他密钥的存在或用量；通配符授权也不能绕过归属和账户隔离。
 
 读取基本信息不会自动授予密钥值。只有敏感操作 `quyan:oj:RevealApiKey` 同时允许该资源时，响应才包含 `key` 字段。没有此权限时，允许读取的密钥仍显示在列表中，但不会显示密钥值和复制按钮；匹配的 Deny 同样阻止密钥值返回。关联渠道只显示名称，不返回上游配置。迁移期间，旧 OJ 读取权限保留原有的本人密钥访问范围。
+
+## 在线监控资源权限
+
+IAM 强制模式下，在线监控限定在当前账户内。`quyan:user:ListOnlineSessions` 和 `quyan:user:GetOnlineUserTimeline` 分别对 `acs:quyan:*:<accountId>:online-session/<userId>/<sessionId>` 会话资源授权。概览和时间线只包含允许访问的会话，筛选与分页基于可见记录执行；总数和统计不会包含隐藏会话或其他账户的用户。概览分别统计可见的在线用户人数和活跃会话数量。
+
+用户详情需要对 `acs:quyan:*:<accountId>:user/<userId>` 授予 `quyan:user:GetOnlineUser`。这项独立权限用于读取该用户的会话汇总和最近连接信息；仅有会话列表权限不会获得用户详情权限。心跳过期会显示为离线，读取监控数据不会附带修改已存储的会话。legacy 和 shadow 模式继续保留原有监控行为，并执行既有监控权限检查。

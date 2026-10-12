@@ -1,3 +1,10 @@
+import { env } from "@/config/env";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { UserOnlineMonitorIamService } from "./user-online-monitor-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 import { ConfigService } from "@/services/system/config.service";
 import { IpGeolocationService } from "@/services/infrastructure/ip-geolocation.service";
@@ -43,6 +50,8 @@ export class UserHeartbeatService {
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly redisService: RedisService = RedisService.getInstance(),
+    private readonly monitorIam = UserOnlineMonitorIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance(): UserHeartbeatService {
@@ -223,15 +232,46 @@ export class UserHeartbeatService {
     };
   }
 
-  async getOverview(params: {
-    page: number;
-    pageSize: number;
-    keyword?: string;
-    ipAddress?: string;
-    location?: string;
-    status?: "online" | "offline";
-  }): Promise<UserOnlineMonitorOverviewResponse> {
+  private async legacyMonitorRead(request?: TypedRequest) {
+    if (!request) return;
+    const principal = getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    const result = await this.permissions.checkUserPermissions(
+      principal.subjectUserId,
+      [Permission.USER_ONLINE_MONITOR_READ],
+      { assumedRoleSessionId: principal.roleSessionId },
+    );
+    if (!result.hasPermission) throw iamAccountDenied();
+  }
+  private async shadowMonitorRead(operation: () => Promise<unknown>, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "shadow" || !request) return;
+    try {
+      await operation();
+    } catch {
+      getLogger("OnlineMonitorIamBridge", LogCategory.SECURITY).warn("Online monitor IAM shadow denied", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
+  async getOverview(
+    params: {
+      page: number;
+      pageSize: number;
+      keyword?: string;
+      ipAddress?: string;
+      location?: string;
+      status?: "online" | "offline";
+    },
+    request?: TypedRequest,
+  ): Promise<UserOnlineMonitorOverviewResponse> {
     const runtimeConfig = await this.getRuntimeConfig();
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.monitorIam.overview(params, runtimeConfig.timeoutSeconds, request);
+    await this.legacyMonitorRead(request);
+    await this.shadowMonitorRead(
+      () => this.monitorIam.overview(params, runtimeConfig.timeoutSeconds, request),
+      request,
+    );
     const cutoffTime = new Date(Date.now() - runtimeConfig.timeoutSeconds * 1000);
     await this.sessionRepository.closeExpiredSessions(cutoffTime);
 
@@ -285,8 +325,12 @@ export class UserHeartbeatService {
     };
   }
 
-  async getUserDetail(userId: string): Promise<UserOnlineMonitorDetailDto> {
+  async getUserDetail(userId: string, request?: TypedRequest): Promise<UserOnlineMonitorDetailDto> {
     const runtimeConfig = await this.getRuntimeConfig();
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.monitorIam.detail(userId, runtimeConfig.timeoutSeconds, request);
+    await this.legacyMonitorRead(request);
+    await this.shadowMonitorRead(() => this.monitorIam.detail(userId, runtimeConfig.timeoutSeconds, request), request);
     const cutoffTime = new Date(Date.now() - runtimeConfig.timeoutSeconds * 1000);
     await this.sessionRepository.closeExpiredSessions(cutoffTime);
 
@@ -316,16 +360,26 @@ export class UserHeartbeatService {
     };
   }
 
-  async getUserTimeline(params: {
-    userId: string;
-    page: number;
-    pageSize: number;
-    onlineOnly?: boolean;
-    offlineOnly?: boolean;
-    startDate?: string;
-    endDate?: string;
-  }): Promise<UserOnlineMonitorTimelineGroupedResponse> {
+  async getUserTimeline(
+    params: {
+      userId: string;
+      page: number;
+      pageSize: number;
+      onlineOnly?: boolean;
+      offlineOnly?: boolean;
+      startDate?: string;
+      endDate?: string;
+    },
+    request?: TypedRequest,
+  ): Promise<UserOnlineMonitorTimelineGroupedResponse> {
     const runtimeConfig = await this.getRuntimeConfig();
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.monitorIam.timeline(params, runtimeConfig.timeoutSeconds, request);
+    await this.legacyMonitorRead(request);
+    await this.shadowMonitorRead(
+      () => this.monitorIam.timeline(params, runtimeConfig.timeoutSeconds, request),
+      request,
+    );
     const cutoffTime = new Date(Date.now() - runtimeConfig.timeoutSeconds * 1000);
     await this.sessionRepository.closeExpiredSessions(cutoffTime);
 
