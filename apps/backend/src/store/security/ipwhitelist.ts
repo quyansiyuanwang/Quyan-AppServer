@@ -1,6 +1,7 @@
 import { prisma } from "@/config/database";
-import type { IPWhiteList } from "@prisma/client";
+import { Prisma, type IPWhiteList } from "@prisma/client";
 import type { IPWhiteListCreateInput, IPWhiteListFindOptions, IPWhiteListStore } from "./ipwhitelist.store";
+import { ConflictError } from "@/util/errors";
 import { RECORD_STATUS } from "@/constant/status";
 
 export type { IPWhiteList } from "./ipwhitelist.store";
@@ -15,7 +16,27 @@ export class IPWhiteListRepository implements IPWhiteListStore {
   }
 
   async create(data: IPWhiteListCreateInput): Promise<IPWhiteList> {
-    return prisma.iPWhiteList.create({ data });
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          await tx.$queryRaw(Prisma.sql`SELECT id FROM ip_white_lists WHERE ipAddress = ${data.ipAddress} FOR UPDATE`);
+          const existing = await tx.iPWhiteList.findUnique({ where: { ipAddress: data.ipAddress } });
+          if (existing && existing.status !== RECORD_STATUS.DELETED)
+            throw new ConflictError("IP whitelist entry already exists", undefined, { messageKey: "errors.conflict" });
+          return existing
+            ? tx.iPWhiteList.update({
+                where: { id: existing.id },
+                data: { ...data, status: RECORD_STATUS.ACTIVE, expiresAt: data.expiresAt ?? null },
+              })
+            : tx.iPWhiteList.create({ data });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2034"].includes(error.code))
+        throw new ConflictError("IP whitelist context changed", undefined, { messageKey: "errors.conflict" });
+      throw error;
+    }
   }
 
   async findByIp(ipAddress: string): Promise<IPWhiteList | null> {

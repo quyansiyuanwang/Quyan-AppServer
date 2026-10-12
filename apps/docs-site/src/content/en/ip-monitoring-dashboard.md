@@ -40,6 +40,12 @@ With IAM enforcement, whitelist management reads require `IP_WHITELIST_READ` in 
 
 Authorization is applied per record before pagination, and `total` counts only authorized records. Status checks read the current expiry; an existing expired record returns `false`. Missing, deleted, or unauthorized records cannot be safely resolved for authorization and return 403 in enforce mode. Results are withheld if grants, role sessions, or records become invalid during a read. Automatic anti-abuse checks retain their internal whitelist read flow.
 
+## Whitelist write permissions
+
+With IAM enforcement, creating entries requires deployment-wide `IP_WHITELIST_CREATE` eligibility and `quyan:ip_whitelist:CreateEntry` on `acs:platform:*:platform:ip-whitelist-control/default`. The transaction also authorizes the actual `acs:platform:*:platform:ip-whitelist/<record-id>` before committing. Removing an entry requires deployment-wide `IP_WHITELIST_DELETE` eligibility and `quyan:ip_whitelist:DeleteEntry` on that entry's actual ARN. Account ownership and account-created groups cannot grant deployment-wide eligibility. Step-up 2FA and replay protection remain required.
+
+IPv4 and IPv6 inputs must be valid addresses. An active duplicate returns 409. Re-adding a deleted address restores its original record ID, preserving resource-scoped Deny rules. Missing or unauthorized removal targets return 403 in enforce mode. Identity, group, record and policy checks run again inside the transaction; a failed check rolls back the entire change. Cached positive whitelist status is checked against the database, so expiry or deletion cannot leave an automatic ban exemption active.
+
 ## Error weights and decay
 
 Error weights are the core of the IP ban system:

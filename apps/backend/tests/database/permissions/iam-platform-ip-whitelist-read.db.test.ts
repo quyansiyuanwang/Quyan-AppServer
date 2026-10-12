@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/config/database";
+import { RECORD_STATUS } from "@/constant/status";
 import { Permission } from "@quyan/shared";
 import { PlatformIpWhitelistReadIamService } from "@/services/system/platform-ip-whitelist-read-iam.service";
 import { PlatformIpWhitelistReadRepository } from "@/store/security/platform-ip-whitelist-read.repository";
@@ -165,7 +166,7 @@ describe("platform IP whitelist read authorization database", () => {
     const row = await create("192.0.2.1"),
       original = repo.recheck.bind(repo);
     vi.spyOn(repo, "recheck").mockImplementation(async (principal, targets) => {
-      await prisma.iPWhiteList.update({ where: { id: row.id }, data: { status: -1 } });
+      await prisma.iPWhiteList.update({ where: { id: row.id }, data: { status: RECORD_STATUS.DELETED } });
       return original(principal, targets);
     });
     await expect(service.status("192.0.2.1", request())).rejects.toMatchObject({ statusCode: 403 });

@@ -111,6 +111,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':system/{resourceId}',
   },
   {
+    ...resource('platform', 'ip-whitelist-control'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':ip-whitelist-control/{resourceId}',
+  },
+  {
     ...resource('platform', 'ip-whitelist'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':ip-whitelist/{resourceId}',
@@ -1062,6 +1067,31 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       authorizationStage: 'declared',
       authorizationBoundary: 'platform',
       legacyPermission: permission,
+    }),
+  ),
+  ...(['CreateEntry', 'DeleteEntry'] as const).map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:ip_whitelist:' + operation,
+      service: 'ip_whitelist',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes:
+        operation === 'CreateEntry'
+          ? ['platform/ip-whitelist-control', 'platform/ip-whitelist']
+          : ['platform/ip-whitelist'],
+      apiRoutes: [
+        operation === 'CreateEntry'
+          ? 'POST /v1/ip-whitelist/add'
+          : 'DELETE /v1/ip-whitelist/remove/{ip}',
+      ],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission:
+        operation === 'CreateEntry'
+          ? Permission.IP_WHITELIST_CREATE
+          : Permission.IP_WHITELIST_DELETE,
     }),
   ),
   ...['ListEntries', 'GetStatus'].map(
