@@ -336,6 +336,8 @@ KV 和密钥可作为资源组成员，移除成员后下一次请求即失去�
 
 在 enforce 模式下，自己的余额读取、用量、转账配置、创建兑换码、转账和兑换分别使用 `quyan:balance:GetAccount`、`GetUsage`、`GetTransferConfig`、`CreateGiftCode`、`CreateTransfer`、`RedeemCode`（后五项使用相同的 `quyan:balance:` 前缀），目标为 `acs:quyan:*:<accountId>:user/<userId>`。这些操作具有受限的默认自助 Allow，仅限当前认证用户；匹配的显式 Deny 仍然优先。转账不会授予查看或管理收款人账户的权限，余额、费率、2FA 和重放保护校验继续生效。
 
+`quyan:balance:GetUserBalance` 用于余额管理中的单用户和批量读取，目标为真实的 `acs:quyan:*:<accountId>:user/<userId>`。这项敏感权限没有默认本人授权，与自己的余额查询权限独立。IAM 强制模式只允许读取当前账户内的有效用户；批量请求会合并重复用户 ID，并且必须全部授权通过，一个拒绝、无效用户或跨账户目标都会拒绝整个请求。返回前再次检查授权及用户版本。尚未初始化余额的用户在单用户查询中显示零余额，批量查询保留只返回已初始化账户的行为；查询不会创建余额账户。
+
 用户创建的余额兑换码使用具体 ARN：`acs:balance:*:<accountId>:gift-code/<creatorUserId>/<giftCodeId>`。`quyan:balance:ListGiftCodes` 逐条评估该资源，`quyan:balance:CancelGiftCode` 检查指定兑换码资源。默认自助范围只包含当前用户创建的兑换码；知道兑换码 ID 不会获得查看或取消他人兑换码的权限。列表的记录和总数都只包括允许查看的兑换码，不能通过列表获取被拒绝资源的兑换字符串。
 
 例如，以下策略在保留其他兑换码默认能力的同时，阻止查看和取消指定兑换码。示例中的账户、用户和兑换码 ID 必须替换为自己的真实资源：

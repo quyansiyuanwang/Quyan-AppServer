@@ -17,8 +17,19 @@ const allow = { decision: "Allow", reason: "matched-allow", matchedStatements: [
 let iam: any, repository: any, service: IamAccountUserAuthorizationService, request: TypedRequest, read: any;
 beforeEach(() => {
   vi.clearAllMocks();
-  iam = { loadPolicies: vi.fn().mockResolvedValue([]), authorize: vi.fn().mockResolvedValue(allow) };
-  repository = { target: vi.fn().mockResolvedValue({ id: "peer", updateTime: new Date(0) }) };
+  iam = {
+    loadPolicies: vi.fn().mockResolvedValue([]),
+    authorize: vi.fn().mockResolvedValue(allow),
+    authorizeMany: vi
+      .fn()
+      .mockImplementation(async ({ resources }: { resources: string[] }) => resources.map(() => allow)),
+  };
+  repository = {
+    target: vi.fn().mockResolvedValue({ id: "peer", updateTime: new Date(0) }),
+    targets: vi
+      .fn()
+      .mockImplementation(async (_: unknown, ids: string[]) => ids.map((id) => ({ id, updateTime: new Date(0) }))),
+  };
   read = vi.fn().mockResolvedValue({ messages: [] });
   service = new (IamAccountUserAuthorizationService as unknown as new (
     ...args: any[]
@@ -94,6 +105,61 @@ describe("trusted account user read boundary", () => {
     await expect(service.read("quyan:support:GetUserConversation", "peer", request, read)).rejects.toThrow(
       "fixture outage",
     );
+    expect(read).not.toHaveBeenCalled();
+  });
+});
+
+describe("batched account user read boundary", () => {
+  const action = "quyan:balance:GetUserBalance";
+  it("evaluates every selected user twice and collapses duplicate targets", async () => {
+    await service.readMany(action, ["peer", "actor", "peer"], request, read);
+    expect(read).toHaveBeenCalledWith(["peer", "actor"]);
+    expect(iam.authorizeMany).toHaveBeenCalledTimes(2);
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({ action, resources: ["acs:quyan:*:owner:user/peer", "acs:quyan:*:owner:user/actor"] }),
+    );
+  });
+  it("denies the whole batch when one resource is denied, regardless of an earlier Allow", async () => {
+    iam.authorizeMany.mockResolvedValue([allow, { ...allow, decision: "ExplicitDeny" }]);
+    await expect(service.readMany(action, ["peer", "actor"], request, read)).rejects.toMatchObject({ statusCode: 403 });
+    expect(read).not.toHaveBeenCalled();
+  });
+  it("withholds the response when a batch grant is revoked during hydration", async () => {
+    iam.authorizeMany
+      .mockResolvedValueOnce([allow, allow])
+      .mockResolvedValueOnce([allow, { ...allow, decision: "ImplicitDeny" }]);
+    await expect(service.readMany(action, ["peer", "actor"], request, read)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("refuses targets that are missing, duplicated or outside the requested set", async () => {
+    for (const targets of [
+      [{ id: "peer", updateTime: new Date(0) }],
+      [
+        { id: "peer", updateTime: new Date(0) },
+        { id: "peer", updateTime: new Date(0) },
+      ],
+      [
+        { id: "peer", updateTime: new Date(0) },
+        { id: "foreign", updateTime: new Date(0) },
+      ],
+    ]) {
+      repository.targets.mockResolvedValue(targets);
+      await expect(service.readMany(action, ["peer", "actor"], request, read)).rejects.toMatchObject({
+        statusCode: 403,
+      });
+    }
+    expect(read).not.toHaveBeenCalled();
+  });
+  it("guards every user revision before returning batch data", async () => {
+    repository.targets
+      .mockResolvedValueOnce([{ id: "peer", updateTime: new Date(0) }])
+      .mockResolvedValueOnce([{ id: "peer", updateTime: new Date(1) }]);
+    await expect(service.readMany(action, ["peer"], request, read)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("does not trust sparse results or unsafe batch identifiers", async () => {
+    for (const ids of [[], ["*"], ["bad/id"], Array(1), Array.from({ length: 501 }, (_, i) => "id" + i)])
+      await expect(service.readMany(action, ids, request, read)).rejects.toMatchObject({ statusCode: 403 });
+    iam.authorizeMany.mockResolvedValue(Array(1));
+    await expect(service.readMany(action, ["peer"], request, read)).rejects.toMatchObject({ statusCode: 403 });
     expect(read).not.toHaveBeenCalled();
   });
 });

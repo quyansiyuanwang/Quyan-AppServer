@@ -916,6 +916,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     legacyPermission: Permission.SUPPORT_AI_ANALYTICS_READ,
   },
+  {
+    action: 'quyan:balance:GetUserBalance',
+    service: 'balance',
+    operation: 'GetUserBalance',
+    accessLevel: 'Read',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.BALANCE_READ,
+  },
   ...['ListApiKeys', 'GetApiKey', 'GetApiKeyStats', 'RevealApiKey'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

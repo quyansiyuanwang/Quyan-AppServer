@@ -1,3 +1,4 @@
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { MANAGED_STATUS, type IamPrincipal } from "@quyan/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
@@ -47,6 +48,19 @@ export class IamAccountUserRepository {
   private static instance: IamAccountUserRepository;
   static getInstance() {
     return (this.instance ??= new IamAccountUserRepository());
+  }
+  async targets(principal: IamPrincipal, userIds: readonly string[]) {
+    await assertIamAccountPrincipal(principal);
+    if (
+      !userIds.length ||
+      userIds.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+      Array.from(userIds).some((id) => typeof id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(id))
+    )
+      throw iamAccountDenied();
+    return prisma.user.findMany({
+      where: { ...activeIamAccountUsers(principal.accountOwnerId), id: { in: [...new Set(userIds)] } },
+      select: { id: true, updateTime: true },
+    });
   }
   async target(principal: IamPrincipal, userId: string) {
     await assertIamAccountPrincipal(principal);

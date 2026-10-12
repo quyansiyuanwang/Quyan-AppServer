@@ -1,3 +1,11 @@
+import { env } from "@/config/env";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { IamAccountUserAuthorizationService } from "@/services/users/iam-account-user-authorization.service";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import type { TypedRequest } from "@/types/express";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
 import { Decimal } from "@prisma/client/runtime/library";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { BalanceRepository } from "@/store/billing/balance.repository";
@@ -15,6 +23,8 @@ export class BalanceService {
   private constructor(
     private readonly balanceRepository: BalanceStore = BalanceRepository.getInstance(),
     private readonly userRepository: UserStore = UserRepository.getInstance(),
+    private readonly userIam = IamAccountUserAuthorizationService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -45,6 +55,48 @@ export class BalanceService {
     return userIds.map((userId) => accountMap.get(userId) || null);
   }
 
+  private async legacyRead(request?: TypedRequest) {
+    const principal = request && getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    const result = await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.BALANCE_READ], {
+      assumedRoleSessionId: principal.roleSessionId,
+    });
+    if (!result.hasPermission) throw iamAccountDenied();
+  }
+  private async shadowRead(operation: () => Promise<unknown>, request?: TypedRequest) {
+    if (env.security.iamAuthorizationMode !== "shadow" || !request) return;
+    try {
+      await operation();
+    } catch {
+      getLogger("BalanceReadIamBridge", LogCategory.SECURITY).warn("Balance IAM shadow read denied", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
+  async getManagedBalance(userId: string, request?: TypedRequest) {
+    const action = "quyan:balance:GetUserBalance";
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.userIam.read(action, userId, request, async (id) => {
+        const row = await this.getBalance(id);
+        if (row.userId !== id) throw iamAccountDenied();
+        return row;
+      });
+    await this.legacyRead(request);
+    await this.shadowRead(() => this.userIam.authorize(action, userId, request), request);
+    return this.getBalance(userId);
+  }
+  async getManagedBatchBalances(userIds: string[], request?: TypedRequest) {
+    const action = "quyan:balance:GetUserBalance";
+    if (env.security.iamAuthorizationMode === "enforce")
+      return this.userIam.readMany(action, userIds, request, async (ids) => {
+        const rows = await this.getBatchBalances(ids);
+        if (rows.some((row) => row && !ids.includes(row.userId))) throw iamAccountDenied();
+        return rows;
+      });
+    await this.legacyRead(request);
+    await this.shadowRead(() => this.userIam.authorizeMany(action, userIds, request), request);
+    return this.getBatchBalances(userIds);
+  }
   async recharge(userId: string, amount: number, description?: string, countAsStatistics = false) {
     if (amount === 0)
       throw new BadRequestError("Amount cannot be zero", undefined, { messageKey: "billing.amountCannotBeZero" });
