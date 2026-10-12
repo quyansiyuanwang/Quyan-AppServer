@@ -58,3 +58,5 @@ IAM 强制模式下，管理配置列表需要真实全局组中的 `DEVELOPER_P
 管理员查看指定主账户的产品实例使用 `quyan:developer:ListProductAccountInstances`，资源为 `acs:platform:*:platform:developer-product-instance/<实际实例ID>`。逐条授权后才读取实例名称和 slug；实例关联的项目必须有效且属于同一主账户。已禁用但未删除的实例仍可供管理员管理。读取期间实例、关联项目、产品记录、主账户或权限变化会拒绝返回旧结果，不自动创建产品记录。
 
 产品账户配额写入使用 `quyan:developer:UpsertProductAccount`，同时要求 `acs:platform:*:platform:developer-product-account-scope/<主账户ID>/<productCode>` 范围和真实产品账户记录的授权。新记录在提交前也被检查，恢复已删除记录时保留原 ID。目标必须是有效主账户，产品配置必须已保存；本次写入不会自动初始化其他产品配置。并发插入、配置修改、账户归属变化、撤权或记录 Deny 会拒绝整个操作，审计仅记录实际记录 ID 和安全的配额变更。
+
+主账户分页目录使用 `quyan:developer:ListProductAccountOwners`，要求对应主账户＋产品范围。已启用产品的账户还必须获准读取其实际产品记录。分页和总数在两项授权过滤后计算，未授权主账户不计入总数；未启用产品的已授权主账户显示为空产品记录，便于管理员配置。关键词仍在数据库筛选，姓名、用户名和配额在授权后加载。读取期间主账户、产品记录或授权变化时拒绝结果，不返回未过滤的账户数量。

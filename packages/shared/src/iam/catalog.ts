@@ -1305,6 +1305,22 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   {
+    action: 'quyan:developer:ListProductAccountOwners',
+    service: 'developer',
+    operation: 'ListProductAccountOwners',
+    accessLevel: 'List',
+    resourceTypes: [
+      'platform/developer-product-account-scope',
+      'platform/developer-product-account',
+    ],
+    apiRoutes: ['GET /v1/admin/products/{product}/users'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+  },
+  {
     action: 'quyan:developer:UpsertProductAccount',
     service: 'developer',
     operation: 'UpsertProductAccount',

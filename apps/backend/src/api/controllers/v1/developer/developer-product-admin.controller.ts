@@ -10,7 +10,6 @@ import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-autho
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { Body, Controller, Get, Middlewares, Path, Put, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
-import { DeveloperProductPlatformService } from "@/services/developer/developer-product-platform.service";
 import type {
   DeveloperProductCallLogDto,
   DeveloperProductConfigDto,
@@ -32,7 +31,7 @@ import {
 } from "@/api/schema/developer/product-platform.schema";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { DeveloperProductCode } from "@quyan/shared";
 
@@ -42,7 +41,6 @@ import type { DeveloperProductCode } from "@quyan/shared";
 export class DeveloperProductAdminController extends Controller {
   private readonly accounts = DeveloperProductAccountAdminService.getInstance();
   private readonly configurations = DeveloperProductConfigAdminService.getInstance();
-  private readonly service = DeveloperProductPlatformService.getInstance();
 
   @Get("configs")
   @Middlewares(
@@ -104,15 +102,23 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Get("{product}/users")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productCodeParamsSchema), validateQuery(managedProductAccountsQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccountOwners",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productCodeParamsSchema),
+    validateQuery(managedProductAccountsQuerySchema),
+  )
   public async listManagedAccounts(
+    @Request() request: TypedRequest,
     @Path() product: DeveloperProductCode,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
   ): Promise<DeveloperProductManagedAccountsDto> {
-    return this.service.listManagedAccounts(product, page ?? 1, pageSize ?? 20, keyword);
+    return this.accounts.managedList(request, product, { page, pageSize, keyword });
   }
 
   @Put("{product}/users/{userId}/account")

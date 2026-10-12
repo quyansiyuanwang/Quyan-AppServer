@@ -4,6 +4,8 @@ import { getIamPrincipal } from "@/iam/request/principal-context";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { DeveloperProductPlatformService } from "./developer-product-platform.service";
 import { PermissionService } from "@/services/users/permission.service";
+import { PlatformDeveloperOwnerReadIamService } from "./platform-developer-owner-read-iam.service";
+import type { DeveloperOwnerReadRow } from "@/store/developer/platform-developer-owner-read.store";
 import { PlatformDeveloperAccountWriteIamService } from "./platform-developer-account-write-iam.service";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
@@ -30,6 +32,7 @@ export class DeveloperProductAccountAdminService {
     private readonly iamInstances = PlatformDeveloperInstanceReadIamService.getInstance(),
     private readonly iamWrites = PlatformDeveloperAccountWriteIamService.getInstance(),
     private readonly businessLog = BusinessLogService.getInstance(),
+    private readonly iamOwners = PlatformDeveloperOwnerReadIamService.getInstance(),
   ) {}
   static getInstance() {
     return (this.instance ??= new DeveloperProductAccountAdminService());
@@ -53,6 +56,54 @@ export class DeveloperProductAccountAdminService {
       createTime: row.createTime.toISOString(),
       updateTime: row.updateTime.toISOString(),
     };
+  }
+  async managedList(
+    request: TypedRequest,
+    product: DeveloperProductCode,
+    query: { page?: number; pageSize?: number; keyword?: string },
+  ) {
+    const project = (rows: DeveloperOwnerReadRow[], total: number, page: number, pageSize: number) => ({
+      records: rows.map((row) => ({
+        userId: row.id,
+        username: row.username,
+        displayName: row.displayName ?? undefined,
+        account: row.accountRow ? this.dto(row.accountRow) : undefined,
+      })),
+      total,
+      page,
+      pageSize,
+    });
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamOwners.list(request, product, query, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(
+          principal.subjectUserId,
+          [Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE],
+          { assumedRoleSessionId: principal.roleSessionId },
+        )
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamOwners.list(request, product, query, project, false);
+      } catch {
+        getLogger("DeveloperProductAccount", LogCategory.SECURITY).warn(
+          "Product account directory shadow evaluation failed",
+          { reason: "iam-evaluation-denied-or-unavailable" },
+        );
+      }
+    }
+    return this.legacy.listManagedAccounts(product, query.page ?? 1, query.pageSize ?? 20, query.keyword);
   }
   async update(
     request: TypedRequest,
