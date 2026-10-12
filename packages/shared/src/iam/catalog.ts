@@ -140,6 +140,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       ':developer-quota-subject/{subjectType}/{subjectId}/{service}',
   },
   {
+    ...resource('platform', 'developer-product-instance'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':developer-product-instance/{resourceId}',
+  },
+  {
     ...resource('platform', 'developer-product-call-log'),
     accountScope: 'platform',
     arnTemplate:
@@ -1290,6 +1296,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.DEVELOPER_QUOTA_MANAGE,
     }),
   ),
+  {
+    action: 'quyan:developer:ListProductAccountInstances',
+    service: 'developer',
+    operation: 'ListProductAccountInstances',
+    accessLevel: 'List',
+    resourceTypes: ['platform/developer-product-instance'],
+    apiRoutes: ['GET /v1/admin/products/{product}/users/{userId}/instances'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE,
+  },
   {
     action: 'quyan:developer:ListProductAccountCalls',
     service: 'developer',

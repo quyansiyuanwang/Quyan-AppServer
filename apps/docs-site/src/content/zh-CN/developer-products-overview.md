@@ -54,3 +54,5 @@ IAM 强制模式下，管理配置列表需要真实全局组中的 `DEVELOPER_P
 产品用量查询单独使用 `quyan:developer:GetProductAccountUsage`，按真实产品账户记录授权。按用户 ID 查询时也会先解析对应记录，不能借用户路径扩大权限。返回前复查记录、主账户、产品计价配置、当日计数和授权；并发变化时拒绝本次读取。查询保留当日计数旧日期兼容读取，不自动创建记录或重置计数。只有资源被授权后才读取其配额、计数和计价信息。
 
 调用日志列表使用 `quyan:developer:ListProductAccountCalls`，逐条授权 `acs:platform:*:platform:developer-product-call-log/<实际日志ID>`。两种查询路径都确认产品记录和有效主账户，最多返回最近 200 条被允许的未删除日志，而不是先截断再过滤。仅在授权后读取费用、调用主体和关联记录 ID；不读取或返回详细请求内容、凭据和密钥。读取期间记录归属、主体资格或授权变化时拒绝返回旧结果。
+
+管理员查看指定主账户的产品实例使用 `quyan:developer:ListProductAccountInstances`，资源为 `acs:platform:*:platform:developer-product-instance/<实际实例ID>`。逐条授权后才读取实例名称和 slug；实例关联的项目必须有效且属于同一主账户。已禁用但未删除的实例仍可供管理员管理。读取期间实例、关联项目、产品记录、主账户或权限变化会拒绝返回旧结果，不自动创建产品记录。

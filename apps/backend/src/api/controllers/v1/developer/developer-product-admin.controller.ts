@@ -131,13 +131,20 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Get("{product}/users/{userId}/instances")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productUserParamsSchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccountInstances",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productUserParamsSchema),
+  )
   public async listManagedInstances(
     @Path() product: DeveloperProductCode,
     @Path() userId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductInstanceDto[]> {
-    return this.service.listManagedInstances(product, userId);
+    return this.accounts.instances(request, product, userId);
   }
 
   @Get("{product}/users/{userId}/usage")
