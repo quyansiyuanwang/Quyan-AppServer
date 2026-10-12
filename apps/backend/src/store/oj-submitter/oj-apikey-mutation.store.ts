@@ -12,6 +12,19 @@ export interface OjApiKeyUpdateGuard {
   channel?: RelayChannelSelectionMetadata;
   canReveal: () => Promise<boolean>;
 }
+export interface OjApiKeyCreateInput {
+  userId: string;
+  key: string;
+  name?: string;
+  expiresAt?: Date;
+  channelId?: string;
+}
+export interface OjApiKeyCreateGuard {
+  identity: IamAccountUserMutationGuard;
+  channel?: RelayChannelSelectionMetadata;
+}
 export interface OjApiKeyMutationStore {
+  create(data: OjApiKeyCreateInput, guard: OjApiKeyCreateGuard): Promise<OjApiKeyView & { key: string }>;
+
   update(data: OjApiKeyUpdateInput, guard: OjApiKeyUpdateGuard): Promise<OjApiKeyView>;
 }

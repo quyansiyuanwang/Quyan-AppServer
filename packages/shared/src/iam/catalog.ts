@@ -983,6 +983,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   {
+    action: 'quyan:oj:CreateApiKey',
+    service: 'oj',
+    operation: 'CreateApiKey',
+    accessLevel: 'Write',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.OJ_APIKEY_CREATE,
+  },
+  {
     action: 'quyan:oj:UpdateApiKey',
     service: 'oj',
     operation: 'UpdateApiKey',

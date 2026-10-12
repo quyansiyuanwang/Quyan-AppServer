@@ -55,19 +55,37 @@ export class OJAPIKeyService {
    * 创建API密钥
    */
   async createAPIKey(userId: string, name?: string, expiresAt?: Date, channelId?: string, request?: Request) {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
-    if (channelId) await this.relayChannelService.assertChannelBusinessSelectableById(channelId, userId);
-
-    const key = this.generateAPIKey();
-
-    const apiKey = await this.ojApiKeyRepository.create({
-      userId,
-      name,
-      key,
-      expiresAt,
-      channelId,
-    });
+    let apiKey;
+    if (env.security.iamAuthorizationMode === "enforce")
+      apiKey = await this.mutations.create(
+        userId,
+        { name, expiresAt, channelId },
+        this.generateAPIKey(),
+        request as TypedRequest,
+      );
+    else {
+      if (request) {
+        const principal = getIamPrincipal(request as TypedRequest);
+        if (!principal || principal.subjectUserId !== userId || principal.principalUserId !== userId)
+          throw ojApiKeyDenied();
+        if (
+          !(
+            await this.permissions.checkUserPermissions(userId, [Permission.OJ_APIKEY_CREATE], {
+              assumedRoleSessionId: principal.roleSessionId,
+            })
+          ).hasPermission
+        )
+          throw ojApiKeyDenied();
+        await this.shadowRead(
+          () => this.mutations.prepareCreate(userId, { name, expiresAt, channelId }, request as TypedRequest),
+          request as TypedRequest,
+        );
+      }
+      const user = await this.userRepository.findById(userId);
+      if (!user) throw new NotFoundError("User not found", undefined, { messageKey: "user.notFound" });
+      if (channelId) await this.relayChannelService.assertChannelBusinessSelectableById(channelId, userId);
+      apiKey = await this.ojApiKeyRepository.create({ userId, name, key: this.generateAPIKey(), expiresAt, channelId });
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.OJ_APIKEY_CREATE,

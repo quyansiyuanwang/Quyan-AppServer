@@ -15,10 +15,10 @@ import {
 import { OJAPIKeyService } from "@/services/oj-submitter/oj-apikey.service";
 import type { CreateOJAPIKeyRequest, OJAPIKeyDto, UpdateOJAPIKeyRequest } from "@/api/dto/oj-submitter/oj-qa.dto";
 import type { TypedRequest } from "@/types/express";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
-import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { ojApiKeyResourceResolver } from "@/iam/request/oj-apikey-resource-resolvers";
 import {
   createOJAPIKeyBodySchema,
@@ -39,7 +39,11 @@ export class OJAPIKeyController extends Controller {
    */
   @Post()
   @Security("jwt")
-  @RequirePermission(Permission.OJ_APIKEY_CREATE)
+  @CheckPermission(Permission.OJ_APIKEY_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oj:CreateApiKey",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

@@ -219,3 +219,83 @@ describe("OJ API Key update rollout", () => {
     }
   });
 });
+
+describe("OJ API Key issuance rollout", () => {
+  it.each(["enforce", "legacy", "shadow"])(
+    "%s preserves the appropriate issuance path and never logs credentials",
+    async (mode) => {
+      const previous = env.security.iamAuthorizationMode;
+      (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = mode;
+      try {
+        const users = { findById: vi.fn().mockResolvedValue({ id: "actor" }) },
+          keys = { create: vi.fn().mockResolvedValue({ id: "new-key", userId: "actor", key: "fixture-new-private" }) },
+          audit = { logOperation: vi.fn() },
+          channels = { assertChannelBusinessSelectableById: vi.fn() },
+          permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) },
+          mutations = {
+            create: vi.fn().mockResolvedValue({ id: "new-key", userId: "actor", key: "fixture-new-private" }),
+            prepareCreate: vi.fn(),
+          },
+          req = {
+            user: { userId: "actor" },
+            authContext: { principalUserId: "actor", accountOwnerId: "owner", roleSessionId: "session" },
+            headers: {},
+            ip: "127.0.0.1",
+          } as unknown as TypedRequest,
+          service = new (OJAPIKeyService as unknown as new (...args: any[]) => OJAPIKeyService)(
+            users,
+            keys,
+            audit,
+            channels,
+            {},
+            permissions,
+            mutations,
+          );
+        const result = await service.createAPIKey("actor", "fresh", undefined, undefined, req);
+        expect(result.key).toBe("fixture-new-private");
+        if (mode === "enforce") {
+          expect(keys.create).not.toHaveBeenCalled();
+          expect(users.findById).not.toHaveBeenCalled();
+          expect(mutations.create).toHaveBeenCalledWith(
+            "actor",
+            { name: "fresh", expiresAt: undefined, channelId: undefined },
+            expect.any(String),
+            req,
+          );
+        } else {
+          expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.OJ_APIKEY_CREATE], {
+            assumedRoleSessionId: "session",
+          });
+          expect(keys.create).toHaveBeenCalledTimes(1);
+          if (mode === "shadow") expect(mutations.prepareCreate).toHaveBeenCalled();
+        }
+        expect(JSON.stringify(audit.logOperation.mock.calls)).not.toContain("fixture-new-private");
+      } finally {
+        (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = previous;
+      }
+    },
+  );
+  it("enforce failure cannot create keys or log successful issuance", async () => {
+    const previous = env.security.iamAuthorizationMode;
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    try {
+      const keys = { create: vi.fn() },
+        audit = { logOperation: vi.fn() },
+        mutations = { create: vi.fn().mockRejectedValue(new Error("fixture denied")) },
+        service = new (OJAPIKeyService as unknown as new (...args: any[]) => OJAPIKeyService)(
+          {},
+          keys,
+          audit,
+          {},
+          {},
+          {},
+          mutations,
+        );
+      await expect(service.createAPIKey("actor")).rejects.toThrow("fixture denied");
+      expect(keys.create).not.toHaveBeenCalled();
+      expect(audit.logOperation).not.toHaveBeenCalled();
+    } finally {
+      (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = previous;
+    }
+  });
+});
