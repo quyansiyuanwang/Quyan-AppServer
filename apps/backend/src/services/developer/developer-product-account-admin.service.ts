@@ -4,6 +4,7 @@ import { getIamPrincipal } from "@/iam/request/principal-context";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { DeveloperProductPlatformService } from "./developer-product-platform.service";
 import { PermissionService } from "@/services/users/permission.service";
+import { PlatformDeveloperCallLogReadIamService } from "./platform-developer-call-log-read-iam.service";
 import { PlatformDeveloperUsageReadIamService } from "./platform-developer-usage-read-iam.service";
 import type { DeveloperUsageLocator } from "@/store/developer/platform-developer-usage-read.store";
 import { PlatformDeveloperAccountReadIamService } from "./platform-developer-account-read-iam.service";
@@ -19,6 +20,7 @@ export class DeveloperProductAccountAdminService {
     private readonly iamReads = PlatformDeveloperAccountReadIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
     private readonly iamUsage = PlatformDeveloperUsageReadIamService.getInstance(),
+    private readonly iamCalls = PlatformDeveloperCallLogReadIamService.getInstance(),
   ) {}
   static getInstance() {
     return (this.instance ??= new DeveloperProductAccountAdminService());
@@ -42,6 +44,41 @@ export class DeveloperProductAccountAdminService {
       createTime: row.createTime.toISOString(),
       updateTime: row.updateTime.toISOString(),
     };
+  }
+  async calls(request: TypedRequest, product: DeveloperProductCode, locator: DeveloperUsageLocator) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamCalls.list(request, product, locator);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(
+          principal.subjectUserId,
+          [Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE],
+          { assumedRoleSessionId: principal.roleSessionId },
+        )
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamCalls.list(request, product, locator, false);
+      } catch {
+        getLogger("DeveloperProductAccount", LogCategory.SECURITY).warn(
+          "Product account call log shadow evaluation failed",
+          { reason: "iam-evaluation-denied-or-unavailable" },
+        );
+      }
+    }
+    if (locator.accountId) return this.legacy.listCallLogs(product, locator.accountId);
+    if (locator.userId) return this.legacy.listManagedCallLogs(product, locator.userId);
+    throw iamAccountDenied();
   }
   async usage(request: TypedRequest, product: DeveloperProductCode, locator: DeveloperUsageLocator) {
     if (env.security.iamAuthorizationMode === "enforce") {

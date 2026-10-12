@@ -16,6 +16,7 @@ import { CustomCode } from "@/constant/custom-code";
 import { DeveloperProjectService } from "@/services/developer/developer-project.service";
 import { PermissionService } from "@/services/users/permission.service";
 import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "@/util/errors";
+import { DEVELOPER_PRODUCT_CALL_LOG_LIMIT } from "@/constant/developer-product-read";
 import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
 import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -919,7 +920,7 @@ export class DeveloperProductPlatformService {
     const logs = await prisma.developerProductCallLog.findMany({
       where: { entitlementId },
       orderBy: { createTime: "desc" },
-      take: 200,
+      take: DEVELOPER_PRODUCT_CALL_LOG_LIMIT,
     });
     return logs.map((log) => ({
       id: log.id,

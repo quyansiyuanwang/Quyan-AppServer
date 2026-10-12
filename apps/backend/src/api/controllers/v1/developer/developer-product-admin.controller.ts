@@ -156,13 +156,20 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Get("{product}/users/{userId}/calls")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productUserParamsSchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccountCalls",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productUserParamsSchema),
+  )
   public async listManagedCallLogs(
     @Path() product: DeveloperProductCode,
     @Path() userId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductCallLogDto[]> {
-    return this.service.listManagedCallLogs(product, userId);
+    return this.accounts.calls(request, product, { userId });
   }
 
   @Get("{product}/accounts/{accountId}/usage")
@@ -181,12 +188,19 @@ export class DeveloperProductAdminController extends Controller {
   }
 
   @Get("{product}/accounts/{accountId}/calls")
-  @RequirePermission(Permission.DEVELOPER_PRODUCT_ENTITLEMENT_MANAGE)
-  @Middlewares(validateParams(productAccountParamsSchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:developer:ListProductAccountCalls",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateParams(productAccountParamsSchema),
+  )
   public async listCallLogs(
     @Path() product: DeveloperProductCode,
     @Path() accountId: string,
+    @Request() request: TypedRequest,
   ): Promise<DeveloperProductCallLogDto[]> {
-    return this.service.listCallLogs(product, accountId);
+    return this.accounts.calls(request, product, { accountId });
   }
 }
