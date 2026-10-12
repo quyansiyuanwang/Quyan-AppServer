@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/services/users/platform-oauth-client-mutation-iam.service", () => ({
+  PlatformOAuthClientMutationIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/users/platform-oauth-client-iam.service", () => ({
   PlatformOAuthClientIamService: { getInstance: vi.fn() },
 }));

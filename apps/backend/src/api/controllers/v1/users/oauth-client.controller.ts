@@ -35,6 +35,7 @@ import type { TypedRequest } from "@/types/express";
 import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { platformOAuthClientResourceResolver } from "@/iam/request/platform-oauth-resource-resolvers";
 import { oauthClientResourceResolver } from "@/iam/request/oauth-client-resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { OAuthClientService } from "@/services/users/oauth-client.service";
@@ -110,7 +111,11 @@ export class OAuthClientController extends Controller {
 
   @Put("system/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)
+  @CheckPermission(Permission.OAUTH_CLIENT_SYSTEM_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:oauth:UpdateSystemClient",
+    resourceKind: "single-resource",
+    resource: platformOAuthClientResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "系统 OAuth 应用不存在")

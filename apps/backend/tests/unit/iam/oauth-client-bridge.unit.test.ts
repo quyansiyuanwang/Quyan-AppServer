@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/config/env", () => ({ env: { security: { iamAuthorizationMode: "legacy" } } }));
 vi.mock("@/util/logger", () => ({ LogCategory: { SECURITY: "security" }, getLogger: () => ({ warn: vi.fn() }) }));
+vi.mock("@/services/users/platform-oauth-client-mutation-iam.service", () => ({
+  PlatformOAuthClientMutationIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/users/platform-oauth-client-iam.service", () => ({
   PlatformOAuthClientIamService: { getInstance: vi.fn() },
 }));
@@ -45,6 +48,7 @@ let iam: any,
   repo: any,
   mutations: any,
   platform: any,
+  platformMutations: any,
   service: OAuthClientService,
   request: TypedRequest;
 beforeEach(() => {
@@ -57,6 +61,22 @@ beforeEach(() => {
   };
   permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) };
   repo = { findByUserId: vi.fn().mockResolvedValue([record]), findById: vi.fn().mockResolvedValue(record) };
+  platformMutations = {
+    prepareUpdate: vi
+      .fn()
+      .mockResolvedValue({
+        existing: { ...record, userId: "platform-creator", isSystemClient: true },
+        guard: { users: { principal: { roleSessionId: "session" } } },
+      }),
+    update: vi
+      .fn()
+      .mockImplementation(async (data: any) => ({
+        ...record,
+        userId: "platform-creator",
+        isSystemClient: true,
+        ...data,
+      })),
+  };
   platform = { list: vi.fn().mockResolvedValue([record]), diagnose: vi.fn().mockResolvedValue(undefined) };
   repo.findSystemClients = vi.fn().mockResolvedValue([record]);
   repo.create = vi.fn().mockImplementation(async (data: any) => ({ ...record, ...data }));
@@ -82,6 +102,7 @@ beforeEach(() => {
     permissions,
     mutations,
     platform,
+    platformMutations,
   );
 
   request = {
@@ -295,5 +316,46 @@ describe("system OAuth application read mode boundary", () => {
     expect(platform.list).not.toHaveBeenCalled();
     permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
     await expect(service.listSystemClients(request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("system OAuth application update behavior", () => {
+  it("uses the platform guard and checks new scopes against the active role session", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    const updated = await service.updateSystemClient(
+      "client",
+      "actor",
+      { name: "system", scopes: ["profile"] },
+      request,
+    );
+    expect(updated).toMatchObject({ name: "system", isSystemClient: true, userId: "platform-creator" });
+    expect(platformMutations.prepareUpdate).toHaveBeenCalledWith("actor", "client", request);
+    expect(repo.findById).not.toHaveBeenCalled();
+    expect(repo.update).not.toHaveBeenCalled();
+    expect(oauthScopeService.normalizeAndAssertGrantable).toHaveBeenLastCalledWith("actor", ["profile"], {
+      assumedRoleSessionId: "session",
+    });
+    await platformMutations.update.mock.calls[0][1].scopeCheck();
+  });
+  it("refuses protected fields and never falls back to legacy on failed platform authorization", async () => {
+    env.security.iamAuthorizationMode = "enforce";
+    await expect(
+      service.updateSystemClient("client", "actor", { clientType: "public" } as any, request),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    platformMutations.prepareUpdate.mockRejectedValue(new Error("fixture platform deny"));
+    await expect(service.updateSystemClient("client", "actor", { name: "system" }, request)).rejects.toThrow(
+      "fixture platform deny",
+    );
+    expect(repo.update).not.toHaveBeenCalled();
+    expect(platformMutations.update).not.toHaveBeenCalled();
+  });
+  it("shadow checks legacy management and never invokes a second write", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    repo.findById.mockResolvedValue({ ...record, isSystemClient: true });
+    platformMutations.prepareUpdate.mockRejectedValue(new Error("fixture shadow deny"));
+    await service.updateSystemClient("client", "actor", { name: "system" }, request);
+    expect(platformMutations.prepareUpdate).toHaveBeenCalledWith("actor", "client", request, false);
+    expect(repo.update).toHaveBeenCalled();
+    expect(platformMutations.update).not.toHaveBeenCalled();
   });
 });

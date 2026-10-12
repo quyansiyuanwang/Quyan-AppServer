@@ -494,3 +494,5 @@ IAM 强制模式下，`quyan:user:ForceOfflineSession` 作用于实际的 `onlin
 创建个人 OAuth 应用使用敏感操作 `quyan:oauth:CreateClient`，授权资源为认证用户的 `acs:quyan:*:<accountId>:user/<userId>`。此操作没有默认本人授权，只能为自己创建普通应用；应用初始为草稿，不能在创建时设置为系统应用或已批准。机密客户端的创建响应只返回本次生成的新 Secret，公共客户端不生成 Secret。创建事务会复查当前用户与账户版本、策略、角色会话、OAuth Token 和 Scope 可授予范围，任一复查失败均回滚新应用。创建权限不自动授予应用读取、修改、轮换、删除或提交审核权限。
 
 系统 OAuth 应用列表使用 `quyan:oauth:ListSystemClients`，逐应用资源为 `acs:platform:*:platform:oauth-client/<clientId>`。`platform` 是平台保留命名空间，不是调用者账户；普通账户所有者、自建账户用户组或通配符策略不能据此取得平台管理权限。操作者必须属于有效的全局管理组，且该组原有权限包含系统 OAuth 管理；再由 IAM 按具体应用、Condition 和显式 Deny 评估。移除该组的管理权限或禁用组后，读取被拒绝。列表仅包含授权的系统应用，不返回密钥哈希或 Token，也不能把这些平台资源加入普通账户资源组。
+
+系统应用更新使用敏感操作 `quyan:oauth:UpdateSystemClient`，资源为指定系统应用的 `acs:platform:*:platform:oauth-client/<clientId>`。列表权限不自动授予更新；平台管理组的原有权限范围仍是必要前提。服务器在事务中锁定可信用户、全局管理组和系统应用，并复查当前策略与版本；组权限移除、身份变化或并发修改会阻止写入。Scope 更新按当前角色会话验证可授予范围，并在提交前再次检查。系统应用类型、创建者、客户端 ID 与密钥不能通过此更新接口修改；2FA、重放保护以及生命周期上限继续生效。

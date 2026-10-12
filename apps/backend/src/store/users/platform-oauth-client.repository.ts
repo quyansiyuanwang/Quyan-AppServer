@@ -1,4 +1,5 @@
 import { prisma } from "@/config/database";
+import type { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { parseLegacyPermissions } from "@/iam/legacy-policy";
@@ -15,25 +16,40 @@ const metadata = {
   createTime: true,
   updateTime: true,
 } as const;
+export async function platformOAuthGroupSnapshot(principal: IamPrincipal, tx: Prisma.TransactionClient = prisma) {
+  await assertIamAccountPrincipal(principal, tx);
+  const actor = await tx.user.findUnique({
+    where: { id: principal.subjectUserId },
+    select: {
+      groupId: true,
+      group: { select: { id: true, accountOwnerId: true, status: true, permissions: true, updateTime: true } },
+    },
+  });
+  if (
+    !actor?.group ||
+    actor.groupId !== actor.group.id ||
+    actor.group.status !== 1 ||
+    actor.group.accountOwnerId !== null ||
+    !parseLegacyPermissions(actor.group.permissions).includes(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)
+  )
+    throw iamAccountDenied();
+  return { id: actor.group.id, updateTime: actor.group.updateTime };
+}
 export class PlatformOAuthClientRepository implements PlatformOAuthClientStore {
   private static instance: PlatformOAuthClientRepository;
   static getInstance() {
     return (this.instance ??= new PlatformOAuthClientRepository());
   }
   async assertActor(principal: IamPrincipal) {
-    await assertIamAccountPrincipal(principal);
-    const actor = await prisma.user.findUnique({
-      where: { id: principal.subjectUserId },
-      select: { groupId: true, group: { select: { id: true, accountOwnerId: true, status: true, permissions: true } } },
-    });
-    if (
-      !actor?.group ||
-      actor.groupId !== actor.group.id ||
-      actor.group.status !== 1 ||
-      actor.group.accountOwnerId !== null ||
-      !parseLegacyPermissions(actor.group.permissions).includes(Permission.OAUTH_CLIENT_SYSTEM_MANAGE)
-    )
-      throw iamAccountDenied();
+    await platformOAuthGroupSnapshot(principal);
+  }
+  groupSnapshot(principal: IamPrincipal) {
+    return platformOAuthGroupSnapshot(principal);
+  }
+  async target(principal: IamPrincipal, id: string) {
+    await this.assertActor(principal);
+    if (!isCanonicalOAuthClientId(id)) throw iamAccountDenied();
+    return prisma.oAuthClient.findFirst({ where: { id, status: 1, isSystemClient: true }, select: metadata });
   }
   async scan(principal: IamPrincipal, after?: string) {
     await this.assertActor(principal);

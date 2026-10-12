@@ -1000,6 +1000,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
   },
+  {
+    action: 'quyan:oauth:UpdateSystemClient',
+    service: 'oauth',
+    operation: 'UpdateSystemClient',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/oauth-client'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.OAUTH_CLIENT_SYSTEM_MANAGE,
+  },
   ...['RotateClientSecret', 'DeleteClient'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oauth:' + operation,

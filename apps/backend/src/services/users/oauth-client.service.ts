@@ -29,10 +29,15 @@ import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { OAuthClientIamService } from "./oauth-client-iam.service";
+import { PlatformOAuthClientMutationIamService } from "./platform-oauth-client-mutation-iam.service";
 import { PlatformOAuthClientIamService } from "./platform-oauth-client-iam.service";
 import { OAuthClientMutationIamService } from "./oauth-client-mutation-iam.service";
 import type { OAuthClientMutationAction } from "@/store/users/oauth-client-mutation.store";
-import { createOAuthClientBodySchema, updateOAuthClientBodySchema } from "@/api/schema/users/oauth-client.schema";
+import {
+  createOAuthClientBodySchema,
+  updateOAuthClientBodySchema,
+  updateSystemOAuthClientBodySchema,
+} from "@/api/schema/users/oauth-client.schema";
 import { PermissionService } from "./permission.service";
 import { Permission } from "@quyan/shared";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
@@ -58,6 +63,7 @@ export class OAuthClientService {
     private readonly permissions = PermissionService.getInstance(),
     private readonly mutations = OAuthClientMutationIamService.getInstance(),
     private readonly platform = PlatformOAuthClientIamService.getInstance(),
+    private readonly platformMutations = PlatformOAuthClientMutationIamService.getInstance(),
   ) {}
 
   static getInstance(): OAuthClientService {
@@ -288,7 +294,32 @@ export class OAuthClientService {
     data: UpdateSystemOAuthClientDto,
     request?: Request,
   ): Promise<OAuthClientDto> {
-    const existing = await this.repository.findById(id);
+    let prepared;
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = updateSystemOAuthClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid system OAuth application update", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = parsed.data;
+      prepared = await this.platformMutations.prepareUpdate(userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+    } else if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.OAUTH_CLIENT_SYSTEM_MANAGE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.platformMutations.prepareUpdate(userId, id, request as TypedRequest, false));
+    }
+    const existing = prepared ? prepared.existing : await this.repository.findById(id);
     if (!existing || !existing.isSystemClient)
       throw new NotFoundError("System OAuth client not found", undefined, {
         messageKey: "oauth.clientNotFound",
@@ -297,7 +328,11 @@ export class OAuthClientService {
 
     const updateData: OAuthClientUpdateInput = {};
     if (data.scopes !== undefined)
-      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(userId, data.scopes);
+      updateData.scopes = await oauthScopeService.normalizeAndAssertGrantable(
+        userId,
+        data.scopes,
+        prepared ? { assumedRoleSessionId: prepared.guard.users.principal.roleSessionId } : undefined,
+      );
     if (data.name !== undefined) updateData.name = data.name.trim();
     if (data.description !== undefined) updateData.description = this.normalizeNullableText(data.description);
     if (data.homepageUrl !== undefined) updateData.homepageUrl = this.normalizeNullableText(data.homepageUrl);
@@ -307,7 +342,16 @@ export class OAuthClientService {
     if (data.accessTokenLifetime !== undefined) updateData.accessTokenLifetime = data.accessTokenLifetime;
     if (data.refreshTokenLifetime !== undefined) updateData.refreshTokenLifetime = data.refreshTokenLifetime;
 
-    const updated = await this.repository.update(id, updateData);
+    if (prepared && updateData.scopes) {
+      const scopes = [...updateData.scopes],
+        roleSessionId = prepared.guard.users.principal.roleSessionId;
+      prepared.guard.scopeCheck = async () => {
+        await oauthScopeService.normalizeAndAssertGrantable(userId, scopes, { assumedRoleSessionId: roleSessionId });
+      };
+    }
+    const updated = prepared
+      ? await this.platformMutations.update(updateData, prepared.guard)
+      : await this.repository.update(id, updateData);
     await this.businessLogService.logOperation({
       operationType: OperationType.OAUTH_CLIENT_UPDATE,
       operationCategory: OperationCategory.AUTH,
