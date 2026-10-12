@@ -32,7 +32,7 @@ const target = (id = "client") => ({
   }),
   allow = { decision: "Allow", reason: "matched-allow", matchedStatements: [] },
   deny = { ...allow, decision: "ExplicitDeny" };
-let service: PlatformMaintenanceRunIamService, iam: any, repo: any, request: TypedRequest;
+let service: PlatformMaintenanceRunIamService, iam: any, repo: any, request: TypedRequest<any>;
 beforeEach(() => {
   env.security.iamAuthorizationMode = "enforce";
   iam = {
@@ -56,7 +56,7 @@ beforeEach(() => {
     user: { userId: "actor" },
     authContext: { principalUserId: "actor", accountOwnerId: "actor" },
     headers: { "x-action": "*" },
-  } as unknown as TypedRequest;
+  } as unknown as TypedRequest<any>;
 });
 describe("platform maintenance run reads", () => {
   it("declares separate registered platform actions and a trusted run resolver", async () => {

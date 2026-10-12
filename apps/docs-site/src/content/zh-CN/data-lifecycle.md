@@ -37,3 +37,5 @@ API 日志、通知日志和 AI 请求日志默认保留 90 天；业务日志�
 启用 IAM 强制授权后，维护历史要求平台管理的全局用户组提供危险维护资格。`quyan:system:data_maintenance:ListRuns` 控制列表可见的执行记录，`quyan:system:data_maintenance:GetRun` 单独控制详情访问。账户所有者、用户附加权限或账户自建用户组均不能单独获得平台维护资格。
 
 执行记录资源为 `acs:platform:*:platform:maintenance-run/<runId>`。命中 Deny 的记录不在列表中，分页与总数只包含已授权的有效记录。响应提供进度、计数及执行结果，不返回私有临时导入对象键。加载期间若记录发生变更，或用户组权限、策略、角色会话被撤销，请求会失败。历史读取权限不包含导入或表优化操作。
+
+表优化预览使用 `quyan:system:data_maintenance:PreviewOptimize`，导入预览使用 `quyan:system:data_maintenance:PreviewImport`，分别授权到 `acs:platform:*:platform:maintenance-dataset/<dataset>`。只能选择危险维护支持的数据集。优化预览中的全部数据集必须先通过授权，服务端才读取表统计；任一数据集命中 Deny 时整个请求被拒绝。导入预览返回校验计数和摘要，不返回原始导入记录。两种预览均保留二次验证、重放保护和验证码要求，预览权限不包含执行权限。

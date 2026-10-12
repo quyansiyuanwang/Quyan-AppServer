@@ -9,6 +9,7 @@ import { Permission } from "@quyan/shared";
 import { PermissionService } from "@/services/users/permission.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PlatformMaintenanceRunIamService } from "./platform-maintenance-run-iam.service";
+import { PlatformMaintenancePreviewIamService } from "./platform-maintenance-preview-iam.service";
 import { BadRequestError, NotFoundError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import { createObjectStorageClient } from "@/services/infrastructure/object-storage-client";
@@ -156,11 +157,24 @@ export class DataMaintenanceService {
     private readonly repository = ObservabilityRepository.getInstance(),
     private readonly iamReads = PlatformMaintenanceRunIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
+    private readonly previews = PlatformMaintenancePreviewIamService.getInstance(),
   ) {}
 
   public static getInstance(): DataMaintenanceService {
     if (!this.instance) this.instance = new DataMaintenanceService();
     return this.instance;
+  }
+
+  public async previewOptimizeRequest(datasets: string[], request: TypedRequest) {
+    return this.previews.read("quyan:system:data_maintenance:PreviewOptimize", datasets, request, () =>
+      this.optimizePreview(datasets),
+    );
+  }
+  public async previewImportRequest(dataset: string, buffer: Buffer, request: TypedRequest) {
+    return this.previews.read("quyan:system:data_maintenance:PreviewImport", [dataset], request, async () => {
+      const { rows: _rows, ...response } = await this.previewImport(dataset, buffer);
+      return response;
+    });
   }
 
   public async optimizePreview(datasets: string[]) {

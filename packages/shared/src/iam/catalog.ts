@@ -108,6 +108,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':maintenance-run/{resourceId}',
   },
   {
+    ...resource('platform', 'maintenance-dataset'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':maintenance-dataset/{resourceId}',
+  },
+  {
     ...resource('platform', 'config'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':config/{resourceId}',
@@ -1683,6 +1688,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...['PreviewOptimize', 'PreviewImport'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:system:data_maintenance:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: 'Read',
+      resourceTypes: ['platform/maintenance-dataset'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SYSTEM_DATA_MAINTENANCE_MANAGE,
+    }),
+  ),
   ...['ListRuns', 'GetRun'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:data_maintenance:' + operation,

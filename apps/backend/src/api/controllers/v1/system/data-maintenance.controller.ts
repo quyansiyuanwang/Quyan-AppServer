@@ -39,7 +39,11 @@ import {
   iamCollectionAuthorizationMiddleware,
 } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { platformMaintenanceRunResourceResolver } from "@/iam/request/platform-maintenance-resource-resolvers";
+import {
+  platformMaintenanceRunResourceResolver,
+  platformMaintenanceDatasetResourceResolver,
+  platformMaintenanceDatasetBatchResourceResolver,
+} from "@/iam/request/platform-maintenance-resource-resolvers";
 import { BadRequestError } from "@/util/errors";
 
 @Route("v1/data-maintenance")
@@ -49,7 +53,13 @@ export class DataMaintenanceController extends Controller {
 
   @Post("optimize/preview")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:PreviewOptimize",
+      resourceKind: "batch",
+      resource: platformMaintenanceDatasetBatchResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "data_maintenance_optimize_preview", requireExplicitToken: true })
@@ -61,8 +71,9 @@ export class DataMaintenanceController extends Controller {
   )
   public async optimizePreview(
     @Body() body: Pick<OptimizeRequest, "datasets" | "captchaToken">,
+    @Request() request: TypedRequest,
   ): Promise<OptimizePreviewResponse> {
-    return this.service.optimizePreview(body.datasets);
+    return this.service.previewOptimizeRequest(body.datasets, request);
   }
 
   @Post("optimize")
@@ -96,7 +107,13 @@ export class DataMaintenanceController extends Controller {
   @Post("imports/preview/{dataset}")
   @Consumes("application/gzip")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_MAINTENANCE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_maintenance:PreviewImport",
+      resourceKind: "single-resource",
+      resource: platformMaintenanceDatasetResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "data_maintenance_import_preview", requireExplicitToken: true })
@@ -111,12 +128,11 @@ export class DataMaintenanceController extends Controller {
     @Path() dataset: string,
     @Body() _body: Record<string, unknown>,
   ): Promise<DataMaintenanceImportPreviewResponse> {
-    const result = await this.service.previewImport(
+    return this.service.previewImportRequest(
       dataset,
       Buffer.isBuffer(request.body) ? request.body : Buffer.from([]),
+      request,
     );
-    const { rows: _rows, ...response } = result;
-    return response;
   }
 
   @Post("imports/{dataset}")
