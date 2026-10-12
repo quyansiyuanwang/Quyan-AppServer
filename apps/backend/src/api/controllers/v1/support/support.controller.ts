@@ -1,3 +1,5 @@
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { iamAccountUserResourceResolver } from "@/iam/request/account-user-resource-resolver";
 import {
   Body,
   Controller,
@@ -109,9 +111,16 @@ export class SupportController extends Controller {
 
   @Get("analytics/users/{userId}/conversation")
   @Security("jwt")
-  @RequirePermission(Permission.SUPPORT_AI_ANALYTICS_READ)
-  public async analyticsConversation(@Path() userId: string): Promise<SuccessResponse<SupportConversationDto>> {
-    return { code: 0, message: "Success", data: await this.supportService.getConversation(userId) };
+  @CheckPermission(Permission.SUPPORT_AI_ANALYTICS_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:support:GetUserConversation",
+    resourceKind: "single-resource",
+    resource: iamAccountUserResourceResolver,
+  })
+  public async analyticsConversation(
+    @Path() userId: string,
+    @Request() request: TypedRequest,
+  ): Promise<SuccessResponse<SupportConversationDto>> {
+    return { code: 0, message: "Success", data: await this.supportService.getMonitoredConversation(userId, request) };
   }
 
   @Post("messages")

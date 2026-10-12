@@ -904,6 +904,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.USER_ONLINE_MONITOR_FORCE_OFFLINE,
     }),
   ),
+  {
+    action: 'quyan:support:GetUserConversation',
+    service: 'support',
+    operation: 'GetUserConversation',
+    accessLevel: 'Read',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.SUPPORT_AI_ANALYTICS_READ,
+  },
   ...['ListApiKeys', 'GetApiKey', 'GetApiKeyStats', 'RevealApiKey'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:oj:' + operation,

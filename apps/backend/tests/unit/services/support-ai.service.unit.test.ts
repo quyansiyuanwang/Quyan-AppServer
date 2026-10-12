@@ -1,6 +1,11 @@
 import { publishTestAIResources } from "../../util/ai-resource-config";
 import { createHash } from "crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Permission } from "@quyan/shared";
+import type { TypedRequest } from "@/types/express";
+import { readFileSync } from "node:fs";
+import { Project } from "ts-morph";
+import { collectIamRoutes } from "../../../scripts/iam/route-inventory";
 import { env } from "../../../src/config/env";
 import { SupportAiService } from "../../../src/services/support/support-ai.service";
 
@@ -27,8 +32,10 @@ const SupportAiServiceCtor = SupportAiService as unknown as new (...args: any[])
 const supportKnowledgeConfig = env.integrations.supportKnowledge as { url: string; cacheTtlSeconds: number };
 const originalSupportKnowledgeConfig = { ...supportKnowledgeConfig };
 const originalChatLimits = { ...env.chat.resourceLimits };
+const originalIamMode = env.security.iamAuthorizationMode;
 
 afterEach(() => {
+  (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = originalIamMode;
   Object.assign(supportKnowledgeConfig, originalSupportKnowledgeConfig);
   Object.assign(env.chat.resourceLimits, originalChatLimits);
   publishTestAIResources();
@@ -493,5 +500,75 @@ describe("SupportAiService conversation retention", () => {
       }),
       3 * 24 * 60 * 60,
     );
+  });
+});
+
+describe("SupportAiService monitored conversation IAM rollout", () => {
+  const request = () =>
+    ({
+      user: { userId: "actor" },
+      authContext: { principalUserId: "actor", accountOwnerId: "owner", roleSessionId: "session" },
+      headers: {},
+    }) as unknown as TypedRequest;
+  const fixture = () => {
+    const redis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify({ messages: [{ role: "user", content: "fixture conversation" }] })),
+    };
+    const iam = {
+      read: vi
+        .fn()
+        .mockImplementation(
+          async (_action: string, _id: string, _request: unknown, read: (id: string) => Promise<unknown>) =>
+            read("peer"),
+        ),
+      authorize: vi.fn(),
+    };
+    const permissions = { checkUserPermissions: vi.fn().mockResolvedValue({ hasPermission: true }) };
+    return { redis, iam, permissions, service: new SupportAiServiceCtor({}, {}, {}, redis, {}, {}, iam, permissions) };
+  };
+  it("enforce reads only through the user authorization boundary", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    const { service, iam, redis } = fixture(),
+      req = request();
+    expect((await service.getMonitoredConversation("peer", req)).messages[0].content).toBe("fixture conversation");
+    expect(iam.read).toHaveBeenCalledWith("quyan:support:GetUserConversation", "peer", req, expect.any(Function));
+    expect(redis.get).toHaveBeenCalledWith("support-ai:conversation:peer");
+  });
+  it("enforce storage failures cannot fall back to unauthenticated conversation access", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "enforce";
+    const { service, iam, redis } = fixture();
+    iam.read.mockRejectedValue(new Error("fixture outage"));
+    await expect(service.getMonitoredConversation("peer", request())).rejects.toThrow("fixture outage");
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("%s preserves existing role session permission before Redis access", async (mode) => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = mode;
+    const { service, permissions, redis } = fixture();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.getMonitoredConversation("peer", request())).rejects.toMatchObject({ statusCode: 403 });
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", [Permission.SUPPORT_AI_ANALYTICS_READ], {
+      assumedRoleSessionId: "session",
+    });
+    expect(redis.get).not.toHaveBeenCalled();
+  });
+  it("shadow performs only an authorization diagnostic before the original single read", async () => {
+    (env.security as { iamAuthorizationMode: string }).iamAuthorizationMode = "shadow";
+    const { service, iam, redis } = fixture();
+    await service.getMonitoredConversation("peer", request());
+    expect(iam.authorize).toHaveBeenCalled();
+    expect(iam.read).not.toHaveBeenCalled();
+    expect(redis.get).toHaveBeenCalledTimes(1);
+  });
+  it("declares a fixed explicit server Action and real account user resolver", () => {
+    const file = "src/api/controllers/v1/support/support.controller.ts",
+      project = new Project({ useInMemoryFileSystem: true }),
+      source = project.createSourceFile("/backend/" + file, readFileSync(file, "utf8"));
+    const route = collectIamRoutes([source], "/backend").find((r) => r.key.includes("analytics/users/"));
+    expect(route).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:support:GetUserConversation"],
+      issues: [],
+      resourceKind: "single-resource",
+    });
   });
 });

@@ -42,3 +42,18 @@ export async function assertIamAccountPrincipal(principal: IamPrincipal, tx: Pri
     if (!session) throw iamAccountDenied();
   }
 }
+
+export class IamAccountUserRepository {
+  private static instance: IamAccountUserRepository;
+  static getInstance() {
+    return (this.instance ??= new IamAccountUserRepository());
+  }
+  async target(principal: IamPrincipal, userId: string) {
+    await assertIamAccountPrincipal(principal);
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(userId)) throw iamAccountDenied();
+    return prisma.user.findFirst({
+      where: { id: userId, ...activeIamAccountUsers(principal.accountOwnerId) },
+      select: { id: true, updateTime: true },
+    });
+  }
+}

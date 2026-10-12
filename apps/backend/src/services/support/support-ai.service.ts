@@ -1,3 +1,10 @@
+import type { TypedRequest } from "@/types/express";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { IamAccountUserAuthorizationService } from "@/services/users/iam-account-user-authorization.service";
+import { PermissionService } from "@/services/users/permission.service";
+import { Permission } from "@quyan/shared";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { withAIGenerator } from "@/services/infrastructure/ai-resource.service";
 import { aiContentTooLarge } from "@/util/streaming/bounded-text";
@@ -163,6 +170,8 @@ export class SupportAiService {
     private readonly redisService = RedisService.getInstance(),
     private readonly usageRepository = SupportAiUsageRepository.getInstance(),
     private readonly relayTokenService = new RelayTokenService(),
+    private readonly userIam = IamAccountUserAuthorizationService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -936,6 +945,31 @@ export class SupportAiService {
     return this.readConversation(userId);
   }
 
+  async getMonitoredConversation(userId: string, request?: TypedRequest) {
+    const action = "quyan:support:GetUserConversation",
+      iam = this.userIam;
+    if (env.security.iamAuthorizationMode === "enforce")
+      return iam.read(action, userId, request, (id) => this.readConversation(id));
+    const principal = request && getIamPrincipal(request);
+    if (!principal || principal.subjectUserId !== principal.principalUserId) throw iamAccountDenied();
+    const result = await this.permissions.checkUserPermissions(
+      principal.subjectUserId,
+      [Permission.SUPPORT_AI_ANALYTICS_READ],
+      { assumedRoleSessionId: principal.roleSessionId },
+    );
+    if (!result.hasPermission) throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await iam.authorize(action, userId, request);
+      } catch {
+        getLogger("SupportConversationIamBridge", LogCategory.SECURITY).warn("Support conversation IAM shadow denied", {
+          action,
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.readConversation(userId);
+  }
   async clearConversation(userId: string) {
     await this.redisService.delete(this.conversationKey(userId));
   }
