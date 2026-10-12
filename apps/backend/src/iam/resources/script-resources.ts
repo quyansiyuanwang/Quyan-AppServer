@@ -14,3 +14,14 @@ export function userScriptArn(accountOwnerId: string, userId: string, scriptId: 
     path: "script/" + userId + "/" + scriptId,
   });
 }
+
+export function userScriptExecutionArn(accountOwnerId: string, userId: string, executionId: string): string {
+  if (!isCanonicalScriptId(userId) || !isCanonicalScriptId(executionId))
+    throw new Error("Invalid script execution identifier");
+  return buildAcsResource({
+    service: "script",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "execution/" + userId + "/" + executionId,
+  });
+}

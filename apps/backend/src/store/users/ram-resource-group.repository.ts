@@ -70,6 +70,18 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
     const active = { status: AccountStatus.ACTIVE };
     const userOwner = { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] };
     switch (type.id) {
+      case "script/execution": {
+        const execution = await prisma.userScriptExecution.findFirst({
+          where: {
+            id: childId,
+            userId: id,
+            user: { ...active, ...userOwner },
+            OR: [{ scriptId: null }, { script: { userId: id } }],
+          },
+          select: { id: true, userId: true },
+        });
+        return execution?.id === childId && execution.userId === id;
+      }
       case "script/script": {
         const script = await prisma.userScript.findFirst({
           where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },

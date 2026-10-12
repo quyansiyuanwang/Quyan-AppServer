@@ -16,7 +16,7 @@ import { HttpStatusCode } from "axios";
 import { UserScriptExecutionService } from "@/services/user-script/user-script-execution.service";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { CreateExecutionDto, UserScriptExecutionDto } from "@/api/dto/user-script/user-script-execution.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type { ErrorResponse } from "@/api/response";
@@ -26,6 +26,10 @@ import {
 } from "@/api/schema/user-script/user-script-execution.schema";
 import { validateBody, validateParams } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
+
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { userScriptExecutionSaveResourceResolver } from "@/iam/request/script-resource-resolvers";
 
 @Route("v1/user-scripts/executions")
 @Tags("User Script Execution")
@@ -38,11 +42,17 @@ export class UserScriptExecutionController extends Controller {
    */
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.SCRIPT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:script:ListExecutions",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   public async listExecutions(@Request() request: TypedRequest): Promise<UserScriptExecutionDto[]> {
     const userId = request.user!.userId;
-    return this.service.listExecutions(userId);
+    return this.service.listExecutions(userId, request);
   }
 
   /**
@@ -50,7 +60,13 @@ export class UserScriptExecutionController extends Controller {
    */
   @Get("{scriptId}")
   @Security("jwt")
-  @RequirePermission(Permission.SCRIPT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:script:ListExecutions",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "脚本不存在")
   @Middlewares(validateParams(executionScriptIdParamsSchema))
@@ -59,7 +75,7 @@ export class UserScriptExecutionController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<UserScriptExecutionDto[]> {
     const userId = request.user!.userId;
-    return this.service.listExecutionsByScript(scriptId, userId);
+    return this.service.listExecutionsByScript(scriptId, userId, request);
   }
 
   /**
@@ -67,7 +83,11 @@ export class UserScriptExecutionController extends Controller {
    */
   @Post("")
   @Security("jwt")
-  @RequirePermission(Permission.SCRIPT_READ)
+  @CheckPermission(Permission.SCRIPT_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:script:SaveExecution",
+    resourceKind: "batch",
+    resource: userScriptExecutionSaveResourceResolver,
+  })
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(replayProtectionMiddleware, validateBody(createExecutionBodySchema))
   public async saveExecution(
@@ -75,6 +95,6 @@ export class UserScriptExecutionController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<UserScriptExecutionDto> {
     const userId = request.user!.userId;
-    return this.service.saveExecution(userId, body);
+    return this.service.saveExecution(userId, body, request);
   }
 }

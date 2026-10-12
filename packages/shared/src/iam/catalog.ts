@@ -75,6 +75,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('carpool', 'template'),
   resource('carpool', 'order'),
   resource('script', 'script', 2),
+  resource('script', 'execution', 2),
   { ...resource('balance', 'gift-code', 2), authenticatedSelfScope: 'children' },
   resource('article', 'article'),
   { ...resource('notification', 'inbox-item', 2), authenticatedSelfScope: 'children' },
@@ -115,7 +116,7 @@ const ramResources: Partial<Record<Permission, string[]>> = {
   [Permission.RAM_POLICY_DETACH]: ['policy', 'user', 'group', 'role', 'authorization'],
 }
 const businessResources: Partial<Record<Permission, string[]>> = {
-  [Permission.SCRIPT_READ]: ['script/script'],
+  [Permission.SCRIPT_READ]: ['quyan/user', 'script/script', 'script/execution'],
   [Permission.SCRIPT_CREATE]: ['quyan/user', 'script/script'],
   [Permission.SCRIPT_DELETE]: ['script/script'],
   [Permission.RELAY_CHANNEL_CREATE]: ['relay/channel'],
@@ -842,6 +843,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   ...[
+    {
+      operation: 'ListExecutions',
+      accessLevel: 'List',
+      resourceTypes: ['quyan/user', 'script/script', 'script/execution'],
+      legacyPermission: Permission.SCRIPT_READ,
+    },
+    {
+      operation: 'SaveExecution',
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user', 'script/script'],
+      legacyPermission: Permission.SCRIPT_READ,
+    },
     {
       operation: 'ListScripts',
       accessLevel: 'List',

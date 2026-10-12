@@ -374,3 +374,7 @@ legacy 保留原来的成员规则，shadow 保留业务结果并比较 IAM 列�
 脚本使用 `acs:script:*:<accountId>:script/<userId>/<scriptId>` 标识。创建脚本的 `quyan:script:CreateScript` 检查当前用户资源 `acs:quyan:*:<accountId>:user/<userId>`；修改和删除分别使用 `quyan:script:UpdateScript`、`quyan:script:DeleteScript` 检查指定脚本资源。
 
 `quyan:script:ListScripts` 按脚本逐项授权：无权限的脚本不会出现在结果中，也不会读取其正文。脚本可以加入同账户资源组；禁用、删除或账户归属不符的脚本不能加入。资源级策略不会取消“只能修改、删除自己脚本”的业务限制，也不会为所有登录用户自动授予脚本权限。
+
+执行历史使用 `acs:script:*:<accountId>:execution/<userId>/<executionId>`。`quyan:script:ListExecutions` 同时检查每条历史和关联脚本（如果存在）的资源权限，过滤后最多返回最近 50 条；没有绑定脚本的历史仍按自身资源授权。已删除脚本的自有历史快照可以保留，但不能再为该脚本新增历史。执行历史也可加入同账户资源组。
+
+保存历史的 `quyan:script:SaveExecution` 检查当前用户资源，并在绑定脚本时同时检查指定脚本。不能关联他人的脚本、已删除的脚本或跨账户脚本。历史接口只保存执行快照，不在服务端执行脚本代码。
