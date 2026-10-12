@@ -33,7 +33,6 @@ import {
   reviewAuthCenterClientBodySchema,
   updateAuthCenterClientBodySchema,
 } from "@/api/schema/users/auth-center-client.schema";
-import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import {
@@ -42,9 +41,9 @@ import {
 } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { authCenterClientResourceResolver } from "@/iam/request/auth-center-client-resource-resolvers";
+import { platformAuthCenterReviewClientResourceResolver } from "@/iam/request/platform-auth-center-resource-resolvers";
 import { AuthCenterClientService } from "@/services/users/auth-center-client.service";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
 @Route("v1/auth-center/clients")
@@ -177,7 +176,13 @@ export class AuthCenterClientController extends Controller {
 
   @Post("{id}/review")
   @Security("jwt")
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:ReviewClient",
+      resourceKind: "single-resource",
+      resource: platformAuthCenterReviewClientResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
   @Middlewares(validateParams(authCenterClientIdParamsSchema), validateBody(reviewAuthCenterClientBodySchema))
@@ -191,7 +196,13 @@ export class AuthCenterClientController extends Controller {
 
   @Delete("{id}/review")
   @Security("jwt")
-  @RequirePermission(Permission.AUTH_CENTER_CLIENT_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:auth_center:DeleteReviewedClient",
+      resourceKind: "single-resource",
+      resource: platformAuthCenterReviewClientResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "认证中心应用不存在")
   @Middlewares(validateParams(authCenterClientIdParamsSchema))

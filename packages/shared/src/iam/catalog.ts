@@ -1650,6 +1650,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.OAUTH_CLIENT_UPDATE,
     }),
   ),
+  ...['ReviewClient', 'DeleteReviewedClient'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:auth_center:' + operation,
+      service: 'auth_center',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes: ['platform/auth-center-review-client'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_UPDATE,
+    }),
+  ),
   {
     action: 'quyan:auth_center:ListClientReviews',
     service: 'auth_center',

@@ -31,11 +31,14 @@ import { getIamPrincipal } from "@/iam/request/principal-context";
 import {
   createAuthCenterClientBodySchema,
   updateAuthCenterClientBodySchema,
+  reviewAuthCenterClientBodySchema,
 } from "@/api/schema/users/auth-center-client.schema";
 import { AuthCenterClientMutationIamService } from "./auth-center-client-mutation-iam.service";
 import type { AuthCenterClientMutationAction } from "@/store/users/auth-center-client-mutation.store";
 import { AuthCenterClientIamService } from "./auth-center-client-iam.service";
 import { PlatformAuthCenterReviewIamService } from "./platform-auth-center-review-iam.service";
+import { PlatformAuthCenterReviewMutationIamService } from "./platform-auth-center-review-mutation-iam.service";
+import type { PlatformAuthCenterReviewMutationAction } from "@/store/users/platform-auth-center-review-mutation.store";
 import type { AuthCenterClientView } from "@/store/users/auth-center-client-management.store";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -61,6 +64,7 @@ export class AuthCenterClientService {
     private readonly permissions = PermissionService.getInstance(),
     private readonly mutations = AuthCenterClientMutationIamService.getInstance(),
     private readonly platformReviews = PlatformAuthCenterReviewIamService.getInstance(),
+    private readonly reviewMutations = PlatformAuthCenterReviewMutationIamService.getInstance(),
   ) {}
 
   static getInstance(): AuthCenterClientService {
@@ -401,14 +405,21 @@ export class AuthCenterClientService {
   }
 
   async deleteClientForReview(id: string, reviewerUserId: string, request?: Request): Promise<void> {
-    const existing = await this.repository.findById(id);
+    const prepared = await this.prepareReviewMutation(
+      "quyan:auth_center:DeleteReviewedClient",
+      reviewerUserId,
+      id,
+      request,
+    );
+    const existing = prepared?.existing ?? (await this.repository.findById(id));
     if (!existing)
       throw new NotFoundError("Auth Center client not found", undefined, {
         messageKey: "oauth.clientNotFound",
         messageParams: { client: "Auth Center" },
       });
 
-    await this.repository.delete(id);
+    if (prepared) await this.reviewMutations.mutate(prepared.guard);
+    else await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.AUTH_CENTER_CLIENT_DELETE,
@@ -557,7 +568,16 @@ export class AuthCenterClientService {
     data: ReviewAuthCenterClientDto,
     request?: Request,
   ): Promise<AuthCenterClientDto> {
-    const existing = await this.repository.findById(id);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const parsed = reviewAuthCenterClientBodySchema.strict().safeParse(data);
+      if (!parsed.success)
+        throw new BadRequestError("Invalid Auth Center review decision", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      data = { ...parsed.data, reviewComment: parsed.data.reviewComment ?? undefined };
+    }
+    const prepared = await this.prepareReviewMutation("quyan:auth_center:ReviewClient", reviewerUserId, id, request);
+    const existing = prepared?.existing ?? (await this.repository.findById(id));
     if (!existing)
       throw new NotFoundError("Auth Center client not found", undefined, {
         messageKey: "oauth.clientNotFound",
@@ -569,12 +589,11 @@ export class AuthCenterClientService {
         messageParams: { client: "Auth Center" },
       });
 
-    const updated = await this.repository.update(id, {
-      reviewStatus: data.reviewStatus,
-      reviewComment: this.normalizeNullableText(data.reviewComment),
-      reviewedAt: new Date(),
-      reviewedByUserId: reviewerUserId,
-    });
+    const decision = { reviewStatus: data.reviewStatus, reviewComment: this.normalizeNullableText(data.reviewComment) };
+    const updated = prepared
+      ? await this.reviewMutations.mutate(prepared.guard, decision)
+      : await this.repository.update(id, { ...decision, reviewedAt: new Date(), reviewedByUserId: reviewerUserId });
+    if (!updated) throw iamAccountDenied();
 
     await this.businessLogService.logOperation({
       operationType:
@@ -597,6 +616,35 @@ export class AuthCenterClientService {
     });
 
     return this.toDto(updated);
+  }
+
+  private async prepareReviewMutation(
+    action: PlatformAuthCenterReviewMutationAction,
+    userId: string,
+    id: string,
+    request?: Request,
+  ) {
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const prepared = await this.reviewMutations.prepare(action, userId, id, request as TypedRequest | undefined);
+      if (!prepared) throw iamAccountDenied();
+      return prepared;
+    }
+    if (request) {
+      const principal = getIamPrincipal(request as TypedRequest);
+      if (
+        !principal ||
+        principal.subjectUserId !== userId ||
+        principal.principalUserId !== userId ||
+        !(
+          await this.permissions.checkUserPermissions(userId, [Permission.AUTH_CENTER_CLIENT_REVIEW_UPDATE], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw iamAccountDenied();
+      await this.shadowRead(() => this.reviewMutations.prepare(action, userId, id, request as TypedRequest, false));
+    }
+    return undefined;
   }
 
   private async requireOwnedClient(id: string, userId: string): Promise<AuthCenterClient> {
