@@ -1,6 +1,11 @@
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { platformLegalPolicyDetailResource } from "@/iam/request/platform-legal-policy-resource-resolvers";
+import {
+  platformLegalPolicyDetailResource,
+  platformLegalPolicyCreateResource,
+  platformLegalPolicyUpdateResource,
+  platformLegalPolicyDeleteResource,
+} from "@/iam/request/platform-legal-policy-resource-resolvers";
 import {
   Body,
   Controller,
@@ -40,7 +45,11 @@ export class LegalPolicyController extends Controller {
 
   @Post("")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_CREATE)
+  @CheckPermission(Permission.LEGAL_POLICY_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:CreateVersion",
+    resourceKind: "collection",
+    resource: platformLegalPolicyCreateResource,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(createLegalPolicyBodySchema))
   public async createPolicy(
     @Body() body: CreateLegalPolicyDto,
@@ -76,7 +85,11 @@ export class LegalPolicyController extends Controller {
 
   @Put("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_UPDATE)
+  @CheckPermission(Permission.LEGAL_POLICY_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:UpdateVersion",
+    resourceKind: "single-resource",
+    resource: platformLegalPolicyUpdateResource,
+  })
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(legalPolicyIdParamsSchema),
@@ -92,7 +105,11 @@ export class LegalPolicyController extends Controller {
 
   @Delete("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.LEGAL_POLICY_DELETE)
+  @CheckPermission(Permission.LEGAL_POLICY_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:legal_policy:DeleteVersion",
+    resourceKind: "single-resource",
+    resource: platformLegalPolicyDeleteResource,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(legalPolicyIdParamsSchema))
   public async deletePolicy(@Path() id: string, @Request() request: TypedRequest): Promise<{ success: boolean }> {
     await this.service.deletePolicy(id, request.user!.userId, request);

@@ -1,3 +1,6 @@
+vi.mock("@/store/content/platform-legal-policy-write.repository", () => ({
+  PlatformLegalPolicyWriteRepository: { getInstance: vi.fn() },
+}));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/iam/iam-authorization.service", () => ({ IamAuthorizationService: { getInstance: vi.fn() } }));
 vi.mock("@/iam/audit/iam-audit.service", () => ({ auditIamDecision: vi.fn() }));

@@ -63,6 +63,12 @@ With IAM enforcement, the management list and detail APIs require `LEGAL_POLICY_
 
 The version list includes only authorized versions and loads summaries without draft content. Details require a separate Allow before loading content. A matching Deny takes priority. Missing, deleted or unauthorized detail resources return 403 in enforce mode. Results are withheld if a version, qualification, policy or role session changes during the read. AssumeRole uses role grants. Public published-policy and consent flows retain their existing access rules.
 
+## IAM draft changes
+
+In enforce mode, creating a draft uses `quyan:legal_policy:CreateVersion` on `acs:platform:*:platform:legal-policy-control/<policy-type>` and on the generated version's actual ARN before commit. The supported types are `terms_of_service` and `privacy_policy`. Updating and deleting use `quyan:legal_policy:UpdateVersion` and `quyan:legal_policy:DeleteVersion` on `acs:platform:*:platform:legal-policy/<version-id>`. Each operation also requires its existing management permission in a real deployment-wide group.
+
+A matching Deny or invalid identity, group, role session or version rolls back the change. Published versions remain immutable. Deleting a draft retains its version number; later drafts receive a new number. An active unpublished draft must be edited, published or deleted before another draft of that type can be created. Replay protection remains required.
+
 ## Notes
 
 - Only one version per type can be published at a time; publishing a new version automatically archives the previous one.

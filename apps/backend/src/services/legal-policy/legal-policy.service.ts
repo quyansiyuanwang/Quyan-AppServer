@@ -1,3 +1,6 @@
+import { PlatformLegalPolicyWriteIamService } from "./platform-legal-policy-write-iam.service";
+import { getIamActionDefinition } from "@quyan/shared";
+import type { LegalPolicyDraftOperation } from "@/store/content/platform-legal-policy-write.store";
 import { PlatformLegalPolicyReadIamService } from "./platform-legal-policy-read-iam.service";
 import type { LegalPolicyListReadRow } from "@/store/content/platform-legal-policy-read.store";
 import { env } from "@/config/env";
@@ -37,6 +40,7 @@ export class LegalPolicyService {
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
     private readonly iamReads = PlatformLegalPolicyReadIamService.getInstance(),
     private readonly permissions = PermissionService.getInstance(),
+    private readonly iamWrites = PlatformLegalPolicyWriteIamService.getInstance(),
   ) {}
 
   public static getInstance(): LegalPolicyService {
@@ -99,8 +103,58 @@ export class LegalPolicyService {
     }
     return this.getPolicy(id);
   }
+  private async draftMutation(
+    operation: LegalPolicyDraftOperation,
+    actorUserId: string,
+    request: Request,
+    legacy: () => Promise<LegalPolicyVersion>,
+    native: (persist: boolean) => Promise<LegalPolicyVersion | undefined>,
+  ) {
+    const req = request as TypedRequest,
+      principal = req && getIamPrincipal(req),
+      permission = getIamActionDefinition("quyan:legal_policy:" + operation)?.legacyPermission;
+    if (
+      !principal ||
+      req.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      principal.subjectUserId !== actorUserId ||
+      !permission ||
+      !["legacy", "shadow", "enforce"].includes(env.security.iamAuthorizationMode)
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const row = await native(true);
+      if (!row) throw iamAccountDenied();
+      return row;
+    }
+    if (
+      !(
+        await this.permissions.checkUserPermissions(actorUserId, [permission], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await native(false);
+      } catch {
+        getLogger("LegalPolicy", LogCategory.SECURITY).warn("Legal draft shadow evaluation failed", {
+          action: "quyan:legal_policy:" + operation,
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return legacy();
+  }
   public async createPolicy(dto: CreateLegalPolicyDto, actorUserId: string, request: Request): Promise<LegalPolicyDto> {
-    const policy = await this.createDraftPolicy(dto, actorUserId);
+    const policy = await this.draftMutation(
+      "CreateVersion",
+      actorUserId,
+      request,
+      () => this.createDraftPolicy(dto, actorUserId),
+      (persist) => this.iamWrites.create(dto, actorUserId, request as TypedRequest, persist),
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.LEGAL_POLICY_CREATE,
@@ -138,18 +192,22 @@ export class LegalPolicyService {
     actorUserId: string,
     request: Request,
   ): Promise<LegalPolicyDto> {
-    const existing = await this.repository.findById(id);
-    if (!existing)
-      throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
-    if (existing.publishStatus !== LegalPolicyPublishStatus.DRAFT)
-      throw new BadRequestError("已发布的协议版本不允许修改，请新建版本", undefined, {
-        messageKey: "legalPolicy.publishedVersionImmutable",
-      });
-
-    const updated = await this.repository.update(id, {
-      ...dto,
-      updatedBy: actorUserId,
-    });
+    const updated = await this.draftMutation(
+      "UpdateVersion",
+      actorUserId,
+      request,
+      async () => {
+        const existing = await this.repository.findById(id);
+        if (!existing)
+          throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
+        if (existing.publishStatus !== LegalPolicyPublishStatus.DRAFT)
+          throw new BadRequestError("已发布的协议版本不允许修改，请新建版本", undefined, {
+            messageKey: "legalPolicy.publishedVersionImmutable",
+          });
+        return this.repository.update(id, { ...dto, updatedBy: actorUserId });
+      },
+      (persist) => this.iamWrites.change("UpdateVersion", id, dto, actorUserId, request as TypedRequest, persist),
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.LEGAL_POLICY_UPDATE,
@@ -169,15 +227,23 @@ export class LegalPolicyService {
   }
 
   public async deletePolicy(id: string, actorUserId: string, request: Request): Promise<void> {
-    const existing = await this.repository.findById(id);
-    if (!existing)
-      throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
-    if (existing.publishStatus !== LegalPolicyPublishStatus.DRAFT)
-      throw new BadRequestError("已发布的协议版本不允许删除", undefined, {
-        messageKey: "legalPolicy.publishedVersionNotDeletable",
-      });
-
-    await this.repository.delete(id);
+    const existing = await this.draftMutation(
+      "DeleteVersion",
+      actorUserId,
+      request,
+      async () => {
+        const row = await this.repository.findById(id);
+        if (!row)
+          throw new NotFoundError("法律协议版本不存在", undefined, { messageKey: "legalPolicy.versionNotFound" });
+        if (row.publishStatus !== LegalPolicyPublishStatus.DRAFT)
+          throw new BadRequestError("已发布的协议版本不允许删除", undefined, {
+            messageKey: "legalPolicy.publishedVersionNotDeletable",
+          });
+        await this.repository.delete(id);
+        return row;
+      },
+      (persist) => this.iamWrites.change("DeleteVersion", id, {}, actorUserId, request as TypedRequest, persist),
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.LEGAL_POLICY_DELETE,

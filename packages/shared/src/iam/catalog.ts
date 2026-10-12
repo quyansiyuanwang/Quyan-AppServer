@@ -116,6 +116,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':ip-whitelist-control/{resourceId}',
   },
   {
+    ...resource('platform', 'legal-policy-control'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':legal-policy-control/{resourceId}',
+  },
+  {
     ...resource('platform', 'legal-policy'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':legal-policy/{resourceId}',
@@ -1069,6 +1074,30 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       apiRoutes: ['GET /v1/system/' + route],
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: operation !== 'GetBuildInfo',
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: permission,
+    }),
+  ),
+  ...(
+    [
+      ['CreateVersion', Permission.LEGAL_POLICY_CREATE, 'POST /v1/legal-policies'],
+      ['UpdateVersion', Permission.LEGAL_POLICY_UPDATE, 'PUT /v1/legal-policies/{id}'],
+      ['DeleteVersion', Permission.LEGAL_POLICY_DELETE, 'DELETE /v1/legal-policies/{id}'],
+    ] as const
+  ).map(
+    ([operation, permission, route]): IamActionDefinition => ({
+      action: 'quyan:legal_policy:' + operation,
+      service: 'legal_policy',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes:
+        operation === 'CreateVersion'
+          ? ['platform/legal-policy-control', 'platform/legal-policy']
+          : ['platform/legal-policy'],
+      apiRoutes: [route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
       authorizationStage: 'declared',
       authorizationBoundary: 'platform',
       legacyPermission: permission,

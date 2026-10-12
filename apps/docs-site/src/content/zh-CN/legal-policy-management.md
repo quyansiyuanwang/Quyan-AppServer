@@ -63,6 +63,12 @@ IAM 强制模式下，管理列表和详情 API 需要真实部署全局组中�
 
 版本列表只包含已授权版本，读取摘要时不加载草稿正文。详情需要单独通过 Allow 检查后才加载正文，匹配的 Deny 优先。强制模式下，不存在、已删除或未获授权的详情资源返回 403。读取期间版本、资格、策略或角色会话发生变化时，结果不会返回。AssumeRole 使用角色自身授权。公开已发布协议与同意流程保持原有访问规则。
 
+## IAM 草稿变更
+
+强制模式下，创建草稿使用 `quyan:legal_policy:CreateVersion`，先检查 `acs:platform:*:platform:legal-policy-control/<协议类型>`，提交前再检查新版本的真实 ARN。支持的协议类型为 `terms_of_service` 和 `privacy_policy`。更新、删除分别使用 `quyan:legal_policy:UpdateVersion` 与 `quyan:legal_policy:DeleteVersion`，资源为 `acs:platform:*:platform:legal-policy/<版本 ID>`。每项操作还需要真实部署全局组中的对应管理权限。
+
+匹配的 Deny，或身份、用户组、角色会话、版本校验失效，会导致整个变更回滚。已发布版本仍不可编辑或删除。删除草稿会保留其版本号，后续草稿使用新版本号。同类型已有有效未发布草稿时，必须先编辑、发布或删除该草稿。写入继续要求重放保护。
+
 ## 说明
 
 - 同一类型同时只能有一个发布版本；发布新版本时旧版本自动变为历史记录。

@@ -1,6 +1,8 @@
-import { legalPolicyIdParamsSchema } from "@/api/schema/legal-policy/legal-policy.schema";
+import { getIamActionDefinition } from "@quyan/shared";
+import { PlatformLegalPolicyWriteRepository } from "@/store/content/platform-legal-policy-write.repository";
+import { createLegalPolicyBodySchema, legalPolicyIdParamsSchema } from "@/api/schema/legal-policy/legal-policy.schema";
 import { PlatformLegalPolicyReadRepository } from "@/store/content/platform-legal-policy-read.repository";
-import { platformLegalPolicyArn } from "../resources/platform-legal-policy-resources";
+import { platformLegalPolicyArn, platformLegalPolicyCreationArn } from "../resources/platform-legal-policy-resources";
 import type { ResourceResolver } from "./resource-resolvers";
 export const platformLegalPolicyDetailResource: ResourceResolver = async ({ request, principal }) => {
   const parsed = legalPolicyIdParamsSchema.safeParse(request.params);
@@ -8,3 +10,19 @@ export const platformLegalPolicyDetailResource: ResourceResolver = async ({ requ
   const target = await PlatformLegalPolicyReadRepository.getInstance().target(principal, parsed.data.id);
   return target ? platformLegalPolicyArn(target.id) : undefined;
 };
+
+export const platformLegalPolicyCreateResource: ResourceResolver = ({ request }) => {
+  const parsed = createLegalPolicyBodySchema.safeParse(request.body);
+  return parsed.success ? platformLegalPolicyCreationArn(parsed.data.policyType) : undefined;
+};
+const draftResource =
+  (operation: "UpdateVersion" | "DeleteVersion"): ResourceResolver =>
+  async ({ request, principal }) => {
+    const parsed = legalPolicyIdParamsSchema.safeParse(request.params),
+      permission = getIamActionDefinition("quyan:legal_policy:" + operation)?.legacyPermission;
+    if (!parsed.success || !permission) return undefined;
+    const target = await PlatformLegalPolicyWriteRepository.getInstance().target(principal, parsed.data.id, permission);
+    return target ? platformLegalPolicyArn(target.id) : undefined;
+  };
+export const platformLegalPolicyUpdateResource = draftResource("UpdateVersion");
+export const platformLegalPolicyDeleteResource = draftResource("DeleteVersion");
