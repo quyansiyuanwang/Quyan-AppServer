@@ -1,3 +1,12 @@
+import { PlatformOjPricingReadIamService } from "./platform-oj-pricing-read-iam.service";
+import { env } from "@/config/env";
+import { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { getLogger, LogCategory } from "@/util/logger";
+import type { TypedRequest } from "@/types/express";
+import type { OJModelPricing } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { NotFoundError, BadRequestError } from "@/util/errors";
 import { OJModelPricingRepository } from "@/store/oj-submitter/oj-model-pricing.repository";
@@ -14,6 +23,8 @@ export class OJPricingService {
   private constructor(
     private readonly ojModelPricingRepository: OJModelPricingStore = OJModelPricingRepository.getInstance(),
     private readonly businessLogService: BusinessLogService = BusinessLogService.getInstance(),
+    private readonly iamReads = PlatformOjPricingReadIamService.getInstance(),
+    private readonly permissions = PermissionService.getInstance(),
   ) {}
 
   static getInstance() {
@@ -21,13 +32,8 @@ export class OJPricingService {
     return this.instance;
   }
 
-  /**
-   * 获取所有定价
-   */
-  async listPricing() {
-    const pricings = await this.ojModelPricingRepository.listActive();
-
-    return pricings.map((p) => ({
+  private pricingDto(p: OJModelPricing) {
+    return {
       id: p.id,
       model: p.model,
       inputPrice: Number(p.inputPrice),
@@ -38,7 +44,68 @@ export class OJPricingService {
       provider: p.provider,
       createTime: p.createTime,
       updateTime: p.updateTime,
-    }));
+    };
+  }
+  private async legacyReadPermission(request: TypedRequest) {
+    const principal = request && getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== principal.principalUserId ||
+      !["legacy", "shadow"].includes(env.security.iamAuthorizationMode) ||
+      !(
+        await this.permissions.checkUserPermissions(principal.subjectUserId, [Permission.OJ_PRICING_READ], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+  }
+  async listManagedPricing(request: TypedRequest) {
+    const project = (rows: OJModelPricing[]) => rows.map((row) => this.pricingDto(row));
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamReads.list(request, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    await this.legacyReadPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.list(request, project, false);
+      } catch {
+        getLogger("OJPricing", LogCategory.SECURITY).warn("OJ pricing list shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.listPricing();
+  }
+  async getManagedPricing(model: string, request: TypedRequest) {
+    const project = (row: OJModelPricing) => this.pricingDto(row);
+    if (env.security.iamAuthorizationMode === "enforce") {
+      const result = await this.iamReads.detail(model, request, project);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    await this.legacyReadPermission(request);
+    if (env.security.iamAuthorizationMode === "shadow") {
+      try {
+        await this.iamReads.detail(model, request, project, false);
+      } catch {
+        getLogger("OJPricing", LogCategory.SECURITY).warn("OJ pricing detail shadow evaluation failed", {
+          reason: "iam-evaluation-denied-or-unavailable",
+        });
+      }
+    }
+    return this.getPricing(model);
+  }
+  /**
+   * 获取所有定价
+   */
+  async listPricing() {
+    const pricings = await this.ojModelPricingRepository.listActive();
+
+    return pricings.map((p) => this.pricingDto(p));
   }
 
   /**
@@ -53,18 +120,7 @@ export class OJPricingService {
         messageParams: { model },
       });
 
-    return {
-      id: pricing.id,
-      model: pricing.model,
-      inputPrice: Number(pricing.inputPrice),
-      outputPrice: Number(pricing.outputPrice),
-      multiplier: Number(pricing.multiplier),
-      cacheCreationMultiplier: Number(pricing.cacheCreationMultiplier),
-      cacheReadMultiplier: Number(pricing.cacheReadMultiplier),
-      provider: pricing.provider,
-      createTime: pricing.createTime,
-      updateTime: pricing.updateTime,
-    };
+    return this.pricingDto(pricing);
   }
 
   /**

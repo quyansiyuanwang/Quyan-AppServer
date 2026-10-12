@@ -42,6 +42,12 @@ Each pricing record has three multipliers applied on top of the base input/outpu
 
 A request's final cost is calculated as `input tokens x input price x multiplier + output tokens x output price x multiplier + cache-creation tokens x input price x cache-creation multiplier + cache-read tokens x input price x cache-read multiplier`.
 
+## IAM pricing read access
+
+With IAM enforcement, management reads require `OJ_PRICING_READ` eligibility in a real deployment-wide group. Listing uses `quyan:oj:ListPricing` and details use `quyan:oj:GetPricing`. The resource is `acs:platform:*:platform:oj-pricing/<record-id>`, where the ID comes from the actual pricing record. Model names, including provider prefixes, locate records and never become ARN identifiers.
+
+The list loads display prices only after each record is authorized. A matching Deny overrides Allow. Missing, deleted or unauthorized detail records return 403 in enforce mode. Price, qualification, policy or role-session changes during a read prevent returning the result. AssumeRole uses its role's grants. Internal billing calculations retain their existing pricing lookup flow.
+
 ## Notes
 
 - Pricing changes can affect cost reporting and any user-visible estimates.
