@@ -172,8 +172,8 @@ export class ObservabilityRepository {
     return prisma.errorGroup.update({ where: { id }, data: { resolutionStatus } });
   }
 
-  public async listErrorOccurrences(errorGroupId: string, page: number, pageSize: number) {
-    const where = { errorGroupId };
+  public async listErrorOccurrences(errorGroupId: string, page: number, pageSize: number, activeOnly = false) {
+    const where = { errorGroupId, ...(activeOnly ? { status: 1 } : {}) };
     const [items, total] = await Promise.all([
       prisma.errorOccurrence.findMany({
         where,

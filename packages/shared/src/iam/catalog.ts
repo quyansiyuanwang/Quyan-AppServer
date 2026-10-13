@@ -103,6 +103,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'error-group'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':error-group/{resourceId}',
+  },
+  {
     ...resource('platform', 'relay-ai-request-log'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-ai-request-log/{resourceId}',
@@ -1714,6 +1719,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...['GetErrorGroup', 'ListErrorOccurrences'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:system:error_report:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: operation === 'ListErrorOccurrences' ? 'List' : 'Read',
+      resourceTypes: ['platform/error-group'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SYSTEM_ERROR_REPORT_READ,
+    }),
+  ),
   {
     action: 'quyan:relay:ai_request_log:ListLogs',
     service: 'relay',

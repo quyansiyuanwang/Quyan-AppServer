@@ -37,6 +37,9 @@ import {
 } from "@/api/schema/system/error-report.schema";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import type { TypedRequest } from "@/types/express";
+import { PlatformErrorGroupReadIamService } from "@/services/system/platform-error-group-read-iam.service";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { platformErrorGroupResourceResolver } from "@/iam/request/platform-error-group-resource-resolvers";
 import { NotFoundError } from "@/util/errors";
 
 @Route("v1/error-reports")
@@ -44,6 +47,7 @@ import { NotFoundError } from "@/util/errors";
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "Invalid request")
 export class ErrorReportController extends Controller {
   private readonly service = ErrorReportService.getInstance();
+  private readonly iamReads = PlatformErrorGroupReadIamService.getInstance();
 
   @Post("client")
   @SuccessResponse(HttpStatusCode.Accepted, "Accepted")
@@ -99,26 +103,44 @@ export class ErrorReportController extends Controller {
 
   @Get("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_ERROR_REPORT_READ)
-  @Middlewares(validateParams(errorGroupIdParamsSchema))
-  public async getGroup(@Path() id: string) {
-    const group = await this.service.getGroup(id);
-    if (!group)
-      throw new NotFoundError("Error group not found", undefined, { messageKey: "system.errorGroupNotFound" });
-    return group;
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:error_report:GetErrorGroup",
+      resourceKind: "single-resource",
+      resource: platformErrorGroupResourceResolver,
+    }),
+    validateParams(errorGroupIdParamsSchema),
+  )
+  public async getGroup(@Path() id: string, @Request() request: TypedRequest) {
+    return this.iamReads.read("quyan:system:error_report:GetErrorGroup", id, request, async () => {
+      const group = await this.service.getGroup(id);
+      if (!group)
+        throw new NotFoundError("Error group not found", undefined, { messageKey: "system.errorGroupNotFound" });
+      return group;
+    });
   }
 
   @Get("{id}/occurrences")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_ERROR_REPORT_READ)
-  @Middlewares(validateParams(errorGroupIdParamsSchema), validateQuery(errorOccurrencesQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:error_report:ListErrorOccurrences",
+      resourceKind: "single-resource",
+      resource: platformErrorGroupResourceResolver,
+    }),
+    validateParams(errorGroupIdParamsSchema),
+    validateQuery(errorOccurrencesQuerySchema),
+  )
   public async listOccurrences(
     @Path() id: string,
+    @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<ErrorOccurrenceListResponse> {
-    const result = await this.service.getOccurrences(id, page, pageSize);
-    return { ...result, page, pageSize };
+    return this.iamReads.read("quyan:system:error_report:ListErrorOccurrences", id, request, async (native) => {
+      const result = await this.service.getOccurrences(id, page, pageSize, native);
+      return { ...result, page, pageSize };
+    });
   }
 
   @Put("{id}/status")
