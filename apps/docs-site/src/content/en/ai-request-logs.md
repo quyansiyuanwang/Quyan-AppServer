@@ -8,6 +8,24 @@ Investigate AI inference requests by user, token, model, request ID, execution o
 - Viewing upstream attempts or searching attempt errors also requires `relay:request_diagnostics:read`. Channel, route and pool topology remain subject to their existing permissions on the request diagnostics page.
 - Logs can contain full prompts, tool arguments and model output. Limit access to staff responsible for content safety and incident investigation.
 
+## IAM access to individual logs
+
+With IAM enforcement enabled, an individual log uses `acs:platform:*:platform:relay-ai-request-log/<logId>`. Operators must have AI request log reading eligibility from a platform global user group. Account ownership, added user permissions, private account groups, and wildcard policies cannot independently provide that eligibility. `<logId>` is the log record ID, rather than the request ID or a client-provided account ID.
+
+Metadata, content, content search, upstream attempts, and compatibility details use separate actions:
+
+| Purpose                     | Action                                     |
+| --------------------------- | ------------------------------------------ |
+| Metadata                    | `quyan:relay:ai_request_log:GetMetadata`   |
+| Request or response content | `quyan:relay:ai_request_log:GetContent`    |
+| Content search              | `quyan:relay:ai_request_log:SearchContent` |
+| Upstream attempts           | `quyan:relay:ai_request_log:GetAttempts`   |
+| Compatibility details       | `quyan:relay:ai_request_log:GetLog`        |
+
+Viewing upstream attempts or searching attempt errors additionally requires `quyan:relay:ai_request_log:ReadDiagnostics` on the same log and diagnostic reading eligibility from a platform global user group. Metadata and content permissions do not grant diagnostics access. Diagnostic reading does not grant channel or topology management permissions.
+
+The server authorizes before loading content and rechecks the log version, group, policies, and role session before returning it. An invalidated or changed log, or revoked access, causes the request to fail without delivering content. Pagination, search, and compatibility details retain server-side masking, including credentials in historical records. Collection queries continue to use their existing log reading permission; this section's resource restrictions apply to the individual operations above.
+
 ## Search and filters
 
 The main search matches request IDs, user/token names or IDs, models, error summaries and saved content. Advanced filters include format, HTTP status, execution outcome, streaming, failure stage, content completeness, IP and duration ranges. Results are paginated on the server, without downloading every body for filtering.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { IAM_ACTION_CATALOG, getIamActionDefinition, type IamPolicyDocument } from "@quyan/shared";
+import { IAM_POLICY_LIMITS } from "@/iam/parser/policy-schema";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { checkIamDelegation } from "@/iam/delegation/delegation-check";
@@ -108,15 +109,21 @@ describe("bounded catalog-snapshot NotAction", () => {
     expect(JSON.stringify(getIamPolicyJsonSchema("trust"))).not.toContain('"NotAction"');
   });
   it("rejects and diagnoses a compact complement whose expanded document exceeds the byte limit", () => {
+    // Keep the expansion within the per-statement action limit as the catalog grows.
+    const excluded = IAM_ACTION_CATALOG.slice(
+      0,
+      Math.max(1, IAM_ACTION_CATALOG.length - IAM_POLICY_LIMITS.patterns + 1),
+    );
     const input = {
       Version: "1",
       Statement: Array.from({ length: 100 }, (_, index) => ({
         Sid: "Snapshot" + index,
         Effect: "Allow",
-        NotAction: "quyan:ram:ReadUser",
+        NotAction: excluded,
         Resource: "*",
       })),
     };
+    expect(Buffer.byteLength(JSON.stringify(input))).toBeLessThan(IAM_POLICY_LIMITS.bytes);
     expect(() => parseIamPolicy(input)).toThrow();
     expect(diagnoseIamPolicy(JSON.stringify(input)).diagnostics[0].code).toBe("document-limit");
   });

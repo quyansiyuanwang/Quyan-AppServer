@@ -7,10 +7,10 @@ export default defineDocsPage({
   category: { en: 'Relay', 'zh-CN': '转发' },
   title: { en: 'AI request logs', 'zh-CN': 'AI 请求日志' },
   summary: {
-    en: 'Search retained AI request payloads and responses for security investigations.',
-    'zh-CN': '检索保留的 AI 请求原文和响应，用于安全事件调查。',
+    en: 'Investigate saved AI requests and control individual log and diagnostic access with IAM.',
+    'zh-CN': '调查已保存的 AI 请求，并通过 IAM 控制单条日志与诊断访问。',
   },
-  tags: ['relay', 'logs', 'audit', 'content safety'],
-  updatedAt: '2026-09-30',
+  tags: ['relay', 'logs', 'audit', 'content safety', 'iam', 'authorization'],
+  updatedAt: '2026-10-14',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

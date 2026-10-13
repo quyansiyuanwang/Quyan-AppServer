@@ -103,6 +103,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'relay-ai-request-log'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-ai-request-log/{resourceId}',
+  },
+  {
     ...resource('platform', 'lifecycle-run'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':lifecycle-run/{resourceId}',
@@ -1709,6 +1714,27 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...['GetMetadata', 'GetContent', 'SearchContent', 'GetAttempts', 'GetLog', 'ReadDiagnostics'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:relay:ai_request_log:' + operation,
+      service: 'relay',
+      operation,
+      accessLevel: 'Read',
+      resourceTypes: ['platform/relay-ai-request-log'],
+      apiRoutes: [],
+      ...(operation === 'SearchContent' || operation === 'GetAttempts'
+        ? { conditionalActions: ['quyan:relay:ai_request_log:ReadDiagnostics'] }
+        : {}),
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission:
+        operation === 'ReadDiagnostics'
+          ? Permission.RELAY_REQUEST_DIAGNOSTICS_READ
+          : Permission.RELAY_AI_REQUEST_LOG_READ,
+    }),
+  ),
   ...['RunPolicy', 'RunBatch'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:data_lifecycle:' + operation,

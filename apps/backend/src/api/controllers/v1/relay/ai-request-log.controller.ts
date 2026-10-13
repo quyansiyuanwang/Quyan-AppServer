@@ -1,7 +1,10 @@
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { platformAiRequestLogResourceResolver } from "@/iam/request/platform-ai-request-log-resource-resolvers";
+import { PlatformAiRequestLogReadIamService } from "@/services/relay/platform-ai-request-log-read-iam.service";
 import { Controller, Get, Middlewares, Path, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
 import { Permission } from "@/constant/permission";
-import { RequireAllPermissions, RequirePermission } from "@/util/permission/permission-decorator";
+import { RequirePermission } from "@/util/permission/permission-decorator";
 import { validateParams, validateQuery } from "@/middleware/validation";
 import {
   aiRequestLogListQuerySchema,
@@ -22,13 +25,13 @@ import type {
 } from "@/api/dto/relay/ai-request-log.dto";
 import type { AIRequestLogOutcome, AIRequestLogStage, AIRequestLogOmissionReason } from "@/constant/ai-request-log";
 import { AIRequestLogService } from "@/services/relay/ai-request-log.service";
-import { PermissionService } from "@/services/users/permission.service";
-import { ForbiddenError, NotFoundError } from "@/util/errors";
+import { NotFoundError } from "@/util/errors";
 
 @Route("v1/relay/ai-request-logs")
 @Tags("Relay AI Request Logs")
 export class AIRequestLogController extends Controller {
   private readonly service = AIRequestLogService.getInstance();
+  private readonly iamReads = PlatformAiRequestLogReadIamService.getInstance();
   @Get()
   @Security("jwt")
   @RequirePermission(Permission.RELAY_AI_REQUEST_LOG_READ)
@@ -80,16 +83,29 @@ export class AIRequestLogController extends Controller {
   }
   @Get("{id}/metadata")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_AI_REQUEST_LOG_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:ai_request_log:GetMetadata",
+      resourceKind: "single-resource",
+      resource: platformAiRequestLogResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(aiRequestLogParamsSchema))
-  public async metadata(@Path() id: string): Promise<AIRequestLogMetadataDto> {
-    return this.service.metadata(id);
+  public async metadata(@Request() request: TypedRequest, @Path() id: string): Promise<AIRequestLogMetadataDto> {
+    return this.iamReads.read("quyan:relay:ai_request_log:GetMetadata", id, request, () => this.service.metadata(id));
   }
   @Get("{id}/content")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_AI_REQUEST_LOG_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:ai_request_log:GetContent",
+      resourceKind: "single-resource",
+      resource: platformAiRequestLogResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(aiRequestLogParamsSchema), validateQuery(aiRequestLogContentQuerySchema))
   public async content(
+    @Request() request: TypedRequest,
     @Path() id: string,
     @Query() side: AIRequestLogContentSide = "request",
     @Query() view: AIRequestLogContentView = "parsed",
@@ -98,11 +114,19 @@ export class AIRequestLogController extends Controller {
     @Query() pageSize?: number,
     @Query() offset?: number,
   ): Promise<AIRequestLogContentPageDto> {
-    return this.service.content(id, side, view, { cursor, locator, pageSize, offset });
+    return this.iamReads.read("quyan:relay:ai_request_log:GetContent", id, request, () =>
+      this.service.content(id, side, view, { cursor, locator, pageSize, offset }),
+    );
   }
   @Get("{id}/search")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_AI_REQUEST_LOG_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:ai_request_log:SearchContent",
+      resourceKind: "single-resource",
+      resource: platformAiRequestLogResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(aiRequestLogParamsSchema), validateQuery(aiRequestLogSearchQuerySchema))
   public async search(
     @Request() request: TypedRequest,
@@ -112,40 +136,51 @@ export class AIRequestLogController extends Controller {
     @Query() cursor?: string,
     @Query() pageSize?: number,
   ): Promise<AIRequestLogSearchPageDto> {
-    if (scope === "attempts") {
-      const result = await PermissionService.getInstance().checkUserPermissions(
-        request.user!.userId,
-        [Permission.RELAY_REQUEST_DIAGNOSTICS_READ],
-        { assumedRoleSessionId: request.user?.roleSessionId },
-      );
-      if (!result.hasPermission)
-        throw new ForbiddenError("Request diagnostics permission is required", undefined, {
-          messageKey: "permission.missingRequiredPermissions",
-          messageParams: { permissions: Permission.RELAY_REQUEST_DIAGNOSTICS_READ },
-        });
-    }
-    return this.service.search(id, scope, keyword, { cursor, pageSize });
+    return this.iamReads.read(
+      "quyan:relay:ai_request_log:SearchContent",
+      id,
+      request,
+      () => this.service.search(id, scope, keyword, { cursor, pageSize }),
+      scope === "attempts",
+    );
   }
   @Get("{id}/attempts")
   @Security("jwt")
-  @RequireAllPermissions([Permission.RELAY_AI_REQUEST_LOG_READ, Permission.RELAY_REQUEST_DIAGNOSTICS_READ])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:ai_request_log:GetAttempts",
+      resourceKind: "single-resource",
+      resource: platformAiRequestLogResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(aiRequestLogParamsSchema), validateQuery(aiRequestLogAttemptsQuerySchema))
   public async attempts(
+    @Request() request: TypedRequest,
     @Path() id: string,
     @Query() cursor?: string,
     @Query() pageSize?: number,
   ): Promise<AIRequestLogAttemptsPageDto> {
-    return this.service.attempts(id, { cursor, pageSize });
+    return this.iamReads.read("quyan:relay:ai_request_log:GetAttempts", id, request, () =>
+      this.service.attempts(id, { cursor, pageSize }),
+    );
   }
   /** Compatibility entry point. New UI uses metadata/content instead. */
   @Get("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_AI_REQUEST_LOG_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:ai_request_log:GetLog",
+      resourceKind: "single-resource",
+      resource: platformAiRequestLogResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(aiRequestLogParamsSchema))
-  public async detail(@Path() id: string): Promise<AIRequestLogDetailDto> {
-    const log = await this.service.findById(id);
-    if (!log)
-      throw new NotFoundError("AI request log not found", undefined, { messageKey: "relay.aiRequestLogNotFound" });
-    return log;
+  public async detail(@Request() request: TypedRequest, @Path() id: string): Promise<AIRequestLogDetailDto> {
+    return this.iamReads.read("quyan:relay:ai_request_log:GetLog", id, request, async () => {
+      const log = await this.service.findById(id);
+      if (!log)
+        throw new NotFoundError("AI request log not found", undefined, { messageKey: "relay.aiRequestLogNotFound" });
+      return log;
+    });
   }
 }

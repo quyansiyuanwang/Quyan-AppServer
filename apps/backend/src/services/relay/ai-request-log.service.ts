@@ -250,7 +250,13 @@ export class AIRequestLogService {
   }
   public async findById(id: string): Promise<AIRequestLogDetailDto | null> {
     const log = await this.repository.findById(id);
-    return log ? { ...this.toListItem(log), requestBody: log.requestBody, responseBody: log.responseBody } : null;
+    return log
+      ? {
+          ...this.toListItem(log),
+          requestBody: sanitizeAuditPayload(log.requestBody) as AIRequestLogDetailDto["requestBody"],
+          responseBody: sanitizeAuditPayload(log.responseBody) as AIRequestLogDetailDto["responseBody"],
+        }
+      : null;
   }
   public async metadata(id: string): Promise<AIRequestLogMetadataDto> {
     const log = await this.repository.findMetadata(id);
@@ -294,7 +300,7 @@ export class AIRequestLogService {
         id,
         side: scope,
         keyword,
-        value: log.attempts,
+        value: sanitizeAuditPayload(log.attempts),
         ...options,
         truncated: Boolean(log.attemptsTruncated),
         omissionReason: null,
@@ -318,7 +324,8 @@ export class AIRequestLogService {
   ): Promise<AIRequestLogAttemptsPageDto> {
     const log = await this.repository.findAttempts(id);
     if (!log) return notFound();
-    const rows = Array.isArray(log.attempts) ? (log.attempts as unknown as AIRequestLogAttemptDto[]) : [];
+    const safe = sanitizeAuditPayload(log.attempts);
+    const rows = Array.isArray(safe) ? (safe as AIRequestLogAttemptDto[]) : [];
     const scope = id + ":attempts";
     const cursor = readAuditCursor(options.cursor, scope);
     const items = rows.slice(cursor.index, cursor.index + (options.pageSize ?? AI_REQUEST_LOG_LIMITS.contentPageItems));
