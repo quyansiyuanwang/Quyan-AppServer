@@ -1,4 +1,5 @@
 import os from "os";
+import { IAM_SERVER_LOG_FILE_NAME_PATTERN } from "@quyan/shared";
 import { PlatformManagementReadIamService } from "./platform-management-read-iam.service";
 import { platformSystemArn } from "@/iam/resources/platform-system-resources";
 import type { TypedRequest } from "@/types/express";
@@ -248,7 +249,7 @@ function sortFilterOptions(items: ConsumptionStatsFilterOptionDTO[]): Consumptio
   return items.sort((a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key));
 }
 
-const SERVER_LOG_FILE_PATTERN = /^(combined|error)-(\d{4}-\d{2}-\d{2})\.log(?:\.gz)?$/;
+const SERVER_LOG_FILE_PATTERN = IAM_SERVER_LOG_FILE_NAME_PATTERN;
 
 function parseHeaderContentLength(headers: unknown): number | null {
   if (!headers || typeof headers !== "object" || Array.isArray(headers)) return null;

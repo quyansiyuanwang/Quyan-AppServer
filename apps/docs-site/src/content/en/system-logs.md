@@ -17,7 +17,7 @@ Use this page to inspect API logs, log statistics, and server log files.
 - Request volume distribution by status code (2xx / 4xx / 5xx).
 - Daily request trend chart.
 - Error rate trend for spotting anomalous periods quickly.
-- Requires `SYSTEM_LOGS_READ` or `SYSTEM_LOGS_STATS_READ` permission.
+- Requires `API_LOG_READ` or `SYSTEM_LOG_READ` permission.
 
 ### API logs tab
 
@@ -57,3 +57,19 @@ Use this page to inspect API logs, log statistics, and server log files.
 - `business-logs`
 - `upstream-status`
 - `ip-monitoring-dashboard`
+
+## Server log resource permissions
+
+IAM `enforce` mode authorizes individual server log files:
+
+```text
+acs:platform:*:platform:server-log-file/combined-2026-10-14.log
+acs:platform:*:platform:server-log-file/error-2026-10-14.log.gz
+```
+
+- `quyan:system:server_log:ListFiles` selects which file metadata appears in the list. Unauthorized files are omitted.
+- `quyan:system:server_log:GetFileContent` controls reading, tail limits and searching within the selected file. Listing grants do not grant content access.
+- Both operations require the current user to hold `SYSTEM_SERVER_LOG_READ` in an active global group. Account policies, user additions, private groups and role policies cannot replace this operational qualification. Role sessions do not inherit the global group's Allow.
+- Use the complete filename in the ARN. Compressed and uncompressed files are separate resources. A matching explicit Deny takes precedence; absence of Allow denies access. Revoked grants, changed policies or lost operational qualification during a read prevent content from being returned.
+
+`legacy` and `shadow` preserve the original permission checks and responses. `shadow` also records IAM evaluations before enforcement is enabled.

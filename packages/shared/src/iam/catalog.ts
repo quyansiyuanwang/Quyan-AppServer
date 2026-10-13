@@ -105,6 +105,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'server-log-file'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':server-log-file/{resourceId}',
+  },
+  {
     ...resource('platform', 'error-group'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':error-group/{resourceId}',
@@ -1721,6 +1726,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...['ListFiles', 'GetFileContent'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:system:server_log:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: operation === 'ListFiles' ? 'List' : 'Read',
+      resourceTypes: ['platform/server-log-file'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SYSTEM_SERVER_LOG_READ,
+    }),
+  ),
   {
     action: 'quyan:system:error_report:UpdateErrorGroupStatus',
     service: 'system',

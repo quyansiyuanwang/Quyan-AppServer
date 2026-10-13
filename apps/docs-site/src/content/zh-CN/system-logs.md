@@ -17,7 +17,7 @@
 - 各状态码（2xx / 4xx / 5xx）的请求量分布。
 - 按日期统计的请求趋势图。
 - 错误率走势，用于快速发现异常时段。
-- 权限要求：`SYSTEM_LOGS_READ` 或 `SYSTEM_LOGS_STATS_READ`。
+- 权限要求：`API_LOG_READ` 或 `SYSTEM_LOG_READ`。
 
 ### API 日志标签页
 
@@ -57,3 +57,19 @@
 - `business-logs`
 - `upstream-status`
 - `ip-monitoring-dashboard`
+
+## 服务端日志的资源权限
+
+在 IAM `enforce` 模式下，服务端日志使用文件级资源：
+
+```text
+acs:platform:*:platform:server-log-file/combined-2026-10-14.log
+acs:platform:*:platform:server-log-file/error-2026-10-14.log.gz
+```
+
+- `quyan:system:server_log:ListFiles` 决定哪些文件元数据出现在列表中；未授权文件不会出现在结果中。
+- `quyan:system:server_log:GetFileContent` 控制指定文件的内容读取、行数限制和搜索；列表权限不会自动授予内容读取。
+- 两种操作都要求当前用户在有效的全局用户组中具备 `SYSTEM_SERVER_LOG_READ` 运维资格。账户策略、用户附加权限、私有组或角色策略不能替代这项资格；角色会话也不会继承全局组的 Allow。
+- ARN 必须使用完整文件名，压缩文件与未压缩文件分别授权。匹配的显式 Deny 始终优先，没有匹配 Allow 时拒绝。读取期间撤销权限、变更策略或失去运维资格时，不返回已读取的内容。
+
+`legacy` 与 `shadow` 模式仍执行原有权限检查并保留原返回结果；`shadow` 同时记录 IAM 评估用于切换前验证。

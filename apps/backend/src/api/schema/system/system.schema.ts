@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { IAM_SERVER_LOG_FILE_NAME_PATTERN } from "@quyan/shared";
 
 const SYSTEM_QUERY_MAX_RANGE_DAYS = 30;
 const SYSTEM_QUERY_MAX_RANGE_MS = SYSTEM_QUERY_MAX_RANGE_DAYS * 24 * 60 * 60 * 1000;
@@ -96,10 +97,7 @@ export const serverLogFilesQuerySchema = z.object({
 });
 
 export const serverLogFileParamsSchema = z.object({
-  fileName: z
-    .string()
-    .trim()
-    .regex(/^(combined|error)-\d{4}-\d{2}-\d{2}\.log(?:\.gz)?$/, "invalid log file name"),
+  fileName: z.string().trim().regex(IAM_SERVER_LOG_FILE_NAME_PATTERN, "invalid log file name"),
 });
 
 export const serverLogContentQuerySchema = z.object({
