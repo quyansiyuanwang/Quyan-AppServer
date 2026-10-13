@@ -34,6 +34,8 @@ export function createRedisClient(): Redis {
     },
     maxRetriesPerRequest: 1, // Reduced from 3 to 1 to prevent request pileup
     enableOfflineQueue: false, // Disable offline queue to fail fast when Redis is down
+    // A lost reply does not prove that a write failed. Never replay an unconfirmed command on reconnect.
+    autoResendUnfulfilledCommands: false,
     connectTimeout: 5000, // 5 second connection timeout
     commandTimeout: 3000, // 3 second command timeout
     lazyConnect: false, // Connect immediately to detect issues early
