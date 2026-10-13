@@ -1,3 +1,4 @@
+import { PlatformIpMonitoringDashboardIamService } from "@/services/system/platform-ip-monitoring-dashboard-iam.service";
 import { PlatformIpBlacklistMutationIamService } from "@/services/system/platform-ip-blacklist-mutation-iam.service";
 import { PlatformIpErrorWeightMutationIamService } from "@/services/system/platform-ip-error-weight-mutation-iam.service";
 import { PlatformIPBlacklistRecordReadIamService } from "@/services/system/platform-ip-blacklist-record-read-iam.service";
@@ -43,13 +44,10 @@ import type {
   IPErrorStatusResponse,
   SetIpErrorWeightRequest,
 } from "@/api/dto/system/ipblacklist.dto";
-import { Permission } from "@/constant/permission";
 import { BadRequestError } from "@/util/errors";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
 import { getLogger, LogCategory } from "@/util/logger";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { IPBlackListService } from "@/services/system/ipblacklist.service";
 import { IPBlackList } from "@/store/security/ipblacklist";
 import type { ErrorResponse } from "@/api/response";
 import {
@@ -75,8 +73,6 @@ const logger = getLogger("IPBlacklistController", LogCategory.BUSINESS);
 @Tags("IP Blacklist")
 @Response<ValidationErrorResponse>(HttpStatusCode.UnprocessableEntity, "参数验证失败")
 export class IPBlacklistController extends Controller {
-  private ipBlacklistService = IPBlackListService.getInstance();
-
   /**
    * 将 Prisma 模型转换为 DTO
    */
@@ -404,8 +400,14 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  public async getMonitoringDashboard(@Request() _request: TypedRequest): Promise<MonitoringDashboardResponse> {
-    return await this.ipBlacklistService.getMonitoringDashboard();
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:GetMonitoringDashboard",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  public async getMonitoringDashboard(@Request() request: TypedRequest): Promise<MonitoringDashboardResponse> {
+    return PlatformIpMonitoringDashboardIamService.getInstance().read(request);
   }
 }

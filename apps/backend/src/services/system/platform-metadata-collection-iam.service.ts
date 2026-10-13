@@ -28,6 +28,7 @@ export class PlatformMetadataCollectionIamService<
     private readonly snapshots: PlatformManagementReadStore,
     private readonly repository: PlatformCollectionStore<Filters, Where, Target>,
     private readonly resource: (target: Target) => string,
+    private readonly contribution?: (target: Target) => readonly unknown[],
   ) {}
   static valid(row: PlatformCollectionTarget) {
     return (
@@ -109,10 +110,14 @@ export class PlatformMetadataCollectionIamService<
         const allowed = await this.allowed(action, principal, rows, request);
         for (const row of rows)
           if (allowed.has(row.id)) {
-            hash.update(
-              JSON.stringify([row.id, this.resource(row), row.createTime.toISOString(), row.updateTime.toISOString()]) +
-                "\n",
-            );
+            const fields: unknown[] = [
+              row.id,
+              this.resource(row),
+              row.createTime.toISOString(),
+              row.updateTime.toISOString(),
+            ];
+            if (this.contribution) fields.push(this.contribution(row));
+            hash.update(JSON.stringify(fields) + "\n");
             total++;
           }
         if (visit) {

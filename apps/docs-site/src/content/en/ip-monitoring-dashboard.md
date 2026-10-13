@@ -120,3 +120,11 @@ In IAM `enforce` mode, manual bans use `quyan:system:ip_blacklist:CreateBlacklis
 Manual bans record the authenticated user as the operator. Permanent bans retain the system's existing long-term expiry representation. Banning a previously deleted IP reuses its record ID. An existing active record causes a conflict without overwriting its reason or level. Unbanning soft-deletes an active ban record and leaves error weight intact; resetting weight is a separate operation. Missing or deleted unban targets are denied in `enforce`; `legacy` and `shadow` retain previous behavior and return 404 when there is no active record.
 
 Both operations retain two-factor verification, replay protection and business logs. Revocation or a record change before modification denies the write. Background automatic bans continue to use server-configured error thresholds independently of these manual operation permissions.
+
+## IP resource scope for the monitoring dashboard
+
+In IAM `enforce` mode, the dashboard uses the independent `quyan:system:ip_blacklist:GetMonitoringDashboard` Action and checks the IP resource ARN for each ban record and ban activity event. You must also hold `IP_BLACKLIST_READ` in an active global group. List, detail and status grants cannot replace dashboard authorization.
+
+The dashboard excludes IPs without Allow or with a matching Deny before computing active-ban totals, level/type distributions and 24-hour/7-day activity totals. Recent bans show up to 20 records. The timeline and Top IP list sample up to 1000 authorized events from the last 7 days; Top IP shows up to 10 addresses. Activity totals count all authorized events and can therefore exceed the timeline sample. Each Top IP's current status is also based only on authorized active bans.
+
+The active-ban summary preserves the existing expiry rules: expired records and records with a null expiry are excluded, while the long-term expiry used for manual permanent bans still qualifies. Each query fixes its time cutoff. If records, events or authorization affecting the result change during the read, the result is denied. An event whose IP cannot be safely identified also denies the request without falling back to all resources. `legacy` and `shadow` retain previous aggregate behavior, with IAM diagnostics also recorded in `shadow`.
