@@ -345,6 +345,7 @@ const zhCN = {
     socialAuthWechatWebScopeRequired: "启用微信网页时必须填写 scope",
   },
   ipBlacklist: {
+    recordNotFound: "IP 黑名单记录不存在",
     useCheckEndpoint: "请使用 /check/:ip 端点检查特定 IP",
     userMissing: "无法获取用户信息",
     notFoundByIp: "IP {{ip}} 不在黑名单中",

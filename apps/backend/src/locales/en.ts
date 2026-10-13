@@ -339,6 +339,7 @@ const en = {
     socialAuthWechatWebScopeRequired: "Provide scope when WeChat Web is enabled",
   },
   ipBlacklist: {
+    recordNotFound: "Blacklist record not found",
     useCheckEndpoint: "Please use the /check/:ip endpoint to inspect a specific IP",
     userMissing: "Unable to retrieve user information",
     notFoundByIp: "IP {{ip}} is not blacklisted",

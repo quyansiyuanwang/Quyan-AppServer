@@ -92,3 +92,9 @@ A matching explicit Deny takes precedence; without a matching Allow, the query i
 In IAM `enforce` mode, lists use the independent `quyan:system:ip_blacklist:ListBlacklists` Action and check each record's `acs:platform:*:platform:ip-address/<address identifier>`. You still need `IP_BLACKLIST_READ` in an active global group; ban-check or real-time error status grants cannot replace list access.
 
 The total, `offset` and `limit` all reflect allowed records, with explicit Deny taking precedence. Without a matching Allow, the list is empty. Allowed expired ban records remain visible, and details are read only for the current page. Each query fixes its cutoff position; if authorization or records contributing to the total change during the read, the request is denied and must be retried. `legacy` and `shadow` retain previous list behavior, with IAM decisions also recorded in `shadow`.
+
+## Retrieve blacklist details by record ID
+
+`GET /v1/ip-blacklist/{id}` now returns real record details, including retained expired history. IAM `enforce` mode uses the independent `quyan:system:ip_blacklist:GetBlacklist` Action: the server resolves the actual IP from the record ID and authorizes that address's resource ARN. It also requires `IP_BLACKLIST_READ` in an active global group; list and ban-check grants cannot replace detail access.
+
+Missing, deleted or unsafe records are denied in `enforce` mode without falling back to an all-resource grant. The record's address, revision and current authorization are rechecked before the response. `legacy` and `shadow` provide details under the previous effective permission and return 404 for a missing record; `shadow` also records IAM decisions.

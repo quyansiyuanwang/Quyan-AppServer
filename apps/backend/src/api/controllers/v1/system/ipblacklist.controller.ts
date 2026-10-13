@@ -1,7 +1,11 @@
+import { PlatformIPBlacklistRecordReadIamService } from "@/services/system/platform-ip-blacklist-record-read-iam.service";
 import { PlatformIPBlacklistListIamService } from "@/services/system/platform-ip-blacklist-list-iam.service";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { PlatformIpAddressReadIamService } from "@/services/system/platform-ip-address-read-iam.service";
-import { platformIpAddressResourceResolver } from "@/iam/request/platform-ip-address-resource-resolvers";
+import {
+  platformIpAddressResourceResolver,
+  platformIpBlacklistRecordResourceResolver,
+} from "@/iam/request/platform-ip-address-resource-resolvers";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import {
   Get,
@@ -131,17 +135,19 @@ export class IPBlacklistController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "IP 黑名单不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  @Middlewares(validateParams(ipBlacklistIdParamsSchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:GetBlacklist",
+      resourceKind: "single-resource",
+      resource: platformIpBlacklistRecordResourceResolver,
+    }),
+    validateParams(ipBlacklistIdParamsSchema),
+  )
   public async getIPBlacklistById(
-    @Path("id") _id: string,
-    @Request() _request: TypedRequest,
+    @Path("id") id: string,
+    @Request() request: TypedRequest,
   ): Promise<GetIPBlacklistByIdResponse> {
-    // Note: This would require adding a findById method to the repository
-    // For now, we'll throw an error indicating this needs to be implemented
-    throw new BadRequestError("请使用 /check/:ip 端点检查特定 IP", undefined, {
-      messageKey: "ipBlacklist.useCheckEndpoint",
-    });
+    return this.toDto(await PlatformIPBlacklistRecordReadIamService.getInstance().read(id, request));
   }
 
   /**

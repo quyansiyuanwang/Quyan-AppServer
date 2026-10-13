@@ -92,3 +92,9 @@ IPv4 地址直接作为标识，例如 `acs:platform:*:platform:ip-address/192.0
 IAM `enforce` 模式下，列表使用独立的 `quyan:system:ip_blacklist:ListBlacklists` Action，逐条检查记录对应的 `acs:platform:*:platform:ip-address/<地址标识>`。仍需有效全局组中的 `IP_BLACKLIST_READ` 资格；封禁查询或实时错误状态的权限不能代替列表权限。
 
 列表的总数、`offset` 和 `limit` 都以允许访问的记录为准，显式 Deny 优先。没有匹配 Allow 时返回空列表。允许查看的过期封禁记录仍保留，只有当前页的详情会被读取。单次查询固定截止位置；读取期间授权或参与总数计算的记录变化时，请求会被拒绝，需要重新查询。`legacy` 和 `shadow` 保留原列表行为，`shadow` 同时记录 IAM 决策。
+
+## 按记录 ID 获取黑名单详情
+
+`GET /v1/ip-blacklist/{id}` 现在可以返回实际记录详情，包括过期但仍有效保留的历史记录。IAM `enforce` 模式使用独立的 `quyan:system:ip_blacklist:GetBlacklist` Action，由服务端从记录 ID 解析实际 IP，并按该 IP 的资源 ARN 授权。它同样要求有效全局组中的 `IP_BLACKLIST_READ`；列表和封禁查询权限不能代替详情权限。
+
+缺失、删除或无法安全解析的记录在 `enforce` 模式下被拒绝，不会退化为全资源授权。返回前会复核记录的地址、版本与当前授权。`legacy` 和 `shadow` 按原有效权限提供详情，找不到记录时返回 404；`shadow` 额外记录 IAM 决策。
