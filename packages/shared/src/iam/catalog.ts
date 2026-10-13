@@ -256,6 +256,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':developer-quota-override/{resourceId}',
   },
   {
+    ...resource('platform', 'relay-configuration'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-configuration/{resourceId}',
+  },
+  {
     ...resource('platform', 'model-pricing'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':model-pricing/{resourceId}',
@@ -1754,6 +1759,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
+  },
+  {
+    action: 'quyan:relay:GetConfiguration',
+    service: 'relay',
+    operation: 'GetConfiguration',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/relay-configuration', 'platform/model-pricing'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.MODEL_PRICING_UPDATE,
   },
   {
     action: 'quyan:system:ip_blacklist:GetMonitoringDashboard',

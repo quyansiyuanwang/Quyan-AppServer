@@ -1,3 +1,4 @@
+import { projectRelayConfiguration, projectRelayModelRates } from "./relay-configuration-projection";
 import type { ModelPricingItemDto, RelayConfigDto, UpdateRelayConfigRequest } from "@/api/dto/relay/relay-config.dto";
 import { Prisma } from "@prisma/client";
 import { BadRequestError, NotFoundError } from "@/util/errors";
@@ -8,7 +9,6 @@ import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
 import { RelayConfigRepository, RelayModelRateInput } from "@/store/relay/relay-config.repository";
 import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import type { RelayConfigStore } from "@/store/relay/relay-config.store";
-import { resolveModelId } from "@/util/model-resolution.util";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { RECORD_STATUS } from "@/constant/status";
@@ -16,15 +16,6 @@ import type { Request } from "express";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
 
 const MAX_MODEL_FIELD_LENGTH = 200;
-
-const isMonitorNameMapping = (value: unknown): value is Record<string, string> => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  return Object.values(value as Record<string, unknown>).every((item) => typeof item === "string");
-};
-
-const toMonitorNameMapping = (value: unknown): Record<string, string> | null => {
-  return isMonitorNameMapping(value) ? value : null;
-};
 
 const summarizeRelayConfigChanges = (data: UpdateRelayConfigRequest) => ({
   globalMultiplier: data.globalMultiplier,
@@ -101,76 +92,20 @@ export class RelayConfigService {
 
   private async fetchModelRates(): Promise<ModelPricingItemDto[]> {
     const models = await this.modelPricingRepository.listActiveOrderedByModel();
-    return models.map((m) => ({
-      model: m.model,
-      modelId: resolveModelId(m),
-      pricingType: m.pricingType as "token-based" | "per-request" | undefined,
-      inputPrice: Number(m.inputPrice),
-      outputPrice: Number(m.outputPrice),
-      fixedPrice: m.fixedPrice ? Number(m.fixedPrice) : undefined,
-      cacheCreationMultiplier: Number(m.cacheCreationMultiplier),
-      cacheReadMultiplier: Number(m.cacheReadMultiplier),
-      supportedFormats: m.supportedFormats || undefined,
-    }));
-  }
-
-  private defaultRelayConfigDto(modelRates: any[]): RelayConfigDto {
-    return { id: "", ...DEFAULT_RELAY_CONFIG, modelRates };
+    return projectRelayModelRates(models);
   }
 
   async getRelayConfig(): Promise<RelayConfigDto> {
-    let config: any;
+    let config;
     try {
       config = await this.relayConfigRepository.findLatestActive();
     } catch {
-      const modelRates = await this.fetchModelRates().catch(() => []);
-      return this.defaultRelayConfigDto(modelRates);
+      return projectRelayConfiguration(null, await this.fetchModelRates().catch(() => []));
     }
-
     const modelRates = await this.fetchModelRates();
-
-    if (!config) {
-      const defaultConfig = await this.relayConfigRepository.create({
-        ...DEFAULT_RELAY_CONFIG,
-        status: RECORD_STATUS.ACTIVE,
-      });
-      return {
-        id: defaultConfig.id,
-        globalMultiplier: Number(defaultConfig.globalMultiplier),
-        maxConcurrency: defaultConfig.maxConcurrency,
-        queueTimeout: defaultConfig.queueTimeout,
-        upstreamStreamTimeout: defaultConfig.upstreamStreamTimeout,
-        preflightBufferLimitBytes: defaultConfig.preflightBufferLimitBytes ?? undefined,
-        enableQueue: defaultConfig.enableQueue,
-        apiCatalogPoolVisibility:
-          defaultConfig.apiCatalogPoolVisibility === "anonymous-range" ? "anonymous-range" : "hidden",
-        channelTopologyMode: defaultConfig.channelTopologyMode === "strict-two-tier" ? "strict-two-tier" : "legacy",
-        uptimeStatusUrl: defaultConfig.uptimeStatusUrl || undefined,
-        monitorNameMapping: toMonitorNameMapping(defaultConfig.monitorNameMapping),
-        showOnlyConfigured: defaultConfig.showOnlyConfigured ?? undefined,
-        uptimeTransformRules: defaultConfig.uptimeTransformRules || undefined,
-        uptimeStaticData: defaultConfig.uptimeStaticData || undefined,
-        modelRates,
-      };
-    }
-
-    return {
-      id: config.id,
-      globalMultiplier: Number(config.globalMultiplier),
-      maxConcurrency: config.maxConcurrency,
-      queueTimeout: config.queueTimeout,
-      upstreamStreamTimeout: config.upstreamStreamTimeout,
-      preflightBufferLimitBytes: config.preflightBufferLimitBytes ?? undefined,
-      enableQueue: config.enableQueue,
-      apiCatalogPoolVisibility: config.apiCatalogPoolVisibility === "anonymous-range" ? "anonymous-range" : "hidden",
-      channelTopologyMode: config.channelTopologyMode === "strict-two-tier" ? "strict-two-tier" : "legacy",
-      uptimeStatusUrl: config.uptimeStatusUrl || undefined,
-      monitorNameMapping: toMonitorNameMapping(config.monitorNameMapping),
-      showOnlyConfigured: config.showOnlyConfigured ?? undefined,
-      uptimeTransformRules: config.uptimeTransformRules || undefined,
-      uptimeStaticData: config.uptimeStaticData || undefined,
-      modelRates,
-    };
+    if (!config)
+      config = await this.relayConfigRepository.create({ ...DEFAULT_RELAY_CONFIG, status: RECORD_STATUS.ACTIVE });
+    return projectRelayConfiguration(config, modelRates);
   }
 
   async updateRelayConfig(

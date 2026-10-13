@@ -45,6 +45,12 @@
 - 作用：把状态页上的监控 ID 映射成管理员更容易识别的显示名称。
 - 影响：只改变展示，不改变真实路由逻辑。
 
+### 全局配置读取权限
+
+IAM 强制模式下，读取全局设置使用 `quyan:relay:GetConfiguration`，需要真实全局组中的 `MODEL_PRICING_UPDATE` 资格，并允许配置资源 `acs:platform:*:platform:relay-configuration/default`。配置权限与模型价格权限分别判断：价格使用 `acs:platform:*:platform:model-pricing/<记录 ID>`，返回结果只包含获得授权的记录。只允许配置时，价格列表可以为空；只允许价格时，不能读取全局配置。匹配的 Deny 优先。
+
+尚未保存配置时，已授权的读取返回默认设置，不自动创建配置。读取期间资格、策略、角色会话或已授权内容发生变化时，请求失败；存储不可用时不会用默认配置代替成功结果。配置读取权限不包含保存权限。
+
 ### 模型定价导出权限
 
 IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_READ` 资格，使用 `quyan:model_pricing:ExportModels`，资源为 `acs:platform:*:platform:model-pricing/<记录 ID>`。导出仅包含获得授权的实际记录，匹配的 Deny 优先；读取期间价格、资格、策略或角色会话变化时不会返回导出结果。AssumeRole 只使用角色自身授权。公开模型价格列表继续按原有方式访问。

@@ -1,4 +1,20 @@
-import { Body, Controller, Get, Put, Query, Request, Route, Security, Tags, Middlewares } from "@tsoa/runtime";
+import { PlatformRelayConfigurationReadIamService } from "@/services/relay/platform-relay-configuration-read-iam.service";
+import { platformRelayConfigurationArn } from "@/iam/resources/platform-relay-configuration-resources";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import type { ErrorResponse } from "@/api/response";
+import {
+  Body,
+  Controller,
+  Get,
+  Put,
+  Query,
+  Request,
+  Route,
+  Security,
+  Tags,
+  Middlewares,
+  Response,
+} from "@tsoa/runtime";
 import { RelayConfigService } from "@/services/relay/relay-config.service";
 import type {
   RelayConfigDto,
@@ -9,7 +25,7 @@ import type {
 } from "@/api/dto/relay/relay-config.dto";
 import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
-import axios from "axios";
+import axios, { HttpStatusCode } from "axios";
 import { getLogger, LogCategory } from "@/util/logger";
 import { updateRelayConfigBodySchema } from "@/api/schema/relay/relay-config.schema";
 import { validateBody } from "@/middleware/validation";
@@ -29,10 +45,17 @@ export class RelayConfigController extends Controller {
 
   @Get()
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_UPDATE)
-  public async getRelayConfig(): Promise<RelayConfigDto> {
-    const config = await this.relayConfigService.getRelayConfig();
-    return config;
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:GetConfiguration",
+      resourceKind: "collection",
+      resource: platformRelayConfigurationArn,
+    }),
+  )
+  public async getRelayConfig(@Request() request: TypedRequest): Promise<RelayConfigDto> {
+    return PlatformRelayConfigurationReadIamService.getInstance().read(request);
   }
 
   @Put()

@@ -45,6 +45,12 @@ If you need to answer questions like “who can see this channel?”, “which u
 - Purpose: replace raw monitor IDs with clearer admin-facing labels.
 - Effect: changes presentation only, not actual routing logic.
 
+### Global configuration read permission
+
+In IAM enforcement mode, reading global settings uses `quyan:relay:GetConfiguration`. It requires `MODEL_PRICING_UPDATE` eligibility from a real global group and an Allow for `acs:platform:*:platform:relay-configuration/default`. Configuration and model prices are authorized separately: prices use `acs:platform:*:platform:model-pricing/<record ID>`, and the response includes only allowed records. Configuration-only access can return an empty price list; pricing-only access cannot read the configuration. A matching Deny takes precedence.
+
+If no configuration has been saved, an authorized read returns defaults without creating a configuration. Changes to eligibility, policies, role sessions, or authorized content during the read cause the request to fail. Unavailable storage does not produce a successful defaults response. Read permission does not grant permission to save settings.
+
 ### Model pricing export permissions
 
 In IAM enforcement mode, pricing exports require eligibility from a real global group with `MODEL_PRICING_READ`, using `quyan:model_pricing:ExportModels` on `acs:platform:*:platform:model-pricing/<record ID>`. Exports include only authorized actual records, and a matching Deny takes priority. If prices, eligibility, policies, or role sessions change while reading, the export is withheld. AssumeRole uses the role's own grants. The public model pricing list retains its existing access behavior.
