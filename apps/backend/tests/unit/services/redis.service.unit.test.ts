@@ -23,6 +23,50 @@ describe("RedisService circuit breaker", () => {
     vi.useRealTimers();
   });
 
+  it("performs exactly one atomic IP write with the original address keys", async () => {
+    const client = { eval: vi.fn().mockResolvedValue(1), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    const service = RedisService.getInstance(),
+      ip = "2001:0DB8::1";
+    expect(await service.writeIpErrorWeightWithResult(ip, { kind: "set", weight: 0 })).toBe(true);
+    expect(client.eval).toHaveBeenCalledTimes(1);
+    expect(client.eval.mock.calls[0]!.slice(1)).toEqual([
+      4,
+      RedisService.getIpErrorWeightKey(ip),
+      RedisService.getIpErrorWeightTsKey(ip),
+      RedisService.getIpErrorKey(ip),
+      RedisService.getIpErrorBreakdownKey(ip),
+      "set",
+      "0",
+      String(Date.now()),
+    ]);
+  });
+  it.each([null, 0, "1"])("refuses unexpected IP mutation reply %s", async (reply) => {
+    const client = { eval: vi.fn().mockResolvedValue(reply), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().writeIpErrorWeightWithResult("192.0.2.1", { kind: "reset" })).toBe(false);
+    expect(client.eval).toHaveBeenCalledTimes(1);
+  });
+  it("returns unknown on an IP write outage without retry", async () => {
+    const client = { eval: vi.fn().mockRejectedValue(new Error("fixture outage")), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().writeIpErrorWeightWithResult("192.0.2.1", { kind: "reset" })).toBeNull();
+    expect(client.eval).toHaveBeenCalledTimes(1);
+  });
+  it.each([-1, 1.5, 1_000_001, NaN, Infinity])("never evaluates Redis for invalid weight %s", async (weight) => {
+    const client = { eval: vi.fn(), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().writeIpErrorWeightWithResult("192.0.2.1", { kind: "set", weight })).toBe(
+      false,
+    );
+    expect(client.eval).not.toHaveBeenCalled();
+  });
+  it("never evaluates Redis for an unsafe address", async () => {
+    const client = { eval: vi.fn(), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().writeIpErrorWeightWithResult("192.0.2.*", { kind: "reset" })).toBe(false);
+    expect(client.eval).not.toHaveBeenCalled();
+  });
   it("confirms expiring revocation writes and treats outages as unknown instead of success", async () => {
     const client = {
       setex: vi.fn().mockResolvedValueOnce("OK").mockRejectedValueOnce(new Error("fixture outage")),

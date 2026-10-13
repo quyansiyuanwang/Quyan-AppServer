@@ -1,3 +1,6 @@
+import { canonicalIpAddressIdentifier } from "@/util/ip-address-identity";
+import { IP_ERROR_WEIGHT_LIMITS } from "@/constant/ip-error-weight";
+import { IP_ERROR_WEIGHT_WRITE_SCRIPT, type IpErrorWeightWrite } from "./ip-error-weight-script";
 import Redis from "ioredis";
 import { createRedisClient } from "@/config/redis";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -443,6 +446,36 @@ export class RedisService {
         ? await this.client!.setex(key, ttl, value.toString())
         : await this.client!.set(key, value.toString());
       return result === "OK";
+    });
+  }
+
+  /** Atomic confirmed administrative writes; null means Redis could not confirm the outcome. Never retry here. */
+  public async writeIpErrorWeightWithResult(ip: string, input: IpErrorWeightWrite): Promise<boolean | null> {
+    if (
+      !canonicalIpAddressIdentifier(ip) ||
+      !input ||
+      !["set", "reset"].includes(input.kind) ||
+      (input.kind === "set" &&
+        (!Number.isSafeInteger(input.weight) ||
+          input.weight < 0 ||
+          input.weight > IP_ERROR_WEIGHT_LIMITS.manualMaximum))
+    )
+      return false;
+    const timestamp = Date.now();
+    if (!Number.isSafeInteger(timestamp) || timestamp <= 0) return false;
+    return this.executeWithCircuit("writeIpErrorWeight", null, async () => {
+      const result = await this.client!.eval(
+        IP_ERROR_WEIGHT_WRITE_SCRIPT,
+        4,
+        RedisService.getIpErrorWeightKey(ip),
+        RedisService.getIpErrorWeightTsKey(ip),
+        RedisService.getIpErrorKey(ip),
+        RedisService.getIpErrorBreakdownKey(ip),
+        input.kind,
+        String(input.kind === "set" ? input.weight : 0),
+        String(timestamp),
+      );
+      return result === 1;
     });
   }
 

@@ -98,3 +98,11 @@ The total, `offset` and `limit` all reflect allowed records, with explicit Deny 
 `GET /v1/ip-blacklist/{id}` now returns real record details, including retained expired history. IAM `enforce` mode uses the independent `quyan:system:ip_blacklist:GetBlacklist` Action: the server resolves the actual IP from the record ID and authorizes that address's resource ARN. It also requires `IP_BLACKLIST_READ` in an active global group; list and ban-check grants cannot replace detail access.
 
 Missing, deleted or unsafe records are denied in `enforce` mode without falling back to an all-resource grant. The record's address, revision and current authorization are rechecked before the response. `legacy` and `shadow` provide details under the previous effective permission and return 404 for a missing record; `shadow` also records IAM decisions.
+
+## Weight modification permissions for a specific IP
+
+In IAM `enforce` mode, setting weight uses the independent `quyan:system:ip_blacklist:SetIPAddressErrorWeight` Action; resetting uses `quyan:system:ip_blacklist:ResetIPAddressErrorWeight`. Both authorize the target IP's resource ARN and require `IP_BLACKLIST_UPDATE` in the current user's active global group. Read grants, private groups and user additions cannot replace this platform qualification. Set and reset grants do not substitute for each other.
+
+Setting a positive integer replaces the weight and updates the decay start time. Setting `0` clears only weight and decay time, retaining the error breakdown and current-hour count. Reset clears all four values. Both operations retain two-factor verification and replay protection and do not automatically remove an existing ban.
+
+Before modification, the server rechecks the current identity, group qualification, role session and policies. A failed check prevents the modification. Redis must confirm the write outcome. If the response says the modification was not confirmed, query the current status before deciding whether to retry: this response proves neither that the data changed nor that it remained unchanged. The server does not retry the modification automatically. `legacy` and `shadow` retain previous permissions and write behavior; `shadow` also records IAM diagnostics.

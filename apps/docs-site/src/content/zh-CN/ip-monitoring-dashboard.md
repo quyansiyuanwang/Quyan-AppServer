@@ -98,3 +98,11 @@ IAM `enforce` 模式下，列表使用独立的 `quyan:system:ip_blacklist:ListB
 `GET /v1/ip-blacklist/{id}` 现在可以返回实际记录详情，包括过期但仍有效保留的历史记录。IAM `enforce` 模式使用独立的 `quyan:system:ip_blacklist:GetBlacklist` Action，由服务端从记录 ID 解析实际 IP，并按该 IP 的资源 ARN 授权。它同样要求有效全局组中的 `IP_BLACKLIST_READ`；列表和封禁查询权限不能代替详情权限。
 
 缺失、删除或无法安全解析的记录在 `enforce` 模式下被拒绝，不会退化为全资源授权。返回前会复核记录的地址、版本与当前授权。`legacy` 和 `shadow` 按原有效权限提供详情，找不到记录时返回 404；`shadow` 额外记录 IAM 决策。
+
+## 指定 IP 的权重修改权限
+
+IAM `enforce` 模式下，设置权重使用独立的 `quyan:system:ip_blacklist:SetIPAddressErrorWeight`，重置使用 `quyan:system:ip_blacklist:ResetIPAddressErrorWeight`。两者都检查目标 IP 的资源 ARN，并要求当前用户在有效的全局用户组中具备 `IP_BLACKLIST_UPDATE`。只读授权、私有组和用户附加权限不能替代这项平台资格；设置与重置权限也不能互相替代。
+
+设置为正整数会替换权重并更新衰减起算时间；设置为 `0` 仅清除权重和衰减时间，保留错误明细及当前小时计数。重置会同时清除这四项数据。两种操作都保留二次验证和请求重放保护，不会自动解除已有封禁。
+
+服务端在修改前复核当前主体、用户组资格、角色会话和策略；复核不通过时不执行修改。修改结果必须由 Redis 确认。若返回“修改结果未确认”，请先查询当前状态，再决定是否重试：该响应不能证明数据已修改，也不能证明数据未修改。服务端不会自动重试修改。`legacy` 和 `shadow` 保留原有权限及修改行为，`shadow` 另外记录 IAM 诊断。

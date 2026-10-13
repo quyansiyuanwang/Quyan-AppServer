@@ -1,3 +1,4 @@
+import { PlatformIpErrorWeightMutationIamService } from "@/services/system/platform-ip-error-weight-mutation-iam.service";
 import { PlatformIPBlacklistRecordReadIamService } from "@/services/system/platform-ip-blacklist-record-read-iam.service";
 import { PlatformIPBlacklistListIamService } from "@/services/system/platform-ip-blacklist-list-iam.service";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
@@ -343,7 +344,13 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:ResetIPAddressErrorWeight",
+      resourceKind: "single-resource",
+      resource: platformIpAddressResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -354,7 +361,7 @@ export class IPBlacklistController extends Controller {
     @Path() ip: string,
     @Request() request: TypedRequest,
   ): Promise<DeleteIPBlacklistResponse> {
-    await this.ipBlacklistService.resetIpErrorWeight(ip);
+    await PlatformIpErrorWeightMutationIamService.getInstance().reset(ip, request);
     setResponseMessageKey(request, "common.success");
     return { success: true };
   }
@@ -370,7 +377,13 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:SetIPAddressErrorWeight",
+      resourceKind: "single-resource",
+      resource: platformIpAddressResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -383,7 +396,7 @@ export class IPBlacklistController extends Controller {
     @Body() body: SetIpErrorWeightRequest,
     @Request() request: TypedRequest,
   ): Promise<DeleteIPBlacklistResponse> {
-    await this.ipBlacklistService.setIpErrorWeight(ip, body.weight);
+    await PlatformIpErrorWeightMutationIamService.getInstance().set(ip, body.weight, request);
     setResponseMessageKey(request, "common.success");
     return { success: true };
   }
