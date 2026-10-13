@@ -36,7 +36,7 @@ import type {
   ConsumptionUsageRow,
 } from "@/store/system/consumption-stats.store";
 import { UNATTRIBUTED_RELAY_CHANNEL_NAME } from "@/util/relay";
-import type { APILogStore } from "@/store/system/apilog.store";
+import type { APILogStore, ApiLogFilters, APILogWithoutResponse } from "@/store/system/apilog.store";
 import type { UserStore } from "@/store/users/user.store";
 import type { GroupStore } from "@/store/users/group.store";
 import { BUILD_INFO } from "@/generated/buildInfo";
@@ -582,28 +582,19 @@ export class SystemService {
     };
   }
 
-  async getLogs(
-    page: number,
-    pageSize: number,
-    filters?: {
-      user?: string;
-      requestID?: string;
-      path?: string;
-      ip?: string;
-      method?: string | string[];
-      statusCode?: number | number[];
-      startDate?: Date;
-      endDate?: Date;
-    },
-  ): Promise<SystemLogDTO> {
+  async getLogs(page: number, pageSize: number, filters?: ApiLogFilters): Promise<SystemLogDTO> {
     const result = await this.apiLogRepository.query({
       limit: pageSize,
       offset: (page - 1) * pageSize,
       ...filters,
     });
 
+    return { logs: await this.mapLogListRows(result.logs), total: result.total };
+  }
+
+  async mapLogListRows(logs: readonly APILogWithoutResponse[]): Promise<SystemLogDTO["logs"]> {
     // Fetch usernames for logs with userID
-    const userIDs = [...new Set(result.logs.filter((log) => log.userID).map((log) => log.userID!))];
+    const userIDs = [...new Set(logs.filter((log) => log.userID).map((log) => log.userID!))];
 
     const usernameMap = new Map<string, string>();
     if (userIDs.length > 0) {
@@ -612,7 +603,7 @@ export class SystemService {
     }
 
     // Attach username to each log
-    const logsWithUsername = result.logs.map((log) => {
+    const logsWithUsername = logs.map((log) => {
       const { requestHeaders: _requestHeaders, ...rest } = log;
 
       return {
@@ -623,10 +614,7 @@ export class SystemService {
       };
     });
 
-    return {
-      logs: logsWithUsername,
-      total: result.total,
-    };
+    return logsWithUsername;
   }
 
   async getLogDetail(id: string): Promise<SystemLogDetailDTO | null> {

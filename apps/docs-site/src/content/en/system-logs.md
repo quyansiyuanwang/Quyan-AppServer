@@ -80,4 +80,10 @@ IAM `enforce` mode uses `quyan:system:log:GetLogDetail` on `acs:platform:*:platf
 
 Request details, headers and payloads are read only after authorizing the specific log. Matching Deny takes precedence and cannot be bypassed using the other legacy permission alias. Changes to policies, bindings, role sessions or log state during a read prevent the hydrated result from being returned. Unauthorized or unresolved resources return a permission denial without disclosing whether the log exists.
 
-`legacy` and `shadow` preserve the original either-permission check and response. `shadow` additionally records the new IAM decision. API log lists and statistics retain their own endpoint permission rules; a detail grant does not authorize the entire log collection.
+`legacy` and `shadow` preserve the original either-permission check and response. `shadow` additionally records the new IAM decision. Log detail, list and statistics endpoints have separate permission rules; a detail grant does not authorize the entire collection.
+
+## Resource permissions for API log lists
+
+IAM `enforce` mode evaluates `quyan:system:log:ListLogs` against each `acs:platform:*:platform:api-request-log/<logId>`. Logs with matching Deny or no Allow are excluded before pagination and totals. Only the allowed page's full list fields are read. Existing username, keyword, method, status and date filters, size information and username display are retained. A list grant does not grant `GetLogDetail`.
+
+Listing also requires either `API_LOG_READ` or `SYSTEM_LOG_READ` in a global group. Each request uses fixed filters and a time boundary; newer logs appear in the next request. Revoked grants, changed policies or log changes affecting the authorized total cause the request to be denied rather than returning stale results. `legacy` and `shadow` preserve original pagination and totals; the latter also records resource decisions. Log statistics still follow their independent endpoint rules.

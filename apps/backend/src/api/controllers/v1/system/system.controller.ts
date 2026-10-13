@@ -14,6 +14,7 @@ import {
 import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import { SystemService } from "@/services/system/system.service";
+import { PlatformApiLogListIamService } from "@/services/system/platform-api-log-list-iam.service";
 import { PlatformApiLogReadIamService } from "@/services/system/platform-api-log-read-iam.service";
 import { platformApiLogResourceResolver } from "@/iam/request/platform-api-log-resource-resolvers";
 import { PlatformServerLogReadIamService } from "@/services/system/platform-server-log-read-iam.service";
@@ -128,8 +129,14 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequireAnyPermission([Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ])
-  @Middlewares(validateQuery(systemLogsQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:log:ListLogs",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(systemLogsQuerySchema),
+  )
   public async getSystemLogs(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
@@ -156,8 +163,7 @@ export class SystemController extends Controller {
       search,
     };
 
-    const result = await this.systemService.getLogs(page, pageSize, filters);
-    return result;
+    return PlatformApiLogListIamService.getInstance().list(page, pageSize, filters, request);
   }
 
   @Get("logs/stats")

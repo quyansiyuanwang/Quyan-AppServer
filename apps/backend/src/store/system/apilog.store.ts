@@ -39,3 +39,20 @@ export interface APILogStore {
   findById(id: string): Promise<APILog | null>;
   deleteOldLogs(daysToKeep?: number): Promise<number>;
 }
+
+export type ApiLogFilters = Omit<QueryAPILogParams, "limit" | "offset">;
+export const API_LOG_LIST_SELECT = {
+  id: true,
+  status: true,
+  createTime: true,
+  updateTime: true,
+  requestID: true,
+  userID: true,
+  path: true,
+  method: true,
+  queryParams: true,
+  bodyParams: true,
+  requestHeaders: true,
+  ipAddress: true,
+  statusCode: true,
+} as const;
