@@ -1,3 +1,4 @@
+import { PlatformIpBlacklistMutationIamService } from "@/services/system/platform-ip-blacklist-mutation-iam.service";
 import { PlatformIpErrorWeightMutationIamService } from "@/services/system/platform-ip-error-weight-mutation-iam.service";
 import { PlatformIPBlacklistRecordReadIamService } from "@/services/system/platform-ip-blacklist-record-read-iam.service";
 import { PlatformIPBlacklistListIamService } from "@/services/system/platform-ip-blacklist-list-iam.service";
@@ -5,6 +6,7 @@ import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { PlatformIpAddressReadIamService } from "@/services/system/platform-ip-address-read-iam.service";
 import {
   platformIpAddressResourceResolver,
+  platformIpBlacklistMutationResourceResolver,
   platformIpBlacklistRecordResourceResolver,
 } from "@/iam/request/platform-ip-address-resource-resolvers";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -204,7 +206,13 @@ export class IPBlacklistController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "IP 黑名单不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:UpdateBlacklist",
+      resourceKind: "single-resource",
+      resource: platformIpBlacklistMutationResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -217,23 +225,7 @@ export class IPBlacklistController extends Controller {
     @Body() body: UpdateIPBlacklistDto,
     @Request() request: TypedRequest,
   ): Promise<UpdateIPBlacklistResponse> {
-    // Get the repository directly for update operation
-    const { IPBlackListRepository } = await import("@/store/security/ipblacklist");
-    const repository = IPBlackListRepository.getInstance();
-
-    // 先通过IP地址查找记录
-    const record = await repository.findByIpAnyStatus(ipAddress);
-    if (!record)
-      throw new NotFoundError(`IP ${ipAddress} 不在黑名单中`, undefined, {
-        messageKey: "ipBlacklist.notFoundByIp",
-        messageParams: { ip: ipAddress },
-      });
-
-    const updateData: any = {};
-    if (body.banReason !== undefined) updateData.reason = body.banReason;
-    if (body.expireTime !== undefined) updateData.ExpireTime = new Date(body.expireTime);
-
-    const updated = await repository.update(record.id, updateData);
+    const updated = await PlatformIpBlacklistMutationIamService.getInstance().update(ipAddress, body, request);
 
     logger.info(`IP blacklist ${ipAddress} updated by user ${request.user?.userId}`);
 

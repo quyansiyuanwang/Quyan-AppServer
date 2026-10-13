@@ -19,3 +19,9 @@ export const platformIpBlacklistRecordResourceResolver: ResourceResolver = async
   const target = await PlatformIPBlacklistRecordReadRepository.getInstance().target(id);
   return target && platformIpAddressIdentifier(target.ipAddress) ? platformIpAddressArn(target.ipAddress) : undefined;
 };
+
+/** IP-address mutation paths resolve only the validated address, never an ARN from the client. */
+export const platformIpBlacklistMutationResourceResolver: ResourceResolver = ({ request }) => {
+  const ip = request.params.ipAddress;
+  return platformIpAddressIdentifier(ip) ? platformIpAddressArn(ip as string) : undefined;
+};
