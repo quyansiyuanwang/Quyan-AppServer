@@ -1709,6 +1709,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...['RunPolicy', 'RunBatch'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:system:data_lifecycle:' + operation,
+      service: 'system',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes: ['platform/lifecycle-dataset'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.SYSTEM_DATA_LIFECYCLE_MANAGE,
+    }),
+  ),
   ...['UpdatePolicy', 'UpdateSchedule'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:data_lifecycle:' + operation,

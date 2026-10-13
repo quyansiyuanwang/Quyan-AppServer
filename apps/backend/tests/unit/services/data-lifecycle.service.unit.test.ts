@@ -64,6 +64,9 @@ vi.mock("@/store/users/iam-account-principal", async () => {
   };
 });
 
+vi.mock("@/services/system/platform-lifecycle-execution-iam.service", () => ({
+  PlatformLifecycleExecutionIamService: { getInstance: vi.fn() },
+}));
 vi.mock("@/services/system/platform-lifecycle-control-iam.service", () => ({
   PlatformLifecycleControlIamService: { getInstance: vi.fn() },
 }));

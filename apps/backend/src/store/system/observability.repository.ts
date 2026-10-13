@@ -379,8 +379,8 @@ export class ObservabilityRepository {
     });
   }
 
-  public getDatasetDelegate(dataset: DatabaseLifecycleDataset) {
-    return (prisma as any)[dataSetDelegates[dataset]];
+  public getDatasetDelegate(dataset: DatabaseLifecycleDataset, client: Prisma.TransactionClient = prisma) {
+    return (client as any)[dataSetDelegates[dataset]];
   }
 
   public getDelegateByName(name: string) {

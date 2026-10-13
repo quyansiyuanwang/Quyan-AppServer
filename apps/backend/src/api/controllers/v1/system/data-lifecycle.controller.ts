@@ -28,8 +28,6 @@ import type {
 } from "@/api/dto/system/data-lifecycle.dto";
 import { DataLifecycleService } from "@/services/system/data-lifecycle.service";
 import { DataLifecycleSchedulerService } from "@/services/system/data-lifecycle-scheduler.service";
-import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
@@ -178,7 +176,13 @@ export class DataLifecycleController extends Controller {
 
   @Post("policies/{dataset}/run")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:RunPolicy",
+      resourceKind: "single-resource",
+      resource: platformLifecycleDatasetResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -187,7 +191,7 @@ export class DataLifecycleController extends Controller {
     validateParams(lifecycleDatasetParamsSchema),
   )
   public async run(@Request() request: TypedRequest, @Path() dataset: string): Promise<DataLifecycleRunResultResponse> {
-    const result = await this.service.runPolicy(dataset, "manual", request.user?.userId);
+    const result = await this.service.runPolicyRequest(dataset, request);
     if (!result) return { runId: "", candidateCount: 0, archivedCount: 0, deletedCount: 0 };
     return {
       runId: result.runId,
@@ -200,7 +204,13 @@ export class DataLifecycleController extends Controller {
 
   @Post("batch/run")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_DATA_LIFECYCLE_MANAGE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:data_lifecycle:RunBatch",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -212,7 +222,7 @@ export class DataLifecycleController extends Controller {
     @Request() request: TypedRequest,
     @Body() body: BatchDataLifecycleRunRequest,
   ): Promise<BatchDataLifecycleRunResponse> {
-    const result = await this.scheduler.runManualBatch(body.datasets ?? [], request.user?.userId);
+    const result = await this.scheduler.runManualBatchRequest(body.datasets ?? [], request);
     return (
       result ?? {
         items: [],

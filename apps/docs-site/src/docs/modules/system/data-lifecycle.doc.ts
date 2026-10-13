@@ -11,6 +11,6 @@ export default defineDocsPage({
     'zh-CN': '配置数据保留、查看已校验归档，并通过 IAM 控制数据集与文件访问。',
   },
   tags: ['archive', 'cleanup', 'oss', 'retention', 'iam', 'authorization'],
-  updatedAt: '2026-10-13',
+  updatedAt: '2026-10-14',
   content: { en: contentEn, 'zh-CN': contentZh },
 })

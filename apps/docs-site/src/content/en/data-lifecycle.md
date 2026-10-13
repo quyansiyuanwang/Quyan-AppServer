@@ -48,7 +48,13 @@ Saving rechecks identity, group, role session, resource versions and current aut
 2. Select “Run archive” to open a paginated preview dialog with record IDs, timestamps, and redacted summaries. Execution starts only after confirmation.
 3. The server writes gzip NDJSON and uploads it to OSS.
 4. Hot rows are deleted in batches only after object size and SHA-256 verification succeeds.
-5. Run history reports candidate, archived, and deleted counts. Failures preserve source data and can be retried.
+5. Run history reports candidate, archived, and deleted counts. Incomplete source data is retained after a failure; batches already archived and deleted are not rolled back.
+
+Manual archiving requires `quyan:system:data_lifecycle:RunPolicy` on the target dataset. Batch archiving requires the separate `quyan:system:data_lifecycle:RunBatch` action. Both use `acs:platform:*:platform:lifecycle-dataset/<dataset>` and require lifecycle management eligibility from a platform global user group. Policy updates, preview, download, and history permissions do not grant execution permission. Execution still requires two-factor verification and replay protection.
+
+An explicit batch selection is authorized in full before archiving starts. An omitted or empty dataset array processes only the enabled policies selected for that request. Denial on any target prevents execution. During processing, the server repeatedly checks the user, group, role session, policy version, and authorization. Revocation interrupts the request and stops subsequent datasets.
+
+Database source records are deleted only after upload verification, confirmation that the current records match the exported snapshot, and authorization checks within the transaction. Archive metadata, source deletion, and progress are saved together. Server log files are also checked for authorization and content changes before deletion. Archiving advances in batches: a later failure or revocation cannot undo completed uploads or deletions. Review the archived and deleted counts before retrying remaining data. A failure after upload but before metadata is saved retains the source data and may leave an OSS object without a corresponding archive entry; handle such objects through storage operations procedures.
 
 ## Scheduled Archives
 
