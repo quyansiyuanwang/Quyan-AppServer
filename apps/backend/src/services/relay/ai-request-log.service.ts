@@ -246,7 +246,10 @@ export class AIRequestLogService {
   }
   public async query(query: AIRequestLogQuery): Promise<{ items: AIRequestLogListItemDto[]; total: number }> {
     const result = await this.repository.query(query);
-    return { total: result.total, items: result.items.map((log) => this.toListItem(log)) };
+    return { total: result.total, items: this.listItems(result.items) };
+  }
+  public listItems(rows: readonly AIRequestLogListItem[]): AIRequestLogListItemDto[] {
+    return rows.map((row) => this.toListItem(row));
   }
   public async findById(id: string): Promise<AIRequestLogDetailDto | null> {
     const log = await this.repository.findById(id);

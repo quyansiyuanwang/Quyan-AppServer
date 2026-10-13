@@ -1,3 +1,12 @@
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
+import { isAiRequestLogResourceId } from "@/iam/resources/platform-ai-request-log-resources";
+import { iamAccountDenied } from "../users/iam-account-principal";
+import {
+  PLATFORM_AI_LOG_COLLECTION_SELECT,
+  type PlatformAiRequestLogCollectionStore,
+  type PlatformAiLogCollectionCursor,
+  type PlatformAiLogCollectionTarget,
+} from "./platform-ai-request-log-read.store";
 import { Prisma, type AIRequestLog } from "@prisma/client";
 import { prisma } from "@/config/database";
 import type { AIRequestLogContentSide } from "@/api/dto/relay/ai-request-log.dto";
@@ -49,7 +58,7 @@ const metadataColumns = Prisma.raw(
 function literalPattern(value: string): string {
   return "%" + value.replace(/[=%_]/g, "=$&") + "%";
 }
-export class AIRequestLogRepository implements AIRequestLogStore {
+export class AIRequestLogRepository implements AIRequestLogStore, PlatformAiRequestLogCollectionStore {
   private static instance: AIRequestLogRepository;
   public static getInstance(): AIRequestLogRepository {
     return (this.instance ??= new AIRequestLogRepository());
@@ -140,7 +149,7 @@ export class AIRequestLogRepository implements AIRequestLogStore {
       ...(query.startDate || query.endDate ? { createTime: { gte: query.startDate, lte: query.endDate } } : {}),
     };
   }
-  private async queryKeyword(query: AIRequestLogQuery): Promise<{ items: AIRequestLogListItem[]; total: number }> {
+  private keywordWhere(query: AIRequestLogQuery): Prisma.Sql {
     const clauses: Prisma.Sql[] = [Prisma.sql`status = 1`];
     const like = (column: string, value: string) =>
       Prisma.sql`${Prisma.raw("\x60" + column + "\x60")} LIKE ${literalPattern(value)} ESCAPE '='`;
@@ -194,7 +203,10 @@ export class AIRequestLogRepository implements AIRequestLogStore {
       );
     }
     clauses.push(Prisma.sql`(${Prisma.join(keywordClauses, " OR ")})`);
-    const where = Prisma.join(clauses, " AND ");
+    return Prisma.join(clauses, " AND ");
+  }
+  private async queryKeyword(query: AIRequestLogQuery): Promise<{ items: AIRequestLogListItem[]; total: number }> {
+    const where = this.keywordWhere(query);
     const [items, counts] = await Promise.all([
       prisma.$queryRaw<AIRequestLogListItem[]>(
         Prisma.sql`SELECT ${metadataColumns} FROM ai_request_logs WHERE ${where} ORDER BY createTime DESC, id DESC LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}`,
@@ -204,5 +216,80 @@ export class AIRequestLogRepository implements AIRequestLogStore {
       ),
     ]);
     return { items, total: Number(counts[0]?.total ?? 0) };
+  }
+  private validCursor(cursor: PlatformAiLogCollectionCursor) {
+    if (
+      !isAiRequestLogResourceId(cursor.id) ||
+      !(cursor.createTime instanceof Date) ||
+      !Number.isFinite(cursor.createTime.getTime())
+    )
+      throw iamAccountDenied();
+  }
+  async scan(
+    query: AIRequestLogQuery,
+    after?: PlatformAiLogCollectionCursor,
+    boundary?: PlatformAiLogCollectionCursor,
+  ) {
+    if (after) this.validCursor(after);
+    if (boundary) this.validCursor(boundary);
+    if (query.keyword?.trim()) {
+      const clauses = [this.keywordWhere(query)];
+      if (after)
+        clauses.push(
+          Prisma.sql`(createTime < ${after.createTime} OR (createTime = ${after.createTime} AND id < ${after.id}))`,
+        );
+      if (boundary)
+        clauses.push(
+          Prisma.sql`(createTime < ${boundary.createTime} OR (createTime = ${boundary.createTime} AND id <= ${boundary.id}))`,
+        );
+      // Scan only stable identities/versions. Bodies are searched in SQL and never projected.
+      const columns = Prisma.raw(
+        Object.keys(PLATFORM_AI_LOG_COLLECTION_SELECT)
+          .map((key) => "\x60" + key + "\x60")
+          .join(", "),
+      );
+      return prisma.$queryRaw<PlatformAiLogCollectionTarget[]>(
+        Prisma.sql`SELECT ${columns} FROM ai_request_logs WHERE ${Prisma.join(clauses, " AND ")} ORDER BY createTime DESC, id DESC LIMIT ${IAM_AUTHORIZATION_LIMITS.resourcesPerRequest}`,
+      );
+    }
+    const clauses: Prisma.AIRequestLogWhereInput[] = [this.buildWhere(query)];
+    if (after)
+      clauses.push({
+        OR: [{ createTime: { lt: after.createTime } }, { createTime: after.createTime, id: { lt: after.id } }],
+      });
+    if (boundary)
+      clauses.push({
+        OR: [
+          { createTime: { lt: boundary.createTime } },
+          { createTime: boundary.createTime, id: { lte: boundary.id } },
+        ],
+      });
+    return prisma.aIRequestLog.findMany({
+      where: { AND: clauses },
+      orderBy: [{ createTime: "desc" }, { id: "desc" }],
+      take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
+      select: PLATFORM_AI_LOG_COLLECTION_SELECT,
+    });
+  }
+  async hydrate(targets: readonly PlatformAiLogCollectionTarget[]): Promise<AIRequestLogListItem[]> {
+    if (!targets.length) return Promise.resolve([]);
+    if (
+      targets.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+      new Set(targets.map((t) => t.id)).size !== targets.length ||
+      targets.some(
+        (t) =>
+          !isAiRequestLogResourceId(t.id) ||
+          t.status !== 1 ||
+          !(t.createTime instanceof Date) ||
+          !Number.isFinite(t.createTime.getTime()) ||
+          !(t.updateTime instanceof Date) ||
+          !Number.isFinite(t.updateTime.getTime()),
+      )
+    )
+      throw iamAccountDenied();
+    return prisma.aIRequestLog.findMany({
+      where: { status: 1, OR: targets.map((t) => ({ id: t.id, createTime: t.createTime, updateTime: t.updateTime })) },
+      select: AI_REQUEST_LOG_METADATA_SELECT,
+    });
   }
 }

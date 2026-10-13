@@ -1,10 +1,13 @@
-import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { PlatformAiRequestLogListIamService } from "@/services/relay/platform-ai-request-log-list-iam.service";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import { platformAiRequestLogResourceResolver } from "@/iam/request/platform-ai-request-log-resource-resolvers";
 import { PlatformAiRequestLogReadIamService } from "@/services/relay/platform-ai-request-log-read-iam.service";
 import { Controller, Get, Middlewares, Path, Query, Request, Route, Security, Tags } from "@tsoa/runtime";
 import type { TypedRequest } from "@/types/express";
-import { Permission } from "@/constant/permission";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { validateParams, validateQuery } from "@/middleware/validation";
 import {
   aiRequestLogListQuerySchema,
@@ -31,13 +34,20 @@ import { NotFoundError } from "@/util/errors";
 @Tags("Relay AI Request Logs")
 export class AIRequestLogController extends Controller {
   private readonly service = AIRequestLogService.getInstance();
+  private readonly iamLists = PlatformAiRequestLogListIamService.getInstance();
   private readonly iamReads = PlatformAiRequestLogReadIamService.getInstance();
   @Get()
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_AI_REQUEST_LOG_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ai_request_log:ListLogs",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(aiRequestLogListQuerySchema))
   public async list(
-    @Request() _request: TypedRequest,
+    @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
     @Query() user?: string,
@@ -58,27 +68,30 @@ export class AIRequestLogController extends Controller {
     @Query() maxDurationMs?: number,
     @Query() bodyOmissionReason?: AIRequestLogOmissionReason,
   ): Promise<AIRequestLogListResponse> {
-    const result = await this.service.query({
-      page,
-      pageSize,
-      user,
-      relayToken,
-      model,
-      requestFormat,
-      statusCode,
-      requestId,
-      keyword,
-      truncated,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      outcome,
-      isStreaming,
-      failureStage,
-      ipAddress,
-      minDurationMs,
-      maxDurationMs,
-      bodyOmissionReason,
-    });
+    const result = await this.iamLists.list(
+      {
+        page,
+        pageSize,
+        user,
+        relayToken,
+        model,
+        requestFormat,
+        statusCode,
+        requestId,
+        keyword,
+        truncated,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        outcome,
+        isStreaming,
+        failureStage,
+        ipAddress,
+        minDurationMs,
+        maxDurationMs,
+        bodyOmissionReason,
+      },
+      request,
+    );
     return { ...result, page, pageSize };
   }
   @Get("{id}/metadata")

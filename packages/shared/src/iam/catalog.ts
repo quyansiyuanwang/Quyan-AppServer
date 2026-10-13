@@ -1714,6 +1714,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  {
+    action: 'quyan:relay:ai_request_log:ListLogs',
+    service: 'relay',
+    operation: 'ListLogs',
+    accessLevel: 'List',
+    resourceTypes: ['platform/relay-ai-request-log'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_AI_REQUEST_LOG_READ,
+  },
   ...['GetMetadata', 'GetContent', 'SearchContent', 'GetAttempts', 'GetLog', 'ReadDiagnostics'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:relay:ai_request_log:' + operation,
