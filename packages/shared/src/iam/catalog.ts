@@ -1719,12 +1719,12 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
-  ...['GetErrorGroup', 'ListErrorOccurrences'].map(
+  ...['GetErrorGroup', 'ListErrorOccurrences', 'ListErrorGroups'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:error_report:' + operation,
       service: 'system',
       operation,
-      accessLevel: operation === 'ListErrorOccurrences' ? 'List' : 'Read',
+      accessLevel: operation.startsWith('List') ? 'List' : 'Read',
       resourceTypes: ['platform/error-group'],
       apiRoutes: [],
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],

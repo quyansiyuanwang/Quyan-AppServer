@@ -4,7 +4,7 @@ import { Permission, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { auditIamDecision } from "@/iam/audit/iam-audit.service";
-import { parseIamPolicy } from "@/iam/parser/policy-parser";
+import { fingerprintIamPolicies } from "@/iam/evaluator/policy-set-fingerprint";
 import { requestConditionContext } from "@/iam/request/condition-context";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -97,22 +97,7 @@ export class PlatformAiRequestLogListIamService {
     return new Set(rows.filter((_, index) => results[index].decision === "Allow").map((row) => row.id));
   }
   private async policyFingerprint(principal: IamPrincipal) {
-    const policies = await this.iam.loadPolicies(principal);
-    const entries = policies
-      .map((policy) =>
-        JSON.stringify({
-          policyId: policy.policyId,
-          versionId: policy.versionId,
-          authorizationId: policy.authorizationId,
-          documentHash: parseIamPolicy(policy.document).documentHash,
-          scope:
-            policy.scope?.type === "resource-group"
-              ? { ...policy.scope, resources: [...policy.scope.resources].sort() }
-              : policy.scope,
-        }),
-      )
-      .sort();
-    return createHash("sha256").update(JSON.stringify(entries)).digest("hex");
+    return fingerprintIamPolicies(await this.iam.loadPolicies(principal));
   }
   private async collect(
     query: AIRequestLogQuery,

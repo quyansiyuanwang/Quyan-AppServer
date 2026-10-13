@@ -79,6 +79,26 @@ export interface CreateErrorOccurrenceInput {
   context?: Prisma.InputJsonValue;
 }
 
+export function buildErrorGroupWhere(query: ErrorGroupQuery, activeOnly = false): Prisma.ErrorGroupWhereInput {
+  const where: Prisma.ErrorGroupWhereInput = {};
+  if (query.resolutionStatus) where.resolutionStatus = query.resolutionStatus;
+  if (query.source) where.source = query.source;
+  if (query.search)
+    where.OR = [
+      { message: { contains: query.search } },
+      { errorType: { contains: query.search } },
+      { route: { contains: query.search } },
+      { fingerprint: { contains: query.search } },
+    ];
+  if (query.startDate || query.endDate)
+    where.lastSeenAt = {
+      ...(query.startDate ? { gte: query.startDate } : {}),
+      ...(query.endDate ? { lte: query.endDate } : {}),
+    };
+  if (activeOnly) where.status = 1;
+  return where;
+}
+
 export class ObservabilityRepository {
   private static instance: ObservabilityRepository;
 
@@ -136,21 +156,7 @@ export class ObservabilityRepository {
   }
 
   public async queryErrorGroups(query: ErrorGroupQuery) {
-    const where: Prisma.ErrorGroupWhereInput = {};
-    if (query.resolutionStatus) where.resolutionStatus = query.resolutionStatus;
-    if (query.source) where.source = query.source;
-    if (query.search)
-      where.OR = [
-        { message: { contains: query.search } },
-        { errorType: { contains: query.search } },
-        { route: { contains: query.search } },
-        { fingerprint: { contains: query.search } },
-      ];
-    if (query.startDate || query.endDate)
-      where.lastSeenAt = {
-        ...(query.startDate ? { gte: query.startDate } : {}),
-        ...(query.endDate ? { lte: query.endDate } : {}),
-      };
+    const where = buildErrorGroupWhere(query);
 
     const [items, total] = await Promise.all([
       prisma.errorGroup.findMany({

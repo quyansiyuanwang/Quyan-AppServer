@@ -37,8 +37,13 @@ import {
 } from "@/api/schema/system/error-report.schema";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import type { TypedRequest } from "@/types/express";
+import { PlatformErrorGroupListIamService } from "@/services/system/platform-error-group-list-iam.service";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { PlatformErrorGroupReadIamService } from "@/services/system/platform-error-group-read-iam.service";
-import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import { platformErrorGroupResourceResolver } from "@/iam/request/platform-error-group-resource-resolvers";
 import { NotFoundError } from "@/util/errors";
 
@@ -48,6 +53,7 @@ import { NotFoundError } from "@/util/errors";
 export class ErrorReportController extends Controller {
   private readonly service = ErrorReportService.getInstance();
   private readonly iamReads = PlatformErrorGroupReadIamService.getInstance();
+  private readonly iamLists = PlatformErrorGroupListIamService.getInstance();
 
   @Post("client")
   @SuccessResponse(HttpStatusCode.Accepted, "Accepted")
@@ -78,9 +84,16 @@ export class ErrorReportController extends Controller {
 
   @Get("")
   @Security("jwt")
-  @RequirePermission(Permission.SYSTEM_ERROR_REPORT_READ)
-  @Middlewares(validateQuery(errorGroupsQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:system:error_report:ListErrorGroups",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(errorGroupsQuerySchema),
+  )
   public async listGroups(
+    @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
     @Query() resolutionStatus?: string,
@@ -89,15 +102,18 @@ export class ErrorReportController extends Controller {
     @Query() startDate?: string,
     @Query() endDate?: string,
   ): Promise<ErrorGroupListResponse> {
-    const result = await this.service.getGroups({
-      page,
-      pageSize,
-      resolutionStatus,
-      source,
-      search,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-    });
+    const result = await this.iamLists.list(
+      {
+        page,
+        pageSize,
+        resolutionStatus,
+        source,
+        search,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+      },
+      request,
+    );
     return { ...result, page, pageSize };
   }
 

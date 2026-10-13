@@ -8,13 +8,13 @@ The error center aggregates browser runtime errors, Vue component errors, unhand
 - Passwords, tokens, cookies, authorization headers, and secrets are redacted before storage.
 - Error details are retained for 90 days and then removed automatically.
 
-## IAM access to details and occurrences
+## IAM access to error groups and occurrences
 
 With IAM enforcement enabled, each error group uses `acs:platform:*:platform:error-group/<groupId>`. `quyan:system:error_report:GetErrorGroup` reads the group summary; `quyan:system:error_report:ListErrorOccurrences` lists active occurrences belonging to that group, including stacks and bounded context. These are independent permissions: granting one does not grant the other. The occurrence list is authorized at the parent error group and its total includes only active occurrences in that group.
 
 Operators must also have error-report reading eligibility from a platform global user group. Account ownership, private account groups, added user permissions, and wildcard policies cannot independently provide that eligibility. Role sessions use the role's policies and do not inherit group Allow grants.
 
-The server authorizes before loading report details and rechecks access and the error group before returning them. Revoked permissions, an expired or revoked role session, or an invalidated or changed group causes the read to fail. Anonymous client reporting stays rate limited. Group browsing and status updates retain their existing permissions.
+The server authorizes before loading report details and rechecks access and the error group before returning them. Revoked permissions, an expired or revoked role session, or an invalidated or changed group causes the read to fail. Group browsing uses `quyan:system:error_report:ListErrorGroups` on each error group. Results are filtered before pagination; page totals include only authorized active groups. List access does not grant group details or occurrence access. If an authorized group or access changes during a query, retry to retrieve current results. Newly reported groups beyond the query's initial boundary appear in the next query. Anonymous client reporting stays rate limited. Status updates retain their existing permissions.
 
 ## What You Can See
 
