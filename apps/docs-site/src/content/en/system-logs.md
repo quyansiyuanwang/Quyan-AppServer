@@ -73,3 +73,11 @@ acs:platform:*:platform:server-log-file/error-2026-10-14.log.gz
 - Use the complete filename in the ARN. Compressed and uncompressed files are separate resources. A matching explicit Deny takes precedence; absence of Allow denies access. Revoked grants, changed policies or lost operational qualification during a read prevent content from being returned.
 
 `legacy` and `shadow` preserve the original permission checks and responses. `shadow` also records IAM evaluations before enforcement is enabled.
+
+## Resource permissions for API log details
+
+IAM `enforce` mode uses `quyan:system:log:GetLogDetail` on `acs:platform:*:platform:api-request-log/<logId>`. These logs are deployment diagnostics. The current user must hold either `API_LOG_READ` or `SYSTEM_LOG_READ` in an active global group; account policies and private groups cannot replace that qualification. Role sessions require their own log policy and do not inherit the group's Allow.
+
+Request details, headers and payloads are read only after authorizing the specific log. Matching Deny takes precedence and cannot be bypassed using the other legacy permission alias. Changes to policies, bindings, role sessions or log state during a read prevent the hydrated result from being returned. Unauthorized or unresolved resources return a permission denial without disclosing whether the log exists.
+
+`legacy` and `shadow` preserve the original either-permission check and response. `shadow` additionally records the new IAM decision. API log lists and statistics retain their own endpoint permission rules; a detail grant does not authorize the entire log collection.

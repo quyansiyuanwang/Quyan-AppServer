@@ -14,6 +14,8 @@ import {
 import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import { SystemService } from "@/services/system/system.service";
+import { PlatformApiLogReadIamService } from "@/services/system/platform-api-log-read-iam.service";
+import { platformApiLogResourceResolver } from "@/iam/request/platform-api-log-resource-resolvers";
 import { PlatformServerLogReadIamService } from "@/services/system/platform-server-log-read-iam.service";
 import { platformServerLogFileResourceResolver } from "@/iam/request/platform-server-log-resource-resolvers";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -32,7 +34,6 @@ import type {
 import { CheckPermission, PermissionCheckMode, RequireAnyPermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
-import { NotFoundError } from "@/util/errors";
 import type { ErrorResponse } from "@/api/response";
 import {
   platformBuildInfoResource,
@@ -210,15 +211,21 @@ export class SystemController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "日志不存在")
-  @RequireAnyPermission([Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ])
-  @Middlewares(validateParams(systemLogDetailParamsSchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:log:GetLogDetail",
+      resourceKind: "single-resource",
+      resource: platformApiLogResourceResolver,
+    }),
+    validateParams(systemLogDetailParamsSchema),
+  )
   public async getSystemLogDetail(
     @Request() request: TypedRequest,
     @Path() logId: string,
   ): Promise<SystemLogDetailDTO> {
-    const detail = await this.systemService.getLogDetail(logId);
-    if (!detail) throw new NotFoundError("Log not found", undefined, { messageKey: "system.logNotFound" });
-    return detail;
+    return PlatformApiLogReadIamService.getInstance().read(logId, request, () =>
+      this.systemService.getLogDetail(logId),
+    );
   }
 
   @Get("server-log-files")

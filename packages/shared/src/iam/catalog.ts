@@ -105,6 +105,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'api-request-log'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':api-request-log/{resourceId}',
+  },
+  {
     ...resource('platform', 'server-log-file'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':server-log-file/{resourceId}',
@@ -1726,6 +1731,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  {
+    action: 'quyan:system:log:GetLogDetail',
+    service: 'system',
+    operation: 'GetLogDetail',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/api-request-log'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermissions: [Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ],
+  },
   ...['ListFiles', 'GetFileContent'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:server_log:' + operation,
@@ -2511,4 +2529,15 @@ export function iamActionsForLegacyPermission(permission: Permission): string[] 
 }
 export function isIamActionForLegacyPermission(action: string, permission: Permission): boolean {
   return iamActionsForLegacyPermission(permission).includes(action)
+}
+
+/** Explicitly registered former permissions for one fixed Action; consumers define ALL/ANY semantics. */
+export function iamLegacyPermissionsForAction(action: string): Permission[] {
+  const definition = getIamActionDefinition(action)
+  return [
+    ...new Set([
+      ...(definition?.legacyPermission ? [definition.legacyPermission] : []),
+      ...(definition?.legacyPermissions ?? []),
+    ]),
+  ]
 }

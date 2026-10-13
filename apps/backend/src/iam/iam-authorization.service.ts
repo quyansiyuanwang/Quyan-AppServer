@@ -4,6 +4,7 @@ import {
   getIamResourcePatternTypes,
   getIamResourceType,
   getIamActionDefinition,
+  iamLegacyPermissionsForAction,
   isValidIamResource,
   IAM_PLATFORM_ACCOUNT_ID,
 } from "@quyan/shared";
@@ -302,8 +303,9 @@ export class IamAuthorizationService {
       group.id !== user.groupId ||
       group.status !== 1 ||
       group.accountOwnerId !== null ||
-      !definition.legacyPermission ||
-      !parseLegacyPermissions(group.permissions).includes(definition.legacyPermission)
+      !parseLegacyPermissions(group.permissions).some((permission) =>
+        iamLegacyPermissionsForAction(action).includes(permission),
+      )
     )
       throw deny();
     const owner =

@@ -73,3 +73,11 @@ acs:platform:*:platform:server-log-file/error-2026-10-14.log.gz
 - ARN 必须使用完整文件名，压缩文件与未压缩文件分别授权。匹配的显式 Deny 始终优先，没有匹配 Allow 时拒绝。读取期间撤销权限、变更策略或失去运维资格时，不返回已读取的内容。
 
 `legacy` 与 `shadow` 模式仍执行原有权限检查并保留原返回结果；`shadow` 同时记录 IAM 评估用于切换前验证。
+
+## API 日志详情的资源权限
+
+IAM `enforce` 模式使用 `quyan:system:log:GetLogDetail` 读取指定日志，资源格式为 `acs:platform:*:platform:api-request-log/<logId>`。日志属于部署级诊断资源。当前用户必须在有效全局组中持有 `API_LOG_READ` 或 `SYSTEM_LOG_READ` 任一运维资格；账户策略和私有组不能替代它。角色会话须有自己的日志策略，不继承组的 Allow。
+
+请求详情、请求头、响应头和载荷只在该条日志授权通过后读取。匹配的 Deny 始终优先，不能通过另一旧权限别名绕过。权限、绑定、角色会话或日志状态在读取期间发生变化时，已读取结果不会返回。未授权或不可安全解析的日志返回权限拒绝，不泄露日志是否存在。
+
+`legacy` 与 `shadow` 继续使用原来的任一权限检查和响应；`shadow` 额外记录新 IAM 决策。API 日志列表和统计仍按各自接口的权限规则执行，详情授权不代表对整个日志集合的授权。
