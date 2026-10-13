@@ -7,8 +7,8 @@ export default defineDocsPage({
   category: { en: 'System', 'zh-CN': '系统' },
   title: { en: 'Error center', 'zh-CN': '错误中心' },
   summary: {
-    en: 'Investigate aggregated errors and control error group lists, details, and occurrences with IAM.',
-    'zh-CN': '查看聚合错误，并通过 IAM 控制错误组列表、详情与发生记录访问。',
+    en: 'Investigate aggregated errors and control error group browsing, details, occurrences, and status updates with IAM.',
+    'zh-CN': '查看聚合错误，并通过 IAM 控制错误组列表、详情、发生记录及状态更新。',
   },
   tags: ['errors', 'diagnostics', 'retention', 'iam', 'authorization'],
   updatedAt: '2026-10-14',

@@ -88,6 +88,33 @@ describe("AI policy drafting admission", () => {
       IAM_POLICY_DRAFT_LIMITS.windowSeconds,
     );
   });
+  it("exposes same-resource dependencies to AI without adding grants to generated documents", async () => {
+    const writeOnly = {
+      Version: "1",
+      Statement: {
+        Effect: "Allow",
+        Action: "quyan:system:error_report:UpdateErrorGroupStatus",
+        Resource: "acs:platform:*:platform:error-group/group-one",
+      },
+    };
+    generateTextForUser.mockResolvedValue(JSON.stringify({ document: writeOnly }));
+    const result = await service.generate("child", "owner", input, delegationCheck);
+    const prompt = generateTextForUser.mock.calls[0]![1] as string;
+    const catalog = JSON.parse(
+      prompt
+        .split("\n")
+        .find((line) => line.startsWith("Catalog: "))!
+        .slice(9),
+    );
+    expect(
+      catalog.actions.find((entry: { action: string }) => entry.action === writeOnly.Statement.Action),
+    ).toMatchObject({ requiredActions: ["quyan:system:error_report:GetErrorGroup"] });
+    expect(prompt).toContain("instead of broadening the draft");
+    const statements = result.document?.Statement;
+    expect(Array.isArray(statements) ? statements[0] : statements).toMatchObject({
+      Action: [writeOnly.Statement.Action],
+    });
+  });
   it.each([
     '{"document":{"Version":"1","Statement":{"Effect":"Allow","Effect":"Deny","Action":"quyan:ram:ReadUser","Resource":"*"}}}',
     '{"document":{"Version":"1","Statement":{"Effect":"Allow","Action":"quyan:ram:ReadUser","Resource":"*"}},"document":{}}',

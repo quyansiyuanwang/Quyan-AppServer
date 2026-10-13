@@ -12,6 +12,8 @@ export interface IamActionDefinition {
   apiRoutes: string[]
   /** Extra server Actions needed only for documented operation variants, not automatic grants. */
   conditionalActions?: string[]
+  /** Additional server-checked Actions required by every variant; this metadata grants nothing. */
+  requiredActions?: string[]
   conditionKeys: string[]
   sensitive: boolean
   authorizationStage: 'legacy' | 'declared'
@@ -1718,6 +1720,20 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
+  },
+  {
+    action: 'quyan:system:error_report:UpdateErrorGroupStatus',
+    service: 'system',
+    operation: 'UpdateErrorGroupStatus',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/error-group'],
+    apiRoutes: [],
+    requiredActions: ['quyan:system:error_report:GetErrorGroup'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.SYSTEM_ERROR_REPORT_UPDATE,
   },
   ...['GetErrorGroup', 'ListErrorOccurrences', 'ListErrorGroups'].map(
     (operation): IamActionDefinition => ({

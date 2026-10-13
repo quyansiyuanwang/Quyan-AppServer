@@ -61264,6 +61264,13 @@
 						"type": "array",
 						"description": "Extra server Actions needed only for documented operation variants, not automatic grants."
 					},
+					"requiredActions": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Additional server-checked Actions required by every variant; this metadata grants nothing."
+					},
 					"conditionKeys": {
 						"items": {
 							"type": "string"

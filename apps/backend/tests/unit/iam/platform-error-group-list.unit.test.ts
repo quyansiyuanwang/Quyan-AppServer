@@ -75,7 +75,7 @@ beforeEach(() => {
   };
 });
 describe("error group authorized collections", () => {
-  it("declares a separate list action and preserves the remaining legacy status route", () => {
+  it("declares a separate list action and covers all authenticated controller routes", () => {
     expect(getIamActionDefinition(action)).toMatchObject({
       accessLevel: "List",
       sensitive: true,
@@ -90,7 +90,7 @@ describe("error group authorized collections", () => {
       actions: [action],
       issues: [],
     });
-    expect(routes.find((r) => r.key === "PUT /v1/error-reports/{id}/status")?.coverage).toBe("legacy");
+    expect(routes.find((r) => r.key === "PUT /v1/error-reports/{id}/status")?.coverage).toBe("explicit");
   });
   it("filters before pagination and total and never hydrates denied rows", async () => {
     iam.authorizeMany.mockImplementation(async ({ resources }: any) =>

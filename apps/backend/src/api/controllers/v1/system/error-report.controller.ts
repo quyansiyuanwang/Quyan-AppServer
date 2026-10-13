@@ -15,6 +15,7 @@ import {
   Tags,
 } from "@tsoa/runtime";
 import { HttpStatusCode } from "axios";
+import type { RequestHandler } from "express";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type {
   ClientErrorReportRequest,
@@ -24,8 +25,6 @@ import type {
   UpdateErrorGroupStatusRequest,
 } from "@/api/dto/system/error-report.dto";
 import { ErrorReportService } from "@/services/system/error-report.service";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { Permission } from "@/constant/permission";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import {
   clientErrorReportBodySchema,
@@ -37,6 +36,7 @@ import {
 } from "@/api/schema/system/error-report.schema";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 import type { TypedRequest } from "@/types/express";
+import { PlatformErrorGroupMutationIamService } from "@/services/system/platform-error-group-mutation-iam.service";
 import { PlatformErrorGroupListIamService } from "@/services/system/platform-error-group-list-iam.service";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { PlatformErrorGroupReadIamService } from "@/services/system/platform-error-group-read-iam.service";
@@ -54,6 +54,7 @@ export class ErrorReportController extends Controller {
   private readonly service = ErrorReportService.getInstance();
   private readonly iamReads = PlatformErrorGroupReadIamService.getInstance();
   private readonly iamLists = PlatformErrorGroupListIamService.getInstance();
+  private readonly iamMutations = PlatformErrorGroupMutationIamService.getInstance();
 
   @Post("client")
   @SuccessResponse(HttpStatusCode.Accepted, "Accepted")
@@ -162,16 +163,21 @@ export class ErrorReportController extends Controller {
   @Put("{id}/status")
   @Security("jwt")
   @ReplayProtected()
-  @RequirePermission(Permission.SYSTEM_ERROR_REPORT_UPDATE)
   @Middlewares(
-    replayProtectionMiddleware,
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:error_report:UpdateErrorGroupStatus",
+      resourceKind: "single-resource",
+      resource: platformErrorGroupResourceResolver,
+    }),
+    replayProtectionMiddleware as RequestHandler,
     validateParams(errorGroupIdParamsSchema),
     validateBody(updateErrorGroupStatusBodySchema),
   )
-  public async updateStatus(@Path() id: string, @Body() body: UpdateErrorGroupStatusRequest) {
-    const group = await this.service.getGroup(id);
-    if (!group)
-      throw new NotFoundError("Error group not found", undefined, { messageKey: "system.errorGroupNotFound" });
-    return this.service.updateGroupStatus(id, body.resolutionStatus);
+  public async updateStatus(
+    @Path() id: string,
+    @Body() body: UpdateErrorGroupStatusRequest,
+    @Request() request: TypedRequest,
+  ) {
+    return this.iamMutations.update(id, body, request);
   }
 }

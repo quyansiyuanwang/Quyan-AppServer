@@ -39,6 +39,7 @@ const compactCatalog = (policyKind: IamPolicyDraftKind) => ({
     accessLevel: definition.accessLevel,
     resourceTypes: definition.resourceTypes,
     conditionKeys: definition.conditionKeys,
+    ...(definition.requiredActions ? { requiredActions: definition.requiredActions } : {}),
   })),
   resources: IAM_RESOURCE_TYPE_CATALOG.filter(
     (definition) => policyKind === "identity" || definition.id === "quyan/role",
@@ -145,6 +146,7 @@ export class IamPolicyDraftService {
       "Use only actions, resource types, condition keys, and trust principals supported by the catalog below.",
       "Do not invent actions, resource ARNs, account IDs, or condition keys. If a required detail is missing, keep the document narrow and list the missing detail.",
       "Never publish, attach, update, or delete anything. This response is only a draft.",
+      "Catalog requiredActions are additional checks on the same resource, not automatic grants. Explain dependencies; include them only within the requested scope. They may come from other policies. If a dependency is outside the request, list it in missingInformation instead of broadening the draft.",
       "Output shape: { document: policy document or null, explanation: string[], missingInformation: string[] }. Version is exactly 1 as a string. Identity statements contain Sid, Effect, exactly one of Action/NotAction, Resource and supported Condition only. Prefer explicit Action. Identity NotAction is compiled to the current resource-compatible catalog snapshot and cannot select future actions. Trust statements additionally require Principal.RAM with exact acs:quyan::<accountId>:user/<userId> values from the same account. Trust requires explicit Action and rejects NotAction; all other fields are unsupported.",
       `Policy kind: ${policyKind}. Authenticated account owner: ${accountOwnerId}.`,
       `Catalog: ${JSON.stringify(catalog)}`,
