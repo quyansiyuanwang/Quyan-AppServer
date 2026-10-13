@@ -102,11 +102,11 @@ export class IamAuthorizationService {
       if (!role || role.status !== 1 || role.accountOwnerId !== principal.accountOwnerId) throw deny();
     }
     const attached = [
-      ...(!assumedSession ? await this.policies.listPoliciesForTarget("user", user.id) : []),
+      ...(!assumedSession ? await this.policies.listPoliciesForTarget("user", user.id, principal.accountOwnerId) : []),
       ...(!assumedSession && user.group?.status === 1 && user.groupId
-        ? await this.policies.listPoliciesForTarget("group", user.groupId)
+        ? await this.policies.listPoliciesForTarget("group", user.groupId, principal.accountOwnerId)
         : []),
-      ...(await this.policies.listPoliciesForTargets("role", [...roleIds])),
+      ...(await this.policies.listPoliciesForTargets("role", [...roleIds], principal.accountOwnerId)),
     ];
     const targets: IamAuthorizationTarget[] = assumedSession ? [] : [{ principalType: "user", principalId: user.id }];
     if (!assumedSession && user.group?.status === 1 && user.groupId)
@@ -136,9 +136,11 @@ export class IamAuthorizationService {
   async loadRolePolicies(accountOwnerId: string, roleId: string): Promise<IamPolicyInput[]> {
     const role = await this.roles.findRoleById(roleId);
     if (!role || role.status !== 1 || role.accountOwnerId !== accountOwnerId) throw deny();
-    return this.loadAttachedPolicies(accountOwnerId, await this.policies.listPoliciesForTarget("role", roleId), [
-      { principalType: "role", principalId: roleId },
-    ]);
+    return this.loadAttachedPolicies(
+      accountOwnerId,
+      await this.policies.listPoliciesForTarget("role", roleId, accountOwnerId),
+      [{ principalType: "role", principalId: roleId }],
+    );
   }
   /** Candidate upper bound for membership delegation; actor grants come from subject-aware loadPolicies. */
   async loadGroupPolicies(accountOwnerId: string, groupId: string): Promise<IamPolicyInput[]> {
@@ -146,7 +148,7 @@ export class IamAuthorizationService {
     if (!group || group.status !== 1 || group.accountOwnerId !== accountOwnerId) throw deny();
     const result = await this.loadAttachedPolicies(
       accountOwnerId,
-      await this.policies.listPoliciesForTarget("group", groupId),
+      await this.policies.listPoliciesForTarget("group", groupId, accountOwnerId),
       [{ principalType: "group", principalId: groupId }],
     );
     const legacy = legacyPermissionsToPolicy(group.permissions, accountOwnerId);

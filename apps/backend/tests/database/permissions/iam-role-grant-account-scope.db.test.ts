@@ -117,9 +117,7 @@ describe("persisted account isolation for role grants and legacy projections", (
     expect((await PermissionService.getInstance().getUserFullPermissions(actor))?.effectivePermissions).not.toContain(
       Permission.RAM_USER_READ,
     );
-    await expect(authorize()).rejects.toMatchObject(
-      wrong === "attachment" ? { name: "IamPolicyValidationError" } : { statusCode: 403 },
-    );
+    expect((await authorize()).decision).toBe("ImplicitDeny");
   });
   it("preserves valid private-group delegation projections with account filtering", async () => {
     const privateGroup = await group(owner);

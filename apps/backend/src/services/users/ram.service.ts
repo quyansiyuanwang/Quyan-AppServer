@@ -1027,7 +1027,10 @@ export class RamService {
       env.security.iamAuthorizationMode === "enforce"
         ? await this.filterIamEntityPage(actorUserId, owner, "quyan:ram:role:Read", "role", page.items)
         : page.items;
-    const permissions = await this.aggregateRolePermissionsFromPolicies(records.map((record) => record.id));
+    const permissions = await this.aggregateRolePermissionsFromPolicies(
+      records.map((record) => record.id),
+      owner,
+    );
     return { ...page, items: records.map((record) => this.mapRoleToDto(record, permissions.get(record.id) ?? [])) };
   }
 
@@ -1036,13 +1039,16 @@ export class RamService {
     const accountOwnerId = await this.getAccountOwnerId(actorUserId);
     const roles = await this.ramRoleRepository.listRoles(accountOwnerId);
     const roleIds = roles.map((r) => r.id);
-    const permissionsMap = await this.aggregateRolePermissionsFromPolicies(roleIds);
+    const permissionsMap = await this.aggregateRolePermissionsFromPolicies(roleIds, accountOwnerId);
     return roles.map((role) => this.mapRoleToDto(role, permissionsMap.get(role.id) || []));
   }
 
-  private async aggregateRolePermissionsFromPolicies(roleIds: string[]): Promise<Map<string, string[]>> {
+  private async aggregateRolePermissionsFromPolicies(
+    roleIds: string[],
+    accountOwnerId: string,
+  ): Promise<Map<string, string[]>> {
     if (roleIds.length === 0) return new Map();
-    const attachments = await this.ramPolicyRepository.listPoliciesForTargets("role", roleIds);
+    const attachments = await this.ramPolicyRepository.listPoliciesForTargets("role", roleIds, accountOwnerId);
     const map = new Map<string, string[]>();
     for (const a of attachments) {
       const existing = map.get(a.targetId) || [];
@@ -1197,7 +1203,7 @@ export class RamService {
     });
     if (trustPolicy !== undefined)
       auditIamManagement({ actorUserId, accountOwnerId, operation: "update-role-trust", targetId: roleId });
-    const permissions = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId);
+    const permissions = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId, accountOwnerId);
     return this.mapRoleToDto(
       updated,
       permissions.flatMap((p) => p.permissions),
@@ -1345,7 +1351,7 @@ export class RamService {
       });
     }
     const permissions = records.length
-      ? ((await this.aggregateRolePermissionsFromPolicies([roleId])).get(roleId) ?? [])
+      ? ((await this.aggregateRolePermissionsFromPolicies([roleId], owner)).get(roleId) ?? [])
       : [];
     return { ...result, items: records.map((binding) => this.mapBindingToDto({ ...binding, permissions })) };
   }
@@ -1361,7 +1367,7 @@ export class RamService {
     if (!userId) {
       const roleWithBindings = await this.ramRoleRepository.listRoleBindingsByRole(roleId);
       if (!roleWithBindings) return [];
-      const policyBindings = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId);
+      const policyBindings = await this.ramPolicyRepository.listPoliciesForTarget("role", roleId, accountOwnerId);
       const permissions = [...new Set(policyBindings.flatMap((b) => b.permissions))];
       return [
         ...roleWithBindings.userBindings.map((binding) =>
@@ -2150,12 +2156,16 @@ export class RamService {
     const rolePermissions = [...new Set(roleBindings.flatMap((b) => b.permissions))];
 
     // 4. 通过权限策略绑定的权限
-    const policyBindings = await this.ramPolicyRepository.listPoliciesForTarget("user", user.id);
+    const policyBindings = await this.ramPolicyRepository.listPoliciesForTarget("user", user.id, accountOwnerId);
     let policyPermissions: string[] = [...new Set(policyBindings.flatMap((b) => b.permissions))];
 
     // 如果用户有所属组，追加组上绑定的策略权限
     if (user.groupId) {
-      const groupPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget("group", user.groupId);
+      const groupPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget(
+        "group",
+        user.groupId,
+        accountOwnerId,
+      );
       policyPermissions = [...new Set([...policyPermissions, ...groupPolicyBindings.flatMap((b) => b.permissions)])];
     }
 

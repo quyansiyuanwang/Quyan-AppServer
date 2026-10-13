@@ -206,13 +206,14 @@ export class PermissionService {
     options: PermissionCalculationOptions = {},
   ): Promise<UserFullPermissions> {
     const basePermissions = this.calculateUserPermissions(user, group);
+    const accountOwnerId = user.accountOwnerId || user.id;
     const roleBindings = await this.ramRoleRepository.listRoleBindingsForUser(user.id, user.groupId ?? null);
     const rolePermissions = roleBindings.flatMap((binding) =>
       binding.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
     );
 
     // RamPolicy 权限: 用户级 + 用户组级策略
-    const userPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget("user", user.id);
+    const userPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget("user", user.id, accountOwnerId);
     const policyPermissions: Permission[] = [
       ...new Set(
         userPolicyBindings.flatMap((b) =>
@@ -221,7 +222,11 @@ export class PermissionService {
       ),
     ];
     if (user.groupId) {
-      const groupPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget("group", user.groupId);
+      const groupPolicyBindings = await this.ramPolicyRepository.listPoliciesForTarget(
+        "group",
+        user.groupId,
+        accountOwnerId,
+      );
       policyPermissions.push(
         ...groupPolicyBindings.flatMap((b) =>
           b.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
@@ -233,13 +238,24 @@ export class PermissionService {
     let assumedRole: UserFullPermissions["assumedRole"];
     if (options.assumedRoleSessionId) {
       const session = await this.ramRoleRepository.findActiveRoleSession(options.assumedRoleSessionId);
-      if (session && session.subjectUserId === user.id) {
-        const rolePolicies = await this.ramPolicyRepository.listPoliciesForTarget("role", session.roleId);
-        assumedRolePermissions = rolePolicies.flatMap((b) =>
-          b.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
-        );
-        assumedRole = { id: session.roleId, name: session.role.name, sessionId: session.id };
-      }
+      if (
+        !session ||
+        session.subjectUserId !== user.id ||
+        session.accountOwnerId !== accountOwnerId ||
+        session.role.accountOwnerId !== accountOwnerId ||
+        session.role.status !== 1 ||
+        session.status !== 1 ||
+        session.revokedAt ||
+        session.expiresAt.getTime() <= Date.now()
+      )
+        throw new ForbiddenError("Invalid role session for permission projection", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+      const rolePolicies = await this.ramPolicyRepository.listPoliciesForTarget("role", session.roleId, accountOwnerId);
+      assumedRolePermissions = rolePolicies.flatMap((b) =>
+        b.permissions.filter((permission): permission is Permission => isValidPermission(permission)),
+      );
+      assumedRole = { id: session.roleId, name: session.role.name, sessionId: session.id };
     }
 
     const effectivePermissionsSet = new Set<Permission>([

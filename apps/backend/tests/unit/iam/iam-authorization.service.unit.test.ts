@@ -336,7 +336,7 @@ describe("IAM identity policy loading", () => {
     expect(rolePolicies.map((policy) => policy.policyId)).toEqual(["system:self-service:child", "assumed"]);
     expect(roles.listRoleBindingsForUser).not.toHaveBeenCalled();
     expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
-    expect(policies.listPoliciesForTargets).toHaveBeenCalledWith("role", ["role"]);
+    expect(policies.listPoliciesForTargets).toHaveBeenCalledWith("role", ["role"], "owner");
     expect(authorizations.listForPrincipals).toHaveBeenCalledWith("owner", [
       { principalType: "role", principalId: "role" },
     ]);

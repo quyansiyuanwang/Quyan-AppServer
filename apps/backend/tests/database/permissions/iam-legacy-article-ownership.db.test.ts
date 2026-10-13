@@ -186,9 +186,9 @@ describe("legacy article compatibility across policy sources", () => {
     const retained = await prisma.ramPolicyVersion.findUniqueOrThrow({ where: { id: updated.defaultVersionId! } });
     expect(retained.documentHash).toBe(old.documentHash);
     expect(retained.document).toEqual(old.document);
-    expect((await RamPolicyRepository.getInstance().listPoliciesForTarget("user", actor))[0].versionCreatedBy).toBe(
-      IAM_BACKFILL_CREATOR,
-    );
+    expect(
+      (await RamPolicyRepository.getInstance().listPoliciesForTarget("user", actor, owner))[0].versionCreatedBy,
+    ).toBe(IAM_BACKFILL_CREATOR);
   });
   it.each(["hash", "extra-action", "shadow-drift"])(
     "fails closed on backfill integrity/provenance drift: %s",

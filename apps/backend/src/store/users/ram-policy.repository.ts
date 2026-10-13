@@ -283,37 +283,53 @@ export class RamPolicyRepository implements RamPolicyStore {
     return mapped;
   }
 
-  async listPoliciesForTarget(targetType: string, targetId: string): Promise<PolicyBindingInfo[]> {
-    const rows = await prisma.ramPolicyAttachment.findMany({
-      where: { targetType, targetId, ...ACTIVE_WHERE, policy: ACTIVE_WHERE },
-      include: { policy: { include: { defaultVersion: true } } },
-    });
-    return rows.map((row) => ({
-      policyId: row.policyId,
-      policyName: row.policy.name,
-      accountOwnerId: row.policy.accountOwnerId,
-      documentFormat: row.policy.documentFormat,
-      versionId: row.policy.defaultVersion?.id,
-      versionCreatedBy: row.policy.defaultVersion?.createdBy,
-      document:
-        row.policy.defaultVersion?.policyId === row.policyId &&
-        row.policy.defaultVersion.status === AccountStatus.ACTIVE &&
-        row.accountOwnerId === row.policy.accountOwnerId
-          ? row.policy.defaultVersion.document
-          : undefined,
-      legacyPermissions: row.accountOwnerId === row.policy.accountOwnerId ? row.policy.permissions : null,
-      documentHash: row.policy.defaultVersion?.documentHash,
-      validationState: row.policy.defaultVersion?.validationState,
-      permissions: Array.isArray(row.policy.permissions)
-        ? row.policy.permissions.filter((p): p is string => typeof p === "string")
-        : [],
-    }));
+  async listPoliciesForTarget(
+    targetType: string,
+    targetId: string,
+    accountOwnerId: string,
+  ): Promise<PolicyBindingInfo[]> {
+    return (await this.listPoliciesForTargets(targetType, [targetId], accountOwnerId)).map(
+      ({ targetId: _targetId, ...binding }) => binding,
+    );
   }
 
-  async listPoliciesForTargets(targetType: string, targetIds: string[]): Promise<PolicyBindingInfoWithTarget[]> {
-    if (targetIds.length === 0) return [];
+  /** Polymorphic attachments have no target FK. Validate persisted membership before reading grants. */
+  private async activePolicyTargets(targetType: string, targetIds: string[], accountOwnerId: string) {
+    const common = { id: { in: targetIds }, ...ACTIVE_WHERE };
+    if (targetType === "user")
+      return prisma.user.findMany({
+        where: { ...common, OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+        select: { id: true },
+      });
+    if (targetType === "group")
+      return prisma.group.findMany({
+        where: { ...common, OR: [{ accountOwnerId }, { accountOwnerId: null }] },
+        select: { id: true },
+      });
+    if (targetType === "role")
+      return prisma.ramRole.findMany({
+        where: { ...common, accountOwnerId },
+        select: { id: true },
+      });
+    return [];
+  }
+
+  async listPoliciesForTargets(
+    targetType: string,
+    targetIds: string[],
+    accountOwnerId: string,
+  ): Promise<PolicyBindingInfoWithTarget[]> {
+    if (!accountOwnerId || targetIds.length === 0) return [];
+    const targets = await this.activePolicyTargets(targetType, [...new Set(targetIds)], accountOwnerId);
+    if (!targets.length) return [];
     const rows = await prisma.ramPolicyAttachment.findMany({
-      where: { targetType, targetId: { in: targetIds }, ...ACTIVE_WHERE, policy: ACTIVE_WHERE },
+      where: {
+        accountOwnerId,
+        targetType,
+        targetId: { in: targets.map((target) => target.id) },
+        ...ACTIVE_WHERE,
+        policy: { accountOwnerId, ...ACTIVE_WHERE },
+      },
       include: { policy: { include: { defaultVersion: true } } },
     });
     return rows.map((row) => ({

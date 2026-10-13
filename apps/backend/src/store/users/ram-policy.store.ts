@@ -80,6 +80,10 @@ export interface RamPolicyStore {
     pagination: IamManagementPage,
   ): Promise<IamManagementPageResult<PolicyAttachmentRecord>>;
   listAttachmentsByTarget(targetType: string, targetId: string): Promise<PolicyAttachmentRecord[]>;
-  listPoliciesForTarget(targetType: string, targetId: string): Promise<PolicyBindingInfo[]>;
-  listPoliciesForTargets(targetType: string, targetIds: string[]): Promise<PolicyBindingInfoWithTarget[]>;
+  listPoliciesForTarget(targetType: string, targetId: string, accountOwnerId: string): Promise<PolicyBindingInfo[]>;
+  listPoliciesForTargets(
+    targetType: string,
+    targetIds: string[],
+    accountOwnerId: string,
+  ): Promise<PolicyBindingInfoWithTarget[]>;
 }

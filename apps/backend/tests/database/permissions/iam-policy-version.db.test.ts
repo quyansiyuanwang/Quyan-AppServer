@@ -121,20 +121,20 @@ describe("immutable IAM policy versions", () => {
   it("filters disabled policies and disabled attachments for single and batch targets", async () => {
     const policy = await create("revoke");
     await repository.attachPolicy(ownerId, policy.id, "user", ownerId);
-    expect(await repository.listPoliciesForTarget("user", ownerId)).toHaveLength(1);
+    expect(await repository.listPoliciesForTarget("user", ownerId, ownerId)).toHaveLength(1);
     await prisma.ramPolicyAttachment.updateMany({ where: { policyId: policy.id }, data: { status: 0 } });
-    expect(await repository.listPoliciesForTarget("user", ownerId)).toEqual([]);
+    expect(await repository.listPoliciesForTarget("user", ownerId, ownerId)).toEqual([]);
     await prisma.ramPolicyAttachment.updateMany({ where: { policyId: policy.id }, data: { status: 1 } });
     await repository.softDeletePolicy(policy.id);
-    expect(await repository.listPoliciesForTarget("user", ownerId)).toEqual([]);
-    expect(await repository.listPoliciesForTargets("user", [ownerId])).toEqual([]);
+    expect(await repository.listPoliciesForTarget("user", ownerId, ownerId)).toEqual([]);
+    expect(await repository.listPoliciesForTargets("user", [ownerId], ownerId)).toEqual([]);
   });
   it("never exposes a default document from a different policy or a mismatched attachment owner", async () => {
     const first = await create("pointer-first");
     const second = await create("pointer-second");
     await repository.attachPolicy(ownerId, first.id, "user", ownerId);
     await prisma.ramPolicy.update({ where: { id: first.id }, data: { defaultVersionId: second.defaultVersionId } });
-    expect((await repository.listPoliciesForTarget("user", ownerId))[0].document).toBeUndefined();
+    expect((await repository.listPoliciesForTarget("user", ownerId, ownerId))[0].document).toBeUndefined();
     const other = await prisma.user.create({
       data: {
         username: "iam-other-" + randomUUID(),
@@ -144,6 +144,6 @@ describe("immutable IAM policy versions", () => {
       },
     });
     await prisma.ramPolicyAttachment.updateMany({ where: { policyId: first.id }, data: { accountOwnerId: other.id } });
-    expect((await repository.listPoliciesForTarget("user", ownerId))[0].legacyPermissions).toBeNull();
+    expect(await repository.listPoliciesForTarget("user", ownerId, ownerId)).toEqual([]);
   });
 });
