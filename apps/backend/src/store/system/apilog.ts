@@ -9,7 +9,7 @@ import type {
   APILogStatsRow,
 } from "./apilog.store";
 import { resolveApiLogWhere } from "./apilog-query";
-import { API_LOG_LIST_SELECT } from "./apilog.store";
+import { API_LOG_STATS_SELECT, API_LOG_LIST_SELECT } from "./apilog.store";
 import { RECORD_STATUS } from "@/constant/status";
 
 /**
@@ -159,14 +159,7 @@ export class APILogRepository implements APILogStore {
       return prisma.aPILog.findMany({
         where,
         orderBy: { createTime: "asc" },
-        select: {
-          createTime: true,
-          userID: true,
-          method: true,
-          path: true,
-          statusCode: true,
-          ipAddress: true,
-        },
+        select: API_LOG_STATS_SELECT,
       });
     } catch (error) {
       logger.error("Failed to list API logs for stats", { error, params });

@@ -86,4 +86,10 @@ IAM `enforce` 模式使用 `quyan:system:log:GetLogDetail` 读取指定日志，
 
 在 IAM `enforce` 模式下，`quyan:system:log:ListLogs` 按每条日志的 `acs:platform:*:platform:api-request-log/<logId>` 评估。匹配 Deny 或没有 Allow 的日志不会出现在列表、分页或总数中。后端只读取允许页的完整列表字段；它保留原有用户名、关键词、方法、状态码和日期筛选，以及请求和响应大小、用户名展示。列表授权不会授予 `GetLogDetail`。
 
-列表同样要求全局组中的 `API_LOG_READ` 或 `SYSTEM_LOG_READ` 任一资格。一次请求使用固定的筛选和时间边界；新增的较新日志会在下一次请求出现。查询期间的撤权、策略变化或影响已授权总数的日志变更会导致拒绝，避免返回失效的结果。`legacy` 和 `shadow` 保留原分页与总数，后者同时记录资源级评估。日志统计仍执行其独立接口规则。
+列表同样要求全局组中的 `API_LOG_READ` 或 `SYSTEM_LOG_READ` 任一资格。一次请求使用固定的筛选和时间边界；新增的较新日志会在下一次请求出现。查询期间的撤权、策略变化或影响已授权总数的日志变更会导致拒绝，避免返回失效的结果。`legacy` 和 `shadow` 保留原分页与总数，后者同时记录资源级评估。
+
+## API 日志统计的资源权限
+
+IAM `enforce` 模式使用独立的 `quyan:system:log:GetLogStatistics` Action，逐条评估 API 日志 ARN。只有授权通过的记录参与总数、用户与 IP 去重、每日趋势、状态码与方法分布，以及热门路径统计。仅有列表或详情权限不能读取统计。没有匹配的已授权记录时，报表请求数为零。
+
+读取统计同样要求当前用户在有效全局组中具备 `API_LOG_READ` 或 `SYSTEM_LOG_READ`。现有筛选与日期范围规则保留。统计请求固定时间边界，并在返回前复核参与计算的记录及授权；更新的日志在下次请求出现，已有统计记录或授权发生变化时返回权限拒绝。`legacy` 和 `shadow` 保留原统计结果，`shadow` 同时记录 IAM 资源决策。

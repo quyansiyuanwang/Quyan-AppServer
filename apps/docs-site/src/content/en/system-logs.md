@@ -86,4 +86,10 @@ Request details, headers and payloads are read only after authorizing the specif
 
 IAM `enforce` mode evaluates `quyan:system:log:ListLogs` against each `acs:platform:*:platform:api-request-log/<logId>`. Logs with matching Deny or no Allow are excluded before pagination and totals. Only the allowed page's full list fields are read. Existing username, keyword, method, status and date filters, size information and username display are retained. A list grant does not grant `GetLogDetail`.
 
-Listing also requires either `API_LOG_READ` or `SYSTEM_LOG_READ` in a global group. Each request uses fixed filters and a time boundary; newer logs appear in the next request. Revoked grants, changed policies or log changes affecting the authorized total cause the request to be denied rather than returning stale results. `legacy` and `shadow` preserve original pagination and totals; the latter also records resource decisions. Log statistics still follow their independent endpoint rules.
+Listing also requires either `API_LOG_READ` or `SYSTEM_LOG_READ` in a global group. Each request uses fixed filters and a time boundary; newer logs appear in the next request. Revoked grants, changed policies or log changes affecting the authorized total cause the request to be denied rather than returning stale results. `legacy` and `shadow` preserve original pagination and totals; the latter also records resource decisions.
+
+## Resource permissions for API log statistics
+
+IAM `enforce` mode uses the independent `quyan:system:log:GetLogStatistics` Action on each API log ARN. Only authorized records contribute to totals, unique users and IPs, daily series, status and method distributions, and top paths. List or detail permissions alone do not grant statistics access. If no matching records are authorized, the report contains zero requests.
+
+The same active global-group qualification (`API_LOG_READ` or `SYSTEM_LOG_READ`) is required. Existing filters and date-range behavior are retained. Statistics use a fixed time boundary and verify contributing records and grants before returning; newer logs appear on the next request, and changes to existing contributions or authorization cause a permission denial. `legacy` and `shadow` preserve the original report, with IAM resource decisions additionally recorded in `shadow`.

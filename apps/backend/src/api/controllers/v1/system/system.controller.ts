@@ -14,6 +14,7 @@ import {
 import { HttpStatusCode } from "axios";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import { SystemService } from "@/services/system/system.service";
+import { PlatformApiLogStatsIamService } from "@/services/system/platform-api-log-stats-iam.service";
 import { PlatformApiLogListIamService } from "@/services/system/platform-api-log-list-iam.service";
 import { PlatformApiLogReadIamService } from "@/services/system/platform-api-log-read-iam.service";
 import { platformApiLogResourceResolver } from "@/iam/request/platform-api-log-resource-resolvers";
@@ -32,7 +33,7 @@ import type {
   SystemLogStatsDTO,
   SystemStatsDTO,
 } from "@/api/dto/system/system.dto";
-import { CheckPermission, PermissionCheckMode, RequireAnyPermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type { ErrorResponse } from "@/api/response";
@@ -171,9 +172,16 @@ export class SystemController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequireAnyPermission([Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ])
-  @Middlewares(validateQuery(systemLogStatsQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:log:GetLogStatistics",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(systemLogStatsQuerySchema),
+  )
   public async getSystemLogStats(
+    @Request() request: TypedRequest,
     @Query() user?: string,
     @Query() requestID?: string,
     @Query() path?: string,
@@ -184,17 +192,20 @@ export class SystemController extends Controller {
     @Query() endDate?: string,
     @Query() search?: string,
   ): Promise<SystemLogStatsDTO> {
-    return this.systemService.getLogStats({
-      user,
-      requestID,
-      path,
-      ip,
-      method,
-      statusCode,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      search,
-    });
+    return PlatformApiLogStatsIamService.getInstance().statistics(
+      {
+        user,
+        requestID,
+        path,
+        ip,
+        method,
+        statusCode,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        search,
+      },
+      request,
+    );
   }
 
   @Get("client-ip")

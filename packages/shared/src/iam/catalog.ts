@@ -1757,6 +1757,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermissions: [Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ],
   },
+  {
+    action: 'quyan:system:log:GetLogStatistics',
+    service: 'system',
+    operation: 'GetLogStatistics',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/api-request-log'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermissions: [Permission.API_LOG_READ, Permission.SYSTEM_LOG_READ],
+  },
   ...['ListFiles', 'GetFileContent'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:system:server_log:' + operation,

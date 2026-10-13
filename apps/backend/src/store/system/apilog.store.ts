@@ -56,3 +56,12 @@ export const API_LOG_LIST_SELECT = {
   ipAddress: true,
   statusCode: true,
 } as const;
+
+export const API_LOG_STATS_SELECT = {
+  createTime: true,
+  userID: true,
+  method: true,
+  path: true,
+  statusCode: true,
+  ipAddress: true,
+} as const;

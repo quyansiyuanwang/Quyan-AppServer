@@ -21,3 +21,8 @@ export interface PlatformApiLogCollectionStore {
     targets: readonly PlatformApiLogCollectionTarget[],
   ): Promise<import("./apilog.store").APILogWithoutResponse[]>;
 }
+
+export type PlatformApiLogStatisticsRow = PlatformApiLogCollectionTarget & import("./apilog.store").APILogStatsRow;
+export interface PlatformApiLogStatisticsStore extends Pick<PlatformApiLogCollectionStore, "where" | "scan"> {
+  hydrateStats(targets: readonly PlatformApiLogCollectionTarget[]): Promise<PlatformApiLogStatisticsRow[]>;
+}
