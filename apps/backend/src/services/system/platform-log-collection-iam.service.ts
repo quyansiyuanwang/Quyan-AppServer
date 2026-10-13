@@ -1,34 +1,33 @@
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { iamLegacyPermissionsForAction, type IamPrincipal } from "@quyan/shared";
-import type { Prisma } from "@prisma/client";
 import { env } from "@/config/env";
 import type { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { fingerprintIamPolicies } from "@/iam/evaluator/policy-set-fingerprint";
 import { requestConditionContext } from "@/iam/request/condition-context";
 import { auditIamDecision } from "@/iam/audit/iam-audit.service";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
-import { isApiLogResourceId, platformApiLogArn } from "@/iam/resources/platform-api-log-resources";
+import { isPlatformLogResourceId } from "@/iam/resources/platform-log-resources";
 import type { PlatformManagementReadStore } from "@/store/system/platform-management-read.store";
 import type {
-  PlatformApiLogCollectionStore,
-  PlatformApiLogCollectionTarget,
-  PlatformApiLogCollectionCursor,
-} from "@/store/system/platform-api-log-read.store";
-import type { ApiLogFilters } from "@/store/system/apilog.store";
+  PlatformLogCollectionStore,
+  PlatformLogTarget,
+  PlatformLogCursor,
+} from "@/store/system/platform-log-collection.store";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import type { TypedRequest } from "@/types/express";
 const batchSize = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
 /** Shared native read protocol: qualify, authorize metadata, consume allowed rows, then verify the full contribution snapshot. */
-export class PlatformApiLogCollectionIamService {
+export class PlatformLogCollectionIamService<Filters, Where> {
   constructor(
     private readonly iam: Pick<IamAuthorizationService, "loadPolicies" | "authorizeMany">,
     private readonly snapshots: PlatformManagementReadStore,
-    private readonly repository: Pick<PlatformApiLogCollectionStore, "where" | "scan">,
+    private readonly repository: PlatformLogCollectionStore<Filters, Where>,
+    private readonly resource: (id: string) => string,
   ) {}
-  static valid(row: PlatformApiLogCollectionTarget) {
+  static valid(row: PlatformLogTarget) {
     return (
-      isApiLogResourceId(row.id) &&
+      isPlatformLogResourceId(row.id) &&
       row.status === 1 &&
       row.createTime instanceof Date &&
       Number.isFinite(row.createTime.getTime()) &&
@@ -39,10 +38,10 @@ export class PlatformApiLogCollectionIamService {
   private async allowed(
     action: string,
     principal: IamPrincipal,
-    rows: readonly PlatformApiLogCollectionTarget[],
+    rows: readonly PlatformLogTarget[],
     request: TypedRequest,
   ) {
-    const resources = rows.map((row) => platformApiLogArn(row.id)),
+    const resources = rows.map((row) => this.resource(row.id)),
       start = performance.now();
     const results = await this.iam.authorizeMany({
       principal,
@@ -70,15 +69,15 @@ export class PlatformApiLogCollectionIamService {
     return new Set(rows.filter((_, index) => results[index]!.decision === "Allow").map((row) => row.id));
   }
   private async collect(
-    where: Prisma.APILogWhereInput | undefined,
+    where: Where | null | undefined,
     action: string,
     principal: IamPrincipal,
     request: TypedRequest,
     recheck: () => Promise<void>,
-    fixedBoundary?: PlatformApiLogCollectionCursor,
-    visit?: (targets: readonly PlatformApiLogCollectionTarget[]) => Promise<void>,
+    fixedBoundary?: PlatformLogCursor,
+    visit?: (targets: readonly PlatformLogTarget[]) => Promise<void>,
   ) {
-    let after: PlatformApiLogCollectionCursor | undefined,
+    let after: PlatformLogCursor | undefined,
       boundary = fixedBoundary,
       total = 0;
     const hash = createHash("sha256");
@@ -92,7 +91,7 @@ export class PlatformApiLogCollectionIamService {
           new Set(rows.map((row) => row.id)).size !== rows.length ||
           rows.some(
             (row, index) =>
-              !PlatformApiLogCollectionIamService.valid(row) ||
+              !PlatformLogCollectionIamService.valid(row) ||
               (index && row.createTime.getTime() > rows[index - 1]!.createTime.getTime()) ||
               (after && (row.id === after.id || row.createTime.getTime() > after.createTime.getTime())) ||
               (boundary && row.createTime.getTime() > boundary.createTime.getTime()),
@@ -122,9 +121,9 @@ export class PlatformApiLogCollectionIamService {
     action: string,
     principal: IamPrincipal,
     request: TypedRequest,
-    filters: ApiLogFilters,
+    filters: Filters,
     consumer?: {
-      visit?: (targets: readonly PlatformApiLogCollectionTarget[]) => Promise<void>;
+      visit?: (targets: readonly PlatformLogTarget[]) => Promise<void>;
       finish: (total: number) => Promise<Result>;
     },
   ): Promise<Result | undefined> {

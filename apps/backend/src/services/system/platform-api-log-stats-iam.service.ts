@@ -1,3 +1,4 @@
+import { platformApiLogArn } from "@/iam/resources/platform-api-log-resources";
 import { iamLegacyPermissionsForAction } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -11,7 +12,7 @@ import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PermissionService } from "@/services/users/permission.service";
 import { SystemService } from "./system.service";
 import { SystemLogStatisticsAccumulator } from "./system-log-statistics";
-import { PlatformApiLogCollectionIamService } from "./platform-api-log-collection-iam.service";
+import { PlatformLogCollectionIamService } from "./platform-log-collection-iam.service";
 import { systemLogStatsQuerySchema } from "@/api/schema/system/system.schema";
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -66,7 +67,7 @@ export class PlatformApiLogStatsIamService {
     const principal = { ...identity };
     const native = async (hydrate: boolean) => {
       const accumulator = new SystemLogStatisticsAccumulator(query);
-      return new PlatformApiLogCollectionIamService(this.iam, this.snapshots, this.repository).read(
+      return new PlatformLogCollectionIamService(this.iam, this.snapshots, this.repository, platformApiLogArn).read(
         action,
         principal,
         request,
@@ -81,7 +82,7 @@ export class PlatformApiLogStatsIamService {
                   new Set(rows.map((row) => row.id)).size !== rows.length ||
                   rows.some(
                     (row) =>
-                      !PlatformApiLogCollectionIamService.valid(row) ||
+                      !PlatformLogCollectionIamService.valid(row) ||
                       !targets.some(
                         (target) =>
                           target.id === row.id &&

@@ -1,3 +1,5 @@
+import { PlatformBusinessLogListIamService } from "@/services/system/platform-business-log-list-iam.service";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { platformBusinessLogOptionsResource } from "@/iam/request/platform-system-resource-resolvers";
 import {
@@ -109,8 +111,14 @@ export class BusinessLogController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_BUSINESS_LOG_READ)
-  @Middlewares(validateQuery(businessLogsQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:business_log:ListLogs",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(businessLogsQuerySchema),
+  )
   public async getBusinessLogs(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
@@ -126,18 +134,23 @@ export class BusinessLogController extends Controller {
     @Query() success?: boolean,
     @Query() ip?: string,
   ): Promise<BusinessLogListResponse> {
-    const result = await this.service.getLogs(page, pageSize, {
-      operationType,
-      operationCategory,
-      actorUserId,
-      actor,
-      targetUserId,
-      target,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      success,
-      ip,
-    });
+    const result = await PlatformBusinessLogListIamService.getInstance().list(
+      page,
+      pageSize,
+      {
+        operationType,
+        operationCategory,
+        actorUserId,
+        actor,
+        targetUserId,
+        target,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        success,
+        ip,
+      },
+      request,
+    );
 
     return {
       logs: result.logs.map((log) => ({

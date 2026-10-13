@@ -105,6 +105,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':auth-center-review-client/{resourceId}',
   },
   {
+    ...resource('platform', 'business-log'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':business-log/{resourceId}',
+  },
+  {
     ...resource('platform', 'api-request-log'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':api-request-log/{resourceId}',
@@ -1744,6 +1749,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
+  },
+  {
+    action: 'quyan:system:business_log:ListLogs',
+    service: 'system',
+    operation: 'ListLogs',
+    accessLevel: 'List',
+    resourceTypes: ['platform/business-log'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.SYSTEM_BUSINESS_LOG_READ,
   },
   {
     action: 'quyan:system:business_log:GetFilterOptions',

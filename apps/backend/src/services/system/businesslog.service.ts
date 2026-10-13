@@ -119,9 +119,12 @@ class BusinessLogService {
 
     const result = await this.repository.query(params);
 
+    return { logs: await this.mapLogListRows(result.logs), total: result.total };
+  }
+  public async mapLogListRows(rows: readonly BusinessLog[]) {
     // Batch fetch usernames for actorUserId and targetUserId
-    const actorUserIds = [...new Set(result.logs.filter((log) => log.actorUserId).map((log) => log.actorUserId!))];
-    const targetUserIds = [...new Set(result.logs.filter((log) => log.targetUserId).map((log) => log.targetUserId!))];
+    const actorUserIds = [...new Set(rows.filter((log) => log.actorUserId).map((log) => log.actorUserId!))];
+    const targetUserIds = [...new Set(rows.filter((log) => log.targetUserId).map((log) => log.targetUserId!))];
     const allUserIds = [...new Set([...actorUserIds, ...targetUserIds])];
 
     const usernameMap = new Map<string, string>();
@@ -131,16 +134,13 @@ class BusinessLogService {
     }
 
     // Attach usernames to logs
-    const logsWithUsernames = result.logs.map((log) => ({
+    const logsWithUsernames = rows.map((log) => ({
       ...log,
       actorUsername: log.actorUserId ? usernameMap.get(log.actorUserId) || null : null,
       targetUsername: log.targetUserId ? usernameMap.get(log.targetUserId) || null : null,
     }));
 
-    return {
-      logs: logsWithUsernames,
-      total: result.total,
-    };
+    return logsWithUsernames;
   }
 
   /**

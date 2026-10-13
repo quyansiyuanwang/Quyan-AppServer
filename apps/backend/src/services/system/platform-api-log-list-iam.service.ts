@@ -1,4 +1,5 @@
-import { PlatformApiLogCollectionIamService } from "./platform-api-log-collection-iam.service";
+import { platformApiLogArn } from "@/iam/resources/platform-api-log-resources";
+import { PlatformLogCollectionIamService } from "./platform-log-collection-iam.service";
 import { iamLegacyPermissionsForAction } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -72,7 +73,7 @@ export class PlatformApiLogListIamService {
       const pageTargets: PlatformApiLogCollectionTarget[] = [];
       let totalSeen = 0;
       const offset = (query.page - 1) * query.pageSize;
-      return new PlatformApiLogCollectionIamService(this.iam, this.snapshots, this.repository).read(
+      return new PlatformLogCollectionIamService(this.iam, this.snapshots, this.repository, platformApiLogArn).read(
         action,
         principal,
         request,
@@ -92,7 +93,7 @@ export class PlatformApiLogListIamService {
                   new Set(rows.map((row) => row.id)).size !== rows.length ||
                   rows.some(
                     (row) =>
-                      !PlatformApiLogCollectionIamService.valid(row) ||
+                      !PlatformLogCollectionIamService.valid(row) ||
                       !pageTargets.some(
                         (target) =>
                           target.id === row.id &&
