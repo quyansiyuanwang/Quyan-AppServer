@@ -47,3 +47,9 @@
 - `user-management`
 - `balance-management`
 - `system-logs`
+
+## 筛选目录权限
+
+IAM `enforce` 模式下，操作类型与分类选择器使用独立的 `quyan:system:business_log:GetFilterOptions` Action，资源为 `acs:platform:*:platform:system/business-log-options`。接口返回已有静态目录，不读取业务日志记录，也不会授予列表或统计访问权限。
+
+当前用户必须在有效全局组中具备 `SYSTEM_BUSINESS_LOG_READ`。账户策略、私有组和用户附加权限不能替代这项部署级资格。匹配的显式 Deny 会阻止访问；读取期间失去资格或策略评估拒绝时不返回结果。`legacy` 和 `shadow` 保留原有效权限，`shadow` 同时记录 IAM 决策。

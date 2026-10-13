@@ -1,3 +1,5 @@
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { platformBusinessLogOptionsResource } from "@/iam/request/platform-system-resource-resolvers";
 import {
   Get,
   Route,
@@ -41,9 +43,17 @@ export class BusinessLogController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_BUSINESS_LOG_READ)
-  public async getBusinessLogFilterOptions(): Promise<BusinessLogFilterOptionsResponse> {
-    return this.service.getFilterOptions();
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:business_log:GetFilterOptions",
+      resourceKind: "single-resource",
+      resource: platformBusinessLogOptionsResource,
+    }),
+  )
+  public async getBusinessLogFilterOptions(
+    @Request() request: TypedRequest,
+  ): Promise<BusinessLogFilterOptionsResponse> {
+    return this.service.getAuthorizedFilterOptions(request);
   }
 
   @Get("/stats")

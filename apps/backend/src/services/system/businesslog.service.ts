@@ -1,3 +1,5 @@
+import { platformSystemArn } from "@/iam/resources/platform-system-resources";
+import type { TypedRequest } from "@/types/express";
 import { BusinessLogRepository, CreateBusinessLogParams, QueryBusinessLogParams } from "@/store/system/businesslog";
 import {
   ALL_OPERATION_CATEGORIES,
@@ -144,6 +146,17 @@ class BusinessLogService {
   /**
    * 获取业务日志筛选项
    */
+  public async getAuthorizedFilterOptions(request: TypedRequest): Promise<BusinessLogFilterOptionsResponse> {
+    // PermissionService records business logs during singleton initialization. Resolve its read guard after initialization.
+    const { PlatformManagementReadIamService } = await import("./platform-management-read-iam.service");
+    return PlatformManagementReadIamService.getInstance().read(
+      "quyan:system:business_log:GetFilterOptions",
+      platformSystemArn("business-log-options"),
+      request,
+      async () => this.getFilterOptions(),
+    );
+  }
+
   public getFilterOptions(): BusinessLogFilterOptionsResponse {
     return {
       operationTypes: ALL_OPERATION_TYPES,

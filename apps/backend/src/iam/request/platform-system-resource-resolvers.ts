@@ -9,3 +9,5 @@ export const platformFunnelStatisticsResource: ResourceResolver = () => platform
 export const platformHeatmapResource: ResourceResolver = () => platformSystemArn("heatmap-stats");
 
 export const platformOpenApiSpecificationResource: ResourceResolver = () => platformSystemArn("openapi-spec");
+
+export const platformBusinessLogOptionsResource: ResourceResolver = () => platformSystemArn("business-log-options");

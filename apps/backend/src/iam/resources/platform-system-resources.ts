@@ -7,6 +7,7 @@ const resources = [
   "tracking-funnel",
   "heatmap-stats",
   "openapi-spec",
+  "business-log-options",
 ] as const;
 export type PlatformSystemResource = (typeof resources)[number];
 export function platformSystemArn(resource: PlatformSystemResource) {

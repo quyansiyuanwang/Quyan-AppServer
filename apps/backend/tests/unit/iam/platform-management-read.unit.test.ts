@@ -50,6 +50,26 @@ afterEach(() => {
 const action = "quyan:system:GetStatistics",
   resource = platformSystemArn("stats");
 describe("platform management reads", () => {
+  it("uses a fixed independent Action and platform resource for business log filter options", async () => {
+    const read = vi.fn().mockResolvedValue({ operationTypes: [], operationCategories: [] }),
+      businessAction = "quyan:system:business_log:GetFilterOptions",
+      businessResource = platformSystemArn("business-log-options");
+    expect(getIamActionDefinition(businessAction)).toMatchObject({
+      legacyPermission: Permission.SYSTEM_BUSINESS_LOG_READ,
+      authorizationBoundary: "platform",
+      resourceTypes: ["platform/system"],
+    });
+    await service.read(businessAction, businessResource, request, read);
+    expect(iam.authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: businessAction,
+        resource: "acs:platform:*:platform:system/business-log-options",
+      }),
+    );
+    expect(repo.snapshot).toHaveBeenCalledWith(expect.anything(), Permission.SYSTEM_BUSINESS_LOG_READ);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
   it("authorizes before business reads and rechecks the same identity and grant before return", async () => {
     const read = vi.fn().mockResolvedValue({ fixture: true });
     expect(await service.read(action, resource, request, read)).toEqual({ fixture: true });
