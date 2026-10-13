@@ -1,3 +1,4 @@
+import { PlatformBusinessLogStatsIamService } from "@/services/system/platform-business-log-stats-iam.service";
 import { PlatformBusinessLogListIamService } from "@/services/system/platform-business-log-list-iam.service";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -22,8 +23,6 @@ import type {
   BusinessLogListResponse,
   BusinessLogStatsResponse,
 } from "@/api/dto/system/businesslog.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import type { ErrorResponse } from "@/api/response";
@@ -63,9 +62,16 @@ export class BusinessLogController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.SYSTEM_BUSINESS_LOG_READ)
-  @Middlewares(validateQuery(businessLogStatsQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:business_log:GetLogStatistics",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(businessLogStatsQuerySchema),
+  )
   public async getBusinessLogStats(
+    @Request() request: TypedRequest,
     @Query() operationType?: OperationType,
     @Query() operationCategory?: OperationCategory,
     @Query() actorUserId?: string,
@@ -77,18 +83,21 @@ export class BusinessLogController extends Controller {
     @Query() success?: boolean,
     @Query() ip?: string,
   ): Promise<BusinessLogStatsResponse> {
-    return this.service.getStats({
-      operationType,
-      operationCategory,
-      actorUserId,
-      actor,
-      targetUserId,
-      target,
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
-      success,
-      ip,
-    });
+    return PlatformBusinessLogStatsIamService.getInstance().statistics(
+      {
+        operationType,
+        operationCategory,
+        actorUserId,
+        actor,
+        targetUserId,
+        target,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        success,
+        ip,
+      },
+      request,
+    );
   }
 
   /**

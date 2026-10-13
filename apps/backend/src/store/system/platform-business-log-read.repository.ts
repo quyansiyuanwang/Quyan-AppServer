@@ -1,3 +1,4 @@
+import { businessLogStatisticsFields, type BusinessLogStatsRow } from "./businesslog.store";
 import type { Prisma, BusinessLog } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -11,8 +12,15 @@ export interface PlatformBusinessLogReadStore
   extends PlatformLogCollectionStore<BusinessLogFilters, Prisma.BusinessLogWhereInput> {
   hydrate(targets: readonly PlatformLogTarget[]): Promise<BusinessLog[]>;
 }
+export type PlatformBusinessLogStatisticsRow = BusinessLogStatsRow & PlatformLogTarget;
+export interface PlatformBusinessLogStatisticsStore
+  extends PlatformLogCollectionStore<BusinessLogFilters, Prisma.BusinessLogWhereInput> {
+  hydrateStats(targets: readonly PlatformLogTarget[]): Promise<PlatformBusinessLogStatisticsRow[]>;
+}
 const metadata = { id: true, status: true, createTime: true, updateTime: true } as const;
-export class PlatformBusinessLogReadRepository implements PlatformBusinessLogReadStore {
+export class PlatformBusinessLogReadRepository
+  implements PlatformBusinessLogReadStore, PlatformBusinessLogStatisticsStore
+{
   private static instance: PlatformBusinessLogReadRepository;
   static getInstance() {
     return (this.instance ??= new PlatformBusinessLogReadRepository());
@@ -71,6 +79,17 @@ export class PlatformBusinessLogReadRepository implements PlatformBusinessLogRea
         status: 1,
         OR: targets.map((target) => ({ id: target.id, createTime: target.createTime, updateTime: target.updateTime })),
       },
+    });
+  }
+  hydrateStats(targets: readonly PlatformLogTarget[]): Promise<PlatformBusinessLogStatisticsRow[]> {
+    if (!targets.length) return Promise.resolve([]);
+    this.validateTargets(targets);
+    return prisma.businessLog.findMany({
+      where: {
+        status: 1,
+        OR: targets.map((target) => ({ id: target.id, createTime: target.createTime, updateTime: target.updateTime })),
+      },
+      select: { ...metadata, ...businessLogStatisticsFields },
     });
   }
   private validateTargets(targets: readonly PlatformLogTarget[]) {

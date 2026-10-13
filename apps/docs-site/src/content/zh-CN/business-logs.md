@@ -61,3 +61,9 @@ IAM `enforce` 模式下，列表使用独立的 `quyan:system:business_log:ListL
 只有允许访问的记录进入列表，`total` 和分页也以这些记录为准。匹配的显式 Deny 优先于 Allow；没有匹配 Allow 的记录不会返回。未指定日期范围时保留历史日志查询能力。单次查询固定截止时间；读取期间策略、资格或参与结果计算的记录发生变化时，请求会被拒绝，需要重新查询。
 
 列表权限不授予统计或筛选目录访问权限。变更详情和元数据仍会隐藏敏感凭据。`legacy` 和 `shadow` 保留原列表行为，`shadow` 额外记录 IAM 决策。
+
+## 统计资源权限
+
+IAM `enforce` 模式下，统计使用独立的 `quyan:system:business_log:GetLogStatistics` Action，对每条 `acs:platform:*:platform:business-log/<日志 ID>` 授权后才纳入统计。列表的 `ListLogs` 权限不能代替统计权限；统计同样要求有效全局组中的 `SYSTEM_BUSINESS_LOG_READ` 资格。
+
+总数、成功/失败数量、不同操作者、目标、IP 及每日/操作/分类分布都只计算允许访问的记录。显式 Deny 优先；没有匹配 Allow 时返回空统计。没有日期筛选时可统计历史记录；指定日期范围仍沿用原有边界和百分比计算。读取期间授权或参与统计的记录发生变化时拒绝返回结果。`legacy` 和 `shadow` 保留原统计行为，`shadow` 额外记录 IAM 决策。

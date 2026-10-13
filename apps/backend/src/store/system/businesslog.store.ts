@@ -65,3 +65,14 @@ export interface BusinessLogStore {
   ): Promise<BusinessLog | null>;
   deleteOldLogs(daysToKeep?: number): Promise<number>;
 }
+
+/** Statistics never need descriptions, credentials, change payloads or metadata. */
+export const businessLogStatisticsFields = {
+  createTime: true,
+  operationType: true,
+  operationCategory: true,
+  actorUserId: true,
+  targetUserId: true,
+  success: true,
+  ipAddress: true,
+} as const;

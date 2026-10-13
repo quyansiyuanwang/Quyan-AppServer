@@ -1,3 +1,4 @@
+import { businessLogStatisticsFields } from "./businesslog.store";
 import { resolveBusinessLogWhere } from "./businesslog-query";
 import { BusinessLog, Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
@@ -102,15 +103,7 @@ export class BusinessLogRepository implements BusinessLogStore {
       return prisma.businessLog.findMany({
         where,
         orderBy: { createTime: "asc" },
-        select: {
-          createTime: true,
-          operationType: true,
-          operationCategory: true,
-          actorUserId: true,
-          targetUserId: true,
-          success: true,
-          ipAddress: true,
-        },
+        select: businessLogStatisticsFields,
       });
     } catch (error) {
       logger.error("Failed to list business logs for stats", { error, params });
