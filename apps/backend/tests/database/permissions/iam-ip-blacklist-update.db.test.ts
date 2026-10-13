@@ -1,3 +1,4 @@
+import { RECORD_STATUS } from "@/constant/status";
 import { PlatformIpBlacklistMutationRepository } from "@/store/security/platform-ip-blacklist-mutation.repository";
 import { IPBlacklistController } from "@/api/controllers/v1/system/ipblacklist.controller";
 import { randomUUID } from "node:crypto";
@@ -145,7 +146,8 @@ describe("blacklist updates require resource grants and transactional admission"
   });
   it.each(["deleted", "missing"])("refuses %s records even with wildcard Allow", async (kind) => {
     await grant("*");
-    if (kind === "deleted") await prisma.iPBlackList.update({ where: { id: banId }, data: { status: -1 } });
+    if (kind === "deleted")
+      await prisma.iPBlackList.update({ where: { id: banId }, data: { status: RECORD_STATUS.DELETED } });
     await expect(
       service.update(kind === "missing" ? "192.0.2.254" : ip, { banReason: "changed" }, request()),
     ).rejects.toMatchObject({ statusCode: 403 });

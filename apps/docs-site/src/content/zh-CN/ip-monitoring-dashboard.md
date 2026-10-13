@@ -112,3 +112,11 @@ IAM `enforce` 模式下，设置权重使用独立的 `quyan:system:ip_blacklist
 IAM `enforce` 模式下，修改封禁原因或到期时间使用独立的 `quyan:system:ip_blacklist:UpdateBlacklist` Action，并检查目标 IP 的资源 ARN。当前用户仍须在有效的全局用户组中具备 `IP_BLACKLIST_UPDATE`。权重设置、重置或只读权限不能替代封禁记录更新权限。
 
 允许更新仍有效的记录及保留的过期历史，不改变封禁等级、封禁类型或原封禁操作者。不存在和已删除的记录在 `enforce` 模式下返回权限拒绝，即使有通配符 Allow 也不会恢复记录；`legacy` 和 `shadow` 保留原有更新行为，对不存在记录返回 404。服务端在事务中复核记录版本、主体、平台资格及策略，并保留二次验证和重放保护。记录或授权在修改前变化时拒绝更新，可在确认当前状态后重新提交。
+
+## 手动封禁与解封的资源权限
+
+IAM `enforce` 模式下，手动封禁使用 `quyan:system:ip_blacklist:CreateBlacklist`，解封使用 `quyan:system:ip_blacklist:DeleteBlacklist`。两项 Action 分别检查目标 IP 的 ARN，并要求当前用户在有效的全局用户组中具备对应的 `IP_BLACKLIST_CREATE` 或 `IP_BLACKLIST_DELETE`。创建、更新、解封和权重操作的权限相互独立。
+
+手动封禁以当前认证用户记录操作者；永久封禁沿用系统的长期到期时间。再次封禁已软删除的 IP 会复用原记录 ID；已有有效记录时返回冲突，不会覆盖原因或等级。解封只软删除仍有效的封禁记录，不清除错误权重；权重如需清除，应另行执行重置。`enforce` 下缺失或已删除的解封目标返回权限拒绝；`legacy` 和 `shadow` 保留原有行为，不存在有效记录时返回 404。
+
+两项操作保留二次验证、重放保护和业务日志；修改前发生撤权或记录变化时拒绝执行。系统根据错误阈值进行的后台自动封禁继续使用服务端配置，不通过这些手动操作权限执行。

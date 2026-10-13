@@ -112,3 +112,11 @@ Before modification, the server rechecks the current identity, group qualificati
 In IAM `enforce` mode, editing the ban reason or expiry uses the independent `quyan:system:ip_blacklist:UpdateBlacklist` Action and authorizes the target IP's resource ARN. The current user must also hold `IP_BLACKLIST_UPDATE` in an active global group. Weight set, reset and read grants cannot replace blacklist record update permission.
 
 Updates apply to active records, including retained expired history, without changing the ban level, type or original operator. Missing and deleted records are denied in `enforce` mode even with a wildcard Allow; an update does not restore deleted records. `legacy` and `shadow` retain previous update behavior and return 404 for missing records. The server rechecks the record revision, identity, platform qualification and policies within a transaction, retaining two-factor verification and replay protection. A record or authorization change before modification denies the update; check the current state before submitting again.
+
+## Resource permissions for manual bans and unbans
+
+In IAM `enforce` mode, manual bans use `quyan:system:ip_blacklist:CreateBlacklist`; unbans use `quyan:system:ip_blacklist:DeleteBlacklist`. Each Action authorizes the target IP's ARN and requires the corresponding `IP_BLACKLIST_CREATE` or `IP_BLACKLIST_DELETE` qualification in the current user's active global group. Create, update, unban and weight permissions are independent.
+
+Manual bans record the authenticated user as the operator. Permanent bans retain the system's existing long-term expiry representation. Banning a previously deleted IP reuses its record ID. An existing active record causes a conflict without overwriting its reason or level. Unbanning soft-deletes an active ban record and leaves error weight intact; resetting weight is a separate operation. Missing or deleted unban targets are denied in `enforce`; `legacy` and `shadow` retain previous behavior and return 404 when there is no active record.
+
+Both operations retain two-factor verification, replay protection and business logs. Revocation or a record change before modification denies the write. Background automatic bans continue to use server-configured error thresholds independently of these manual operation permissions.

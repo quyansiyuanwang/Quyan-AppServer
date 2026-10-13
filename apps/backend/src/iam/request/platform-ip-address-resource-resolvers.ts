@@ -1,3 +1,4 @@
+import { createIPBlacklistBodySchema } from "@/api/schema/system/ipblacklist.schema";
 import { platformIpAddressArn, platformIpAddressIdentifier } from "../resources/platform-ip-address-resources";
 import type { ResourceResolver } from "./resource-resolvers";
 export const platformIpAddressResourceResolver: ResourceResolver = ({ request }) => {
@@ -23,5 +24,11 @@ export const platformIpBlacklistRecordResourceResolver: ResourceResolver = async
 /** IP-address mutation paths resolve only the validated address, never an ARN from the client. */
 export const platformIpBlacklistMutationResourceResolver: ResourceResolver = ({ request }) => {
   const ip = request.params.ipAddress;
+  return platformIpAddressIdentifier(ip) ? platformIpAddressArn(ip as string) : undefined;
+};
+
+export const platformIpBlacklistCreateResourceResolver: ResourceResolver = ({ request }) => {
+  const parsed = createIPBlacklistBodySchema.safeParse(request.body);
+  const ip = parsed.success ? parsed.data.ipAddress : undefined;
   return platformIpAddressIdentifier(ip) ? platformIpAddressArn(ip as string) : undefined;
 };

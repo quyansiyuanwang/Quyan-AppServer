@@ -246,19 +246,7 @@ export class IPBlackListService {
       logger.info(`IP ${ip} manually banned by user ${actorUserId}`);
 
       // 记录业务日志
-      await this.businessLogService.logOperation({
-        operationType: OperationType.IP_BAN,
-        operationCategory: OperationCategory.SECURITY,
-        actorUserId,
-        targetResourceType: "IP_ADDRESS",
-        targetResourceId: ip,
-        description: `手动封禁 IP ${ip}`,
-        changes: { ip, duration, reason },
-        success: true,
-        ipAddress: extractClientIp(request!),
-        userAgent: request?.headers["user-agent"],
-        requestId: request?.headers["x-request-id"] as string | undefined,
-      });
+      await this.logManualBan(ip, duration, reason, actorUserId, request);
 
       return blacklist;
     } catch (error) {
@@ -282,18 +270,7 @@ export class IPBlackListService {
         logger.info(`IP ${ip} unbanned by user ${actorUserId}`);
 
         // 记录业务日志
-        await this.businessLogService.logOperation({
-          operationType: OperationType.IP_UNBAN,
-          operationCategory: OperationCategory.SECURITY,
-          actorUserId,
-          targetResourceType: "IP_ADDRESS",
-          targetResourceId: ip,
-          description: `解除 IP ${ip} 封禁`,
-          success: true,
-          ipAddress: extractClientIp(request!),
-          userAgent: request?.headers["user-agent"],
-          requestId: request?.headers["x-request-id"] as string | undefined,
-        });
+        await this.logManualUnban(ip, actorUserId, request);
       }
 
       return result;
@@ -301,6 +278,44 @@ export class IPBlackListService {
       logger.error("Failed to unban IP", { error, ip, actorUserId });
       throw error;
     }
+  }
+
+  /** Business audit for a successfully committed manual ban, shared with legacy writes. */
+  public async logManualBan(
+    ip: string,
+    duration: number,
+    reason: string,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<void> {
+    await this.businessLogService.logOperation({
+      operationType: OperationType.IP_BAN,
+      operationCategory: OperationCategory.SECURITY,
+      actorUserId,
+      targetResourceType: "IP_ADDRESS",
+      targetResourceId: ip,
+      description: `手动封禁 IP ${ip}`,
+      changes: { ip, duration, reason },
+      success: true,
+      ipAddress: extractClientIp(request!),
+      userAgent: request?.headers["user-agent"],
+      requestId: request?.headers["x-request-id"] as string | undefined,
+    });
+  }
+  /** Business audit for a successfully committed manual unban. */
+  public async logManualUnban(ip: string, actorUserId: string, request?: Request): Promise<void> {
+    await this.businessLogService.logOperation({
+      operationType: OperationType.IP_UNBAN,
+      operationCategory: OperationCategory.SECURITY,
+      actorUserId,
+      targetResourceType: "IP_ADDRESS",
+      targetResourceId: ip,
+      description: `解除 IP ${ip} 封禁`,
+      success: true,
+      ipAddress: extractClientIp(request!),
+      userAgent: request?.headers["user-agent"],
+      requestId: request?.headers["x-request-id"] as string | undefined,
+    });
   }
 
   /**

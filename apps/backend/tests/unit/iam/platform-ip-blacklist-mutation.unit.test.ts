@@ -1,3 +1,4 @@
+import { RECORD_STATUS } from "@/constant/status";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/config/database", () => ({ prisma: {} }));
 vi.mock("@/config/env", () => ({ env: { security: { iamAuthorizationMode: "enforce" } } }));
@@ -11,6 +12,7 @@ vi.mock("@/store/security/platform-ip-blacklist-mutation.repository", () => ({
   PlatformIpBlacklistMutationRepository: { getInstance: vi.fn() },
 }));
 vi.mock("@/store/security/ipblacklist", () => ({ IPBlackListRepository: { getInstance: vi.fn() } }));
+vi.mock("@/services/system/ipblacklist.service", () => ({ IPBlackListService: { getInstance: vi.fn() } }));
 vi.mock("@/iam/audit/iam-audit.service", () => ({ auditIamDecision: vi.fn() }));
 import { Permission, getIamActionDefinition } from "@quyan/shared";
 import { env } from "@/config/env";
@@ -23,10 +25,11 @@ const action = "quyan:system:ip_blacklist:UpdateBlacklist",
   target = { id: "ban-one", ipAddress: ip, status: 1, updateTime: new Date(0) };
 const iam = { loadPolicies: vi.fn(), authorize: vi.fn() },
   snapshots = { snapshot: vi.fn(), recheck: vi.fn() },
-  repository = { authorizationRevision: vi.fn(), target: vi.fn(), update: vi.fn() },
+  repository = { authorizationRevision: vi.fn(), target: vi.fn(), update: vi.fn(), create: vi.fn(), remove: vi.fn() },
   permissions = { checkUserPermissions: vi.fn() },
   legacy = { findByIpAnyStatus: vi.fn(), update: vi.fn() };
-const service = new PlatformIpBlacklistMutationIamService(iam, snapshots, repository, permissions, legacy);
+const reports = { manualBan: vi.fn(), unban: vi.fn(), logManualBan: vi.fn(), logManualUnban: vi.fn() };
+const service = new PlatformIpBlacklistMutationIamService(iam, snapshots, repository, permissions, legacy, reports);
 const request = () =>
   ({
     user: { userId: "actor" },
@@ -49,6 +52,16 @@ beforeEach(() => {
     await guard.users.recheck();
     return { ...row, ...input };
   });
+  repository.create.mockImplementation(async (row, input, guard) => {
+    await guard.users.recheck();
+    return { ...target, ipAddress: input.ipAddress, reason: input.reason };
+  });
+  repository.remove.mockImplementation(async (row, guard) => {
+    await guard.users.recheck();
+    return true;
+  });
+  reports.manualBan.mockResolvedValue(target);
+  reports.unban.mockResolvedValue(true);
   permissions.checkUserPermissions.mockResolvedValue({ hasPermission: true });
   legacy.findByIpAnyStatus.mockResolvedValue(target);
   legacy.update.mockResolvedValue(target);
@@ -97,7 +110,7 @@ describe("blacklist record update resource authorization", () => {
   });
   it.each([
     null,
-    { ...target, status: -1 },
+    { ...target, status: RECORD_STATUS.DELETED },
     { ...target, ipAddress: "192.0.2.2" },
     { ...target, updateTime: new Date(NaN) },
   ])("refuses missing or unsafe metadata %#", async (row) => {
@@ -160,5 +173,67 @@ describe("blacklist record update resource authorization", () => {
       statusCode: 404,
       messageKey: "ipBlacklist.recordNotFound",
     });
+  });
+});
+
+describe("manual ban and unban resource authorization", () => {
+  const createAction = "quyan:system:ip_blacklist:CreateBlacklist",
+    deleteAction = "quyan:system:ip_blacklist:DeleteBlacklist";
+  it("creates on the prospective IP and audits only after confirmed commit", async () => {
+    repository.target.mockResolvedValue(null);
+    await service.create({ ipAddress: ip, duration: 60, reason: "fixture" }, request());
+    expect(
+      iam.authorize.mock.calls.every(
+        ([value]) => value.action === createAction && value.resource === platformIpAddressArn(ip),
+      ),
+    ).toBe(true);
+    expect(repository.create.mock.calls[0]![2].users.principal.subjectUserId).toBe("actor");
+    expect(reports.logManualBan).toHaveBeenCalledExactlyOnceWith(ip, 60, "fixture", "actor", expect.anything());
+    expect(reports.manualBan).not.toHaveBeenCalled();
+  });
+  it("uses a separate Delete action without deleting weights", async () => {
+    await service.remove(ip, request());
+    expect(iam.authorize.mock.calls[0]![0].action).toBe(deleteAction);
+    expect(repository.remove).toHaveBeenCalledTimes(1);
+    expect(reports.logManualUnban).toHaveBeenCalledTimes(1);
+    expect(reports.unban).not.toHaveBeenCalled();
+  });
+  it.each(["ExplicitDeny", "ImplicitDeny"])("refuses %s on both writes", async (decision) => {
+    iam.authorize.mockResolvedValue({ decision, reason: "fixture", matchedStatements: [] });
+    await expect(service.create({ ipAddress: ip, duration: 60 }, request())).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.remove(ip, request())).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.create).not.toHaveBeenCalled();
+    expect(repository.remove).not.toHaveBeenCalled();
+    expect(reports.logManualBan).not.toHaveBeenCalled();
+    expect(reports.logManualUnban).not.toHaveBeenCalled();
+  });
+  it("does not audit success after a transaction failure", async () => {
+    repository.create.mockRejectedValue(new Error("fixture transaction failed"));
+    repository.remove.mockRejectedValue(new Error("fixture transaction failed"));
+    await expect(service.create({ ipAddress: ip, duration: 60 }, request())).rejects.toThrow();
+    await expect(service.remove(ip, request())).rejects.toThrow();
+    expect(reports.logManualBan).not.toHaveBeenCalled();
+    expect(reports.logManualUnban).not.toHaveBeenCalled();
+  });
+  it("refuses missing/deleted unban targets even with Allow", async () => {
+    repository.target.mockResolvedValue(null);
+    await expect(service.remove(ip, request())).rejects.toMatchObject({ statusCode: 403 });
+    repository.target.mockResolvedValue({ ...target, status: RECORD_STATUS.DELETED });
+    await expect(service.remove(ip, request())).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.remove).not.toHaveBeenCalled();
+  });
+  it.each([-2, 1.5, Number.MAX_SAFE_INTEGER])("rejects invalid duration %s", async (duration) => {
+    await expect(service.create({ ipAddress: ip, duration }, request())).rejects.toMatchObject({ statusCode: 400 });
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"] as const)("retains original ban/unban effects in %s", async (mode) => {
+    env.security.iamAuthorizationMode = mode;
+    await service.create({ ipAddress: ip, duration: -1 }, request());
+    await service.remove(ip, request());
+    expect(reports.manualBan).toHaveBeenCalledExactlyOnceWith(ip, -1, "手动封禁", "actor", expect.anything());
+    expect(reports.unban).toHaveBeenCalledExactlyOnceWith(ip, "actor", expect.anything());
+    expect(repository.create).not.toHaveBeenCalled();
+    expect(repository.remove).not.toHaveBeenCalled();
+    expect(reports.logManualBan).not.toHaveBeenCalled();
   });
 });
