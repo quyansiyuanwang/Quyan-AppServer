@@ -78,3 +78,11 @@ To view or change the per-error-type weights, use `GET /ip-blacklist/error-statu
 - `server-configuration`
 - `system-logs`
 - `business-logs`
+
+## IAM permissions for a specific IP
+
+In IAM `enforce` mode, ban checks use `quyan:system:ip_blacklist:CheckIPAddress` and real-time error status uses the independent `quyan:system:ip_blacklist:GetIPAddressErrorStatus`. Both authorize `acs:platform:*:platform:ip-address/<address identifier>` and require the current user to hold `IP_BLACKLIST_READ` in an active global group. Private groups, user additions and account policies cannot replace this platform qualification.
+
+IPv4 addresses are used directly, for example `acs:platform:*:platform:ip-address/192.0.2.1`. IPv6 uses lowercase compressed notation with colons replaced by underscores: `2001:db8::1` maps to `acs:platform:*:platform:ip-address/2001_db8__1`. IPv4-mapped IPv6 addresses normalize to IPv4; consistent with existing IP normalization, the IPv6 loopback address normalizes to `127.0.0.1`. Queries still use your original address to look up existing records and weights.
+
+A matching explicit Deny takes precedence; without a matching Allow, the query is denied. The two grants are independent and do not grant list, dashboard or weight modification access. Unbanned or expired addresses return no ban details; real-time status retains the configured error decay behavior. If policies, qualification, role sessions or ban records change during a read, the result is denied. `legacy` and `shadow` retain previous query permissions, with IAM decisions also recorded in `shadow`.

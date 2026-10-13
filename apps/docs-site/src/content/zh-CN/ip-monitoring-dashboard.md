@@ -78,3 +78,11 @@ IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREA
 - `server-configuration`
 - `system-logs`
 - `business-logs`
+
+## 指定 IP 的 IAM 查询权限
+
+IAM `enforce` 模式下，封禁查询使用 `quyan:system:ip_blacklist:CheckIPAddress`，实时错误状态使用独立的 `quyan:system:ip_blacklist:GetIPAddressErrorStatus`。两者都针对 `acs:platform:*:platform:ip-address/<地址标识>` 授权，并要求当前用户在有效全局组中具备 `IP_BLACKLIST_READ`。私有组、用户附加权限或账户策略不能替代这项平台资格。
+
+IPv4 地址直接作为标识，例如 `acs:platform:*:platform:ip-address/192.0.2.1`。IPv6 使用小写压缩写法并将冒号替换为下划线，例如 `2001:db8::1` 对应 `acs:platform:*:platform:ip-address/2001_db8__1`。IPv4 映射的 IPv6 地址归一为 IPv4；IPv6 回环地址与现有 IP 规范一致，归一为 `127.0.0.1`。查询仍使用你提供的原始地址查找现有记录和权重。
+
+匹配的显式 Deny 优先，没有匹配 Allow 时拒绝查询。两项权限互不替代，也不授予列表、面板或修改权重的权限。未封禁或已过期的 IP 不返回封禁详情；实时状态仍按既有配置计算错误衰减。读取期间策略、资格、角色会话或封禁记录变化时拒绝返回结果。`legacy` 和 `shadow` 保留原查询权限，`shadow` 同时记录 IAM 决策。

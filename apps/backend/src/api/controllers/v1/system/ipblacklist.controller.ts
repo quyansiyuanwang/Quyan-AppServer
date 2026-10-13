@@ -1,3 +1,6 @@
+import { PlatformIpAddressReadIamService } from "@/services/system/platform-ip-address-read-iam.service";
+import { platformIpAddressResourceResolver } from "@/iam/request/platform-ip-address-resource-resolvers";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import {
   Get,
   Path,
@@ -276,14 +279,19 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  @Middlewares(validateParams(ipParamsSchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:CheckIPAddress",
+      resourceKind: "single-resource",
+      resource: platformIpAddressResourceResolver,
+    }),
+    validateParams(ipParamsSchema),
+  )
   public async checkIPBlacklist(
     @Path() ip: string,
-    @Request() _request: TypedRequest,
+    @Request() request: TypedRequest,
   ): Promise<CheckIPBlacklistResponse> {
-    const isBlacklisted = await this.ipBlacklistService.isIpBlacklisted(ip);
-    const blacklistInfo = isBlacklisted ? await this.ipBlacklistService.getBlacklistInfo(ip) : null;
+    const { isBlacklisted, blacklistInfo } = await PlatformIpAddressReadIamService.getInstance().check(ip, request);
 
     return {
       isBlacklisted,
@@ -302,10 +310,16 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  @Middlewares(validateParams(ipParamsSchema))
-  public async getIpErrorStatus(@Path() ip: string, @Request() _request: TypedRequest): Promise<IPErrorStatusResponse> {
-    return await this.ipBlacklistService.getIpErrorStatus(ip);
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:GetIPAddressErrorStatus",
+      resourceKind: "single-resource",
+      resource: platformIpAddressResourceResolver,
+    }),
+    validateParams(ipParamsSchema),
+  )
+  public async getIpErrorStatus(@Path() ip: string, @Request() request: TypedRequest): Promise<IPErrorStatusResponse> {
+    return PlatformIpAddressReadIamService.getInstance().errorStatus(ip, request);
   }
 
   /**
