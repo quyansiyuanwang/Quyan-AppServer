@@ -116,14 +116,55 @@ export class RamRoleRepository implements RamRoleStore {
   }
 
   async listRoleBindingsForUser(userId: string, groupId?: string | null): Promise<RamRoleBindingRecord[]> {
+    // Derive scope from persisted identity, never from a caller-supplied group or binding.
+    let accountOwnerId: string;
+    let effectiveGroupId: string | undefined;
+    if (userId) {
+      const user = await prisma.user.findFirst({
+        where: { id: userId, ...ACTIVE_WHERE },
+        select: {
+          id: true,
+          accountOwnerId: true,
+          groupId: true,
+          group: { select: { id: true, status: true, accountOwnerId: true } },
+        },
+      });
+      if (!user) return [];
+      accountOwnerId = user.accountOwnerId || user.id;
+      if (
+        groupId &&
+        groupId === user.groupId &&
+        user.group?.status === AccountStatus.ACTIVE &&
+        (!user.group.accountOwnerId || user.group.accountOwnerId === accountOwnerId)
+      )
+        effectiveGroupId = user.group.id;
+    } else {
+      // Internal group-delegation projection has no user. Only an active account-owned group
+      // can supply its own scope; shared global groups have no single account to project.
+      if (userId !== "" || !groupId) return [];
+      const group = await prisma.group.findFirst({
+        where: { id: groupId, ...ACTIVE_WHERE, accountOwnerId: { not: null } },
+        select: { id: true, accountOwnerId: true },
+      });
+      if (!group?.accountOwnerId) return [];
+      accountOwnerId = group.accountOwnerId;
+      effectiveGroupId = group.id;
+    }
     const [userBindings, groupBindings] = await Promise.all([
-      prisma.ramUserRoleBinding.findMany({
-        where: { userId, ...ACTIVE_WHERE, role: ACTIVE_WHERE },
-        include: { role: true },
-      }),
-      groupId
+      userId
+        ? prisma.ramUserRoleBinding.findMany({
+            where: { userId, accountOwnerId, ...ACTIVE_WHERE, role: { accountOwnerId, ...ACTIVE_WHERE } },
+            include: { role: true },
+          })
+        : Promise.resolve([]),
+      effectiveGroupId
         ? prisma.ramGroupRoleBinding.findMany({
-            where: { groupId, ...ACTIVE_WHERE, role: ACTIVE_WHERE },
+            where: {
+              groupId: effectiveGroupId,
+              accountOwnerId,
+              ...ACTIVE_WHERE,
+              role: { accountOwnerId, ...ACTIVE_WHERE },
+            },
             include: { role: true },
           })
         : Promise.resolve([]),
@@ -136,8 +177,15 @@ export class RamRoleRepository implements RamRoleStore {
 
     // Fetch role permissions from attached policies
     const roleIds = [...new Set(allBindings.map((b) => b.roleId))];
+    if (!roleIds.length) return [];
     const policyAttachments = await prisma.ramPolicyAttachment.findMany({
-      where: { targetType: "role", targetId: { in: roleIds }, ...ACTIVE_WHERE, policy: ACTIVE_WHERE },
+      where: {
+        accountOwnerId,
+        targetType: "role",
+        targetId: { in: roleIds },
+        ...ACTIVE_WHERE,
+        policy: { accountOwnerId, ...ACTIVE_WHERE },
+      },
       include: { policy: { select: { permissions: true } } },
     });
 
