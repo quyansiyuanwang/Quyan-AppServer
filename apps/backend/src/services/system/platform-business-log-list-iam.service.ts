@@ -1,5 +1,5 @@
 import { platformBusinessLogArn } from "@/iam/resources/platform-business-log-resources";
-import { PlatformLogCollectionIamService } from "./platform-log-collection-iam.service";
+import { PlatformMetadataCollectionIamService } from "./platform-metadata-collection-iam.service";
 import { iamLegacyPermissionsForAction } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -11,7 +11,7 @@ import type {
   PlatformBusinessLogReadStore,
   BusinessLogFilters,
 } from "@/store/system/platform-business-log-read.repository";
-import type { PlatformLogTarget } from "@/store/system/platform-log-collection.store";
+import type { PlatformCollectionTarget } from "@/store/system/platform-collection.store";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PermissionService } from "@/services/users/permission.service";
 import BusinessLogService from "./businesslog.service";
@@ -75,14 +75,11 @@ export class PlatformBusinessLogListIamService {
       throw iamAccountDenied();
     const principal = { ...identity };
     const native = async (hydrate: boolean) => {
-      const pageTargets: PlatformLogTarget[] = [];
+      const pageTargets: PlatformCollectionTarget[] = [];
       let totalSeen = 0;
       const offset = (query.page - 1) * query.pageSize;
-      return new PlatformLogCollectionIamService(
-        this.iam,
-        this.snapshots,
-        this.repository,
-        platformBusinessLogArn,
+      return new PlatformMetadataCollectionIamService(this.iam, this.snapshots, this.repository, (target) =>
+        platformBusinessLogArn(target.id),
       ).read(
         action,
         principal,
@@ -103,7 +100,7 @@ export class PlatformBusinessLogListIamService {
                   new Set(rows.map((row) => row.id)).size !== rows.length ||
                   rows.some(
                     (row) =>
-                      !PlatformLogCollectionIamService.valid(row) ||
+                      !PlatformMetadataCollectionIamService.valid(row) ||
                       !pageTargets.some(
                         (target) =>
                           target.id === row.id &&

@@ -17,7 +17,7 @@ import { env } from "@/config/env";
 import { PlatformBusinessLogStatsIamService } from "@/services/system/platform-business-log-stats-iam.service";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import type { TypedRequest } from "@/types/express";
-import type { PlatformLogTarget } from "@/store/system/platform-log-collection.store";
+import type { PlatformCollectionTarget } from "@/store/system/platform-collection.store";
 const iam = { loadPolicies: vi.fn(), authorizeMany: vi.fn() },
   snapshots = { snapshot: vi.fn(), recheck: vi.fn() },
   repository = { where: vi.fn(), scan: vi.fn(), hydrateStats: vi.fn() },
@@ -32,7 +32,7 @@ const request = () =>
     headers: {},
     secure: true,
   }) as unknown as TypedRequest;
-let rows: PlatformLogTarget[], denied: Set<string>;
+let rows: PlatformCollectionTarget[], denied: Set<string>;
 const target = (index: number) => ({
   id: "log-" + String(index).padStart(5, "0"),
   status: 1,
@@ -62,7 +62,7 @@ beforeEach(() => {
       .slice(0, IAM_AUTHORIZATION_LIMITS.resourcesPerRequest),
   );
   repository.hydrateStats.mockImplementation(async (page) =>
-    page.map((row: PlatformLogTarget) => ({
+    page.map((row: PlatformCollectionTarget) => ({
       ...row,
       operationType: "USER_UPDATE",
       operationCategory: "USER_MANAGEMENT",

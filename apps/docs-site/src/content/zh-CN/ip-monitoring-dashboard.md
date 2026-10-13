@@ -86,3 +86,9 @@ IAM `enforce` 模式下，封禁查询使用 `quyan:system:ip_blacklist:CheckIPA
 IPv4 地址直接作为标识，例如 `acs:platform:*:platform:ip-address/192.0.2.1`。IPv6 使用小写压缩写法并将冒号替换为下划线，例如 `2001:db8::1` 对应 `acs:platform:*:platform:ip-address/2001_db8__1`。IPv4 映射的 IPv6 地址归一为 IPv4；IPv6 回环地址与现有 IP 规范一致，归一为 `127.0.0.1`。查询仍使用你提供的原始地址查找现有记录和权重。
 
 匹配的显式 Deny 优先，没有匹配 Allow 时拒绝查询。两项权限互不替代，也不授予列表、面板或修改权重的权限。未封禁或已过期的 IP 不返回封禁详情；实时状态仍按既有配置计算错误衰减。读取期间策略、资格、角色会话或封禁记录变化时拒绝返回结果。`legacy` 和 `shadow` 保留原查询权限，`shadow` 同时记录 IAM 决策。
+
+## 黑名单列表的资源权限
+
+IAM `enforce` 模式下，列表使用独立的 `quyan:system:ip_blacklist:ListBlacklists` Action，逐条检查记录对应的 `acs:platform:*:platform:ip-address/<地址标识>`。仍需有效全局组中的 `IP_BLACKLIST_READ` 资格；封禁查询或实时错误状态的权限不能代替列表权限。
+
+列表的总数、`offset` 和 `limit` 都以允许访问的记录为准，显式 Deny 优先。没有匹配 Allow 时返回空列表。允许查看的过期封禁记录仍保留，只有当前页的详情会被读取。单次查询固定截止位置；读取期间授权或参与总数计算的记录变化时，请求会被拒绝，需要重新查询。`legacy` 和 `shadow` 保留原列表行为，`shadow` 同时记录 IAM 决策。

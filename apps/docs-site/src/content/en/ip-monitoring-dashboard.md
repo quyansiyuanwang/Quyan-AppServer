@@ -86,3 +86,9 @@ In IAM `enforce` mode, ban checks use `quyan:system:ip_blacklist:CheckIPAddress`
 IPv4 addresses are used directly, for example `acs:platform:*:platform:ip-address/192.0.2.1`. IPv6 uses lowercase compressed notation with colons replaced by underscores: `2001:db8::1` maps to `acs:platform:*:platform:ip-address/2001_db8__1`. IPv4-mapped IPv6 addresses normalize to IPv4; consistent with existing IP normalization, the IPv6 loopback address normalizes to `127.0.0.1`. Queries still use your original address to look up existing records and weights.
 
 A matching explicit Deny takes precedence; without a matching Allow, the query is denied. The two grants are independent and do not grant list, dashboard or weight modification access. Unbanned or expired addresses return no ban details; real-time status retains the configured error decay behavior. If policies, qualification, role sessions or ban records change during a read, the result is denied. `legacy` and `shadow` retain previous query permissions, with IAM decisions also recorded in `shadow`.
+
+## Resource permissions for blacklist lists
+
+In IAM `enforce` mode, lists use the independent `quyan:system:ip_blacklist:ListBlacklists` Action and check each record's `acs:platform:*:platform:ip-address/<address identifier>`. You still need `IP_BLACKLIST_READ` in an active global group; ban-check or real-time error status grants cannot replace list access.
+
+The total, `offset` and `limit` all reflect allowed records, with explicit Deny taking precedence. Without a matching Allow, the list is empty. Allowed expired ban records remain visible, and details are read only for the current page. Each query fixes its cutoff position; if authorization or records contributing to the total change during the read, the request is denied and must be retried. `legacy` and `shadow` retain previous list behavior, with IAM decisions also recorded in `shadow`.

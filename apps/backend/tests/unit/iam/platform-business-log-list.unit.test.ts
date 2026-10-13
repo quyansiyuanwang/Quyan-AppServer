@@ -17,7 +17,7 @@ import { env } from "@/config/env";
 import { PlatformBusinessLogListIamService } from "@/services/system/platform-business-log-list-iam.service";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import type { TypedRequest } from "@/types/express";
-import type { PlatformLogTarget } from "@/store/system/platform-log-collection.store";
+import type { PlatformCollectionTarget } from "@/store/system/platform-collection.store";
 const iam = { loadPolicies: vi.fn(), authorizeMany: vi.fn() },
   snapshots = { snapshot: vi.fn(), recheck: vi.fn() },
   repository = { where: vi.fn(), scan: vi.fn(), hydrate: vi.fn() },
@@ -32,7 +32,7 @@ const request = () =>
     headers: {},
     secure: true,
   }) as unknown as TypedRequest;
-let rows: PlatformLogTarget[], denied: Set<string>;
+let rows: PlatformCollectionTarget[], denied: Set<string>;
 const target = (index: number) => ({
   id: "log-" + String(index).padStart(5, "0"),
   status: 1,
@@ -62,10 +62,10 @@ beforeEach(() => {
       .slice(0, IAM_AUTHORIZATION_LIMITS.resourcesPerRequest),
   );
   repository.hydrate.mockImplementation(async (page) =>
-    page.map((row: PlatformLogTarget) => ({ ...row, requestHeaders: { fixture: "allowed-only" } })),
+    page.map((row: PlatformCollectionTarget) => ({ ...row, requestHeaders: { fixture: "allowed-only" } })),
   );
   reports.mapLogListRows.mockImplementation(async (page) =>
-    page.map((row: PlatformLogTarget) => ({ ...row, username: "fixture" })),
+    page.map((row: PlatformCollectionTarget) => ({ ...row, username: "fixture" })),
   );
   iam.authorizeMany.mockImplementation(async ({ resources }) =>
     resources.map((resource: string) => ({

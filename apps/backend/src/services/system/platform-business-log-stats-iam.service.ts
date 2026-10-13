@@ -12,7 +12,7 @@ import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PermissionService } from "@/services/users/permission.service";
 import BusinessLogService from "./businesslog.service";
 import { BusinessLogStatisticsAccumulator } from "./business-log-statistics";
-import { PlatformLogCollectionIamService } from "./platform-log-collection-iam.service";
+import { PlatformMetadataCollectionIamService } from "./platform-metadata-collection-iam.service";
 import { businessLogStatsQuerySchema } from "@/api/schema/system/businesslog.schema";
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -67,11 +67,8 @@ export class PlatformBusinessLogStatsIamService {
     const principal = { ...identity };
     const native = async (hydrate: boolean) => {
       const accumulator = new BusinessLogStatisticsAccumulator(query);
-      return new PlatformLogCollectionIamService(
-        this.iam,
-        this.snapshots,
-        this.repository,
-        platformBusinessLogArn,
+      return new PlatformMetadataCollectionIamService(this.iam, this.snapshots, this.repository, (target) =>
+        platformBusinessLogArn(target.id),
       ).read(
         action,
         principal,
@@ -87,7 +84,7 @@ export class PlatformBusinessLogStatsIamService {
                   new Set(rows.map((row) => row.id)).size !== rows.length ||
                   rows.some(
                     (row) =>
-                      !PlatformLogCollectionIamService.valid(row) ||
+                      !PlatformMetadataCollectionIamService.valid(row) ||
                       !targets.some(
                         (target) =>
                           target.id === row.id &&

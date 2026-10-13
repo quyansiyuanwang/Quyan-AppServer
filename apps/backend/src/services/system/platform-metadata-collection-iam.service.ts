@@ -10,22 +10,26 @@ import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isPlatformLogResourceId } from "@/iam/resources/platform-log-resources";
 import type { PlatformManagementReadStore } from "@/store/system/platform-management-read.store";
 import type {
-  PlatformLogCollectionStore,
-  PlatformLogTarget,
-  PlatformLogCursor,
-} from "@/store/system/platform-log-collection.store";
+  PlatformCollectionStore,
+  PlatformCollectionTarget,
+  PlatformCollectionCursor,
+} from "@/store/system/platform-collection.store";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import type { TypedRequest } from "@/types/express";
 const batchSize = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
 /** Shared native read protocol: qualify, authorize metadata, consume allowed rows, then verify the full contribution snapshot. */
-export class PlatformLogCollectionIamService<Filters, Where> {
+export class PlatformMetadataCollectionIamService<
+  Filters,
+  Where,
+  Target extends PlatformCollectionTarget = PlatformCollectionTarget,
+> {
   constructor(
     private readonly iam: Pick<IamAuthorizationService, "loadPolicies" | "authorizeMany">,
     private readonly snapshots: PlatformManagementReadStore,
-    private readonly repository: PlatformLogCollectionStore<Filters, Where>,
-    private readonly resource: (id: string) => string,
+    private readonly repository: PlatformCollectionStore<Filters, Where, Target>,
+    private readonly resource: (target: Target) => string,
   ) {}
-  static valid(row: PlatformLogTarget) {
+  static valid(row: PlatformCollectionTarget) {
     return (
       isPlatformLogResourceId(row.id) &&
       row.status === 1 &&
@@ -35,13 +39,8 @@ export class PlatformLogCollectionIamService<Filters, Where> {
       Number.isFinite(row.updateTime.getTime())
     );
   }
-  private async allowed(
-    action: string,
-    principal: IamPrincipal,
-    rows: readonly PlatformLogTarget[],
-    request: TypedRequest,
-  ) {
-    const resources = rows.map((row) => this.resource(row.id)),
+  private async allowed(action: string, principal: IamPrincipal, rows: readonly Target[], request: TypedRequest) {
+    const resources = rows.map((row) => this.resource(row)),
       start = performance.now();
     const results = await this.iam.authorizeMany({
       principal,
@@ -74,10 +73,10 @@ export class PlatformLogCollectionIamService<Filters, Where> {
     principal: IamPrincipal,
     request: TypedRequest,
     recheck: () => Promise<void>,
-    fixedBoundary?: PlatformLogCursor,
-    visit?: (targets: readonly PlatformLogTarget[]) => Promise<void>,
+    fixedBoundary?: PlatformCollectionCursor,
+    visit?: (targets: readonly Target[]) => Promise<void>,
   ) {
-    let after: PlatformLogCursor | undefined,
+    let after: PlatformCollectionCursor | undefined,
       boundary = fixedBoundary,
       total = 0;
     const hash = createHash("sha256");
@@ -91,10 +90,17 @@ export class PlatformLogCollectionIamService<Filters, Where> {
           new Set(rows.map((row) => row.id)).size !== rows.length ||
           rows.some(
             (row, index) =>
-              !PlatformLogCollectionIamService.valid(row) ||
-              (index && row.createTime.getTime() > rows[index - 1]!.createTime.getTime()) ||
-              (after && (row.id === after.id || row.createTime.getTime() > after.createTime.getTime())) ||
-              (boundary && row.createTime.getTime() > boundary.createTime.getTime()),
+              !PlatformMetadataCollectionIamService.valid(row) ||
+              (index &&
+                (row.createTime.getTime() > rows[index - 1]!.createTime.getTime() ||
+                  (row.createTime.getTime() === rows[index - 1]!.createTime.getTime() &&
+                    row.id >= rows[index - 1]!.id))) ||
+              (after &&
+                (row.createTime.getTime() > after.createTime.getTime() ||
+                  (row.createTime.getTime() === after.createTime.getTime() && row.id >= after.id))) ||
+              (boundary &&
+                (row.createTime.getTime() > boundary.createTime.getTime() ||
+                  (row.createTime.getTime() === boundary.createTime.getTime() && row.id > boundary.id))),
           )
         )
           throw iamAccountDenied();
@@ -103,7 +109,10 @@ export class PlatformLogCollectionIamService<Filters, Where> {
         const allowed = await this.allowed(action, principal, rows, request);
         for (const row of rows)
           if (allowed.has(row.id)) {
-            hash.update(JSON.stringify([row.id, row.createTime.toISOString(), row.updateTime.toISOString()]) + "\n");
+            hash.update(
+              JSON.stringify([row.id, this.resource(row), row.createTime.toISOString(), row.updateTime.toISOString()]) +
+                "\n",
+            );
             total++;
           }
         if (visit) {
@@ -123,7 +132,7 @@ export class PlatformLogCollectionIamService<Filters, Where> {
     request: TypedRequest,
     filters: Filters,
     consumer?: {
-      visit?: (targets: readonly PlatformLogTarget[]) => Promise<void>;
+      visit?: (targets: readonly Target[]) => Promise<void>;
       finish: (total: number) => Promise<Result>;
     },
   ): Promise<Result | undefined> {

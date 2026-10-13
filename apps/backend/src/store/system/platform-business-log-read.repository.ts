@@ -4,18 +4,22 @@ import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isPlatformLogResourceId } from "@/iam/resources/platform-log-resources";
 import { iamAccountDenied } from "../users/iam-account-principal";
-import type { PlatformLogCollectionStore, PlatformLogCursor, PlatformLogTarget } from "./platform-log-collection.store";
+import type {
+  PlatformCollectionStore,
+  PlatformCollectionCursor,
+  PlatformCollectionTarget,
+} from "./platform-collection.store";
 import { resolveBusinessLogWhere } from "./businesslog-query";
 import type { QueryBusinessLogParams } from "./businesslog.store";
 export type BusinessLogFilters = Omit<QueryBusinessLogParams, "page" | "pageSize">;
 export interface PlatformBusinessLogReadStore
-  extends PlatformLogCollectionStore<BusinessLogFilters, Prisma.BusinessLogWhereInput> {
-  hydrate(targets: readonly PlatformLogTarget[]): Promise<BusinessLog[]>;
+  extends PlatformCollectionStore<BusinessLogFilters, Prisma.BusinessLogWhereInput> {
+  hydrate(targets: readonly PlatformCollectionTarget[]): Promise<BusinessLog[]>;
 }
-export type PlatformBusinessLogStatisticsRow = BusinessLogStatsRow & PlatformLogTarget;
+export type PlatformBusinessLogStatisticsRow = BusinessLogStatsRow & PlatformCollectionTarget;
 export interface PlatformBusinessLogStatisticsStore
-  extends PlatformLogCollectionStore<BusinessLogFilters, Prisma.BusinessLogWhereInput> {
-  hydrateStats(targets: readonly PlatformLogTarget[]): Promise<PlatformBusinessLogStatisticsRow[]>;
+  extends PlatformCollectionStore<BusinessLogFilters, Prisma.BusinessLogWhereInput> {
+  hydrateStats(targets: readonly PlatformCollectionTarget[]): Promise<PlatformBusinessLogStatisticsRow[]>;
 }
 const metadata = { id: true, status: true, createTime: true, updateTime: true } as const;
 export class PlatformBusinessLogReadRepository
@@ -28,7 +32,7 @@ export class PlatformBusinessLogReadRepository
   where(filters: BusinessLogFilters) {
     return resolveBusinessLogWhere(prisma, filters);
   }
-  private validCursor(cursor: PlatformLogCursor) {
+  private validCursor(cursor: PlatformCollectionCursor) {
     if (
       !isPlatformLogResourceId(cursor.id) ||
       !(cursor.createTime instanceof Date) ||
@@ -36,7 +40,7 @@ export class PlatformBusinessLogReadRepository
     )
       throw iamAccountDenied();
   }
-  scan(where: Prisma.BusinessLogWhereInput, after?: PlatformLogCursor, boundary?: PlatformLogCursor) {
+  scan(where: Prisma.BusinessLogWhereInput, after?: PlatformCollectionCursor, boundary?: PlatformCollectionCursor) {
     if (after) this.validCursor(after);
     if (boundary) this.validCursor(boundary);
     return prisma.businessLog.findMany({
@@ -71,7 +75,7 @@ export class PlatformBusinessLogReadRepository
       select: metadata,
     });
   }
-  hydrate(targets: readonly PlatformLogTarget[]): Promise<BusinessLog[]> {
+  hydrate(targets: readonly PlatformCollectionTarget[]): Promise<BusinessLog[]> {
     if (!targets.length) return Promise.resolve([]);
     this.validateTargets(targets);
     return prisma.businessLog.findMany({
@@ -81,7 +85,7 @@ export class PlatformBusinessLogReadRepository
       },
     });
   }
-  hydrateStats(targets: readonly PlatformLogTarget[]): Promise<PlatformBusinessLogStatisticsRow[]> {
+  hydrateStats(targets: readonly PlatformCollectionTarget[]): Promise<PlatformBusinessLogStatisticsRow[]> {
     if (!targets.length) return Promise.resolve([]);
     this.validateTargets(targets);
     return prisma.businessLog.findMany({
@@ -92,7 +96,7 @@ export class PlatformBusinessLogReadRepository
       select: { ...metadata, ...businessLogStatisticsFields },
     });
   }
-  private validateTargets(targets: readonly PlatformLogTarget[]) {
+  private validateTargets(targets: readonly PlatformCollectionTarget[]) {
     if (
       targets.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
       new Set(targets.map((target) => target.id)).size !== targets.length ||

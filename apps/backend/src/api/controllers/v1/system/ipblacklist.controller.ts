@@ -1,3 +1,5 @@
+import { PlatformIPBlacklistListIamService } from "@/services/system/platform-ip-blacklist-list-iam.service";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { PlatformIpAddressReadIamService } from "@/services/system/platform-ip-address-read-iam.service";
 import { platformIpAddressResourceResolver } from "@/iam/request/platform-ip-address-resource-resolvers";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -96,17 +98,20 @@ export class IPBlacklistController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.IP_BLACKLIST_READ)
-  @Middlewares(validateQuery(ipBlacklistListQuerySchema))
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:system:ip_blacklist:ListBlacklists",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(ipBlacklistListQuerySchema),
+  )
   public async getAllIPBlacklists(
     @Request() request: TypedRequest,
     @Query() limit?: number,
     @Query() offset?: number,
   ): Promise<GetAllIPBlacklistsResponse> {
-    const result = await this.ipBlacklistService.getBlacklist({
-      limit: limit || 100,
-      offset: offset || 0,
-    });
+    const result = await PlatformIPBlacklistListIamService.getInstance().list(limit ?? 100, offset ?? 0, request);
 
     return {
       blacklists: result.blacklists.map((b) => this.toDto(b)),
