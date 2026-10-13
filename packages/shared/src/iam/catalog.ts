@@ -951,6 +951,20 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     legacyPermission: Permission.USER_UPDATE_SELF_PROFILE,
   },
+  ...['SendEmailChangeCode', 'ChangeEmail'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:user:' + operation,
+      service: 'user',
+      operation,
+      accessLevel: 'Write',
+      resourceTypes: ['quyan/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.USER_UPDATE_SELF_EMAIL,
+    }),
+  ),
   ...[
     {
       operation: 'GetPasskeyRegistrationOptions',

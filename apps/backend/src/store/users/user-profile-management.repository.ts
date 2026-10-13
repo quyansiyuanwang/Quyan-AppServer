@@ -1,3 +1,8 @@
+import { USER_EMAIL_CHANGE_WINDOW_MS } from "@/constant/user-email";
+import { OperationType } from "@/constant/operation-type";
+import { BadRequestError } from "@/util/errors";
+import { createHash } from "node:crypto";
+import { readIamAuthorizationRevision } from "./iam-authorization-revision";
 import { Prisma } from "@prisma/client";
 import { MANAGED_STATUS, getOAuthScopeAliases, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -14,7 +19,11 @@ const metadataSelect = { id: true, accountOwnerId: true, groupId: true, status: 
 export type UserProfileTarget = Prisma.UserGetPayload<{ select: typeof metadataSelect }>;
 export interface UserProfileIdentity {
   principal: IamPrincipal;
-  oauth?: { id: string; clientId: string };
+  oauth?: { id: string; clientId: string; scope?: "profile" | "email" };
+}
+export interface UserEmailAuthorizationSnapshot {
+  target: UserProfileTarget;
+  revision: string;
 }
 const viewSelect = { ...metadataSelect, username: true, email: true, name: true, createTime: true } as const;
 
@@ -83,8 +92,8 @@ export class UserProfileManagementRepository {
           oauthClient: { select: { status: true, reviewStatus: true, scopes: true } },
         },
       });
-      const hasProfile = (scopes: unknown) =>
-        Array.isArray(scopes) && getOAuthScopeAliases("profile").some((scope) => scopes.includes(scope));
+      const hasRequiredScope = (scopes: unknown) =>
+        Array.isArray(scopes) && getOAuthScopeAliases(oauth.scope ?? "profile").some((scope) => scopes.includes(scope));
       if (
         !token ||
         token.userId !== user.id ||
@@ -92,10 +101,10 @@ export class UserProfileManagementRepository {
         token.status !== MANAGED_STATUS.ENABLED ||
         token.revokedAt ||
         token.expiresAt <= new Date() ||
-        !hasProfile(token.scopes) ||
+        !hasRequiredScope(token.scopes) ||
         token.oauthClient.status !== MANAGED_STATUS.ENABLED ||
         token.oauthClient.reviewStatus !== "approved" ||
-        !hasProfile(token.oauthClient.scopes)
+        !hasRequiredScope(token.oauthClient.scopes)
       )
         throw userProfileAuthorizationDenied();
     }
@@ -186,6 +195,83 @@ export class UserProfileManagementRepository {
       const updated = await tx.user.findUnique({ where: { id: current.id }, select: metadataSelect });
       if (!updated) throw userProfileAuthorizationDenied();
       return this.view(tx, updated);
+    });
+  }
+  private async emailRevision(tx: Prisma.TransactionClient, identity: UserProfileIdentity, current: UserProfileTarget) {
+    const owner = await tx.user.findUnique({
+      where: { id: identity.principal.accountOwnerId },
+      select: metadataSelect,
+    });
+    const group = current.groupId
+      ? await tx.group.findUnique({
+          where: { id: current.groupId },
+          select: { id: true, status: true, accountOwnerId: true, updateTime: true, permissions: true },
+        })
+      : null;
+    const iam = await readIamAuthorizationRevision(tx, identity.principal.accountOwnerId);
+    return createHash("sha256").update(JSON.stringify({ owner, group, iam })).digest("hex");
+  }
+  async emailSnapshot(identity: UserProfileIdentity): Promise<UserEmailAuthorizationSnapshot> {
+    return this.transaction(identity, async (tx, current) => ({
+      target: current,
+      revision: await this.emailRevision(tx, identity, current),
+    }));
+  }
+  private async emailGuard(
+    tx: Prisma.TransactionClient,
+    identity: UserProfileIdentity,
+    current: UserProfileTarget,
+    expected: UserEmailAuthorizationSnapshot,
+    recheck: () => Promise<void>,
+  ) {
+    this.assertTarget(current, expected.target);
+    if ((await this.emailRevision(tx, identity, current)) !== expected.revision) throw userProfileAuthorizationDenied();
+    await recheck();
+  }
+  async recheckEmail(
+    identity: UserProfileIdentity,
+    expected: UserEmailAuthorizationSnapshot,
+    recheck: () => Promise<void>,
+  ) {
+    return this.transaction(identity, async (tx, current) => this.emailGuard(tx, identity, current, expected, recheck));
+  }
+  async updateEmail(
+    identity: UserProfileIdentity,
+    expected: UserEmailAuthorizationSnapshot,
+    email: string,
+    recheck: () => Promise<void>,
+  ) {
+    return this.transaction(identity, async (tx, current) => {
+      await this.emailGuard(tx, identity, current, expected, recheck);
+      // Preserve uniqueness and the daily business rule at the actual write boundary.
+      if (await tx.user.findFirst({ where: { email, status: { not: MANAGED_STATUS.DELETED } }, select: { id: true } }))
+        throw new BadRequestError("Email belongs to another user", undefined, { messageKey: "user.emailTaken" });
+      if (
+        await tx.businessLog.findFirst({
+          where: {
+            status: MANAGED_STATUS.ENABLED,
+            actorUserId: current.id,
+            operationType: OperationType.USER_EMAIL_CHANGE,
+            success: true,
+            createTime: { gte: new Date(Date.now() - USER_EMAIL_CHANGE_WINDOW_MS) },
+          },
+          select: { id: true },
+        })
+      )
+        throw new BadRequestError("Email change is limited to once per day", undefined, {
+          messageKey: "user.emailChangeTooFrequent",
+        });
+      const result = await tx.user.updateMany({
+        where: {
+          id: current.id,
+          accountOwnerId: current.accountOwnerId,
+          groupId: current.groupId,
+          status: MANAGED_STATUS.ENABLED,
+          updateTime: current.updateTime,
+        },
+        data: { email },
+      });
+      if (result.count !== 1) throw conflict();
     });
   }
 }

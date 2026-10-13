@@ -12,7 +12,7 @@ import {
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { BadRequestError, NotFoundError, InternalServerError } from "@/util/errors";
-import { EmailService } from "@/services/auth/email.service";
+import { UserEmailIamService } from "./user-email-iam.service";
 import { UserRepository } from "@/store/users/user.repository";
 import { GroupRepository } from "@/store/users/group.repository";
 import { BusinessLogRepository } from "@/store/system/businesslog";
@@ -424,85 +424,10 @@ export class UserService {
   /**
    * 发送邮箱变更验证码
    */
-  async sendEmailChangeCode(userId: string, newEmail: string, _request?: Request): Promise<void> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
-    // 不允许设为当前邮箱
-    if (user.email && user.email.toLowerCase() === newEmail.toLowerCase())
-      throw new BadRequestError("新邮箱不能与当前邮箱相同", undefined, { messageKey: "user.emailUnchanged" });
-
-    // 检查邮箱唯一性
-    const emailExists = await this.userRepository.findByEmailInNonDeleted(newEmail);
-    if (emailExists) throw new BadRequestError("该邮箱已被其他用户使用", undefined, { messageKey: "user.emailTaken" });
-
-    // 检查一天内是否已经更换过邮箱（通过业务日志检查）
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentEmailChange = await this.businessLogRepository.findRecentSuccessfulOperation(
-      userId,
-      OperationType.USER_EMAIL_CHANGE,
-      oneDayAgo,
-    );
-    if (recentEmailChange)
-      throw new BadRequestError("每天只能修改一次邮箱，请明天再试", undefined, {
-        messageKey: "user.emailChangeTooFrequent",
-      });
-
-    // 发送验证码到新邮箱
-    const emailService = EmailService.getInstance();
-    await emailService.sendVerificationCode(newEmail);
+  async sendEmailChangeCode(userId: string, newEmail: string, request?: Request): Promise<void> {
+    return UserEmailIamService.getInstance().send(userId, newEmail, request as TypedRequest | undefined);
   }
-
-  /**
-   * 通过验证码更换邮箱
-   */
   async changeEmail(userId: string, data: ChangeEmailDto, request?: Request): Promise<void> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
-    // 不允许设为当前邮箱
-    if (user.email && user.email.toLowerCase() === data.newEmail.toLowerCase())
-      throw new BadRequestError("新邮箱不能与当前邮箱相同", undefined, { messageKey: "user.emailUnchanged" });
-
-    // 检查邮箱唯一性
-    const emailExists = await this.userRepository.findByEmailInNonDeleted(data.newEmail);
-    if (emailExists) throw new BadRequestError("该邮箱已被其他用户使用", undefined, { messageKey: "user.emailTaken" });
-
-    // 检查一天内是否已经更换过邮箱
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentEmailChange = await this.businessLogRepository.findRecentSuccessfulOperation(
-      userId,
-      OperationType.USER_EMAIL_CHANGE,
-      oneDayAgo,
-    );
-    if (recentEmailChange)
-      throw new BadRequestError("每天只能修改一次邮箱，请明天再试", undefined, {
-        messageKey: "user.emailChangeTooFrequent",
-      });
-
-    // 验证验证码
-    const emailService = EmailService.getInstance();
-    const isValid = await emailService.verifyCode(data.newEmail, data.verificationCode);
-    if (!isValid)
-      throw new BadRequestError("验证码无效或已过期", undefined, { messageKey: "errors.verificationCodeInvalid" });
-
-    const oldEmail = user.email;
-
-    // 更新邮箱
-    await this.userRepository.updateById(userId, { email: data.newEmail });
-
-    await this.businessLogService.logOperation({
-      operationType: OperationType.USER_EMAIL_CHANGE,
-      operationCategory: OperationCategory.USER_MANAGEMENT,
-      actorUserId: userId,
-      targetUserId: userId,
-      targetResourceType: "USER",
-      description: `用户 '${user.username}' 将邮箱从 '${oldEmail || "无"}' 更改为 '${data.newEmail}'`,
-      changes: { oldEmail, newEmail: data.newEmail },
-      success: true,
-      ipAddress: this.getClientIP(request),
-      userAgent: request?.headers["user-agent"],
-      requestId: request?.headers["x-request-id"] as string | undefined,
-    });
+    return UserEmailIamService.getInstance().change(userId, data, request as TypedRequest | undefined);
   }
 }

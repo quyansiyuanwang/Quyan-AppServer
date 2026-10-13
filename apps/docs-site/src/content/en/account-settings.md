@@ -69,6 +69,14 @@ Replace the placeholders with the actual account and current user IDs. Display-n
 
 If a profile changes during a request, reading or editing it may return a conflict. Refresh and confirm the edit again; concurrent changes are not automatically overwritten. An invalid account or role session blocks the operation. Third-party OAuth applications additionally need the `profile` scope (including its historical permission alias); the scope does not replace IAM editing permission.
 
+## Email permissions and resource scope
+
+With IAM enforcement enabled, sending the change code requires `quyan:user:SendEmailChangeCode`; applying the verified change requires `quyan:user:ChangeEmail`. Both target `acs:quyan:*:<accountId>:user/<userId>` for the current user. These are independent actions: a grant to send a code does not grant permission to change the email. Display-name editing and reading a profile do not grant either email action.
+
+Policies can grant the two actions on the current user's ARN. A matching explicit Deny overrides Allow. Even wildcard grants cannot use these personal endpoints to change another user's email. Existing verification, two-factor, CAPTCHA, replay protection, email uniqueness and once-per-day limits still apply. Third-party OAuth applications also need the `email` scope; `profile` scope alone is insufficient.
+
+Authorization and user state are checked again before sending a code or committing an email change. If an account, grant, role session or OAuth authority changes during the operation, the request can be denied or return a conflict. Refresh the session and confirm the operation again. `legacy` and `shadow` retain the previous effective email permission; `shadow` also records IAM decisions.
+
 ## Related pages
 
 - `access-key-management`

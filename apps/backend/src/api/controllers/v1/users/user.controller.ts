@@ -344,9 +344,15 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_UPDATE_SELF_EMAIL)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @CaptchaProtected({ action: "change_email", trustOnly: true })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:SendEmailChangeCode",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -375,8 +381,14 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_UPDATE_SELF_EMAIL)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:ChangeEmail",
+      resourceKind: "single-resource",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
