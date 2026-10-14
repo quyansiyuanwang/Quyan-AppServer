@@ -1,3 +1,4 @@
+import { contentSafetySystemConfigArn } from "@/iam/resources/content-safety-system-resources";
 import { performance } from "node:perf_hooks";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -8,6 +9,7 @@ import {
   platformConfigurationArn,
   isRegisteredConfigurationKey,
   isSupportConfigurationKey,
+  isContentSafetyConfigurationKey,
 } from "@/iam/resources/platform-configuration-resources";
 import { supportConfigArn } from "@/iam/resources/support-config-resource";
 import { IamAccountUserRepository, iamAccountDenied } from "@/store/users/iam-account-principal";
@@ -114,6 +116,28 @@ export class PlatformConfigurationIamService {
         supportAllowed = false;
       }
     }
+    let contentSafetyAllowed = true;
+    if (keys.some(isContentSafetyConfigurationKey)) {
+      const contentSafetyAction =
+        action === "quyan:system:ListConfigurations"
+          ? "quyan:content_safety:GetSystemConfig"
+          : "quyan:content_safety:UpdateSystemConfig";
+      const resource = contentSafetySystemConfigArn();
+      try {
+        const result = await this.iam.authorize({
+          principal,
+          action: contentSafetyAction,
+          resource,
+          context: requestConditionContext(request, principal),
+        });
+        if (!result) throw iamAccountDenied();
+        this.audit(principal, request, contentSafetyAction, resource, result, start);
+        contentSafetyAllowed = result.decision === "Allow";
+      } catch (error) {
+        if (!(error instanceof ForbiddenError)) throw error;
+        contentSafetyAllowed = false;
+      }
+    }
     const assignmentKey = CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES;
     let assignmentAllowed = true;
     if (keys.includes(assignmentKey)) {
@@ -143,6 +167,7 @@ export class PlatformConfigurationIamService {
         (key, i) =>
           results[i].decision === "Allow" &&
           (!isSupportConfigurationKey(key) || supportAllowed) &&
+          (!isContentSafetyConfigurationKey(key) || contentSafetyAllowed) &&
           (key !== assignmentKey || assignmentAllowed),
       ),
     );

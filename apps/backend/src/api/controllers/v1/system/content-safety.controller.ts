@@ -246,7 +246,11 @@ export class ContentSafetyController extends Controller {
     );
   }
   @Put("config")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:UpdateSystemConfig",
+    resourceKind: "single-resource",
+    resource: contentSafetySystemConfigResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,

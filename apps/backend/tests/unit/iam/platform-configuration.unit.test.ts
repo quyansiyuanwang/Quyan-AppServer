@@ -123,6 +123,21 @@ describe("platform configuration IAM", () => {
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(repo.targets).not.toHaveBeenCalled();
   });
+  it.each(["read", "write"] as const)(
+    "enforces content safety %s authority on generic config paths",
+    async (operation) => {
+      const key = CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ENABLED;
+      iam.authorize.mockResolvedValue(deny);
+      const action =
+        operation === "read" ? "quyan:content_safety:GetSystemConfig" : "quyan:content_safety:UpdateSystemConfig";
+      const check =
+        operation === "read" ? service.prepareRead([key], request) : service.prepareUpdate([key], "actor", request);
+      await expect(check).rejects.toMatchObject({ statusCode: 403 });
+      expect(iam.authorize).toHaveBeenCalledWith(
+        expect.objectContaining({ action, resource: "acs:platform:*:platform:content-safety-config" }),
+      );
+    },
+  );
   it("cannot bypass support-resource Deny through the generic configuration route", async () => {
     iam.authorize.mockResolvedValue(deny);
     await expect(service.prepareUpdate([CONFIG_KEYS.SUPPORT_AI.MODEL], "actor", request)).rejects.toMatchObject({

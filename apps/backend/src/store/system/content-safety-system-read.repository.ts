@@ -1,7 +1,6 @@
-import { createHash } from "node:crypto";
+import { readContentSafetySystemConfiguration } from "./content-safety-system-config-snapshot";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
-import { CONFIG_KEYS } from "@/constant/config-keys";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isContentSafetyRuleId } from "@/iam/resources/content-safety-system-resources";
 import { iamAccountDenied } from "../users/iam-account-principal";
@@ -60,16 +59,7 @@ export class ContentSafetySystemReadRepository implements ContentSafetySystemRea
     sameContentSafetySystemRuleTargets(await readContentSafetySystemRuleTargets(prisma, ids), expected);
     return expected.map((target) => rows.find((row) => row.id === target.id)!);
   }
-  async configuration() {
-    const rows = await prisma.serverConfig.findMany({
-      where: { key: { in: Object.values(CONFIG_KEYS.CONTENT_SAFETY) } },
-      select: { key: true, value: true, status: true, updateTime: true },
-      orderBy: { key: "asc" },
-    });
-    if (rows.some((row) => row.status !== 1)) throw iamAccountDenied();
-    return {
-      values: Object.fromEntries(rows.map((row) => [row.key, row.value])),
-      revision: createHash("sha256").update(JSON.stringify(rows)).digest("hex"),
-    };
+  configuration() {
+    return readContentSafetySystemConfiguration(prisma);
   }
 }

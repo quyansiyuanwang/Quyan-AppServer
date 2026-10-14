@@ -1,3 +1,6 @@
+import { extractClientIp } from "@/util/ip-extractor";
+import { ContentSafetySystemConfigMutationIamService } from "./content-safety-system-config-mutation-iam.service";
+import { contentSafetyConfigSchema } from "@/api/schema/system/content-safety.schema";
 import { ContentSafetySystemRuleMutationIamService } from "./content-safety-system-rule-mutation-iam.service";
 import { CONTENT_SAFETY_RULE_LIMITS } from "@/constant/content-safety-rule";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
@@ -26,7 +29,7 @@ import { NotificationEvent } from "@/constant/notification-event";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import BusinessLogService from "./businesslog.service";
 import { BadRequestError } from "@/util/errors";
-import type { ContentSafetyIncidentQuery } from "@/api/dto/system/content-safety.dto";
+import type { ContentSafetyIncidentQuery, ContentSafetyConfigRequest } from "@/api/dto/system/content-safety.dto";
 
 type Rule = {
   id: string;
@@ -145,6 +148,39 @@ export class ContentSafetyService {
   }
 
   async updateConfig(body: any, actorUserId: string, request?: Request) {
+    if (request) {
+      const updates = () => {
+        const parsed = contentSafetyConfigSchema.safeParse(body);
+        if (!parsed.success)
+          throw new BadRequestError("Invalid system config", undefined, { messageKey: "errors.badRequest" });
+        return this.systemConfigUpdates(parsed.data);
+      };
+      return ContentSafetySystemConfigMutationIamService.getInstance().update(
+        request as TypedRequest,
+        actorUserId,
+        updates,
+        () => this.updateConfigLegacy(body, actorUserId, request),
+        async (values) => {
+          await this.businessLog.logOperation({
+            operationType: OperationType.SYSTEM_CONFIG_UPDATE,
+            operationCategory: OperationCategory.SYSTEM,
+            actorUserId,
+            targetResourceType: "SERVER_CONFIG",
+            description: "Content safety configuration updated",
+            changes: { keys: Object.values(CONFIG_KEYS.CONTENT_SAFETY) },
+            success: true,
+            ipAddress: extractClientIp(request),
+            userAgent: request.headers["user-agent"],
+            requestId: (request as TypedRequest).res?.locals.requestId,
+          });
+          return this.getPublicConfig(values);
+        },
+      );
+    }
+    if (!["legacy", "shadow"].includes(env.security.iamAuthorizationMode)) throw iamAccountDenied();
+    return this.updateConfigLegacy(body, actorUserId, request);
+  }
+  private systemConfigUpdates(body: ContentSafetyConfigRequest) {
     const key = body.aiApiKey?.trim();
     const updates: Record<string, string> = {
       [CONFIG_KEYS.CONTENT_SAFETY.REQUEST_ENABLED]: String(body.requestEnabled),
@@ -167,7 +203,10 @@ export class ContentSafetyService {
     };
     if (key) updates[CONFIG_KEYS.CONTENT_SAFETY.AI_API_KEY] = this.encrypt(key);
     if (body.clearAiApiKey) updates[CONFIG_KEYS.CONTENT_SAFETY.AI_API_KEY] = "";
-    for (const [configKey, value] of Object.entries(updates))
+    return updates;
+  }
+  private async updateConfigLegacy(body: any, actorUserId: string, request?: Request) {
+    for (const [configKey, value] of Object.entries(this.systemConfigUpdates(body)))
       await this.configService.set(configKey, value, actorUserId, request);
     return this.getPublicConfig();
   }

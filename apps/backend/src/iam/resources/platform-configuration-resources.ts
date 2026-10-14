@@ -17,3 +17,6 @@ export function platformConfigurationArn(key: string) {
 export function isSupportConfigurationKey(key: string) {
   return Object.values(CONFIG_KEYS.SUPPORT_AI).some((value) => value === key);
 }
+export function isContentSafetyConfigurationKey(key: string) {
+  return Object.values(CONFIG_KEYS.CONTENT_SAFETY).some((value) => value === key);
+}

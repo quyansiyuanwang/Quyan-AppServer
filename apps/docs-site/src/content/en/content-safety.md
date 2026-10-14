@@ -28,13 +28,18 @@ Administrators with system configuration permission can manage the system baseli
 
 ## Resource permissions for system policy reads
 
-In IAM enforcement mode, system configuration, rule lists, and rule exports use separate Actions:
+In IAM enforcement mode, system configuration reads and writes, rule lists, and rule exports use separate Actions:
 
-| Operation                 | Action                                   | Resource                                                                     |
-| ------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------- |
-| Read system configuration | `quyan:content_safety:GetSystemConfig`   | `acs:platform:*:platform:content-safety-config`                              |
-| List system rules         | `quyan:content_safety:ListSystemRules`   | `acs:platform:*:platform:content-safety-rule/<ruleId>`                       |
-| Export system rules       | `quyan:content_safety:ExportSystemRules` | The same rule resource; choose specific rules or use `content-safety-rule/*` |
+| Operation                   | Action                                    | Resource                                                                     |
+| --------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------- |
+| Read system configuration   | `quyan:content_safety:GetSystemConfig`    | `acs:platform:*:platform:content-safety-config`                              |
+| List system rules           | `quyan:content_safety:ListSystemRules`    | `acs:platform:*:platform:content-safety-rule/<ruleId>`                       |
+| Export system rules         | `quyan:content_safety:ExportSystemRules`  | The same rule resource; choose specific rules or use `content-safety-rule/*` |
+| Update system configuration | `quyan:content_safety:UpdateSystemConfig` | `acs:platform:*:platform:content-safety-config`                              |
+
+Configuration updates are atomic: authorization changes or a conflicting configuration change reject the entire update. An omitted AI API key is preserved; a replacement is encrypted, and the clear option takes precedence when both are supplied. The update response describes the saved configuration and contains only the key-configured marker.
+
+Generic configuration APIs also require the corresponding content safety read or update Action for these fields. A domain Deny therefore also restricts the generic configuration workflow.
 
 The operator must still belong to an active global group with system configuration management eligibility. Account policies cannot manufacture that membership. Role sessions use the role's own Allow, and matching explicit Deny takes precedence.
 

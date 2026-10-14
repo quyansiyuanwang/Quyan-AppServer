@@ -28,13 +28,18 @@ AI 审计会把文本发送到配置的模型，并按输入/输出 token 计费
 
 ## 系统策略读取的资源权限
 
-IAM 强制模式下，系统配置、规则列表和规则导出分别使用以下 Action：
+IAM 强制模式下，系统配置的读取与更新、规则列表和规则导出分别使用以下 Action：
 
-| 操作         | Action                                   | 资源                                                   |
-| ------------ | ---------------------------------------- | ------------------------------------------------------ |
-| 读取系统配置 | `quyan:content_safety:GetSystemConfig`   | `acs:platform:*:platform:content-safety-config`        |
-| 列出系统规则 | `quyan:content_safety:ListSystemRules`   | `acs:platform:*:platform:content-safety-rule/<ruleId>` |
-| 导出系统规则 | `quyan:content_safety:ExportSystemRules` | 同上，可指定规则或使用 `content-safety-rule/*`         |
+| 操作         | Action                                    | 资源                                                   |
+| ------------ | ----------------------------------------- | ------------------------------------------------------ |
+| 读取系统配置 | `quyan:content_safety:GetSystemConfig`    | `acs:platform:*:platform:content-safety-config`        |
+| 列出系统规则 | `quyan:content_safety:ListSystemRules`    | `acs:platform:*:platform:content-safety-rule/<ruleId>` |
+| 导出系统规则 | `quyan:content_safety:ExportSystemRules`  | 同上，可指定规则或使用 `content-safety-rule/*`         |
+| 更新系统配置 | `quyan:content_safety:UpdateSystemConfig` | `acs:platform:*:platform:content-safety-config`        |
+
+配置更新为原子操作：授权变化或配置冲突会拒绝整次更新。省略 AI API Key 时保留已有值，替换时加密保存；同时提供替换值和清空选项时，清空优先。更新响应描述已保存的配置，仅返回密钥是否已配置的标记。
+
+通用配置 API 访问这些字段时，也须取得对应的内容安全读取或更新 Action；内容安全资源上的 Deny 同样约束通用配置流程。
 
 操作者仍须属于具有系统配置管理资格的有效全局组。账户策略不能自行赋予这种管理资格；角色会话使用角色本身的 Allow，匹配的显式 Deny 优先。
 

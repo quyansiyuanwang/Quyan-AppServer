@@ -1712,6 +1712,9 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
         operation === 'ListConfigurations'
           ? 'quyan:support:GetConfig'
           : 'quyan:support:UpdateConfig',
+        operation === 'ListConfigurations'
+          ? 'quyan:content_safety:GetSystemConfig'
+          : 'quyan:content_safety:UpdateSystemConfig',
       ],
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: true,
@@ -2727,6 +2730,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       operation: 'CreateSystemRule',
       resourceTypes: ['platform/content-safety-rule-control', 'platform/content-safety-rule'],
     },
+    { operation: 'UpdateSystemConfig', resourceTypes: ['platform/content-safety-config'] },
     { operation: 'UpdateSystemRule', resourceTypes: ['platform/content-safety-rule'] },
     { operation: 'DeleteSystemRule', resourceTypes: ['platform/content-safety-rule'] },
     { operation: 'BatchUpdateSystemRules', resourceTypes: ['platform/content-safety-rule'] },
