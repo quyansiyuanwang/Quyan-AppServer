@@ -9,6 +9,10 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
   const redis = {
     isRedisAvailable: vi.fn(),
     set: vi.fn(),
+    setWithResult: vi.fn(),
+    scanKeyPageWithResult: vi.fn(),
+    projectTerminalSessions: vi.fn(),
+    deletePendingTerminalSession: vi.fn(),
     get: vi.fn(),
     getKeysByPattern: vi.fn(),
     delete: vi.fn(),
@@ -25,6 +29,10 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
     vi.restoreAllMocks();
     redis.isRedisAvailable.mockReturnValue(true);
     redis.set.mockResolvedValue(undefined);
+    redis.setWithResult.mockResolvedValue(true);
+    redis.scanKeyPageWithResult.mockResolvedValue({ cursor: "0", keys: [] });
+    redis.projectTerminalSessions.mockResolvedValue([]);
+    redis.deletePendingTerminalSession.mockResolvedValue(true);
     redis.get.mockResolvedValue(null);
     redis.getKeysByPattern.mockResolvedValue([]);
     redis.delete.mockResolvedValue(1);
@@ -47,6 +55,77 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
     vi.spyOn(RedisService, "getInstance").mockReturnValue(redis as unknown as RedisService);
   });
 
+  it("rejects authorization before hydrating a device or issuing a token", async () => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry),
+      guard = vi.fn().mockRejectedValue(new Error("fixture denial"));
+    await expect(
+      gateway.createSession(
+        "user-1",
+        { deviceId: "device-1", mode: "shell", shellType: "powershell" },
+        "ws://fixture",
+        guard,
+      ),
+    ).rejects.toThrow("fixture denial");
+    expect(deviceRegistry.getAccessibleDevice).not.toHaveBeenCalled();
+    expect(redis.setWithResult).not.toHaveBeenCalled();
+  });
+  it("compensates native issuance if persistence or the final authorization is unconfirmed", async () => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry);
+    gateway.attachAgent("device-1", { on: vi.fn(), send: vi.fn(), close: vi.fn() } as unknown as WebSocket);
+    redis.setWithResult.mockResolvedValueOnce(null);
+    await expect(
+      gateway.createSession(
+        "user-1",
+        { deviceId: "device-1", mode: "shell", shellType: "powershell" },
+        "ws://fixture",
+        vi.fn().mockResolvedValue(undefined),
+      ),
+    ).rejects.toThrow();
+    expect(await gateway.listSessions("user-1")).toEqual([]);
+    expect(redis.delete).toHaveBeenCalled();
+    const guard = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("fixture revocation"));
+    await expect(
+      gateway.createSession(
+        "user-1",
+        { deviceId: "device-1", mode: "shell", shellType: "powershell" },
+        "ws://fixture",
+        guard,
+      ),
+    ).rejects.toThrow("fixture revocation");
+    expect(await gateway.listSessions("user-1")).toEqual([]);
+  });
+  it("guards a persisted pending replacement and never deletes connected metadata", async () => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry),
+      guard = vi.fn().mockResolvedValue(undefined);
+    const metadata = (id: string, status: string) => ({
+      sessionId: id,
+      ownerUserId: "user-1",
+      entitlementId: "ent-1",
+      deviceId: "device-1",
+      status,
+      revision: "redis:" + "a".repeat(40),
+    });
+    redis.scanKeyPageWithResult.mockResolvedValue({
+      cursor: "0",
+      keys: ["remote_terminal:session:pending", "remote_terminal:session:connected"],
+    });
+    redis.projectTerminalSessions.mockResolvedValue([
+      { state: "present", metadata: metadata("pending", "pending") },
+      { state: "present", metadata: metadata("connected", "connected") },
+    ]);
+    await gateway.closeAuthorizedPendingSessions("user-1", "device-1", guard);
+    expect(guard).toHaveBeenCalledTimes(1);
+    expect(redis.deletePendingTerminalSession).toHaveBeenCalledWith(
+      "user-1",
+      "device-1",
+      "pending",
+      "redis:" + "a".repeat(40),
+    );
+  });
   it("stores created sessions in redis with 3 day ttl", async () => {
     const gateway = new RemoteTerminalSessionGateway(deviceRegistry);
     const agentSocket = {

@@ -1,3 +1,4 @@
+import { env } from "@/config/env";
 import { RemoteTerminalSessionReadIamService } from "./remote-terminal-session-read-iam.service";
 import type {
   CreateRemoteTerminalSessionRequest,
@@ -198,28 +199,50 @@ export class RemoteTerminalService {
     userId: string,
     body: CreateRemoteTerminalSessionRequest,
     browserWebSocketBaseUrl: string,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalSessionDto> {
+    let created: RemoteTerminalSessionDto | undefined;
     try {
-      const sessionLimit = await this.productService.getRuntimeTotalTerminalLimit(userId);
-      if (sessionLimit <= 0)
-        throw new Error("No terminal quota available. Please purchase or claim a terminal package first.");
-
-      await this.gatewayService.closeReconnectableSessions(userId, body.deviceId);
-
-      const existingSessions = await this.gatewayService.listSessions(userId);
-      const activeSessionCount = existingSessions.filter((item) => item.status !== "closed").length;
-
-      if (activeSessionCount >= sessionLimit)
-        throw new Error(`Terminal quota exceeded: ${activeSessionCount}/${sessionLimit} active sessions in use.`);
-
-      return await this.gatewayService.createSession(userId, body, browserWebSocketBaseUrl);
+      return await RemoteTerminalDeviceIamService.getInstance().withDevice(
+        userId,
+        body.deviceId,
+        "quyan:remote_terminal:CreateSession",
+        request,
+        async (guard) => {
+          const native = env.security.iamAuthorizationMode === "enforce";
+          if (native && !guard)
+            throw new ForbiddenError("Terminal creation guard missing", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
+          const sessionLimit = await this.productService.getRuntimeTotalTerminalLimit(userId);
+          if (sessionLimit <= 0)
+            throw new Error("No terminal quota available. Please purchase or claim a terminal package first.");
+          await guard?.();
+          const sessionsGateway = native ? this.gatewayService.getSessionGateway() : undefined;
+          if (sessionsGateway && guard)
+            await sessionsGateway.closeAuthorizedPendingSessions(userId, body.deviceId, guard);
+          else await this.gatewayService.closeReconnectableSessions(userId, body.deviceId);
+          const existingSessions = sessionsGateway
+            ? await sessionsGateway.listSessionMetadata(userId)
+            : await this.gatewayService.listSessions(userId);
+          const activeSessionCount = existingSessions.filter((item) => item.status !== "closed").length;
+          if (activeSessionCount >= sessionLimit)
+            throw new Error(`Terminal quota exceeded: ${activeSessionCount}/${sessionLimit} active sessions in use.`);
+          await guard?.();
+          created =
+            native && guard
+              ? await this.gatewayService.createSession(userId, body, browserWebSocketBaseUrl, guard)
+              : await this.gatewayService.createSession(userId, body, browserWebSocketBaseUrl);
+          return created;
+        },
+      );
     } catch (error) {
+      if (created) await this.gatewayService.getSessionGateway().discardPendingSession(userId, created.sessionId);
+      if (error instanceof ForbiddenError) throw error;
       throw new BadRequestError(
         error instanceof Error ? error.message : "Remote terminal session creation failed",
         undefined,
-        {
-          messageKey: "remoteTerminal.sessionCreationFailed",
-        },
+        { messageKey: "remoteTerminal.sessionCreationFailed" },
       );
     }
   }

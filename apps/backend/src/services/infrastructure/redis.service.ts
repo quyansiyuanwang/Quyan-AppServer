@@ -1,6 +1,8 @@
 import {
   TERMINAL_SESSION_STORAGE,
   TERMINAL_SESSION_PROJECTION_SCRIPT,
+  TERMINAL_PENDING_SESSION_DELETE_SCRIPT,
+  terminalSessionRedisKey,
   terminalSessionProjectionShells,
   isTerminalSessionIdentifier,
   parseTerminalSessionProjections,
@@ -458,6 +460,31 @@ export class RedisService {
         ...(expectedRevisions ?? keys.map(() => "")),
       );
       return parseTerminalSessionProjections(result, keys.length);
+    });
+  }
+
+  public async deletePendingTerminalSession(
+    ownerUserId: string,
+    deviceId: string,
+    sessionId: string,
+    revision: string,
+  ): Promise<boolean | null> {
+    if (
+      ![ownerUserId, deviceId, sessionId].every(isTerminalSessionIdentifier) ||
+      !/^redis:[a-f0-9]{40}$/.test(revision)
+    )
+      return null;
+    return this.executeWithCircuit("deletePendingTerminalSession", null as boolean | null, async () => {
+      const result = await this.client!.eval(
+        TERMINAL_PENDING_SESSION_DELETE_SCRIPT,
+        1,
+        terminalSessionRedisKey(sessionId),
+        ownerUserId,
+        deviceId,
+        sessionId,
+        revision,
+      );
+      return result === 1 ? true : result === 0 ? false : null;
     });
   }
 

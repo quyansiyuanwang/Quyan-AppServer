@@ -99,3 +99,5 @@ Preference updates require a separate write Action. The server checks access aga
 `quyan:remote_terminal:GetUsageSummary` requires the user's resource, `acs:quyan:*:<accountId>:user/<userId>`. It reports all owned active sessions and device bindings under valid entitlements, including devices and sessions that your list policy hides. List visibility does not reduce quota consumption. Session and device list permissions do not automatically grant usage queries or session creation.
 
 These separate Actions apply when IAM enforcement is enabled; compatibility deployments retain the previous permission behavior.
+
+Creating a pending session requires `quyan:remote_terminal:CreateSession` on the selected device ARN. A device-list or usage grant alone cannot create a session. Creation checks actual quota usage, including sessions hidden from lists. Reconnecting replaces stale pending sessions on that device and preserves connected sessions. If authorization is rejected before issuance completes, the new pending session is discarded and no browser capability is returned.

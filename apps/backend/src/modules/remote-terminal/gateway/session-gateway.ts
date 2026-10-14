@@ -109,7 +109,9 @@ export class RemoteTerminalSessionGateway {
     ownerUserId: string,
     request: RemoteTerminalSessionCreateRequest,
     browserWebSocketBaseUrl: string,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalSessionCreateResponse> {
+    await authorize?.();
     const device = await this.deviceRegistry.getAccessibleDevice(ownerUserId, request.deviceId);
     if (!device.online || !this.agentSockets.has(request.deviceId)) throw new Error("Device is offline.");
 
@@ -120,6 +122,7 @@ export class RemoteTerminalSessionGateway {
     const sessionId = randomUUID();
     const browserToken = randomUUID();
     const createdAt = new Date().toISOString();
+    await authorize?.();
     this.sessions.set(sessionId, {
       sessionId,
       ownerUserId,
@@ -134,17 +137,27 @@ export class RemoteTerminalSessionGateway {
       browserSocket: null,
     });
 
-    await this.persistSession({
-      sessionId,
-      ownerUserId,
-      entitlementId: device.entitlementId,
-      deviceId: request.deviceId,
-      mode: request.mode,
-      shellType: request.shellType,
-      workingDirectory: request.workingDirectory,
-      status: "pending",
-      createdAt,
-    });
+    try {
+      await this.persistSession(
+        {
+          sessionId,
+          ownerUserId,
+          entitlementId: device.entitlementId,
+          deviceId: request.deviceId,
+          mode: request.mode,
+          shellType: request.shellType,
+          workingDirectory: request.workingDirectory,
+          status: "pending",
+          createdAt,
+        },
+        Boolean(authorize),
+      );
+      await authorize?.();
+    } catch (error) {
+      this.sessions.delete(sessionId);
+      await this.deletePersistedSession(sessionId);
+      throw error;
+    }
 
     return {
       sessionId,
@@ -155,6 +168,15 @@ export class RemoteTerminalSessionGateway {
       websocketUrl: `${browserWebSocketBaseUrl}?role=browser&sessionId=${sessionId}&browserToken=${browserToken}`,
       createdAt,
     };
+  }
+
+  /** Compensate a rejected issuance only; never terminate a browser's active session. */
+  public async discardPendingSession(ownerUserId: string, sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.ownerUserId !== ownerUserId || session.status !== "pending" || session.browserSocket)
+      return;
+    this.sessions.delete(sessionId);
+    await this.deletePersistedSession(sessionId);
   }
 
   public async listSessions(ownerUserId: string): Promise<RemoteTerminalSessionSummary[]> {
@@ -278,6 +300,38 @@ export class RemoteTerminalSessionGateway {
       }
     }
     return targets.map((target) => summaries.get(target.sessionId)!);
+  }
+
+  public async closeAuthorizedPendingSessions(
+    ownerUserId: string,
+    deviceId: string,
+    authorize: () => Promise<void>,
+  ): Promise<void> {
+    const rows = await this.listSessionMetadata(ownerUserId);
+    for (const row of rows) {
+      if (row.deviceId !== deviceId || row.status !== "pending") continue;
+      await authorize();
+      const live = this.sessions.get(row.sessionId);
+      if (live) {
+        if (
+          live.ownerUserId !== ownerUserId ||
+          live.deviceId !== deviceId ||
+          live.status !== "pending" ||
+          this.liveMetadata(live).revision !== row.revision
+        )
+          throw terminalDeviceDenied();
+        this.stopSession(row.sessionId, "Session replaced by reconnect.");
+        await this.deletePersistedSession(row.sessionId, true);
+      } else {
+        const deleted = await this.redisService.deletePendingTerminalSession(
+          ownerUserId,
+          deviceId,
+          row.sessionId,
+          row.revision,
+        );
+        if (deleted !== true) throw terminalDeviceDenied();
+      }
+    }
   }
 
   public async closeReconnectableSessions(ownerUserId: string, deviceId: string): Promise<void> {
@@ -743,7 +797,18 @@ export class RemoteTerminalSessionGateway {
     void this.deletePersistedSession(sessionId);
   }
 
-  private async persistSession(session: RemoteTerminalPersistedSessionRecord): Promise<void> {
+  private async persistSession(session: RemoteTerminalPersistedSessionRecord, confirmed = false): Promise<void> {
+    if (confirmed) {
+      if (
+        (await this.redisService.setWithResult(
+          buildRemoteTerminalSessionRedisKey(session.sessionId),
+          JSON.stringify(session),
+          REMOTE_TERMINAL_SESSION_REDIS_TTL_SECONDS,
+        )) !== true
+      )
+        throw terminalDeviceDenied();
+      return;
+    }
     if (!this.redisService.isRedisAvailable()) return;
 
     await this.redisService.set(
@@ -753,7 +818,12 @@ export class RemoteTerminalSessionGateway {
     );
   }
 
-  private async deletePersistedSession(sessionId: string): Promise<void> {
+  private async deletePersistedSession(sessionId: string, confirmed = false): Promise<void> {
+    if (confirmed) {
+      if ((await this.redisService.delete(buildRemoteTerminalSessionRedisKey(sessionId))) === null)
+        throw terminalDeviceDenied();
+      return;
+    }
     if (!this.redisService.isRedisAvailable()) return;
 
     await this.redisService.delete(buildRemoteTerminalSessionRedisKey(sessionId));

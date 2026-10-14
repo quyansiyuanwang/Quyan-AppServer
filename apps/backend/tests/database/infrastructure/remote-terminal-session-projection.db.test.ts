@@ -19,7 +19,7 @@ const source = () => ({
 async function store(value: ReturnType<typeof source>, raw = JSON.stringify(value)) {
   const key = terminalSessionRedisKey(value.sessionId);
   keys.push(key);
-  expect(await redis.set(key, raw, 60)).not.toBeNull();
+  expect(await redis.setWithResult(key, raw, 60)).toBe(true);
   return key;
 }
 afterEach(async () => {
@@ -89,6 +89,35 @@ describe("terminal session server-side Redis projection", () => {
       expect(await redis.projectTerminalSessions(row.ownerUserId, [key])).toEqual([{ state: "invalid" }]);
     },
   );
+  it("deletes only an unchanged owned pending source", async () => {
+    const row = source(),
+      key = await store(row),
+      result = await redis.projectTerminalSessions(row.ownerUserId, [key]);
+    const item = result![0];
+    if (item.state !== "present") throw new Error("Expected fixture metadata");
+    expect(await redis.deletePendingTerminalSession("other", row.deviceId, row.sessionId, item.metadata.revision)).toBe(
+      false,
+    );
+    expect(
+      await redis.deletePendingTerminalSession(row.ownerUserId, "other", row.sessionId, item.metadata.revision),
+    ).toBe(false);
+    expect(
+      await redis.deletePendingTerminalSession(row.ownerUserId, row.deviceId, row.sessionId, item.metadata.revision),
+    ).toBe(true);
+    expect(await redis.get(key)).toBeNull();
+  });
+  it("preserves pending sources changed into connected sessions", async () => {
+    const row = source(),
+      key = await store(row),
+      result = await redis.projectTerminalSessions(row.ownerUserId, [key]);
+    const item = result![0];
+    if (item.state !== "present") throw new Error("Expected fixture metadata");
+    await redis.setWithResult(key, JSON.stringify({ ...row, status: "connected" }), 60);
+    expect(
+      await redis.deletePendingTerminalSession(row.ownerUserId, row.deviceId, row.sessionId, item.metadata.revision),
+    ).toBe(false);
+    expect(await redis.get(key)).not.toBeNull();
+  });
   it("rejects arbitrary keys and invalid requested revisions", async () => {
     expect(await redis.projectTerminalSessions("owner", ["unrelated:key"])).toBeNull();
     expect(

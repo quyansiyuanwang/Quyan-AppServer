@@ -142,3 +142,14 @@ export function parseTerminalSessionProjections(value: unknown, count: number): 
   }
   return results;
 }
+
+/** A pending session is replaced only if its exact authorized source is still current. */
+export const TERMINAL_PENDING_SESSION_DELETE_SCRIPT = `
+local raw = redis.call("GET", KEYS[1])
+if not raw then return 0 end
+if "redis:" .. redis.sha1hex(raw) ~= ARGV[4] then return 0 end
+local ok, source = pcall(cjson.decode, raw)
+if not ok or type(source) ~= "table" or source.ownerUserId ~= ARGV[1]
+  or source.deviceId ~= ARGV[2] or source.sessionId ~= ARGV[3] or source.status ~= "pending" then return 0 end
+return redis.call("DEL", KEYS[1])
+`;

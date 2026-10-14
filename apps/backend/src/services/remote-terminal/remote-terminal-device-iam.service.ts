@@ -30,7 +30,8 @@ export type TerminalDeviceGuard = () => Promise<void>;
 type DeviceAction =
   | "quyan:remote_terminal:BrowseDirectories"
   | "quyan:remote_terminal:GetAgentPreferences"
-  | "quyan:remote_terminal:UpdateAgentPreferences";
+  | "quyan:remote_terminal:UpdateAgentPreferences"
+  | "quyan:remote_terminal:CreateSession";
 const probePolicy = Object.freeze({ concurrency: 8 });
 export class RemoteTerminalDeviceIamService {
   private static instance: RemoteTerminalDeviceIamService;

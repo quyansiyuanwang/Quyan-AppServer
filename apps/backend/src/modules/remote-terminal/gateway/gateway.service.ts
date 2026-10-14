@@ -62,8 +62,11 @@ export class RemoteTerminalGatewayService {
     userId: string,
     body: RemoteTerminalSessionCreateRequest,
     browserWebSocketBaseUrl: string,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalSessionCreateResponse> {
-    return this.sessionGateway.createSession(userId, body, browserWebSocketBaseUrl);
+    return authorize
+      ? this.sessionGateway.createSession(userId, body, browserWebSocketBaseUrl, authorize)
+      : this.sessionGateway.createSession(userId, body, browserWebSocketBaseUrl);
   }
 
   public async browseDirectories(

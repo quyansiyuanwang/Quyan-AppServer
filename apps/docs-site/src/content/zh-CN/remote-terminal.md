@@ -99,3 +99,5 @@
 `quyan:remote_terminal:GetUsageSummary` 需要用户资源 `acs:quyan:*:<accountId>:user/<userId>` 的权限。用量包含全部自有的活动会话和有效套餐绑定设备，包括列表策略隐藏的设备与会话。列表可见范围不会减少配额占用；设备列表和会话列表权限不会自动授予用量查询或创建会话权限。
 
 这些独立 Action 在 IAM 强制授权模式下生效；兼容授权部署保留原有权限行为。
+
+创建 pending 会话需要所选设备 ARN 上的 `quyan:remote_terminal:CreateSession` 权限；只有设备列表或用量查询权限不能创建会话。创建时会检查实际配额占用，包括列表中不可见的会话。重连仅替换该设备的旧 pending 会话，保留 connected 会话。创建完成前授权复核失败时，新 pending 会话会被清理，浏览器连接凭据不会返回。

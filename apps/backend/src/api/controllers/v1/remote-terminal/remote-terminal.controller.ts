@@ -35,7 +35,7 @@ import { Permission } from "@/constant/permission";
 import { validateBody, validateQuery } from "@/middleware/validation";
 import { RemoteTerminalService } from "@/services/remote-terminal/remote-terminal.service";
 import type { TypedRequest } from "@/types/express";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import {
@@ -224,7 +224,11 @@ export class RemoteTerminalController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(createRemoteTerminalSessionBodySchema))
-  @RequirePermission(Permission.REMOTE_TERMINAL_SESSION_CREATE)
+  @CheckPermission(Permission.REMOTE_TERMINAL_SESSION_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:remote_terminal:CreateSession",
+    resourceKind: "single-resource",
+    resource: remoteTerminalBodyDeviceResourceResolver,
+  })
   public async createSession(
     @Body() body: CreateRemoteTerminalSessionRequest,
     @Request() request: TypedRequest,
@@ -234,6 +238,7 @@ export class RemoteTerminalController extends Controller {
       request.user!.userId,
       body,
       getRemoteTerminalWebSocketBaseUrl(request),
+      request,
     );
   }
 }
