@@ -1,3 +1,4 @@
+import { CustomCode } from "@quyan/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MonthlyPassController } from "../../../src/api/controllers/v1/billing/monthly-pass.controller";
 import { MonthlyPassService } from "../../../src/services/billing/monthly-pass.service";
@@ -89,7 +90,9 @@ describe("MonthlyPassController publish endpoints", () => {
 
     await expect(controller.publishTemplate("template-1", request)).rejects.toMatchObject({
       name: "Error",
-      message: "缺少必要权限: monthly_pass:template:write",
+      statusCode: 403,
+      code: CustomCode.PERMISSION_DENIED,
+      messageKey: "permission.insufficientPermission",
     });
     expect(monthlyPassServiceMock.publishTemplate).not.toHaveBeenCalled();
   });
@@ -125,7 +128,9 @@ describe("MonthlyPassController publish endpoints", () => {
 
     await expect(controller.unpublishTemplate("template-1", request)).rejects.toMatchObject({
       name: "Error",
-      message: "缺少必要权限: monthly_pass:template:write",
+      statusCode: 403,
+      code: CustomCode.PERMISSION_DENIED,
+      messageKey: "permission.insufficientPermission",
     });
     expect(monthlyPassServiceMock.unpublishTemplate).not.toHaveBeenCalled();
   });

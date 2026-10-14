@@ -71,6 +71,14 @@ const resource = (
 /** Real platform template list endpoints; aliases preserve the legacy rollout grants. */
 export const IAM_PLATFORM_TEMPLATE_DEFINITIONS = Object.freeze([
   {
+    kind: 'monthly-pass',
+    service: 'monthly_pass',
+    action: 'quyan:monthly_pass:ListTemplates',
+    resourceType: 'monthly-pass-template',
+    route: 'GET /v1/monthly-passes/templates',
+    legacyPermission: Permission.MONTHLY_PASS_TEMPLATE_READ,
+  },
+  {
     kind: 'remote-terminal',
     service: 'remote_terminal',
     action: 'quyan:remote_terminal:ListTemplates',

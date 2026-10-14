@@ -1,3 +1,4 @@
+import type { MonthlyPassTemplateWithQuotaWindows } from "./monthly-pass.store";
 import type { RemoteTerminalProductTemplate, CarpoolPackageTemplate } from "@prisma/client";
 import type { IamPrincipal, IamPlatformTemplateKind } from "@quyan/shared";
 import type { PlatformCollectionStore, PlatformCollectionTarget } from "../system/platform-collection.store";
@@ -11,6 +12,7 @@ export interface PlatformTemplateFilters {
   publishStatus?: string;
 }
 export interface PlatformTemplateRecordMap {
+  "monthly-pass": MonthlyPassTemplateWithQuotaWindows;
   "remote-terminal": RemoteTerminalProductTemplate;
   carpool: CarpoolPackageTemplate;
 }

@@ -14,7 +14,11 @@ import type {
   PlatformTemplateRecordMap,
 } from "./platform-template-read.store";
 
-const modelNames = { "remote-terminal": "RemoteTerminalProductTemplate", carpool: "CarpoolPackageTemplate" } as const;
+const modelNames = {
+  "monthly-pass": "MonthlyPassTemplate",
+  "remote-terminal": "RemoteTerminalProductTemplate",
+  carpool: "CarpoolPackageTemplate",
+} as const;
 /** SQL identifiers and revision fields are derived exclusively from Prisma's registered schema. */
 const identifier = (name: string) => {
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) throw iamAccountDenied();
@@ -54,12 +58,29 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
       throw iamAccountDenied();
     return { ...filters };
   }
-  private selection(filters: PlatformTemplateFilters) {
+  private model() {
     const model = Prisma.dmmf.datamodel.models.find((entry) => entry.name === modelNames[this.kind]);
     if (!model) throw iamAccountDenied();
-    const columns = model.fields
-      .filter((field) => field.kind !== "object")
-      .map((field) => Prisma.sql`t.${identifier(field.dbName ?? field.name)}`);
+    return model;
+  }
+  private revision() {
+    const scalarColumns = (model: (typeof Prisma.dmmf.datamodel.models)[number], alias: string) =>
+      model.fields
+        .filter((field) => field.kind !== "object")
+        .map((field) => Prisma.sql`${identifier(alias)}.${identifier(field.dbName ?? field.name)}`);
+    const columns = scalarColumns(this.model(), "t");
+    if (this.kind === "monthly-pass") {
+      const child = Prisma.dmmf.datamodel.models.find((entry) => entry.name === "MonthlyPassTemplateQuotaWindow");
+      if (!child) throw iamAccountDenied();
+      // The ordered, complete window aggregate is computed in SQL; quota content never enters a metadata scan.
+      columns.push(Prisma.sql`COALESCE((SELECT CAST(JSON_ARRAYAGG(JSON_ARRAY(${Prisma.join(scalarColumns(child, "q"))}))
+        OVER (ORDER BY q.id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS CHAR)
+        FROM ${identifier(child.dbName ?? child.name)} q WHERE q.monthlyPassTemplateId=t.id LIMIT 1), '[]')`);
+    }
+    return Prisma.sql`SHA2(CAST(JSON_ARRAY(${Prisma.join(columns)}) AS CHAR),256)`;
+  }
+  private selection(filters: PlatformTemplateFilters) {
+    const model = this.model();
     const table = identifier(model.dbName ?? model.name),
       keyword = filters.keyword;
     const where = Prisma.sql`t.status ${filters.status === undefined ? Prisma.sql`>= 0` : Prisma.sql`= ${filters.status}`}
@@ -68,8 +89,10 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
     const order =
       this.kind === "remote-terminal"
         ? Prisma.sql`t.updateTime DESC,t.id DESC`
-        : Prisma.sql`t.createTime DESC,t.id DESC`;
-    return Prisma.sql`SELECT t.id,t.status,t.createTime,t.updateTime,SHA2(CAST(JSON_ARRAY(${Prisma.join(columns)}) AS CHAR),256) AS revision,
+        : this.kind === "monthly-pass"
+          ? Prisma.sql`t.name ASC,t.updateTime DESC,t.id DESC`
+          : Prisma.sql`t.createTime DESC,t.id DESC`;
+    return Prisma.sql`SELECT t.id,t.status,t.createTime,t.updateTime,${this.revision()} AS revision,
       ROW_NUMBER() OVER(ORDER BY ${order}) AS displayOrder FROM ${table} t WHERE ${where}`;
   }
   async scan(filters: PlatformTemplateFilters, after?: PlatformCollectionCursor, boundary?: PlatformCollectionCursor) {
@@ -112,15 +135,17 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
             ? await tx.remoteTerminalProductTemplate.findMany({
                 where: { id: { in: targets.map((row) => row.id) }, status: { in: [-1, 0, 1] } },
               })
-            : await tx.carpoolPackageTemplate.findMany({
-                where: { id: { in: targets.map((row) => row.id) }, status: { in: [-1, 0, 1] } },
-              });
-        const model = Prisma.dmmf.datamodel.models.find((entry) => entry.name === modelNames[this.kind])!;
-        const columns = model.fields
-          .filter((field) => field.kind !== "object")
-          .map((field) => identifier(field.dbName ?? field.name));
+            : this.kind === "carpool"
+              ? await tx.carpoolPackageTemplate.findMany({
+                  where: { id: { in: targets.map((row) => row.id) }, status: { in: [-1, 0, 1] } },
+                })
+              : await tx.monthlyPassTemplate.findMany({
+                  where: { id: { in: targets.map((row) => row.id) }, status: { in: [-1, 0, 1] } },
+                  include: { quotaWindows: { orderBy: [{ quotaWindowHours: "asc" }, { createTime: "asc" }] } },
+                });
+        const model = this.model();
         const revisions = await tx.$queryRaw<{ id: string; revision: string }[]>(
-          Prisma.sql`SELECT id,SHA2(CAST(JSON_ARRAY(${Prisma.join(columns)}) AS CHAR),256) AS revision FROM ${identifier(model.dbName ?? model.name)} WHERE id IN (${Prisma.join(targets.map((row) => row.id))}) FOR UPDATE`,
+          Prisma.sql`SELECT t.id,${this.revision()} AS revision FROM ${identifier(model.dbName ?? model.name)} t WHERE t.id IN (${Prisma.join(targets.map((row) => row.id))}) FOR UPDATE`,
         );
         if (
           rows.length !== targets.length ||

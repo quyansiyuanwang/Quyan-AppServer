@@ -81,6 +81,7 @@ describe("platform template list admission", () => {
     project.addSourceFilesAtPaths([
       "src/api/controllers/v1/remote-terminal/remote-terminal-product.controller.ts",
       "src/api/controllers/v1/billing/carpool.controller.ts",
+      "src/api/controllers/v1/billing/monthly-pass.controller.ts",
     ]);
     const routes = collectIamRoutes(project.getSourceFiles(), process.cwd());
     for (const definition of IAM_PLATFORM_TEMPLATE_DEFINITIONS) {

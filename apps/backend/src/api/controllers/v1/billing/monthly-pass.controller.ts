@@ -49,7 +49,10 @@ import {
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import type { TypedRequest } from "@/types/express";
-import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
@@ -84,15 +87,22 @@ export class MonthlyPassController extends Controller {
 
   @Get("templates")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListTemplates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(listMonthlyPassTemplatesQuerySchema))
   public async listTemplates(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() status?: number,
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<MonthlyPassTemplateListResponse> {
-    return this.monthlyPassService.listTemplates(page, pageSize, status, keyword);
+    return this.monthlyPassService.listTemplates(page, pageSize, status, keyword, request);
   }
 
   @Post("templates")

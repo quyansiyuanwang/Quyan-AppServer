@@ -1,3 +1,7 @@
+import type { TypedRequest } from "@/types/express";
+import { env } from "@/config/env";
+import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import {
   AssignUserMonthlyPassRequest,
   AssignBatchUserMonthlyPassRequest,
@@ -863,7 +867,7 @@ export class MonthlyPassService {
 
   async getFilterOptions(actorUserId: string): Promise<MonthlyPassFilterOptionsDto> {
     const [templateResult, modelRecords, relayChannels, groups] = await Promise.all([
-      this.listTemplates(1, MONTHLY_PASS_MAX_PAGE_SIZE),
+      this.listTemplatesLegacy(1, MONTHLY_PASS_MAX_PAGE_SIZE),
       this.modelPricingRepository.listActiveOrderedByModel(),
       this.relayChannelService.listChannelOptions(actorUserId),
       this.getVisibleGroupOptions(actorUserId),
@@ -1395,6 +1399,25 @@ export class MonthlyPassService {
   }
 
   async listTemplates(
+    page?: number,
+    pageSize?: number,
+    status?: number,
+    keyword?: string,
+    request?: TypedRequest,
+  ): Promise<MonthlyPassTemplateListResponse> {
+    const paging = normalizePagination(page, pageSize);
+    if (request)
+      return PlatformTemplateReadIamService.getInstance("monthly-pass").list(
+        request,
+        paging,
+        { status, keyword },
+        (record) => this.toTemplateDto(record),
+        () => this.listTemplatesLegacy(page, pageSize, status, keyword),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.listTemplatesLegacy(page, pageSize, status, keyword);
+  }
+  private async listTemplatesLegacy(
     page?: number,
     pageSize?: number,
     status?: number,
