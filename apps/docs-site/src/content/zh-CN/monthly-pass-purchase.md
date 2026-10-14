@@ -32,6 +32,8 @@
 
 API 请求为 `POST /v1/monthly-passes/me/claim`，请求体只需 `{ "templateId": "<templateId>" }`。用户和账号从当前登录身份确定。
 
+查看方案列表使用 `quyan:monthly_pass:ListPublishedTemplates`，逐一检查 `acs:monthly-pass:*:<accountId>:template/<userId>/<templateId>`。自己的已发布方案视图具有默认自助授权，显式 Deny 的模板不会出现在列表中。查看与购买分别授权：能看到方案不代表可以购买，拒绝购买也不会自动隐藏方案。
+
 ## 常见问题
 
 - 余额不足：先检查余额和实际换算后的价格。

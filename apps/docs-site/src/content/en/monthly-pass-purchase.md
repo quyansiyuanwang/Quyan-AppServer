@@ -32,6 +32,8 @@ Your own purchase resources have baseline self-service authorization; explicit D
 
 The API is `POST /v1/monthly-passes/me/claim`, with the body `{ "templateId": "<templateId>" }`. The user and account come from the authenticated identity.
 
+Viewing plans uses `quyan:monthly_pass:ListPublishedTemplates` and evaluates each `acs:monthly-pass:*:<accountId>:template/<userId>/<templateId>`. Your published-plan views have baseline self-service authorization. Templates covered by explicit Deny are omitted from the list. Viewing and purchasing are authorized separately: visibility does not guarantee purchase permission, and a purchase Deny does not automatically hide the plan.
+
 ## Common issues
 
 - Insufficient balance: check your balance and the converted purchase price.

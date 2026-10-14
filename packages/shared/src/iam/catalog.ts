@@ -1502,7 +1502,7 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       service: 'monthly_pass',
       operation: 'ListPublishedTemplates',
       accessLevel: 'List',
-      resourceTypes: ['quyan/account'],
+      resourceTypes: ['monthly-pass/template'],
     },
   ].map(
     (definition): IamActionDefinition => ({
@@ -1514,7 +1514,9 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
-      ...(['ListMyPasses', 'ClaimPublishedTemplate'].includes(definition.operation)
+      ...(['ListMyPasses', 'ClaimPublishedTemplate', 'ListPublishedTemplates'].includes(
+        definition.operation,
+      )
         ? { defaultAuthorizationScope: 'self' as const }
         : {}),
     }),

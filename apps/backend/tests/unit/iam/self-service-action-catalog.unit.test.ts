@@ -39,7 +39,8 @@ describe("self-service IAM action catalog", () => {
       resourceTypes: ["balance/gift-code"],
     });
     expect(getIamActionDefinition("quyan:monthly_pass:ListPublishedTemplates")).toMatchObject({
-      resourceTypes: ["quyan/account"],
+      resourceTypes: ["monthly-pass/template"],
+      defaultAuthorizationScope: "self",
     });
     expect(getIamActionDefinition("quyan:remote_terminal:ListPublishedTemplates")).toMatchObject({
       resourceTypes: ["remote-terminal/published-template"],

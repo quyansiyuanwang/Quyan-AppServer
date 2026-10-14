@@ -51,6 +51,7 @@ describe("IAM service and resource catalog", () => {
       "quyan:notification:ConfirmPixelOpenedInboxRead",
       "quyan:monthly_pass:ListMyPasses",
       "quyan:monthly_pass:ClaimPublishedTemplate",
+      "quyan:monthly_pass:ListPublishedTemplates",
       "quyan:remote_terminal:ListPublishedTemplates",
       "quyan:user:GetCurrentUser",
       "quyan:notification:ListEvents",

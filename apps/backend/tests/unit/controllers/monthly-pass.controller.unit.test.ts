@@ -1,3 +1,4 @@
+import type { TypedRequest } from "@/types/express";
 import { env } from "@/config/env";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { platformMonthlyPassTemplateWriteResource } from "@/iam/request/platform-monthly-pass-template-write-resource-resolvers";
@@ -57,9 +58,10 @@ describe("MonthlyPassController publish endpoints", () => {
     monthlyPassServiceMock.listPublishedTemplates.mockResolvedValue([publishedTemplate]);
     const controller = new MonthlyPassController();
 
-    const result = await controller.listPublishedTemplates();
+    const request = { user: { userId: "actor" } } as TypedRequest;
+    const result = await controller.listPublishedTemplates(request);
 
-    expect(monthlyPassServiceMock.listPublishedTemplates).toHaveBeenCalledTimes(1);
+    expect(monthlyPassServiceMock.listPublishedTemplates).toHaveBeenCalledWith(request);
     expect(result).toEqual([publishedTemplate]);
   });
 

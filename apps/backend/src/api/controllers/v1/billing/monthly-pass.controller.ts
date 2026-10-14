@@ -86,14 +86,14 @@ export class MonthlyPassController extends Controller {
   @Get("templates/published")
   @Security("jwt")
   @Middlewares(
-    iamAuthenticatedAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:monthly_pass:ListPublishedTemplates",
-      resourceKind: "single-resource",
+      resourceKind: "collection",
       resource: ramAccountResourceResolver,
     }),
   )
-  public async listPublishedTemplates(): Promise<MonthlyPassTemplateDto[]> {
-    return this.monthlyPassService.listPublishedTemplates();
+  public async listPublishedTemplates(@Request() request: TypedRequest): Promise<MonthlyPassTemplateDto[]> {
+    return this.monthlyPassService.listPublishedTemplates(request);
   }
 
   @Get("templates")

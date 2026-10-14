@@ -1,3 +1,4 @@
+import { MonthlyPassPublishedTemplateReadIamService } from "./monthly-pass-published-template-read-iam.service";
 import type { IamMonthlyPassAssignOperation } from "@quyan/shared";
 import { MonthlyPassPurchaseIamService } from "./monthly-pass-purchase-iam.service";
 import { bindMonthlyPassPurchaseQuote, type MonthlyPassPurchaseCharge } from "@/store/billing/monthly-pass-purchase";
@@ -1482,9 +1483,15 @@ export class MonthlyPassService {
     };
   }
 
-  async listPublishedTemplates(): Promise<MonthlyPassTemplateDto[]> {
-    const records = await this.monthlyPassRepository.listPublishedTemplates();
-    return records.map((item) => this.toTemplateDto(item));
+  async listPublishedTemplates(request?: TypedRequest): Promise<MonthlyPassTemplateDto[]> {
+    return MonthlyPassPublishedTemplateReadIamService.getInstance().list(
+      request,
+      (row) => this.toTemplateDto(row),
+      async () => {
+        const records = await this.monthlyPassRepository.listPublishedTemplates();
+        return records.map((row) => this.toTemplateDto(row));
+      },
+    );
   }
 
   async claimPublishedTemplate(
