@@ -70,6 +70,8 @@ The list retains the existing group-level visibility range and RAM-user filters,
 
 Pages contain at most 100 users and page numbers are limited to 10,000. Changes to source profile data, ownership, balance, group display data, list eligibility, policies, or role sessions during a read cause rejection. Responses keep the existing profile fields and never include passwords or permission arrays. AssumeRole requests use role grants rather than inheriting the actor's global-group Allow; authenticated AccessKeys use the same resource checks.
 
+IAM authorization also requires an active account owner. After the owner is disabled or deleted, an otherwise active sub-user cannot continue to authorize with its JWT, authenticated AccessKey, or AssumeRole session. Ordinary and administrator account owners follow the same active-status requirement.
+
 ## Delete users by resource
 
 In IAM enforce mode, `quyan:user:DeleteUser` authorizes the target resource `acs:platform:*:platform:user/<userId>` and requires user deletion qualification in the operator's active global management group. You cannot delete yourself, your current account owner, or a user at the same or a higher privilege level. Disabled users can be deleted under the same restrictions.

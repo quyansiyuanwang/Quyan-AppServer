@@ -60,6 +60,12 @@ export class IamAuthorizationService {
       (user.accountOwnerId || user.id) !== principal.accountOwnerId
     )
       throw deny();
+    // A child/key/role cannot keep using grants after its account owner becomes unavailable.
+    // Root identities reuse the already validated subject; child identities query metadata only.
+    const owner =
+      user.id === principal.accountOwnerId ? user : await this.users.findAccountIdentity(principal.accountOwnerId);
+    if (!owner || owner.id !== principal.accountOwnerId || owner.status !== 1 || owner.accountOwnerId !== null)
+      throw deny();
     if (user.group?.accountOwnerId && user.group.accountOwnerId !== principal.accountOwnerId) throw deny();
     const result: IamPolicyInput[] = [];
     const addLegacy = (id: string, permissions: unknown, effect: "Allow" | "Deny" = "Allow") => {

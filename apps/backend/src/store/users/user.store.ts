@@ -25,6 +25,8 @@ export interface UserQueryStore {
   findById(id: string): Promise<User | null>;
   findActiveById(id: string): Promise<User | null>;
   findByIdWithGroup(id: string): Promise<UserWithGroup | null>;
+  /** Authorization-only account status lookup. Never selects credentials or profile data. */
+  findAccountIdentity(id: string): Promise<Pick<User, "id" | "status" | "accountOwnerId"> | null>;
   findByUsername(username: string): Promise<User | null>;
   countActiveByEmail(email: string): Promise<number>;
   findByEmailInNonDeleted(email: string): Promise<User | null>;

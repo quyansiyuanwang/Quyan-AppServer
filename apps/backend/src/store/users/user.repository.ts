@@ -36,6 +36,10 @@ export class UserRepository implements UserStore {
     });
   }
 
+  async findAccountIdentity(id: string) {
+    return prisma.user.findUnique({ where: { id }, select: { id: true, status: true, accountOwnerId: true } });
+  }
+
   async findByIdWithGroup(id: string): Promise<UserWithGroup | null> {
     return prisma.user.findUnique({
       where: { id },

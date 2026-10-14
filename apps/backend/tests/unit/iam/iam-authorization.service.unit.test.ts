@@ -92,6 +92,7 @@ describe("IAM identity policy loading", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authorizations.listForPrincipals.mockResolvedValue([]);
+    users.findAccountIdentity.mockResolvedValue({ id: "owner", status: 1, accountOwnerId: null });
     users.findByIdWithGroup.mockResolvedValue({
       id: "child",
       status: 1,
@@ -121,6 +122,45 @@ describe("IAM identity policy loading", () => {
       expect(policies.listPoliciesForTargets).not.toHaveBeenCalled();
     },
   );
+  it.each(["sub_user", "access_key", "assumed_role"] as const)(
+    "requires an active root account owner before loading %s grants",
+    async (subjectType) => {
+      for (const owner of [
+        null,
+        { id: "owner", status: 0, accountOwnerId: null },
+        { id: "owner", status: -1, accountOwnerId: null },
+        { id: "foreign", status: 1, accountOwnerId: null },
+        { id: "owner", status: 1, accountOwnerId: "parent" },
+      ]) {
+        users.findAccountIdentity.mockResolvedValue(owner);
+        await expect(service.loadPolicies({ ...principal, subjectType })).rejects.toMatchObject({
+          statusCode: 403,
+          messageKey: "permission.insufficientPermission",
+        });
+      }
+      expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
+      expect(policies.listPoliciesForTargets).not.toHaveBeenCalled();
+      expect(roles.listRoleBindingsForUser).not.toHaveBeenCalled();
+    },
+  );
+  it("propagates an unavailable account identity lookup without using subject grants", async () => {
+    users.findAccountIdentity.mockRejectedValueOnce(new Error("identity unavailable"));
+    await expect(service.loadPolicies(principal)).rejects.toThrow("identity unavailable");
+    expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
+  });
+  it("reuses a validated root identity without a second full user read", async () => {
+    const root = { ...principal, accountOwnerId: "child", subjectType: "root" as const };
+    users.findByIdWithGroup.mockResolvedValue({
+      id: "child",
+      accountOwnerId: null,
+      status: 1,
+      permissionAdds: [],
+      permissionRemoves: [],
+    } as never);
+    expect(await service.loadPolicies(root)).toHaveLength(1);
+    expect(users.findAccountIdentity).not.toHaveBeenCalled();
+    expect(users.findById).not.toHaveBeenCalled();
+  });
   it("grants only self permission inspection without account or administrative visibility", async () => {
     for (const subjectType of ["root", "sub_user", "access_key", "service"] as const) {
       const identity = { ...principal, subjectType };
