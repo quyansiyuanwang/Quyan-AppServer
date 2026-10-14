@@ -130,6 +130,16 @@ export class UserRepository implements UserStore {
     });
   }
 
+  async listNonDeletedIdsByGroupLevelGtePaginated(level: number, params: PaginatedUserListFilters) {
+    const { skip, take, ...filters } = params;
+    return prisma.user.findMany({
+      where: buildNonDeletedUserWhere(filters, level),
+      select: { id: true },
+      orderBy: this.getUserListOrderBy(),
+      skip,
+      take,
+    });
+  }
   async countNonDeletedByGroupLevelGte(level: number, filters: UserListFilters): Promise<number> {
     return prisma.user.count({
       where: buildNonDeletedUserWhere(filters, level),

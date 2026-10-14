@@ -19,7 +19,12 @@ import type { TypedRequest } from "@/types/express";
 const mode = env.security.iamAuthorizationMode,
   action = "quyan:monthly_pass:AssignUserPass";
 const iam = { loadPolicies: vi.fn(), authorize: vi.fn() },
-  repository = { findAssignmentUser: vi.fn(), findTemplateById: vi.fn() },
+  repository = {
+    findAssignmentUser: vi.fn(),
+    findTemplateById: vi.fn(),
+    findLatestUserPassIdentity: vi.fn(),
+    findUserPassById: vi.fn(),
+  },
   snapshots = { snapshot: vi.fn(), recheck: vi.fn() },
   permissions = { checkUserPermissions: vi.fn() };
 const service = new PlatformMonthlyPassAssignIamService(iam, repository, snapshots, permissions);
@@ -128,5 +133,60 @@ describe("monthly pass assignment creation authorization", () => {
     env.security.iamAuthorizationMode = "shadow";
     denied.add(platformUserArn("customer"));
     expect(await prepare()).toBeUndefined();
+  });
+});
+
+describe("batch monthly pass authorization", () => {
+  const batch = () => service.prepare("actor", request(), "customer", "template", "AssignUserPassBatch");
+  it("registers its own Action rather than accepting a client Action", async () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/billing/monthly-pass.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (route) => route.key === "POST /v1/monthly-passes/user-passes/batch",
+      ),
+    ).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:monthly_pass:AssignUserPassBatch"],
+      resourceKind: "single-resource",
+    });
+    await batch();
+    expect(iam.authorize.mock.calls.every(([input]) => input.action === "quyan:monthly_pass:AssignUserPassBatch")).toBe(
+      true,
+    );
+  });
+  it("requires a valid batch actor before enumerating targets", async () => {
+    await expect(service.assertBatchActor("actor", undefined)).rejects.toMatchObject({ statusCode: 403 });
+    snapshots.snapshot.mockRejectedValue(new Error("unavailable"));
+    await expect(service.assertBatchActor("actor", request())).rejects.toThrow("unavailable");
+  });
+  it("does not hydrate an existing assignment denied by the batch Action", async () => {
+    repository.findLatestUserPassIdentity.mockResolvedValue({ id: "pass", userId: "customer", status: 1 });
+    const source = await batch();
+    denied.add(platformMonthlyPassArn("customer", "pass"));
+    await expect(service.prepareBatchExtension(source!.guard)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.findUserPassById).not.toHaveBeenCalled();
+  });
+  it("rejects mismatched target identities", async () => {
+    repository.findLatestUserPassIdentity.mockResolvedValue({ id: "pass", userId: "other", status: 1 });
+    const source = await batch();
+    await expect(service.prepareBatchExtension(source!.guard)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.findUserPassById).not.toHaveBeenCalled();
+  });
+  it("does not accept a single-assignment guard for a batch extension", async () => {
+    const source = await prepare();
+    await expect(service.prepareBatchExtension(source!.guard)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("retains legacy authorization and shadow behavior", async () => {
+    env.security.iamAuthorizationMode = "legacy";
+    await service.assertBatchActor("actor", request());
+    expect(await batch()).toBeUndefined();
+    expect(iam.authorize).not.toHaveBeenCalled();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    await expect(service.assertBatchActor("actor", request())).rejects.toMatchObject({ statusCode: 403 });
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: true });
+    env.security.iamAuthorizationMode = "shadow";
+    denied.add(platformUserArn("customer"));
+    expect(await batch()).toBeUndefined();
   });
 });

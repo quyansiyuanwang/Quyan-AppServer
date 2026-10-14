@@ -37,6 +37,10 @@ export interface UserQueryStore {
   countNonDeletedFiltered(filters: UserListFilters): Promise<number>;
   listNonDeletedByGroupLevelGte(level: number): Promise<User[]>;
   listNonDeletedByGroupLevelGtePaginated(level: number, params: PaginatedUserListFilters): Promise<User[]>;
+  listNonDeletedIdsByGroupLevelGtePaginated(
+    level: number,
+    params: PaginatedUserListFilters,
+  ): Promise<Array<{ id: string }>>;
   countNonDeletedByGroupLevelGte(level: number, filters: UserListFilters): Promise<number>;
   countAll(): Promise<number>;
   findBalanceAccountByUserId(userId: string): Promise<BalanceAccount | null>;

@@ -1,4 +1,9 @@
-import { Permission, type IamPrincipal } from "@quyan/shared";
+import {
+  Permission,
+  IAM_MONTHLY_PASS_ASSIGN_OPERATIONS,
+  type IamMonthlyPassAssignOperation,
+  type IamPrincipal,
+} from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -18,9 +23,12 @@ import { monthlyPassTemplateRevision } from "@/store/billing/monthly-pass-templa
 import { PermissionService } from "@/services/users/permission.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { getLogger, LogCategory } from "@/util/logger";
+import {
+  monthlyPassAssignmentRevision,
+  type MonthlyPassAssignmentWriteGuard,
+} from "@/store/billing/monthly-pass-assignment-write";
 import type { TypedRequest } from "@/types/express";
-const permission = Permission.MONTHLY_PASS_ASSIGNMENT_WRITE,
-  action = "quyan:monthly_pass:AssignUserPass";
+const permission = Permission.MONTHLY_PASS_ASSIGNMENT_WRITE;
 export class PlatformMonthlyPassAssignIamService {
   private static instance: PlatformMonthlyPassAssignIamService;
   static getInstance() {
@@ -33,12 +41,12 @@ export class PlatformMonthlyPassAssignIamService {
     > = IamAuthorizationService.getInstance(),
     private readonly repository: Pick<
       MonthlyPassStore,
-      "findAssignmentUser" | "findTemplateById"
+      "findAssignmentUser" | "findTemplateById" | "findLatestUserPassIdentity" | "findUserPassById"
     > = MonthlyPassRepository.getInstance(),
     private readonly snapshots: PlatformManagementReadStore = PlatformManagementReadRepository.getInstance(),
     private readonly permissions: Pick<PermissionService, "checkUserPermissions"> = PermissionService.getInstance(),
   ) {}
-  private async evaluate(principal: IamPrincipal, request: TypedRequest, resource: string) {
+  private async evaluate(principal: IamPrincipal, request: TypedRequest, resource: string, action: string) {
     const start = performance.now();
     const result = await this.iam.authorize({
       principal,
@@ -60,7 +68,83 @@ export class PlatformMonthlyPassAssignIamService {
     });
     if (result.decision !== "Allow") throw iamAccountDenied();
   }
-  async prepare(actorUserId: string, request: TypedRequest | undefined, userId: string, templateId: string) {
+  async prepareBatchExtension(guard: MonthlyPassAssignGuard) {
+    if (guard.operation !== "AssignUserPassBatch") throw iamAccountDenied();
+    await guard.users.recheck();
+    const identity = await this.repository.findLatestUserPassIdentity(guard.customer.id, guard.template.id);
+    if (!identity) return undefined;
+    if (
+      identity.userId !== guard.customer.id ||
+      !isPlatformLogResourceId(identity.id) ||
+      ![0, 1].includes(identity.status)
+    )
+      throw iamAccountDenied();
+    await guard.recheckEntry(identity.id);
+    const record = await this.repository.findUserPassById(identity.id);
+    if (
+      !record ||
+      record.id !== identity.id ||
+      record.userId !== guard.customer.id ||
+      record.templateId !== guard.template.id ||
+      ![0, 1].includes(record.status)
+    )
+      throw iamAccountDenied();
+    await guard.recheckEntry(record.id);
+    const writeGuard: MonthlyPassAssignmentWriteGuard = {
+      operation: "AssignUserPassBatch",
+      deleteViaUpdate: false,
+      target: { record, revision: monthlyPassAssignmentRevision(record) },
+      group: guard.group,
+      response: { username: true, template: true },
+      batchSources: guard,
+      users: { ...guard.users, recheck: () => guard.recheckEntry(record.id) },
+    };
+    return { record, guard: writeGuard };
+  }
+  async assertBatchActor(actorUserId: string, request: TypedRequest | undefined) {
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (!request) {
+      if (mode !== "legacy") throw iamAccountDenied();
+      return;
+    }
+    const principal = getIamPrincipal(request);
+    if (
+      !principal ||
+      request.oauthAccessToken ||
+      principal.subjectUserId !== actorUserId ||
+      principal.principalUserId !== actorUserId
+    )
+      throw iamAccountDenied();
+    if (
+      mode !== "enforce" &&
+      !(
+        await this.permissions.checkUserPermissions(actorUserId, [permission], {
+          assumedRoleSessionId: principal.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (mode === "legacy") return;
+    try {
+      await this.snapshots.snapshot(principal, permission);
+      await this.iam.loadPolicies(principal);
+    } catch (error) {
+      if (mode === "enforce") throw error;
+      getLogger("MonthlyPassAssignIam", LogCategory.SECURITY).warn("Batch assignment shadow eligibility failed", {
+        reason: "iam-evaluation-denied-or-unavailable",
+      });
+    }
+  }
+  async prepare(
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    userId: string,
+    templateId: string,
+    operation: IamMonthlyPassAssignOperation = "AssignUserPass",
+  ) {
+    const action = "quyan:monthly_pass:" + operation;
+    if (!IAM_MONTHLY_PASS_ASSIGN_OPERATIONS.some((entry) => entry.operation === operation)) throw iamAccountDenied();
     const mode = env.security.iamAuthorizationMode;
     if (
       !["legacy", "shadow", "enforce"].includes(mode) ||
@@ -96,8 +180,9 @@ export class PlatformMonthlyPassAssignIamService {
       const recheck = async () => {
         await this.snapshots.recheck(principal, permission, snapshot);
         if (fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== policies) throw iamAccountDenied();
-        await this.evaluate(principal, request, platformUserArn(userId));
-        if (templateId) await this.evaluate(principal, request, platformTemplateArn("monthly-pass", templateId));
+        await this.evaluate(principal, request, platformUserArn(userId), action);
+        if (templateId)
+          await this.evaluate(principal, request, platformTemplateArn("monthly-pass", templateId), action);
         await this.snapshots.recheck(principal, permission, snapshot);
         if (fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== policies) throw iamAccountDenied();
       };
@@ -116,7 +201,7 @@ export class PlatformMonthlyPassAssignIamService {
       const customerHash = monthlyPassAssignmentUserRevision(customer),
         templateHash = monthlyPassTemplateRevision(template);
       const guard: MonthlyPassAssignGuard = {
-        operation: "AssignUserPass",
+        operation,
         customer,
         template,
         group: snapshot.group,
@@ -126,7 +211,7 @@ export class PlatformMonthlyPassAssignIamService {
           users: snapshot.users,
           recheck: async () => {
             if (
-              guard.operation !== "AssignUserPass" ||
+              guard.operation !== operation ||
               monthlyPassAssignmentUserRevision(guard.customer) !== customerHash ||
               monthlyPassTemplateRevision(guard.template) !== templateHash
             )
@@ -137,7 +222,7 @@ export class PlatformMonthlyPassAssignIamService {
         recheckEntry: async (id) => {
           await guard.users.recheck();
           if (!isPlatformLogResourceId(id)) throw iamAccountDenied();
-          await this.evaluate(principal, request, platformMonthlyPassArn(userId, id));
+          await this.evaluate(principal, request, platformMonthlyPassArn(userId, id), action);
           await guard.users.recheck();
         },
       };

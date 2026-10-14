@@ -1,3 +1,4 @@
+import type { IamMonthlyPassAssignOperation } from "@quyan/shared";
 import { PlatformMonthlyPassAssignIamService } from "./platform-monthly-pass-assign-iam.service";
 import { MonthlyPassPersonalReadIamService } from "./monthly-pass-personal-read-iam.service";
 import {
@@ -9,6 +10,7 @@ import { PlatformMonthlyPassAssignmentReadIamService } from "./platform-monthly-
 import { PlatformMonthlyPassAssignmentWriteIamService } from "./platform-monthly-pass-assignment-write-iam.service";
 import { PlatformMonthlyPassUsageReadIamService } from "./platform-monthly-pass-usage-read-iam.service";
 import { PlatformMonthlyPassTemplateWriteIamService } from "./platform-monthly-pass-template-write-iam.service";
+import { translateMessage, DEFAULT_BACKEND_LOCALE } from "@/locales";
 import type { TypedRequest } from "@/types/express";
 import { env } from "@/config/env";
 import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
@@ -50,7 +52,7 @@ import type {
 } from "@/store/billing/monthly-pass.store";
 import { UserRepository } from "@/store/users/user.repository";
 import type { UserStore } from "@/store/users/user.store";
-import { BadRequestError, NotFoundError } from "@/util/errors";
+import { ApiError, BadRequestError, NotFoundError } from "@/util/errors";
 import {
   MONTHLY_PASS_DEFAULT_PAGE_SIZE,
   MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS,
@@ -455,11 +457,11 @@ export class MonthlyPassService {
         const pages = Math.ceil(total / BATCH_ASSIGNMENT_PAGE_SIZE);
 
         for (let page = 0; page < pages; page += 1) {
-          const users = await this.userRepository.listNonDeletedByGroupLevelGtePaginated(visibleLevel, {
-            ...filters,
-            skip: page * BATCH_ASSIGNMENT_PAGE_SIZE,
-            take: BATCH_ASSIGNMENT_PAGE_SIZE,
-          });
+          const params = { ...filters, skip: page * BATCH_ASSIGNMENT_PAGE_SIZE, take: BATCH_ASSIGNMENT_PAGE_SIZE };
+          const users =
+            env.security.iamAuthorizationMode === "enforce"
+              ? await this.userRepository.listNonDeletedIdsByGroupLevelGtePaginated(visibleLevel, params)
+              : await this.userRepository.listNonDeletedByGroupLevelGtePaginated(visibleLevel, params);
           for (const user of users) userIdSet.add(user.id);
         }
       }
@@ -468,6 +470,7 @@ export class MonthlyPassService {
     if (userIdSet.size === 0)
       throw new BadRequestError("No target users found", undefined, { messageKey: "monthlyPass.noTargetUsers" });
 
+    if (env.security.iamAuthorizationMode === "enforce") return [...userIdSet].map((id) => ({ id }));
     const usernames = await this.userRepository.findUsernamesByIds([...userIdSet]);
     const usernameMap = new Map(usernames.map((item) => [item.id, item.username]));
 
@@ -1578,12 +1581,14 @@ export class MonthlyPassService {
     data: AssignUserMonthlyPassRequest,
     assignedBy: string,
     request?: Request,
+    operation: IamMonthlyPassAssignOperation = "AssignUserPass",
   ): Promise<UserMonthlyPassDto> {
     const prepared = await PlatformMonthlyPassAssignIamService.getInstance().prepare(
       assignedBy,
       request as TypedRequest | undefined,
       data.userId,
       data.templateId,
+      operation,
     );
     const startAt = parseRequiredDateStringOrThrow("startAt", data.startAt);
     const endAt = parseRequiredDateStringOrThrow("endAt", data.endAt);
@@ -1909,16 +1914,31 @@ export class MonthlyPassService {
     request?: Request,
   ): Promise<BatchAssignUserMonthlyPassResponse> {
     const assignmentMode = normalizeAssignmentMode(data.assignmentMode);
+    const authority = PlatformMonthlyPassAssignIamService.getInstance();
+    await authority.assertBatchActor(actorUserId, request as TypedRequest | undefined);
+    const native = env.security.iamAuthorizationMode === "enforce";
     const targets = await this.resolveBatchTargetUsers(actorUserId, data);
     const results: BatchAssignUserMonthlyPassItemDto[] = [];
 
-    for (const target of targets)
+    for (const target of targets) {
+      let targetAllowed = false;
       try {
+        const source = await authority.prepare(
+          actorUserId,
+          request as TypedRequest | undefined,
+          target.id,
+          data.templateId,
+          "AssignUserPassBatch",
+        );
+        targetAllowed = Boolean(source);
+        const extension =
+          assignmentMode === "extend_existing" && source
+            ? await authority.prepareBatchExtension(source.guard)
+            : undefined;
         if (assignmentMode === "extend_existing") {
-          const latestPass = await this.monthlyPassRepository.findLatestUserPassByUserAndTemplate(
-            target.id,
-            data.templateId,
-          );
+          const latestPass = source
+            ? extension?.record
+            : await this.monthlyPassRepository.findLatestUserPassByUserAndTemplate(target.id, data.templateId);
 
           if (latestPass && latestPass.endAt.getTime() >= new Date(data.startAt).getTime()) {
             const startAt = parseRequiredDateStringOrThrow("startAt", data.startAt);
@@ -1931,7 +1951,7 @@ export class MonthlyPassService {
               });
 
             const incrementQuota = normalizeQuotaValue(
-              data.totalQuota ?? Number(latestPass.template.defaultQuota),
+              data.totalQuota ?? Number(source ? source.template.defaultQuota : latestPass.template.defaultQuota),
               quotaUnit,
             );
             validateQuotaValue("totalQuota", incrementQuota, quotaUnit);
@@ -1985,11 +2005,12 @@ export class MonthlyPassService {
                 note: data.note ?? latestPass.note,
               },
               quotaWindows,
+              extension?.guard,
             );
 
             results.push({
               userId: target.id,
-              username: target.username,
+              username: native ? updated.user.username : target.username,
               userPassId: updated.id,
               result: "extended",
             });
@@ -2012,22 +2033,36 @@ export class MonthlyPassService {
           },
           actorUserId,
           request,
+          "AssignUserPassBatch",
         );
 
         results.push({
           userId: target.id,
-          username: target.username,
+          username: native ? created.username : target.username,
           userPassId: created.id,
           result: "created",
         });
       } catch (error) {
+        // Discovered, unauthorized identities are not part of the visible result set.
+        if (native && !targetAllowed && !data.userIds?.some((id) => id.trim() === target.id)) continue;
         results.push({
           userId: target.id,
-          username: target.username,
+          username: native ? undefined : target.username,
           result: "failed",
-          message: error instanceof Error ? error.message : "Unknown error",
+          message: native
+            ? translateMessage(
+                error instanceof ApiError && error.statusCode === 400 && error.messageKey
+                  ? error.messageKey
+                  : "permission.insufficientPermission",
+                (request as TypedRequest | undefined)?.locale ?? DEFAULT_BACKEND_LOCALE,
+                error instanceof ApiError && error.statusCode === 400 ? error.messageParams : undefined,
+              )
+            : error instanceof Error
+              ? error.message
+              : "Unknown error",
         });
       }
+    }
 
     const createdCount = results.filter((item) => item.result === "created").length;
     const extendedCount = results.filter((item) => item.result === "extended").length;

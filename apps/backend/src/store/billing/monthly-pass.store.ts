@@ -103,6 +103,10 @@ export interface MonthlyPassStore {
   findAssignmentUser(id: string): Promise<MonthlyPassAssignmentUser | null>;
   findUserPassIdentity(id: string): Promise<Pick<UserMonthlyPass, "id" | "userId" | "status"> | null>;
   findUserPassById(id: string): Promise<UserMonthlyPassWithTemplate | null>;
+  findLatestUserPassIdentity(
+    userId: string,
+    templateId: string,
+  ): Promise<Pick<UserMonthlyPass, "id" | "userId" | "status"> | null>;
   findLatestUserPassByUserAndTemplate(userId: string, templateId: string): Promise<UserMonthlyPassWithTemplate | null>;
   countUserPassesByUserAndTemplateSince(userId: string, templateId: string, startAt: Date): Promise<number>;
   createUserPass(

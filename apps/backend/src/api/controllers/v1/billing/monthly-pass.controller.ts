@@ -1,4 +1,7 @@
-import { platformMonthlyPassAssignResources } from "@/iam/request/platform-monthly-pass-assign-resource-resolvers";
+import {
+  platformMonthlyPassAssignResources,
+  platformMonthlyPassBatchAssignTemplateResource,
+} from "@/iam/request/platform-monthly-pass-assign-resource-resolvers";
 import { platformMonthlyPassAssignmentResource } from "@/iam/request/platform-monthly-pass-assignment-resource-resolvers";
 import {
   platformMonthlyPassTemplateCreateResource,
@@ -36,7 +39,7 @@ import type {
   UserMonthlyPassListResponse,
 } from "@/api/dto/billing/monthly-pass.dto";
 import { MonthlyPassService } from "@/services/billing/monthly-pass.service";
-import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
+import { RequireAnyPermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import {
   assignUserMonthlyPassBodySchema,
@@ -300,7 +303,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("user-passes/batch")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:AssignUserPassBatch",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassBatchAssignTemplateResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

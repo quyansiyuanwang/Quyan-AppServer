@@ -165,6 +165,12 @@ export const IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS = Object.freeze([
 export type IamTerminalManagementMutation =
   (typeof IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS)[number]['operation']
 /** Existing monthly-pass assignment mutation endpoints. */
+export const IAM_MONTHLY_PASS_ASSIGN_OPERATIONS = Object.freeze([
+  { operation: 'AssignUserPass', route: 'POST /v1/monthly-passes/user-passes' },
+  { operation: 'AssignUserPassBatch', route: 'POST /v1/monthly-passes/user-passes/batch' },
+] as const)
+export type IamMonthlyPassAssignOperation =
+  (typeof IAM_MONTHLY_PASS_ASSIGN_OPERATIONS)[number]['operation']
 export const IAM_MONTHLY_PASS_ASSIGNMENT_WRITE_OPERATIONS = Object.freeze([
   { operation: 'UpdateUserPass', route: 'PUT /v1/monthly-passes/user-passes/{id}' },
   { operation: 'DeleteUserPass', route: 'DELETE /v1/monthly-passes/user-passes/{id}' },
@@ -913,19 +919,21 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       legacyPermission: definition.permission,
     }),
   ),
-  {
-    action: 'quyan:monthly_pass:AssignUserPass',
-    service: 'monthly_pass',
-    operation: 'AssignUserPass',
-    accessLevel: 'Write',
-    resourceTypes: ['platform/user', 'platform/monthly-pass-template', 'platform/monthly-pass'],
-    apiRoutes: ['POST /v1/monthly-passes/user-passes'],
-    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
-    sensitive: true,
-    authorizationStage: 'declared',
-    authorizationBoundary: 'platform',
-    legacyPermission: Permission.MONTHLY_PASS_ASSIGNMENT_WRITE,
-  },
+  ...IAM_MONTHLY_PASS_ASSIGN_OPERATIONS.map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:monthly_pass:' + definition.operation,
+      service: 'monthly_pass',
+      operation: definition.operation,
+      accessLevel: 'Write',
+      resourceTypes: ['platform/user', 'platform/monthly-pass-template', 'platform/monthly-pass'],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.MONTHLY_PASS_ASSIGNMENT_WRITE,
+    }),
+  ),
   {
     action: 'quyan:monthly_pass:ListUserPasses',
     service: 'monthly_pass',

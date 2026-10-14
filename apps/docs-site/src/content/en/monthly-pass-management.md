@@ -12,6 +12,8 @@ The assignment list uses `quyan:monthly_pass:ListUserPasses` to authorize each `
 
 Creating an assignment uses `quyan:monthly_pass:AssignUserPass` and requires the target `platform/user`, the source `platform/monthly-pass-template` and the generated `platform/monthly-pass/<userId>/<passId>` to be allowed. A pass wildcard under the target user can define the creation scope; allowing only the user and template does not allow a new assignment. If template data, user ownership or management eligibility changes during the operation, or the new assignment is denied, the entire creation and its quota windows roll back.
 
+Batch assignment uses the separate `quyan:monthly_pass:AssignUserPassBatch` Action. Each target requires access to its user, template and created or extended pass. A failed target rolls back independently while other authorized targets can succeed. Extensions preserve concurrent consumption: changes to the customer, template, existing pass or quota windows reject that target without replacing its quota. Failed results omit unauthorized usernames; users discovered by filters are omitted from the results when not authorized.
+
 ## Page purpose
 
 - Maintain monthly-pass templates.

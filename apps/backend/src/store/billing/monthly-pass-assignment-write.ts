@@ -7,9 +7,11 @@ import { assertIamAccountUserMutation, type IamAccountUserMutationGuard } from "
 import { platformManagementGroupSnapshot } from "../users/platform-management-principal";
 import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
 import { ConflictError } from "@/util/errors";
+import { assertMonthlyPassAssignmentSources, type MonthlyPassAssignGuard } from "./monthly-pass-assign";
 import type { UserMonthlyPassWithTemplate } from "./monthly-pass.store";
 export interface MonthlyPassAssignmentWriteGuard {
-  operation: IamMonthlyPassAssignmentWriteOperation;
+  operation: IamMonthlyPassAssignmentWriteOperation | "AssignUserPassBatch";
+  batchSources?: MonthlyPassAssignGuard;
   deleteViaUpdate: boolean;
   target: { record: UserMonthlyPassWithTemplate; revision: string };
   group: { id: string; updateTime: Date };
@@ -46,6 +48,18 @@ export async function runMonthlyPassAssignmentWrite<T extends { id: string }>(
 ) {
   if (!guard) return prisma.$transaction(mutate);
   if (
+    (guard.operation === "AssignUserPassBatch" &&
+      (!guard.batchSources ||
+        guard.batchSources.operation !== "AssignUserPassBatch" ||
+        guard.batchSources.customer.id !== guard.target.record.userId ||
+        guard.batchSources.template.id !== guard.target.record.templateId ||
+        Object.keys(data).some(
+          (key) =>
+            !["endAt", "totalQuota", "dailyQuota", "quotaUnit", "quotaWindowHours", "remainingQuota", "note"].includes(
+              key,
+            ),
+        ))) ||
+    (guard.operation !== "AssignUserPassBatch" && guard.batchSources !== undefined) ||
     guard.target.record.id !== id ||
     monthlyPassAssignmentRevision(guard.target.record) !== guard.target.revision ||
     ["id", "userId", "templateId", "assignedBy", "createTime", "updateTime", "usedQuota"].some((key) =>
@@ -61,6 +75,19 @@ export async function runMonthlyPassAssignmentWrite<T extends { id: string }>(
       async (tx) => {
         await identity(tx, guard);
         const revision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
+        if (guard.batchSources) {
+          await assertMonthlyPassAssignmentSources(tx, guard.batchSources);
+          const latest = await tx.userMonthlyPass.findFirst({
+            where: {
+              userId: guard.batchSources.customer.id,
+              templateId: guard.batchSources.template.id,
+              status: { gte: 0 },
+            },
+            orderBy: [{ endAt: "desc" }, { createTime: "desc" }, { id: "desc" }],
+            select: { id: true },
+          });
+          if (latest?.id !== id) throw iamAccountDenied();
+        }
         await tx.$queryRaw`SELECT id FROM user_monthly_passes WHERE id=${id} FOR UPDATE`;
         await tx.$queryRaw`SELECT id FROM user_monthly_pass_quota_windows WHERE userMonthlyPassId=${id} ORDER BY id FOR UPDATE`;
         const current = await tx.userMonthlyPass.findUnique({ where: { id }, include: { quotaWindows: true } });

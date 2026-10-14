@@ -12,6 +12,8 @@
 
 新建分配使用 `quyan:monthly_pass:AssignUserPass`，必须同时允许目标 `platform/user`、所用 `platform/monthly-pass-template` 和生成的 `platform/monthly-pass/<userId>/<passId>`。可用目标用户下的月卡通配符授予创建范围；仅允许用户和模板并不足以创建新月卡。模板、用户归属或管理资格在操作期间变化，或新月卡未获授权时，整次创建及其额度窗口都会回滚。
 
+批量分配使用独立的 `quyan:monthly_pass:AssignUserPassBatch`。每个目标都需允许用户、模板及新建或续期月卡；失败项独立回滚，其他已授权目标可继续成功。续期不会覆盖并发消费：客户、模板、既有月卡或额度窗口发生变化时，该目标失败并保留原额度。失败结果不返回未授权用户名；按筛选条件发现但未获授权的用户不会出现在结果中。
+
 ## 页面用途
 
 - 维护月卡模板。

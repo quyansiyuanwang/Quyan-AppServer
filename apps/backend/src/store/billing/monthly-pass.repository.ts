@@ -209,6 +209,13 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     });
   }
 
+  async findLatestUserPassIdentity(userId: string, templateId: string) {
+    return prisma.userMonthlyPass.findFirst({
+      where: { userId, templateId, status: { gte: 0 } },
+      select: { id: true, userId: true, status: true },
+      orderBy: [{ endAt: "desc" }, { createTime: "desc" }, { id: "desc" }],
+    });
+  }
   async findLatestUserPassByUserAndTemplate(
     userId: string,
     templateId: string,
@@ -220,7 +227,7 @@ export class MonthlyPassRepository implements MonthlyPassStore {
         status: { gte: MANAGED_STATUS.DISABLED },
       },
       include: userMonthlyPassInclude,
-      orderBy: [{ endAt: "desc" }, { createTime: "desc" }],
+      orderBy: [{ endAt: "desc" }, { createTime: "desc" }, { id: "desc" }],
     });
   }
 
@@ -313,7 +320,7 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     quotaWindows?: MonthlyPassQuotaWindowInput[],
     guard?: MonthlyPassAssignmentWriteGuard,
   ): Promise<UserMonthlyPassWithTemplate> {
-    if (guard && guard.operation !== "UpdateUserPass") throw iamAccountDenied();
+    if (guard && !["UpdateUserPass", "AssignUserPassBatch"].includes(guard.operation)) throw iamAccountDenied();
     return runMonthlyPassAssignmentWrite(guard, id, data, async (tx) => {
       await tx.userMonthlyPass.update({ where: { id }, data });
 
