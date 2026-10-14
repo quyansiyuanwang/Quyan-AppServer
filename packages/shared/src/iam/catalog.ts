@@ -989,6 +989,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   {
+    action: 'quyan:remote_terminal:ConnectSession',
+    service: 'remote_terminal',
+    operation: 'ConnectSession',
+    accessLevel: 'Write',
+    resourceTypes: ['remote-terminal/session'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.REMOTE_TERMINAL_SESSION_CREATE,
+  },
+  {
     action: 'quyan:remote_terminal:CreateSession',
     service: 'remote_terminal',
     operation: 'CreateSession',
