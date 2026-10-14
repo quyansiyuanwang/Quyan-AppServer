@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { api, confirm, notice } = vi.hoisted(() => ({
   api: {
     listAuthorizationPage: vi.fn(),
+    listUsersPage: vi.fn(),
+    listRolesPage: vi.fn(),
+    listPoliciesPage: vi.fn(),
+    listVisibleGroupPage: vi.fn(),
     createAuthorization: vi.fn(),
     deleteAuthorization: vi.fn(),
     listResourceGroupPage: vi.fn(),
@@ -46,8 +50,15 @@ const column = defineComponent({
   },
   template: '<div><template v-for="row in rows"><slot :row="row" /></template></div>',
 })
+const checkbox = defineComponent({
+  props: ['modelValue', 'disabled'],
+  emits: ['change'],
+  template:
+    '<label><input type="checkbox" :checked="modelValue" :disabled="disabled" @change="$emit(\'change\', $event.target.checked)" /><slot /></label>',
+})
 const stubs = {
   'el-input': input,
+  'el-checkbox': checkbox,
   'el-button': button,
   'el-table': table,
   'el-table-column': column,
@@ -63,7 +74,13 @@ const clickByText = (wrapper: ReturnType<typeof mount>, key: string) =>
 beforeEach(() => {
   vi.resetAllMocks()
   api.listAuthorizationPage.mockResolvedValue(page())
-  api.listResourceGroupPage.mockResolvedValue(page())
+  api.listResourceGroupPage.mockResolvedValue(page([{ id: 'group-1', name: 'Development' }]))
+  api.listUsersPage.mockResolvedValue(page([{ id: 'user-1', username: 'User one' }]))
+  api.listRolesPage.mockResolvedValue(page())
+  api.listVisibleGroupPage.mockResolvedValue(page())
+  api.listPoliciesPage.mockResolvedValue(
+    page([{ id: 'policy-1', name: 'Policy one', permissions: [] }]),
+  )
   api.listResourceGroupMemberPage.mockResolvedValue(page())
   confirm.mockResolvedValue('confirm')
 })
@@ -72,11 +89,13 @@ describe('scoped RAM management', () => {
     const wrapper = mount(Authorizations, { global: { stubs } })
     await flushPromises()
     await wrapper.setProps({ selectedResourceGroup: { id: 'group-1' } })
-    await wrapper.get('[data-test="authorization-principal"]').setValue('user-1')
-    await wrapper.get('[data-test="authorization-policy"]').setValue('policy-1')
+    await flushPromises()
+    await wrapper.get('[data-test="pick-user-1"] input').setValue(true)
+    await wrapper.get('[data-test="pick-policy-1"] input').setValue(true)
     api.createAuthorization.mockResolvedValue({ id: 'authorization-1' })
     await wrapper.get('[data-test="authorization-create"]').trigger('click')
     await flushPromises()
+    expect(confirm).toHaveBeenCalled()
     expect(api.createAuthorization).toHaveBeenCalledWith({
       principalType: 'user',
       principalId: 'user-1',
@@ -89,6 +108,86 @@ describe('scoped RAM management', () => {
     await wrapper.get('[data-test="authorization-load"]').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('RamManagement.scopedLoadFailed')
+    wrapper.unmount()
+  })
+  it('requires confirmation, snapshots the full selection and retries only unsaved authorizations', async () => {
+    api.listUsersPage.mockResolvedValue(
+      page([
+        { id: 'one', username: 'One' },
+        { id: 'two', username: 'Two' },
+      ]),
+    )
+    api.listPoliciesPage.mockResolvedValue(
+      page([
+        { id: 'a', name: 'A', permissions: [] },
+        { id: 'b', name: 'B', permissions: [] },
+      ]),
+    )
+    const wrapper = mount(Authorizations, { global: { stubs } })
+    await flushPromises()
+    expect(wrapper.get('[data-test="authorization-create"]').attributes('disabled')).toBeDefined()
+    for (const id of ['one', 'two', 'a', 'b'])
+      await wrapper.get('[data-test="pick-' + id + '"] input').setValue(true)
+    confirm.mockRejectedValueOnce('cancel')
+    await wrapper.get('[data-test="authorization-create"]').trigger('click')
+    await flushPromises()
+    expect(api.createAuthorization).not.toHaveBeenCalled()
+    api.createAuthorization
+      .mockResolvedValueOnce({ id: 'first' })
+      .mockRejectedValueOnce(Error('fixture denied'))
+      .mockResolvedValue({ id: 'remaining' })
+    await wrapper.get('[data-test="authorization-create"]').trigger('click')
+    await flushPromises()
+    expect(api.createAuthorization).toHaveBeenCalledTimes(2)
+    expect(notice).toHaveBeenCalled()
+    expect(wrapper.get('[data-test="authorization-progress"]').text()).toContain(
+      'RamManagement.authorizationProgress',
+    )
+    expect(wrapper.get('[data-test="pick-two"] input').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-test="authorization-create"]').trigger('click')
+    await flushPromises()
+    expect(
+      api.createAuthorization.mock.calls.map(([body]) => [body.principalId, body.policyId]),
+    ).toEqual([
+      ['one', 'a'],
+      ['one', 'b'],
+      ['one', 'b'],
+      ['two', 'a'],
+      ['two', 'b'],
+    ])
+    expect(
+      api.createAuthorization.mock.calls.every(
+        ([body]) => body.scopeType === 'account' && !body.scopeArn && !body.scopeResourceId,
+      ),
+    ).toBe(true)
+    expect(api.listAuthorizationPage).toHaveBeenCalledTimes(3)
+    wrapper.unmount()
+  })
+  it('marks broad policies as high risk and requires a warning confirmation', async () => {
+    api.listPoliciesPage.mockResolvedValue(
+      page([
+        {
+          id: 'broad',
+          name: 'Administrator',
+          permissions: [],
+          document: { Version: '1', Statement: { Effect: 'Allow', Action: '*', Resource: '*' } },
+        },
+      ]),
+    )
+    const wrapper = mount(Authorizations, { global: { stubs } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('RamManagement.authorizationHighRisk')
+    await wrapper.get('[data-test="pick-user-1"] input').setValue(true)
+    await wrapper.get('[data-test="pick-broad"] input').setValue(true)
+    expect(wrapper.text()).toContain('RamManagement.authorizationHighRiskHint')
+    api.createAuthorization.mockResolvedValue({ id: 'broad-relation' })
+    await wrapper.get('[data-test="authorization-create"]').trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledWith(
+      'RamManagement.authorizationConfirm',
+      'RamManagement.scopedCreateAuthorization',
+      { type: 'warning' },
+    )
     wrapper.unmount()
   })
   it('requires confirmation before revocation and does not turn a denied mutation into success', async () => {

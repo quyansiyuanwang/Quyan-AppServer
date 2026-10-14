@@ -539,7 +539,7 @@ const en = {
     trustEditorFailed: "Trust validation or publication failed. Review diagnostics, permission and current role hash; reload the role before retrying a conflict.",
     effectiveIamProjectionHint: "Effective permissions use IAM evaluation in enforce mode. Only account-target grants project to global permissions; resource-specific grants are not global. Historical source arrays may omit JSON grants. Use concrete-resource simulation for access decisions.",
     scopedAuthorizations: "Scoped authorizations",
-    scopedAuthorizationHint: "Choose a user, group or role, a policy ID and its scope. IDs can be copied from management lists. Creating or revoking requires the dedicated IAM action, delegation proof, replay protection and 2FA. Server checks remain authoritative.",
+    scopedAuthorizationHint: "Select the authorization scope, principals and policies from searchable pages. Every principal receives each selected policy. Saving still requires dedicated IAM permission, delegation proof, replay protection and 2FA.",
     authorizationSearch: "Search name, ID or description",
     authorizationSearchButton: "Search",
     authorizationNoOptions: "No authorized choices on this page. You can continue if another candidate page is available.",
