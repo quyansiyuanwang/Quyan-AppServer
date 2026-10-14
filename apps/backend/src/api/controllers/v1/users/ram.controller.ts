@@ -78,6 +78,7 @@ import {
   ramUserUpdateResourceResolver,
   ramUserCreateResourceResolver,
   ramUserResourceResolver,
+  iamAuthenticatedUserResourceResolver,
   ramEffectivePermissionsUserResourceResolver,
   ramPolicyResourceResolver,
   ramSessionResourceResolver,
@@ -1196,9 +1197,9 @@ export class RamController extends Controller {
   @Get("iam/actions")
   @Security("jwt")
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    action: "quyan:iam:GetCatalog",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
   })
   public async getIamActions(): Promise<string[]> {
     return [...this.ramService.getIamActionCatalog()];

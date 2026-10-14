@@ -35,6 +35,7 @@ describe("IAM service and resource catalog", () => {
   });
   it("derives the narrow self-service baseline exclusively from registered catalog metadata", () => {
     expect(IAM_AUTHENTICATED_SELF_ACTIONS).toEqual([
+      "quyan:iam:GetCatalog",
       "quyan:remote_terminal:GetMyUnbindReminder",
       "quyan:remote_terminal:ListMyDevices",
       "quyan:remote_terminal:ListMyEntitlements",

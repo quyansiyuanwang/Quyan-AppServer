@@ -9,16 +9,16 @@ import type {
 import { Permission } from "@quyan/shared";
 import { IamCatalogService } from "@/iam/iam-catalog.service";
 import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
-import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 @Route("v1/iam/catalog")
 @Tags("IAM Catalog")
 export class IamCatalogController extends Controller {
   @Get("services")
   @Security("jwt")
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    action: "quyan:iam:GetCatalog",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
   })
   public async listServices(): Promise<IamServiceDefinition[]> {
     return IamCatalogService.getInstance().listServices();
@@ -26,9 +26,9 @@ export class IamCatalogController extends Controller {
   @Get("services/{service}/actions")
   @Security("jwt")
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    action: "quyan:iam:GetCatalog",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
   })
   public async listActions(@Path() service: string): Promise<IamActionDefinition[]> {
     return IamCatalogService.getInstance().listActions(service);
@@ -36,9 +36,9 @@ export class IamCatalogController extends Controller {
   @Get("resources")
   @Security("jwt")
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    action: "quyan:iam:GetCatalog",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
   })
   public async listResources(): Promise<IamResourceTypeDefinition[]> {
     return IamCatalogService.getInstance().listResources();
@@ -46,9 +46,9 @@ export class IamCatalogController extends Controller {
   @Get("policy-schema")
   @Security("jwt")
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    action: "quyan:iam:GetCatalog",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
   })
   public async getPolicySchema(
     @Query() policyKind: "identity" | "trust" = "identity",
@@ -58,9 +58,9 @@ export class IamCatalogController extends Controller {
   @Get("condition-keys")
   @Security("jwt")
   @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
+    action: "quyan:iam:GetCatalog",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
   })
   public async listConditionKeys(): Promise<IamConditionKeyDefinition[]> {
     return IamCatalogService.getInstance().listConditionKeys();

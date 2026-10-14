@@ -655,6 +655,26 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
   }
 }
 export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.freeze([
+  {
+    action: 'quyan:iam:GetCatalog',
+    service: 'iam',
+    operation: 'GetCatalog',
+    accessLevel: 'Read',
+    resourceTypes: ['quyan/user'],
+    apiRoutes: [
+      'GET /v1/iam/catalog/services',
+      'GET /v1/iam/catalog/services/{service}/actions',
+      'GET /v1/iam/catalog/resources',
+      'GET /v1/iam/catalog/policy-schema',
+      'GET /v1/iam/catalog/condition-keys',
+      'GET /v1/ram/iam/actions',
+    ],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: false,
+    authorizationStage: 'declared',
+    defaultAuthorizationScope: 'self',
+    legacyPermission: Permission.RAM_POLICY_READ,
+  },
   ...IAM_PLATFORM_TEMPLATE_DEFINITIONS.map(
     (definition): IamActionDefinition => ({
       action: definition.action,

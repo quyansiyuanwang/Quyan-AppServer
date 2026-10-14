@@ -224,6 +224,19 @@ describe("IAM identity policy loading", () => {
       ).toBe("ImplicitDeny");
     }
   });
+  it("separates static catalog access from policy visibility and lets Deny restrict it", async () => {
+    const action = "quyan:iam:GetCatalog";
+    const resource = "acs:quyan:*:owner:user/child";
+    expect((await service.authorize({ principal, action, resource })).decision).toBe("Allow");
+    for (const target of ["acs:quyan:*:owner:account", "acs:quyan:*:owner:user/other", "*"])
+      expect((await service.authorize({ principal, action, resource: target })).decision).toBe("ImplicitDeny");
+    for (const target of [resource, "acs:quyan:*:owner:account", "acs:quyan:*:owner:policy/policy"])
+      expect((await service.authorize({ principal, action: "quyan:ram:ReadPolicy", resource: target })).decision).toBe(
+        "ImplicitDeny",
+      );
+    policies.listPoliciesForTarget.mockResolvedValue([binding("deny-catalog", "Deny", action)]);
+    expect((await service.authorize({ principal, action, resource })).decision).toBe("ExplicitDeny");
+  });
   it("restricts catalog-defined heartbeat grants to the authenticated user and preserves Deny", async () => {
     for (const action of ["quyan:user:GetHeartbeatConfig", "quyan:user:SendHeartbeat", "quyan:user:StopHeartbeat"]) {
       expect((await service.authorize({ principal, action, resource: "acs:quyan:*:owner:user/child" })).decision).toBe(

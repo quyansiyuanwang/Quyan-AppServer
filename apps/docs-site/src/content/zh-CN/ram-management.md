@@ -137,7 +137,7 @@ ARN 构造、策略校验和评估只接受目录中已注册的资源类型。�
 
 提供原始 JSON 文本给 `POST /v1/ram/policies/diagnose`（字段 `documentText`），可获得错误、安全警告、警告和建议。每条诊断含稳定错误码、JSON Pointer、从 1 开始的行号和列号。语法错误、重复键、原型键、未知字段、未知 Action、条件值错误、资源类型不匹配和明确的跨账户 ARN 会阻止验证；过宽 Allow、IAM 管理授权和重复语句会提示风险。诊断不回显策略中的任意值。
 
-`GET /v1/iam/catalog/policy-schema` 提供从同一策略校验器生成的 JSON Schema，供编辑器和 AI 构造草稿。Schema 包含当前生产 Action、资源模板、已实现条件键和限制；目录及账户归属等自定义语义仍须经过服务端诊断。获取 Schema 需要策略读取权限，诊断需要策略创建或更新任一权限。验证通过只说明文档符合当前语法，返回的 `delegation: "not-evaluated"` 表示尚未证明操作者可以发布或委派；保存和绑定继续执行已有授权检查。
+`GET /v1/iam/catalog/policy-schema` 提供从同一策略校验器生成的 JSON Schema，供编辑器和 AI 构造草稿。Schema 包含当前生产 Action、资源模板、已实现条件键和限制；目录及账户归属等自定义语义仍须经过服务端诊断。在 IAM enforce 模式下，目录和 Schema 使用独立的 `quyan:iam:GetCatalog` Action，资源为当前认证用户 ARN。其默认本人授权仅允许读取静态定义，不授予账户策略或其他用户的读取权限；匹配的显式 Deny 仍可限制访问。legacy 和 shadow 模式保留原有策略读取门禁。诊断需要策略创建或更新任一权限。验证通过只说明文档符合当前语法，返回的 `delegation: "not-evaluated"` 表示尚未证明操作者可以发布或委派；保存和绑定继续执行已有授权检查。
 
 JSON 编辑器的“校验 JSON”会提交原始文本，并按错误、安全警告、警告和建议分组展示诊断；点击诊断可定位到对应文本位置。编辑内容后原有诊断和校验结果立即失效。“格式化已校验 JSON”先完成服务端校验，再格式化规范化后的文档；“下载 JSON Schema”可将当前规范提供给外部 AI 辅助编写草稿。
 
@@ -223,7 +223,7 @@ enforce 模式下，扮演角色必须同时满足 **身份策略 Allow 与角�
 }
 ```
 
-使用 `GET /v1/iam/catalog/policy-schema?policyKind=trust` 获取独立 JSON Schema；向 `POST /v1/ram/policies/diagnose` 提交 documentText 和 policyKind: trust，获得原始 JSON 的路径及行列诊断。Schema 和诊断仍需要前文说明的策略读取、创建或更新权限。诊断校验语法和显式跨账户主体；发布还会验证主体真实存在及委派能力。
+使用 `GET /v1/iam/catalog/policy-schema?policyKind=trust` 获取独立 JSON Schema；向 `POST /v1/ram/policies/diagnose` 提交 documentText 和 policyKind: trust，获得原始 JSON 的路径及行列诊断。Schema 使用前述目录访问边界；诊断仍需策略创建或更新权限。诊断校验语法和显式跨账户主体；发布还会验证主体真实存在及委派能力。
 
 通过 `PUT /v1/ram/roles/{roleId}/trust-policy` 发布，提交 document 和可选 expectedDocumentHash。需要 `quyan:ram:UpdateRoleTrustPolicy` 对该角色的授权、重放保护和二次认证。普通角色更新权限不会自动获得信任发布能力。原角色创建、更新接口仍接受 trustPolicy，但提交时同样需要这项专用权限：创建使用账户范围，更新使用具体角色范围。有效信任文档的角色响应包含 trustPolicyHash；hash 或角色版本过期返回 409。发布会证明 AssumeRole 权限及角色全部有效授权，不丢弃授权关系的资源范围。角色列表提供独立信任编辑器。
 
