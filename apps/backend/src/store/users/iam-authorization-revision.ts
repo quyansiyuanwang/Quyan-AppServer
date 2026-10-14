@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 type Client = Pick<
   Prisma.TransactionClient,
+  | "user"
+  | "group"
   | "ramPolicy"
   | "ramPolicyVersion"
   | "ramPolicyAttachment"
@@ -23,6 +25,21 @@ export async function readIamAuthorizationRevision(client: Client, accountOwnerI
   const where = { accountOwnerId },
     orderBy = { id: "asc" } as const;
   // Keep read order stable across transactions. Do not parallelize Prisma transaction reads.
+  // Include each account identity's referenced group, including a deployment-managed global group.
+  // Reading account-owned policies alone misses group permission changes after the final live recheck.
+  const users = await client.user.findMany({
+    where: { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] },
+    orderBy,
+    select: { ...metadata, accountOwnerId: true, groupId: true, permissionAdds: true, permissionRemoves: true },
+  });
+  const groupIds = [
+    ...new Set(users.flatMap((user) => (typeof user.groupId === "string" ? [user.groupId] : []))),
+  ].sort();
+  const identityGroups = await client.group.findMany({
+    where: { OR: [{ accountOwnerId }, { id: { in: groupIds } }] },
+    orderBy,
+    select: { ...metadata, accountOwnerId: true, permissions: true },
+  });
   const policies = await client.ramPolicy.findMany({
     where,
     orderBy,
@@ -90,6 +107,8 @@ export async function readIamAuthorizationRevision(client: Client, accountOwnerI
   return createHash("sha256")
     .update(
       JSON.stringify({
+        users,
+        identityGroups,
         policies,
         versions,
         attachments,

@@ -1,3 +1,4 @@
+import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
@@ -89,6 +90,7 @@ export class TerminalPersonalUnbindRepository implements TerminalPersonalUnbindS
       return await prisma.$transaction(
         async (tx) => {
           await assertIamAccountUserMutation(tx, guard.users, target.userId);
+          const authorizationRevision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
           // All personal revocations for one entitlement share this lock, including distinct bindings.
           await tx.$queryRaw`SELECT id FROM remote_terminal_user_entitlements WHERE id=${target.entitlementId} FOR UPDATE`;
           await tx.$queryRaw`SELECT id FROM remote_terminal_device_bindings WHERE id=${target.id} FOR UPDATE`;
@@ -119,6 +121,8 @@ export class TerminalPersonalUnbindRepository implements TerminalPersonalUnbindS
             });
           }
           await assertIamAccountUserMutation(tx, guard.users, target.userId);
+          if ((await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId)) !== authorizationRevision)
+            throw iamAccountDenied();
           return { revokedCount, windowStartAt };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

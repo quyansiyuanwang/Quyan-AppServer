@@ -1,3 +1,4 @@
+import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import {
@@ -121,6 +122,7 @@ export class PlatformTerminalManagementMutationRepository implements PlatformTer
       await prisma.$transaction(
         async (tx) => {
           await this.identity(tx, guard);
+          const authorizationRevision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
           if (entry.kind === "binding")
             await tx.$queryRaw`SELECT id FROM remote_terminal_device_bindings WHERE id=${target.id} FOR UPDATE`;
           else await tx.$queryRaw`SELECT id FROM remote_terminal_user_entitlements WHERE id=${target.id} FOR UPDATE`;
@@ -144,6 +146,8 @@ export class PlatformTerminalManagementMutationRepository implements PlatformTer
             });
           }
           await this.identity(tx, guard);
+          if ((await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId)) !== authorizationRevision)
+            throw iamAccountDenied();
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );

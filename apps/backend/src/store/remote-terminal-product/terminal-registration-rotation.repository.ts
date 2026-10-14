@@ -1,3 +1,4 @@
+import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import {
@@ -141,6 +142,7 @@ export class TerminalRegistrationRotationRepository implements TerminalRegistrat
       return await prisma.$transaction(
         async (tx) => {
           await this.guard(tx, guard);
+          const authorizationRevision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
           await tx.$queryRaw`SELECT id FROM remote_terminal_user_entitlements WHERE id=${target.id} FOR UPDATE`;
           await tx.$queryRaw`SELECT id FROM remote_terminal_entitlement_tokens WHERE entitlementId=${target.id} FOR UPDATE`;
           const current = await this.read(tx, guard.users.principal, guard.operation, target.id);
@@ -157,6 +159,8 @@ export class TerminalRegistrationRotationRepository implements TerminalRegistrat
           });
           await this.guard(tx, guard);
           await guard.recheckToken(row.id);
+          if ((await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId)) !== authorizationRevision)
+            throw iamAccountDenied();
           return row;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

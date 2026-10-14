@@ -1,3 +1,4 @@
+import * as revisions from "@/store/users/iam-authorization-revision";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/config/database";
@@ -166,5 +167,13 @@ describe("install token entitlement signing boundary", () => {
   it("fails closed when latest policy data is unavailable", async () => {
     vi.spyOn(IamAuthorizationService.getInstance(), "loadPolicies").mockRejectedValue(new Error("fixture unavailable"));
     await expect(issue()).rejects.toThrow("fixture unavailable");
+  });
+  it("refuses authorization revision drift and rolls back its transaction", async () => {
+    const revision = vi
+      .spyOn(revisions, "readIamAuthorizationRevision")
+      .mockResolvedValueOnce("before")
+      .mockResolvedValueOnce("changed");
+    await expect(issue()).rejects.toMatchObject({ statusCode: 403 });
+    expect(revision).toHaveBeenCalledTimes(2);
   });
 });

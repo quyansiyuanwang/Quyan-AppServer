@@ -1,3 +1,4 @@
+import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
 import { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -48,6 +49,7 @@ export class TerminalInstallTokenRepository implements TerminalInstallTokenStore
       return await prisma.$transaction(
         async (tx) => {
           await assertIamAccountUserMutation(tx, guard.users, target.userId);
+          const authorizationRevision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
           await tx.$queryRaw`SELECT id FROM remote_terminal_user_entitlements WHERE id=${target.id} FOR UPDATE`;
           const current = await this.read(tx, principal, target.id);
           if (
@@ -63,6 +65,8 @@ export class TerminalInstallTokenRepository implements TerminalInstallTokenStore
             });
           const result = await generate();
           await assertIamAccountUserMutation(tx, guard.users, target.userId);
+          if ((await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId)) !== authorizationRevision)
+            throw iamAccountDenied();
           return result;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

@@ -1,3 +1,4 @@
+import * as revisions from "@/store/users/iam-authorization-revision";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/config/database";
@@ -221,5 +222,33 @@ describe("terminal template write transaction boundary", () => {
     await expect(
       repository.mutate(source!.target!, { publishStatus: "published" }, source!.guard),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("refuses authorization revision drift and rolls back its transaction", async () => {
+    const revision = vi
+      .spyOn(revisions, "readIamAuthorizationRevision")
+      .mockResolvedValueOnce("before")
+      .mockResolvedValueOnce("changed");
+    const before = await prisma.remoteTerminalProductTemplate.findUnique({ where: { id: template } });
+    await expect(
+      RemoteTerminalProductService.getInstance().updateTemplate(
+        template,
+        { description: "fixture edited" },
+        actor,
+        request(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.remoteTerminalProductTemplate.findUnique({ where: { id: template } })).toEqual(before);
+    expect(revision).toHaveBeenCalledTimes(2);
+  });
+
+  it("rolls back template creation when the authorization revision changes", async () => {
+    vi.spyOn(revisions, "readIamAuthorizationRevision")
+      .mockResolvedValueOnce("before")
+      .mockResolvedValueOnce("changed");
+    const name = prefix + "-revision-created";
+    await expect(
+      RemoteTerminalProductService.getInstance().createTemplate({ name, devicePrice: 1 }, actor, request()),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.remoteTerminalProductTemplate.findUnique({ where: { name } })).toBeNull();
   });
 });

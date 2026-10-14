@@ -1,3 +1,4 @@
+import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -91,6 +92,7 @@ export class PlatformTerminalEntitlementUpdateRepository implements PlatformTerm
       return await prisma.$transaction(
         async (tx) => {
           await this.identity(tx, guard);
+          const authorizationRevision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
           await tx.$queryRaw`SELECT id FROM users WHERE id=${target.user.id} FOR UPDATE`;
           await tx.$queryRaw`SELECT id FROM remote_terminal_user_entitlements WHERE id=${target.record.id} FOR UPDATE`;
           await tx.$queryRaw`SELECT id FROM remote_terminal_device_bindings WHERE entitlementId=${target.record.id} AND status>=0 ORDER BY id FOR UPDATE`;
@@ -103,6 +105,8 @@ export class PlatformTerminalEntitlementUpdateRepository implements PlatformTerm
             });
           const updated = await tx.remoteTerminalUserEntitlement.update({ where: { id: target.record.id }, data });
           await this.identity(tx, guard);
+          if ((await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId)) !== authorizationRevision)
+            throw iamAccountDenied();
           return updated;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

@@ -1,3 +1,4 @@
+import * as revisions from "@/store/users/iam-authorization-revision";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/config/database";
@@ -271,5 +272,19 @@ describe("registration token transaction authority", () => {
     source = await prepare();
     source!.guard.operation = "RotateMyRegistrationToken";
     await expect(repository.rotate(source!.target, input(), source!.guard)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("refuses authorization revision drift and rolls back its transaction", async () => {
+    const revision = vi
+      .spyOn(revisions, "readIamAuthorizationRevision")
+      .mockResolvedValueOnce("before")
+      .mockResolvedValueOnce("changed");
+    const before = await prisma.remoteTerminalEntitlementToken.findUnique({ where: { entitlementId: entitlement } });
+    await expect(
+      RemoteTerminalProductService.getInstance().rotateRegistrationToken(entitlement, {}, actor, request()),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.remoteTerminalEntitlementToken.findUnique({ where: { entitlementId: entitlement } })).toEqual(
+      before,
+    );
+    expect(revision).toHaveBeenCalledTimes(2);
   });
 });

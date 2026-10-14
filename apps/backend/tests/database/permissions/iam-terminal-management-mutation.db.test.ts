@@ -1,3 +1,4 @@
+import * as revisions from "@/store/users/iam-authorization-revision";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/config/database";
@@ -232,5 +233,19 @@ describe("terminal management resource mutations", () => {
     await expect(
       repository.mutate(source!.target, { ...source!.guard, operation: "DeleteEntitlement" }),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("refuses authorization revision drift and rolls back its transaction", async () => {
+    const revision = vi
+      .spyOn(revisions, "readIamAuthorizationRevision")
+      .mockResolvedValueOnce("before")
+      .mockResolvedValueOnce("changed");
+    await expect(
+      RemoteTerminalProductService.getInstance().adminRevokeDevice(binding, actor, request()),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.remoteTerminalDeviceBinding.findUnique({ where: { id: binding } })).toMatchObject({
+      status: 1,
+      online: true,
+    });
+    expect(revision).toHaveBeenCalledTimes(2);
   });
 });

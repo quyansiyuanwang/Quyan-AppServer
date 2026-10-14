@@ -1,3 +1,4 @@
+import * as revisions from "@/store/users/iam-authorization-revision";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/config/database";
@@ -212,5 +213,22 @@ describe("terminal entitlement resource updates", () => {
     await expect(repository.update(source.target, { name: "should not persist" }, source.guard)).rejects.toThrow(
       "fixture unavailable",
     );
+  });
+  it("refuses authorization revision drift and rolls back its transaction", async () => {
+    const revision = vi
+      .spyOn(revisions, "readIamAuthorizationRevision")
+      .mockResolvedValueOnce("before")
+      .mockResolvedValueOnce("changed");
+    const before = await prisma.remoteTerminalUserEntitlement.findUnique({ where: { id: entitlement } });
+    await expect(
+      RemoteTerminalProductService.getInstance().updateEntitlement(
+        entitlement,
+        { name: "fixture edited" },
+        actor,
+        request(),
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(await prisma.remoteTerminalUserEntitlement.findUnique({ where: { id: entitlement } })).toEqual(before);
+    expect(revision).toHaveBeenCalledTimes(2);
   });
 });

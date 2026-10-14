@@ -1,3 +1,4 @@
+import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
 import { createHash } from "node:crypto";
 import { Prisma, type RemoteTerminalProductTemplate } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -78,11 +79,14 @@ export class PlatformTerminalTemplateWriteRepository implements PlatformTerminal
       throw iamAccountDenied();
     return this.transaction(async (tx) => {
       await this.identity(tx, guard);
+      const authorizationRevision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
       await this.nameAvailable(tx, data.name);
       await guard.users.recheck();
       const row = await tx.remoteTerminalProductTemplate.create({ data });
       await this.identity(tx, guard);
       await guard.recheckEntry(row.id);
+      if ((await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId)) !== authorizationRevision)
+        throw iamAccountDenied();
       return row;
     });
   }
@@ -121,6 +125,7 @@ export class PlatformTerminalTemplateWriteRepository implements PlatformTerminal
     }
     return this.transaction(async (tx) => {
       await this.identity(tx, guard);
+      const authorizationRevision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
       await tx.$queryRaw`SELECT id FROM remote_terminal_product_templates WHERE id=${target.record.id} FOR UPDATE`;
       const current = await tx.remoteTerminalProductTemplate.findUnique({ where: { id: target.record.id } });
       if (
@@ -137,6 +142,8 @@ export class PlatformTerminalTemplateWriteRepository implements PlatformTerminal
       const row = await tx.remoteTerminalProductTemplate.update({ where: { id: current.id }, data });
       await this.identity(tx, guard);
       await guard.recheckEntry(row.id);
+      if ((await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId)) !== authorizationRevision)
+        throw iamAccountDenied();
       return row;
     });
   }
