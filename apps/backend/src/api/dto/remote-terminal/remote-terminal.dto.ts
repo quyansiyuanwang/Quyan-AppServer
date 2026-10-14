@@ -271,7 +271,8 @@ export interface RemoteTerminalUserEntitlementDto {
   updateTime: Date;
   isActive: boolean;
   isExpired: boolean;
-  registeredDeviceCount: number;
+  /** Omitted when any contributing device binding is not readable. */
+  registeredDeviceCount?: number;
   registrationToken?: RemoteTerminalRegistrationTokenDto;
   maxDeviceCount?: number;
   maxTerminalCount?: number;

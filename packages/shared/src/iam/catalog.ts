@@ -148,6 +148,21 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':remote-terminal-template-control',
   },
+  ...[
+    { type: 'remote-terminal-entitlement', segments: 2 },
+    { type: 'remote-terminal-device-binding', segments: 2 },
+    { type: 'remote-terminal-registration-token', segments: 3 },
+  ].map(({ type, segments }) => ({
+    ...resource('platform', type, segments),
+    accountScope: 'platform' as const,
+    arnTemplate:
+      'acs:platform:*:' +
+      IAM_PLATFORM_ACCOUNT_ID +
+      ':' +
+      type +
+      '/{userId}/{resourceId}' +
+      (segments === 3 ? '/{tokenId}' : ''),
+  })),
   resource('quyan', 'account', 0),
   { ...resource('quyan', 'user'), authenticatedSelfScope: 'identity' },
   resource('quyan', 'group'),
@@ -635,6 +650,25 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
         : {}),
     }),
   ),
+  {
+    action: 'quyan:remote_terminal:ListEntitlements',
+    service: 'remote_terminal',
+    operation: 'ListEntitlements',
+    accessLevel: 'List',
+    resourceTypes: [
+      'platform/remote-terminal-entitlement',
+      'platform/user',
+      'platform/remote-terminal-template',
+      'platform/remote-terminal-device-binding',
+      'platform/remote-terminal-registration-token',
+    ],
+    apiRoutes: ['GET /v1/remote-terminal/products/entitlements'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
+  },
   ...ALL_PERMISSIONS.map(fromPermission),
   ...[
     {

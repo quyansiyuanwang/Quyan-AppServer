@@ -10,6 +10,8 @@
 
 管理端权益列表仅展示注册令牌的元数据与脱敏值，不返回完整令牌。个人权益页面保留安装所需的令牌；管理员通过单独受保护的轮换操作管理注册令牌。
 
+启用 IAM 强制模式后，权益管理列表使用 `quyan:remote_terminal:ListEntitlements`，检查 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`。总数只包含获准权益。相同 Action 还分别控制关联的 `user/<userId>`、`remote-terminal-template/<templateId>`、`remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>` 和 `remote-terminal-device-binding/<userId>/<bindingId>` 平台资源。未获准的用户名、套餐名称或令牌元数据会省略；只要一个设备绑定不可读，就会省略设备总数，而不会显示零或部分数量。管理列表中的令牌始终完全遮罩，不返回明文。个人安装和令牌轮换保持各自的授权流程。此操作仍要求部署管理员配置的全局权益读取权限上限。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

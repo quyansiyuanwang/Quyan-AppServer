@@ -1,3 +1,6 @@
+import { PlatformTerminalEntitlementReadIamService } from "./platform-terminal-entitlement-read-iam.service";
+import type { TerminalEntitlementReadView } from "@/store/remote-terminal-product/platform-terminal-entitlement-read.store";
+import type { RemoteTerminalUserEntitlement } from "@prisma/client";
 import { PlatformTerminalTemplateWriteIamService } from "./platform-terminal-template-write-iam.service";
 import { PlatformTerminalTemplateWriteRepository } from "@/store/remote-terminal-product/platform-terminal-template-write.repository";
 import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
@@ -638,15 +641,47 @@ export class RemoteTerminalProductService {
     usernamesById: Map<string, string>,
     includeRegistrationToken = true,
   ): RemoteTerminalUserEntitlementDto {
+    return {
+      ...this.toEntitlementScalarDto(record),
+      username: record.user.username,
+      templateName: record.template?.name,
+      assignedByUsername: record.assignedBy ? usernamesById.get(record.assignedBy) : undefined,
+      registeredDeviceCount: record.devices.length,
+      registrationToken:
+        this.canIssueRegistrationToken(record.deviceLimit) && record.registrationToken
+          ? this.toRegistrationTokenDto(record.registrationToken, includeRegistrationToken)
+          : undefined,
+    };
+  }
+
+  private toNativeEntitlementDto(view: TerminalEntitlementReadView): RemoteTerminalUserEntitlementDto {
+    return {
+      ...this.toEntitlementScalarDto(view.record),
+      username: view.username,
+      templateName: view.templateName,
+      assignedByUsername: view.assignedByUsername,
+      registeredDeviceCount: view.registeredDeviceCount,
+      registrationToken:
+        this.canIssueRegistrationToken(view.record.deviceLimit) && view.registrationToken
+          ? {
+              ...view.registrationToken,
+              maskedToken: maskSecret(undefined),
+              label: view.registrationToken.label ?? undefined,
+              expiresAt: view.registrationToken.expiresAt ?? undefined,
+              lastUsedAt: view.registrationToken.lastUsedAt ?? undefined,
+            }
+          : undefined,
+    };
+  }
+
+  private toEntitlementScalarDto(record: RemoteTerminalUserEntitlement): RemoteTerminalUserEntitlementDto {
     const now = Date.now();
     const isActive =
       record.status === MANAGED_STATUS.ENABLED && record.startAt.getTime() <= now && record.endAt.getTime() >= now;
     return {
       id: record.id,
       userId: record.userId,
-      username: record.user.username,
       templateId: record.templateId ?? undefined,
-      templateName: record.template?.name,
       name: record.name,
       description: record.description ?? undefined,
       startAt: record.startAt,
@@ -675,18 +710,12 @@ export class RemoteTerminalProductService {
       purchaseAmount: record.purchaseAmount != null ? Number(record.purchaseAmount) : undefined,
       currency: record.currency,
       assignedBy: record.assignedBy ?? undefined,
-      assignedByUsername: record.assignedBy ? usernamesById.get(record.assignedBy) : undefined,
       note: record.note ?? undefined,
       status: record.status,
       createTime: record.createTime,
       updateTime: record.updateTime,
       isActive,
       isExpired: record.endAt.getTime() < now,
-      registeredDeviceCount: record.devices.length,
-      registrationToken:
-        this.canIssueRegistrationToken(record.deviceLimit) && record.registrationToken
-          ? this.toRegistrationTokenDto(record.registrationToken, includeRegistrationToken)
-          : undefined,
       maxDeviceCount: record.maxDeviceCount ?? undefined,
       maxTerminalCount: record.maxTerminalCount ?? undefined,
     };
@@ -1140,8 +1169,19 @@ export class RemoteTerminalProductService {
     userId?: string,
     templateId?: string,
     status?: number,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
-    return this.readEntitlements(page, pageSize, userId, templateId, status, false);
+    const legacy = () => this.readEntitlements(page, pageSize, userId, templateId, status, false);
+    if (request)
+      return PlatformTerminalEntitlementReadIamService.getInstance().list(
+        request,
+        normalizePagination(page, pageSize),
+        { userId, templateId, status },
+        (view) => this.toNativeEntitlementDto(view),
+        legacy,
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return legacy();
   }
   private async readEntitlements(
     page: number | undefined,

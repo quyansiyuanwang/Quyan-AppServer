@@ -7,6 +7,7 @@ import { PermissionService } from "../../../src/services/users/permission.servic
 describe("RemoteTerminalProductController permissions", () => {
   const remoteTerminalProductServiceMock = {
     listDevices: vi.fn(),
+    listEntitlements: vi.fn(),
     getFilterOptions: vi.fn(),
   };
   const permissionServiceMock = {
@@ -63,5 +64,17 @@ describe("RemoteTerminalProductController permissions", () => {
     const controller = new RemoteTerminalProductController();
     await controller.getFilterOptions(2, 20, "starter", request);
     expect(remoteTerminalProductServiceMock.getFilterOptions).toHaveBeenCalledWith(2, 20, "starter", request);
+  });
+  it("forwards the trusted request to native entitlement collection admission", async () => {
+    const controller = new RemoteTerminalProductController();
+    await controller.listEntitlements(2, 10, "customer", "template", 1, request);
+    expect(remoteTerminalProductServiceMock.listEntitlements).toHaveBeenCalledWith(
+      2,
+      10,
+      "customer",
+      "template",
+      1,
+      request,
+    );
   });
 });

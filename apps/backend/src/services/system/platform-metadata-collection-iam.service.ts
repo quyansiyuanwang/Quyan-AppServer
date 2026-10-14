@@ -28,7 +28,7 @@ export class PlatformMetadataCollectionIamService<
     private readonly snapshots: PlatformManagementReadStore,
     private readonly repository: PlatformCollectionStore<Filters, Where, Target>,
     private readonly resource: (target: Target) => string,
-    private readonly contribution?: (target: Target) => readonly unknown[],
+    private readonly contribution?: (target: Target) => readonly unknown[] | Promise<readonly unknown[]>,
     private readonly targetValidator: (target: Target) => boolean = PlatformMetadataCollectionIamService.valid,
   ) {}
   static valid(row: PlatformCollectionTarget) {
@@ -117,7 +117,7 @@ export class PlatformMetadataCollectionIamService<
               row.createTime.toISOString(),
               row.updateTime.toISOString(),
             ];
-            if (this.contribution) fields.push(this.contribution(row));
+            if (this.contribution) fields.push(await this.contribution(row));
             hash.update(JSON.stringify(fields) + "\n");
             total++;
           }

@@ -233,16 +233,23 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("entitlements")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_READ)
-  @Middlewares(validateQuery(listRemoteTerminalEntitlementsQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListEntitlements",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(listRemoteTerminalEntitlementsQuerySchema),
+  )
   public async listEntitlements(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() userId?: string,
     @Query() templateId?: string,
     @Query() status?: number,
+    @Request() request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
-    return this.remoteTerminalProductService.listEntitlements(page, pageSize, userId, templateId, status);
+    return this.remoteTerminalProductService.listEntitlements(page, pageSize, userId, templateId, status, request);
   }
 
   @Get("me/entitlements")

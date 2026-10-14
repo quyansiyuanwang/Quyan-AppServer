@@ -50888,7 +50888,8 @@
 					},
 					"registeredDeviceCount": {
 						"type": "number",
-						"format": "double"
+						"format": "double",
+						"description": "Omitted when any contributing device binding is not readable."
 					},
 					"registrationToken": {
 						"$ref": "#/components/schemas/RemoteTerminalRegistrationTokenDto"
@@ -50920,8 +50921,7 @@
 					"createTime",
 					"updateTime",
 					"isActive",
-					"isExpired",
-					"registeredDeviceCount"
+					"isExpired"
 				],
 				"type": "object",
 				"additionalProperties": false

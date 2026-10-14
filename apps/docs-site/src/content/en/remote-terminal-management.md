@@ -10,6 +10,8 @@ With IAM enforcement enabled, template writes have separate `CreateTemplate`, `U
 
 Management entitlement lists show registration-token metadata and a masked value, and omit the complete token. Personal entitlement views retain the token needed for installation; administrators manage token renewal through the separately protected rotation action.
 
+With IAM enforcement enabled, the management entitlement list uses `quyan:remote_terminal:ListEntitlements` against `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`. Totals count permitted entitlements only. The same action separately controls related platform resources: `user/<userId>`, `remote-terminal-template/<templateId>`, `remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>`, and `remote-terminal-device-binding/<userId>/<bindingId>`. Unreadable usernames, template names, and token metadata are omitted. If any device binding is unreadable, the complete device count is omitted rather than shown as zero or a partial count. Management tokens are always fully masked and never returned as plaintext. Personal installation and token rotation keep their own authorization flows. The deployment administrator's global entitlement-read ceiling is still required.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.
