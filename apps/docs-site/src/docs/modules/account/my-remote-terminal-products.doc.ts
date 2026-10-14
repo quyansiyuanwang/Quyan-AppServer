@@ -17,6 +17,7 @@ export default defineDocsPage({
     'zh-CN': '查看已购买的远程终端产品方案、权益与绑定设备。',
   },
   tags: ['remote', 'terminal', 'device', 'entitlement', 'plan'],
+  updatedAt: '2026-10-15',
   content: {
     en: contentEn,
     'zh-CN': contentZh,

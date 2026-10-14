@@ -35,6 +35,7 @@ describe("IAM service and resource catalog", () => {
   });
   it("derives the narrow self-service baseline exclusively from registered catalog metadata", () => {
     expect(IAM_AUTHENTICATED_SELF_ACTIONS).toEqual([
+      "quyan:remote_terminal:GetMyUnbindReminder",
       "quyan:permission:Manage",
       "quyan:user:GetHeartbeatConfig",
       "quyan:user:SendHeartbeat",

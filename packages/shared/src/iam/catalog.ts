@@ -160,6 +160,12 @@ export const IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS = Object.freeze([
 ] as const)
 export type IamTerminalManagementMutation =
   (typeof IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS)[number]['operation']
+export const IAM_TERMINAL_PERSONAL_UNBIND_OPERATIONS = Object.freeze([
+  'RevokeMyDeviceBinding',
+  'GetMyUnbindReminder',
+] as const)
+export type IamTerminalPersonalUnbindOperation =
+  (typeof IAM_TERMINAL_PERSONAL_UNBIND_OPERATIONS)[number]
 export type IamPlatformTemplateKind = (typeof IAM_PLATFORM_TEMPLATE_DEFINITIONS)[number]['kind']
 
 export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = Object.freeze([
@@ -198,6 +204,8 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'authorization'),
   resource('quyan', 'resource-group'),
   resource('quyan', 'role-session'),
+  { ...resource('remote-terminal', 'product-binding', 2), authenticatedSelfScope: 'children' },
+  { ...resource('remote-terminal', 'product-entitlement', 2), authenticatedSelfScope: 'children' },
   resource('remote-terminal', 'device', 2),
   resource('remote-terminal', 'session', 2),
   {
@@ -655,6 +663,34 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermissions: [...IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION.legacyPermissions],
+  },
+  {
+    action: 'quyan:remote_terminal:GetMyUnbindReminder',
+    service: 'remote_terminal',
+    operation: 'GetMyUnbindReminder',
+    accessLevel: 'Read',
+    resourceTypes: ['remote-terminal/product-binding', 'remote-terminal/product-entitlement'],
+    apiRoutes: ['GET /v1/remote-terminal/products/me/devices/{id}/unbind-reminder'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: false,
+    authorizationStage: 'declared',
+    defaultAuthorizationScope: 'self',
+  },
+  {
+    action: 'quyan:remote_terminal:RevokeMyDeviceBinding',
+    service: 'remote_terminal',
+    operation: 'RevokeMyDeviceBinding',
+    accessLevel: 'Write',
+    resourceTypes: ['remote-terminal/product-binding', 'remote-terminal/product-entitlement'],
+    apiRoutes: ['DELETE /v1/remote-terminal/products/me/devices/{id}'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermissions: [
+      Permission.REMOTE_TERMINAL_DEVICE_READ,
+      Permission.REMOTE_TERMINAL_SESSION_CREATE,
+      Permission.REMOTE_TERMINAL_SESSION_READ,
+    ],
   },
   ...IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS.map(
     (definition): IamActionDefinition => ({
@@ -1293,12 +1329,6 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       service: 'remote_terminal',
       operation: 'ListMyDevices',
       accessLevel: 'List',
-      resourceTypes: ['quyan/user'],
-    },
-    {
-      service: 'remote_terminal',
-      operation: 'GetMyUnbindReminder',
-      accessLevel: 'Read',
       resourceTypes: ['quyan/user'],
     },
   ].map(

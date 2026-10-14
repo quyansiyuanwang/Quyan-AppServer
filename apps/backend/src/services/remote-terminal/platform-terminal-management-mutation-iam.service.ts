@@ -128,7 +128,16 @@ export class PlatformTerminalManagementMutationIamService {
         targetId: id,
         targetUserId: owner,
         group: snapshot.group,
-        users: { principal: { ...principal }, targetUserId: actorUserId, users: snapshot.users, recheck },
+        users: {
+          principal: { ...principal },
+          targetUserId: actorUserId,
+          users: snapshot.users,
+          recheck: async () => {
+            if (guard.operation !== operation || guard.targetId !== id || guard.targetUserId !== owner)
+              throw iamAccountDenied();
+            await recheck();
+          },
+        },
       };
       await recheck();
       return { guard, target };

@@ -2,6 +2,8 @@
 
 此页面用于浏览已发布的远程终端产品方案、购买或领取权益，以及管理已注册的设备。
 
+启用 IAM 强制模式后，解绑使用 `quyan:remote_terminal:RevokeMyDeviceBinding`，查看解绑提示使用 `quyan:remote_terminal:GetMyUnbindReminder`。两个操作均需获准访问本人绑定的 `acs:remote-terminal:*:<accountId>:product-binding/<userId>/<bindingId>` 和所属权益的 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`；访问其他用户的绑定始终拒绝。已登录用户可查看自己的解绑提示，解绑仍需对应权限。次数限制按权益共享，并发解绑也不会超过剩余额度；操作期间授权或次数配置发生变化会使操作失败。
+
 ## 页面用途
 
 - 浏览已发布的远程终端产品方案与价格。

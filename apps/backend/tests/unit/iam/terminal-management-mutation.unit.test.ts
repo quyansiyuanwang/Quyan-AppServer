@@ -202,6 +202,12 @@ describe("terminal management mutation authority", () => {
     owner.mockResolvedValue(undefined);
     expect(await platformTerminalRevokeBindingResource(context)).toBeUndefined();
   });
+  it("refuses relabeling a deletion guard as reset authority", async () => {
+    repository.target.mockResolvedValue({ ...target(), kind: "entitlement" });
+    const source = await service.prepare("DeleteEntitlement", "actor", request(), "entry");
+    source!.guard.operation = "ResetUnbindCount";
+    await expect(source!.guard.users.recheck()).rejects.toMatchObject({ statusCode: 403 });
+  });
   it("hashes mutation fields without depending on property insertion order", () => {
     const value = target();
     const reordered = { ...value, revision: "different" };

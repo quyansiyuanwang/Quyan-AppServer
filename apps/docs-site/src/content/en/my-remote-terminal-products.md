@@ -2,6 +2,8 @@
 
 Use this page to browse published remote terminal product plans, purchase or claim entitlements, and manage your registered devices.
 
+In IAM enforcement mode, revocation uses `quyan:remote_terminal:RevokeMyDeviceBinding`, and reminders use `quyan:remote_terminal:GetMyUnbindReminder`. Both operations require permission on your `acs:remote-terminal:*:<accountId>:product-binding/<userId>/<bindingId>` and its `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`. Other users' bindings are always denied. Authenticated users can read their own reminders; revocation still requires the corresponding permission. The allowance is shared by an entitlement, and concurrent revocations cannot exceed the remaining allowance. Authorization or allowance configuration changes during the operation cause it to fail.
+
 ## Page purpose
 
 - Browse published remote terminal product plans with pricing.

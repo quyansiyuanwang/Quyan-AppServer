@@ -23,3 +23,22 @@ export function remoteTerminalSessionArn(accountOwnerId: string, userId: string,
     path: "session/" + userId + "/" + sessionId,
   });
 }
+
+function productResource(
+  accountOwnerId: string,
+  userId: string,
+  id: string,
+  type: "product-binding" | "product-entitlement",
+) {
+  if (!isRemoteTerminalId(userId) || !isRemoteTerminalId(id)) throw new Error("Invalid terminal product resource ID");
+  return buildAcsResource({
+    service: "remote-terminal",
+    region: "*",
+    accountId: accountOwnerId,
+    path: type + "/" + userId + "/" + id,
+  });
+}
+export const remoteTerminalProductBindingArn = (accountOwnerId: string, userId: string, id: string) =>
+  productResource(accountOwnerId, userId, id, "product-binding");
+export const remoteTerminalProductEntitlementArn = (accountOwnerId: string, userId: string, id: string) =>
+  productResource(accountOwnerId, userId, id, "product-entitlement");

@@ -1,3 +1,5 @@
+import { TerminalPersonalUnbindIamService } from "./terminal-personal-unbind-iam.service";
+import { TerminalPersonalUnbindRepository } from "@/store/remote-terminal-product/terminal-personal-unbind.repository";
 import { PlatformTerminalManagementMutationIamService } from "./platform-terminal-management-mutation-iam.service";
 import { PlatformTerminalManagementMutationRepository } from "@/store/remote-terminal-product/platform-terminal-management-mutation.repository";
 import { PlatformTerminalDeviceReadIamService } from "./platform-terminal-device-read-iam.service";
@@ -168,7 +170,22 @@ export class RemoteTerminalProductService {
   public async getCurrentUserDeviceUnbindReminder(
     userId: string,
     deviceBindingId: string,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalUnbindReminderDto> {
+    const native = await TerminalPersonalUnbindIamService.getInstance().prepare(
+      "GetMyUnbindReminder",
+      userId,
+      deviceBindingId,
+      request,
+    );
+    if (native) {
+      const result = await TerminalPersonalUnbindRepository.getInstance().run(native.target, native.guard, false);
+      return {
+        ...native.guard.config,
+        ...result,
+        remainingCount: Math.max(0, native.guard.config.maxCount - result.revokedCount),
+      };
+    }
     const existing = await this.productRepository.findDeviceBindingById(deviceBindingId);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Device binding not found", undefined, {
@@ -1861,7 +1878,13 @@ export class RemoteTerminalProductService {
   }
 
   public async revokeCurrentUserDevice(userId: string, id: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findDeviceBindingById(id);
+    const native = await TerminalPersonalUnbindIamService.getInstance().prepare(
+      "RevokeMyDeviceBinding",
+      userId,
+      id,
+      request,
+    );
+    const existing = native?.target ?? (await this.productRepository.findDeviceBindingById(id));
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Device binding not found", undefined, {
         messageKey: "remoteTerminalProduct.deviceBindingNotFound",
@@ -1871,12 +1894,11 @@ export class RemoteTerminalProductService {
         messageKey: "remoteTerminalProduct.cannotRevokeDevice",
       });
 
-    await this.assertDeviceUnbindAllowed(existing);
-
-    await this.productRepository.updateDeviceBinding(id, {
-      status: MANAGED_STATUS.DELETED,
-      online: false,
-    });
+    if (native) await TerminalPersonalUnbindRepository.getInstance().run(native.target, native.guard, true);
+    else {
+      await this.assertDeviceUnbindAllowed(existing as RemoteTerminalDeviceBindingWithRelations);
+      await this.productRepository.updateDeviceBinding(id, { status: MANAGED_STATUS.DELETED, online: false });
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_DEVICE_REVOKE,
@@ -1885,7 +1907,7 @@ export class RemoteTerminalProductService {
       targetUserId: existing.userId,
       targetResourceType: "REMOTE_TERMINAL_DEVICE_BINDING",
       targetResourceId: id,
-      description: `User revoked remote terminal device '${existing.hostname}'`,
+      description: `User revoked remote terminal device '${"label" in existing ? existing.label : existing.hostname}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });

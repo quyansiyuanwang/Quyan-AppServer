@@ -22,7 +22,6 @@ describe("self-service IAM action catalog", () => {
       "quyan:remote_terminal:RotateMyRegistrationToken",
       "quyan:remote_terminal:GetMyInstallToken",
       "quyan:remote_terminal:ListMyDevices",
-      "quyan:remote_terminal:GetMyUnbindReminder",
     ];
     for (const action of userActions)
       expect(getIamActionDefinition(action)).toMatchObject({

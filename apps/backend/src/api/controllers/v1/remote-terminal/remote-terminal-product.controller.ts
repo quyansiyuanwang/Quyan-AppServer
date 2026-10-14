@@ -1,3 +1,4 @@
+import { terminalPersonalUnbindResource } from "@/iam/request/terminal-personal-unbind-resource-resolver";
 import {
   platformTerminalRevokeBindingResource,
   platformTerminalDeleteEntitlementResource,
@@ -64,7 +65,7 @@ import {
   iamCollectionAuthorizationMiddleware,
 } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
+import { RequirePermission } from "@/util/permission/permission-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
@@ -480,14 +481,14 @@ export class RemoteTerminalProductController extends Controller {
     iamAuthenticatedAuthorizationMiddleware({
       action: "quyan:remote_terminal:GetMyUnbindReminder",
       resourceKind: "single-resource",
-      resource: iamAuthenticatedUserResourceResolver,
+      resource: terminalPersonalUnbindResource,
     }),
   )
   public async getCurrentUserDeviceUnbindReminder(
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<RemoteTerminalUnbindReminderDto> {
-    return this.remoteTerminalProductService.getCurrentUserDeviceUnbindReminder(request.user!.userId, id);
+    return this.remoteTerminalProductService.getCurrentUserDeviceUnbindReminder(request.user!.userId, id, request);
   }
 
   @Delete("devices/{id}")
@@ -513,11 +514,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Delete("me/devices/{id}")
   @Security("jwt")
-  @RequireAnyPermission([
-    Permission.REMOTE_TERMINAL_DEVICE_READ,
-    Permission.REMOTE_TERMINAL_SESSION_CREATE,
-    Permission.REMOTE_TERMINAL_SESSION_READ,
-  ])
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:RevokeMyDeviceBinding",
+      resourceKind: "single-resource",
+      resource: terminalPersonalUnbindResource,
+    }),
+  )
   @Middlewares(validateParams(remoteTerminalDeviceBindingIdParamsSchema))
   public async revokeCurrentUserDevice(
     @Path() id: string,
