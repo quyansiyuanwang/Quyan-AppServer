@@ -6,6 +6,8 @@ With IAM enforcement enabled, the management template list uses `quyan:remote_te
 
 Template selectors in entitlement filters and assignment dialogs use server-side search and pagination. With IAM enforcement enabled, `quyan:remote_terminal:ListTemplateOptions` controls each template ARN independently. It returns only the permitted name, publication state, and status, without granting access to prices or full template details. The selector total counts permitted options; missing grants or explicit Deny hide the corresponding options. Search, page changes, and failed refreshes clear old option data.
 
+With IAM enforcement enabled, template writes have separate `CreateTemplate`, `UpdateTemplate`, `PublishTemplate`, `UnpublishTemplate`, and `DeleteTemplate` actions in the `quyan:remote_terminal` service. Updating a template to deleted status also requires `DeleteTemplate`. Creation requires `CreateTemplate` on both `acs:platform:*:platform:remote-terminal-template-control` and the generated template ARN; a policy may use `acs:platform:*:platform:remote-terminal-template/*` for future templates. These grants still require the global management group ceiling. If authorization or the template changes before the operation finishes, the write is rejected and rolled back.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.

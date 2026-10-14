@@ -45,6 +45,10 @@ import {
   updateRemoteTerminalProductTemplateBodySchema,
   createRemoteTerminalProductTemplateBodySchema,
 } from "@/api/schema/remote-terminal/remote-terminal.schema";
+import {
+  platformTerminalTemplateCreateResource,
+  platformTerminalTemplateWriteResource,
+} from "@/iam/request/platform-terminal-template-write-resource-resolvers";
 import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
@@ -118,8 +122,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("templates")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:CreateTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateCreateResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -134,8 +144,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Put("templates/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:UpdateTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateWriteResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -152,8 +168,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("templates/{id}/publish")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:PublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateWriteResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -168,8 +190,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("templates/{id}/unpublish")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:UnpublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateWriteResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
@@ -184,8 +212,14 @@ export class RemoteTerminalProductController extends Controller {
 
   @Delete("templates/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_WRITE)
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:DeleteTemplate",
+      resourceKind: "single-resource",
+      resource: platformTerminalTemplateWriteResource,
+    }),
+  )
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,

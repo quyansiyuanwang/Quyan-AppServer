@@ -6,6 +6,8 @@
 
 权益筛选和分配对话框中的套餐选择器支持服务端搜索与分页。启用 IAM 强制模式后，`quyan:remote_terminal:ListTemplateOptions` 按套餐 ARN 分别控制可选范围，仅返回获准套餐的名称、发布状态和启用状态，不授予价格或完整套餐详情的读取权限。选项总数只计算获准套餐；未获得授权或命中显式 Deny 的套餐不会出现在选择器中。切换搜索、翻页或刷新失败时会清空旧选项。
 
+启用 IAM 强制模式后，套餐写操作分别使用 `quyan:remote_terminal` 服务下的 `CreateTemplate`、`UpdateTemplate`、`PublishTemplate`、`UnpublishTemplate` 和 `DeleteTemplate`。通过更新接口将套餐改为删除状态也需要 `DeleteTemplate`。创建操作需要同时获得对 `acs:platform:*:platform:remote-terminal-template-control` 和新生成套餐 ARN 的 `CreateTemplate` 授权；未来套餐可使用 `acs:platform:*:platform:remote-terminal-template/*` 匹配。这些授权仍受部署管理员配置的全局管理用户组范围限制。操作完成前若权限或套餐数据发生变化，写入会被拒绝并回滚。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

@@ -105,6 +105,35 @@ export const IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION = Object.freeze({
   ],
   route: 'GET /v1/remote-terminal/products/filter-options',
 })
+export const IAM_REMOTE_TERMINAL_TEMPLATE_WRITE_OPERATIONS = Object.freeze([
+  {
+    operation: 'CreateTemplate',
+    route: 'POST /v1/remote-terminal/products/templates',
+    create: true,
+  },
+  {
+    operation: 'UpdateTemplate',
+    route: 'PUT /v1/remote-terminal/products/templates/{id}',
+    create: false,
+  },
+  {
+    operation: 'PublishTemplate',
+    route: 'POST /v1/remote-terminal/products/templates/{id}/publish',
+    create: false,
+  },
+  {
+    operation: 'UnpublishTemplate',
+    route: 'POST /v1/remote-terminal/products/templates/{id}/unpublish',
+    create: false,
+  },
+  {
+    operation: 'DeleteTemplate',
+    route: 'DELETE /v1/remote-terminal/products/templates/{id}',
+    create: false,
+  },
+] as const)
+export type IamTerminalTemplateWriteOperation =
+  (typeof IAM_REMOTE_TERMINAL_TEMPLATE_WRITE_OPERATIONS)[number]['operation']
 export type IamPlatformTemplateKind = (typeof IAM_PLATFORM_TEMPLATE_DEFINITIONS)[number]['kind']
 
 export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = Object.freeze([
@@ -114,6 +143,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate:
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':' + definition.resourceType + '/{resourceId}',
   })),
+  {
+    ...resource('platform', 'remote-terminal-template-control', 0),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':remote-terminal-template-control',
+  },
   resource('quyan', 'account', 0),
   { ...resource('quyan', 'user'), authenticatedSelfScope: 'identity' },
   resource('quyan', 'group'),
@@ -581,6 +615,26 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermissions: [...IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION.legacyPermissions],
   },
+  ...IAM_REMOTE_TERMINAL_TEMPLATE_WRITE_OPERATIONS.map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:remote_terminal:' + definition.operation,
+      service: 'remote_terminal',
+      operation: definition.operation,
+      accessLevel: 'Write',
+      resourceTypes: definition.create
+        ? ['platform/remote-terminal-template-control', 'platform/remote-terminal-template']
+        : ['platform/remote-terminal-template'],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.REMOTE_TERMINAL_PRODUCT_WRITE,
+      ...(definition.operation === 'UpdateTemplate'
+        ? { conditionalActions: ['quyan:remote_terminal:DeleteTemplate'] }
+        : {}),
+    }),
+  ),
   ...ALL_PERMISSIONS.map(fromPermission),
   ...[
     {

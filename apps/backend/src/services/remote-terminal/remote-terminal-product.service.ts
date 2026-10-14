@@ -1,3 +1,5 @@
+import { PlatformTerminalTemplateWriteIamService } from "./platform-terminal-template-write-iam.service";
+import { PlatformTerminalTemplateWriteRepository } from "@/store/remote-terminal-product/platform-terminal-template-write.repository";
 import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { randomBytes } from "node:crypto";
@@ -826,6 +828,11 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "CreateTemplate",
+      actorUserId,
+      request,
+    );
     const name = body.name.trim();
     const existing = await this.productRepository.findTemplateByName(name);
     if (existing)
@@ -852,7 +859,7 @@ export class RemoteTerminalProductService {
 
     this.ensureAtLeastOneOfferedUnit(devicePrice, terminalPrice);
 
-    const created = await this.productRepository.createTemplate({
+    const data: Prisma.RemoteTerminalProductTemplateUncheckedCreateInput = {
       name,
       description: normalizeText(body.description) ?? null,
       billingUnit,
@@ -871,7 +878,10 @@ export class RemoteTerminalProductService {
       maxTerminalCount: body.maxTerminalCount ?? null,
       publishStatus: "draft",
       status: MANAGED_STATUS.ENABLED,
-    });
+    };
+    const created = authority
+      ? await PlatformTerminalTemplateWriteRepository.getInstance().create(data, authority.guard)
+      : await this.productRepository.createTemplate(data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_CREATE,
@@ -894,7 +904,14 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
-    const existing = await this.productRepository.findTemplateById(id);
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "UpdateTemplate",
+      actorUserId,
+      request,
+      id,
+      body.status === MANAGED_STATUS.DELETED,
+    );
+    const existing = authority ? authority.target!.record : await this.productRepository.findTemplateById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
@@ -980,7 +997,9 @@ export class RemoteTerminalProductService {
 
     this.ensureAtLeastOneOfferedUnit(nextDevicePrice, nextTerminalPrice);
 
-    const updated = await this.productRepository.updateTemplate(id, data);
+    const updated = authority
+      ? await PlatformTerminalTemplateWriteRepository.getInstance().mutate(authority.target!, data, authority.guard)
+      : await this.productRepository.updateTemplate(id, data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_UPDATE,
@@ -1002,7 +1021,13 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
-    const existing = await this.productRepository.findTemplateById(id);
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "PublishTemplate",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = authority ? authority.target!.record : await this.productRepository.findTemplateById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
@@ -1012,10 +1037,13 @@ export class RemoteTerminalProductService {
         messageKey: "remoteTerminalProduct.templateNotEnabledForPublish",
       });
 
-    const updated = await this.productRepository.updateTemplate(id, {
+    const data: Prisma.RemoteTerminalProductTemplateUncheckedUpdateInput = {
       publishStatus: "published",
       publishedAt: new Date(),
-    });
+    };
+    const updated = authority
+      ? await PlatformTerminalTemplateWriteRepository.getInstance().mutate(authority.target!, data, authority.guard)
+      : await this.productRepository.updateTemplate(id, data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_PUBLISH,
@@ -1036,16 +1064,25 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateDto> {
-    const existing = await this.productRepository.findTemplateById(id);
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "UnpublishTemplate",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = authority ? authority.target!.record : await this.productRepository.findTemplateById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
       });
 
-    const updated = await this.productRepository.updateTemplate(id, {
+    const data: Prisma.RemoteTerminalProductTemplateUncheckedUpdateInput = {
       publishStatus: "draft",
       publishedAt: null,
-    });
+    };
+    const updated = authority
+      ? await PlatformTerminalTemplateWriteRepository.getInstance().mutate(authority.target!, data, authority.guard)
+      : await this.productRepository.updateTemplate(id, data);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_UNPUBLISH,
@@ -1062,13 +1099,25 @@ export class RemoteTerminalProductService {
   }
 
   public async deleteTemplate(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findTemplateById(id);
+    const authority = await PlatformTerminalTemplateWriteIamService.getInstance().prepare(
+      "DeleteTemplate",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = authority ? authority.target!.record : await this.productRepository.findTemplateById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
       });
 
-    await this.productRepository.softDeleteTemplate(id);
+    if (authority)
+      await PlatformTerminalTemplateWriteRepository.getInstance().mutate(
+        authority.target!,
+        { status: MANAGED_STATUS.DELETED, publishStatus: "draft", publishedAt: null },
+        authority.guard,
+      );
+    else await this.productRepository.softDeleteTemplate(id);
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_PRODUCT_TEMPLATE_DELETE,
       operationCategory: OperationCategory.RELAY,

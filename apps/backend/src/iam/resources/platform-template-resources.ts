@@ -19,3 +19,12 @@ export function platformTemplateArn(kind: IamPlatformTemplateKind, id: string) {
     path: platformTemplateDefinition(kind).resourceType + "/" + id,
   });
 }
+
+export function platformTerminalTemplateControlArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "remote-terminal-template-control",
+  });
+}
