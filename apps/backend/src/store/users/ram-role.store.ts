@@ -48,7 +48,12 @@ export interface RamRoleStore {
   unbindRoleFromUser(roleId: string, userId: string): Promise<void>;
   bindRoleToGroup(accountOwnerId: string, roleId: string, groupId: string): Promise<void>;
   unbindRoleFromGroup(roleId: string, groupId: string): Promise<void>;
-  listRoleBindingsForUser(userId: string, groupId?: string | null): Promise<RamRoleBindingRecord[]>;
+  /** Explicit target namespace is available only for internal group projections with an empty user ID. */
+  listRoleBindingsForUser(
+    userId: string,
+    groupId?: string | null,
+    projection?: { groupAccountOwnerId: string },
+  ): Promise<RamRoleBindingRecord[]>;
   listRoleBindingsByRole(roleId: string): Promise<RamRoleWithBindings | null>;
   listRoleBindingPage(
     accountOwnerId: string,

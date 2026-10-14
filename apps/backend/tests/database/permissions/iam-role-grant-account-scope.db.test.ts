@@ -175,3 +175,80 @@ describe("persisted account isolation for role grants and legacy projections", (
     },
   );
 });
+
+describe("target-account managed group projections", () => {
+  it("includes only target-account roles from a global group", async () => {
+    const valid = await bindGroup();
+    const otherRole = await role(foreign);
+    await bindGroup(foreign, otherRole);
+    const attachment = await attach();
+    await attach(foreign, foreign, otherRole, [Permission.RAM_USER_DELETE]);
+    expect(await repository.listRoleBindingsForUser("", groupId)).toEqual([]);
+    expect(
+      (await repository.listRoleBindingsForUser("", groupId, { groupAccountOwnerId: owner })).map((r) => r.id),
+    ).toEqual([valid.id]);
+    await expect(iam.loadGroupPolicies(owner, groupId)).rejects.toMatchObject({ statusCode: 403 });
+    const projected = await iam.loadGroupPolicies(owner, groupId, { allowGlobalManaged: true });
+    expect(projected.map((p) => p.policyId)).toContain(attachment.policyId);
+    expect(projected.flatMap((p) => p.document.Statement).flatMap((s) => s.Action)).not.toContain(
+      "quyan:ram:DeleteUser",
+    );
+  });
+  it("retains global legacy group grants and scoped authorizations in the target namespace", async () => {
+    await prisma.group.update({ where: { id: groupId }, data: { permissions: [Permission.RAM_USER_UPDATE] } });
+    const policy = await prisma.ramPolicy.create({
+      data: {
+        accountOwnerId: owner,
+        name: "managed-group-policy-" + randomUUID(),
+        permissions: [Permission.RAM_USER_READ],
+      },
+    });
+    const authorization = await prisma.ramAuthorization.create({
+      data: {
+        accountOwnerId: owner,
+        principalType: "group",
+        principalId: groupId,
+        policyId: policy.id,
+        scopeType: "resource",
+        scopeArn: "acs:quyan:*:" + owner + ":user/" + target,
+        scopeKey: "resource:acs:quyan:*:" + owner + ":user/" + target,
+        createdBy: owner,
+      },
+    });
+    const grants = await iam.loadGroupPolicies(owner, groupId, { allowGlobalManaged: true });
+    expect(grants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ policyId: "legacy:group:" + groupId }),
+        expect.objectContaining({
+          policyId: policy.id,
+          authorizationId: authorization.id,
+          scope: { type: "resource", arn: authorization.scopeArn },
+        }),
+      ]),
+    );
+    expect(
+      grants.every((p) => p.document.Statement.every((s) => s.Resource.every((r) => r.split(":")[3] === owner))),
+    ).toBe(true);
+    expect(await iam.loadGroupPolicies(foreign, groupId, { allowGlobalManaged: true })).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ policyId: policy.id })]),
+    );
+  });
+  it("never allows projection options to replace a real user's account or group", async () => {
+    await bindGroup();
+    await attach();
+    expect(await repository.listRoleBindingsForUser(actor, groupId, { groupAccountOwnerId: foreign })).toEqual([]);
+    expect(await repository.listRoleBindingsForUser(actor, groupId, { groupAccountOwnerId: owner })).toEqual([]);
+    expect(await repository.listRoleBindingsForUser("", groupId, { groupAccountOwnerId: "owner:*" })).toEqual([]);
+  });
+  it("cannot project a private group into another account or through a case alias", async () => {
+    const privateGroup = await group(owner);
+    await bindGroup(owner, roleId, privateGroup);
+    expect(await repository.listRoleBindingsForUser("", privateGroup, { groupAccountOwnerId: foreign })).toEqual([]);
+    expect(
+      await repository.listRoleBindingsForUser("", privateGroup.toUpperCase(), { groupAccountOwnerId: owner }),
+    ).toEqual([]);
+    await expect(iam.loadGroupPolicies(foreign, privateGroup, { allowGlobalManaged: true })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+});

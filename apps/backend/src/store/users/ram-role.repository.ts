@@ -115,11 +115,17 @@ export class RamRoleRepository implements RamRoleStore {
     await prisma.ramGroupRoleBinding.deleteMany({ where: { roleId, groupId } });
   }
 
-  async listRoleBindingsForUser(userId: string, groupId?: string | null): Promise<RamRoleBindingRecord[]> {
+  async listRoleBindingsForUser(
+    userId: string,
+    groupId?: string | null,
+    projection?: { groupAccountOwnerId: string },
+  ): Promise<RamRoleBindingRecord[]> {
     // Derive scope from persisted identity, never from a caller-supplied group or binding.
     let accountOwnerId: string;
     let effectiveGroupId: string | undefined;
     if (userId) {
+      // A projection option must never override a real user's persisted identity.
+      if (projection) return [];
       const user = await prisma.user.findFirst({
         where: { id: userId, ...ACTIVE_WHERE },
         select: {
@@ -139,15 +145,23 @@ export class RamRoleRepository implements RamRoleStore {
       )
         effectiveGroupId = user.group.id;
     } else {
-      // Internal group-delegation projection has no user. Only an active account-owned group
-      // can supply its own scope; shared global groups have no single account to project.
+      // Global groups have no intrinsic namespace. Callers must resolve the real target account first.
+      // The default internal call still accepts only account-owned groups for RAM compatibility.
       if (userId !== "" || !groupId) return [];
+      const namespace = projection?.groupAccountOwnerId;
+      if (projection && (!namespace || !/^[A-Za-z0-9_-]{1,128}$/.test(namespace))) return [];
       const group = await prisma.group.findFirst({
-        where: { id: groupId, ...ACTIVE_WHERE, accountOwnerId: { not: null } },
+        where: { id: groupId, ...ACTIVE_WHERE, ...(projection ? {} : { accountOwnerId: { not: null } }) },
         select: { id: true, accountOwnerId: true },
       });
-      if (!group?.accountOwnerId) return [];
-      accountOwnerId = group.accountOwnerId;
+      if (
+        !group ||
+        group.id !== groupId ||
+        (group.accountOwnerId !== null && namespace && group.accountOwnerId !== namespace)
+      )
+        return [];
+      accountOwnerId = namespace ?? group.accountOwnerId!;
+      if (!accountOwnerId) return [];
       effectiveGroupId = group.id;
     }
     const [userBindings, groupBindings] = await Promise.all([

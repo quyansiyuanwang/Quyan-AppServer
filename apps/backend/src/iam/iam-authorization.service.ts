@@ -177,9 +177,20 @@ export class IamAuthorizationService {
     );
   }
   /** Candidate upper bound for membership delegation; actor grants come from subject-aware loadPolicies. */
-  async loadGroupPolicies(accountOwnerId: string, groupId: string): Promise<IamPolicyInput[]> {
+  async loadGroupPolicies(
+    accountOwnerId: string,
+    groupId: string,
+    options?: { allowGlobalManaged: boolean },
+  ): Promise<IamPolicyInput[]> {
     const group = await this.groups.findById(groupId);
-    if (!group || group.status !== 1 || group.accountOwnerId !== accountOwnerId) throw deny();
+    if (
+      !group ||
+      group.id !== groupId ||
+      group.status !== 1 ||
+      (group.accountOwnerId !== accountOwnerId &&
+        !(options?.allowGlobalManaged === true && group.accountOwnerId === null))
+    )
+      throw deny();
     const result = await this.loadAttachedPolicies(
       accountOwnerId,
       await this.policies.listPoliciesForTarget("group", groupId, accountOwnerId),
@@ -187,7 +198,11 @@ export class IamAuthorizationService {
     );
     const legacy = legacyPermissionsToPolicy(group.permissions, accountOwnerId);
     if (legacy) result.push({ policyId: "legacy:group:" + groupId, document: legacy });
-    const roleIds = new Set((await this.roles.listRoleBindingsForUser("", groupId)).map((binding) => binding.roleId));
+    const bindings =
+      group.accountOwnerId === null
+        ? await this.roles.listRoleBindingsForUser("", groupId, { groupAccountOwnerId: accountOwnerId })
+        : await this.roles.listRoleBindingsForUser("", groupId);
+    const roleIds = new Set(bindings.map((binding) => binding.roleId));
     for (const roleId of roleIds) result.push(...(await this.loadRolePolicies(accountOwnerId, roleId)));
     return result;
   }

@@ -77,6 +77,37 @@ describe("IAM identity policy loading", () => {
       { principalType: "role", principalId: "role" },
     ]);
   });
+  it("projects managed global groups only with explicit target-account opt-in", async () => {
+    groups.findById.mockResolvedValue({
+      id: "global",
+      accountOwnerId: null,
+      status: 1,
+      permissions: [Permission.RAM_USER_READ],
+    } as never);
+    await expect(service.loadGroupPolicies("owner", "global")).rejects.toMatchObject({ statusCode: 403 });
+    expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
+    policies.listPoliciesForTarget.mockImplementation(async (type) => [binding(type, "Allow")]);
+    roles.listRoleBindingsForUser.mockResolvedValue([{ roleId: "role" } as never]);
+    const result = await service.loadGroupPolicies("owner", "global", { allowGlobalManaged: true });
+    expect(result.map((p) => p.policyId)).toEqual(expect.arrayContaining(["group", "role", "legacy:group:global"]));
+    expect(roles.listRoleBindingsForUser).toHaveBeenCalledWith("", "global", { groupAccountOwnerId: "owner" });
+    expect(authorizations.listForPrincipals).toHaveBeenCalledWith("owner", [
+      { principalType: "group", principalId: "global" },
+    ]);
+  });
+  it("global projection opt-in cannot bypass foreign groups or identity aliases", async () => {
+    for (const group of [
+      { id: "global", accountOwnerId: "foreign", status: 1 },
+      { id: "Global", accountOwnerId: null, status: 1 },
+      { id: "global", accountOwnerId: null, status: 0 },
+    ]) {
+      groups.findById.mockResolvedValue(group as never);
+      await expect(service.loadGroupPolicies("owner", "global", { allowGlobalManaged: true })).rejects.toMatchObject({
+        statusCode: 403,
+      });
+    }
+    expect(policies.listPoliciesForTarget).not.toHaveBeenCalled();
+  });
   it("refuses foreign and disabled groups before loading their grants", async () => {
     for (const group of [
       { id: "group", accountOwnerId: "foreign", status: 1 },
