@@ -19,7 +19,6 @@ import { getRequestContext } from "@/util/request-context";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { requestConditionContext, principalConditionContext } from "@/iam/request/condition-context";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
-import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { PermissionService } from "@/services/users/permission.service";
 import { buildAcsResource, IAM_MANAGEMENT_PAGINATION, type IamPrincipal, type Permission } from "@quyan/shared";
 
@@ -115,7 +114,6 @@ export class GroupService {
       });
     const { page, pageSize } = pagination.data;
     const { principal, filters, context } = await this.iamManagementContext(options.actorUserId);
-    const policies = await IamAuthorizationService.getInstance().loadPolicies(principal);
     const candidates = await this.groupRepository.listActiveWithUserCountPaginated({
       ...filters,
       keyword: options.keyword,
@@ -123,22 +121,20 @@ export class GroupService {
       skip: (page - 1) * pageSize,
       take: pageSize + 1,
     });
-    const groups = candidates
-      .slice(0, pageSize)
-      .filter(
-        (group) =>
-          evaluatePolicies(policies, {
-            action: "quyan:group:Read",
-            context,
-            resource: buildAcsResource({
-              service: "quyan",
-              region: "*",
-              accountId: principal.accountOwnerId,
-              path: "group/" + group.id,
-            }),
-          }).decision === "Allow",
-      )
-      .map((group) => this.mapGroupToDto(group));
+    const visible = await IamAuthorizationService.getInstance().filterAuthorizedPage({
+      principal,
+      action: "quyan:group:Read",
+      context,
+      items: candidates.slice(0, pageSize),
+      resource: (group) =>
+        buildAcsResource({
+          service: "quyan",
+          region: "*",
+          accountId: principal.accountOwnerId,
+          path: "group/" + group.id,
+        }),
+    });
+    const groups = visible.map((group) => this.mapGroupToDto(group));
     return { groups, page, pageSize, hasMore: candidates.length > pageSize };
   }
 

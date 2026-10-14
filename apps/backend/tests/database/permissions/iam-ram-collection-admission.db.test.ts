@@ -139,6 +139,60 @@ describe("RAM collection resource admission", () => {
       ).rejects.toMatchObject({ statusCode: 403 });
     }
   });
+  it("admits only the specific group and applies scoped resource-group grants immediately", async () => {
+    const createGroup = () =>
+      prisma.group.create({
+        data: {
+          username: "collection-group-" + randomUUID(),
+          name: "Scoped group",
+          accountOwnerId: owner,
+          permissions: [],
+          level: 99,
+        },
+      });
+    const allowed = await createGroup(),
+      excluded = await createGroup();
+    await grant("Allow", "quyan:group:Read", arn("group", allowed.id));
+    const page = await run("quyan:group:Read", Permission.RAM_USER_READ, () => service.listVisibleGroupPage(actor));
+    expect(page.items.map((row) => row.id)).toEqual([allowed.id]);
+    expect(page).not.toHaveProperty("total");
+    expect(await run("quyan:group:Read", Permission.RAM_USER_READ, () => service.listVisibleGroups(actor))).toEqual(
+      page.items,
+    );
+    const scopedPolicy = await service.createPolicy(owner, {
+      name: "scoped-group-list-" + randomUUID(),
+      document: { Version: "1", Statement: { Effect: "Allow", Action: "quyan:group:Read", Resource: "*" } },
+    });
+    const resourceGroup = await service.createResourceGroup(owner, { name: "collection-scope-" + randomUUID() });
+    await service.addResourceGroupMember(owner, resourceGroup.id, {
+      resourceArn: arn("group", excluded.id),
+    });
+    await service.createAuthorization(owner, {
+      principalType: "user",
+      principalId: actor,
+      policyId: scopedPolicy.id,
+      scopeType: "resource-group",
+      scopeResourceId: resourceGroup.id,
+    });
+    expect(
+      (await run("quyan:group:Read", Permission.RAM_USER_READ, () => service.listVisibleGroupPage(actor))).items.map(
+        (row) => row.id,
+      ),
+    ).toEqual(expect.arrayContaining([allowed.id, excluded.id]));
+    const member = await prisma.ramResourceGroupMember.findFirstOrThrow({
+      where: { resourceGroupId: resourceGroup.id, resourceArn: arn("group", excluded.id) },
+    });
+    await service.removeResourceGroupMember(owner, resourceGroup.id, member.id);
+    expect(
+      (await run("quyan:group:Read", Permission.RAM_USER_READ, () => service.listVisibleGroupPage(actor))).items.map(
+        (row) => row.id,
+      ),
+    ).toEqual([allowed.id]);
+    await grant("Deny", "quyan:group:Read", arn("group", allowed.id));
+    expect(
+      (await run("quyan:group:Read", Permission.RAM_USER_READ, () => service.listVisibleGroupPage(actor))).items,
+    ).toEqual([]);
+  });
   it("fails closed when the active role session cannot be resolved", async () => {
     await grant("Allow", "quyan:ram:ReadUser", arn("user", actor));
     const req = request();

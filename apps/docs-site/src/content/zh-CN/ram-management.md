@@ -4,7 +4,7 @@ RAM 是授权与访问控制中心，用于创建子用户、定义角色、编�
 
 远程终端产品权益、设备绑定和注册令牌元数据可使用数据库资源 ID 加入资源组。禁用或过期的产品元数据仍可管理，已删除资源及已删除父权益不会被纳入。`published-template` 成员表示 ARN 中用户可见的已发布套餐，套餐必须已启用、已发布；它不授予平台模板管理权限。系统通过资源归属与父子关系检查成员，不读取凭据值；移除成员后，范围授权在下一次请求时重新生效。
 
-RAM 用户、角色、策略和角色会话列表逐项检查返回资源的 IAM 权限。获得指定资源的授权后即可看到该资源，无需额外的账号级 Allow。授权关系与资源组列表也按各自的列表 Action 过滤；候选页为空时，hasNext 仍可能为 true。在 legacy 和 shadow 模式下，用户、角色、策略和会话列表仍强制执行原有权限检查；原生授权关系与资源组 API 在所有模式下都执行 IAM 检查。
+RAM 用户、用户组、角色、策略和角色会话列表逐项检查返回资源的 IAM 权限。获得指定资源的授权后即可看到该资源，无需额外的账号级 Allow。授权关系与资源组列表也按各自的列表 Action 过滤；候选页为空时，hasNext 仍可能为 true。在 legacy 和 shadow 模式下，用户、角色、策略和会话列表仍强制执行原有权限检查；原生授权关系与资源组 API 在所有模式下都执行 IAM 检查。
 
 ## 功能概览
 
@@ -180,7 +180,7 @@ IAM 文档的创建、更新、默认版本切换和绑定要求拥有相应操�
 | 添加成员   | `POST /v1/ram/resource-groups/{groupId}/members`              | `quyan:ram:AddResourceGroupMember`    |
 | 移除成员   | `DELETE /v1/ram/resource-groups/{groupId}/members/{memberId}` | `quyan:ram:RemoveResourceGroupMember` |
 
-这些操作使用独立的 IAM 权限，旧用户组管理或策略绑定权限不会自动获得新能力。写操作需要重放保护和二次认证。列表支持 `page`、`pageSize`，默认每页 50 条，最大 100 条；先在账户内分页，再逐条过滤 IAM 拒绝的记录，因此返回条数可能少于页大小，不提供未过滤总数。查询集合需要账号范围的列表权限，查看每条记录还需要对应 authorization 或 resource-group ARN 的列表权限。
+这些操作使用独立的 IAM 权限，旧用户组管理或策略绑定权限不会自动获得新能力。写操作需要重放保护和二次认证。列表支持 `page`、`pageSize`，默认每页 50 条，最大 100 条；先在账户内分页，再逐条过滤 IAM 拒绝的记录，因此返回条数可能少于页大小，不提供未过滤总数。每条记录需要对应 authorization 或 resource-group ARN 的列表权限；仅授予指定记录即可，无需额外的账号级列表 Allow。
 
 创建授权提交以下字段：
 
@@ -259,9 +259,9 @@ API `POST /v1/ram/policies/ai/draft` 需要 JWT 和重放保护。提交 instruc
 
 管理客户端可使用 `GET /v1/ram/authorizations/page` 与 `GET /v1/ram/resource-groups/page` 获得 items、page、pageSize、hasNext；资源组摘要不会附带全部成员。通过 `GET /v1/ram/resource-groups/{groupId}/members` 单独分页读取成员，需要该具体资源组的列表权限。每页默认 50 条、最多 100 条；授权和资源组候选页先限制账户，再过滤资源权限，因此空页仍可能 hasNext 为 true，应允许继续下一页。hasNext 表示还有候选页，不是授权记录总数。旧列表 API 保持兼容，新管理界面应使用分页接口。
 
-角色与策略列表同样使用服务端候选分页：`GET /v1/ram/roles/page` 与 `GET /v1/ram/policies/page` 返回 items、page、pageSize、hasNext。enforce 模式下，账户列表权限用于打开列表，每个具体角色/策略还需要独立的读取权限；具体 Deny 会隐藏相应记录及其策略内容。列表搜索只筛选当前页。角色绑定页面及策略附加表单中的角色选项可以翻页，换页会清除失效的选择；增删改后刷新当前页。旧数组接口在 enforce 模式仅返回已过滤的默认首页，需遍历全部可见记录的客户端应改用分页接口。
+角色与策略列表同样使用服务端候选分页：`GET /v1/ram/roles/page` 与 `GET /v1/ram/policies/page` 返回 items、page、pageSize、hasNext。enforce 模式下，每个具体角色/策略需要独立的读取权限，无需额外的账号级 Allow；具体 Deny 会隐藏相应记录及其策略内容。列表搜索只筛选当前页。角色绑定页面及策略附加表单中的角色选项可以翻页，换页会清除失效的选择；增删改后刷新当前页。旧数组接口在 enforce 模式仅返回已过滤的默认首页，需遍历全部可见记录的客户端应改用分页接口。
 
-创建 RAM 用户、绑定角色和附加策略的用户组选项改用 `GET /v1/ram/groups/page`，支持 page、pageSize 和 keyword，并返回 items 与 hasNext。enforce 模式下，该列表需要账户目标上的 `quyan:group:Read`，每个选项还需要对应 group ARN 的读取权限；用户读取权限不能替代组读取权限。列表先按账户和历史组等级限制候选，再执行 IAM 过滤，组人数只统计本账户用户。仅真实主账户的恢复身份可看到其无账户归属的恢复组；子用户、AccessKey 和角色会话不继承该例外。三个表单都有用户组翻页控件，换页或加载失败后会清除旧的组目标。legacy/shadow 保留历史 RAM 用户读取入口和组可见规则，分页不会改变这些模式的历史授权。
+创建 RAM 用户、绑定角色和附加策略的用户组选项改用 `GET /v1/ram/groups/page`，支持 page、pageSize 和 keyword，并返回 items 与 hasNext。enforce 模式下，每个选项需要对应 group ARN 上的 `quyan:group:Read`，无需额外的账号级 Allow；用户读取权限不能替代组读取权限。列表先按账户和历史组等级限制候选，再执行 IAM 过滤，组人数只统计本账户用户。仅真实主账户的恢复身份可看到其无账户归属的恢复组；子用户、AccessKey 和角色会话不继承该例外。三个表单都有用户组翻页控件，换页或加载失败后会清除旧的组目标。资源组范围授权和 Deny 逐项生效，成员变化影响下一次读取；用户组管理列表使用同一资源过滤。legacy/shadow 保留历史 RAM 用户读取入口和组可见规则，分页不会改变这些模式的历史授权。
 
 RAM 用户与角色会话列表使用 `GET /v1/ram/users/page` 和 `GET /v1/ram/sessions/page`，会话接口还可按 principalUserId 筛选。enforce 模式分别检查具体 user 与 role-session ARN 的读取权限；账户列表 Allow 不会自动变成每条记录的 Allow。用户候选先限定主账户，明确声明外账户归属的记录不会通过历史 parentUserId 回退进入当前账户；会话只返回未撤销、未过期、有效且关联主体与角色归属一致的记录。用户列表搜索仅筛选当前页，角色绑定、策略附加与有效权限查询的用户选项均可翻页；换页后清除原选择及权限解释。旧数组接口在 enforce 模式返回已过滤的默认首页，legacy/shadow 保留历史数组结果。
 

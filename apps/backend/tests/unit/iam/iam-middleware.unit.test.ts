@@ -558,7 +558,7 @@ describe("IAM middleware and rollout bridge", () => {
     const project = new Project({ skipAddingFilesFromTsConfig: true });
     project.addSourceFileAtPath("src/api/controllers/v1/users/ram.controller.ts");
     const routes = collectIamRoutes(project.getSourceFiles(), process.cwd());
-    for (const entity of ["users", "roles", "policies", "sessions", "authorizations", "resource-groups"])
+    for (const entity of ["users", "groups", "roles", "policies", "sessions", "authorizations", "resource-groups"])
       for (const suffix of ["", "/page"])
         expect(routes.find((route) => route.key === "GET /v1/ram/" + entity + suffix)).toMatchObject({
           coverage: "explicit",

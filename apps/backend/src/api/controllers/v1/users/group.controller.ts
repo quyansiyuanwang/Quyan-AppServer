@@ -1,3 +1,4 @@
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import {
   Body,
   Get,
@@ -59,11 +60,14 @@ export class GroupController extends Controller {
 
   @Get("")
   @Security("jwt")
-  @CheckPermission(Permission.GROUP_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:group:Read",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:group:Read",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.GROUP_READ],
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateQuery(groupListQuerySchema))
   public async getAllGroups(
