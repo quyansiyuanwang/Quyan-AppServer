@@ -50,6 +50,14 @@ Use this page to review, process, and respond to user-submitted tickets such as 
 | Delete ticket                       | `TICKET_REVIEW_UPDATE` |
 | Manage assignment rules             | `TICKET_REVIEW_UPDATE` |
 
+## Resource permissions for assignment rules
+
+In IAM enforcement mode, reading and updating assignment rules use `quyan:ticket:GetAssignmentRules` and `quyan:ticket:UpdateAssignmentRules`. Both use `acs:platform:*:platform:config-item/notification.ticketAssignmentRules`, the same resource identity as the general configuration API. A Deny with `Action: "*"` can therefore restrict both entry points. The authenticated subject must also belong to an active deployment-managed global group with `TICKET_REVIEW_UPDATE`; personal permissions, a private group, or account-owner identity cannot replace that eligibility.
+
+Read access does not grant updates, and update access does not grant reads. Reading an unconfigured resource returns empty rules without creating configuration; the first authorized save can create it. Writes retain replay protection. Changes to configuration content, eligibility, authorization, or role sessions during a request cause rejection. Malformed stored rules are not reported as valid empty configuration.
+
+A save can contain at most 100 rules and each rule at most 50 assignee IDs. Duplicate assignee IDs are removed. Each rule needs at least one ticket type or priority condition. Automatic assignment still selects only active reviewers with review permission; editing rules does not grant new review permissions to assignees.
+
 ## Notes
 
 - Users can only see their own tickets and public status updates; they cannot see internal reviewer notes.

@@ -1,3 +1,6 @@
+import { PlatformTicketAssignmentIamService } from "@/services/ticket/platform-ticket-assignment-iam.service";
+import { platformTicketAssignmentArn } from "@/iam/resources/platform-ticket-assignment-resources";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import {
   Body,
   Controller,
@@ -184,22 +187,34 @@ export class TicketController extends Controller {
 
   @Get("review/assignment-rules")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:ticket:GetAssignmentRules",
+      resourceKind: "single-resource",
+      resource: platformTicketAssignmentArn,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
-  public async getReviewAssignmentRules(): Promise<TicketReviewAssignmentConfigDto> {
-    return this.service.getAssignmentConfig();
+  public async getReviewAssignmentRules(@Request() request: TypedRequest): Promise<TicketReviewAssignmentConfigDto> {
+    return PlatformTicketAssignmentIamService.getInstance().read(request);
   }
 
   @Put("review/assignment-rules")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:ticket:UpdateAssignmentRules",
+      resourceKind: "single-resource",
+      resource: platformTicketAssignmentArn,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(replayProtectionMiddleware, validateBody(setTicketAssignmentConfigBodySchema))
   public async setReviewAssignmentRules(
     @Body() body: SetTicketReviewAssignmentConfigDto,
     @Request() request: TypedRequest,
   ): Promise<TicketReviewAssignmentConfigDto> {
-    return this.service.updateAssignmentConfig(body, request.user!.userId, request);
+    return PlatformTicketAssignmentIamService.getInstance().update(body, request);
   }
 
   @Get("review/{id}")

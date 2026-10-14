@@ -1823,6 +1823,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       authorizationBoundary: 'platform',
     }),
   ),
+  ...[
+    { operation: 'GetAssignmentRules', accessLevel: 'Read' as const },
+    { operation: 'UpdateAssignmentRules', accessLevel: 'Write' as const },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:ticket:' + definition.operation,
+      service: 'ticket',
+      resourceTypes: ['platform/config-item'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.TICKET_REVIEW_UPDATE,
+    }),
+  ),
   {
     action: 'quyan:redemption_code:ListCodes',
     service: 'redemption_code',

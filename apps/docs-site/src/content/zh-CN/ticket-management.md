@@ -50,6 +50,14 @@
 | 删除工单                 | `TICKET_REVIEW_UPDATE` |
 | 管理分配规则             | `TICKET_REVIEW_UPDATE` |
 
+## 分配规则的资源权限
+
+IAM 强制模式下，读取与更新分配规则分别使用 `quyan:ticket:GetAssignmentRules` 和 `quyan:ticket:UpdateAssignmentRules`，资源统一为 `acs:platform:*:platform:config-item/notification.ticketAssignmentRules`。这个 ARN 与通用配置接口使用同一资源身份，因此可以用 `Action: "*"` 的 Deny 同时限制两个入口。认证主体还必须属于有效部署管理全局组，且该组具有 `TICKET_REVIEW_UPDATE`；个人附加权限、私有组或账号所有者身份不能替代该资格。
+
+读取权限不会授予更新权限，更新权限也不会授予读取权限。尚未配置时读取返回空规则，不创建配置；首次获准保存可以创建配置。写入保留重放保护。请求期间配置内容、资格、授权或角色会话发生变化时会被拒绝；未能解析的已保存规则不会作为有效空配置返回。
+
+每次保存最多 100 条规则，每条规则最多 50 个处理人 ID，处理人 ID 去重后保存。规则需要至少一种工单类型或优先级条件。自动分配仍只会选取有效且具有审核权限的处理人；编辑规则不授予处理人新的审核权限。
+
 ## 说明
 
 - 用户只能看到自己的工单及公开状态更新，无法查看内部审核备注。
