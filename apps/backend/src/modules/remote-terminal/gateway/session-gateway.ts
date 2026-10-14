@@ -49,6 +49,13 @@ const REMOTE_TERMINAL_SESSION_REDIS_SCAN_LIMIT = 500;
 const REMOTE_TERMINAL_DIRECTORY_BROWSE_TIMEOUT_MS = 10_000;
 const REMOTE_TERMINAL_PREFERENCES_TIMEOUT_MS = 10_000;
 const REMOTE_TERMINAL_AGENT_PROBE_TIMEOUT_MS = 5_000;
+const NATIVE_TERMINAL_PROBE_PREFIX = "quyan:iam-probe:";
+function isNativeTerminalProbePong(payload: unknown): boolean {
+  return (
+    Buffer.isBuffer(payload) &&
+    payload.subarray(0, NATIVE_TERMINAL_PROBE_PREFIX.length).toString() === NATIVE_TERMINAL_PROBE_PREFIX
+  );
+}
 
 interface PendingDirectoryBrowseRequest {
   deviceId: string;
@@ -250,12 +257,18 @@ export class RemoteTerminalSessionGateway {
     ownerUserId: string,
     deviceId: string,
     preferences: RemoteTerminalAgentPreferencesData,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalAgentPreferencesData> {
-    const response = await this.requestAgentPreferences(ownerUserId, deviceId, {
-      type: "preferences-set",
-      requestId: randomUUID(),
-      preferences,
-    });
+    const response = await this.requestAgentPreferences(
+      ownerUserId,
+      deviceId,
+      {
+        type: "preferences-set",
+        requestId: randomUUID(),
+        preferences,
+      },
+      authorize,
+    );
 
     return response.preferences;
   }
@@ -267,7 +280,9 @@ export class RemoteTerminalSessionGateway {
     this.agentSockets.set(deviceId, socket);
     void this.deviceRegistry.markOnline(deviceId, true);
 
-    socket.on("pong", () => {
+    socket.on("pong", (payload: Buffer) => {
+      // Native probes commit through the guarded repository; ordinary agent heartbeat behavior is unchanged.
+      if (isNativeTerminalProbePong(payload)) return;
       void this.deviceRegistry.updateDeviceStatus(deviceId, {
         online: true,
         lastSeenAt: new Date(),
@@ -489,31 +504,23 @@ export class RemoteTerminalSessionGateway {
     });
   }
 
-  private async probeSingleDevice(
-    deviceId: string,
-  ): Promise<{ deviceId: string; online: boolean; lastSeenAt: string }> {
+  /** Native probing only performs transport I/O; guarded persistence belongs to the repository. */
+  public async probeAuthorizedDevice(deviceId: string, authorize: () => Promise<void>): Promise<Date | null> {
+    return this.probeAgentSocket(deviceId, authorize);
+  }
+  private async probeAgentSocket(deviceId: string, authorize?: () => Promise<void>): Promise<Date | null> {
     const agentSocket = this.agentSockets.get(deviceId);
-
-    if (!agentSocket || agentSocket.readyState !== WebSocket.OPEN) {
-      await this.deviceRegistry.updateDeviceStatus(deviceId, {
-        online: false,
-      });
-      const device = await this.deviceRegistry.getDevice(deviceId);
-      return {
-        deviceId,
-        online: false,
-        lastSeenAt: device.lastSeenAt,
-      };
-    }
-
-    const pongAt = await new Promise<Date | null>((resolve) => {
+    await authorize?.();
+    if (!agentSocket || agentSocket.readyState !== WebSocket.OPEN) return null;
+    const payload = authorize ? Buffer.from(NATIVE_TERMINAL_PROBE_PREFIX + randomUUID()) : undefined;
+    return await new Promise<Date | null>((resolve) => {
       let settled = false;
       const cleanup = () => {
         clearTimeout(timer);
         agentSocket.off("pong", handlePong);
       };
-      const handlePong = () => {
-        if (settled) return;
+      const handlePong = (received?: Buffer) => {
+        if (settled || (payload && (!Buffer.isBuffer(received) || !received.equals(payload)))) return;
         settled = true;
         cleanup();
         resolve(new Date());
@@ -528,7 +535,8 @@ export class RemoteTerminalSessionGateway {
       agentSocket.on("pong", handlePong);
 
       try {
-        agentSocket.ping();
+        if (payload) agentSocket.ping(payload);
+        else agentSocket.ping();
       } catch {
         if (!settled) {
           settled = true;
@@ -537,29 +545,17 @@ export class RemoteTerminalSessionGateway {
         }
       }
     });
-
-    if (!pongAt) {
-      await this.deviceRegistry.updateDeviceStatus(deviceId, {
-        online: false,
-      });
-      const device = await this.deviceRegistry.getDevice(deviceId);
-      return {
-        deviceId,
-        online: false,
-        lastSeenAt: device.lastSeenAt,
-      };
-    }
-
-    await this.deviceRegistry.updateDeviceStatus(deviceId, {
-      online: true,
-      lastSeenAt: pongAt,
-    });
-    const device = await this.deviceRegistry.getDevice(deviceId);
-    return {
+  }
+  private async probeSingleDevice(
+    deviceId: string,
+  ): Promise<{ deviceId: string; online: boolean; lastSeenAt: string }> {
+    const pongAt = await this.probeAgentSocket(deviceId);
+    await this.deviceRegistry.updateDeviceStatus(
       deviceId,
-      online: true,
-      lastSeenAt: device.lastSeenAt,
-    };
+      pongAt ? { online: true, lastSeenAt: pongAt } : { online: false },
+    );
+    const device = await this.deviceRegistry.getDevice(deviceId);
+    return { deviceId, online: Boolean(pongAt), lastSeenAt: device.lastSeenAt };
   }
 
   private resolvePendingPreferencesRequest(deviceId: string, payload: RemoteTerminalPreferencesResultMessage): void {

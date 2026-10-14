@@ -53,9 +53,9 @@ The main area is a multi-tab terminal. Each tab maps to one device session and s
 
 - `my-monthly-passes`
 
-## Device-scoped read authorization
+## Device-scoped authorization
 
-When IAM enforcement is enabled, device listing, directory browsing, and preference reads use separate Actions:
+When IAM enforcement is enabled, device listing, probing, directory browsing, and preference operations use separate Actions:
 
 | Operation          | Action                                      | Resource                             |
 | ------------------ | ------------------------------------------- | ------------------------------------ |
@@ -87,3 +87,7 @@ The policy below permits listing one device and reading its directories and pref
 An explicit Deny overrides Allow. Devices without a matching Allow do not appear in the list. Denied directory or preference reads return a permission error without exposing device availability or policy details. Results are also withheld if access is revoked or the device entitlement becomes inactive during the read.
 
 Deployments using compatibility authorization retain the previous permission behavior. Shadow comparison records IAM results without sending duplicate requests to the device.
+
+Device probing sends requests only to permitted devices and updates their online status. Devices without a matching Allow are neither probed nor updated by that operation. If ownership, entitlement, or authorization changes during a probe, the affected status write is rejected.
+
+Preference updates require a separate write Action. The server checks access again before sending the update. Revoking access after a request has reached the device does not undo a change the device has already applied. Review the target device and settings before saving.

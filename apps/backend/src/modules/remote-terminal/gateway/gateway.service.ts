@@ -46,6 +46,10 @@ export class RemoteTerminalGatewayService {
     return this.sessionGateway.probeDevices(userId);
   }
 
+  public async probeAuthorizedDevice(deviceId: string, authorize: () => Promise<void>): Promise<Date | null> {
+    return this.sessionGateway.probeAuthorizedDevice(deviceId, authorize);
+  }
+
   public async listSessions(userId: string): Promise<RemoteTerminalSessionSummary[]> {
     return this.sessionGateway.listSessions(userId);
   }
@@ -83,8 +87,9 @@ export class RemoteTerminalGatewayService {
     userId: string,
     deviceId: string,
     preferences: RemoteTerminalAgentPreferencesData,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalAgentPreferencesData> {
-    return this.sessionGateway.updateAgentPreferences(userId, deviceId, preferences);
+    return this.sessionGateway.updateAgentPreferences(userId, deviceId, preferences, authorize);
   }
 
   public getDeviceRegistry(): RemoteTerminalDeviceRegistry {

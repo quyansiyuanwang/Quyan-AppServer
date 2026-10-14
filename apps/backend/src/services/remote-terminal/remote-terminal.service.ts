@@ -11,7 +11,7 @@ import type {
 } from "@/api/dto/remote-terminal/remote-terminal.dto";
 import { BadRequestError, ForbiddenError } from "@/util/errors";
 import type { TypedRequest } from "@/types/express";
-import { RemoteTerminalDeviceReadIamService } from "./remote-terminal-device-read-iam.service";
+import { RemoteTerminalDeviceIamService } from "./remote-terminal-device-iam.service";
 import { RemoteTerminalGatewayService } from "@/modules/remote-terminal/gateway/gateway.service";
 import { RemoteTerminalProductService } from "./remote-terminal-product.service";
 
@@ -28,14 +28,22 @@ export class RemoteTerminalService {
 
   public async listDevicesForUser(userId: string, request?: TypedRequest): Promise<RemoteTerminalDeviceListDto> {
     return {
-      items: await RemoteTerminalDeviceReadIamService.getInstance().list(userId, request, () =>
+      items: await RemoteTerminalDeviceIamService.getInstance().list(userId, request, () =>
         this.gatewayService.listDevices(userId),
       ),
     };
   }
 
-  public async probeDevicesForUser(userId: string): Promise<RemoteTerminalDeviceProbeResponseDto> {
-    return this.gatewayService.probeDevices(userId);
+  public async probeDevicesForUser(
+    userId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalDeviceProbeResponseDto> {
+    return RemoteTerminalDeviceIamService.getInstance().probe(
+      userId,
+      request,
+      () => this.gatewayService.probeDevices(userId),
+      (deviceId, guard) => this.gatewayService.probeAuthorizedDevice(deviceId, guard),
+    );
   }
 
   public async listSessionsForUser(userId: string): Promise<RemoteTerminalSessionListDto> {
@@ -74,7 +82,7 @@ export class RemoteTerminalService {
     targetPath?: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalDirectoryBrowseDto> {
-    return RemoteTerminalDeviceReadIamService.getInstance().readDevice(
+    return RemoteTerminalDeviceIamService.getInstance().withDevice(
       userId,
       deviceId,
       "quyan:remote_terminal:BrowseDirectories",
@@ -108,7 +116,7 @@ export class RemoteTerminalService {
     deviceId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalAgentPreferencesDto> {
-    return RemoteTerminalDeviceReadIamService.getInstance().readDevice(
+    return RemoteTerminalDeviceIamService.getInstance().withDevice(
       userId,
       deviceId,
       "quyan:remote_terminal:GetAgentPreferences",
@@ -141,28 +149,41 @@ export class RemoteTerminalService {
   public async updateAgentPreferencesForUser(
     userId: string,
     body: UpdateRemoteTerminalAgentPreferencesRequest,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalAgentPreferencesDto> {
-    try {
-      const preferences = await this.gatewayService.updateAgentPreferences(userId, body.deviceId, {
-        defaultWorkingDirectory: body.defaultWorkingDirectory?.trim() || undefined,
-        shortcuts: body.shortcuts,
-        quickCommands: body.quickCommands,
-      });
-      return {
-        deviceId: body.deviceId,
-        defaultWorkingDirectory: preferences.defaultWorkingDirectory || undefined,
-        shortcuts: preferences.shortcuts,
-        quickCommands: preferences.quickCommands,
-      };
-    } catch (error) {
-      throw new BadRequestError(
-        error instanceof Error ? error.message : "Failed to save remote terminal preferences",
-        undefined,
-        {
-          messageKey: "remoteTerminal.preferencesSaveFailed",
-        },
-      );
-    }
+    return RemoteTerminalDeviceIamService.getInstance().withDevice(
+      userId,
+      body.deviceId,
+      "quyan:remote_terminal:UpdateAgentPreferences",
+      request,
+      async (guard) => {
+        try {
+          const input = {
+            defaultWorkingDirectory: body.defaultWorkingDirectory?.trim() || undefined,
+            shortcuts: body.shortcuts,
+            quickCommands: body.quickCommands,
+          };
+          const preferences = guard
+            ? await this.gatewayService.updateAgentPreferences(userId, body.deviceId, input, guard)
+            : await this.gatewayService.updateAgentPreferences(userId, body.deviceId, input);
+          return {
+            deviceId: body.deviceId,
+            defaultWorkingDirectory: preferences.defaultWorkingDirectory || undefined,
+            shortcuts: preferences.shortcuts,
+            quickCommands: preferences.quickCommands,
+          };
+        } catch (error) {
+          if (error instanceof ForbiddenError) throw error;
+          throw new BadRequestError(
+            error instanceof Error ? error.message : "Failed to save remote terminal preferences",
+            undefined,
+            {
+              messageKey: "remoteTerminal.preferencesSaveFailed",
+            },
+          );
+        }
+      },
+    );
   }
 
   public async createSession(

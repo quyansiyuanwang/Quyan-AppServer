@@ -4,7 +4,7 @@ import { Permission } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { env } from "@/config/env";
 import { RemoteTerminalDeviceReadRepository } from "@/store/remote-terminal-product/remote-terminal-device-read.repository";
-import { RemoteTerminalDeviceReadIamService } from "@/services/remote-terminal/remote-terminal-device-read-iam.service";
+import { RemoteTerminalDeviceIamService } from "@/services/remote-terminal/remote-terminal-device-iam.service";
 import { remoteTerminalDeviceArn } from "@/iam/resources/remote-terminal-resources";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
@@ -14,7 +14,7 @@ import type { TypedRequest } from "@/types/express";
 let owner: string, actor: string, other: string, foreign: string;
 const mode = env.security.iamAuthorizationMode,
   repository = RemoteTerminalDeviceReadRepository.getInstance(),
-  service = RemoteTerminalDeviceReadIamService.getInstance(),
+  service = RemoteTerminalDeviceIamService.getInstance(),
   groups = RamResourceGroupRepository.getInstance();
 const user = async (accountOwnerId?: string) =>
   (
@@ -295,7 +295,7 @@ describe("terminal device policy integration", () => {
       binding = await allow(row.deviceId, "quyan:remote_terminal:BrowseDirectories");
     let calls = 0;
     await expect(
-      service.readDevice(actor, row.deviceId, "quyan:remote_terminal:BrowseDirectories", request(), async (guard) => {
+      service.withDevice(actor, row.deviceId, "quyan:remote_terminal:BrowseDirectories", request(), async (guard) => {
         await guard?.();
         calls++;
         await prisma.ramAuthorization.update({ where: { id: binding.id }, data: { status: -1 } });
@@ -308,7 +308,7 @@ describe("terminal device policy integration", () => {
     const row = await device(),
       read = vi.fn();
     await expect(
-      service.readDevice(actor, row.deviceId, "quyan:remote_terminal:GetAgentPreferences", request(), read),
+      service.withDevice(actor, row.deviceId, "quyan:remote_terminal:GetAgentPreferences", request(), read),
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(read).not.toHaveBeenCalled();
   });
@@ -316,7 +316,7 @@ describe("terminal device policy integration", () => {
     const row = await device();
     await allow(row.deviceId, "quyan:remote_terminal:GetAgentPreferences");
     await expect(
-      service.readDevice(actor, row.deviceId, "quyan:remote_terminal:GetAgentPreferences", request(), async (guard) => {
+      service.withDevice(actor, row.deviceId, "quyan:remote_terminal:GetAgentPreferences", request(), async (guard) => {
         await prisma.remoteTerminalUserEntitlement.update({
           where: { id: row.entitlementId },
           data: { endAt: new Date(Date.now() - 60_000) },

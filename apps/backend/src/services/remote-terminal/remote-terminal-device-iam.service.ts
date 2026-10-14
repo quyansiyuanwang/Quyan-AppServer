@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import { Permission, type IamPrincipal } from "@quyan/shared";
+import { Permission, iamLegacyPermissionsForAction, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -22,10 +22,18 @@ import type { RemoteTerminalDeviceSummary } from "@/modules/remote-terminal/prot
 import type { TypedRequest } from "@/types/express";
 import { getLogger, LogCategory } from "@/util/logger";
 
-export type TerminalDeviceReadGuard = () => Promise<void>;
-type DeviceReadAction = "quyan:remote_terminal:BrowseDirectories" | "quyan:remote_terminal:GetAgentPreferences";
-export class RemoteTerminalDeviceReadIamService {
-  private static instance: RemoteTerminalDeviceReadIamService;
+import { RemoteTerminalDeviceProbeRepository } from "@/store/remote-terminal-product/remote-terminal-device-probe.repository";
+import type { RemoteTerminalDeviceProbeStore } from "@/store/remote-terminal-product/remote-terminal-device-probe.store";
+import type { RemoteTerminalDeviceProbeResponse } from "@/modules/remote-terminal/protocol";
+
+export type TerminalDeviceGuard = () => Promise<void>;
+type DeviceAction =
+  | "quyan:remote_terminal:BrowseDirectories"
+  | "quyan:remote_terminal:GetAgentPreferences"
+  | "quyan:remote_terminal:UpdateAgentPreferences";
+const probePolicy = Object.freeze({ concurrency: 8 });
+export class RemoteTerminalDeviceIamService {
+  private static instance: RemoteTerminalDeviceIamService;
   constructor(
     private readonly repository: RemoteTerminalDeviceReadStore = RemoteTerminalDeviceReadRepository.getInstance(),
     private readonly iam: Pick<
@@ -33,9 +41,10 @@ export class RemoteTerminalDeviceReadIamService {
       "loadPolicies" | "authorizeMany"
     > = IamAuthorizationService.getInstance(),
     private readonly permissions: Pick<PermissionService, "checkUserPermissions"> = PermissionService.getInstance(),
+    private readonly probes: RemoteTerminalDeviceProbeStore = RemoteTerminalDeviceProbeRepository.getInstance(),
   ) {}
   static getInstance() {
-    return (this.instance ??= new RemoteTerminalDeviceReadIamService());
+    return (this.instance ??= new RemoteTerminalDeviceIamService());
   }
   private identity(userId: string, request?: TypedRequest) {
     const principal = request && getIamPrincipal(request);
@@ -50,14 +59,18 @@ export class RemoteTerminalDeviceReadIamService {
       throw iamAccountDenied();
     return { request, principal: { ...principal } };
   }
-  private async legacy(userId: string, request?: TypedRequest) {
+  private async legacy(userId: string, request?: TypedRequest, action?: string) {
     if (!request) return;
     const { principal } = this.identity(userId, request);
     if (
       !(
-        await this.permissions.checkUserPermissions(userId, [Permission.REMOTE_TERMINAL_DEVICE_READ], {
-          assumedRoleSessionId: principal.roleSessionId,
-        })
+        await this.permissions.checkUserPermissions(
+          userId,
+          action ? iamLegacyPermissionsForAction(action) : [Permission.REMOTE_TERMINAL_DEVICE_READ],
+          {
+            assumedRoleSessionId: principal.roleSessionId,
+          },
+        )
       ).hasPermission
     )
       throw iamAccountDenied();
@@ -68,7 +81,7 @@ export class RemoteTerminalDeviceReadIamService {
     return mode;
   }
   private warn(action: string) {
-    getLogger("RemoteTerminalIamBridge", LogCategory.SECURITY).warn("IAM terminal read shadow denied", {
+    getLogger("RemoteTerminalIamBridge", LogCategory.SECURITY).warn("IAM terminal operation shadow denied", {
       action,
       reason: "iam-resource-unavailable",
     });
@@ -207,12 +220,95 @@ export class RemoteTerminalDeviceReadIamService {
       (a, b) => Number(b.online) - Number(a.online) || Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt),
     );
   }
+  private async probeTargets(userId: string, request?: TypedRequest) {
+    const { principal, request: trusted } = this.identity(userId, request),
+      policyGuard = await this.policyGuard(userId, trusted, principal);
+    const action = "quyan:remote_terminal:ProbeDevices",
+      targets: RemoteTerminalDeviceTarget[] = [];
+    let after: string | undefined;
+    const seen = new Set<string>();
+    while (true) {
+      const batch = await this.repository.scan(principal, after);
+      this.validateTargets(principal, batch);
+      if (!batch.length) break;
+      for (const target of batch) {
+        if (seen.has(target.id) || (after && target.id <= after)) throw iamAccountDenied();
+        seen.add(target.id);
+        after = target.id;
+      }
+      const resources = batch.map((row) => remoteTerminalDeviceArn(principal.accountOwnerId, userId, row.deviceId)),
+        allowed = await this.allowed(trusted, principal, action, resources);
+      targets.push(...batch.filter((_, index) => allowed.has(resources[index])));
+      if (batch.length < IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) break;
+    }
+    await policyGuard();
+    const guard = async (target: RemoteTerminalDeviceTarget) => {
+      await policyGuard();
+      assertTerminalDeviceTargets(await this.repository.targets(principal, [target.deviceId]), [target], false);
+      if (
+        !(
+          await this.allowed(trusted, principal, action, [
+            remoteTerminalDeviceArn(principal.accountOwnerId, userId, target.deviceId),
+          ])
+        ).size
+      )
+        throw iamAccountDenied();
+    };
+    return { principal, targets, guard, policyGuard };
+  }
+  async probe(
+    userId: string,
+    request: TypedRequest | undefined,
+    legacy: () => Promise<RemoteTerminalDeviceProbeResponse>,
+    dispatch: (deviceId: string, guard: TerminalDeviceGuard) => Promise<Date | null>,
+  ): Promise<RemoteTerminalDeviceProbeResponse> {
+    const mode = this.mode();
+    if (mode !== "enforce") {
+      await this.legacy(userId, request);
+      if (mode === "shadow" && request) {
+        try {
+          await this.probeTargets(userId, request);
+        } catch {
+          this.warn("quyan:remote_terminal:ProbeDevices");
+        }
+      }
+      return legacy();
+    }
+    const selection = await this.probeTargets(userId, request),
+      authorizationRevision = await this.probes.revision(selection.principal),
+      items: RemoteTerminalDeviceProbeResponse["items"] = [];
+    for (let offset = 0; offset < selection.targets.length; offset += probePolicy.concurrency) {
+      const batch = selection.targets.slice(offset, offset + probePolicy.concurrency);
+      const pongs = await Promise.all(
+        batch.map(async (target) => {
+          const recheck = () => selection.guard(target);
+          await recheck();
+          const pongAt = await dispatch(target.deviceId, recheck);
+          await recheck();
+          return pongAt;
+        }),
+      );
+      for (let index = 0; index < batch.length; index++) {
+        const target = batch[index]!,
+          recheck = () => selection.guard(target);
+        items.push(
+          await this.probes.record(
+            { principal: selection.principal, target, authorizationRevision, recheck },
+            pongs[index]!,
+          ),
+        );
+      }
+    }
+    for (const target of selection.targets) await selection.guard(target);
+    await selection.policyGuard();
+    return { items };
+  }
   private async deviceGuard(
     userId: string,
     deviceId: string,
-    action: DeviceReadAction,
+    action: DeviceAction,
     request?: TypedRequest,
-  ): Promise<TerminalDeviceReadGuard> {
+  ): Promise<TerminalDeviceGuard> {
     const identity = this.identity(userId, request),
       { principal } = identity,
       trusted = identity.request;
@@ -230,21 +326,21 @@ export class RemoteTerminalDeviceReadIamService {
     await guard();
     return guard;
   }
-  async readDevice<T>(
+  async withDevice<T>(
     userId: string,
     deviceId: string,
-    action: DeviceReadAction,
+    action: DeviceAction,
     request: TypedRequest | undefined,
-    read: (guard?: TerminalDeviceReadGuard) => Promise<T>,
+    read: (guard?: TerminalDeviceGuard) => Promise<T>,
   ): Promise<T> {
     const mode = this.mode();
     if (mode === "legacy" || (mode === "shadow" && !request)) {
-      await this.legacy(userId, request);
+      await this.legacy(userId, request, action);
       return read();
     }
     if (mode === "shadow") {
-      await this.legacy(userId, request);
-      let guard: TerminalDeviceReadGuard | undefined;
+      await this.legacy(userId, request, action);
+      let guard: TerminalDeviceGuard | undefined;
       try {
         guard = await this.deviceGuard(userId, deviceId, action, request);
       } catch {

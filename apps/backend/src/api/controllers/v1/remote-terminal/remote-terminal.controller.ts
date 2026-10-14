@@ -38,7 +38,10 @@ import type { TypedRequest } from "@/types/express";
 import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
-import { remoteTerminalQueryDeviceResourceResolver } from "@/iam/request/remote-terminal-resource-resolvers";
+import {
+  remoteTerminalQueryDeviceResourceResolver,
+  remoteTerminalBodyDeviceResourceResolver,
+} from "@/iam/request/remote-terminal-resource-resolvers";
 import { ReplayProtected, replayProtectionMiddleware } from "@/util/replay-protected-decorator";
 
 function getFirstHeaderValue(header: string | string[] | undefined): string | undefined {
@@ -123,9 +126,15 @@ export class RemoteTerminalController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware)
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ProbeDevices",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async probeDevices(@Request() request: TypedRequest): Promise<RemoteTerminalDeviceProbeResponseDto> {
-    return this.remoteTerminalService.probeDevicesForUser(request.user!.userId);
+    return this.remoteTerminalService.probeDevicesForUser(request.user!.userId, request);
   }
 
   @Get("sessions")
@@ -187,12 +196,16 @@ export class RemoteTerminalController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
   @ReplayProtected()
   @Middlewares(replayProtectionMiddleware, validateBody(updateRemoteTerminalAgentPreferencesBodySchema))
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_WRITE)
+  @CheckPermission(Permission.REMOTE_TERMINAL_DEVICE_WRITE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:remote_terminal:UpdateAgentPreferences",
+    resourceKind: "single-resource",
+    resource: remoteTerminalBodyDeviceResourceResolver,
+  })
   public async updateAgentPreferences(
     @Body() body: UpdateRemoteTerminalAgentPreferencesRequest,
     @Request() request: TypedRequest,
   ): Promise<RemoteTerminalAgentPreferencesDto> {
-    return this.remoteTerminalService.updateAgentPreferencesForUser(request.user!.userId, body);
+    return this.remoteTerminalService.updateAgentPreferencesForUser(request.user!.userId, body, request);
   }
 
   @Post("sessions")

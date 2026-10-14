@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
+import { EventEmitter } from "node:events";
 import { RemoteTerminalDeviceRegistry } from "@/modules/remote-terminal/gateway/device-registry";
 import { RemoteTerminalSessionGateway } from "@/modules/remote-terminal/gateway/session-gateway";
 import { RedisService } from "@/services/infrastructure/redis.service";
@@ -419,7 +420,7 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
       online: false,
     });
   });
-  it.each(["directories", "preferences"] as const)(
+  it.each(["directories", "preferences", "preferences-set"] as const)(
     "denies %s dispatch after accessible device lookup",
     async (kind) => {
       const gateway = new RemoteTerminalSessionGateway(deviceRegistry);
@@ -436,7 +437,9 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
       await expect(
         kind === "directories"
           ? gateway.browseDirectories("user-1", "device-1", "/fixture", authorize)
-          : gateway.getAgentPreferences("user-1", "device-1", authorize),
+          : kind === "preferences-set"
+            ? gateway.updateAgentPreferences("user-1", "device-1", { shortcuts: [], quickCommands: [] }, authorize)
+            : gateway.getAgentPreferences("user-1", "device-1", authorize),
       ).rejects.toThrow("fixture authorization denied");
       expect(deviceRegistry.getAccessibleDevice).toHaveBeenCalledWith("user-1", "device-1");
       expect(authorize).toHaveBeenCalledTimes(1);
@@ -445,45 +448,117 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
       expect(gateway["pendingPreferencesRequests"].size).toBe(0);
     },
   );
-  it.each(["directories", "preferences"] as const)("allows %s dispatch only after the guard resolves", async (kind) => {
-    const gateway = new RemoteTerminalSessionGateway(deviceRegistry);
-    const events: string[] = [];
-    const agentSocket = {
+  it.each(["directories", "preferences", "preferences-set"] as const)(
+    "allows %s dispatch only after the guard resolves",
+    async (kind) => {
+      const gateway = new RemoteTerminalSessionGateway(deviceRegistry);
+      const events: string[] = [];
+      const agentSocket = {
+        readyState: WebSocket.OPEN,
+        on: vi.fn(),
+        close: vi.fn(),
+        send: vi.fn((raw: string) => {
+          events.push("send");
+          const message = JSON.parse(raw);
+          gateway["handleAgentMessage"](
+            "device-1",
+            JSON.stringify(
+              kind === "directories"
+                ? {
+                    type: "directory-browse-result",
+                    requestId: message.requestId,
+                    ok: true,
+                    currentPath: "/fixture",
+                    items: [],
+                  }
+                : {
+                    type: "preferences-result",
+                    requestId: message.requestId,
+                    ok: true,
+                    preferences: { shortcuts: [], quickCommands: [] },
+                  },
+            ),
+          );
+        }),
+      } as unknown as WebSocket;
+      gateway.attachAgent("device-1", agentSocket);
+      const authorize = async () => {
+        events.push("authorize");
+      };
+      await (kind === "directories"
+        ? gateway.browseDirectories("user-1", "device-1", "/fixture", authorize)
+        : kind === "preferences-set"
+          ? gateway.updateAgentPreferences("user-1", "device-1", { shortcuts: [], quickCommands: [] }, authorize)
+          : gateway.getAgentPreferences("user-1", "device-1", authorize));
+      expect(events).toEqual(["authorize", "send"]);
+      expect(agentSocket.send).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("never pings a native device when its authorization guard denies", async () => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry),
+      socket = { readyState: WebSocket.OPEN, on: vi.fn(), off: vi.fn(), ping: vi.fn() } as unknown as WebSocket;
+    gateway["agentSockets"].set("device-1", socket);
+    await expect(
+      gateway.probeAuthorizedDevice("device-1", async () => {
+        throw new Error("fixture denied");
+      }),
+    ).rejects.toThrow("fixture denied");
+    expect(socket.ping).not.toHaveBeenCalled();
+    expect(deviceRegistry.updateDeviceStatus).not.toHaveBeenCalled();
+    expect(deviceRegistry.getDevice).not.toHaveBeenCalled();
+  });
+  it("returns an offline native probe without reading or mutating device credentials", async () => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry),
+      guard = vi.fn(async () => {});
+    expect(await gateway.probeAuthorizedDevice("device-1", guard)).toBeNull();
+    expect(guard).toHaveBeenCalledTimes(1);
+    expect(deviceRegistry.getDevice).not.toHaveBeenCalled();
+    expect(deviceRegistry.updateDeviceStatus).not.toHaveBeenCalled();
+  });
+  it("runs authorization before an online native probe and leaves persistence to the caller", async () => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry),
+      events: string[] = [];
+    let pong: ((payload: Buffer) => void) | undefined;
+    const socket = {
       readyState: WebSocket.OPEN,
-      on: vi.fn(),
-      close: vi.fn(),
-      send: vi.fn((raw: string) => {
-        events.push("send");
-        const message = JSON.parse(raw);
-        gateway["handleAgentMessage"](
-          "device-1",
-          JSON.stringify(
-            kind === "directories"
-              ? {
-                  type: "directory-browse-result",
-                  requestId: message.requestId,
-                  ok: true,
-                  currentPath: "/fixture",
-                  items: [],
-                }
-              : {
-                  type: "preferences-result",
-                  requestId: message.requestId,
-                  ok: true,
-                  preferences: { shortcuts: [], quickCommands: [] },
-                },
-          ),
-        );
+      on: vi.fn((name: string, handler: (payload: Buffer) => void) => {
+        if (name === "pong") pong = handler;
+      }),
+      off: vi.fn(),
+      ping: vi.fn((payload: Buffer) => {
+        events.push("ping");
+        pong?.(Buffer.from("wrong-pong"));
+        pong?.(payload);
       }),
     } as unknown as WebSocket;
-    gateway.attachAgent("device-1", agentSocket);
-    const authorize = async () => {
+    gateway["agentSockets"].set("device-1", socket);
+    const result = await gateway.probeAuthorizedDevice("device-1", async () => {
       events.push("authorize");
-    };
-    await (kind === "directories"
-      ? gateway.browseDirectories("user-1", "device-1", "/fixture", authorize)
-      : gateway.getAgentPreferences("user-1", "device-1", authorize));
-    expect(events).toEqual(["authorize", "send"]);
-    expect(agentSocket.send).toHaveBeenCalledTimes(1);
+    });
+    expect(result).toBeInstanceOf(Date);
+    expect(events).toEqual(["authorize", "ping"]);
+    expect(deviceRegistry.getDevice).not.toHaveBeenCalled();
+    expect(deviceRegistry.updateDeviceStatus).not.toHaveBeenCalled();
+    expect(socket.off).toHaveBeenCalledWith("pong", expect.any(Function));
+  });
+
+  it("does not let tagged IAM probe pongs bypass guarded status persistence", async () => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry),
+      socket = Object.assign(new EventEmitter(), {
+        readyState: WebSocket.OPEN,
+        ping: vi.fn((payload: Buffer) => {
+          socket.emit("pong", payload);
+        }),
+        close: vi.fn(),
+        send: vi.fn(),
+      });
+    gateway.attachAgent("device-1", socket as unknown as WebSocket);
+    expect(await gateway.probeAuthorizedDevice("device-1", async () => {})).toBeInstanceOf(Date);
+    expect(deviceRegistry.updateDeviceStatus).not.toHaveBeenCalled();
+    socket.emit("pong", Buffer.from("regular-heartbeat"));
+    expect(deviceRegistry.updateDeviceStatus).toHaveBeenCalledWith("device-1", {
+      online: true,
+      lastSeenAt: expect.any(Date),
+    });
   });
 });

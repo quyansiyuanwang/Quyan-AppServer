@@ -5,8 +5,11 @@ vi.mock("@/store/remote-terminal-product/remote-terminal-device-read.repository"
   RemoteTerminalDeviceReadRepository: { getInstance: vi.fn() },
 }));
 vi.mock("@/services/users/permission.service", () => ({ PermissionService: { getInstance: vi.fn() } }));
+vi.mock("@/store/remote-terminal-product/remote-terminal-device-probe.repository", () => ({
+  RemoteTerminalDeviceProbeRepository: { getInstance: vi.fn() },
+}));
 import { env } from "@/config/env";
-import { RemoteTerminalDeviceReadIamService } from "@/services/remote-terminal/remote-terminal-device-read-iam.service";
+import { RemoteTerminalDeviceIamService } from "@/services/remote-terminal/remote-terminal-device-iam.service";
 import { remoteTerminalDeviceArn } from "@/iam/resources/remote-terminal-resources";
 import { assertTerminalDeviceTargets } from "@/store/remote-terminal-product/remote-terminal-device-snapshot";
 import { RemoteTerminalDeviceReadRepository } from "@/store/remote-terminal-product/remote-terminal-device-read.repository";
@@ -26,7 +29,7 @@ const mode = env.security.iamAuthorizationMode,
   repository = { scan: vi.fn(), targets: vi.fn(), hydrate: vi.fn() },
   iam = { loadPolicies: vi.fn(), authorizeMany: vi.fn() },
   permissions = { checkUserPermissions: vi.fn() },
-  service = new RemoteTerminalDeviceReadIamService(repository, iam, permissions),
+  service = new RemoteTerminalDeviceIamService(repository, iam, permissions),
   legacy = vi.fn();
 const request = () =>
   ({
@@ -145,17 +148,15 @@ describe("terminal device resource reads", () => {
     await expect(service.list("actor", request(), legacy)).rejects.toMatchObject({ statusCode: 403 });
   });
   it("rejects policy binding changes before hydration", async () => {
-    iam.loadPolicies
-      .mockResolvedValueOnce([])
-      .mockResolvedValue([
-        {
-          policyId: "new",
-          document: {
-            Version: "1",
-            Statement: [{ Effect: "Allow", Action: "quyan:remote_terminal:ListDevices", Resource: "*" }],
-          },
+    iam.loadPolicies.mockResolvedValueOnce([]).mockResolvedValue([
+      {
+        policyId: "new",
+        document: {
+          Version: "1",
+          Statement: [{ Effect: "Allow", Action: "quyan:remote_terminal:ListDevices", Resource: "*" }],
         },
-      ]);
+      },
+    ]);
     await expect(service.list("actor", request(), legacy)).rejects.toMatchObject({ statusCode: 403 });
     expect(repository.hydrate).not.toHaveBeenCalled();
   });
@@ -189,7 +190,7 @@ describe("terminal device resource reads", () => {
       return { items: [] };
     });
     expect(
-      await service.readDevice("actor", "device-a", "quyan:remote_terminal:BrowseDirectories", request(), read),
+      await service.withDevice("actor", "device-a", "quyan:remote_terminal:BrowseDirectories", request(), read),
     ).toEqual({ items: [] });
     expect(read).toHaveBeenCalledTimes(1);
     expect(iam.authorizeMany).toHaveBeenCalledTimes(3);
@@ -198,7 +199,7 @@ describe("terminal device resource reads", () => {
     const read = vi.fn();
     iam.authorizeMany.mockResolvedValue([decision("ExplicitDeny")]);
     await expect(
-      service.readDevice("actor", "device-a", "quyan:remote_terminal:GetAgentPreferences", request(), read),
+      service.withDevice("actor", "device-a", "quyan:remote_terminal:GetAgentPreferences", request(), read),
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(read).not.toHaveBeenCalled();
   });
@@ -208,7 +209,7 @@ describe("terminal device resource reads", () => {
       return { private: "fixture" };
     });
     await expect(
-      service.readDevice("actor", "device-a", "quyan:remote_terminal:GetAgentPreferences", request(), read),
+      service.withDevice("actor", "device-a", "quyan:remote_terminal:GetAgentPreferences", request(), read),
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(read).toHaveBeenCalledTimes(1);
   });
@@ -219,7 +220,7 @@ describe("terminal device resource reads", () => {
       return { items: [] };
     });
     await expect(
-      service.readDevice("actor", "device-a", "quyan:remote_terminal:BrowseDirectories", request(), read),
+      service.withDevice("actor", "device-a", "quyan:remote_terminal:BrowseDirectories", request(), read),
     ).resolves.toEqual({ items: [] });
   });
   it("discards RPC results after policy revocation", async () => {
@@ -228,7 +229,7 @@ describe("terminal device resource reads", () => {
       return { private: "fixture" };
     });
     await expect(
-      service.readDevice("actor", "device-a", "quyan:remote_terminal:GetAgentPreferences", request(), read),
+      service.withDevice("actor", "device-a", "quyan:remote_terminal:GetAgentPreferences", request(), read),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
   it("does not issue a second RPC for shadow evaluation", async () => {
@@ -239,7 +240,7 @@ describe("terminal device resource reads", () => {
       return { legacy: true };
     });
     expect(
-      await service.readDevice("actor", "device-a", "quyan:remote_terminal:GetAgentPreferences", request(), read),
+      await service.withDevice("actor", "device-a", "quyan:remote_terminal:GetAgentPreferences", request(), read),
     ).toEqual({ legacy: true });
     expect(read).toHaveBeenCalledTimes(1);
   });
@@ -250,7 +251,7 @@ describe("terminal device resource reads", () => {
       return { private: "fixture" };
     });
     await expect(
-      service.readDevice("actor", "device-a", "quyan:remote_terminal:BrowseDirectories", req, read),
+      service.withDevice("actor", "device-a", "quyan:remote_terminal:BrowseDirectories", req, read),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
   it("rejects unknown modes", async () => {

@@ -23,6 +23,27 @@ function where(principal: IamPrincipal) {
     AND e.startAt<=${at} AND e.endAt>=${at} AND u.status=1
     AND (BINARY u.accountOwnerId=BINARY ${principal.accountOwnerId} OR (BINARY u.id=BINARY ${principal.accountOwnerId} AND u.accountOwnerId IS NULL))`;
 }
+export async function readTerminalDeviceTargets(
+  client: Pick<Prisma.TransactionClient, "$queryRaw">,
+  principal: IamPrincipal,
+  deviceIds: readonly string[],
+  lock = false,
+): Promise<RemoteTerminalDeviceTarget[]> {
+  if (
+    !deviceIds.length ||
+    deviceIds.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+    new Set(deviceIds).size !== deviceIds.length ||
+    deviceIds.some((id) => !isRemoteTerminalId(id))
+  )
+    throw iamAccountDenied();
+  const rows = await client.$queryRaw<RemoteTerminalDeviceTarget[]>(
+    Prisma.sql`SELECT ${metadata} FROM ${source} WHERE ${where(principal)} AND b.deviceId IN (${Prisma.join([...deviceIds])}) ${lock ? Prisma.sql`FOR UPDATE` : Prisma.empty}`,
+  );
+  // MySQL collations must never turn a case alias into a different authorized resource.
+  if (rows.some((row) => !deviceIds.includes(row.deviceId) || row.userId !== principal.subjectUserId))
+    throw iamAccountDenied();
+  return rows;
+}
 export class RemoteTerminalDeviceReadRepository implements RemoteTerminalDeviceReadStore {
   private static instance: RemoteTerminalDeviceReadRepository;
   static getInstance() {
@@ -48,13 +69,7 @@ export class RemoteTerminalDeviceReadRepository implements RemoteTerminalDeviceR
   async targets(principal: IamPrincipal, deviceIds: readonly string[]) {
     await assertIamAccountPrincipal(principal);
     this.ids(deviceIds);
-    const rows = await prisma.$queryRaw<RemoteTerminalDeviceTarget[]>(
-      Prisma.sql`SELECT ${metadata} FROM ${source} WHERE ${where(principal)} AND b.deviceId IN (${Prisma.join([...deviceIds])})`,
-    );
-    // MySQL collations must never turn a case alias into a different authorized resource.
-    if (rows.some((row) => !deviceIds.includes(row.deviceId) || row.userId !== principal.subjectUserId))
-      throw iamAccountDenied();
-    return rows;
+    return readTerminalDeviceTargets(prisma, principal, deviceIds);
   }
   async hydrate(principal: IamPrincipal, expected: readonly RemoteTerminalDeviceTarget[]) {
     if (!expected.length) return [];
