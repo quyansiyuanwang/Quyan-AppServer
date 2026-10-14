@@ -28,6 +28,8 @@ export interface JWTPayload {
   impersonatorId?: string;
   /** 仅模拟 token 携带：模拟模式 */
   impersonationMode?: "view" | "act";
+  /** Original signed issuer, used to recheck live IAM authority on impersonation requests. */
+  impersonationIssuer?: import("@/iam/request/impersonation-issuer").ImpersonationIssuer;
   [key: string]: any;
 }
 

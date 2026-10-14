@@ -1,3 +1,4 @@
+import { ImpersonationIamService } from "@/services/users/impersonation-iam.service";
 import { HttpStatusCode } from "axios";
 import { JWTAccessIns, JWTPayload } from "../../util/auth";
 import { createHash } from "crypto";
@@ -593,6 +594,8 @@ export async function expressAuthentication(
         messageKey: "errors.tokenExpiredDueToUpdate",
       });
     }
+
+    if (payload.impersonatorId) await ImpersonationIamService.getInstance().validateSession(payload, request);
 
     // 将 payload 附加到 request 对象，使 controller 可以访问
     const enrichedPayload = await attachAuthContext(request, payload, user);

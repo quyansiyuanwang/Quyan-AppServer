@@ -1,3 +1,7 @@
+import { ImpersonationIamService } from "./impersonation-iam.service";
+import type { ImpersonationIssuer } from "@/iam/request/impersonation-issuer";
+import { env } from "@/config/env";
+import { getLogger, LogCategory } from "@/util/logger";
 import { Permission } from "@/constant/permission";
 import { randomUUID } from "crypto";
 import { OperationType, OperationCategory } from "@/constant/operation-type";
@@ -23,6 +27,10 @@ import { RedisService } from "@/services/infrastructure/redis.service";
 const IMPERSONATION_HANDOFF_KEY_PREFIX = "auth:impersonation_handoff:";
 
 export class ImpersonationService {
+  private static instance: ImpersonationService;
+  static getInstance() {
+    return (this.instance ??= new ImpersonationService());
+  }
   private readonly userRepository: UserStore = UserRepository.getInstance();
   private readonly permissionService = PermissionService.getInstance();
   private readonly businessLogService = BusinessLogService.getInstance();
@@ -48,6 +56,23 @@ export class ImpersonationService {
     if (impersonatorId === targetUserId)
       throw new BadRequestError("不能模拟自己", undefined, { messageKey: "impersonation.cannotImpersonateSelf" });
 
+    const authorizationMode = env.security.iamAuthorizationMode;
+    if (authorizationMode === "enforce") {
+      const authorized = await ImpersonationIamService.getInstance().start(impersonatorId, targetUserId, request);
+      return this.finishStart(
+        impersonatorId,
+        authorized.impersonatorUsername,
+        authorized.target,
+        authorized.mode,
+        request,
+        authorized.issuer,
+      );
+    }
+    if (authorizationMode !== "legacy" && authorizationMode !== "shadow")
+      throw new ForbiddenError("Unsupported IAM authorization mode", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+
     // 加载双方用户（含 group 信息）
     const [impersonator, target] = await Promise.all([
       this.userRepository.findByIdWithGroup(impersonatorId),
@@ -67,18 +92,48 @@ export class ImpersonationService {
 
     // 确定模拟模式：优先授予 act，其次 view
     const [hasAct, hasView] = await Promise.all([
-      this.permissionService.hasAnyPermission(impersonatorId, [Permission.USER_IMPERSONATE_ACT]),
-      this.permissionService.hasAnyPermission(impersonatorId, [Permission.USER_IMPERSONATE_VIEW]),
+      this.permissionService.checkUserPermissions(impersonatorId, [Permission.USER_IMPERSONATE_ACT], {
+        assumedRoleSessionId: request?.authContext?.roleSessionId ?? request?.user?.roleSessionId,
+      }),
+      this.permissionService.checkUserPermissions(impersonatorId, [Permission.USER_IMPERSONATE_VIEW], {
+        assumedRoleSessionId: request?.authContext?.roleSessionId ?? request?.user?.roleSessionId,
+      }),
     ]);
 
     let mode: "view" | "act";
-    if (hasAct) mode = "act";
-    else if (hasView) mode = "view";
+    if (hasAct.hasPermission) mode = "act";
+    else if (hasView.hasPermission) mode = "view";
     else
       throw new ForbiddenError("无模拟权限", CustomCode.IMPERSONATION_NOT_ALLOWED, {
         messageKey: "impersonation.permissionDenied",
       });
 
+    if (authorizationMode === "shadow") {
+      try {
+        const simulated = await ImpersonationIamService.getInstance().start(impersonatorId, targetUserId, request);
+        if (simulated.mode !== mode)
+          getLogger("ImpersonationIamBridge", LogCategory.SECURITY).warn("Impersonation mode differs from IAM", {
+            reason: "iam-impersonation-mode-differs",
+            legacyMode: mode,
+            iamMode: simulated.mode,
+          });
+      } catch {
+        getLogger("ImpersonationIamBridge", LogCategory.SECURITY).warn("IAM impersonation shadow denied", {
+          reason: "iam-impersonation-unavailable",
+        });
+      }
+    }
+    return this.finishStart(impersonatorId, impersonator.username, target, mode, request);
+  }
+
+  private finishStart(
+    impersonatorId: string,
+    impersonatorUsername: string,
+    target: { id: string; username: string; name: string | null; status: number; updateTime: Date },
+    mode: "view" | "act",
+    request?: TypedRequest,
+    issuer?: ImpersonationIssuer,
+  ): StartImpersonationResponse {
     // 签发模拟 token（短期，无 refresh）
     const token = JWTAccessIns.generateToken(
       {
@@ -87,6 +142,7 @@ export class ImpersonationService {
         status: target.status,
         impersonatorId: impersonatorId,
         impersonationMode: mode,
+        ...(issuer ? { impersonationIssuer: issuer } : {}),
       },
       IMPERSONATION_TOKEN_TTL_SECONDS,
     );
@@ -96,9 +152,9 @@ export class ImpersonationService {
       operationType: OperationType.IMPERSONATION_START,
       operationCategory: OperationCategory.USER_MANAGEMENT,
       actorUserId: impersonatorId,
-      targetUserId: targetUserId,
-      description: `用户 ${impersonator.username} 以${mode === "act" ? "操作" : "只读"}模式模拟进入用户 ${target.username} 的账户`,
-      metadata: { mode, impersonatorUsername: impersonator.username, targetUsername: target.username },
+      targetUserId: target.id,
+      description: `用户 ${impersonatorUsername} 以${mode === "act" ? "操作" : "只读"}模式模拟进入用户 ${target.username} 的账户`,
+      metadata: { mode, impersonatorUsername, targetUsername: target.username },
       success: true,
       ipAddress: this.getClientIP(request),
       userAgent: request?.headers["user-agent"],
@@ -158,6 +214,7 @@ export class ImpersonationService {
     }
     try {
       validateAccountStatus(target.status, target.id, "impersonation restore");
+      await ImpersonationIamService.getInstance().validateSession(payload, request);
     } catch {
       clearImpersonationHandoffCookie(request);
       return null;

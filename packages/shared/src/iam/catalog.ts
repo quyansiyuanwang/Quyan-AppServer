@@ -2698,6 +2698,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   ...[
+    { operation: 'StartActImpersonation', legacyPermission: Permission.USER_IMPERSONATE_ACT },
+    { operation: 'StartViewImpersonation', legacyPermission: Permission.USER_IMPERSONATE_VIEW },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:user:' + definition.operation,
+      service: 'user',
+      accessLevel: 'Write',
+      resourceTypes: ['platform/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationBoundary: 'platform',
+      authorizationStage: 'declared',
+    }),
+  ),
+  ...[
     { operation: 'ListUsers', accessLevel: 'List' as const },
     { operation: 'GetUser', accessLevel: 'Read' as const },
   ].map(

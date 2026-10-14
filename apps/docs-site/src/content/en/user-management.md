@@ -70,6 +70,21 @@ The list retains the existing group-level visibility range and RAM-user filters,
 
 Pages contain at most 100 users and page numbers are limited to 10,000. Changes to source profile data, ownership, balance, group display data, list eligibility, policies, or role sessions during a read cause rejection. Responses keep the existing profile fields and never include passwords or permission arrays. AssumeRole requests use role grants rather than inheriting the actor's global-group Allow; authenticated AccessKeys use the same resource checks.
 
+## User impersonation by resource
+
+In IAM enforce mode, impersonation is authorized against the target user resource `acs:platform:*:platform:user/<userId>`:
+
+- `quyan:user:StartViewImpersonation` issues a read-only impersonation session.
+- `quyan:user:StartActImpersonation` issues a session that allows changes.
+
+Each action also requires its corresponding impersonation qualification in the operator's active global management group. Personal additions, private groups, or a policy Allow alone cannot replace that qualification. The target must be active and have a lower privilege level than the operator. Self impersonation and nested impersonation are rejected.
+
+The system prefers the authorized act mode. It can fall back to view mode only when view mode is separately authorized. A view session cannot make write requests. Impersonation tokens last one hour and have no refresh token.
+
+Every use or cross-site restoration rechecks the original operator, target privilege level, matching action, resource, conditions, and current policies. Revoking act permission rejects an existing act session instead of silently downgrading it to view. Revoking or expiring the issuing role session, disabling or expiring the issuing AccessKey, or forcing the operator offline also prevents continued use. AssumeRole uses the current role's grants and cannot inherit the operator's global group Allow.
+
+After switching to IAM enforce mode, pre-switch impersonation tokens that lack original issuer provenance require a new impersonation session. The `legacy` and `shadow` modes retain the existing permission checks and impersonation behavior. Shadow compares resource checks and signs only one token.
+
 ## Notes
 
 - Before deleting or disabling a user, confirm related balances, permissions, and owned resources.
