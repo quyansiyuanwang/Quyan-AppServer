@@ -121,3 +121,33 @@ describe("scoped delegation projection", () => {
     ).toBeUndefined();
   });
 });
+
+describe("candidate scope uses a conservative upper bound", () => {
+  it("does not mistake a real unknown wildcard intersection for empty candidate authority", () => {
+    const input = {
+      policyId: "candidate",
+      document: policy(undefined, "acs:quyan:*:owner:user/id-*"),
+      scope: { type: "resource" as const, arn: "acs:quyan:*:owner:user/*-1" },
+    };
+    // id-1 matches both patterns, although the sufficient subset proof cannot prove either containment.
+    expect(isProvenPatternSubset(input.document.Statement[0].Resource[0], input.scope.arn)).toBe(false);
+    expect(projectScopedPolicyForDelegation(input)).toBeUndefined();
+    const candidate = projectScopedPolicyForDelegation(input, { purpose: "candidate" })!;
+    expect(candidate.Statement[0].Resource).toEqual(["acs:quyan:*:owner:user/id-*"]);
+    expect(checkIamDelegation(candidate, []).allowed).toBe(false);
+    expect(checkIamDelegation(candidate, [policy(undefined, "acs:quyan:*:owner:user/id-1")]).allowed).toBe(false);
+  });
+  it("still accepts proven exact scope and finite resource-group candidates", () => {
+    const document = policy(undefined, "*");
+    const scoped = projectScopedPolicyForDelegation(
+      { policyId: "candidate", document, scope: { type: "resource", arn: "acs:quyan:*:owner:user/id" } },
+      { purpose: "candidate" },
+    )!;
+    expect(checkIamDelegation(scoped, [policy()]).allowed).toBe(true);
+    const empty = projectScopedPolicyForDelegation(
+      { policyId: "candidate", document, scope: { type: "resource-group", id: "empty", resources: [] } },
+      { purpose: "candidate" },
+    );
+    expect(empty).toBeUndefined();
+  });
+});

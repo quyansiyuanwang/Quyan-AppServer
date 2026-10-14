@@ -81,6 +81,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':user/{resourceId}',
   },
+  {
+    ...resource('platform', 'group'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':group/{resourceId}',
+  },
   resource('quyan', 'access-key', 2),
   resource('quyan', 'passkey', 2),
   resource('quyan', 'online-session', 2),
@@ -2695,6 +2700,31 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
+    }),
+  ),
+  ...['UpdateUser', 'SetUserEmail', 'SetUserStatus', 'AssignUserGroup'].map(
+    (operation): IamActionDefinition => ({
+      action: 'quyan:user:' + operation,
+      operation,
+      service: 'user',
+      accessLevel: 'Write',
+      resourceTypes:
+        operation === 'AssignUserGroup' ? ['platform/user', 'platform/group'] : ['platform/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationBoundary: 'platform',
+      authorizationStage: 'declared',
+      legacyPermission: Permission.USER_UPDATE,
+      ...(operation === 'UpdateUser'
+        ? {
+            conditionalActions: [
+              'quyan:user:SetUserEmail',
+              'quyan:user:SetUserStatus',
+              'quyan:user:AssignUserGroup',
+            ],
+          }
+        : {}),
     }),
   ),
   {

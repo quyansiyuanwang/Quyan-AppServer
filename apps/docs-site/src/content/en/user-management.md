@@ -93,6 +93,23 @@ Every use or cross-site restoration rechecks the original operator, target privi
 
 After switching to IAM enforce mode, pre-switch impersonation tokens that lack original issuer provenance require a new impersonation session. The `legacy` and `shadow` modes retain the existing permission checks and impersonation behavior. Shadow compares resource checks and signs only one token.
 
+## Resource-scoped user updates
+
+In IAM enforce mode, user updates authorize `acs:platform:*:platform:user/<userId>` and require user-management qualification in the operator’s active global group:
+
+| Change              | Required Action                            |
+| ------------------- | ------------------------------------------ |
+| User profile update | `quyan:user:UpdateUser`                    |
+| Email field         | Also requires `quyan:user:SetUserEmail`    |
+| Status field        | Also requires `quyan:user:SetUserStatus`   |
+| Group field         | Also requires `quyan:user:AssignUserGroup` |
+
+Group assignment must cover both the target user ARN and `acs:platform:*:platform:group/<groupId>`. The destination must be an active global group or belong to the target user’s actual account. Its policies, scoped authorizations and role grants are checked. Ordinary operators can only delegate authority they already hold, cannot increase the target’s privilege level, and cannot expand authority by removing the previous group’s Deny. The actual main account in the configured global administrator group can perform controlled recovery grants, but still needs the corresponding Actions; a matching explicit Deny continues to block the operation. Replacing another account owner’s group must also preserve their existing IAM recovery authority and cannot introduce Deny from a group policy or role.
+
+This endpoint permits ordinary self profile changes such as a name update, but cannot change the operator’s own or current account owner’s group, recovery email, or disable that identity. Use the verified account-settings workflow for your own email. Disabled targets can receive profile updates and can be enabled with separate status authority. Ordinary updates cannot modify another user at an equal or higher privilege level.
+
+Authorization, target metadata, groups, role sessions and relevant policies are rechecked in the transaction. Failed checks roll back all name, email, status and group changes in the request. `legacy` and `shadow` retain old permission enforcement; shadow compares decisions without executing another update.
+
 ## Notes
 
 - Before deleting or disabling a user, confirm related balances, permissions, and owned resources.

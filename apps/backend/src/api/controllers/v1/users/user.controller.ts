@@ -1,3 +1,4 @@
+import { platformUserUpdateResourceResolver } from "@/iam/request/platform-user-update-resource-resolver";
 import { platformUserDeleteResourceResolver } from "@/iam/request/platform-user-delete-resource-resolver";
 import { PlatformUserReadIamService } from "@/services/users/platform-user-read-iam.service";
 import { platformUserResourceResolver } from "@/iam/request/platform-user-resource-resolver";
@@ -718,7 +719,11 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "用户不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_UPDATE)
+  @CheckPermission(Permission.USER_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:UpdateUser",
+    resourceKind: "single-resource",
+    resource: platformUserUpdateResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(userIdParamsSchema), validateBody(updateUserBodySchema))
   public async updateUser(
     @Body() body: UpdateUserDto,
@@ -727,7 +732,7 @@ export class UserController extends Controller {
   ): Promise<UpdateUserResponse> {
     const currentUserId = request.user!.userId;
     // Level check: cannot modify users at same or higher level (except self)
-    if (userId !== currentUserId) {
+    if (env.security.iamAuthorizationMode !== "enforce" && userId !== currentUserId) {
       const [actorLevel, targetLevel] = await Promise.all([
         this.userService.getUserGroupLevel(currentUserId),
         this.userService.getUserGroupLevel(userId),

@@ -1,3 +1,4 @@
+import { PlatformUserUpdateIamService } from "./platform-user-update-iam.service";
 import { PlatformUserDeleteIamService } from "./platform-user-delete-iam.service";
 import { PermissionService } from "./permission.service";
 import { Permission } from "@quyan/shared";
@@ -240,17 +241,52 @@ export class UserService {
   }
 
   async updateUser(userId: string, data: UpdateUserDto, actorUserId: string, request?: Request): Promise<UserDto> {
-    const existingUser = await this.userRepository.findById(userId);
-    if (!existingUser) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw userProfileAuthorizationDenied();
+    const req = request as TypedRequest | undefined;
+    let native: Awaited<ReturnType<PlatformUserUpdateIamService["execute"]>> = undefined;
+    let legacy: UserEntity | undefined;
+    let previousStatus: number;
     const updateData: Record<string, any> = {};
     if (data.email !== undefined) updateData.email = data.email;
     if (data.name !== undefined) updateData.name = data.name;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.groupId !== undefined) updateData.groupId = data.groupId;
-
-    const user = await this.userRepository.updateById(userId, updateData);
-
+    if (mode === "enforce") {
+      native = await PlatformUserUpdateIamService.getInstance().execute(userId, data, actorUserId, req);
+      if (!native) throw userProfileAuthorizationDenied();
+      previousStatus = native.previousStatus;
+    } else {
+      if (
+        !(
+          await PermissionService.getInstance().checkUserPermissions(actorUserId, [Permission.USER_UPDATE], {
+            assumedRoleSessionId: req?.authContext?.roleSessionId ?? req?.user?.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw userProfileAuthorizationDenied();
+      const existingUser = await this.userRepository.findById(userId);
+      if (!existingUser) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
+      if (userId !== actorUserId) {
+        const actorLevel = await this.getUserGroupLevel(actorUserId),
+          targetLevel = await this.getUserGroupLevel(userId);
+        if (actorLevel == null || targetLevel == null || targetLevel <= actorLevel)
+          throw userProfileAuthorizationDenied();
+      }
+      previousStatus = existingUser.status;
+      if (mode === "shadow") {
+        try {
+          await PlatformUserUpdateIamService.getInstance().execute(userId, data, actorUserId, req, false);
+        } catch {
+          getLogger("UserIamBridge", LogCategory.SECURITY).warn("IAM user update shadow denied", {
+            action: "quyan:user:UpdateUser",
+            reason: "iam-update-unavailable",
+          });
+        }
+      }
+      legacy = await this.userRepository.updateById(userId, updateData);
+    }
+    const user = native?.user ?? legacy!;
     const hasStatusChange = data.status !== undefined;
     const actorUser = await this.userRepository.findById(actorUserId);
     await this.businessLogService.logOperation({
@@ -271,7 +307,7 @@ export class UserService {
 
     // Fire-and-forget: notify the target user about account status change
     if (hasStatusChange && data.status !== undefined) {
-      const oldStatus = existingUser.status;
+      const oldStatus = previousStatus;
       const newStatus = data.status;
       this.dispatchSecurityNotification(userId, NotificationEvent.ACCOUNT_STATUS_CHANGED, {
         subject: "账户状态变更",
@@ -281,7 +317,7 @@ export class UserService {
       }).catch(() => {});
     }
 
-    return await this.mapUserToDto(user);
+    return native ? native.user : await this.mapUserToDto(legacy!);
   }
 
   async deleteUser(userId: string, actorUserId: string, request?: Request): Promise<void> {

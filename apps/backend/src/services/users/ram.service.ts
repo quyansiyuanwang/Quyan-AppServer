@@ -444,7 +444,10 @@ export class RamService {
                 id: data.scopeResourceId!,
                 resources: scopedGroup!.members.map((member) => member.resourceArn),
               };
-      const projected = projectScopedPolicyForDelegation({ policyId: policy.id, document, scope });
+      const projected = projectScopedPolicyForDelegation(
+        { policyId: policy.id, document, scope },
+        { purpose: "candidate" },
+      );
       if (projected && !(await this.checkPolicyDelegation(actorUserId, projected)).allowed)
         throw new ForbiddenError("Authorization delegation denied", undefined, { messageKey: "iam.delegationDenied" });
     } else {
@@ -550,11 +553,14 @@ export class RamService {
         continue;
       }
       const document = parseIamPolicy(policy.defaultVersion.document).document;
-      const projected = projectScopedPolicyForDelegation({
-        policyId: policy.id,
-        document,
-        scope: { type: "resource-group", id: groupId, resources: [resourceArn] },
-      });
+      const projected = projectScopedPolicyForDelegation(
+        {
+          policyId: policy.id,
+          document,
+          scope: { type: "resource-group", id: groupId, resources: [resourceArn] },
+        },
+        { purpose: "candidate" },
+      );
       if (projected && !(await this.checkPolicyDelegation(actorUserId, projected)).allowed)
         throw new ForbiddenError("Resource group membership expands delegation scope", undefined, {
           messageKey: "iam.delegationDenied",
@@ -1575,7 +1581,7 @@ export class RamService {
     if (env.security.iamAuthorizationMode !== "enforce") return;
     const owner = await this.getAccountOwnerId(actorUserId);
     for (const policy of await IamAuthorizationService.getInstance().loadGroupPolicies(owner, groupId)) {
-      const document = projectScopedPolicyForDelegation(policy);
+      const document = projectScopedPolicyForDelegation(policy, { purpose: "candidate" });
       if (document && !(await this.checkPolicyDelegation(actorUserId, document)).allowed)
         throw new ForbiddenError("Group membership delegation denied", undefined, {
           messageKey: "iam.delegationDenied",
@@ -1591,7 +1597,7 @@ export class RamService {
     if (env.security.iamAuthorizationMode !== "enforce") return;
     const owner = await this.getAccountOwnerId(actorUserId);
     for (const policy of await IamAuthorizationService.getInstance().loadRolePolicies(owner, roleId)) {
-      const projected = projectScopedPolicyForDelegation(policy);
+      const projected = projectScopedPolicyForDelegation(policy, { purpose: "candidate" });
       if (!projected) continue;
       if (targetType && targetId) await this.assertRecoveryTarget(actorUserId, targetType, targetId, projected);
       if (!(await this.checkPolicyDelegation(actorUserId, projected)).allowed)

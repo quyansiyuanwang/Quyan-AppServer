@@ -6,3 +6,13 @@ export function platformUserArn(id: string) {
   if (!isPlatformUserId(id)) throw new Error("Invalid platform user identifier");
   return buildAcsResource({ service: "platform", region: "*", accountId: IAM_PLATFORM_ACCOUNT_ID, path: "user/" + id });
 }
+
+export function platformUserGroupArn(id: string) {
+  if (!isPlatformUserId(id)) throw new Error("Invalid platform group identifier");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "group/" + id,
+  });
+}
