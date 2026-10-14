@@ -1,3 +1,4 @@
+import { PlatformCarpoolOrderReadIamService } from "./platform-carpool-order-read-iam.service";
 import { PlatformCarpoolTemplateWriteIamService } from "./platform-carpool-template-write-iam.service";
 import { bindCarpoolTemplateWrite } from "@/store/billing/carpool-template-write";
 import type { MonthlyPassTemplate } from "@prisma/client";
@@ -402,7 +403,16 @@ export class CarpoolService {
     });
     return this.dto(order, userId);
   }
-  async getOrder(id: string, userId: string, admin = false) {
+  async getOrder(id: string, userId: string, admin = false, request?: TypedRequest) {
+    if (admin) {
+      const record = await PlatformCarpoolOrderReadIamService.getInstance().get(request, id, async () => {
+        const row = await this.repository.findOrder(id);
+        if (!row)
+          throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
+        return row;
+      });
+      return this.dto(record, undefined, true);
+    }
     const order = await this.repository.findOrder(id);
     if (!order) throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
     if (!admin && !order.members.some((member) => member.userId === userId)) throw new ForbiddenError();
@@ -447,17 +457,24 @@ export class CarpoolService {
     }
     return { total, records: records.map((item) => this.dto(item, userId)) };
   }
-  async listAdmin(state?: string, page = 1, pageSize = 20, keyword?: string) {
-    const [orderPage, groupedCounts] = await Promise.all([
-      this.repository.findOrdersForAdmin(state, Math.max(1, page), Math.min(100, Math.max(1, pageSize)), keyword),
-      this.repository.countAdminOrdersByState(keyword),
-    ]);
-    const [total, records] = orderPage;
-    return {
-      total,
-      records: records.map((item) => this.dto(item, undefined, true)),
-      stateCounts: Object.fromEntries(groupedCounts.map((item) => [item.state, item._count._all])),
-    };
+  async listAdmin(state?: string, page = 1, pageSize = 20, keyword?: string, request?: TypedRequest) {
+    const result = await PlatformCarpoolOrderReadIamService.getInstance().list(
+      request,
+      { state, page: Math.max(1, page), pageSize: Math.min(100, Math.max(1, pageSize)), keyword },
+      async () => {
+        const [orderPage, groupedCounts] = await Promise.all([
+          this.repository.findOrdersForAdmin(state, Math.max(1, page), Math.min(100, Math.max(1, pageSize)), keyword),
+          this.repository.countAdminOrdersByState(keyword),
+        ]);
+        const [total, records] = orderPage;
+        return {
+          total,
+          records,
+          stateCounts: Object.fromEntries(groupedCounts.map((item) => [item.state, item._count._all])),
+        };
+      },
+    );
+    return { ...result, records: result.records.map((row) => this.dto(row, undefined, true)) };
   }
 
   async invite(orderId: string, userId: string, hours = 72) {

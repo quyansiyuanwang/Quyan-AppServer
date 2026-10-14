@@ -255,6 +255,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':monthly-pass-template-control',
   },
   {
+    ...resource('platform', 'carpool-order'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':carpool-order/{resourceId}',
+  },
+  {
     ...resource('platform', 'carpool-template-control', 0),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':carpool-template-control',
@@ -1055,6 +1060,24 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       ...(definition.operation === 'UpdateTemplate'
         ? { conditionalActions: ['quyan:monthly_pass:DeleteTemplate'] }
         : {}),
+    }),
+  ),
+  ...[
+    { operation: 'ListAdminOrders', route: 'GET /v1/carpools/admin', accessLevel: 'List' },
+    { operation: 'GetAdminOrder', route: 'GET /v1/carpools/admin/{id}', accessLevel: 'Read' },
+  ].map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:carpool:' + definition.operation,
+      service: 'carpool',
+      operation: definition.operation,
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: ['platform/carpool-order'],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.CARPOOL_ORDER_READ,
     }),
   ),
   ...IAM_CARPOOL_TEMPLATE_WRITE_OPERATIONS.map(

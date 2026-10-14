@@ -9,7 +9,12 @@ import { Prisma } from "@prisma/client";
 
 export const carpoolOrderInclude = {
   members: {
-    include: { user: { select: { username: true } }, reservation: true, relayToken: true, userMonthlyPass: true },
+    include: {
+      user: { select: { username: true } },
+      reservation: { select: { id: true, state: true, amount: true } },
+      relayToken: { select: { id: true } },
+      userMonthlyPass: { select: { id: true } },
+    },
     orderBy: { createTime: "asc" },
   },
   relayChannel: { select: { id: true, name: true } },

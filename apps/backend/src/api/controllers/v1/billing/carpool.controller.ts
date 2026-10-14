@@ -1,3 +1,4 @@
+import { platformCarpoolOrderResource } from "@/iam/request/platform-carpool-order-resource-resolvers";
 import {
   platformCarpoolTemplateWriteResource,
   platformCarpoolTemplateCreateResources,
@@ -225,15 +226,22 @@ export class CarpoolController extends Controller {
   }
   @Get("admin")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:carpool:ListAdminOrders",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(carpoolPageQuerySchema))
   public listAdmin(
     @Query() state?: string,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<CarpoolOrderListResponse> {
-    return this.service.listAdmin(state, page, pageSize, keyword);
+    return this.service.listAdmin(state, page, pageSize, keyword, request);
   }
   // Static admin paths must precede admin/{id} in the generated Express router.
   @Get("admin/delivery-channels")
@@ -252,10 +260,16 @@ export class CarpoolController extends Controller {
   /** Operations-only detail endpoint. The member-facing order endpoint must not be used by operators. */
   @Get("admin/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:GetAdminOrder",
+      resourceKind: "single-resource",
+      resource: platformCarpoolOrderResource,
+    }),
+  )
   @Middlewares(validateParams(carpoolIdParamsSchema))
   public getAdminOrder(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
-    return this.service.getOrder(id, request.user!.userId, true);
+    return this.service.getOrder(id, request.user!.userId, true, request);
   }
 
   @Post()

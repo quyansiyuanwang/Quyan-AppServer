@@ -24,6 +24,10 @@ The workbench prioritizes pending work by default and provides state, keyword, a
 
 Users invite, allocate, and confirm while an order is open. The owner submits the carpool only after all required conditions are met; operations then continues the workflow.
 
+The operations list uses `quyan:carpool:ListAdminOrders`; operations details use the separate `quyan:carpool:GetAdminOrder`. Both evaluate `acs:platform:*:platform:carpool-order/<orderId>` and require the deployment's global management group qualification for order reads.
+
+Records, pagination totals and state counters include only permitted orders. A selected state filters the table; counters still cover all permitted orders matching the current keyword. Denied orders reveal no names, costs, members or events and do not contribute to counts. List authorization does not grant detail access, and the member-facing `quyan:carpool:GetOrder` does not grant operations details. Refresh and retry if identity or authorization changes during a read.
+
 ## Delivery dialog and order changes
 
 When an operator opens the delivery dialog, the page reloads the latest detail by order ID before loading channels allowed by that order snapshot. Confirmation and post-delivery refresh use the same order ID. If the order was already processed, deleted, or changed state, the dialog closes, the list refreshes, and the page asks the operator to refresh and retry. The server still validates existence, the accepted state, the channel snapshot, and channel eligibility.
