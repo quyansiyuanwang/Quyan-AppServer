@@ -2,11 +2,18 @@ import { IAM_RESOURCE_TYPE_CATALOG, getIamActionDefinition } from './catalog'
 import type { IamResourceTypeDefinition } from './catalog'
 import { matchIamPattern } from './pattern'
 import { IAM_PLATFORM_ACCOUNT_ID } from './platform'
+export const IAM_SUBJECT_TYPES = Object.freeze([
+  'root',
+  'sub_user',
+  'access_key',
+  'assumed_role',
+  'service',
+] as const)
 export interface IamPrincipal {
   subjectUserId: string
   principalUserId: string
   accountOwnerId: string
-  subjectType: 'root' | 'sub_user' | 'access_key' | 'assumed_role' | 'service'
+  subjectType: (typeof IAM_SUBJECT_TYPES)[number]
   assumedRoleId?: string
   roleSessionId?: string
 }
