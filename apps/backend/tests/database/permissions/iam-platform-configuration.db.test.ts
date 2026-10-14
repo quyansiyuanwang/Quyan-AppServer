@@ -272,7 +272,11 @@ describe("typed configuration family authorization", () => {
     ["heartbeat", Object.values(CONFIG_KEYS.HEARTBEAT)],
     ["remote-terminal", Object.values(CONFIG_KEYS.REMOTE_TERMINAL)],
   ])("denies %s reads and writes when one family member is explicitly denied", async (_family, keys) => {
-    await globalGroup();
+    await globalGroup(
+      _family === "notification"
+        ? [Permission.SYSTEM_CONFIG, Permission.TICKET_REVIEW_UPDATE]
+        : [Permission.SYSTEM_CONFIG],
+    );
     await bind({
       Version: "1",
       Statement: {
@@ -286,7 +290,7 @@ describe("typed configuration family authorization", () => {
     expect(await prisma.serverConfig.count({ where: { key: { in: keys } } })).toBe(0);
   });
   it("rolls back an entire notification save if the deployment grant is revoked before commit", async () => {
-    const group = await globalGroup();
+    const group = await globalGroup([Permission.SYSTEM_CONFIG, Permission.TICKET_REVIEW_UPDATE]);
     const keys = Object.values(CONFIG_KEYS.NOTIFICATION);
     const guard = await prepare(keys);
     const originalRecheck = guard.users.recheck;
@@ -299,5 +303,66 @@ describe("typed configuration family authorization", () => {
     expect(await prisma.serverConfig.count({ where: { key: { in: keys } } })).toBe(0);
     await prisma.group.update({ where: { id: group.id }, data: { permissions: [] } });
     await expect(service.prepareRead(keys, request())).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("filters ticket rules when general managers lack review eligibility even with a wildcard policy", async () => {
+    await globalGroup();
+    await bind({ Version: "1", Statement: { Effect: "Allow", Action: "*", Resource: "*" } });
+    await prisma.serverConfig.create({ data: { key: CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES, value: "[]" } });
+    expect((await service.list(request())).configs).not.toHaveProperty(
+      CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES,
+    );
+    await expect(prepare([CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES])).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+  it("applies the dedicated ticket read Deny through the general configuration API", async () => {
+    await globalGroup([Permission.SYSTEM_CONFIG, Permission.TICKET_REVIEW_UPDATE]);
+    await prisma.serverConfig.create({ data: { key: CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES, value: "[]" } });
+    await bind({
+      Version: "1",
+      Statement: {
+        Effect: "Deny",
+        Action: "quyan:ticket:GetAssignmentRules",
+        Resource: platformConfigurationArn(CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES),
+      },
+    });
+    expect((await service.list(request())).configs).not.toHaveProperty(
+      CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES,
+    );
+    const guard = await prepare([CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES]);
+    await service.update({ [CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES]: "[]" }, guard);
+  });
+  it("applies the dedicated ticket update Deny to every general configuration write key", async () => {
+    await globalGroup([Permission.SYSTEM_CONFIG, Permission.TICKET_REVIEW_UPDATE]);
+    await bind({
+      Version: "1",
+      Statement: {
+        Effect: "Deny",
+        Action: "quyan:ticket:UpdateAssignmentRules",
+        Resource: platformConfigurationArn(CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES),
+      },
+    });
+    await expect(
+      prepare([CONFIG_KEYS.SMTP.HOST, CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES]),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(
+      await prisma.serverConfig.count({
+        where: { key: { in: [CONFIG_KEYS.SMTP.HOST, CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES] } },
+      }),
+    ).toBe(0);
+  });
+  it("rechecks ticket management eligibility after creating a general configuration guard", async () => {
+    const group = await globalGroup([Permission.SYSTEM_CONFIG, Permission.TICKET_REVIEW_UPDATE]);
+    const guard = await prepare([CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES]);
+    await prisma.group.update({
+      where: { id: group.id },
+      data: { permissions: [Permission.SYSTEM_CONFIG], updateTime: group.updateTime },
+    });
+    await expect(
+      service.update({ [CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES]: "[]" }, guard),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(
+      await prisma.serverConfig.findUnique({ where: { key: CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES } }),
+    ).toBeNull();
   });
 });

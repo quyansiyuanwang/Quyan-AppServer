@@ -49,6 +49,8 @@ Reading the registration, SMTP, site, billing, notification, heartbeat, remote t
 
 With IAM enforcement, SMTP passwords, relay API keys, social sign-in client/app secrets, and upstream or proxy URLs containing usernames or passwords are shown as `[configured]`. Keeping that placeholder preserves the corresponding stored value; a new value replaces it, and an explicitly submitted empty string clears it. The placeholder is never stored as a configuration value. Saving auto proxy pool settings also requires step-up verification and replay protection. The sample count must be 1–1000 and the statistics window must be 1–8760 hours.
 
+In enforcement mode, reading or updating `notification.ticketAssignmentRules` through the general configuration API also requires active global-group eligibility for `TICKET_REVIEW_UPDATE` and the corresponding `quyan:ticket:GetAssignmentRules` or `quyan:ticket:UpdateAssignmentRules` grant. A Deny on the dedicated operation also restricts the general configuration entry point. Without these permissions, the generic list hides the key; reads of the notification section and batch saves containing that key are rejected.
+
 ## Common actions
 
 1. Expand the section you need to adjust.

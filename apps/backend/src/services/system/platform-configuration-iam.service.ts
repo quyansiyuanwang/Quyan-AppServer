@@ -21,6 +21,7 @@ import type {
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { CONFIG_KEYS } from "@/constant/config-keys";
 import {
+  Permission,
   isSensitiveServerConfigValue,
   SERVER_CONFIG_SECRET_PLACEHOLDER,
   type IamPrincipal,
@@ -113,8 +114,37 @@ export class PlatformConfigurationIamService {
         supportAllowed = false;
       }
     }
+    const assignmentKey = CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES;
+    let assignmentAllowed = true;
+    if (keys.includes(assignmentKey)) {
+      const assignmentAction =
+          action === "quyan:system:ListConfigurations"
+            ? "quyan:ticket:GetAssignmentRules"
+            : "quyan:ticket:UpdateAssignmentRules",
+        resource = platformConfigurationArn(assignmentKey);
+      try {
+        await this.repository.groupSnapshot(principal, Permission.TICKET_REVIEW_UPDATE);
+        const result = await this.iam.authorize({
+          principal,
+          action: assignmentAction,
+          resource,
+          context: requestConditionContext(request, principal),
+        });
+        if (!result) throw iamAccountDenied();
+        this.audit(principal, request, assignmentAction, resource, result, start);
+        assignmentAllowed = result.decision === "Allow";
+      } catch (error) {
+        if (!(error instanceof ForbiddenError)) throw error;
+        assignmentAllowed = false;
+      }
+    }
     return new Set(
-      keys.filter((key, i) => results[i].decision === "Allow" && (!isSupportConfigurationKey(key) || supportAllowed)),
+      keys.filter(
+        (key, i) =>
+          results[i].decision === "Allow" &&
+          (!isSupportConfigurationKey(key) || supportAllowed) &&
+          (key !== assignmentKey || assignmentAllowed),
+      ),
     );
   }
   private async guard(

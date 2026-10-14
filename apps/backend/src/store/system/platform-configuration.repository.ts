@@ -21,8 +21,11 @@ export class PlatformConfigurationRepository implements PlatformConfigurationSto
   static getInstance() {
     return (this.instance ??= new PlatformConfigurationRepository());
   }
-  groupSnapshot(principal: IamPrincipal) {
-    return platformManagementGroupSnapshot(principal, Permission.SYSTEM_CONFIG);
+  groupSnapshot(
+    principal: IamPrincipal,
+    permission: Permission.SYSTEM_CONFIG | Permission.TICKET_REVIEW_UPDATE = Permission.SYSTEM_CONFIG,
+  ) {
+    return platformManagementGroupSnapshot(principal, permission);
   }
   private validKeys(keys: readonly string[]) {
     if (

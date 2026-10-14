@@ -33,6 +33,8 @@ Use this page to review, process, and respond to user-submitted tickets such as 
 - Assignee pool configuration for round-robin assignment.
 - Validation summary for incomplete rules before saving.
 
+In enforcement mode, reading or updating `notification.ticketAssignmentRules` through the general configuration API also requires active global-group eligibility for `TICKET_REVIEW_UPDATE` and the corresponding `quyan:ticket:GetAssignmentRules` or `quyan:ticket:UpdateAssignmentRules` grant. A Deny on the dedicated operation also restricts the general configuration entry point. Without these permissions, the generic list hides the key; reads of the notification section and batch saves containing that key are rejected.
+
 ## Common actions
 
 1. Filter by `pending` status to find new unprocessed submissions.

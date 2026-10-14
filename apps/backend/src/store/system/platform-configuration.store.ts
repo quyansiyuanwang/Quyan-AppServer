@@ -1,4 +1,4 @@
-import type { IamPrincipal } from "@quyan/shared";
+import type { IamPrincipal, Permission } from "@quyan/shared";
 import type { IamAccountUserMutationGuard } from "../users/iam-account-user-mutation";
 export interface ConfigurationTarget {
   id: string;
@@ -18,7 +18,10 @@ export interface PlatformConfigurationGuard {
   users: IamAccountUserMutationGuard;
 }
 export interface PlatformConfigurationStore {
-  groupSnapshot(principal: IamPrincipal): Promise<{ id: string; updateTime: Date }>;
+  groupSnapshot(
+    principal: IamPrincipal,
+    permission?: Permission.SYSTEM_CONFIG | Permission.TICKET_REVIEW_UPDATE,
+  ): Promise<{ id: string; updateTime: Date }>;
   scan(principal: IamPrincipal, after?: string): Promise<ConfigurationTarget[]>;
   targets(principal: IamPrincipal, keys: readonly string[]): Promise<ConfigurationTarget[]>;
   hydrate(principal: IamPrincipal, targets: readonly ConfigurationTarget[]): Promise<ConfigurationView[]>;

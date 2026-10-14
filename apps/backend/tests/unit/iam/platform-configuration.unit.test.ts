@@ -39,7 +39,7 @@ import {
   CAPTCHA_CONFIGURATION_KEYS,
   SOCIAL_AUTH_CONFIGURATION_KEYS,
 } from "@/constant/config-keysets";
-import { SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
+import { Permission, SERVER_CONFIG_SECRET_PLACEHOLDER } from "@quyan/shared";
 import { Project } from "ts-morph";
 import { collectIamRoutes } from "../../../scripts/iam/route-inventory";
 import type { TypedRequest } from "@/types/express";
@@ -218,4 +218,56 @@ it("masks credentials embedded in proxy URLs without exposing stored values", as
   expect((await service.list(request)).configs[CONFIG_KEYS.RELAY.UPSTREAM_PROXY_URL]).toBe(
     SERVER_CONFIG_SECRET_PLACEHOLDER,
   );
+});
+
+describe("ticket rules through general configuration", () => {
+  it("filters ticket rule secrets/values before general configuration hydration on a domain Deny", async () => {
+    // The source must keep key order as required by the production metadata scanner.
+    repo.scan.mockResolvedValue(
+      [target(CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES), target(CONFIG_KEYS.SMTP.HOST)].sort((a, b) =>
+        a.key.localeCompare(b.key),
+      ),
+    );
+    iam.authorize.mockImplementation(async ({ action }: any) =>
+      action === "quyan:ticket:GetAssignmentRules" ? deny : allow,
+    );
+    const result = await service.list(request);
+    expect(result.configs).not.toHaveProperty(CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES);
+    expect(
+      repo.hydrate.mock.calls
+        .flatMap((call: any) => call[1])
+        .some((row: any) => row.key === CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES),
+    ).toBe(false);
+  });
+  it("does not infer ticket rule management eligibility from general configuration permission", async () => {
+    const { ForbiddenError } = await import("@/util/errors");
+    repo.groupSnapshot.mockImplementation(async (_p: any, permission: any) => {
+      if (permission === Permission.TICKET_REVIEW_UPDATE)
+        throw new ForbiddenError("fixture", undefined, { messageKey: "permission.insufficientPermission" });
+      return { id: "global", updateTime: new Date(0) };
+    });
+    await expect(
+      service.prepareUpdate([CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES], "actor", request),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+  it("checks the dedicated write Action for the same configuration ARN", async () => {
+    iam.authorize.mockImplementation(async ({ action }: any) =>
+      action === "quyan:ticket:UpdateAssignmentRules" ? deny : allow,
+    );
+    await expect(
+      service.prepareUpdate([CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES], "actor", request),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(iam.authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "quyan:ticket:UpdateAssignmentRules",
+        resource: platformConfigurationArn(CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES),
+      }),
+    );
+  });
+  it("rechecks the domain Action when committing general configuration writes", async () => {
+    const guard = await service.prepareUpdate([CONFIG_KEYS.NOTIFICATION.TICKET_ASSIGNMENT_RULES], "actor", request);
+    iam.authorize.mockResolvedValue(deny);
+    await expect(guard.users.recheck()).rejects.toMatchObject({ statusCode: 403 });
+  });
 });

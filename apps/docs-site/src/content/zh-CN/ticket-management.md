@@ -33,6 +33,8 @@
 - 配置自动轮转分配的处理人池。
 - 保存前展示未完成规则的校验摘要。
 
+强制模式下，通用配置接口读取或更新 `notification.ticketAssignmentRules` 时，还需要有效全局组的 `TICKET_REVIEW_UPDATE` 资格，以及对应的 `quyan:ticket:GetAssignmentRules` 或 `quyan:ticket:UpdateAssignmentRules` 授权。专用操作的 Deny 同样限制通用配置入口。缺少这些权限时，通用列表隐藏该键，包含该键的通知区块读取或批量保存会被拒绝。
+
 ## 常见操作
 
 1. 按状态 `pending` 筛选，找出尚未处理的新工单。

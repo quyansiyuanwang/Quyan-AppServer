@@ -49,6 +49,8 @@
 
 IAM 强制授权下，SMTP 密码、中继 API Key、社交登录 Client Secret / App Secret，以及含用户名或密码的上游或代理 URL 显示为 `[configured]`。保留该占位符会保留对应原值；输入新值会替换配置，提交空字符串会清除对应值。占位符不会作为配置值写入。自动代理池保存同样需要二次验证和重放保护，样本数范围为 1–1000，统计窗口范围为 1–8760 小时。
 
+强制模式下，通用配置接口读取或更新 `notification.ticketAssignmentRules` 时，还需要有效全局组的 `TICKET_REVIEW_UPDATE` 资格，以及对应的 `quyan:ticket:GetAssignmentRules` 或 `quyan:ticket:UpdateAssignmentRules` 授权。专用操作的 Deny 同样限制通用配置入口。缺少这些权限时，通用列表隐藏该键，包含该键的通知区块读取或批量保存会被拒绝。
+
 ## 常见操作
 
 1. 展开需要调整的区块。
