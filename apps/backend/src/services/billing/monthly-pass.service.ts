@@ -1,3 +1,4 @@
+import { PlatformMonthlyPassUsageReadIamService } from "./platform-monthly-pass-usage-read-iam.service";
 import { PlatformMonthlyPassTemplateWriteIamService } from "./platform-monthly-pass-template-write-iam.service";
 import type { TypedRequest } from "@/types/express";
 import { env } from "@/config/env";
@@ -2030,6 +2031,7 @@ export class MonthlyPassService {
     model?: string,
     startTime?: string,
     endTime?: string,
+    request?: TypedRequest,
   ): Promise<MonthlyPassUsageListResponse> {
     const paging = normalizePagination(page, pageSize);
     const parsedStartTime = parseDateStringOrThrow("startTime", startTime);
@@ -2051,14 +2053,21 @@ export class MonthlyPassService {
       if (parsedEndTime) where.createTime.lte = parsedEndTime;
     }
 
-    const result = await this.monthlyPassRepository.listUsageRecords(where, paging.page, paging.pageSize);
-
-    return {
-      total: result.total,
-      records: result.records.map((item) => this.toUsageDto(item)),
-      page: paging.page,
-      pageSize: paging.pageSize,
-    };
+    if (!request) throw iamAccountDenied();
+    return PlatformMonthlyPassUsageReadIamService.getInstance().list(
+      request,
+      paging,
+      { userId, templateId, model, startAt: parsedStartTime, endAt: parsedEndTime },
+      (view) =>
+        this.toUsageDto({
+          ...view.record,
+          userMonthlyPass: { template: { id: view.templateId, name: view.templateName ?? "" } },
+        }),
+      async () => {
+        const result = await this.monthlyPassRepository.listUsageRecords(where, paging.page, paging.pageSize);
+        return { total: result.total, records: result.records.map((item) => this.toUsageDto(item)) };
+      },
+    );
   }
 
   async hasActiveCoverage(

@@ -332,9 +332,17 @@ export class MonthlyPassController extends Controller {
 
   @Get("usages")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_USAGE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListUsages",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.MONTHLY_PASS_USAGE_READ],
+    }),
+  )
   @Middlewares(validateQuery(listMonthlyPassUsagesQuerySchema))
   public async listUsages(
+    @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() userId?: string,
@@ -343,6 +351,6 @@ export class MonthlyPassController extends Controller {
     @Query() startTime?: string,
     @Query() endTime?: string,
   ): Promise<MonthlyPassUsageListResponse> {
-    return this.monthlyPassService.listUsages(page, pageSize, userId, templateId, model, startTime, endTime);
+    return this.monthlyPassService.listUsages(page, pageSize, userId, templateId, model, startTime, endTime, request);
   }
 }

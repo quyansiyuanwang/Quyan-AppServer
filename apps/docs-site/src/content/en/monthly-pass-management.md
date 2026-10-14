@@ -4,6 +4,8 @@ Use this page to manage monthly-pass templates and user assignments.
 
 With IAM enforcement enabled, the management template list uses `quyan:monthly_pass:ListTemplates` against each `acs:platform:*:platform:monthly-pass-template/<templateId>`. Page records and totals include only permitted templates, and quota windows are returned only with an admitted template. Monthly pass templates are shared deployment resources, so IAM grants also require the global management group ceiling configured by the deployment administrator. An account policy or account-owned group cannot grant that management eligibility. This read permission does not grant template editing, publication, or pass assignment.
 
+With IAM enforcement enabled, usage records use `quyan:monthly_pass:ListUsages` against each `acs:platform:*:platform:monthly-pass-usage/<userId>/<passId>/<usageId>`. Counts and pages include only allowed records. Showing a template name additionally requires the same Action to allow its `acs:platform:*:platform:monthly-pass-template/<templateId>`; otherwise the name is empty. Historical model and channel names are returned as part of the authorized usage record and do not grant access to current channel configuration. This operation also requires monthly-pass usage read eligibility in a deployment-managed global group.
+
 ## Page purpose
 
 - Maintain monthly-pass templates.

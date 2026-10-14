@@ -236,6 +236,14 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       '/{userId}/{resourceId}' +
       (segments === 3 ? '/{tokenId}' : ''),
   })),
+  {
+    ...resource('platform', 'monthly-pass-usage', 3),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' +
+      IAM_PLATFORM_ACCOUNT_ID +
+      ':monthly-pass-usage/{userId}/{passId}/{resourceId}',
+  },
   resource('quyan', 'account', 0),
   { ...resource('quyan', 'user', 1, true), authenticatedSelfScope: 'identity' },
   resource('quyan', 'group', 1, true),
@@ -888,6 +896,19 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       legacyPermission: definition.permission,
     }),
   ),
+  {
+    action: 'quyan:monthly_pass:ListUsages',
+    service: 'monthly_pass',
+    operation: 'ListUsages',
+    accessLevel: 'List',
+    resourceTypes: ['platform/monthly-pass-usage', 'platform/monthly-pass-template'],
+    apiRoutes: ['GET /v1/monthly-passes/usages'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.MONTHLY_PASS_USAGE_READ,
+  },
   ...IAM_MONTHLY_PASS_TEMPLATE_WRITE_OPERATIONS.map(
     (definition): IamActionDefinition => ({
       action: 'quyan:monthly_pass:' + definition.operation,

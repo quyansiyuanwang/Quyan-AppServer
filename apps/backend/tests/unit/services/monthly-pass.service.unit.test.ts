@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PlatformMonthlyPassUsageReadIamService } from "@/services/billing/platform-monthly-pass-usage-read-iam.service";
+import type { TypedRequest } from "@/types/express";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MonthlyPassService } from "../../../src/services/billing/monthly-pass.service";
 import { MANAGED_STATUS } from "../../../src/constant/status";
 import { OperationCategory, OperationType } from "../../../src/constant/operation-type";
@@ -535,6 +537,19 @@ describe("MonthlyPassService historical usage channel display", () => {
     vi.clearAllMocks();
   });
 
+  beforeEach(() => {
+    vi.spyOn(PlatformMonthlyPassUsageReadIamService, "getInstance").mockReturnValue({
+      list: async (
+        _request: unknown,
+        pagination: unknown,
+        _filters: unknown,
+        _map: unknown,
+        legacy: () => Promise<unknown>,
+      ) => ({ ...((await legacy()) as object), ...(pagination as object) }),
+    } as unknown as PlatformMonthlyPassUsageReadIamService);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
   it("restores the original legacy channel name ahead of a backfilled placeholder", async () => {
     monthlyPassRepository.listUsageRecords.mockResolvedValue({
       total: 1,
@@ -547,7 +562,16 @@ describe("MonthlyPassService historical usage channel display", () => {
       ],
     });
 
-    const result = await service.listUsages();
+    const result = await service.listUsages(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {} as TypedRequest,
+    );
 
     expect(result.records[0]).toEqual(
       expect.objectContaining({
@@ -568,7 +592,16 @@ describe("MonthlyPassService historical usage channel display", () => {
       ],
     });
 
-    const result = await service.listUsages();
+    const result = await service.listUsages(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {} as TypedRequest,
+    );
 
     expect(result.records[0]).toEqual(
       expect.objectContaining({
@@ -584,7 +617,16 @@ describe("MonthlyPassService historical usage channel display", () => {
       records: [buildUsageRecord({ displayChannelName: "历史渠道（未记录）" })],
     });
 
-    const result = await service.listUsages();
+    const result = await service.listUsages(
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {} as TypedRequest,
+    );
 
     expect(result.records[0]?.displayChannelName).toBeUndefined();
     expect(result.records[0]?.displayChannelId).toBeUndefined();

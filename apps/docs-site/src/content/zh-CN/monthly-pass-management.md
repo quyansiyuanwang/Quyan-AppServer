@@ -4,6 +4,8 @@
 
 启用 IAM 强制授权后，套餐管理列表使用 `quyan:monthly_pass:ListTemplates`，逐条检查 `acs:platform:*:platform:monthly-pass-template/<templateId>`。分页记录和总数只包含获准查看的模板，额度窗口也仅随获准模板返回。月卡模板属于部署共享资源，除了 IAM 策略，还必须保留部署管理员配置的全局管理组权限上限，账号自己的策略或用户组不能自行取得这项管理资格。这一读取权限不会授予模板修改、发布或月卡分配权限。
 
+启用 IAM 强制授权后，用量记录使用 `quyan:monthly_pass:ListUsages`，逐条检查 `acs:platform:*:platform:monthly-pass-usage/<userId>/<passId>/<usageId>`。总数和分页仅包含获准记录。要显示模板名称，还需同一 Action 允许对应的 `acs:platform:*:platform:monthly-pass-template/<templateId>`；否则模板名称为空。用量记录中的历史模型和渠道名称随记录授权返回，不授予访问当前渠道配置的权限。此操作同样需要全局管理组的月卡用量读取资格。
+
 ## 页面用途
 
 - 维护月卡模板。
