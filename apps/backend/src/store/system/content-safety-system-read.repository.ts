@@ -7,9 +7,11 @@ import { isContentSafetyRuleId } from "@/iam/resources/content-safety-system-res
 import { iamAccountDenied } from "../users/iam-account-principal";
 import type { PlatformCollectionCursor } from "./platform-collection.store";
 import type { ContentSafetySystemReadStore, ContentSafetySystemRuleTarget } from "./content-safety-system-read.store";
-// Sensitive rule text contributes to revision in MySQL but is not selected until its resource is allowed.
-const revision = Prisma.sql`SHA2(CAST(JSON_ARRAY(id,status,createTime,updateTime,name,type,pattern,direction,action,enabled,priority,source,version,ownerUserId) AS CHAR),256)`;
-const metadata = Prisma.sql`id,status,createTime,updateTime,priority,${revision} AS revision`;
+import {
+  CONTENT_SAFETY_SYSTEM_RULE_METADATA as metadata,
+  readContentSafetySystemRuleTargets,
+  sameContentSafetySystemRuleTargets,
+} from "./content-safety-system-rule-snapshot";
 export class ContentSafetySystemReadRepository implements ContentSafetySystemReadStore {
   private static instance: ContentSafetySystemReadRepository;
   static getInstance() {
@@ -36,18 +38,6 @@ export class ContentSafetySystemReadRepository implements ContentSafetySystemRea
       ${boundary ? Prisma.sql`AND (createTime<${boundary.createTime} OR (createTime=${boundary.createTime} AND id<=${boundary.id}))` : Prisma.empty}
       ORDER BY createTime DESC,id DESC LIMIT ${IAM_AUTHORIZATION_LIMITS.resourcesPerRequest}`);
   }
-  private async targets(ids: readonly string[]) {
-    return prisma.$queryRaw<ContentSafetySystemRuleTarget[]>(
-      Prisma.sql`SELECT ${metadata} FROM content_safety_rules WHERE status=1 AND ownerUserId IS NULL AND id IN (${Prisma.join([...ids])})`,
-    );
-  }
-  private same(actual: readonly ContentSafetySystemRuleTarget[], expected: readonly ContentSafetySystemRuleTarget[]) {
-    if (
-      actual.length !== expected.length ||
-      actual.some((row) => !expected.some((previous) => previous.id === row.id && previous.revision === row.revision))
-    )
-      throw iamAccountDenied();
-  }
   async hydrate(expected: readonly ContentSafetySystemRuleTarget[]) {
     if (!expected.length) return [];
     const ids = expected.map((row) => row.id);
@@ -57,7 +47,7 @@ export class ContentSafetySystemReadRepository implements ContentSafetySystemRea
       ids.some((id) => !isContentSafetyRuleId(id))
     )
       throw iamAccountDenied();
-    this.same(await this.targets(ids), expected);
+    sameContentSafetySystemRuleTargets(await readContentSafetySystemRuleTargets(prisma, ids), expected);
     const rows = await prisma.contentSafetyRule.findMany({ where: { status: 1, ownerUserId: null, id: { in: ids } } });
     if (
       rows.length !== expected.length ||
@@ -67,7 +57,7 @@ export class ContentSafetySystemReadRepository implements ContentSafetySystemRea
       )
     )
       throw iamAccountDenied();
-    this.same(await this.targets(ids), expected);
+    sameContentSafetySystemRuleTargets(await readContentSafetySystemRuleTargets(prisma, ids), expected);
     return expected.map((target) => rows.find((row) => row.id === target.id)!);
   }
   async configuration() {

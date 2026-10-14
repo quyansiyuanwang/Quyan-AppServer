@@ -14,7 +14,12 @@ import {
   Middlewares,
 } from "@tsoa/runtime";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
-import { contentSafetySystemConfigResourceResolver } from "@/iam/request/content-safety-system-resource-resolvers";
+import {
+  contentSafetySystemConfigResourceResolver,
+  contentSafetySystemRuleControlResourceResolver,
+  contentSafetySystemRuleResourceResolver,
+  contentSafetySystemRuleBatchResourceResolver,
+} from "@/iam/request/content-safety-system-resource-resolvers";
 import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -281,14 +286,21 @@ export class ContentSafetyController extends Controller {
     return this.service.importCsv(body.csv, body.mode ?? "apply", body.overwrite === true);
   }
   @Post("rules/batch-update")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:BatchUpdateSystemRules",
+    resourceKind: "batch",
+    resource: contentSafetySystemRuleBatchResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(contentSafetyBatchUpdateSchema),
   )
-  async batchUpdateRules(@Body() body: ContentSafetyBatchUpdateRequest): Promise<ContentSafetyBatchUpdateResponse> {
-    return this.service.batchUpdateRules(body.ids, body.changes);
+  async batchUpdateRules(
+    @Body() body: ContentSafetyBatchUpdateRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ContentSafetyBatchUpdateResponse> {
+    return this.service.batchUpdateRules(body.ids, body.changes, request);
   }
   @Post("rules/export")
   @Middlewares(
@@ -306,30 +318,42 @@ export class ContentSafetyController extends Controller {
     return this.service.exportPolicy(undefined, body.format ?? "json", "system", request);
   }
   @Post("rules")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:CreateSystemRule",
+    resourceKind: "collection",
+    resource: contentSafetySystemRuleControlResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(contentSafetyRuleSchema),
   )
-  async createRule(@Body() body: ContentSafetyRuleRequest) {
-    return this.service.createRule(body);
+  async createRule(@Body() body: ContentSafetyRuleRequest, @Request() request: TypedRequest) {
+    return this.service.createRule(body, request);
   }
   @Put("rules/{id}")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:UpdateSystemRule",
+    resourceKind: "single-resource",
+    resource: contentSafetySystemRuleResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(contentSafetyRuleSchema),
   )
-  async updateRule(@Path() id: string, @Body() body: ContentSafetyRuleRequest) {
-    return this.service.updateRule(id, body);
+  async updateRule(@Path() id: string, @Body() body: ContentSafetyRuleRequest, @Request() request: TypedRequest) {
+    return this.service.updateRule(id, body, request);
   }
   @Delete("rules/{id}")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:DeleteSystemRule",
+    resourceKind: "single-resource",
+    resource: contentSafetySystemRuleResourceResolver,
+  })
   @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), replayProtectionMiddleware)
-  async deleteRule(@Path() id: string) {
-    await this.service.deleteRule(id);
+  async deleteRule(@Path() id: string, @Request() request: TypedRequest) {
+    await this.service.deleteRule(id, request);
     return { success: true };
   }
   @Get("incidents")

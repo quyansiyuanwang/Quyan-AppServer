@@ -1,3 +1,5 @@
+import { ContentSafetySystemRuleMutationIamService } from "./content-safety-system-rule-mutation-iam.service";
+import { CONTENT_SAFETY_RULE_LIMITS } from "@/constant/content-safety-rule";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { ContentSafetySystemReadIamService } from "./content-safety-system-read-iam.service";
 import { renderContentSafetyPolicyExport } from "./content-safety-policy-export";
@@ -906,7 +908,14 @@ export class ContentSafetyService {
       direction?: ContentSafetyDirection | "both";
       priority?: number;
     },
+    request?: TypedRequest,
   ) {
+    if (request)
+      return ContentSafetySystemRuleMutationIamService.getInstance().batch({ ids, changes }, request, async () => {
+        await this.repository.batchUpdateSystemRules(ids, changes);
+        return { updated: ids.length };
+      });
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
     await this.repository.batchUpdateSystemRules(ids, changes);
     return { updated: ids.length };
   }
@@ -952,7 +961,18 @@ export class ContentSafetyService {
     if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
     return this.repository.listAllRules(page, pageSize);
   }
-  async createRule(input: any) {
+  async createRule(input: any, request?: TypedRequest) {
+    if (request)
+      return ContentSafetySystemRuleMutationIamService.getInstance().create(
+        input,
+        request,
+        (value) => this.validateRule(value, false),
+        () => this.createRuleLegacy(input),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.createRuleLegacy(input);
+  }
+  private async createRuleLegacy(input: any) {
     await this.validateRule(input);
     return this.repository.create({
       name: input.name.trim(),
@@ -965,7 +985,19 @@ export class ContentSafetyService {
       source: "custom",
     });
   }
-  async updateRule(id: string, input: any) {
+  async updateRule(id: string, input: any, request?: TypedRequest) {
+    if (request)
+      return ContentSafetySystemRuleMutationIamService.getInstance().update(
+        id,
+        input,
+        request,
+        (value) => this.validateRule(value, false),
+        () => this.updateRuleLegacy(id, input),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.updateRuleLegacy(id, input);
+  }
+  private async updateRuleLegacy(id: string, input: any) {
     await this.validateRule(input, false);
     return this.repository.update(id, {
       name: input.name.trim(),
@@ -977,7 +1009,12 @@ export class ContentSafetyService {
       priority: Number(input.priority || 100),
     });
   }
-  async deleteRule(id: string) {
+  async deleteRule(id: string, request?: TypedRequest) {
+    if (request)
+      return ContentSafetySystemRuleMutationIamService.getInstance().remove(id, request, () =>
+        this.repository.softDelete(id),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
     return this.repository.softDelete(id);
   }
   private stableRuleKey(input: { type: string; direction: string; pattern: string }) {
@@ -1104,7 +1141,11 @@ export class ContentSafetyService {
       throw new BadRequestError("Invalid content safety rule", undefined, { messageKey: "contentSafety.invalidRule" });
     if (checkLimit) {
       const stats = await this.repository.ruleStats();
-      if (stats.count >= 500 || stats.patternBytes + Buffer.byteLength(input.pattern.trim(), "utf8") > 1024 * 1024)
+      if (
+        stats.count >= CONTENT_SAFETY_RULE_LIMITS.maxRules ||
+        stats.patternBytes + Buffer.byteLength(input.pattern.trim(), "utf8") >
+          CONTENT_SAFETY_RULE_LIMITS.maxPatternBytes
+      )
         throw new BadRequestError("Content safety rule limit reached", undefined, {
           messageKey: "contentSafety.ruleLimitReached",
         });

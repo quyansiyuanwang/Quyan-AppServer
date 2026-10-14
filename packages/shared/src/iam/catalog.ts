@@ -87,6 +87,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':content-safety-config',
   },
   {
+    ...resource('platform', 'content-safety-rule-control', 0),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':content-safety-rule-control',
+  },
+  {
     ...resource('platform', 'content-safety-rule'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':content-safety-rule/{resourceId}',
@@ -2715,6 +2720,29 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
+    }),
+  ),
+  ...[
+    {
+      operation: 'CreateSystemRule',
+      resourceTypes: ['platform/content-safety-rule-control', 'platform/content-safety-rule'],
+    },
+    { operation: 'UpdateSystemRule', resourceTypes: ['platform/content-safety-rule'] },
+    { operation: 'DeleteSystemRule', resourceTypes: ['platform/content-safety-rule'] },
+    { operation: 'BatchUpdateSystemRules', resourceTypes: ['platform/content-safety-rule'] },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:content_safety:' + definition.operation,
+      service: 'content_safety',
+      operation: definition.operation,
+      accessLevel: 'Write',
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationBoundary: 'platform',
+      authorizationStage: 'declared',
+      legacyPermission: Permission.SYSTEM_CONFIG,
     }),
   ),
   ...[

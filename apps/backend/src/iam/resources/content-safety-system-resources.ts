@@ -19,3 +19,12 @@ export function contentSafetySystemConfigArn() {
     path: "content-safety-config",
   });
 }
+
+export function contentSafetySystemRuleControlArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "content-safety-rule-control",
+  });
+}
