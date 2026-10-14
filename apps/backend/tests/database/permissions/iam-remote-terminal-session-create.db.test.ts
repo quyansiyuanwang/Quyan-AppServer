@@ -13,14 +13,15 @@ import { remoteTerminalDeviceArn } from "@/iam/resources/remote-terminal-resourc
 import { RedisService } from "@/services/infrastructure/redis.service";
 import { terminalSessionRedisKey } from "@/services/infrastructure/remote-terminal-session-projection";
 import type { TypedRequest } from "@/types/express";
-let owner: string, actor: string;
+let owner: string, actor: string, actorUpdatedAt: string;
 const mode = env.security.iamAuthorizationMode,
   gateway = RemoteTerminalGatewayService.getInstance().getSessionGateway(),
   service = RemoteTerminalService.getInstance(),
   redis = RedisService.getInstance(),
   keys: string[] = [],
   sockets: EventEmitter[] = [],
-  issued: string[] = [];
+  issued: string[] = [],
+  browsers: EventEmitter[] = [];
 const user = async (accountOwnerId?: string) =>
   (
     await prisma.user.create({
@@ -37,7 +38,7 @@ const user = async (accountOwnerId?: string) =>
   ).id;
 const request = () =>
   ({
-    user: { userId: actor },
+    user: { userId: actor, updatedAt: actorUpdatedAt },
     authContext: { principalUserId: actor, accountOwnerId: owner },
     headers: { "x-action": "*" },
     secure: true,
@@ -135,14 +136,59 @@ beforeEach(async () => {
   env.security.iamAuthorizationMode = "enforce";
   owner = await user();
   actor = await user(owner);
+  actorUpdatedAt = (
+    await prisma.user.findUniqueOrThrow({ where: { id: actor }, select: { updateTime: true } })
+  ).updateTime.toISOString();
 });
 afterEach(async () => {
   vi.restoreAllMocks();
+  for (const browser of browsers.splice(0)) browser.emit("close");
   for (const id of issued.splice(0)) await gateway.discardPendingSession(actor, id);
   for (const socket of sockets.splice(0)) socket.emit("close");
   if (keys.length) await redis.deleteMany(keys.splice(0));
   env.security.iamAuthorizationMode = mode;
 });
+async function connectPolicy(sessionId: string, Effect = "Allow") {
+  const parsed = parseIamPolicy({
+    Version: "1",
+    Statement: {
+      Effect,
+      Action: "quyan:remote_terminal:ConnectSession",
+      Resource: "acs:remote-terminal:*:" + owner + ":session/" + actor + "/" + sessionId,
+    },
+  });
+  const created = await RamPolicyRepository.getInstance().createPolicy({
+    accountOwnerId: owner,
+    name: "connection-policy-" + randomUUID(),
+    permissions: [],
+    iamVersion: { ...parsed, createdBy: owner },
+  });
+  return prisma.ramAuthorization.create({
+    data: {
+      accountOwnerId: owner,
+      principalType: "user",
+      principalId: actor,
+      policyId: created.id,
+      scopeType: "account",
+      scopeKey: "account",
+      createdBy: owner,
+    },
+  });
+}
+function browserSocket() {
+  const ws = new EventEmitter() as EventEmitter & {
+    readyState: number;
+    send: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+  };
+  ws.readyState = WebSocket.OPEN;
+  ws.send = vi.fn();
+  ws.close = vi.fn().mockImplementation(() => {
+    ws.readyState = WebSocket.CLOSED;
+  });
+  browsers.push(ws);
+  return ws;
+}
 describe("native terminal capability issuance", () => {
   it("issues and persists one pending session only for an authorized selected device", async () => {
     const target = await device();
@@ -238,6 +284,63 @@ describe("native terminal capability issuance", () => {
       ),
     ).rejects.toMatchObject({ statusCode: 403 });
     expect(await gateway.listSessionMetadata(actor)).toEqual([]);
+  });
+  it("does not infer terminal execution from pending-session creation permission", async () => {
+    const target = await device();
+    await policy(target.deviceId);
+    const result = await service.createSession(
+      actor,
+      { deviceId: target.deviceId, mode: "shell", shellType: "bash" },
+      "ws://fixture",
+      request(),
+    );
+    issued.push(result.sessionId);
+    const browser = browserSocket(),
+      agent = sockets.at(-1) as EventEmitter & { send: ReturnType<typeof vi.fn> };
+    agent.send.mockClear();
+    await expect(
+      gateway.attachAuthorizedBrowser(result.sessionId, result.browserToken, browser as unknown as WebSocket, {
+        "acs:SecureTransport": true,
+        "acs:SourceIp": "192.0.2.10",
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(agent.send.mock.calls.some(([raw]) => JSON.parse(raw).type === "session-start")).toBe(false);
+  });
+  it("revokes real browser output after a connected session policy is disabled", async () => {
+    const target = await device();
+    await policy(target.deviceId);
+    const result = await service.createSession(
+      actor,
+      { deviceId: target.deviceId, mode: "shell", shellType: "bash" },
+      "ws://fixture",
+      request(),
+    );
+    issued.push(result.sessionId);
+    const authorization = await connectPolicy(result.sessionId),
+      browser = browserSocket(),
+      agent = sockets.at(-1) as EventEmitter & { send: ReturnType<typeof vi.fn> };
+    await gateway.attachAuthorizedBrowser(result.sessionId, result.browserToken, browser as unknown as WebSocket, {
+      "acs:SecureTransport": true,
+      "acs:SourceIp": "192.0.2.10",
+    });
+    expect(agent.send.mock.calls.some(([raw]) => JSON.parse(raw).type === "session-start")).toBe(true);
+    browser.send.mockClear();
+    await prisma.ramAuthorization.update({ where: { id: authorization.id }, data: { status: 0 } });
+    agent.emit(
+      "message",
+      Buffer.from(
+        JSON.stringify({
+          type: "session-output",
+          sessionId: result.sessionId,
+          stream: "stdout",
+          data: "DENIED-OUTPUT",
+        }),
+      ),
+    );
+    await vi.waitFor(() => expect(browser.close).toHaveBeenCalledWith(1008, "IAM session authorization failed."), {
+      timeout: 5_000,
+    });
+    expect(browser.send.mock.calls.some(([raw]) => JSON.parse(raw).data === "DENIED-OUTPUT")).toBe(false);
   });
   it("uses the same device guard to reject an expired entitlement", async () => {
     const target = await device();

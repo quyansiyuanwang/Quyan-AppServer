@@ -1,3 +1,7 @@
+vi.mock("@/services/remote-terminal/remote-terminal-session-authority.service", () => ({
+  RemoteTerminalSessionAuthorityService: { getInstance: vi.fn() },
+}));
+import { RemoteTerminalSessionAuthorityService } from "@/services/remote-terminal/remote-terminal-session-authority.service";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/services/remote-terminal/remote-terminal-device-iam.service", () => ({
   RemoteTerminalDeviceIamService: { getInstance: vi.fn() },
@@ -21,6 +25,7 @@ const nativeGateway = {
     closeAuthorizedPendingSessions: vi.fn(),
     listSessionMetadata: vi.fn(),
     discardPendingSession: vi.fn(),
+    registerSessionAuthorization: vi.fn(),
   },
   gateway = {
     closeReconnectableSessions: vi.fn(),
@@ -61,6 +66,9 @@ beforeEach(() => {
     product as unknown as RemoteTerminalProductService,
   );
   gateway.getSessionGateway.mockReturnValue(nativeGateway);
+  vi.mocked(RemoteTerminalSessionAuthorityService.getInstance).mockReturnValue({
+    prepare: vi.fn().mockResolvedValue({ bindSession: vi.fn().mockResolvedValue(guard) }),
+  } as unknown as RemoteTerminalSessionAuthorityService);
   guard.mockResolvedValue(undefined);
   bridge.withDevice.mockImplementation(async (_user, _device, _action, _request, operation) => {
     await guard();

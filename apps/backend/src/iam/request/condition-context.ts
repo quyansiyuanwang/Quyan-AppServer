@@ -13,7 +13,10 @@ export function principalConditionContext(principal: IamPrincipal, now = new Dat
 }
 /** Express resolves proxy headers within its configured trust boundary; body/query conditions are never read. */
 export function requestConditionContext(request: TypedRequest, principal: IamPrincipal): IamConditionContext {
-  const context = principalConditionContext(principal);
+  return { ...principalConditionContext(principal), ...requestTransportConditionContext(request) };
+}
+export function requestTransportConditionContext(request: TypedRequest): IamConditionContext {
+  const context: IamConditionContext = {};
   const ip = request.socket ? extractClientIp(request) : request.ip;
   if (ip && isIP(ip)) context["acs:SourceIp"] = ip;
   context["acs:SecureTransport"] = request.secure === true;

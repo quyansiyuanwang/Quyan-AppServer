@@ -61528,6 +61528,14 @@
 							"declared"
 						]
 					},
+					"authorizationTransport": {
+						"type": "string",
+						"enum": [
+							"websocket"
+						],
+						"nullable": false,
+						"description": "Native protocol authorization which is served outside TSOA HTTP routes."
+					},
 					"authorizationBoundary": {
 						"type": "string",
 						"enum": [

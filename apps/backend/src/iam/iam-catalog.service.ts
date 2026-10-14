@@ -19,11 +19,15 @@ export class IamCatalogService {
   }
   listServices(): IamServiceDefinition[] {
     return iamServiceDefinitions(
-      IAM_ACTION_DEFINITIONS.filter((action) => IAM_ACTION_ROUTES[action.action]?.length).map((action) => ({
+      IAM_ACTION_DEFINITIONS.filter(
+        (action) => IAM_ACTION_ROUTES[action.action]?.length || action.authorizationTransport === "websocket",
+      ).map((action) => ({
         ...action,
         resourceTypes: [...action.resourceTypes],
         conditionKeys: [...action.conditionKeys],
-        apiRoutes: [...IAM_ACTION_ROUTES[action.action]],
+        apiRoutes: [
+          ...(action.authorizationTransport === "websocket" ? action.apiRoutes : IAM_ACTION_ROUTES[action.action]),
+        ],
       })),
     );
   }

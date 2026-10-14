@@ -138,7 +138,8 @@ export class RemoteTerminalSessionAuthorityService {
             ).hasPermission
           )
             throw denied();
-          if (mode !== "legacy") {
+          const checkPolicy = async () => {
+            if (mode === "legacy") return;
             const resource = remoteTerminalSessionArn(authority.principal.accountOwnerId, userId, sessionId),
               action = "quyan:remote_terminal:ConnectSession",
               start = performance.now();
@@ -174,7 +175,8 @@ export class RemoteTerminalSessionAuthorityService {
                 { action, reason: "iam-resource-unavailable" },
               );
             }
-          }
+          };
+          await checkPolicy();
           await this.store.assertCurrent(authority);
           const after = await this.metadata(userId, sessionId);
           if (
@@ -183,6 +185,8 @@ export class RemoteTerminalSessionAuthorityService {
             after.revision !== current.revision
           )
             throw denied();
+          // Fresh policy and time conditions after the asynchronous source reads.
+          await checkPolicy();
         };
       },
     };

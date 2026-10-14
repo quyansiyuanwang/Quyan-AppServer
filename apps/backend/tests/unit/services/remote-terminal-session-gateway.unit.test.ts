@@ -603,6 +603,7 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
                     preferences: { shortcuts: [], quickCommands: [] },
                   },
             ),
+            agentSocket,
           );
         }),
       } as unknown as WebSocket;

@@ -5,7 +5,7 @@ import { WebSocketServer } from "ws";
 import { RemoteTerminalGatewayBootstrap } from "@/modules/remote-terminal/gateway/bootstrap";
 
 describe("RemoteTerminalGatewayBootstrap browser upgrade failures", () => {
-  it("closes upgraded browser websocket with policy violation for attach errors", () => {
+  it("closes upgraded browser websocket with policy violation for attach errors", async () => {
     const close = vi.fn();
     const websocket = { close } as any;
     const handleUpgrade = vi
@@ -16,13 +16,13 @@ describe("RemoteTerminalGatewayBootstrap browser upgrade failures", () => {
       })
       .mockName("handleUpgrade");
 
-    const attachBrowser = vi.fn(() => {
+    const attachAuthorizedBrowser = vi.fn(() => {
       throw new Error("Unknown session.");
     });
     const gatewayService = {
       getDeviceRegistry: vi.fn(),
       getSessionGateway: vi.fn(() => ({
-        attachBrowser,
+        attachAuthorizedBrowser,
       })),
     } as any;
 
@@ -34,13 +34,13 @@ describe("RemoteTerminalGatewayBootstrap browser upgrade failures", () => {
     const socket = { destroy: vi.fn() } as unknown as Duplex;
 
     expect(bootstrap.handleUpgrade(request, socket, Buffer.alloc(0))).toBe(true);
-    expect(attachBrowser).toHaveBeenCalledWith("s-1", "t-1", websocket);
-    expect(close).toHaveBeenCalledWith(1008, "Unknown session.");
+    expect(attachAuthorizedBrowser).toHaveBeenCalledWith("s-1", "t-1", websocket, { "acs:SecureTransport": false });
+    await vi.waitFor(() => expect(close).toHaveBeenCalledWith(1008, "Unknown session."));
 
     handleUpgrade.mockRestore();
   });
 
-  it("closes duplicate browser attach with the thrown reason", () => {
+  it("closes duplicate browser attach with the thrown reason", async () => {
     const close = vi.fn();
     const websocket = { close } as any;
     const handleUpgrade = vi
@@ -51,13 +51,13 @@ describe("RemoteTerminalGatewayBootstrap browser upgrade failures", () => {
       })
       .mockName("handleUpgrade");
 
-    const attachBrowser = vi.fn(() => {
+    const attachAuthorizedBrowser = vi.fn(() => {
       throw new Error("Session already has an attached browser.");
     });
     const gatewayService = {
       getDeviceRegistry: vi.fn(),
       getSessionGateway: vi.fn(() => ({
-        attachBrowser,
+        attachAuthorizedBrowser,
       })),
     } as any;
 
@@ -69,7 +69,7 @@ describe("RemoteTerminalGatewayBootstrap browser upgrade failures", () => {
     const socket = { destroy: vi.fn() } as unknown as Duplex;
 
     expect(bootstrap.handleUpgrade(request, socket, Buffer.alloc(0))).toBe(true);
-    expect(close).toHaveBeenCalledWith(1008, "Session already has an attached browser.");
+    await vi.waitFor(() => expect(close).toHaveBeenCalledWith(1008, "Session already has an attached browser."));
 
     handleUpgrade.mockRestore();
   });

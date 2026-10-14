@@ -1,3 +1,4 @@
+import { RemoteTerminalSessionAuthorityService } from "./remote-terminal-session-authority.service";
 import { env } from "@/config/env";
 import { RemoteTerminalSessionReadIamService } from "./remote-terminal-session-read-iam.service";
 import type {
@@ -217,6 +218,14 @@ export class RemoteTerminalService {
           const sessionLimit = await this.productService.getRuntimeTotalTerminalLimit(userId);
           if (sessionLimit <= 0)
             throw new Error("No terminal quota available. Please purchase or claim a terminal package first.");
+          const authority =
+            native && request
+              ? await RemoteTerminalSessionAuthorityService.getInstance().prepare(userId, body.deviceId, request)
+              : undefined;
+          if (native && !authority)
+            throw new ForbiddenError("Terminal authority missing", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
           await guard?.();
           const sessionsGateway = native ? this.gatewayService.getSessionGateway() : undefined;
           if (sessionsGateway && guard)
@@ -233,6 +242,10 @@ export class RemoteTerminalService {
             native && guard
               ? await this.gatewayService.createSession(userId, body, browserWebSocketBaseUrl, guard)
               : await this.gatewayService.createSession(userId, body, browserWebSocketBaseUrl);
+          if (authority && sessionsGateway) {
+            const connectionGuard = await authority.bindSession(created.sessionId);
+            sessionsGateway.registerSessionAuthorization(userId, created.sessionId, connectionGuard);
+          }
           return created;
         },
       );

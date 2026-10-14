@@ -1,3 +1,9 @@
+import { env } from "@/config/env";
+import type {
+  TerminalSessionConnectionGuard,
+  TerminalConnectionConditionContext,
+} from "@/services/remote-terminal/remote-terminal-session-authority.service";
+import { TERMINAL_BROWSER_FRAME_LIMITS } from "./browser-frame";
 import { parseTerminalBrowserFrame } from "./browser-frame";
 import {
   TERMINAL_SESSION_STORAGE,
@@ -35,6 +41,14 @@ interface RemoteTerminalSessionRecord {
   createdAt: string;
   browserToken: string;
   browserSocket: WebSocket | null;
+  authorizeConnection?: TerminalSessionConnectionGuard;
+  connectionContext?: TerminalConnectionConditionContext;
+  attachmentPending?: boolean;
+  forwardingReady?: boolean;
+  frameTail?: Promise<void>;
+  queuedFrames?: number;
+  queuedBytes?: number;
+  authorizationTimer?: ReturnType<typeof setInterval>;
 }
 
 interface RemoteTerminalPersistedSessionRecord {
@@ -52,6 +66,11 @@ interface RemoteTerminalPersistedSessionRecord {
 const REMOTE_TERMINAL_SESSION_REDIS_PREFIX = TERMINAL_SESSION_STORAGE.prefix;
 const REMOTE_TERMINAL_SESSION_REDIS_TTL_SECONDS = TERMINAL_SESSION_STORAGE.ttlSeconds;
 const REMOTE_TERMINAL_SESSION_REDIS_SCAN_LIMIT = 500;
+const TERMINAL_SESSION_RUNTIME_LIMITS = Object.freeze({
+  queuedFrames: 64,
+  queuedBytes: 4 * TERMINAL_BROWSER_FRAME_LIMITS.frameBytes,
+  authorizationCheckMs: 15_000,
+});
 const REMOTE_TERMINAL_DIRECTORY_BROWSE_TIMEOUT_MS = 10_000;
 const REMOTE_TERMINAL_PREFERENCES_TIMEOUT_MS = 10_000;
 const REMOTE_TERMINAL_AGENT_PROBE_TIMEOUT_MS = 5_000;
@@ -445,7 +464,8 @@ export class RemoteTerminalSessionGateway {
     });
 
     socket.on("message", (buffer: Buffer) => {
-      this.handleAgentMessage(deviceId, buffer.toString());
+      if (this.agentSockets.get(deviceId) !== socket) return;
+      this.handleAgentMessage(deviceId, buffer.toString(), socket);
     });
 
     socket.on("close", () => {
@@ -476,50 +496,141 @@ export class RemoteTerminalSessionGateway {
     return { items };
   }
 
-  public attachBrowser(sessionId: string, browserToken: string, socket: WebSocket): void {
+  public registerSessionAuthorization(
+    ownerUserId: string,
+    sessionId: string,
+    guard: TerminalSessionConnectionGuard,
+  ): void {
+    const session = this.sessions.get(sessionId);
+    if (
+      !session ||
+      session.ownerUserId !== ownerUserId ||
+      session.status !== "pending" ||
+      session.browserSocket ||
+      session.attachmentPending ||
+      session.authorizeConnection
+    )
+      throw terminalDeviceDenied();
+    session.authorizeConnection = guard;
+  }
+  private browserTarget(sessionId: string, browserToken: string): RemoteTerminalSessionRecord {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error("Unknown session.");
-
     if (session.browserToken !== browserToken) throw new Error("Invalid browser websocket token.");
-
-    if (session.browserSocket) throw new Error("Session already has an attached browser.");
-
+    if (session.browserSocket || session.attachmentPending) throw new Error("Session already has an attached browser.");
+    return session;
+  }
+  public attachBrowser(sessionId: string, browserToken: string, socket: WebSocket): void {
+    const session = this.browserTarget(sessionId, browserToken);
+    if (session.authorizeConnection || env.security.iamAuthorizationMode === "enforce") throw terminalDeviceDenied();
     session.browserSocket = socket;
     session.status = "connected";
     void this.persistSessionRecord(session);
-
+    this.completeBrowserAttach(session, socket);
+  }
+  public async attachAuthorizedBrowser(
+    sessionId: string,
+    browserToken: string,
+    socket: WebSocket,
+    connection: TerminalConnectionConditionContext,
+  ): Promise<void> {
+    const session = this.browserTarget(sessionId, browserToken);
+    if (!session.authorizeConnection) {
+      this.attachBrowser(sessionId, browserToken, socket);
+      return;
+    }
+    session.attachmentPending = true;
+    try {
+      const context = Object.freeze({ ...connection });
+      await session.authorizeConnection(context);
+      if (this.sessions.get(sessionId) !== session || socket.readyState !== WebSocket.OPEN)
+        throw terminalDeviceDenied();
+      session.browserSocket = socket;
+      session.connectionContext = context;
+      session.status = "connected";
+      await this.persistSessionRecord(session, true);
+      await session.authorizeConnection(context);
+      if (this.sessions.get(sessionId) !== session || socket.readyState !== WebSocket.OPEN)
+        throw terminalDeviceDenied();
+      this.completeBrowserAttach(session, socket);
+    } catch {
+      this.stopSession(sessionId, "IAM session authorization failed.", 1008);
+      throw terminalDeviceDenied();
+    } finally {
+      session.attachmentPending = false;
+    }
+  }
+  private completeBrowserAttach(session: RemoteTerminalSessionRecord, socket: WebSocket): void {
+    session.forwardingReady = true;
+    session.authorizationTimer = setInterval(() => {
+      if (session.authorizeConnection || env.security.iamAuthorizationMode === "enforce")
+        this.enqueueSession(session, 0, () => undefined);
+    }, TERMINAL_SESSION_RUNTIME_LIMITS.authorizationCheckMs);
+    session.authorizationTimer.unref();
     socket.on("message", (buffer: Buffer) => {
-      this.handleBrowserMessage(sessionId, buffer.toString());
+      this.handleBrowserMessage(session.sessionId, buffer.toString());
     });
 
     socket.on("close", () => {
-      this.stopSession(sessionId, "Browser disconnected.");
+      this.stopSession(session.sessionId, "Browser disconnected.");
     });
 
     socket.on("error", () => {
-      this.stopSession(sessionId, "Browser connection error.");
+      this.stopSession(session.sessionId, "Browser connection error.");
     });
 
     const connectedMessage: RemoteTerminalBrowserConnectedMessage = {
       type: "browser-connected",
-      sessionId,
+      sessionId: session.sessionId,
     };
     sendJson(socket, connectedMessage);
 
     const agentSocket = this.agentSockets.get(session.deviceId);
     if (!agentSocket) {
-      this.emitBrowserError(sessionId, "Agent is offline.");
+      this.emitBrowserError(session.sessionId, "Agent is offline.");
       return;
     }
 
     const startMessage: RemoteTerminalServerToAgentMessage = {
       type: "session-start",
-      sessionId,
+      sessionId: session.sessionId,
       mode: session.mode,
       shellType: session.shellType,
       workingDirectory: session.workingDirectory,
     };
     sendJson(agentSocket, startMessage);
+  }
+
+  private enqueueSession(session: RemoteTerminalSessionRecord, bytes: number, operation: () => void): void {
+    if (!session.forwardingReady || this.sessions.get(session.sessionId) !== session) return;
+    if (
+      bytes > TERMINAL_BROWSER_FRAME_LIMITS.frameBytes ||
+      (session.queuedFrames ?? 0) >= TERMINAL_SESSION_RUNTIME_LIMITS.queuedFrames ||
+      (session.queuedBytes ?? 0) + bytes > TERMINAL_SESSION_RUNTIME_LIMITS.queuedBytes
+    ) {
+      this.stopSession(session.sessionId, "Session frame queue limit exceeded.", 1008);
+      return;
+    }
+    if (!session.authorizeConnection && env.security.iamAuthorizationMode !== "enforce") {
+      operation();
+      return;
+    }
+    session.queuedFrames = (session.queuedFrames ?? 0) + 1;
+    session.queuedBytes = (session.queuedBytes ?? 0) + bytes;
+    session.frameTail = (session.frameTail ?? Promise.resolve())
+      .then(async () => {
+        if (this.sessions.get(session.sessionId) !== session) return;
+        if (!session.authorizeConnection || !session.connectionContext) throw terminalDeviceDenied();
+        await session.authorizeConnection(session.connectionContext);
+        if (this.sessions.get(session.sessionId) !== session || session.browserSocket?.readyState !== WebSocket.OPEN)
+          return;
+        operation();
+      })
+      .catch(() => this.stopSession(session.sessionId, "IAM session authorization failed.", 1008))
+      .finally(() => {
+        session.queuedFrames = Math.max(0, (session.queuedFrames ?? 1) - 1);
+        session.queuedBytes = Math.max(0, (session.queuedBytes ?? bytes) - bytes);
+      });
   }
 
   private handleBrowserMessage(sessionId: string, raw: string): void {
@@ -537,21 +648,40 @@ export class RemoteTerminalSessionGateway {
       return;
     }
 
-    if (message.type === "browser-ping") {
-      sendJson<RemoteTerminalServerToBrowserMessage>(session.browserSocket!, { type: "browser-pong", ts: message.ts });
-      return;
-    }
-
     if (message.type === "session-stop") {
       this.stopSession(sessionId, "Browser requested stop.");
       return;
     }
-
-    sendJson(agentSocket, message);
+    this.enqueueSession(session, Buffer.byteLength(raw, "utf8"), () => {
+      if (this.agentSockets.get(session.deviceId) !== agentSocket) return;
+      if (message.type === "browser-ping") {
+        sendJson<RemoteTerminalServerToBrowserMessage>(session.browserSocket!, {
+          type: "browser-pong",
+          ts: message.ts,
+        });
+        return;
+      }
+      sendJson(agentSocket, message);
+    });
   }
 
-  private handleAgentMessage(deviceId: string, raw: string): void {
-    const message = JSON.parse(raw) as RemoteTerminalAgentToServerMessage;
+  private handleAgentMessage(deviceId: string, raw: string, sourceSocket: WebSocket): void {
+    let message: RemoteTerminalAgentToServerMessage;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (
+        !parsed ||
+        typeof parsed !== "object" ||
+        Array.isArray(parsed) ||
+        typeof (parsed as { type?: unknown }).type !== "string"
+      )
+        throw new Error("Invalid agent frame");
+      message = parsed as RemoteTerminalAgentToServerMessage;
+    } catch {
+      this.agentSockets.get(deviceId)?.close(1008, "Invalid agent frame.");
+      this.closeSessionsForDevice(deviceId, "Invalid agent frame.");
+      return;
+    }
 
     if (message.type === "directory-browse-result") {
       this.resolvePendingDirectoryBrowse(deviceId, message);
@@ -566,9 +696,11 @@ export class RemoteTerminalSessionGateway {
     const session = this.sessions.get(message.sessionId);
     if (!session || session.deviceId !== deviceId || !session.browserSocket) return;
 
-    sendJson<RemoteTerminalServerToBrowserMessage>(session.browserSocket, message);
-
-    if (message.type === "session-exit" || message.type === "session-error") this.cleanupSession(session.sessionId);
+    this.enqueueSession(session, Buffer.byteLength(raw, "utf8"), () => {
+      if (this.agentSockets.get(deviceId) !== sourceSocket) return;
+      sendJson<RemoteTerminalServerToBrowserMessage>(session.browserSocket!, message);
+      if (message.type === "session-exit" || message.type === "session-error") this.cleanupSession(session.sessionId);
+    });
   }
 
   private emitBrowserError(sessionId: string, errorMessage: string): void {
@@ -582,7 +714,7 @@ export class RemoteTerminalSessionGateway {
     });
   }
 
-  private stopSession(sessionId: string, reason: string): void {
+  private stopSession(sessionId: string, reason: string, closeCode?: number): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
@@ -600,7 +732,7 @@ export class RemoteTerminalSessionGateway {
         message: reason,
       });
 
-    this.cleanupSession(sessionId);
+    this.cleanupSession(sessionId, closeCode, reason);
   }
 
   private closeSessionsForDevice(deviceId: string, reason: string): void {
@@ -773,29 +905,37 @@ export class RemoteTerminalSessionGateway {
     }
   }
 
-  private async persistSessionRecord(session: RemoteTerminalSessionRecord): Promise<void> {
-    await this.persistSession({
-      sessionId: session.sessionId,
-      ownerUserId: session.ownerUserId,
-      entitlementId: session.entitlementId,
-      deviceId: session.deviceId,
-      mode: session.mode,
-      shellType: session.shellType,
-      workingDirectory: session.workingDirectory,
-      status: session.status,
-      createdAt: session.createdAt,
-    });
+  private async persistSessionRecord(session: RemoteTerminalSessionRecord, confirmed = false): Promise<void> {
+    await this.persistSession(
+      {
+        sessionId: session.sessionId,
+        ownerUserId: session.ownerUserId,
+        entitlementId: session.entitlementId,
+        deviceId: session.deviceId,
+        mode: session.mode,
+        shellType: session.shellType,
+        workingDirectory: session.workingDirectory,
+        status: session.status,
+        createdAt: session.createdAt,
+      },
+      confirmed,
+    );
   }
 
-  private cleanupSession(sessionId: string): void {
+  private cleanupSession(sessionId: string, closeCode?: number, reason?: string): void {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
+    if (session.authorizationTimer) clearInterval(session.authorizationTimer);
+    session.forwardingReady = false;
     const browserSocket = session.browserSocket;
     session.browserSocket = null;
     session.status = "closed";
 
-    if (browserSocket && browserSocket.readyState === WebSocket.OPEN) browserSocket.close();
+    if (browserSocket && browserSocket.readyState === WebSocket.OPEN) {
+      if (closeCode === undefined) browserSocket.close();
+      else browserSocket.close(closeCode, reason);
+    }
 
     this.sessions.delete(sessionId);
     void this.deletePersistedSession(sessionId);

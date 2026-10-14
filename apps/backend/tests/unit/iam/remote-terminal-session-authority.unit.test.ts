@@ -134,6 +134,36 @@ describe("terminal connection authority", () => {
     store.assertCurrent.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("credential rotated"));
     await expect(check({})).rejects.toThrow("credential rotated");
   });
+  it("rejects revocation during the final authority read", async () => {
+    const check = await guard();
+    store.assertCurrent.mockResolvedValueOnce(undefined).mockImplementationOnce(async () => {
+      iam.authorizeMany.mockResolvedValue([{ decision: "ExplicitDeny", reason: "revoked", matchedStatements: [] }]);
+    });
+    await expect(check({})).rejects.toThrow();
+    expect(iam.authorizeMany).toHaveBeenCalledTimes(2);
+  });
+  it("refreshes time conditions after the final source reads", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-14T00:00:00.000Z"));
+      const check = await guard();
+      store.assertCurrent.mockResolvedValueOnce(undefined).mockImplementationOnce(async () => {
+        vi.setSystemTime(new Date("2026-10-14T00:01:00.000Z"));
+      });
+      iam.authorizeMany.mockImplementation(async ({ context }) => [
+        {
+          decision:
+            Date.parse(context["acs:CurrentTime"]) < Date.parse("2026-10-14T00:00:30.000Z") ? "Allow" : "ImplicitDeny",
+          reason: "time-condition",
+          matchedStatements: [],
+        },
+      ]);
+      await expect(check({})).rejects.toThrow();
+      expect(iam.authorizeMany.mock.calls[1][0].context["acs:CurrentTime"]).toBe("2026-10-14T00:01:00.000Z");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it.each([
     { rows: null },
     { rows: [{ state: "foreign" }] },

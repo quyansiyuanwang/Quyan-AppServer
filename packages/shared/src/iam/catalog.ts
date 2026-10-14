@@ -17,6 +17,8 @@ export interface IamActionDefinition {
   conditionKeys: string[]
   sensitive: boolean
   authorizationStage: 'legacy' | 'declared'
+  /** Native protocol authorization which is served outside TSOA HTTP routes. */
+  authorizationTransport?: 'websocket'
   /** Platform operations additionally require a persisted global group's existing management ceiling. */
   authorizationBoundary?: 'platform'
   /** Baseline grant restricted to registered authenticated self identity/child ARNs. */
@@ -994,7 +996,8 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     operation: 'ConnectSession',
     accessLevel: 'Write',
     resourceTypes: ['remote-terminal/session'],
-    apiRoutes: [],
+    apiRoutes: ['GET /remote-terminal/ws', 'GET /v1/remote-terminal/ws'],
+    authorizationTransport: 'websocket',
     conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,
     authorizationStage: 'declared',

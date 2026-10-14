@@ -101,3 +101,11 @@ Preference updates require a separate write Action. The server checks access aga
 These separate Actions apply when IAM enforcement is enabled; compatibility deployments retain the previous permission behavior.
 
 Creating a pending session requires `quyan:remote_terminal:CreateSession` on the selected device ARN. A device-list or usage grant alone cannot create a session. Creation checks actual quota usage, including sessions hidden from lists. Reconnecting replaces stale pending sessions on that device and preserves connected sessions. If authorization is rejected before issuance completes, the new pending session is discarded and no browser capability is returned.
+
+## Connecting and continuing a session
+
+With IAM enforcement, `quyan:remote_terminal:ConnectSession` separately authorizes `acs:remote-terminal:*:<accountId>:session/<userId>/<sessionId>`. Creating a pending session does not automatically authorize running it. To permit sessions you create, grant this Action on your own session resource pattern, or have an authorized administrator bind a grant for the specific session.
+
+Connection conditions use the actual WebSocket connection's source IP, transport and user agent. Proxy information is accepted according to the server's configured proxy trust, rather than copied from the earlier creation request. The server checks current authorization and credential state before starting the terminal and before forwarding terminal input or output. Idle sessions are checked periodically as well. Revocation, credential rotation, account or entitlement expiry, or unavailable authorization data stops further forwarding and closes the session. Revoking access cannot undo commands already sent to the device.
+
+Malformed frames, frames targeting a different session, and excessive queued data close the originating connection. Browser messages cannot invoke device preference or directory operations; those operations require their own API permissions.
