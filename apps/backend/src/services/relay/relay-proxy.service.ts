@@ -1,3 +1,4 @@
+import { projectRelayConcurrencyLimits } from "@/util/relay-concurrency-status-projection";
 import {
   assertRelayRequestBodyCapacity,
   relayDeclaredBodyTooLarge,
@@ -1408,19 +1409,7 @@ export class RelayProxyService {
   }
 
   private getRelayConcurrencyStatusLimits(relayConfig: Awaited<ReturnType<RelayConfigService["getRelayConfig"]>>) {
-    const resourceGuard = getAIResourceConfig().relay.resourceGuard;
-
-    return {
-      maxConcurrency: relayConfig.maxConcurrency,
-      effectiveImageMaxConcurrency: Math.min(relayConfig.maxConcurrency, resourceGuard.imageMaxConcurrency),
-      imageMaxConcurrencyCap: resourceGuard.imageMaxConcurrency,
-      enableQueue: relayConfig.enableQueue,
-      queueTimeoutMs: relayConfig.queueTimeout,
-      effectiveImageQueueTimeoutMs: Math.min(relayConfig.queueTimeout, resourceGuard.imageQueueTimeoutMs),
-      imageQueueTimeoutMs: resourceGuard.imageQueueTimeoutMs,
-      upstreamStreamTimeoutMs: relayConfig.upstreamStreamTimeout,
-      nonStreamUpstreamTimeoutMs: resourceGuard.nonStreamUpstreamTimeoutMs,
-    };
+    return projectRelayConcurrencyLimits(relayConfig);
   }
 
   private acquireConcurrencySlot(params: {

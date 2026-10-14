@@ -23,6 +23,41 @@ describe("RedisService circuit breaker", () => {
     vi.useRealTimers();
   });
 
+  it("confirms exactly one SCAN page and retains its cursor, including empty intermediate pages", async () => {
+    const client = {
+      scan: vi
+        .fn()
+        .mockResolvedValueOnce(["27", []])
+        .mockResolvedValueOnce(["0", ["fixture-key"]]),
+      quit: vi.fn(),
+    };
+    createRedisClientMock.mockReturnValue(client as any);
+    const service = RedisService.getInstance();
+    expect(await service.scanKeyPageWithResult("fixture:*", "0")).toEqual({ cursor: "27", keys: [] });
+    expect(await service.scanKeyPageWithResult("fixture:*", "27")).toEqual({ cursor: "0", keys: ["fixture-key"] });
+    expect(client.scan).toHaveBeenNthCalledWith(2, "27", "MATCH", "fixture:*", "COUNT", "200");
+  });
+  it.each([null, ["bad", []], ["0\n", []], ["0", [null]]].map((reply) => ({ reply })))(
+    "does not confirm malformed SCAN replies: $reply",
+    async ({ reply }) => {
+      const client = { scan: vi.fn().mockResolvedValue(reply), quit: vi.fn() };
+      createRedisClientMock.mockReturnValue(client as any);
+      expect(await RedisService.getInstance().scanKeyPageWithResult("fixture:*")).toBeNull();
+      expect(client.scan).toHaveBeenCalledOnce();
+    },
+  );
+  it("reports a SCAN failure as unknown without retry or a fake empty result", async () => {
+    const client = { scan: vi.fn().mockRejectedValue(new Error("fixture outage")), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().scanKeyPageWithResult("fixture:*")).toBeNull();
+    expect(client.scan).toHaveBeenCalledOnce();
+  });
+  it.each(["bad", "-1", "1\n"])("does not issue SCAN for an invalid cursor %j", async (cursor) => {
+    const client = { scan: vi.fn(), quit: vi.fn() };
+    createRedisClientMock.mockReturnValue(client as any);
+    expect(await RedisService.getInstance().scanKeyPageWithResult("fixture:*", cursor)).toBeNull();
+    expect(client.scan).not.toHaveBeenCalled();
+  });
   it("performs exactly one atomic IP write with the original address keys", async () => {
     const client = { eval: vi.fn().mockResolvedValue(1), quit: vi.fn() };
     createRedisClientMock.mockReturnValue(client as any);

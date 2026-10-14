@@ -419,6 +419,32 @@ export class RedisService {
     });
   }
 
+  /** Confirm a single cursor page; an unavailable/malformed result never masquerades as an empty scan. */
+  public async scanKeyPageWithResult(
+    pattern: string,
+    cursor = "0",
+  ): Promise<{ cursor: string; keys: string[] } | null> {
+    if (!pattern || pattern.includes("\0") || cursor.trim() !== cursor || !/^[0-9]+$/.test(cursor)) return null;
+    return this.executeWithCircuit(
+      "scanKeyPageWithResult",
+      null as { cursor: string; keys: string[] } | null,
+      async () => {
+        const result = await this.client!.scan(cursor, "MATCH", pattern, "COUNT", String(REDIS_SCAN_COUNT));
+        if (
+          !Array.isArray(result) ||
+          result.length !== 2 ||
+          typeof result[0] !== "string" ||
+          result[0].trim() !== result[0] ||
+          !/^[0-9]+$/.test(result[0]) ||
+          !Array.isArray(result[1]) ||
+          result[1].some((key) => typeof key !== "string")
+        )
+          return null;
+        return { cursor: result[0], keys: result[1] };
+      },
+    );
+  }
+
   /**
    * Delete a batch of keys.
    * @returns number of deleted keys (0 when input is empty), or null when redis is unavailable.

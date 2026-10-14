@@ -28,7 +28,11 @@ import { env } from "@/config/env";
 import { PlatformRelayUptimeReadIamService } from "@/services/relay/platform-relay-uptime-read-iam.service";
 import { RelayUptimeService } from "@/services/relay/relay-uptime.service";
 import { relayUptimeTargets, projectRelayUptimeResponse } from "@/util/relay-uptime-projection";
-import { platformRelayUptimeArn, platformRelayUptimeMonitorArn } from "@/iam/resources/platform-relay-uptime-resources";
+import {
+  platformRelayUptimeArn,
+  platformRelayUptimeMonitorArn,
+  isRelayUptimeMonitorId,
+} from "@/iam/resources/platform-relay-uptime-resources";
 import type { TypedRequest } from "@/types/express";
 const iam = { loadPolicies: vi.fn(), authorizeMany: vi.fn() },
   snapshots = { snapshot: vi.fn(), recheck: vi.fn() },
@@ -250,6 +254,7 @@ describe("monitoring provider and static projection", () => {
     result.data[0]!.monitors[0]!.id = id;
     expect(() => relayUptimeTargets(result)).toThrow();
     expect(() => platformRelayUptimeMonitorArn(id)).toThrow();
+    expect(isRelayUptimeMonitorId(id)).toBe(false);
   });
   it("returns only registered monitoring fields rather than arbitrary static JSON", () => {
     const raw = response();
