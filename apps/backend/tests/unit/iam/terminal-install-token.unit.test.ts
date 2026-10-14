@@ -85,7 +85,10 @@ describe("install token entitlement authority", () => {
   it("signs only after fixed-action entitlement admission and preserves the token protocol", async () => {
     const req = request();
     const result = await service.issue("actor", "entitlement", req, legacy);
-    expect(verifyInstallToken(result.token, FIXTURE_SECRET)).toEqual({ entitlementId: "entitlement" });
+    expect(verifyInstallToken(result.token, FIXTURE_SECRET)).toMatchObject({
+      entitlementId: "entitlement",
+      capability: { version: 2, grant: { principal: { subjectUserId: "actor" } } },
+    });
     expect(iam.authorize.mock.calls[0][0]).toMatchObject({
       action: "quyan:remote_terminal:GetMyInstallToken",
       resource: remoteTerminalProductEntitlementArn("owner", "actor", "entitlement"),

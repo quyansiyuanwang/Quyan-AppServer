@@ -98,7 +98,10 @@ describe("install token entitlement signing boundary", () => {
   it("signs for the current user's entitlement without hydrating existing credentials", async () => {
     const hydrate = vi.spyOn(RemoteTerminalProductRepository.getInstance(), "findEntitlementById");
     const result = await issue();
-    expect(verifyInstallToken(result.token, FIXTURE_SECRET)).toEqual({ entitlementId: entitlement });
+    expect(verifyInstallToken(result.token, FIXTURE_SECRET)).toMatchObject({
+      entitlementId: entitlement,
+      capability: { version: 2, grant: { principal: { subjectUserId: actor } } },
+    });
     expect(hydrate).not.toHaveBeenCalled();
     const principal = getIamPrincipal(request())!,
       target = await TerminalInstallTokenRepository.getInstance().target(principal, entitlement);

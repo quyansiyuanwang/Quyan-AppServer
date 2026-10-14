@@ -1,3 +1,4 @@
+import type { TypedRequest } from "@/types/express";
 import type {
   RemoteTerminalAgentPreferencesData,
   RemoteTerminalDirectoryBrowseResultMessage,
@@ -28,8 +29,9 @@ export class RemoteTerminalGatewayService {
 
   public async registerAgent(
     payload: RemoteTerminalAgentRegistrationRequest,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalAgentRegistrationResponse> {
-    return this.deviceRegistry.register(payload);
+    return this.deviceRegistry.register(payload, request);
   }
 
   public async heartbeatAgent(

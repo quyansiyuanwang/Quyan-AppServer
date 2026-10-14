@@ -8,6 +8,7 @@ export interface TerminalInstallTarget {
   updateTime: Date;
 }
 export interface TerminalInstallGuard {
+  accessKeyId?: string;
   targetId: string;
   users: IamAccountUserMutationGuard;
 }

@@ -1,3 +1,7 @@
+import {
+  terminalInstallUserFingerprint,
+  terminalInstallTargetFingerprint,
+} from "@/iam/resources/terminal-install-capability";
 import type { IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -12,7 +16,7 @@ import type {
   TerminalInstallTokenStore,
   TerminalInstallGuard,
 } from "@/store/remote-terminal-product/terminal-install-token.store";
-import { issueInstallToken } from "@/modules/remote-terminal/install-token";
+import { issueIamInstallToken } from "@/modules/remote-terminal/install-token";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 import type { RemoteTerminalInstallTokenDto } from "@/api/dto/remote-terminal/remote-terminal.dto";
@@ -97,7 +101,11 @@ export class TerminalInstallTokenIamService {
         if (fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== policies) throw iamAccountDenied();
       };
       await recheck();
+      const accessKeyId = principal.subjectType === "access_key" ? request.accessKey?.id : undefined;
+      if (principal.subjectType === "access_key" && (!accessKeyId || request.accessKey?.userId !== userId))
+        throw iamAccountDenied();
       const guard: TerminalInstallGuard = {
+        accessKeyId,
         targetId: id,
         users: {
           principal: { ...principal },
@@ -112,7 +120,13 @@ export class TerminalInstallTokenIamService {
       return this.repository.issue(target, guard, () => {
         const secret = env.integrations.remoteTerminal.installTokenSecret;
         if (!secret || secret.length < 64) throw new Error("RTM_INSTALL_TOKEN_SECRET must be at least 64 characters");
-        return issueInstallToken(id, secret);
+        return issueIamInstallToken(id, secret, {
+          principal,
+          accessKeyId,
+          policyFingerprint: policies,
+          userFingerprint: terminalInstallUserFingerprint(snapshot),
+          targetFingerprint: terminalInstallTargetFingerprint(target),
+        });
       });
     };
     if (mode === "enforce") return native();
