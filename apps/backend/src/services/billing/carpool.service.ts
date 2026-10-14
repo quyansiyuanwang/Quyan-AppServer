@@ -1,3 +1,5 @@
+import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { env } from "@/config/env";
 import type { TypedRequest } from "@/types/express";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -229,7 +231,21 @@ export class CarpoolService {
     );
     return { total, records: records.map((item) => this.packageDto(item)) };
   }
-  async listTemplates(page = 1, pageSize = 20, keyword?: string, publishStatus?: string) {
+  async listTemplates(page = 1, pageSize = 20, keyword?: string, publishStatus?: string, request?: TypedRequest) {
+    if (request) {
+      const { total, records } = await PlatformTemplateReadIamService.getInstance("carpool").list(
+        request,
+        { page: Math.max(1, page), pageSize: Math.min(100, Math.max(1, pageSize)) },
+        { keyword, publishStatus },
+        (record) => this.packageDto(record, true),
+        () => this.listTemplatesLegacy(page, pageSize, keyword, publishStatus),
+      );
+      return { total, records };
+    }
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.listTemplatesLegacy(page, pageSize, keyword, publishStatus);
+  }
+  private async listTemplatesLegacy(page: number, pageSize: number, keyword?: string, publishStatus?: string) {
     const [total, records] = await this.repository.findTemplates(
       Math.max(1, page),
       Math.min(100, Math.max(1, pageSize)),

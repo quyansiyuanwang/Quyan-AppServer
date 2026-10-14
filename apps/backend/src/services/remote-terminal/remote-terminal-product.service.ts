@@ -1,3 +1,5 @@
+import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { randomBytes } from "node:crypto";
 import type {
   AssignRemoteTerminalEntitlementRequest,
@@ -757,6 +759,25 @@ export class RemoteTerminalProductService {
   }
 
   public async listTemplates(
+    page?: number,
+    pageSize?: number,
+    status?: number,
+    keyword?: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalProductTemplateListResponse> {
+    const pagination = normalizePagination(page, pageSize);
+    if (request)
+      return PlatformTemplateReadIamService.getInstance("remote-terminal").list(
+        request,
+        pagination,
+        { status, keyword: keyword?.trim() },
+        (record) => this.toTemplateDto(record),
+        () => this.listTemplatesLegacy(page, pageSize, status, keyword),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.listTemplatesLegacy(page, pageSize, status, keyword);
+  }
+  private async listTemplatesLegacy(
     page?: number,
     pageSize?: number,
     status?: number,

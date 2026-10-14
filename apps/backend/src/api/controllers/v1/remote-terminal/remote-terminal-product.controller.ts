@@ -49,7 +49,10 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { RemoteTerminalProductService } from "@/services/remote-terminal/remote-terminal-product.service";
 import type { TypedRequest } from "@/types/express";
-import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import { RequireAnyPermission, RequirePermission } from "@/util/permission/permission-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
@@ -86,15 +89,22 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("templates")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_PRODUCT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListTemplates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(listRemoteTerminalTemplatesQuerySchema))
   public async listTemplates(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() status?: number,
     @Query() keyword?: string,
+    @Request() request?: TypedRequest,
   ): Promise<RemoteTerminalProductTemplateListResponse> {
-    return this.remoteTerminalProductService.listTemplates(page, pageSize, status, keyword);
+    return this.remoteTerminalProductService.listTemplates(page, pageSize, status, keyword, request);
   }
 
   @Post("templates")

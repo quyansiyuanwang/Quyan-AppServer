@@ -17,6 +17,7 @@ export default defineDocsPage({
     'zh-CN': '管理远程终端产品套餐、用户权益分配和设备绑定。',
   },
   tags: ['remote', 'terminal', 'management', 'entitlement', 'device'],
+  updatedAt: '2026-10-14',
   content: {
     en: contentEn,
     'zh-CN': contentZh,

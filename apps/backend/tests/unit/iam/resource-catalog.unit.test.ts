@@ -155,7 +155,13 @@ describe("IAM service and resource catalog", () => {
   });
   it("serves linked actions without exposing mutable catalog arrays", () => {
     const service = IamCatalogService.getInstance();
-    expect(service.listServices().map((service) => service.code)).toEqual(["ram"]);
+    expect(service.listServices().map((service) => service.code)).toEqual(["ram", "remote_terminal"]);
+    const connection = service.listActions("remote_terminal");
+    expect(connection.map((action) => action.action)).toEqual(["quyan:remote_terminal:ConnectSession"]);
+    expect(connection[0]?.authorizationTransport).toBe("websocket");
+    expect(connection[0]?.apiRoutes).toEqual(getIamActionDefinition("quyan:remote_terminal:ConnectSession")?.apiRoutes);
+    connection[0]!.apiRoutes.length = 0;
+    expect(service.listActions("remote_terminal")[0]?.apiRoutes.length).toBe(2);
     const actions = service.listActions("ram");
     expect(actions.map((action) => action.action)).toEqual(["quyan:ram:UpdateUser"]);
     actions[0].resourceTypes.length = 0;

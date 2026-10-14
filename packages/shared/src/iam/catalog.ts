@@ -68,7 +68,34 @@ const resource = (
               : '{ancestorId}',
         ).join('/'),
 })
+/** Real platform template list endpoints; aliases preserve the legacy rollout grants. */
+export const IAM_PLATFORM_TEMPLATE_DEFINITIONS = Object.freeze([
+  {
+    kind: 'remote-terminal',
+    service: 'remote_terminal',
+    action: 'quyan:remote_terminal:ListTemplates',
+    resourceType: 'remote-terminal-template',
+    route: 'GET /v1/remote-terminal/products/templates',
+    legacyPermission: Permission.REMOTE_TERMINAL_PRODUCT_READ,
+  },
+  {
+    kind: 'carpool',
+    service: 'carpool',
+    action: 'quyan:carpool:ListTemplates',
+    resourceType: 'carpool-template',
+    route: 'GET /v1/carpools/packages',
+    legacyPermission: Permission.CARPOOL_TEMPLATE_READ,
+  },
+] as const)
+export type IamPlatformTemplateKind = (typeof IAM_PLATFORM_TEMPLATE_DEFINITIONS)[number]['kind']
+
 export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = Object.freeze([
+  ...IAM_PLATFORM_TEMPLATE_DEFINITIONS.map((definition) => ({
+    ...resource('platform', definition.resourceType),
+    accountScope: 'platform' as const,
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':' + definition.resourceType + '/{resourceId}',
+  })),
   resource('quyan', 'account', 0),
   { ...resource('quyan', 'user'), authenticatedSelfScope: 'identity' },
   resource('quyan', 'group'),
@@ -508,6 +535,21 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
   }
 }
 export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.freeze([
+  ...IAM_PLATFORM_TEMPLATE_DEFINITIONS.map(
+    (definition): IamActionDefinition => ({
+      action: definition.action,
+      service: definition.service,
+      operation: 'ListTemplates',
+      accessLevel: 'List',
+      resourceTypes: ['platform/' + definition.resourceType],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: definition.legacyPermission,
+    }),
+  ),
   ...ALL_PERMISSIONS.map(fromPermission),
   ...[
     {

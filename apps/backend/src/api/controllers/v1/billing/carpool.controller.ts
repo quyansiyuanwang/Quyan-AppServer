@@ -93,15 +93,22 @@ export class CarpoolController extends Controller {
   }
   @Get("packages")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:carpool:ListTemplates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(carpoolPageQuerySchema))
   public listPackages(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
     @Query() publishStatus?: string,
+    @Request() request?: TypedRequest,
   ): Promise<CarpoolPackageTemplateListResponse> {
-    return this.service.listTemplates(page, pageSize, keyword, publishStatus);
+    return this.service.listTemplates(page, pageSize, keyword, publishStatus, request);
   }
   @Post("packages")
   @Security("jwt")

@@ -2,6 +2,8 @@
 
 Use this page to manage remote terminal product plans, user entitlements, and device bindings.
 
+With IAM enforcement enabled, the management template list uses `quyan:remote_terminal:ListTemplates` against each `acs:platform:*:platform:remote-terminal-template/<templateId>`. Page records and totals include only permitted templates; a template with no matching Allow or a matching Deny is withheld. Templates are shared deployment resources, so IAM grants also require the global management group ceiling configured by the deployment administrator. An account policy or account-owned group cannot grant that management eligibility. This read permission does not grant template creation, modification, or publication.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.

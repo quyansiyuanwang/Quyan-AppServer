@@ -2,6 +2,8 @@
 
 此页面供管理员维护远程终端产品套餐、用户权益分配及设备绑定。
 
+启用 IAM 强制授权后，套餐管理列表使用 `quyan:remote_terminal:ListTemplates`，逐条检查 `acs:platform:*:platform:remote-terminal-template/<templateId>`。分页记录和总数只包含获准查看的模板；未匹配 Allow 或匹配 Deny 的模板不会返回。模板属于部署共享资源，除了 IAM 策略，还必须保留部署管理员配置的全局管理组权限上限，账号自己的策略或用户组不能自行取得这项管理资格。这一读取权限不会授予创建、修改或发布模板的权限。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

@@ -1,3 +1,4 @@
+import { CustomCode } from "@quyan/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RemoteTerminalProductController } from "../../../src/api/controllers/v1/remote-terminal/remote-terminal-product.controller";
 import { RemoteTerminalProductService } from "../../../src/services/remote-terminal/remote-terminal-product.service";
@@ -51,7 +52,9 @@ describe("RemoteTerminalProductController permissions", () => {
     await expect(
       (controller as any).listDevices(undefined, undefined, undefined, undefined, undefined, request),
     ).rejects.toMatchObject({
-      message: "缺少必要权限: remote_terminal:device:manage:read",
+      statusCode: 403,
+      code: CustomCode.PERMISSION_DENIED,
+      messageKey: "permission.insufficientPermission",
     });
     expect(remoteTerminalProductServiceMock.listDevices).not.toHaveBeenCalled();
   });
@@ -73,8 +76,9 @@ describe("RemoteTerminalProductController permissions", () => {
     const controller = new RemoteTerminalProductController();
 
     await expect((controller as any).getFilterOptions(request)).rejects.toMatchObject({
-      message:
-        "需要以下权限之一: remote_terminal:product:read, remote_terminal:assignment:read, remote_terminal:device:manage:read",
+      statusCode: 403,
+      code: CustomCode.PERMISSION_DENIED,
+      messageKey: "permission.insufficientPermission",
     });
     expect(remoteTerminalProductServiceMock.getFilterOptions).not.toHaveBeenCalled();
   });

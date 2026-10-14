@@ -2,6 +2,8 @@
 
 This page is for operators with carpool permissions. Use it to maintain carpool packages, accept submitted orders, and complete delivery or failure refunds.
 
+With IAM enforcement enabled, the management template list uses `quyan:carpool:ListTemplates` against each `acs:platform:*:platform:carpool-template/<templateId>`. Page records and totals include only permitted templates; denied templates do not expose names, costs, or delivery snapshots. Templates are shared deployment resources, so IAM grants also require the global management group ceiling configured by the deployment administrator. An account policy or account-owned group cannot grant that management eligibility. This read permission does not grant package editing or order processing.
+
 ## Package management
 
 A package defines the deliverable monthly-pass template, quota, validity, member limit, formation deadline, selling price, and cost. You can:
