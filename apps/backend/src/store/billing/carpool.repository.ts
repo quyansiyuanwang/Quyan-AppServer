@@ -1,3 +1,4 @@
+import { runCarpoolOrderDelivery, type CarpoolOrderDeliveryGuard } from "./carpool-order-delivery";
 import {
   runCarpoolOrderRefund,
   CARPOOL_REFUND_SOURCE_INCLUDE,
@@ -51,6 +52,18 @@ export class CarpoolRepository {
   }
   withRefundTransaction<T>(guard: CarpoolOrderRefundGuard, callback: (tx: Prisma.TransactionClient) => Promise<T>) {
     return runCarpoolOrderRefund(guard, callback);
+  }
+  withDeliveryTransaction<T>(guard: CarpoolOrderDeliveryGuard, callback: (tx: Prisma.TransactionClient) => Promise<T>) {
+    return runCarpoolOrderDelivery(guard, callback);
+  }
+  async findDeliveryTemplateId(order: { monthlyPassTemplateId: string | null; packageTemplateId: string }) {
+    if (order.monthlyPassTemplateId) return order.monthlyPassTemplateId;
+    return (
+      await prisma.carpoolPackageTemplate.findUnique({
+        where: { id: order.packageTemplateId },
+        select: { monthlyPassTemplateId: true },
+      })
+    )?.monthlyPassTemplateId;
   }
   findOrderRefundTarget(id: string) {
     return prisma.carpoolOrder.findFirst({ where: { id, status: { gte: 0 } }, include: CARPOOL_REFUND_SOURCE_INCLUDE });

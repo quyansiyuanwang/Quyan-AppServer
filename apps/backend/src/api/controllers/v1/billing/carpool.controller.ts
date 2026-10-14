@@ -35,8 +35,6 @@ import type {
   UpdateCarpoolPackageTemplateRequest,
 } from "@/api/dto/billing/carpool.dto";
 import { CarpoolService } from "@/services/billing/carpool.service";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { Permission } from "@/constant/permission";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import {
@@ -430,7 +428,13 @@ export class CarpoolController extends Controller {
   }
   @Post("admin/{id}/fulfill")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:FulfillOrder",
+      resourceKind: "single-resource",
+      resource: platformCarpoolOrderResource,
+    }),
+  )
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(carpoolIdParamsSchema),
@@ -441,7 +445,7 @@ export class CarpoolController extends Controller {
     @Body() body: FulfillCarpoolOrderRequest,
     @Request() request: TypedRequest,
   ): Promise<CarpoolOrderDto> {
-    return this.service.fulfill(id, body.relayChannelId, request.user!.userId);
+    return this.service.fulfill(id, body.relayChannelId, request.user!.userId, request);
   }
   @Post("admin/{id}/fail")
   @Security("jwt")

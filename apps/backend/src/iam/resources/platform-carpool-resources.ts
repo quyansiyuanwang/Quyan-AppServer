@@ -28,3 +28,13 @@ export function platformCarpoolRefundLedgerArn(userId: string, id: string) {
     path: "balance-transaction/" + userId + "/" + id,
   });
 }
+
+export function platformCarpoolDeliveryTokenArn(userId: string, id: string) {
+  if (![userId, id].every(isPlatformLogResourceId)) throw new Error("Invalid delivery token identity");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "relay-token/" + userId + "/" + id,
+  });
+}

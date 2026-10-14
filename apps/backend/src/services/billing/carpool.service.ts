@@ -1,3 +1,4 @@
+import { PlatformCarpoolOrderDeliveryIamService } from "./platform-carpool-order-delivery-iam.service";
 import { PlatformCarpoolDeliveryChannelReadIamService } from "./platform-carpool-delivery-channel-read-iam.service";
 import { PlatformCarpoolOrderRefundIamService } from "./platform-carpool-order-refund-iam.service";
 import { PlatformCarpoolOrderWriteIamService } from "./platform-carpool-order-write-iam.service";
@@ -785,11 +786,17 @@ export class CarpoolService {
       },
     );
   }
-  async fulfill(orderId: string, relayChannelId: string, actorUserId?: string) {
-    return this.repository.withTransaction(async (tx) => {
+  async fulfill(orderId: string, relayChannelId: string, actorUserId?: string, request?: TypedRequest) {
+    const guard = await PlatformCarpoolOrderDeliveryIamService.getInstance().prepare(
+      actorUserId,
+      request,
+      orderId,
+      relayChannelId,
+    );
+    const mutate = async (tx: Prisma.TransactionClient) => {
       const order = await tx.carpoolOrder.findUnique({
         where: { id: orderId },
-        include: { members: true, packageTemplate: true },
+        include: { members: true, packageTemplate: { select: { monthlyPassTemplateId: true } } },
       });
       if (!order)
         throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
@@ -805,13 +812,14 @@ export class CarpoolService {
       // Revalidate all delivery eligibility inside the serializable fulfillment transaction.
       const channel = await tx.relayChannel.findFirst({
         where: { id: relayChannelId, status: 1, providerServiceEnabled: true, submissionStatus: "approved" },
+        select: { id: true },
       });
       if (!channel)
         throw new NotFoundError("Eligible relay channel not found", undefined, {
           messageKey: "carpool.eligibleChannelNotFound",
         });
       const templateId = order.monthlyPassTemplateId ?? order.packageTemplate.monthlyPassTemplateId;
-      const template = await tx.monthlyPassTemplate.findUnique({ where: { id: templateId } });
+      const template = await tx.monthlyPassTemplate.findUnique({ where: { id: templateId }, select: { id: true } });
       // The order's quota, validity, model and channel constraints are immutable snapshots.
       // A later template unpublish/disable must not make an already accepted order undeliverable.
       if (!template)
@@ -835,7 +843,7 @@ export class CarpoolService {
             status: 1,
           },
         });
-        await tx.relayToken.create({
+        const token = await tx.relayToken.create({
           data: {
             userId: member.userId,
             carpoolMemberId: member.id,
@@ -845,7 +853,9 @@ export class CarpoolService {
             quotaLimit: member.finalQuota,
             allowedModels: order.allowedModels,
           },
+          select: { id: true },
         });
+        await guard?.checkDelivery(member.userId, pass.id, token.id);
         await tx.carpoolMember.update({
           where: { id: member.id },
           data: { userMonthlyPassId: pass.id, state: "delivered" },
@@ -861,7 +871,8 @@ export class CarpoolService {
         undefined,
         true,
       );
-    });
+    };
+    return guard ? this.repository.withDeliveryTransaction(guard, mutate) : this.repository.withTransaction(mutate);
   }
   async fail(orderId: string, reason: string, actorUserId?: string, request?: TypedRequest) {
     const guard = await PlatformCarpoolOrderRefundIamService.getInstance().prepare(

@@ -255,6 +255,7 @@ describe("CarpoolService lifecycle guards", () => {
     expect(JSON.stringify(result)).not.toContain("sk-rlt-");
     expect(tx.relayChannel.findFirst).toHaveBeenCalledWith({
       where: { id: "channel-1", status: 1, providerServiceEnabled: true, submissionStatus: "approved" },
+      select: { id: true },
     });
     expect(tx.userMonthlyPass.create).toHaveBeenCalledTimes(1);
     expect(tx.relayToken.create).toHaveBeenCalledTimes(1);

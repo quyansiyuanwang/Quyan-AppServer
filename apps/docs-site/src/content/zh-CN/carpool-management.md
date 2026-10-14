@@ -57,6 +57,8 @@
 | 查看拼车订单与详情                     | `CARPOOL_ORDER_READ`     |
 | 受理、交付、失败退款                   | `CARPOOL_ORDER_FULFILL`  |
 
+启用 IAM 强制授权后，交付使用独立的 `quyan:carpool:FulfillOrder`，分别检查订单、渠道、来源套餐、来源月卡模板、每个接收用户以及生成的月卡和 Relay Token。生成资源使用 `acs:platform:*:platform:monthly-pass/<userId>/<passId>` 和 `acs:platform:*:platform:relay-token/<userId>/<tokenId>`。任一资源被拒绝或操作权限失效时，所有成员的权益、状态和交付事件一并回滚；并发请求只交付一次。来源模板后来下线或禁用不改变已受理订单的原有额度与有效期。
+
 ## IAM 套餐授权
 
 启用 IAM 强制授权后，套餐管理使用以下独立操作：
