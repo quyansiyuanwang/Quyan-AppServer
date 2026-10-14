@@ -1,3 +1,5 @@
+import { readPlatformUserTargets, samePlatformUserTargets } from "./platform-user-snapshot";
+export { samePlatformUserTargets, validPlatformUserTarget } from "./platform-user-snapshot";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -15,36 +17,6 @@ import {
   type PlatformUserReadWhere,
 } from "./platform-user-read.store";
 import type { PlatformCollectionCursor } from "../system/platform-collection.store";
-// Hash only data used by the directory or its filters. Credential columns are never selected or hashed.
-const revision = Prisma.sql`SHA2(CAST(JSON_ARRAY(u.id,u.status,u.createTime,u.updateTime,u.username,u.email,u.name,u.accountOwnerId,u.parentUserId,u.userType,u.groupId,u.permissionAdds,u.permissionRemoves,g.name,g.username,g.status,g.level,g.permissions,g.accountOwnerId,b.balance,b.status,b.updateTime) AS CHAR),256)`;
-export function validPlatformUserTarget(row: PlatformUserReadTarget) {
-  return (
-    !!row &&
-    isPlatformUserId(row.id) &&
-    [AccountStatus.DISABLED, AccountStatus.ACTIVE].includes(row.status) &&
-    typeof row.revision === "string" &&
-    /^[a-f0-9]{64}$/.test(row.revision) &&
-    [row.createTime, row.updateTime].every((value) => value instanceof Date && Number.isFinite(value.getTime()))
-  );
-}
-export function samePlatformUserTargets(
-  current: readonly PlatformUserReadTarget[],
-  expected: readonly PlatformUserReadTarget[],
-) {
-  if (
-    !Array.isArray(current) ||
-    current.length !== expected.length ||
-    new Set(current.map((row) => row.id)).size !== current.length ||
-    current.some(
-      (row) =>
-        !validPlatformUserTarget(row) ||
-        !expected.some(
-          (previous) => previous.id === row.id && previous.status === row.status && previous.revision === row.revision,
-        ),
-    )
-  )
-    throw iamAccountDenied();
-}
 export class PlatformUserReadRepository implements PlatformUserReadStore {
   private static instance: PlatformUserReadRepository;
   static getInstance() {
@@ -70,18 +42,6 @@ export class PlatformUserReadRepository implements PlatformUserReadStore {
       !Number.isFinite(cursor.createTime.getTime())
     )
       throw iamAccountDenied();
-  }
-  private targets(tx: Prisma.TransactionClient, ids: readonly string[], lock = false) {
-    if (!ids.length) return Promise.resolve([]);
-    if (
-      ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
-      new Set(ids).size !== ids.length ||
-      ids.some((id) => !isPlatformUserId(id))
-    )
-      throw iamAccountDenied();
-    return tx.$queryRaw<PlatformUserReadTarget[]>(
-      Prisma.sql`SELECT u.id,u.status,u.createTime,u.updateTime,${revision} AS revision FROM users u LEFT JOIN \`groups\` g ON g.id=u.groupId LEFT JOIN balance_accounts b ON b.userId=u.id WHERE u.status IN (${AccountStatus.DISABLED},${AccountStatus.ACTIVE}) AND u.id IN (${Prisma.join(ids)}) ORDER BY u.createTime DESC,u.id DESC ${lock ? Prisma.sql`FOR UPDATE` : Prisma.empty}`,
-    );
   }
   async scan(
     principal: IamPrincipal,
@@ -123,7 +83,7 @@ export class PlatformUserReadRepository implements PlatformUserReadStore {
       orderBy: [{ createTime: "desc" }, { id: "desc" }],
       take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
     });
-    const targets = await this.targets(
+    const targets = await readPlatformUserTargets(
       prisma,
       rows.map((row) => row.id),
     );
@@ -132,12 +92,12 @@ export class PlatformUserReadRepository implements PlatformUserReadStore {
   }
   async target(principal: IamPrincipal, id: string) {
     await this.qualify(principal);
-    return (await this.targets(prisma, [id]))[0] ?? null;
+    return (await readPlatformUserTargets(prisma, [id]))[0] ?? null;
   }
   async recheck(principal: IamPrincipal, expected: readonly PlatformUserReadTarget[]) {
     await this.qualify(principal);
     samePlatformUserTargets(
-      await this.targets(
+      await readPlatformUserTargets(
         prisma,
         expected.map((row) => row.id),
       ),
@@ -150,7 +110,7 @@ export class PlatformUserReadRepository implements PlatformUserReadStore {
       async (tx) => {
         await this.qualify(principal, tx);
         samePlatformUserTargets(
-          await this.targets(
+          await readPlatformUserTargets(
             tx,
             expected.map((row) => row.id),
             true,
@@ -166,7 +126,7 @@ export class PlatformUserReadRepository implements PlatformUserReadStore {
         });
         if (rows.length !== expected.length) throw iamAccountDenied();
         samePlatformUserTargets(
-          await this.targets(
+          await readPlatformUserTargets(
             tx,
             expected.map((row) => row.id),
           ),

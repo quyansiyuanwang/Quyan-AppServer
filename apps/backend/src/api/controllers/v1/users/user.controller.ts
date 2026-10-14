@@ -1,3 +1,4 @@
+import { platformUserDeleteResourceResolver } from "@/iam/request/platform-user-delete-resource-resolver";
 import { PlatformUserReadIamService } from "@/services/users/platform-user-read-iam.service";
 import { platformUserResourceResolver } from "@/iam/request/platform-user-resource-resolver";
 import {
@@ -751,7 +752,11 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "用户不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_DELETE)
+  @CheckPermission(Permission.USER_DELETE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:DeleteUser",
+    resourceKind: "single-resource",
+    resource: platformUserDeleteResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateParams(userIdParamsSchema))
   public async deleteUser(@Request() request: TypedRequest, @Path() userId: string): Promise<{ message: string }> {
     const currentUserId = request.user!.userId;

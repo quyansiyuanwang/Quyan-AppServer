@@ -1,3 +1,7 @@
+import { PlatformUserDeleteIamService } from "./platform-user-delete-iam.service";
+import { PermissionService } from "./permission.service";
+import { Permission } from "@quyan/shared";
+import { getLogger, LogCategory } from "@/util/logger";
 import { userViewDto } from "./user-view";
 import { UserProfileIamService } from "./user-profile-iam.service";
 import { userProfileAuthorizationDenied } from "@/store/users/user-profile-management.repository";
@@ -281,11 +285,37 @@ export class UserService {
   }
 
   async deleteUser(userId: string, actorUserId: string, request?: Request): Promise<void> {
-    const user = await this.userRepository.findById(userId);
-    if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
-
-    // Soft delete: mark the account as deleted via AccountStatus.DELETED.
-    await this.userRepository.softDelete(userId);
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw userProfileAuthorizationDenied();
+    let user: { id: string; username: string } | null | undefined;
+    if (mode === "enforce")
+      user = await PlatformUserDeleteIamService.getInstance().execute(userId, actorUserId, request as TypedRequest);
+    else {
+      const req = request as TypedRequest | undefined;
+      if (
+        !(
+          await PermissionService.getInstance().checkUserPermissions(actorUserId, [Permission.USER_DELETE], {
+            assumedRoleSessionId: req?.authContext?.roleSessionId ?? req?.user?.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw userProfileAuthorizationDenied();
+      user = await this.userRepository.findById(userId);
+      if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
+      if (mode === "shadow") {
+        try {
+          await PlatformUserDeleteIamService.getInstance().execute(userId, actorUserId, req, false);
+        } catch {
+          getLogger("PlatformUserDeleteIamBridge", LogCategory.SECURITY).warn("IAM user deletion shadow denied", {
+            action: "quyan:user:DeleteUser",
+            reason: "iam-deletion-unavailable",
+          });
+        }
+      }
+      // Retain the existing soft-delete and username-release semantics in rollback modes.
+      await this.userRepository.softDelete(userId);
+    }
+    if (!user) throw userProfileAuthorizationDenied();
 
     const actorUser = await this.userRepository.findById(actorUserId);
     await this.businessLogService.logOperation({
