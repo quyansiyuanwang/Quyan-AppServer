@@ -337,6 +337,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':redemption-code/{resourceId}',
   },
   resource('ticket', 'ticket', 2),
+  {
+    ...resource('platform', 'ticket-review', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':ticket-review/{parentId}/{resourceId}',
+  },
   resource('mcp', 'server', 2),
   resource('agent', 'machine', 2),
   resource('agent', 'workspace', 2),
@@ -2684,6 +2690,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
+    }),
+  ),
+  ...[
+    { operation: 'ListReviewTickets', accessLevel: 'List' as const },
+    { operation: 'GetReviewTicket', accessLevel: 'Read' as const },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:ticket:' + definition.operation,
+      service: 'ticket',
+      resourceTypes: ['platform/ticket-review'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationBoundary: 'platform',
+      authorizationStage: 'declared',
+      legacyPermission: Permission.TICKET_REVIEW_READ,
     }),
   ),
   ...[

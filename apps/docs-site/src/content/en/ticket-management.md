@@ -52,6 +52,14 @@ In enforcement mode, reading or updating `notification.ticketAssignmentRules` th
 | Delete ticket                       | `TICKET_REVIEW_UPDATE` |
 | Manage assignment rules             | `TICKET_REVIEW_UPDATE` |
 
+## Resource permissions for review reads
+
+In IAM enforcement mode, the review queue uses `quyan:ticket:ListReviewTickets` and details use `quyan:ticket:GetReviewTicket`. Each ticket is identified by `acs:platform:*:platform:ticket-review/<submitterUserId>/<ticketId>`. The server resolves the submitting user from the stored ticket. These are platform review resources; the submitting user's own ticket permissions remain separate.
+
+Both operations require membership in an active deployment-managed global group with `TICKET_REVIEW_READ`. Personal permissions, private groups, or an account-owner identity cannot replace that eligibility. Policies can further restrict eligible reviewers to specific tickets, and an explicit Deny takes precedence. List permission does not grant detail permission.
+
+Denied tickets do not appear in the queue or contribute to its total, pagination, or `hasMore`. An empty authorized set returns an empty page. Pages retain the review queue's last-reply order; page sizes are limited to 100 and page numbers to 10,000. An unavailable or denied detail returns a generic authorization error without contact information or comments. Changes to ticket content, comment content, related display identities, eligibility, or authorization during a read cause rejection.
+
 ## Resource permissions for assignment rules
 
 In IAM enforcement mode, reading and updating assignment rules use `quyan:ticket:GetAssignmentRules` and `quyan:ticket:UpdateAssignmentRules`. Both use `acs:platform:*:platform:config-item/notification.ticketAssignmentRules`, the same resource identity as the general configuration API. A Deny with `Action: "*"` can therefore restrict both entry points. The authenticated subject must also belong to an active deployment-managed global group with `TICKET_REVIEW_UPDATE`; personal permissions, a private group, or account-owner identity cannot replace that eligibility.

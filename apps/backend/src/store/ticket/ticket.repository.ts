@@ -1,3 +1,4 @@
+import { buildTicketWhere } from "./ticket-query";
 import { prisma } from "@/config/database";
 import { MANAGED_STATUS } from "@/constant/status";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -56,38 +57,6 @@ export class TicketRepository implements TicketStore {
     return this.instance;
   }
 
-  private buildWhere(
-    filters: Omit<TicketListFilters, "page" | "pageSize"> & { userId?: string },
-  ): Prisma.TicketWhereInput {
-    const keyword = filters.keyword?.trim();
-    const orConditions: Prisma.TicketWhereInput[] = [];
-    if (keyword)
-      orConditions.push(
-        { id: { contains: keyword } },
-        { title: { contains: keyword } },
-        { description: { contains: keyword } },
-        { user: { username: { contains: keyword } } },
-      );
-
-    return {
-      status: MANAGED_STATUS.ENABLED,
-      ...(filters.userId ? { userId: filters.userId } : {}),
-      ...(filters.workflowStatus ? { workflowStatus: filters.workflowStatus } : {}),
-      ...(filters.type ? { type: filters.type } : {}),
-      ...(filters.priority ? { priority: filters.priority } : {}),
-      ...(filters.assigneeUserId ? { assigneeUserId: filters.assigneeUserId } : {}),
-      ...(filters.startTime || filters.endTime
-        ? {
-            createTime: {
-              ...(filters.startTime ? { gte: filters.startTime } : {}),
-              ...(filters.endTime ? { lte: filters.endTime } : {}),
-            },
-          }
-        : {}),
-      ...(orConditions.length > 0 ? { OR: orConditions } : {}),
-    };
-  }
-
   private get includeRelations() {
     return {
       user: { select: { id: true, username: true } },
@@ -123,7 +92,7 @@ export class TicketRepository implements TicketStore {
           }
         : { AND: [{ lastReplyAt: null }, tieBreak] };
     return prisma.ticket.findMany({
-      where: { AND: [this.buildWhere({ ...filters, userId }), ownTicketScope(userId, accountOwnerId), cursor] },
+      where: { AND: [buildTicketWhere({ ...filters, userId }), ownTicketScope(userId, accountOwnerId), cursor] },
       select: ownTicketSelect,
       orderBy: [{ lastReplyAt: "desc" }, { createTime: "desc" }, { id: "desc" }],
       take: IAM_AUTHORIZATION_LIMITS.resourcesPerRequest,
@@ -308,7 +277,7 @@ export class TicketRepository implements TicketStore {
     userId: string,
     filters: TicketListFilters,
   ): Promise<{ items: TicketWithRelations[]; total: number }> {
-    const where = this.buildWhere({ ...filters, userId });
+    const where = buildTicketWhere({ ...filters, userId });
     try {
       const [items, total] = await prisma.$transaction([
         prisma.ticket.findMany({
@@ -329,7 +298,7 @@ export class TicketRepository implements TicketStore {
   }
 
   async findReviewList(filters: TicketListFilters): Promise<{ items: TicketWithRelations[]; total: number }> {
-    const where = this.buildWhere(filters);
+    const where = buildTicketWhere(filters);
     try {
       const [items, total] = await prisma.$transaction([
         prisma.ticket.findMany({

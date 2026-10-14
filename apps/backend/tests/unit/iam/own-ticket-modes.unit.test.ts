@@ -1,3 +1,4 @@
+vi.mock("@/config/database", () => ({ prisma: {} }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fileURLToPath } from "node:url";
 import { Project } from "ts-morph";
@@ -18,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   detail: vi.fn(),
   create: vi.fn(),
   createdDetail: vi.fn(),
+  reviewList: vi.fn(),
+  reviewDetail: vi.fn(),
 }));
 vi.mock("@/config/env", () => ({
   env: {
@@ -38,6 +41,9 @@ vi.mock("@/services/ticket/own-ticket-iam.service", () => ({
       createdDetail: mocks.createdDetail,
     }),
   },
+}));
+vi.mock("@/services/ticket/platform-ticket-review-read-iam.service", () => ({
+  PlatformTicketReviewReadIamService: { getInstance: () => ({ list: mocks.reviewList, detail: mocks.reviewDetail }) },
 }));
 vi.mock("@/store/ticket/ticket.repository", () => ({ TicketRepository: { getInstance: vi.fn() } }));
 vi.mock("@/store/users/user.repository", () => ({ UserRepository: { getInstance: vi.fn() } }));
@@ -100,6 +106,11 @@ beforeEach(() => {
   mocks.detail.mockResolvedValue({ ticket, comments: [] });
   permissions.checkUserPermissions.mockResolvedValue({ hasPermission: true, checkedPermissions: [] });
   repository.findMyList.mockResolvedValue({ items: [], total: 0 });
+  repository.findReviewList.mockResolvedValue({ items: [], total: 0 });
+  repository.findByIdWithRelations.mockResolvedValue(ticket);
+  repository.findCommentsByTicketId.mockResolvedValue([]);
+  mocks.reviewList.mockResolvedValue({ items: [ticket], total: 1, page: 1, pageSize: 20, hasMore: false });
+  mocks.reviewDetail.mockResolvedValue({ ticket, comments: [] });
 });
 describe("own ticket rollout and service mutation guards", () => {
   it("declares five self-service routes with server-owned actions and resource resolvers", () => {
@@ -164,5 +175,46 @@ describe("own ticket rollout and service mutation guards", () => {
       .mockRejectedValueOnce(new Error("revoked"));
     await expect(service.addMyComment("ticket", "actor", { content: "next" }, request)).rejects.toThrow("revoked");
     expect(repository.commentOwnTarget).not.toHaveBeenCalled();
+  });
+});
+
+describe("review ticket read rollout", () => {
+  it("dispatches enforce reads through the resource service without legacy queries", async () => {
+    expect((await service.listReviewTickets({}, request)).items[0]!.id).toBe("ticket");
+    expect((await service.getReviewTicketDetail("ticket", request)).id).toBe("ticket");
+    expect(repository.findReviewList).not.toHaveBeenCalled();
+    expect(repository.findByIdWithRelations).not.toHaveBeenCalled();
+    expect(repository.findCommentsByTicketId).not.toHaveBeenCalled();
+  });
+  it("does not fall back after native denial", async () => {
+    mocks.reviewList.mockRejectedValue(new Error("denied"));
+    mocks.reviewDetail.mockRejectedValue(new Error("denied"));
+    await expect(service.listReviewTickets({}, request)).rejects.toThrow("denied");
+    await expect(service.getReviewTicketDetail("ticket", request)).rejects.toThrow("denied");
+    expect(repository.findReviewList).not.toHaveBeenCalled();
+    expect(repository.findByIdWithRelations).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("retains legacy session-aware checks in %s", async (mode) => {
+    mocks.mode = mode;
+    mocks.reviewList.mockRejectedValue(new Error("IAM unavailable"));
+    mocks.reviewDetail.mockRejectedValue(new Error("IAM unavailable"));
+    expect((await service.listReviewTickets({}, request)).total).toBe(0);
+    expect((await service.getReviewTicketDetail("ticket", request)).id).toBe("ticket");
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", ["ticket:review:read"], {
+      assumedRoleSessionId: "session",
+    });
+    if (mode === "shadow") {
+      expect(mocks.reviewList).toHaveBeenCalledWith({}, request, false);
+      expect(mocks.reviewDetail).toHaveBeenCalledWith("ticket", request, false);
+    } else expect(mocks.reviewList).not.toHaveBeenCalled();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false, checkedPermissions: [] });
+    await expect(service.listReviewTickets({}, request)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.getReviewTicketDetail("ticket", request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("rejects missing request contexts and unsupported modes", async () => {
+    await expect(service.listReviewTickets({})).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.getReviewTicketDetail("ticket")).rejects.toMatchObject({ statusCode: 403 });
+    mocks.mode = "invalid";
+    await expect(service.listReviewTickets({}, request)).rejects.toMatchObject({ statusCode: 403 });
   });
 });

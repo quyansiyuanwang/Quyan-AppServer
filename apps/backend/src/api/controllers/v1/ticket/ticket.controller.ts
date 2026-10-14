@@ -1,3 +1,4 @@
+import { platformTicketReviewResourceResolver } from "@/iam/request/platform-ticket-review-resource-resolver";
 import { PlatformTicketAssignmentIamService } from "@/services/ticket/platform-ticket-assignment-iam.service";
 import { platformTicketAssignmentArn } from "@/iam/resources/platform-ticket-assignment-resources";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -156,7 +157,13 @@ export class TicketController extends Controller {
 
   @Get("review")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_REVIEW_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ticket:ListReviewTickets",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Middlewares(validateQuery(ticketReviewListQuerySchema))
   public async listReviewTickets(
@@ -170,19 +177,23 @@ export class TicketController extends Controller {
     @Query() userId?: string,
     @Query() startTime?: string,
     @Query() endTime?: string,
+    @Request() request?: TypedRequest,
   ): Promise<TicketListResponseDto> {
-    return this.service.listReviewTickets({
-      page,
-      pageSize,
-      keyword,
-      workflowStatus,
-      type,
-      priority,
-      assigneeUserId,
-      userId,
-      startTime,
-      endTime,
-    });
+    return this.service.listReviewTickets(
+      {
+        page,
+        pageSize,
+        keyword,
+        workflowStatus,
+        type,
+        priority,
+        assigneeUserId,
+        userId,
+        startTime,
+        endTime,
+      },
+      request,
+    );
   }
 
   @Get("review/assignment-rules")
@@ -219,12 +230,18 @@ export class TicketController extends Controller {
 
   @Get("review/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_REVIEW_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:ticket:GetReviewTicket",
+      resourceKind: "single-resource",
+      resource: platformTicketReviewResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(validateParams(ticketIdParamsSchema))
-  public async getReviewTicketDetail(@Path() id: string): Promise<TicketDetailDto> {
-    return this.service.getReviewTicketDetail(id);
+  public async getReviewTicketDetail(@Path() id: string, @Request() request: TypedRequest): Promise<TicketDetailDto> {
+    return this.service.getReviewTicketDetail(id, request);
   }
 
   @Put("review/{id}")

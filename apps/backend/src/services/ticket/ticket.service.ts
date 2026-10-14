@@ -1,3 +1,5 @@
+import { PlatformTicketReviewReadIamService } from "./platform-ticket-review-read-iam.service";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import type { Ticket, TicketComment } from "@prisma/client";
 import type { Request } from "express";
 import type {
@@ -309,7 +311,31 @@ export class TicketService {
     });
   }
 
-  async listReviewTickets(query: TicketReviewListQueryDto): Promise<TicketListResponseDto> {
+  async listReviewTickets(query: TicketReviewListQueryDto, request?: TypedRequest): Promise<TicketListResponseDto> {
+    const mode = env.security.iamAuthorizationMode;
+    if (!request?.user || !["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (mode === "enforce") {
+      const result = await PlatformTicketReviewReadIamService.getInstance().list(query, request);
+      return { ...result, items: result.items.map((item) => this.toListItemDto(item)) };
+    }
+    if (
+      !(
+        await this.permissionService.checkUserPermissions(request.user.userId, [Permission.TICKET_REVIEW_READ], {
+          assumedRoleSessionId: request.user.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (mode === "shadow") {
+      try {
+        await PlatformTicketReviewReadIamService.getInstance().list(query, request, false);
+      } catch {
+        getLogger("TicketService", LogCategory.SECURITY).warn("IAM ticket review shadow evaluation failed", {
+          action: "quyan:ticket:ListReviewTickets",
+        });
+      }
+    }
+
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const { items, total } = await this.repository.findReviewList({
@@ -334,7 +360,36 @@ export class TicketService {
     };
   }
 
-  async getReviewTicketDetail(id: string): Promise<TicketDetailDto> {
+  async getReviewTicketDetail(id: string, request?: TypedRequest): Promise<TicketDetailDto> {
+    const mode = env.security.iamAuthorizationMode;
+    if (!request?.user || !["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (mode === "enforce") {
+      const detail = await PlatformTicketReviewReadIamService.getInstance().detail(id, request);
+      if (!detail) throw iamAccountDenied();
+      return this.toDetailDto(detail.ticket, detail.comments);
+    }
+    if (
+      !(
+        await this.permissionService.checkUserPermissions(request.user.userId, [Permission.TICKET_REVIEW_READ], {
+          assumedRoleSessionId: request.user.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (mode === "shadow") {
+      try {
+        await PlatformTicketReviewReadIamService.getInstance().detail(id, request, false);
+      } catch {
+        getLogger("TicketService", LogCategory.SECURITY).warn("IAM ticket review shadow evaluation failed", {
+          action: "quyan:ticket:GetReviewTicket",
+        });
+      }
+    }
+
+    return this.loadReviewTicketDetail(id);
+  }
+
+  private async loadReviewTicketDetail(id: string): Promise<TicketDetailDto> {
     const ticket = await this.repository.findByIdWithRelations(id);
     if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
     const comments = await this.repository.findCommentsByTicketId(id);
@@ -371,7 +426,7 @@ export class TicketService {
       updateData.assigneeUserId = normalizedAssignee;
     }
 
-    if (Object.keys(updateData).length === 0) return this.getReviewTicketDetail(id);
+    if (Object.keys(updateData).length === 0) return this.loadReviewTicketDetail(id);
 
     const updated = await this.repository.update(id, updateData);
 
@@ -452,7 +507,7 @@ export class TicketService {
         });
     }
 
-    return this.getReviewTicketDetail(id);
+    return this.loadReviewTicketDetail(id);
   }
 
   async addReviewComment(
