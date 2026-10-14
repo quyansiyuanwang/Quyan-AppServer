@@ -134,6 +134,32 @@ export const IAM_REMOTE_TERMINAL_TEMPLATE_WRITE_OPERATIONS = Object.freeze([
 ] as const)
 export type IamTerminalTemplateWriteOperation =
   (typeof IAM_REMOTE_TERMINAL_TEMPLATE_WRITE_OPERATIONS)[number]['operation']
+/** Management mutations are separate from personal runtime device capabilities. */
+export const IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS = Object.freeze([
+  {
+    operation: 'RevokeDeviceBinding',
+    route: 'DELETE /v1/remote-terminal/products/devices/{id}',
+    kind: 'binding',
+    resourceType: 'platform/remote-terminal-device-binding',
+    permission: Permission.REMOTE_TERMINAL_DEVICE_WRITE,
+  },
+  {
+    operation: 'DeleteEntitlement',
+    route: 'DELETE /v1/remote-terminal/products/entitlements/{id}',
+    kind: 'entitlement',
+    resourceType: 'platform/remote-terminal-entitlement',
+    permission: Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE,
+  },
+  {
+    operation: 'ResetUnbindCount',
+    route: 'POST /v1/remote-terminal/products/entitlements/{id}/reset-unbind-count',
+    kind: 'entitlement',
+    resourceType: 'platform/remote-terminal-entitlement',
+    permission: Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE,
+  },
+] as const)
+export type IamTerminalManagementMutation =
+  (typeof IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS)[number]['operation']
 export type IamPlatformTemplateKind = (typeof IAM_PLATFORM_TEMPLATE_DEFINITIONS)[number]['kind']
 
 export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = Object.freeze([
@@ -630,6 +656,21 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermissions: [...IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION.legacyPermissions],
   },
+  ...IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS.map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:remote_terminal:' + definition.operation,
+      service: 'remote_terminal',
+      operation: definition.operation,
+      accessLevel: 'Write',
+      resourceTypes: [definition.resourceType],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: definition.permission,
+    }),
+  ),
   ...IAM_REMOTE_TERMINAL_TEMPLATE_WRITE_OPERATIONS.map(
     (definition): IamActionDefinition => ({
       action: 'quyan:remote_terminal:' + definition.operation,

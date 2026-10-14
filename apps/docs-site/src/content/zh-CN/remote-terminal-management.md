@@ -18,6 +18,8 @@
 
 权益和设备筛选、权益分配对话框中的用户选择器支持服务端搜索与独立分页。候选用户及其总数由用户列表接口的权限决定，不会因拥有设备或权益管理权限而自动获得用户目录访问。可翻页浏览搜索结果；失败后可刷新重试，切换身份或权限会清空候选。编辑已有权益时，已选用户可保留当前获准记录中的显示名称。设备表格显示主机名、客户端设备 ID 和实际绑定状态；关联用户或权益名称被拒绝时不会从旧候选缓存补回。
 
+启用 IAM 强制模式后，管理写操作也按目标资源限制：`quyan:remote_terminal:RevokeDeviceBinding` 控制 `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`；`quyan:remote_terminal:DeleteEntitlement` 和 `quyan:remote_terminal:ResetUnbindCount` 控制 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`。资源中的用户 ID 由服务端确认。操作人员仍须属于具有对应管理资格的全局组，并完成二次验证；具体资源被拒绝或操作期间授权发生变化时，操作失败。管理员解绑不消耗个人解绑次数，重置次数只影响所选权益。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

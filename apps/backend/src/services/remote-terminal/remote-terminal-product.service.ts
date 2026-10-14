@@ -1,3 +1,5 @@
+import { PlatformTerminalManagementMutationIamService } from "./platform-terminal-management-mutation-iam.service";
+import { PlatformTerminalManagementMutationRepository } from "@/store/remote-terminal-product/platform-terminal-management-mutation.repository";
 import { PlatformTerminalDeviceReadIamService } from "./platform-terminal-device-read-iam.service";
 import type {
   TerminalDeviceReadView,
@@ -1663,13 +1665,22 @@ export class RemoteTerminalProductService {
   }
 
   public async deleteEntitlement(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findEntitlementById(id);
+    const native = await PlatformTerminalManagementMutationIamService.getInstance().prepare(
+      "DeleteEntitlement",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = native?.target ?? (await this.productRepository.findEntitlementById(id));
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
         messageKey: "remoteTerminalProduct.entitlementNotFound",
       });
 
-    await this.productRepository.softDeleteEntitlement(id);
+    if (native) await PlatformTerminalManagementMutationRepository.getInstance().mutate(native.target, native.guard);
+    else {
+      await this.productRepository.softDeleteEntitlement(id);
+    }
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_ASSIGNMENT_DELETE,
       operationCategory: OperationCategory.RELAY,
@@ -1677,7 +1688,7 @@ export class RemoteTerminalProductService {
       targetUserId: existing.userId,
       targetResourceType: "REMOTE_TERMINAL_ENTITLEMENT",
       targetResourceId: id,
-      description: `Deleted remote terminal entitlement '${existing.name}'`,
+      description: `Deleted remote terminal entitlement '${"label" in existing ? existing.label : existing.name}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
@@ -1881,16 +1892,25 @@ export class RemoteTerminalProductService {
   }
 
   public async adminRevokeDevice(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findDeviceBindingById(id);
+    const native = await PlatformTerminalManagementMutationIamService.getInstance().prepare(
+      "RevokeDeviceBinding",
+      actorUserId,
+      request,
+      id,
+    );
+    const existing = native?.target ?? (await this.productRepository.findDeviceBindingById(id));
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Device binding not found", undefined, {
         messageKey: "remoteTerminalProduct.deviceBindingNotFound",
       });
 
-    await this.productRepository.updateDeviceBinding(id, {
-      status: MANAGED_STATUS.DELETED,
-      online: false,
-    });
+    if (native) await PlatformTerminalManagementMutationRepository.getInstance().mutate(native.target, native.guard);
+    else {
+      await this.productRepository.updateDeviceBinding(id, {
+        status: MANAGED_STATUS.DELETED,
+        online: false,
+      });
+    }
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_DEVICE_REVOKE,
       operationCategory: OperationCategory.RELAY,
@@ -1898,21 +1918,30 @@ export class RemoteTerminalProductService {
       targetUserId: existing.userId,
       targetResourceType: "REMOTE_TERMINAL_DEVICE_BINDING",
       targetResourceId: id,
-      description: `Admin revoked remote terminal device '${existing.hostname}'`,
+      description: `Admin revoked remote terminal device '${"label" in existing ? existing.label : existing.hostname}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
   }
 
   public async resetUnbindCount(entitlementId: string, actorUserId: string, request?: TypedRequest): Promise<void> {
-    const existing = await this.productRepository.findEntitlementById(entitlementId);
+    const native = await PlatformTerminalManagementMutationIamService.getInstance().prepare(
+      "ResetUnbindCount",
+      actorUserId,
+      request,
+      entitlementId,
+    );
+    const existing = native?.target ?? (await this.productRepository.findEntitlementById(entitlementId));
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
         messageKey: "remoteTerminalProduct.entitlementNotFound",
       });
 
-    const now = new Date();
-    await this.productRepository.updateEntitlement(entitlementId, { unbindResetAt: now });
+    if (native) await PlatformTerminalManagementMutationRepository.getInstance().mutate(native.target, native.guard);
+    else {
+      const now = new Date();
+      await this.productRepository.updateEntitlement(entitlementId, { unbindResetAt: now });
+    }
 
     await this.businessLogService.logOperation({
       operationType: OperationType.REMOTE_TERMINAL_DEVICE_REVOKE,
@@ -1921,7 +1950,7 @@ export class RemoteTerminalProductService {
       targetUserId: existing.userId,
       targetResourceType: "REMOTE_TERMINAL_USER_ENTITLEMENT",
       targetResourceId: entitlementId,
-      description: `Reset device unbind count for entitlement '${existing.name}'`,
+      description: `Reset device unbind count for entitlement '${"label" in existing ? existing.label : existing.name}'`,
       success: true,
       ...buildBusinessLogRequestContext(request),
     });

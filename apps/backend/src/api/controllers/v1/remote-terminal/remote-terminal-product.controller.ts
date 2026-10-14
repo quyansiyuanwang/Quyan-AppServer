@@ -1,4 +1,9 @@
 import {
+  platformTerminalRevokeBindingResource,
+  platformTerminalDeleteEntitlementResource,
+  platformTerminalResetUnbindResource,
+} from "@/iam/request/platform-terminal-management-mutation-resource-resolvers";
+import {
   Body,
   Controller,
   Delete,
@@ -324,7 +329,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("entitlements/{id}/reset-unbind-count")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ResetUnbindCount",
+      resourceKind: "single-resource",
+      resource: platformTerminalResetUnbindResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -339,7 +350,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Delete("entitlements/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:DeleteEntitlement",
+      resourceKind: "single-resource",
+      resource: platformTerminalDeleteEntitlementResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -475,7 +492,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Delete("devices/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:RevokeDeviceBinding",
+      resourceKind: "single-resource",
+      resource: platformTerminalRevokeBindingResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

@@ -18,6 +18,8 @@ With IAM enforcement enabled, the device management list uses `quyan:remote_term
 
 User selectors in entitlement and device filters and entitlement assignment dialogs support server-side search and independent pagination. Candidate users and totals follow the user-list endpoint's authorization; device or entitlement management does not automatically grant user-directory access. Browse search results by page and retry failures with Refresh. Identity or permission changes clear candidates. When editing an existing entitlement, the selected user's label may be retained from the currently permitted record. Device tables show hostname, client device ID, and the actual binding status; denied related usernames or entitlement names are not filled from old candidate caches.
 
+In IAM enforcement mode, management writes also require permission on the target resource: `quyan:remote_terminal:RevokeDeviceBinding` controls `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`; `quyan:remote_terminal:DeleteEntitlement` and `quyan:remote_terminal:ResetUnbindCount` control `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`. The server determines the resource owner. Operators must still belong to a global group with the corresponding management capability and complete step-up verification. A denied resource or an authorization change during the operation causes the operation to fail. Administrator revocation does not consume personal unbind allowance; resetting the allowance affects only the selected entitlement.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.
@@ -73,7 +75,7 @@ User selectors in entitlement and device filters and entitlement assignment dial
 - All write operations (create, edit, publish, delete, assign) require a **step-up 2FA challenge**.
 - Once published, a plan is visible to all users and can be self-claimed via `POST /remote-terminal/products/me/entitlements/claim`.
 - Entitlements support renewal and upgrade (adjusting device or terminal limits).
-- **Admin device revocation is not subject to unbind rate limits** — administrators can revoke any device at any time without restriction.
+- **Admin device revocation is not subject to unbind rate limits** — administrators can forcibly unbind devices within their authorized management scope.
 - **Limit caps are high (up to 999999)** — administrators can set device and terminal limits well beyond standard bounds to accommodate special requests.
 - The entitlements table provides a dedicated **Adjust Limits** action for quickly modifying device/terminal limits without opening the full edit form.
 - The Adjust Limits dialog also includes a **Reset Count** button to reset the device unbind rate-limit window for a user, allowing them to unbind devices again immediately.
