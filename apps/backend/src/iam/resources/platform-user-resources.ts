@@ -16,3 +16,12 @@ export function platformUserGroupArn(id: string) {
     path: "group/" + id,
   });
 }
+
+export function platformUserDirectoryArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "user-directory",
+  });
+}

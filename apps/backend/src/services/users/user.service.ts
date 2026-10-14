@@ -1,3 +1,4 @@
+import { PlatformUserCreateIamService } from "./platform-user-create-iam.service";
 import { PlatformUserUpdateIamService } from "./platform-user-update-iam.service";
 import { PlatformUserDeleteIamService } from "./platform-user-delete-iam.service";
 import { PermissionService } from "./permission.service";
@@ -200,28 +201,54 @@ export class UserService {
     actorUserId: string,
     request?: Request,
   ): Promise<UserDto> {
-    // Check username uniqueness
-    const existing = await this.userRepository.findByUsername(data.username);
-    if (existing) throw new BadRequestError("用户名已存在", undefined, { messageKey: "user.usernameExists" });
-
-    // If no groupId, use default group (username: "user")
-    let groupId = data.groupId;
-    if (!groupId) {
-      const defaultGroup = await this.groupRepository.findDefaultUserGroup();
-      if (!defaultGroup)
-        throw new InternalServerError("默认用户组不存在", undefined, { messageKey: "auth.defaultGroupNotFound" });
-      groupId = defaultGroup.id;
+    const mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw userProfileAuthorizationDenied();
+    const req = request as TypedRequest | undefined;
+    let native: UserDto | undefined, legacy: UserEntity | undefined;
+    if (mode === "enforce") {
+      native = await PlatformUserCreateIamService.getInstance().execute(data, actorUserId, req);
+    } else {
+      if (
+        !(
+          await PermissionService.getInstance().checkUserPermissions(actorUserId, [Permission.USER_CREATE], {
+            assumedRoleSessionId: req?.authContext?.roleSessionId ?? req?.user?.roleSessionId,
+          })
+        ).hasPermission
+      )
+        throw userProfileAuthorizationDenied();
+      const existing = await this.userRepository.findByUsername(data.username);
+      if (existing)
+        throw new BadRequestError("Username already exists", undefined, { messageKey: "user.usernameExists" });
+      let groupId = data.groupId;
+      if (!groupId) {
+        const defaultGroup = await this.groupRepository.findDefaultUserGroup();
+        if (!defaultGroup)
+          throw new InternalServerError("Default group missing", undefined, {
+            messageKey: "auth.defaultGroupNotFound",
+          });
+        groupId = defaultGroup.id;
+      }
+      legacy = await this.userRepository.create({
+        username: data.username,
+        password: data.password,
+        email: data.email || null,
+        name: data.name || null,
+        groupId,
+        permissionAdds: [],
+        permissionRemoves: [],
+      });
+      if (mode === "shadow") {
+        try {
+          await PlatformUserCreateIamService.getInstance().inspectCreated(legacy.id, data, actorUserId, req);
+        } catch {
+          getLogger("UserIamBridge", LogCategory.SECURITY).warn("IAM user creation shadow denied", {
+            action: "quyan:user:CreateUser",
+            reason: "iam-create-unavailable",
+          });
+        }
+      }
     }
-
-    const user = await this.userRepository.create({
-      username: data.username,
-      password: data.password,
-      email: data.email || null,
-      name: data.name || null,
-      groupId,
-      permissionAdds: [],
-      permissionRemoves: [],
-    });
+    const user = native ?? legacy!;
 
     const actorUser = await this.userRepository.findById(actorUserId);
     await this.businessLogService.logOperation({
@@ -237,7 +264,7 @@ export class UserService {
       requestId: request?.headers["x-request-id"] as string | undefined,
     });
 
-    return await this.mapUserToDto(user);
+    return native ?? (await this.mapUserToDto(legacy!));
   }
 
   async updateUser(userId: string, data: UpdateUserDto, actorUserId: string, request?: Request): Promise<UserDto> {

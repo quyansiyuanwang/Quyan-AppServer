@@ -3,6 +3,7 @@ import { getIamPrincipal } from "@/iam/request/principal-context";
 import { PermissionService } from "@/services/users/permission.service";
 import {
   Permission,
+  DEFAULT_USER_GROUP_USERNAME,
   isSensitiveServerConfigValue,
   SERVER_CONFIG_SECRET_PLACEHOLDER,
   writableServerConfigs,
@@ -426,7 +427,7 @@ export class ConfigService {
     return {
       enabled: configs[CONFIG_KEYS.REGISTRATION.ENABLED] === "true",
       maxAccountsPerEmail: parseInt(configs[CONFIG_KEYS.REGISTRATION.MAX_ACCOUNTS_PER_EMAIL] || "3", 10),
-      defaultGroupUsername: configs[CONFIG_KEYS.REGISTRATION.DEFAULT_GROUP_USERNAME] || "user",
+      defaultGroupUsername: configs[CONFIG_KEYS.REGISTRATION.DEFAULT_GROUP_USERNAME] || DEFAULT_USER_GROUP_USERNAME,
       verificationCodeExpiry: parseInt(configs[CONFIG_KEYS.REGISTRATION.VERIFICATION_CODE_EXPIRY] || "300", 10),
     };
   }

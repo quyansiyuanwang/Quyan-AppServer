@@ -1,3 +1,4 @@
+import { platformUserCreateResourceResolver } from "@/iam/request/platform-user-create-resource-resolver";
 import { platformUserUpdateResourceResolver } from "@/iam/request/platform-user-update-resource-resolver";
 import { platformUserDeleteResourceResolver } from "@/iam/request/platform-user-delete-resource-resolver";
 import { PlatformUserReadIamService } from "@/services/users/platform-user-read-iam.service";
@@ -63,7 +64,7 @@ import { Permission } from "@/constant/permission";
 import { NotFoundError, ForbiddenError, BadRequestError } from "@/util/errors";
 import type { ValidationErrorResponse } from "@/api/dto/common/common.dto";
 import type { TypedRequest } from "@/types/express";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { permissionService } from "@/services/users/permission.service";
 import { passwordEncryptionService } from "@/services/auth/password-encryption.service";
 import { hashPassword } from "@/util/crypto";
@@ -691,7 +692,11 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.BadRequest, "请求参数错误")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_CREATE)
+  @CheckPermission(Permission.USER_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:user:CreateUser",
+    resourceKind: "collection",
+    resource: platformUserCreateResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware, validateBody(createUserBodySchema))
   public async createUser(@Body() body: CreateUserDto, @Request() request: TypedRequest): Promise<CreateUserResponse> {
     const password = passwordEncryptionService.resolvePassword(body.password, body.passwordCredential, {

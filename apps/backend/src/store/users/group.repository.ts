@@ -9,6 +9,7 @@ import type {
 } from "./group.store";
 import { RECORD_STATUS } from "@/constant/status";
 import { Permission } from "@/constant/permission";
+import { DEFAULT_USER_GROUP_USERNAME } from "@quyan/shared";
 
 const RAM_PERMISSION_VALUES = Object.values(Permission).filter((p) => p.startsWith("ram:"));
 
@@ -101,7 +102,8 @@ export class GroupRepository implements GroupStore {
   async findDefaultUserGroup(): Promise<Group | null> {
     return prisma.group.findFirst({
       where: {
-        username: "user",
+        username: DEFAULT_USER_GROUP_USERNAME,
+        accountOwnerId: null,
         status: RECORD_STATUS.ACTIVE,
       },
     });

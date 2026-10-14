@@ -82,6 +82,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':user/{resourceId}',
   },
   {
+    ...resource('platform', 'user-directory', 0),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':user-directory',
+  },
+  {
     ...resource('platform', 'group'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':group/{resourceId}',
@@ -2702,6 +2707,20 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       authorizationStage: 'declared',
     }),
   ),
+  {
+    action: 'quyan:user:CreateUser',
+    operation: 'CreateUser',
+    service: 'user',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/user-directory', 'platform/user'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationBoundary: 'platform',
+    authorizationStage: 'declared',
+    legacyPermission: Permission.USER_CREATE,
+    conditionalActions: ['quyan:user:AssignUserGroup'],
+  },
   ...['UpdateUser', 'SetUserEmail', 'SetUserStatus', 'AssignUserGroup'].map(
     (operation): IamActionDefinition => ({
       action: 'quyan:user:' + operation,
@@ -2716,6 +2735,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       authorizationBoundary: 'platform',
       authorizationStage: 'declared',
       legacyPermission: Permission.USER_UPDATE,
+      ...(operation === 'AssignUserGroup' ? { legacyPermissions: [Permission.USER_CREATE] } : {}),
       ...(operation === 'UpdateUser'
         ? {
             conditionalActions: [
