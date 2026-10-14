@@ -10,16 +10,20 @@ import { platformManagementGroupSnapshot } from "../users/platform-management-pr
 import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
 import {
   readContentSafetySystemRuleTargets,
+  contentSafetySystemRuleCollectionRevision,
+  contentSafetySystemDefaultRuleTargets,
   sameContentSafetySystemRuleTargets,
 } from "./content-safety-system-rule-snapshot";
 import type {
-  ContentSafetySystemRuleMutationStore,
+  ContentSafetySystemRuleImportStore,
+  ContentSafetySystemRuleImportGuard,
+  ContentSafetySystemRuleImportOperation,
   ContentSafetySystemRuleMutationGuard,
   ContentSafetySystemRuleData,
   ContentSafetySystemRuleChanges,
 } from "./content-safety-system-rule-mutation.store";
 const transactionPolicy = Object.freeze({ timeoutMs: 30000 });
-export class ContentSafetySystemRuleMutationRepository implements ContentSafetySystemRuleMutationStore {
+export class ContentSafetySystemRuleMutationRepository implements ContentSafetySystemRuleImportStore {
   private static instance: ContentSafetySystemRuleMutationRepository;
   static getInstance() {
     return (this.instance ??= new ContentSafetySystemRuleMutationRepository());
@@ -65,6 +69,11 @@ export class ContentSafetySystemRuleMutationRepository implements ContentSafetyS
               ),
               guard.targets,
             );
+          if (
+            "sourceRevision" in guard &&
+            (await contentSafetySystemRuleCollectionRevision(tx, true)) !== guard.sourceRevision
+          )
+            throw iamAccountDenied();
           const before = await this.budget(tx);
           const result = await mutate(tx);
           const after = await this.budget(tx);
@@ -86,6 +95,41 @@ export class ContentSafetySystemRuleMutationRepository implements ContentSafetyS
         throw new ConflictError("Rule or authorization changed", undefined, { messageKey: "errors.conflict" });
       throw error;
     }
+  }
+  collectionRevision() {
+    return contentSafetySystemRuleCollectionRevision(prisma);
+  }
+  defaultTargets(patterns: readonly string[]) {
+    return contentSafetySystemDefaultRuleTargets(prisma, patterns);
+  }
+  async applyImport(
+    guard: ContentSafetySystemRuleImportGuard,
+    operations: readonly ContentSafetySystemRuleImportOperation[],
+  ) {
+    const updates = operations.filter((item) => item.operation === "update");
+    if (
+      !/^[a-f0-9]{64}$/.test(guard.sourceRevision) ||
+      operations.length > CONTENT_SAFETY_RULE_LIMITS.maxRules ||
+      operations.some(
+        (item) => !["create", "update"].includes(item.operation) || !["csv", "default"].includes(item.source),
+      ) ||
+      updates.some((item) => !item.id || !guard.targets.some((target) => target.id === item.id)) ||
+      new Set(updates.map((item) => item.id)).size !== updates.length
+    )
+      throw iamAccountDenied();
+    await this.transaction(guard, async (tx) => {
+      for (const item of operations) {
+        const { name, type, pattern, direction, action, enabled, priority } = item.data;
+        const data = { name, type, pattern, direction, action, enabled, priority, source: item.source };
+        if (item.operation === "create") {
+          if (item.id !== undefined) throw iamAccountDenied();
+          const row = await tx.contentSafetyRule.create({ data: { ...data, ownerUserId: null, status: 1 } });
+          await guard.authorizeCreated(row.id);
+        } else {
+          await tx.contentSafetyRule.update({ where: { id: item.id! }, data });
+        }
+      }
+    });
   }
   create(guard: ContentSafetySystemRuleMutationGuard, data: ContentSafetySystemRuleData) {
     if (guard.targets.length) throw iamAccountDenied();

@@ -1,3 +1,6 @@
+import { ContentSafetySystemRuleImportIamService } from "./content-safety-system-rule-import-iam.service";
+import { contentSafetyRuleSchema } from "@/api/schema/system/content-safety.schema";
+import type { ContentSafetyRule } from "@prisma/client";
 import { extractClientIp } from "@/util/ip-extractor";
 import { ContentSafetySystemConfigMutationIamService } from "./content-safety-system-config-mutation-iam.service";
 import { contentSafetyConfigSchema } from "@/api/schema/system/content-safety.schema";
@@ -902,11 +905,38 @@ export class ContentSafetyService {
       .catch(() => undefined);
   }
 
-  async importDefaults() {
+  async importDefaults(request?: TypedRequest) {
+    if (request)
+      return ContentSafetySystemRuleImportIamService.getInstance().execute(
+        "ImportDefaultSystemRules",
+        request,
+        async (existing) => {
+          const missing = DEFAULT_CONTENT_SAFETY_RULES.filter(
+            (rule) => !existing.some((row) => row.source === "default" && row.pattern === rule.pattern),
+          );
+          const operations = missing.map((rule) => ({
+            operation: "create" as const,
+            data: {
+              ...contentSafetyRuleSchema.parse({ ...rule, enabled: true, priority: 100 }),
+              enabled: true,
+              priority: 100,
+            },
+            source: "default" as const,
+          }));
+          for (const item of operations) await this.validateRule(item.data, false);
+          return { operations, result: { created: operations.length }, apply: true };
+        },
+        (onCreated) => this.importDefaultsLegacy(onCreated),
+        DEFAULT_CONTENT_SAFETY_RULES.map((rule) => rule.pattern),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.importDefaultsLegacy();
+  }
+  private async importDefaultsLegacy(onCreated?: (id: string) => Promise<void>) {
     let created = 0;
     for (const rule of DEFAULT_CONTENT_SAFETY_RULES)
       if (!(await this.repository.findBySourcePattern("default", rule.pattern))) {
-        await this.repository.create({
+        const row = await this.repository.create({
           name: rule.name,
           type: rule.type,
           pattern: rule.pattern,
@@ -916,11 +946,56 @@ export class ContentSafetyService {
           enabled: true,
           priority: 100,
         });
+        if (onCreated) await onCreated(row.id);
         created += 1;
       }
     return { created };
   }
-  async importCsv(csv: string, mode: "preview" | "apply" = "apply", overwrite = false) {
+  async importCsv(csv: string, mode: "preview" | "apply" = "apply", overwrite = false, request?: TypedRequest) {
+    if (request)
+      return ContentSafetySystemRuleImportIamService.getInstance().execute(
+        "ImportSystemRules",
+        request,
+        async (existing) => {
+          if (!["preview", "apply"].includes(mode))
+            throw new BadRequestError("Invalid import mode", undefined, { messageKey: "errors.badRequest" });
+          const preview = await this.prepareCsvImport(csv, undefined, existing);
+          const { _operations, ...result } = preview as any;
+          const apply = !preview.errors.length && mode === "apply";
+          const selected = _operations.filter((item: any) => item.operation === "create" || overwrite);
+          const operations = selected.map((item: any) => ({
+            operation: item.operation as "create" | "update",
+            id: item.id,
+            data: {
+              ...contentSafetyRuleSchema.parse(item.data),
+              enabled: item.data.enabled ?? true,
+              priority: item.data.priority ?? 100,
+            },
+            source: item.data.source === "default" ? ("default" as const) : ("csv" as const),
+          }));
+          return {
+            operations,
+            apply,
+            result: apply
+              ? {
+                  ...result,
+                  imported: operations.filter((item: any) => item.operation === "create").length,
+                  updated: operations.filter((item: any) => item.operation === "update").length,
+                }
+              : result,
+          };
+        },
+        (onCreated) => this.importCsvLegacy(csv, mode, overwrite, onCreated),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.importCsvLegacy(csv, mode, overwrite);
+  }
+  private async importCsvLegacy(
+    csv: string,
+    mode: "preview" | "apply",
+    overwrite: boolean,
+    onCreated?: (id: string) => Promise<void>,
+  ) {
     const preview = await this.prepareCsvImport(csv);
     if (preview.errors.length || mode === "preview") {
       const { _operations: _ignored, ...result } = preview as any;
@@ -930,7 +1005,10 @@ export class ContentSafetyService {
       .filter((item: any) => item.operation !== "skip")
       .map((item: any) => ({ operation: item.operation as "create" | "update", id: item.id, data: item.data! }));
     const selected = overwrite ? operations : operations.filter((operation: any) => operation.operation === "create");
-    if (selected.length) await this.repository.applySystemRuleImport(selected);
+    if (selected.length) {
+      const applied = await this.repository.applySystemRuleImport(selected);
+      if (onCreated) for (const id of applied.createdIds ?? []) await onCreated(id);
+    }
     const { _operations: _ignored, ...result } = preview as any;
     return {
       ...result,
@@ -1060,7 +1138,7 @@ export class ContentSafetyService {
     return `${input.type}|${input.direction}|${normalizeText(input.pattern)}`;
   }
 
-  private async prepareCsvImport(csv: string, ownerUserId?: string) {
+  private async prepareCsvImport(csv: string, ownerUserId?: string, trustedSystemRows?: ContentSafetyRule[]) {
     if (Buffer.byteLength(csv, "utf8") > 1024 * 1024)
       throw new BadRequestError("Content safety CSV is too large", undefined, {
         messageKey: "contentSafety.csvTooLarge",
@@ -1082,7 +1160,7 @@ export class ContentSafetyService {
         messageKey: "contentSafety.csvHeaderInvalid",
       });
     const index = (field: string) => header.indexOf(field);
-    const existingRows: any[] = await this.repository.listRulesForExport(ownerUserId);
+    const existingRows: any[] = trustedSystemRows ?? (await this.repository.listRulesForExport(ownerUserId));
     const byId = new Map(existingRows.map((row) => [row.id, row]));
     const byKey = new Map(existingRows.map((row) => [this.stableRuleKey(row), row]));
     const seen = new Set<string>();
@@ -1101,8 +1179,15 @@ export class ContentSafetyService {
         enabled: (row[index("enabled")] || "true").trim().toLowerCase() !== "false",
         priority: Number(row[index("priority")] || 100),
       };
+      if (trustedSystemRows && input.id && !byId.has(input.id)) throw iamAccountDenied();
       try {
-        await this.validateRule(input);
+        if (trustedSystemRows) {
+          const parsed = contentSafetyRuleSchema.safeParse(input);
+          if (!parsed.success)
+            throw new BadRequestError("Invalid rule", undefined, { messageKey: "contentSafety.invalidRule" });
+          Object.assign(input, parsed.data);
+        }
+        await this.validateRule(input, trustedSystemRows === undefined);
         const key = this.stableRuleKey(input);
         if (seen.has(input.id || key))
           throw new BadRequestError("Duplicate rule key in CSV", undefined, {

@@ -2731,6 +2731,14 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       resourceTypes: ['platform/content-safety-rule-control', 'platform/content-safety-rule'],
     },
     { operation: 'UpdateSystemConfig', resourceTypes: ['platform/content-safety-config'] },
+    {
+      operation: 'ImportSystemRules',
+      resourceTypes: ['platform/content-safety-rule-control', 'platform/content-safety-rule'],
+    },
+    {
+      operation: 'ImportDefaultSystemRules',
+      resourceTypes: ['platform/content-safety-rule-control', 'platform/content-safety-rule'],
+    },
     { operation: 'UpdateSystemRule', resourceTypes: ['platform/content-safety-rule'] },
     { operation: 'DeleteSystemRule', resourceTypes: ['platform/content-safety-rule'] },
     { operation: 'BatchUpdateSystemRules', resourceTypes: ['platform/content-safety-rule'] },

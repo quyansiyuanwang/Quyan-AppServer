@@ -59,6 +59,14 @@ Rule writes are atomic. If identity, group membership, authorization, or target 
 
 The shared budget is 500 active rules and 1 MiB of pattern data, including system and private rules. Writes cannot increase a dimension beyond its limit. If existing data already exceeds a limit, edits that do not worsen that dimension and deletions remain available to repair the ruleset.
 
+## Import authorization
+
+In IAM enforcement mode, CSV import uses `quyan:content_safety:ImportSystemRules`; default import uses `quyan:content_safety:ImportDefaultSystemRules`. Both require the rule control resource, authority for existing rules they use, and authority for each actual rule ID generated during application.
+
+CSV preview returns old values for authorized system rules only. An explicit ID that is private, missing, or denied rejects the request, so it cannot be used to probe another rule. Preview and rows with validation errors do not write. With overwrite disabled, existing rules remain unchanged; imported replacements of default rules retain their default origin.
+
+Application is atomic: a denied target or generated resource, a ruleset or authorization change, or the shared capacity limit rolls back all writes. Default import is repeatable and checks existing default targets; private copies do not count as installed system defaults. Legacy and shadow modes keep one old import, with shadow checking the real created IDs.
+
 ## Programming workflows and rule updates
 
 The default import uses a relaxed development baseline: only complete PEM private-key material is blocked. Tool definitions, system prompts, common code, commands and configuration paths are not blocking signals by themselves. Placeholders, standalone markers and abbreviated key templates do not match; avoid sending complete real credentials.

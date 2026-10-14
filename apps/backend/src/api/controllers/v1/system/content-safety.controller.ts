@@ -274,20 +274,31 @@ export class ContentSafetyController extends Controller {
     return this.service.listRules(page, pageSize, request);
   }
   @Post("rules/import-defaults")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:ImportDefaultSystemRules",
+    resourceKind: "collection",
+    resource: contentSafetySystemRuleControlResourceResolver,
+  })
   @Middlewares(twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }), replayProtectionMiddleware)
-  async importDefaults() {
-    return this.service.importDefaults();
+  async importDefaults(@Request() request: TypedRequest) {
+    return this.service.importDefaults(request);
   }
   @Post("rules/import-csv")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:ImportSystemRules",
+    resourceKind: "collection",
+    resource: contentSafetySystemRuleControlResourceResolver,
+  })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(contentSafetyCsvImportSchema),
   )
-  async importCsv(@Body() body: ContentSafetyCsvImportRequest): Promise<ContentSafetyCsvImportResponse> {
-    return this.service.importCsv(body.csv, body.mode ?? "apply", body.overwrite === true);
+  async importCsv(
+    @Body() body: ContentSafetyCsvImportRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ContentSafetyCsvImportResponse> {
+    return this.service.importCsv(body.csv, body.mode ?? "apply", body.overwrite === true, request);
   }
   @Post("rules/batch-update")
   @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {

@@ -27,3 +27,21 @@ export interface ContentSafetySystemRuleMutationStore {
     changes: ContentSafetySystemRuleChanges,
   ): Promise<{ updated: number }>;
 }
+
+export interface ContentSafetySystemRuleImportGuard extends ContentSafetySystemRuleMutationGuard {
+  sourceRevision: string;
+}
+export type ContentSafetySystemRuleImportOperation = {
+  operation: "create" | "update";
+  id?: string;
+  data: ContentSafetySystemRuleData;
+  source: "csv" | "default";
+};
+export interface ContentSafetySystemRuleImportStore extends ContentSafetySystemRuleMutationStore {
+  collectionRevision(): Promise<string>;
+  defaultTargets(patterns: readonly string[]): Promise<ContentSafetySystemRuleTarget[]>;
+  applyImport(
+    guard: ContentSafetySystemRuleImportGuard,
+    operations: readonly ContentSafetySystemRuleImportOperation[],
+  ): Promise<void>;
+}

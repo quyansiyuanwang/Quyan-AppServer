@@ -135,15 +135,18 @@ export class ContentSafetyRepository {
     }>,
   ) {
     return prisma.$transaction(async (tx) => {
+      const createdIds: string[] = [];
       for (const operation of operations) {
-        if (operation.operation === "create") await tx.contentSafetyRule.create({ data: operation.data });
-        else {
+        if (operation.operation === "create") {
+          const created = await tx.contentSafetyRule.create({ data: operation.data });
+          createdIds.push(created.id);
+        } else {
           if (!operation.id) throw new Error("Missing rule id");
           const { ownerUserId: _ownerUserId, ...updateData } = operation.data;
           await tx.contentSafetyRule.update({ where: { id: operation.id }, data: updateData });
         }
       }
-      return { count: operations.length };
+      return { count: operations.length, createdIds };
     });
   }
 

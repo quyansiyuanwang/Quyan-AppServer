@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isContentSafetyRuleId } from "@/iam/resources/content-safety-system-resources";
@@ -30,5 +31,19 @@ export async function readContentSafetySystemRuleTargets(
     throw iamAccountDenied();
   return tx.$queryRaw<ContentSafetySystemRuleTarget[]>(
     Prisma.sql`SELECT ${CONTENT_SAFETY_SYSTEM_RULE_METADATA} FROM content_safety_rules WHERE status=1 AND ownerUserId IS NULL AND id IN (${Prisma.join([...ids])}) ORDER BY id ${lock ? Prisma.sql`FOR UPDATE` : Prisma.empty}`,
+  );
+}
+
+/** Detect insertions, removals and raw content changes while an import is planned. */
+export async function contentSafetySystemRuleCollectionRevision(tx: Prisma.TransactionClient, lock = false) {
+  const rows = await tx.$queryRaw<{ id: string; revision: string }[]>(
+    Prisma.sql`SELECT id,${revision} AS revision FROM content_safety_rules WHERE status=1 AND ownerUserId IS NULL ORDER BY id ${lock ? Prisma.sql`FOR UPDATE` : Prisma.empty}`,
+  );
+  return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
+}
+export async function contentSafetySystemDefaultRuleTargets(tx: Prisma.TransactionClient, patterns: readonly string[]) {
+  if (!patterns.length) return [];
+  return tx.$queryRaw<ContentSafetySystemRuleTarget[]>(
+    Prisma.sql`SELECT ${CONTENT_SAFETY_SYSTEM_RULE_METADATA} FROM content_safety_rules WHERE status=1 AND ownerUserId IS NULL AND source='default' AND pattern IN (${Prisma.join([...patterns])}) ORDER BY id`,
   );
 }
