@@ -1,7 +1,14 @@
 import { isIP } from "node:net";
+import { getIamConditionKey } from "@quyan/shared";
 import type { IamCondition, IamConditionContext, IamConditionScalar } from "@quyan/shared";
 import { matchIamPattern } from "../evaluator/wildcard-matcher";
-import { conditionBoolean, conditionDate, conditionNumber, iamConditionSchema } from "./condition-schema";
+import {
+  conditionBoolean,
+  conditionDate,
+  conditionNumber,
+  iamConditionSchema,
+  IAM_CONDITION_LIMITS,
+} from "./condition-schema";
 import { matchesIpCondition } from "./ip-condition";
 export class MissingIamConditionContextError extends Error {
   constructor() {
@@ -69,7 +76,25 @@ export function evaluateIamCondition(condition: IamCondition | undefined, contex
   for (const [operator, clause] of Object.entries(validated))
     for (const [key, expected] of Object.entries(clause)) {
       const actual = Object.hasOwn(context, key) ? context[key] : undefined;
-      if (operator === "Null")
+      if (Array.isArray(actual)) {
+        if (
+          !getIamConditionKey(key)?.multivalued ||
+          actual.length > IAM_CONDITION_LIMITS.values ||
+          actual.some(
+            (value) =>
+              typeof value !== "string" ||
+              value.length === 0 ||
+              value.length > IAM_CONDITION_LIMITS.valueLength ||
+              [...value].some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127),
+          )
+        )
+          throw new MissingIamConditionContextError();
+        results.push(
+          operator === "Null"
+            ? [expected].flat().some((value) => conditionBoolean(value) === (actual.length === 0))
+            : actual.some((item) => [expected].flat().some((value) => matches(operator, item, value))),
+        );
+      } else if (operator === "Null")
         results.push([expected].flat().some((value) => conditionBoolean(value) === (actual === undefined)));
       else {
         if (actual === undefined) throw new MissingIamConditionContextError();

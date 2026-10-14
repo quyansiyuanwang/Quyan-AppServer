@@ -40,6 +40,8 @@ export interface IamResourceTypeDefinition {
   arnTemplate: string
   identifierSegments: number
   accountScope?: 'platform'
+  /** Resource group conditions require a live ownership and membership provider. */
+  resourceGroupCondition?: boolean
   /** Only explicitly registered user identities or their user-parented children receive self-service defaults. */
   authenticatedSelfScope?: 'identity' | 'children'
 }
@@ -47,11 +49,13 @@ const resource = (
   service: string,
   type: string,
   identifierSegments = 1,
+  resourceGroupCondition = false,
 ): IamResourceTypeDefinition => ({
   id: service + '/' + type,
   service,
   type,
   identifierSegments,
+  ...(resourceGroupCondition ? { resourceGroupCondition: true } : {}),
   arnTemplate:
     type === 'account'
       ? 'acs:quyan:*:{accountId}:account'
@@ -210,14 +214,14 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       (segments === 3 ? '/{tokenId}' : ''),
   })),
   resource('quyan', 'account', 0),
-  { ...resource('quyan', 'user'), authenticatedSelfScope: 'identity' },
-  resource('quyan', 'group'),
-  resource('quyan', 'role'),
-  resource('quyan', 'policy'),
-  resource('quyan', 'policy-version', 2),
-  resource('quyan', 'authorization'),
-  resource('quyan', 'resource-group'),
-  resource('quyan', 'role-session'),
+  { ...resource('quyan', 'user', 1, true), authenticatedSelfScope: 'identity' },
+  resource('quyan', 'group', 1, true),
+  resource('quyan', 'role', 1, true),
+  resource('quyan', 'policy', 1, true),
+  resource('quyan', 'policy-version', 2, true),
+  resource('quyan', 'authorization', 1, true),
+  resource('quyan', 'resource-group', 1, true),
+  resource('quyan', 'role-session', 1, true),
   {
     ...resource('remote-terminal', 'product-registration-token', 3),
     authenticatedSelfScope: 'children',
@@ -263,9 +267,9 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':group/{resourceId}',
   },
-  resource('quyan', 'access-key', 2),
-  resource('quyan', 'passkey', 2),
-  resource('quyan', 'online-session', 2),
+  resource('quyan', 'access-key', 2, true),
+  resource('quyan', 'passkey', 2, true),
+  resource('quyan', 'online-session', 2, true),
   resource('balance', 'transaction', 2),
   resource('oj', 'api-key', 2),
   resource('oauth', 'client', 2),
@@ -654,7 +658,7 @@ const fromPermission = (permission: Permission): IamActionDefinition => {
       : {}),
   }
 }
-export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.freeze([
+const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
   {
     action: 'quyan:iam:GetCatalog',
     service: 'iam',
@@ -3590,6 +3594,24 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
   },
 ])
+/** Derive Action condition support from registered resource capabilities. */
+export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.freeze(
+  iamBaseActionDefinitions.map((definition) => ({
+    ...definition,
+    conditionKeys: [
+      ...new Set([
+        ...definition.conditionKeys,
+        ...(definition.resourceTypes.some((id) =>
+          IAM_RESOURCE_TYPE_CATALOG.some(
+            (resource) => resource.id === id && resource.resourceGroupCondition,
+          ),
+        )
+          ? ['quyan:ResourceGroupId']
+          : []),
+      ]),
+    ],
+  })),
+)
 /** The sole source for authenticated self-service grants; it never grants account scope. */
 export const IAM_AUTHENTICATED_SELF_ACTIONS: readonly string[] = Object.freeze(
   IAM_ACTION_DEFINITIONS.filter(

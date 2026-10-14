@@ -1,12 +1,8 @@
+import { IamTrustAuthorizationService } from "@/iam/trust/trust-authorization.service";
 import { isIamResourceInAccount } from "@quyan/shared";
 import { parseIdentityPolicyDraft } from "@/iam/simulation/draft-simulation";
 import type { ChatTextGenerationOptions } from "@/services/chat/chat.service";
-import {
-  parseIamTrustPolicy,
-  evaluateIamTrustPolicy,
-  combineIamIdentityAndTrust,
-  IAM_ASSUME_ROLE_ACTION,
-} from "@/iam/trust/trust-policy";
+import { parseIamTrustPolicy, combineIamIdentityAndTrust, IAM_ASSUME_ROLE_ACTION } from "@/iam/trust/trust-policy";
 import { principalConditionContext } from "@/iam/request/condition-context";
 import { auditIamDecision } from "@/iam/audit/iam-audit.service";
 import { performance } from "node:perf_hooks";
@@ -1450,7 +1446,11 @@ export class RamService {
       });
       let trust;
       try {
-        trust = evaluateIamTrustPolicy(role.trustPolicy, { principal, roleArn: resource, context });
+        trust = await IamTrustAuthorizationService.getInstance().evaluate(role.trustPolicy, {
+          principal,
+          roleArn: resource,
+          context,
+        });
       } catch {
         throw new ForbiddenError("Invalid saved role trust", undefined, {
           messageKey: "permission.insufficientPermission",
@@ -1832,7 +1832,7 @@ export class RamService {
     try {
       return combineIamIdentityAndTrust(
         identity,
-        evaluateIamTrustPolicy(role.trustPolicy, {
+        await IamTrustAuthorizationService.getInstance().evaluate(role.trustPolicy, {
           principal,
           roleArn: resource,
           context: principalConditionContext(principal),

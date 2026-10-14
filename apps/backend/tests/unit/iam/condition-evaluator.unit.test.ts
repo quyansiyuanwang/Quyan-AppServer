@@ -86,7 +86,7 @@ describe("IAM typed Condition evaluation", () => {
     { Unknown: { "quyan:PrincipalId": "x" } },
     { Bool: { "quyan:PrincipalId": true } },
     { StringEquals: { "quyan:ResourceTag/team": "x" } },
-    { StringEquals: { "quyan:ResourceGroupId": "x" } },
+    { StringNotEquals: { "quyan:ResourceGroupId": "x" } },
     { NumericEquals: { "quyan:EpochTime": "" } },
     { Bool: { "acs:SecureTransport": "yes" } },
     { DateEquals: { "acs:CurrentTime": "2026-10-09" } },
@@ -139,7 +139,10 @@ describe("IAM typed Condition evaluation", () => {
   });
   it("omits unavailable headers when evaluating a minimal authenticated request", () => {
     const context = requestConditionContext({ secure: false } as never, {
-      subjectUserId: "child", principalUserId: "child", accountOwnerId: "owner", subjectType: "sub_user",
+      subjectUserId: "child",
+      principalUserId: "child",
+      accountOwnerId: "owner",
+      subjectType: "sub_user",
     });
     expect(context["acs:UserAgent"]).toBeUndefined();
     expect(context["acs:SecureTransport"]).toBe(false);
@@ -163,5 +166,67 @@ describe("IAM typed Condition evaluation", () => {
       "acs:SourceIp": "192.0.2.1",
       "acs:SecureTransport": true,
     });
+  });
+});
+
+describe("multi-valued resource group conditions", () => {
+  it("matches any actual membership and any expected value, retaining AND across keys", () => {
+    expect(
+      evaluateIamCondition(
+        { StringEquals: { "quyan:ResourceGroupId": ["team-a", "team-b"], "quyan:PrincipalId": "actor" } },
+        { "quyan:ResourceGroupId": ["team-c", "team-b"], "quyan:PrincipalId": "actor" },
+      ),
+    ).toBe(true);
+    expect(
+      evaluateIamCondition(condition("StringEquals", "quyan:ResourceGroupId", "team-a"), {
+        "quyan:ResourceGroupId": ["team-b"],
+      }),
+    ).toBe(false);
+    expect(
+      evaluateIamCondition(condition("StringEqualsIgnoreCase", "quyan:ResourceGroupId", "TEAM-A"), {
+        "quyan:ResourceGroupId": ["team-a"],
+      }),
+    ).toBe(true);
+    expect(
+      evaluateIamCondition(condition("StringLike", "quyan:ResourceGroupId", "team-*"), {
+        "quyan:ResourceGroupId": ["team-a"],
+      }),
+    ).toBe(true);
+  });
+  it("distinguishes empty membership from unavailable context", () => {
+    expect(
+      evaluateIamCondition(condition("StringEquals", "quyan:ResourceGroupId", "team-a"), {
+        "quyan:ResourceGroupId": [],
+      }),
+    ).toBe(false);
+    expect(
+      evaluateIamCondition(condition("Null", "quyan:ResourceGroupId", true), { "quyan:ResourceGroupId": [] }),
+    ).toBe(true);
+    expect(
+      evaluateIamCondition(condition("Null", "quyan:ResourceGroupId", false), { "quyan:ResourceGroupId": ["team-a"] }),
+    ).toBe(true);
+    expect(() => evaluateIamCondition(condition("StringEquals", "quyan:ResourceGroupId", "team-a"), {})).toThrow();
+  });
+  it.each(["StringNotEquals", "StringNotEqualsIgnoreCase", "StringNotLike"])(
+    "rejects ambiguous negative membership operator %s",
+    (operator) => {
+      expect(iamConditionSchema.safeParse(condition(operator, "quyan:ResourceGroupId", "team-a")).success).toBe(false);
+    },
+  );
+  it.each(
+    [[true], [""], ["invalid\u0000"], ["a".repeat(513)], Array.from({ length: 51 }, () => "team-a")].map((actual) => ({
+      actual,
+    })),
+  )("rejects malformed or excessive membership context %#", ({ actual }) => {
+    expect(() =>
+      evaluateIamCondition(condition("StringEquals", "quyan:ResourceGroupId", "team-a"), {
+        "quyan:ResourceGroupId": actual,
+      }),
+    ).toThrow();
+  });
+  it("does not admit array context for scalar keys even for Null", () => {
+    expect(() =>
+      evaluateIamCondition(condition("Null", "quyan:PrincipalId", false), { "quyan:PrincipalId": ["actor"] }),
+    ).toThrow();
   });
 });

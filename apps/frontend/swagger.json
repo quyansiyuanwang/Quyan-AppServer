@@ -61698,6 +61698,10 @@
 						],
 						"nullable": false
 					},
+					"resourceGroupCondition": {
+						"type": "boolean",
+						"description": "Resource group conditions require a live ownership and membership provider."
+					},
 					"authenticatedSelfScope": {
 						"type": "string",
 						"enum": [
@@ -61777,6 +61781,10 @@
 					},
 					"supported": {
 						"type": "boolean"
+					},
+					"multivalued": {
+						"type": "boolean",
+						"description": "Only directory-declared keys accept a server-derived collection of context values."
 					}
 				},
 				"required": [

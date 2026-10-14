@@ -1,3 +1,6 @@
+import { isSafeIamResourceBatch } from "@/iam/authorization-limits";
+import { ForbiddenError } from "@/util/errors";
+import { IAM_CONDITION_LIMITS } from "@/iam/condition/condition-schema";
 import { RedisService } from "@/services/infrastructure/redis.service";
 import {
   terminalSessionRedisKey,
@@ -79,6 +82,45 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
       where: { id, status: AccountStatus.ACTIVE },
       include: { members: { where: { status: AccountStatus.ACTIVE } } },
     });
+  }
+  async conditionMemberships(accountOwnerId: string, resourceArns: readonly string[]): Promise<Map<string, string[]>> {
+    const resources = [...new Set(resourceArns)];
+    if (!resources.length) return new Map();
+    if (
+      !isSafeIamResourceBatch(resources) ||
+      resources.some(
+        (resource) =>
+          !getIamResourceType(resource)?.resourceGroupCondition || resource.split(":")[3] !== accountOwnerId,
+      )
+    )
+      throw new ForbiddenError("Invalid resource group condition boundary", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const candidates = await prisma.ramResourceGroupMember.findMany({
+      where: {
+        accountOwnerId,
+        resourceArn: { in: resources },
+        status: AccountStatus.ACTIVE,
+        resourceGroup: { accountOwnerId, status: AccountStatus.ACTIVE },
+      },
+      select: { resourceArn: true, resourceGroupId: true },
+      take: resources.length * IAM_CONDITION_LIMITS.values + 1,
+    });
+    if (candidates.length > resources.length * IAM_CONDITION_LIMITS.values)
+      throw new ForbiddenError("Resource group condition capacity exceeded", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    const result = new Map(resources.map((resource) => [resource, [] as string[]]));
+    for (const member of candidates) {
+      const groups = result.get(member.resourceArn);
+      if (!groups) continue; // Reject case aliases selected by a case-insensitive database collation.
+      if (!groups.includes(member.resourceGroupId)) groups.push(member.resourceGroupId);
+      if (groups.length > IAM_CONDITION_LIMITS.values)
+        throw new ForbiddenError("Resource group condition capacity exceeded", undefined, {
+          messageKey: "permission.insufficientPermission",
+        });
+    }
+    return result;
   }
   async resourceExistsInAccount(resourceArn: string, accountOwnerId: string): Promise<boolean> {
     const type = getIamResourceType(resourceArn);
@@ -312,37 +354,60 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
       }
       case "quyan/account":
         return Boolean(await prisma.user.findFirst({ where: { id: accountOwnerId, ...active } }));
-      case "quyan/user":
-        return Boolean(await prisma.user.findFirst({ where: { id, ...active, ...userOwner } }));
-      case "quyan/access-key":
-        return Boolean(
-          await prisma.accessKey.findFirst({
-            where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
-            select: { id: true },
-          }),
-        );
-      case "quyan/group":
-        return Boolean(await prisma.group.findFirst({ where: { id, accountOwnerId, ...active } }));
-      case "quyan/role":
-        return Boolean(await prisma.ramRole.findFirst({ where: { id, accountOwnerId, ...active } }));
-      case "quyan/policy":
-        return Boolean(await prisma.ramPolicy.findFirst({ where: { id, accountOwnerId, ...active } }));
-      case "quyan/policy-version":
-        return Boolean(
-          await prisma.ramPolicyVersion.findFirst({
-            where: { id: childId, policyId: id, ...active, policy: { accountOwnerId, ...active } },
-          }),
-        );
-      case "quyan/authorization":
-        return Boolean(await prisma.ramAuthorization.findFirst({ where: { id, accountOwnerId, ...active } }));
-      case "quyan/resource-group":
-        return Boolean(await prisma.ramResourceGroup.findFirst({ where: { id, accountOwnerId, ...active } }));
-      case "quyan/role-session":
-        return Boolean(
-          await prisma.ramRoleSession.findFirst({
-            where: { id, accountOwnerId, ...active, revokedAt: null, expiresAt: { gt: new Date() } },
-          }),
-        );
+      case "quyan/user": {
+        const row = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
+        return row?.id === id;
+      }
+      case "quyan/access-key": {
+        const row = await prisma.accessKey.findFirst({
+          where: { id: childId, userId: id, ...active, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return row?.id === childId && row.userId === id;
+      }
+      case "quyan/group": {
+        const row = await prisma.group.findFirst({ where: { id, accountOwnerId, ...active }, select: { id: true } });
+        return row?.id === id;
+      }
+      case "quyan/role": {
+        const row = await prisma.ramRole.findFirst({ where: { id, accountOwnerId, ...active }, select: { id: true } });
+        return row?.id === id;
+      }
+      case "quyan/policy": {
+        const row = await prisma.ramPolicy.findFirst({
+          where: { id, accountOwnerId, ...active },
+          select: { id: true },
+        });
+        return row?.id === id;
+      }
+      case "quyan/policy-version": {
+        const row = await prisma.ramPolicyVersion.findFirst({
+          where: { id: childId, policyId: id, ...active, policy: { accountOwnerId, ...active } },
+          select: { id: true, policyId: true },
+        });
+        return row?.id === childId && row.policyId === id;
+      }
+      case "quyan/authorization": {
+        const row = await prisma.ramAuthorization.findFirst({
+          where: { id, accountOwnerId, ...active },
+          select: { id: true },
+        });
+        return row?.id === id;
+      }
+      case "quyan/resource-group": {
+        const row = await prisma.ramResourceGroup.findFirst({
+          where: { id, accountOwnerId, ...active },
+          select: { id: true },
+        });
+        return row?.id === id;
+      }
+      case "quyan/role-session": {
+        const row = await prisma.ramRoleSession.findFirst({
+          where: { id, accountOwnerId, ...active, revokedAt: null, expiresAt: { gt: new Date() } },
+          select: { id: true },
+        });
+        return row?.id === id;
+      }
       case "notification/webhook": {
         const webhook = await prisma.notificationWebhook.findUnique({
           where: { id: childId },

@@ -31,7 +31,7 @@ export interface IamCondition {
 }
 /** Values come from authenticated/server-derived context, never an arbitrary body map. */
 export interface IamConditionContext {
-  [key: string]: IamConditionScalar | undefined
+  [key: string]: IamConditionScalar | IamConditionScalar[] | undefined
 }
 export interface IamConditionKeyDefinition {
   key: string
@@ -39,6 +39,8 @@ export interface IamConditionKeyDefinition {
   operators: IamConditionOperator[]
   source: 'request' | 'principal' | 'resource'
   supported: boolean
+  /** Only directory-declared keys accept a server-derived collection of context values. */
+  multivalued?: boolean
 }
 const key = (
   key: string,
@@ -75,7 +77,11 @@ export const IAM_CONDITION_KEY_CATALOG: readonly IamConditionKeyDefinition[] = O
   key('quyan:EpochTime', 'number', 'request'),
   key('quyan:ResourceOwnerId', 'string', 'resource'),
   key('quyan:ArticlePublishStatus', 'string', 'resource'),
-  key('quyan:ResourceGroupId', 'string', 'resource', false),
+  {
+    ...key('quyan:ResourceGroupId', 'string', 'resource'),
+    multivalued: true,
+    operators: ['StringEquals', 'StringEqualsIgnoreCase', 'StringLike', 'Null'],
+  },
   key('quyan:ResourceTag/<key>', 'string', 'resource', false),
   key('acs:MFAPresent', 'boolean', 'principal', false),
 ])

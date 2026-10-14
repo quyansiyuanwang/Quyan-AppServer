@@ -17,6 +17,8 @@ export interface CreateRamResourceGroupMemberInput {
   expectedGroupUpdateTime?: Date;
 }
 export interface RamResourceGroupStore {
+  /** Active, exact-ARN membership metadata only; no resource contents or credentials. */
+  conditionMemberships(accountOwnerId: string, resourceArns: readonly string[]): Promise<Map<string, string[]>>;
   list(accountOwnerId: string, page?: IamManagementPage): Promise<RamResourceGroupWithMembers[]>;
   listSummaryPage(
     accountOwnerId: string,
