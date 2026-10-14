@@ -141,18 +141,28 @@ export class RemoteTerminalController extends Controller {
   @Security("jwt")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.REMOTE_TERMINAL_SESSION_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListSessions",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   public async listSessions(@Request() request: TypedRequest): Promise<RemoteTerminalSessionListDto> {
-    return this.remoteTerminalService.listSessionsForUser(request.user!.userId);
+    return this.remoteTerminalService.listSessionsForUser(request.user!.userId, request);
   }
 
   @Get("usage")
   @Security("jwt")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.REMOTE_TERMINAL_SESSION_READ)
+  @CheckPermission(Permission.REMOTE_TERMINAL_SESSION_READ, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:remote_terminal:GetUsageSummary",
+    resourceKind: "single-resource",
+    resource: iamAuthenticatedUserResourceResolver,
+  })
   public async getUsageSummary(@Request() request: TypedRequest): Promise<RemoteTerminalUsageSummaryDto> {
-    return this.remoteTerminalService.getUsageSummaryForUser(request.user!.userId);
+    return this.remoteTerminalService.getUsageSummaryForUser(request.user!.userId, request);
   }
 
   @Get("directories")

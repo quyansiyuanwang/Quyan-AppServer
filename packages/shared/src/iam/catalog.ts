@@ -77,6 +77,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'resource-group'),
   resource('quyan', 'role-session'),
   resource('remote-terminal', 'device', 2),
+  resource('remote-terminal', 'session', 2),
   {
     ...resource('platform', 'user'),
     accountScope: 'platform',
@@ -958,6 +959,33 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       sensitive: false,
       authorizationStage: 'declared',
       legacyPermission: Permission.REMOTE_TERMINAL_DEVICE_READ,
+    }),
+  ),
+  ...[
+    {
+      operation: 'ListSessions',
+      accessLevel: 'List',
+      route: 'sessions',
+      resourceTypes: ['quyan/user', 'remote-terminal/session'],
+    },
+    {
+      operation: 'GetUsageSummary',
+      accessLevel: 'Read',
+      route: 'usage',
+      resourceTypes: ['quyan/user'],
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:remote_terminal:' + definition.operation,
+      service: 'remote_terminal',
+      operation: definition.operation,
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: definition.resourceTypes,
+      apiRoutes: ['GET /v1/remote-terminal/' + definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: false,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.REMOTE_TERMINAL_SESSION_READ,
     }),
   ),
   {

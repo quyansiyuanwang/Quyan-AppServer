@@ -91,3 +91,11 @@ Deployments using compatibility authorization retain the previous permission beh
 Device probing sends requests only to permitted devices and updates their online status. Devices without a matching Allow are neither probed nor updated by that operation. If ownership, entitlement, or authorization changes during a probe, the affected status write is rejected.
 
 Preference updates require a separate write Action. The server checks access again before sending the update. Revoking access after a request has reached the device does not undo a change the device has already applied. Review the target device and settings before saving.
+
+## Session visibility and usage permissions
+
+`quyan:remote_terminal:ListSessions` authorizes each session using `acs:remote-terminal:*:<accountId>:session/<userId>/<sessionId>`. Only the authenticated user's sessions can appear. Matching Deny statements take precedence, and sessions without Allow are omitted. The list returns public summaries; it does not disclose working directories or browser connection tokens. Session resources can also be included in a resource group to limit an authorization's scope.
+
+`quyan:remote_terminal:GetUsageSummary` requires the user's resource, `acs:quyan:*:<accountId>:user/<userId>`. It reports all owned active sessions and device bindings under valid entitlements, including devices and sessions that your list policy hides. List visibility does not reduce quota consumption. Session and device list permissions do not automatically grant usage queries or session creation.
+
+These separate Actions apply when IAM enforcement is enabled; compatibility deployments retain the previous permission behavior.

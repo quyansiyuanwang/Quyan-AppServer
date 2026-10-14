@@ -1,3 +1,8 @@
+import { RedisService } from "@/services/infrastructure/redis.service";
+import {
+  terminalSessionRedisKey,
+  isTerminalSessionIdentifier,
+} from "@/services/infrastructure/remote-terminal-session-projection";
 import { ArticleManagementRepository } from "@/store/content/article-management.repository";
 import { developerKvKeyFromArnSegment } from "@/iam/resources/developer-resources";
 import { developerSecretAliasSchema } from "@/api/schema/developer/developer.schema";
@@ -70,6 +75,22 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
     const active = { status: AccountStatus.ACTIVE };
     const userOwner = { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] };
     switch (type.id) {
+      case "remote-terminal/session": {
+        if (!isTerminalSessionIdentifier(id) || !isTerminalSessionIdentifier(childId)) return false;
+        const user = await prisma.user.findFirst({
+          where: { id, ...active, ...userOwner },
+          select: { id: true, accountOwnerId: true },
+        });
+        if (!user || user.id !== id || (user.accountOwnerId || user.id) !== accountOwnerId) return false;
+        const rows = await RedisService.getInstance().projectTerminalSessions(id, [terminalSessionRedisKey(childId)]);
+        const row = rows?.[0];
+        return Boolean(
+          rows?.length === 1 &&
+            row?.state === "present" &&
+            row.metadata.ownerUserId === id &&
+            row.metadata.sessionId === childId,
+        );
+      }
       case "remote-terminal/device": {
         const at = new Date();
         const device = await prisma.remoteTerminalDeviceBinding.findFirst({

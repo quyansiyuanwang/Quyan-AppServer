@@ -13,3 +13,13 @@ export function remoteTerminalDeviceArn(accountOwnerId: string, userId: string, 
     path: "device/" + userId + "/" + deviceId,
   });
 }
+
+export function remoteTerminalSessionArn(accountOwnerId: string, userId: string, sessionId: string): string {
+  if (!isRemoteTerminalId(userId) || !isRemoteTerminalId(sessionId)) throw new Error("Invalid terminal resource ID");
+  return buildAcsResource({
+    service: "remote-terminal",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "session/" + userId + "/" + sessionId,
+  });
+}

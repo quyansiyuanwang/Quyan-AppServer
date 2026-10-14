@@ -1,3 +1,4 @@
+import { RemoteTerminalSessionReadIamService } from "./remote-terminal-session-read-iam.service";
 import type {
   CreateRemoteTerminalSessionRequest,
   RemoteTerminalAgentPreferencesDto,
@@ -46,13 +47,20 @@ export class RemoteTerminalService {
     );
   }
 
-  public async listSessionsForUser(userId: string): Promise<RemoteTerminalSessionListDto> {
+  public async listSessionsForUser(userId: string, request?: TypedRequest): Promise<RemoteTerminalSessionListDto> {
     return {
-      items: await this.gatewayService.listSessions(userId),
+      items: await RemoteTerminalSessionReadIamService.getInstance().list(userId, request, () =>
+        this.gatewayService.listSessions(userId),
+      ),
     };
   }
 
-  public async getUsageSummaryForUser(userId: string): Promise<RemoteTerminalUsageSummaryDto> {
+  public async getUsageSummaryForUser(userId: string, request?: TypedRequest): Promise<RemoteTerminalUsageSummaryDto> {
+    return RemoteTerminalSessionReadIamService.getInstance().getUsage(userId, request, () =>
+      this.legacyUsageSummary(userId),
+    );
+  }
+  private async legacyUsageSummary(userId: string): Promise<RemoteTerminalUsageSummaryDto> {
     const [totalTerminalLimit, totalDeviceLimit, devices, sessions] = await Promise.all([
       this.productService.getRuntimeTotalTerminalLimit(userId),
       this.productService.getRuntimeTotalDeviceLimit(userId),
