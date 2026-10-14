@@ -219,16 +219,24 @@ export class MonthlyPassController extends Controller {
 
   @Get("user-passes")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:ListUserPasses",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.MONTHLY_PASS_ASSIGNMENT_READ],
+    }),
+  )
   @Middlewares(validateQuery(listUserMonthlyPassesQuerySchema))
   public async listUserPasses(
+    @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() userId?: string,
     @Query() templateId?: string,
     @Query() status?: number,
   ): Promise<UserMonthlyPassListResponse> {
-    return this.monthlyPassService.listUserPasses(page, pageSize, userId, templateId, status);
+    return this.monthlyPassService.listUserPasses(page, pageSize, userId, templateId, status, request);
   }
 
   @Get("me")

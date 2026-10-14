@@ -8,6 +8,8 @@ With IAM enforcement enabled, usage records use `quyan:monthly_pass:ListUsages` 
 
 Assignment updates and deletes use `quyan:monthly_pass:UpdateUserPass` and `quyan:monthly_pass:DeleteUserPass` on `acs:platform:*:platform:monthly-pass/<userId>/<passId>`. Setting the deleted status through an update also requires DeleteUserPass. The transaction rechecks assignment quotas and quota windows; a concurrent consumption, revoked policy or changed management eligibility rejects the entire change. Usernames and template details in an update response additionally require UpdateUserPass to allow the relevant `platform/user` and `platform/monthly-pass-template` resources. Without that read scope, the response contains only the assignment itself.
 
+The assignment list uses `quyan:monthly_pass:ListUserPasses` to authorize each `acs:platform:*:platform:monthly-pass/<userId>/<passId>` before counting and pagination. Usernames and template details separately require this Action to allow the relevant `platform/user` and `platform/monthly-pass-template` resources. The assignment's stored used and remaining quotas are returned with the record. Window usage is returned only if ListUserPasses allows every relevant active usage record, preventing partial visibility from producing misleading zero or underestimated usage. Template access includes allowed channel identifiers and does not grant current channel names or configuration.
+
 ## Page purpose
 
 - Maintain monthly-pass templates.

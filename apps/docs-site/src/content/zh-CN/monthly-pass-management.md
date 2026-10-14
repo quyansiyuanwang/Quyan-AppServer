@@ -8,6 +8,8 @@
 
 分配记录的更新和删除分别使用 `quyan:monthly_pass:UpdateUserPass`、`quyan:monthly_pass:DeleteUserPass`，资源为 `acs:platform:*:platform:monthly-pass/<userId>/<passId>`。更新时将状态改为删除还需同时允许 DeleteUserPass。事务会复核分配额度和额度窗口，若并发消费、策略撤销或管理资格变更导致依据失效，则拒绝整次修改。更新响应中的用户名和模板详情需要 UpdateUserPass 对相应 `platform/user` 和 `platform/monthly-pass-template` 资源的 Allow；缺少这项读取范围时仅返回分配记录自身内容。
 
+分配列表使用 `quyan:monthly_pass:ListUserPasses`，逐条检查 `acs:platform:*:platform:monthly-pass/<userId>/<passId>` 后统计和分页。用户名及模板详情分别需要该 Action 对相应的 `platform/user`、`platform/monthly-pass-template` 资源的 Allow。单张月卡的已用和剩余额度随该记录返回；额度窗口用量只有在所有相关有效用量记录都获得 ListUserPasses 的 Allow 时才返回，不能根据部分可见记录显示错误的零值或低估用量。模板授权包含可用渠道标识，不会因此获取当前渠道名称或配置。
+
 ## 页面用途
 
 - 维护月卡模板。

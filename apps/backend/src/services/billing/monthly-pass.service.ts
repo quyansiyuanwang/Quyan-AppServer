@@ -1,3 +1,4 @@
+import { PlatformMonthlyPassAssignmentReadIamService } from "./platform-monthly-pass-assignment-read-iam.service";
 import { PlatformMonthlyPassAssignmentWriteIamService } from "./platform-monthly-pass-assignment-write-iam.service";
 import { PlatformMonthlyPassUsageReadIamService } from "./platform-monthly-pass-usage-read-iam.service";
 import { PlatformMonthlyPassTemplateWriteIamService } from "./platform-monthly-pass-template-write-iam.service";
@@ -1864,6 +1865,7 @@ export class MonthlyPassService {
     userId?: string,
     templateId?: string,
     status?: number,
+    request?: TypedRequest,
   ): Promise<UserMonthlyPassListResponse> {
     const paging = normalizePagination(page, pageSize);
     const where: Prisma.UserMonthlyPassWhereInput = {};
@@ -1874,6 +1876,19 @@ export class MonthlyPassService {
     if (userId) where.userId = userId;
     if (templateId) where.templateId = templateId;
 
+    if (request)
+      return PlatformMonthlyPassAssignmentReadIamService.getInstance().list(
+        request,
+        paging,
+        { userId, templateId, status },
+        async (view) =>
+          this.toUserPassDto(
+            view.record,
+            undefined,
+            view.quotaUsage ? await this.getQuotaWindowUsageSummaryMap([view.record], new Date()) : undefined,
+          ),
+        () => this.listUserPasses(page, pageSize, userId, templateId, status),
+      );
     const result = await this.monthlyPassRepository.listUserPasses(where, paging.page, paging.pageSize);
 
     const allChannelIds = Array.from(
