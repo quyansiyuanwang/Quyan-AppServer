@@ -51,6 +51,24 @@ export class PlatformRelayConfigurationReadRepository implements PlatformRelayCo
     );
     return rows[0] ?? null;
   }
+  async configurationTarget() {
+    return this.configurationTargetFromMetadata(await this.configurationMetadata());
+  }
+  private configurationTargetFromMetadata(config: Metadata | null): RelayConfigurationReadTarget {
+    const target: RelayConfigurationReadTarget = {
+      id: "config_default",
+      source: "config",
+      ...(config ?? {
+        recordId: null,
+        status: 1,
+        createTime: new Date(0),
+        updateTime: new Date(0),
+        revision: "0".repeat(64),
+      }),
+    };
+    this.valid(target, "config");
+    return target;
+  }
   private pricingPosition(cursor: PlatformCollectionCursor, inclusive: boolean) {
     this.validCursor(cursor);
     const prefix = "pricing_";
@@ -73,17 +91,7 @@ export class PlatformRelayConfigurationReadRepository implements PlatformRelayCo
         Prisma.sql`SELECT id AS recordId, status, createTime, updateTime, ${priceRevision} AS revision FROM model_pricing WHERE status=1 AND createTime <= ${where.cutoff} ${after ? Prisma.sql`AND ${this.pricingPosition(after, false)}` : Prisma.empty} ${boundary ? Prisma.sql`AND ${this.pricingPosition(boundary, true)}` : Prisma.empty} ORDER BY createTime DESC, id DESC LIMIT ${size}`,
       ),
     ]);
-    const configTarget: RelayConfigurationReadTarget = {
-      id: "config_default",
-      source: "config",
-      ...(config ?? {
-        recordId: null,
-        status: 1,
-        createTime: new Date(0),
-        updateTime: new Date(0),
-        revision: "0".repeat(64),
-      }),
-    };
+    const configTarget = this.configurationTargetFromMetadata(config);
     const within = (cursor: PlatformCollectionCursor, inclusive: boolean) =>
       configTarget.createTime < cursor.createTime ||
       (configTarget.createTime.getTime() === cursor.createTime.getTime() &&

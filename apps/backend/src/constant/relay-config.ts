@@ -8,3 +8,5 @@ export const DEFAULT_RELAY_CONFIG = {
   apiCatalogPoolVisibility: "anonymous-range" as const,
   channelTopologyMode: "legacy" as const,
 } as const;
+
+export const RELAY_UPTIME_POLICY = Object.freeze({ upstreamTimeoutMs: 10000, heartbeatHistoryLimit: 100 });
