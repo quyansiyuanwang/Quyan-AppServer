@@ -8,6 +8,8 @@ Template selectors in entitlement filters and assignment dialogs use server-side
 
 With IAM enforcement enabled, template writes have separate `CreateTemplate`, `UpdateTemplate`, `PublishTemplate`, `UnpublishTemplate`, and `DeleteTemplate` actions in the `quyan:remote_terminal` service. Updating a template to deleted status also requires `DeleteTemplate`. Creation requires `CreateTemplate` on both `acs:platform:*:platform:remote-terminal-template-control` and the generated template ARN; a policy may use `acs:platform:*:platform:remote-terminal-template/*` for future templates. These grants still require the global management group ceiling. If authorization or the template changes before the operation finishes, the write is rejected and rolled back.
 
+Management entitlement lists show registration-token metadata and a masked value, and omit the complete token. Personal entitlement views retain the token needed for installation; administrators manage token renewal through the separately protected rotation action.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.

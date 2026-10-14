@@ -598,21 +598,24 @@ export class RemoteTerminalProductService {
     };
   }
 
-  private toRegistrationTokenDto(record: {
-    id: string;
-    entitlementId: string;
-    token: string;
-    label: string | null;
-    expiresAt: Date | null;
-    lastUsedAt: Date | null;
-    status: number;
-    createTime: Date;
-    updateTime: Date;
-  }): RemoteTerminalRegistrationTokenDto {
+  private toRegistrationTokenDto(
+    record: {
+      id: string;
+      entitlementId: string;
+      token: string;
+      label: string | null;
+      expiresAt: Date | null;
+      lastUsedAt: Date | null;
+      status: number;
+      createTime: Date;
+      updateTime: Date;
+    },
+    includeToken = true,
+  ): RemoteTerminalRegistrationTokenDto {
     return {
       id: record.id,
       entitlementId: record.entitlementId,
-      token: record.token,
+      ...(includeToken ? { token: record.token } : {}),
       maskedToken: maskSecret(record.token),
       label: record.label ?? undefined,
       expiresAt: record.expiresAt ?? undefined,
@@ -633,6 +636,7 @@ export class RemoteTerminalProductService {
   private toEntitlementDto(
     record: RemoteTerminalEntitlementWithRelations,
     usernamesById: Map<string, string>,
+    includeRegistrationToken = true,
   ): RemoteTerminalUserEntitlementDto {
     const now = Date.now();
     const isActive =
@@ -681,7 +685,7 @@ export class RemoteTerminalProductService {
       registeredDeviceCount: record.devices.length,
       registrationToken:
         this.canIssueRegistrationToken(record.deviceLimit) && record.registrationToken
-          ? this.toRegistrationTokenDto(record.registrationToken)
+          ? this.toRegistrationTokenDto(record.registrationToken, includeRegistrationToken)
           : undefined,
       maxDeviceCount: record.maxDeviceCount ?? undefined,
       maxTerminalCount: record.maxTerminalCount ?? undefined,
@@ -1137,6 +1141,16 @@ export class RemoteTerminalProductService {
     templateId?: string,
     status?: number,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
+    return this.readEntitlements(page, pageSize, userId, templateId, status, false);
+  }
+  private async readEntitlements(
+    page: number | undefined,
+    pageSize: number | undefined,
+    userId: string | undefined,
+    templateId: string | undefined,
+    status: number | undefined,
+    includeRegistrationToken: boolean,
+  ): Promise<RemoteTerminalUserEntitlementListResponse> {
     const pagination = normalizePagination(page, pageSize);
     const result = await this.productRepository.listEntitlements(
       {
@@ -1151,7 +1165,7 @@ export class RemoteTerminalProductService {
     const usernamesById = await this.getUsernamesByIds(result.records.map((item) => item.assignedBy));
     return {
       total: result.total,
-      records: result.records.map((item) => this.toEntitlementDto(item, usernamesById)),
+      records: result.records.map((item) => this.toEntitlementDto(item, usernamesById, includeRegistrationToken)),
       page: pagination.page,
       pageSize: pagination.pageSize,
     };
@@ -1163,7 +1177,7 @@ export class RemoteTerminalProductService {
     pageSize?: number,
     status?: number,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
-    return this.listEntitlements(page, pageSize, userId, undefined, status);
+    return this.readEntitlements(page, pageSize, userId, undefined, status, true);
   }
 
   public async assignEntitlement(

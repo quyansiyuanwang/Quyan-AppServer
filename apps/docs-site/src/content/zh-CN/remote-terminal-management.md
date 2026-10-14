@@ -8,6 +8,8 @@
 
 启用 IAM 强制模式后，套餐写操作分别使用 `quyan:remote_terminal` 服务下的 `CreateTemplate`、`UpdateTemplate`、`PublishTemplate`、`UnpublishTemplate` 和 `DeleteTemplate`。通过更新接口将套餐改为删除状态也需要 `DeleteTemplate`。创建操作需要同时获得对 `acs:platform:*:platform:remote-terminal-template-control` 和新生成套餐 ARN 的 `CreateTemplate` 授权；未来套餐可使用 `acs:platform:*:platform:remote-terminal-template/*` 匹配。这些授权仍受部署管理员配置的全局管理用户组范围限制。操作完成前若权限或套餐数据发生变化，写入会被拒绝并回滚。
 
+管理端权益列表仅展示注册令牌的元数据与脱敏值，不返回完整令牌。个人权益页面保留安装所需的令牌；管理员通过单独受保护的轮换操作管理注册令牌。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。
