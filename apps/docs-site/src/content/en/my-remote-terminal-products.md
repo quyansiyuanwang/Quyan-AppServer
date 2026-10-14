@@ -12,6 +12,8 @@ In IAM enforcement mode, purchase and renewal use `quyan:remote_terminal:ClaimPu
 
 Your entitlement list uses `quyan:remote_terminal:ListMyEntitlements` and evaluates each `product-entitlement` resource before calculating the total or selecting a page. Denied entitlements are omitted. Template names, registration-token metadata and registered-device counts require their own contributing resources to be readable with the same action; partial access omits the affected field. Registration secrets are never returned by this list in IAM enforcement mode. Use the separately authorized token rotation operation to obtain a credential. The list remains restricted to your identity, including when other users belong to the same account.
 
+Your device list uses `quyan:remote_terminal:ListMyDevices` on each `product-binding` resource before calculating the total or selecting a page. Denied devices are omitted. A denied parent entitlement hides its name; a denied registration-token resource hides its reference. The list returns supported shell names without reading heartbeat credentials or the full host snapshot. Device rows and parent entitlements must belong to your identity; inconsistent ownership is rejected.
+
 ## Page purpose
 
 - Browse published remote terminal product plans with pricing.

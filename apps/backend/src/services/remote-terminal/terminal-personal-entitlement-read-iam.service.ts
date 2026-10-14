@@ -1,97 +1,19 @@
-import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
-import { getIamPrincipal } from "@/iam/request/principal-context";
-import { fingerprintIamPolicies } from "@/iam/evaluator/policy-set-fingerprint";
-import { IamAccountUserRepository, iamAccountDenied } from "@/store/users/iam-account-principal";
+import { IamAccountUserRepository } from "@/store/users/iam-account-principal";
 import { TerminalPersonalEntitlementReadRepository } from "@/store/remote-terminal-product/terminal-personal-entitlement-read.repository";
 import type { TerminalPersonalEntitlementReadStore } from "@/store/remote-terminal-product/terminal-personal-entitlement-read.store";
 import type { TerminalEntitlementReadView } from "@/store/remote-terminal-product/platform-terminal-entitlement-read.store";
-import { platformCollectionDecisions } from "@/services/system/platform-collection-decisions";
-import { getLogger, LogCategory } from "@/util/logger";
-import type { TypedRequest } from "@/types/express";
-const action = "quyan:remote_terminal:ListMyEntitlements";
-export class TerminalPersonalEntitlementReadIamService {
+import { TerminalPersonalCollectionIamService } from "./terminal-personal-collection-iam.service";
+export class TerminalPersonalEntitlementReadIamService extends TerminalPersonalCollectionIamService<TerminalEntitlementReadView> {
   private static instance: TerminalPersonalEntitlementReadIamService;
   static getInstance() {
     return (this.instance ??= new TerminalPersonalEntitlementReadIamService());
   }
   constructor(
-    private readonly iam: Pick<
-      IamAuthorizationService,
-      "loadPolicies" | "authorizeMany"
-    > = IamAuthorizationService.getInstance(),
-    private readonly repository: TerminalPersonalEntitlementReadStore = TerminalPersonalEntitlementReadRepository.getInstance(),
-    private readonly users: Pick<IamAccountUserRepository, "targets"> = IamAccountUserRepository.getInstance(),
-  ) {}
-  async list<T>(
-    userId: string,
-    request: TypedRequest | undefined,
-    pagination: { page: number; pageSize: number },
-    status: number | undefined,
-    map: (view: TerminalEntitlementReadView) => T,
-    legacy: () => Promise<{ total: number; records: T[] }>,
+    iam: Pick<IamAuthorizationService, "loadPolicies" | "authorizeMany"> = IamAuthorizationService.getInstance(),
+    repository: TerminalPersonalEntitlementReadStore = TerminalPersonalEntitlementReadRepository.getInstance(),
+    users: Pick<IamAccountUserRepository, "targets"> = IamAccountUserRepository.getInstance(),
   ) {
-    const mode = env.security.iamAuthorizationMode;
-    if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
-    if (!request) {
-      if (mode !== "legacy") throw iamAccountDenied();
-      return legacy();
-    }
-    const principal = getIamPrincipal(request);
-    if (
-      !principal ||
-      request.oauthAccessToken ||
-      principal.subjectUserId !== userId ||
-      principal.principalUserId !== userId
-    )
-      throw iamAccountDenied();
-    if (mode === "legacy") return legacy();
-    const native = async () => {
-      const ids = [...new Set([userId, principal.accountOwnerId])],
-        snapshot = await this.users.targets(principal, ids),
-        policies = fingerprintIamPolicies(await this.iam.loadPolicies(principal));
-      const recheck = async () => {
-        const current = await this.users.targets(principal, ids);
-        if (
-          snapshot.length !== ids.length ||
-          current.length !== ids.length ||
-          current.some(
-            (row) =>
-              !snapshot.some((old) => row.id === old.id && row.updateTime.getTime() === old.updateTime.getTime()),
-          ) ||
-          fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== policies
-        )
-          throw iamAccountDenied();
-      };
-      await recheck();
-      const result = await this.repository.list(
-        principal,
-        pagination,
-        status,
-        (resources) => platformCollectionDecisions(this.iam, { action, principal, request, resources }),
-        recheck,
-      );
-      if (
-        !result ||
-        !Number.isSafeInteger(result.total) ||
-        result.total < 0 ||
-        !Array.isArray(result.records) ||
-        result.records.length > pagination.pageSize ||
-        result.records.some((view) => view.record.userId !== userId)
-      )
-        throw iamAccountDenied();
-      await recheck();
-      return { total: result.total, records: result.records.map(map), ...pagination };
-    };
-    if (mode === "enforce") return native();
-    try {
-      await native();
-    } catch {
-      getLogger("TerminalPersonalEntitlementReadIam", LogCategory.SECURITY).warn(
-        "Personal entitlement list shadow evaluation failed",
-        { action, reason: "iam-evaluation-denied-or-unavailable" },
-      );
-    }
-    return legacy();
+    super("quyan:remote_terminal:ListMyEntitlements", iam, repository, users);
   }
 }

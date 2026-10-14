@@ -488,9 +488,9 @@ export class RemoteTerminalProductController extends Controller {
   @Security("jwt")
   @Middlewares(
     validateQuery(listRemoteTerminalDevicesQuerySchema),
-    iamAuthenticatedAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:remote_terminal:ListMyDevices",
-      resourceKind: "single-resource",
+      resourceKind: "collection",
       resource: iamAuthenticatedUserResourceResolver,
     }),
   )
@@ -500,7 +500,13 @@ export class RemoteTerminalProductController extends Controller {
     @Query() pageSize?: number,
     @Query() status?: number,
   ): Promise<RemoteTerminalBoundDeviceListResponse> {
-    return this.remoteTerminalProductService.listCurrentUserDevices(request.user!.userId, page, pageSize, status);
+    return this.remoteTerminalProductService.listCurrentUserDevices(
+      request.user!.userId,
+      page,
+      pageSize,
+      status,
+      request,
+    );
   }
 
   @Get("me/devices/{id}/unbind-reminder")

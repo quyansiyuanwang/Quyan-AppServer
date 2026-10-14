@@ -1,3 +1,4 @@
+import { TerminalPersonalDeviceReadIamService } from "./terminal-personal-device-read-iam.service";
 import { TerminalPersonalEntitlementReadIamService } from "./terminal-personal-entitlement-read-iam.service";
 import { TerminalPurchaseIamService } from "./terminal-purchase-iam.service";
 import { TerminalPurchaseRepository } from "@/store/remote-terminal-product/terminal-purchase.repository";
@@ -2043,8 +2044,18 @@ export class RemoteTerminalProductService {
     page?: number,
     pageSize?: number,
     status?: number,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalBoundDeviceListResponse> {
-    return this.readDevicesLegacy(page, pageSize, userId, undefined, status);
+    const pagination = normalizePagination(page, pageSize);
+    const result = await TerminalPersonalDeviceReadIamService.getInstance().list(
+      userId,
+      request,
+      pagination,
+      status,
+      (view) => this.toNativeDeviceDto(view),
+      () => this.readDevicesLegacy(page, pageSize, userId, undefined, status),
+    );
+    return { ...result, ...pagination };
   }
 
   public async revokeDevice(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {

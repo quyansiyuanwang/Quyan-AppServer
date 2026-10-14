@@ -17,7 +17,6 @@ describe("self-service IAM action catalog", () => {
       "quyan:balance:ListTransactions",
       "quyan:monthly_pass:ListMyPasses",
       "quyan:monthly_pass:ClaimPublishedTemplate",
-      "quyan:remote_terminal:ListMyDevices",
     ];
     for (const action of userActions)
       expect(getIamActionDefinition(action)).toMatchObject({

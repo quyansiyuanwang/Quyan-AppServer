@@ -712,6 +712,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     ],
   },
   {
+    action: 'quyan:remote_terminal:ListMyDevices',
+    service: 'remote_terminal',
+    operation: 'ListMyDevices',
+    accessLevel: 'List',
+    resourceTypes: [
+      'quyan/user',
+      'remote-terminal/product-binding',
+      'remote-terminal/product-entitlement',
+      'remote-terminal/product-registration-token',
+    ],
+    apiRoutes: ['GET /v1/remote-terminal/products/me/devices'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    defaultAuthorizationScope: 'self',
+  },
+  {
     action: 'quyan:remote_terminal:ListMyEntitlements',
     service: 'remote_terminal',
     operation: 'ListMyEntitlements',
@@ -1417,13 +1434,6 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       operation: 'ListPublishedTemplates',
       accessLevel: 'List',
       resourceTypes: ['quyan/account'],
-    },
-
-    {
-      service: 'remote_terminal',
-      operation: 'ListMyDevices',
-      accessLevel: 'List',
-      resourceTypes: ['quyan/user'],
     },
   ].map(
     (definition): IamActionDefinition => ({
