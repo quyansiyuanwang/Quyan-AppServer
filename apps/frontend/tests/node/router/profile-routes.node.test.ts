@@ -30,6 +30,16 @@ const findRoute = (
 }
 
 describe('profile route factory', () => {
+  it('exposes the authenticated terminal workspace without projecting resource grants to global permissions', () => {
+    const route = findRoute(
+      createRoutesForProfile(getKnownProfile('terminal.qysyw.cn')),
+      'remoteTerminal',
+    )
+    expect(route?.meta?.requiresAuth).toBe(true)
+    expect(route?.meta?.allowGuest).not.toBe(true)
+    expect(route?.meta?.permission).toBeUndefined()
+    expect(route?.meta?.anyPermissions).toBeUndefined()
+  })
   it('keeps only account and shared routes for the account profile', () => {
     const routeNames = collectRouteNames(
       createRoutesForProfile(getKnownProfile('account.qysyw.cn')),

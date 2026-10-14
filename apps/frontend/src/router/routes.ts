@@ -1142,13 +1142,8 @@ export const routes = [
             path: 'workspace',
             name: 'remoteTerminal',
             component: lazyFeatureView('products', 'remote-terminal-cloud/RemoteTerminalView.vue'),
-            meta: {
-              anyPermissions: [
-                Permission.REMOTE_TERMINAL_DEVICE_READ,
-                Permission.REMOTE_TERMINAL_SESSION_READ,
-                Permission.REMOTE_TERMINAL_SESSION_CREATE,
-              ],
-            },
+            // The authenticated workspace loads each resource through its IAM-protected API.
+            meta: { requiresAuth: true },
           },
 
           // --- System ---

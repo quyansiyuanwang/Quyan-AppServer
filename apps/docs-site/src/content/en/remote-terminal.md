@@ -4,6 +4,8 @@ Use this page to connect to and operate registered remote devices.
 
 ## Page purpose
 
+Signed-in users can open the workspace. Devices, session history, and quota information load independently. An unavailable section shows its own notice while other permitted features remain usable. Unavailable quota information is not displayed as zero; connection requests still require server-side session authorization, entitlement, and quota checks. Opening the workspace grants no device or session permissions.
+
 - View registered devices and their online status.
 - Start a terminal session by selecting a device and shell type.
 - Manage multiple terminal tabs in a single view.

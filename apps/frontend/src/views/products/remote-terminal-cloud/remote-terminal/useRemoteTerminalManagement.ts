@@ -12,13 +12,13 @@ import type {
   RemoteTerminalAgentPreferencesDto,
   RemoteTerminalDirectoryBrowseDto,
   RemoteTerminalDeviceDto,
-  RemoteTerminalSessionSummaryDto,
   RemoteTerminalShellType,
   RemoteTerminalShortcutDto,
-  RemoteTerminalUsageSummaryDto,
   UpdateRemoteTerminalAgentPreferencesRequest,
 } from '@/client/types.gen'
 import { remoteTerminalService } from '@/service/remoteTerminalService'
+import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { useRemoteTerminalInventory } from './useRemoteTerminalInventory'
 import { getErrorMessage } from '@/utils/error-utils'
 import {
   buildTerminalSequenceFromShortcut,
@@ -124,20 +124,11 @@ type RemoteTerminalDirectoryTreeNode = {
 type RemoteTerminalDirectoryTreeResolve = (data: RemoteTerminalDirectoryTreeOption[]) => void
 
 export const useRemoteTerminalManagement = () => {
-  const loading = ref(false)
+  const inventory = useRemoteTerminalInventory(remoteTerminalService, () =>
+    sessionCoordinator.getAuthorizationIdentity(),
+  )
+  const { loading, devices, sessions, usageSummary, sections: inventorySections } = inventory
   const errorMessage = ref('')
-  const devices = ref<RemoteTerminalDeviceDto[]>([])
-  const sessions = ref<RemoteTerminalSessionSummaryDto[]>([])
-  const usageSummary = reactive<RemoteTerminalUsageSummaryDto>({
-    activeSessionCount: 0,
-    totalTerminalLimit: 0,
-    remainingTerminalCount: 0,
-    activeDeviceCount: 0,
-    totalDeviceLimit: 0,
-    remainingDeviceCount: 0,
-    terminalQuotaReached: false,
-    deviceQuotaReached: false,
-  })
   const sessionPage = ref(1)
   const tabs = ref<TerminalTabState[]>([])
   const activeTabId = ref('')
@@ -536,17 +527,19 @@ export const useRemoteTerminalManagement = () => {
     return Boolean(currentSelectedOnlineDeviceId.value || currentTab.value.lastConnectedDeviceId)
   })
 
-  const connectBlocked = computed(() => usageSummary.terminalQuotaReached)
+  const connectBlocked = computed(() => usageSummary.value?.terminalQuotaReached === true)
 
   const connectBlockedReason = computed(() => {
-    if (usageSummary.totalTerminalLimit <= 0) {
+    const usage = usageSummary.value
+    if (!usage) return ''
+    if (usage.totalTerminalLimit <= 0) {
       return i18ns.t('remoteTerminal.noTerminalQuota')
     }
 
-    if (usageSummary.terminalQuotaReached) {
+    if (usage.terminalQuotaReached) {
       return i18ns.t('remoteTerminal.terminalQuotaReachedHint', {
-        used: usageSummary.activeSessionCount,
-        limit: usageSummary.totalTerminalLimit,
+        used: usage.activeSessionCount,
+        limit: usage.totalTerminalLimit,
       })
     }
 
@@ -1905,32 +1898,13 @@ export const useRemoteTerminalManagement = () => {
   }
 
   const refreshAll = async () => {
-    loading.value = true
     errorMessage.value = ''
-
-    try {
-      await remoteTerminalService.probeDevices().catch(() => undefined)
-      const [deviceItems, sessionItems, usage] = await Promise.all([
-        remoteTerminalService.listDevices(),
-        remoteTerminalService.listSessions(),
-        remoteTerminalService.getUsageSummary(),
-      ])
-      devices.value = deviceItems
-      sessions.value = sessionItems
-      Object.assign(usageSummary, usage)
-
-      ensureAtLeastOneTab()
-
-      const routeDeviceId = typeof route.query.deviceId === 'string' ? route.query.deviceId : ''
-      for (const tab of tabs.value) {
-        ensureTabSelectionValid(tab, routeDeviceId)
-      }
-
+    if (!(await inventory.refresh())) return
+    ensureAtLeastOneTab()
+    const routeDeviceId = typeof route.query.deviceId === 'string' ? route.query.deviceId : ''
+    for (const tab of tabs.value) ensureTabSelectionValid(tab, routeDeviceId)
+    if (inventorySections.devices === 'ready') {
       await loadAgentPreferencesForDevice(getCurrentPreferenceDeviceId(), { silent: true })
-    } catch (error) {
-      errorMessage.value = getErrorMessage(error, i18ns.t('remoteTerminal.loadFailed'))
-    } finally {
-      loading.value = false
     }
   }
 
@@ -1962,6 +1936,7 @@ export const useRemoteTerminalManagement = () => {
   })
 
   onBeforeUnmount(() => {
+    inventory.invalidate()
     document.removeEventListener('fullscreenchange', handleFullscreenChange)
     window.removeEventListener('keydown', handleShortcutCaptureKeydown, true)
     for (const tab of tabs.value) {
@@ -2153,6 +2128,7 @@ export const useRemoteTerminalManagement = () => {
     toggleFullscreen,
     toggleShortcutCapture,
     usageSummary,
+    inventorySections,
     workingDirectoryDialogVisible,
     workingDirectoryDraft,
   }
