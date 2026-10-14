@@ -62,6 +62,7 @@ const docsRouteToSlug = {
   consumptionRecords: 'consumption-records',
   myTickets: 'my-tickets',
   myMonthlyPasses: 'my-monthly-passes',
+  monthlyPassPurchase: 'monthly-pass-purchase',
   myCarpools: 'carpools',
   carpoolDetail: 'carpools',
   carpoolInvite: 'carpools',

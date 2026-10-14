@@ -15,14 +15,22 @@ describe("self-service IAM action catalog", () => {
       "quyan:balance:CreateGiftCode",
       "quyan:balance:CreateTransfer",
       "quyan:balance:ListTransactions",
-      "quyan:monthly_pass:ListMyPasses",
-      "quyan:monthly_pass:ClaimPublishedTemplate",
     ];
     for (const action of userActions)
       expect(getIamActionDefinition(action)).toMatchObject({
         resourceTypes: ["quyan/user"],
         authorizationStage: "declared",
       });
+
+    expect(getIamActionDefinition("quyan:monthly_pass:ListMyPasses")).toMatchObject({
+      resourceTypes: ["quyan/user", "monthly-pass/assignment", "monthly-pass/template", "monthly-pass/usage"],
+      defaultAuthorizationScope: "self",
+    });
+    expect(getIamActionDefinition("quyan:monthly_pass:ClaimPublishedTemplate")).toMatchObject({
+      resourceTypes: ["quyan/user", "monthly-pass/template", "monthly-pass/assignment"],
+      authorizationStage: "declared",
+      defaultAuthorizationScope: "self",
+    });
 
     expect(getIamActionDefinition("quyan:balance:ListGiftCodes")).toMatchObject({
       resourceTypes: ["quyan/user", "balance/gift-code"],

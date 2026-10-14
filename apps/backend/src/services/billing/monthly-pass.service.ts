@@ -1,4 +1,6 @@
 import type { IamMonthlyPassAssignOperation } from "@quyan/shared";
+import { MonthlyPassPurchaseIamService } from "./monthly-pass-purchase-iam.service";
+import { bindMonthlyPassPurchaseQuote, type MonthlyPassPurchaseCharge } from "@/store/billing/monthly-pass-purchase";
 import { MonthlyPassFilterOptionsIamService } from "./monthly-pass-filter-options-iam.service";
 import { PlatformMonthlyPassAssignIamService } from "./platform-monthly-pass-assign-iam.service";
 import { MonthlyPassPersonalReadIamService } from "./monthly-pass-personal-read-iam.service";
@@ -1490,7 +1492,12 @@ export class MonthlyPassService {
     actorUserId: string,
     request?: Request,
   ): Promise<ClaimMonthlyPassResultDto> {
-    const template = await this.monthlyPassRepository.findTemplateById(data.templateId);
+    const prepared = await MonthlyPassPurchaseIamService.getInstance().prepare(
+      actorUserId,
+      request as TypedRequest | undefined,
+      data.templateId,
+    );
+    const template = prepared?.template ?? (await this.monthlyPassRepository.findTemplateById(data.templateId));
     if (!template || template.status !== MANAGED_STATUS.ENABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -1541,36 +1548,44 @@ export class MonthlyPassService {
     const startAt = new Date();
     const endAt = new Date(startAt.getTime() + normalizeValidityDays(template.validityDays) * 24 * 60 * 60 * 1000);
 
+    const passData = {
+      userId: actorUserId,
+      templateId: template.id,
+      startAt,
+      endAt,
+      totalQuota,
+      dailyQuota,
+      quotaUnit,
+      quotaWindowHours,
+      usedQuota: 0,
+      remainingQuota: totalQuota,
+      assignedBy: actorUserId,
+      note: "self-claimed",
+      status: MANAGED_STATUS.ENABLED,
+    };
+    const purchase: MonthlyPassPurchaseCharge = {
+      userId: actorUserId,
+      purchaseAmount,
+      templateName: template.name,
+      templateId: template.id,
+      limit:
+        template.purchaseLimitPerUser != null && template.purchaseLimitWindowDays != null
+          ? {
+              maximum: template.purchaseLimitPerUser,
+              windowStart: new Date(Date.now() - template.purchaseLimitWindowDays * 24 * 60 * 60 * 1000),
+            }
+          : undefined,
+    };
+    if (prepared)
+      bindMonthlyPassPurchaseQuote(prepared.guard, passData, quotaWindows, purchase, async () => {
+        if (normalizePriceValue(await this.configService.getRechargeRatio()) !== rechargeRatio)
+          throw iamAccountDenied();
+      });
     const record = await this.monthlyPassRepository.purchaseUserPass(
-      {
-        userId: actorUserId,
-        templateId: template.id,
-        startAt,
-        endAt,
-        totalQuota,
-        dailyQuota,
-        quotaUnit,
-        quotaWindowHours,
-        usedQuota: 0,
-        remainingQuota: totalQuota,
-        assignedBy: actorUserId,
-        note: "self-claimed",
-        status: MANAGED_STATUS.ENABLED,
-      },
+      passData,
       quotaWindows,
-      {
-        userId: actorUserId,
-        purchaseAmount,
-        templateName: template.name,
-        templateId: template.id,
-        limit:
-          template.purchaseLimitPerUser != null && template.purchaseLimitWindowDays != null
-            ? {
-                maximum: template.purchaseLimitPerUser,
-                windowStart: new Date(Date.now() - template.purchaseLimitWindowDays * 24 * 60 * 60 * 1000),
-              }
-            : undefined,
-      },
+      purchase,
+      ...(prepared ? [prepared.guard] : []),
     );
 
     await this.businessLogService.logOperation({

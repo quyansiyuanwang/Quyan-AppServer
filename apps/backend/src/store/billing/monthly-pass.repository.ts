@@ -1,4 +1,9 @@
 import {
+  runMonthlyPassPurchase,
+  type MonthlyPassPurchaseGuard,
+  type MonthlyPassPurchaseCharge,
+} from "./monthly-pass-purchase";
+import {
   MONTHLY_PASS_ASSIGNMENT_USER_SELECT,
   runMonthlyPassAssignmentCreate,
   type MonthlyPassAssignGuard,
@@ -268,30 +273,33 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   async purchaseUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[] = [],
-    purchase: {
-      userId: string;
-      purchaseAmount: number;
-      templateName: string;
-      templateId: string;
-      limit?: { maximum: number; windowStart: Date };
-    },
+    purchase: MonthlyPassPurchaseCharge,
+    guard?: MonthlyPassPurchaseGuard,
   ): Promise<UserMonthlyPassWithTemplate> {
-    return prisma.$transaction(async (tx) => {
+    return runMonthlyPassPurchase(guard, data, quotaWindows, purchase, async (tx) => {
       await tx.$queryRaw`SELECT id FROM balance_accounts WHERE userId = ${purchase.userId} FOR UPDATE`;
 
-      if (purchase.limit) {
+      const limit = guard
+        ? guard.template.purchaseLimitPerUser != null && guard.template.purchaseLimitWindowDays != null
+          ? {
+              maximum: guard.template.purchaseLimitPerUser,
+              windowStart: new Date(Date.now() - guard.template.purchaseLimitWindowDays * 24 * 60 * 60 * 1000),
+            }
+          : undefined
+        : purchase.limit;
+      if (limit) {
         const currentCount = await tx.userMonthlyPass.count({
           where: {
             userId: purchase.userId,
             templateId: purchase.templateId,
             status: { gte: MANAGED_STATUS.DISABLED },
-            createTime: { gte: purchase.limit.windowStart },
+            createTime: { gte: limit.windowStart },
           },
         });
-        if (currentCount >= purchase.limit.maximum)
-          throw new BadRequestError(`purchase limit exceeded: at most ${purchase.limit.maximum} claim(s)`, undefined, {
+        if (currentCount >= limit.maximum)
+          throw new BadRequestError(`purchase limit exceeded: at most ${limit.maximum} claim(s)`, undefined, {
             messageKey: "monthlyPass.purchaseLimitExceededShort",
-            messageParams: { limit: purchase.limit.maximum },
+            messageParams: { limit: limit.maximum },
           });
       }
 

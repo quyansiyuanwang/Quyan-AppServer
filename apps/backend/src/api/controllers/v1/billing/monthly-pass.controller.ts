@@ -2,6 +2,7 @@ import {
   platformMonthlyPassAssignResources,
   platformMonthlyPassBatchAssignTemplateResource,
 } from "@/iam/request/platform-monthly-pass-assign-resource-resolvers";
+import { monthlyPassPurchaseResources } from "@/iam/request/monthly-pass-purchase-resource-resolvers";
 import { platformMonthlyPassAssignmentResource } from "@/iam/request/platform-monthly-pass-assignment-resource-resolvers";
 import {
   platformMonthlyPassTemplateCreateResource,
@@ -269,8 +270,8 @@ export class MonthlyPassController extends Controller {
   @Middlewares(
     iamAuthenticatedAuthorizationMiddleware({
       action: "quyan:monthly_pass:ClaimPublishedTemplate",
-      resourceKind: "single-resource",
-      resource: iamAuthenticatedUserResourceResolver,
+      resourceKind: "batch",
+      resource: monthlyPassPurchaseResources,
     }),
   )
   public async claimPublishedTemplate(

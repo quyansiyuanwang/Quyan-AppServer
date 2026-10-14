@@ -1,3 +1,4 @@
+import type { MonthlyPassPurchaseGuard, MonthlyPassPurchaseCharge } from "./monthly-pass-purchase";
 import type { MonthlyPassAssignGuard, MonthlyPassAssignmentUser } from "./monthly-pass-assign";
 import type { MonthlyPassAssignmentWriteGuard } from "./monthly-pass-assignment-write";
 import type { MonthlyPassTemplateWriteGuard } from "./monthly-pass-template-write";
@@ -117,13 +118,8 @@ export interface MonthlyPassStore {
   purchaseUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[],
-    purchase: {
-      userId: string;
-      purchaseAmount: number;
-      templateName: string;
-      templateId: string;
-      limit?: { maximum: number; windowStart: Date };
-    },
+    purchase: MonthlyPassPurchaseCharge,
+    guard?: MonthlyPassPurchaseGuard,
   ): Promise<UserMonthlyPassWithTemplate>;
   updateUserPass(
     id: string,
