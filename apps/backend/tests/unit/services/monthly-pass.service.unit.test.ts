@@ -116,6 +116,7 @@ describe("MonthlyPassService publish flow", () => {
         validityDays: 45,
       }),
       expect.any(Array),
+      undefined,
     );
   });
 
@@ -158,6 +159,7 @@ describe("MonthlyPassService publish flow", () => {
         defaultQuota: 200,
       }),
       expect.any(Array),
+      undefined,
     );
   });
 
@@ -178,6 +180,8 @@ describe("MonthlyPassService publish flow", () => {
         publishStatus: "published",
         publishedAt: expect.any(Date),
       }),
+      undefined,
+      undefined,
     );
     expect(result.publishStatus).toBe("published");
     expect(result.publishedAt).toBeInstanceOf(Date);
@@ -222,6 +226,8 @@ describe("MonthlyPassService publish flow", () => {
         publishStatus: "draft",
         publishedAt: null,
       }),
+      undefined,
+      undefined,
     );
     expect(result.publishStatus).toBe("draft");
     expect(result.publishedAt).toBeUndefined();

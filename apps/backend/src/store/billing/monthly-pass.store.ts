@@ -1,3 +1,4 @@
+import type { MonthlyPassTemplateWriteGuard } from "./monthly-pass-template-write";
 import type {
   MonthlyPassTemplate,
   MonthlyPassTemplateQuotaWindow,
@@ -81,13 +82,15 @@ export interface MonthlyPassStore {
   createTemplate(
     data: Prisma.MonthlyPassTemplateUncheckedCreateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassTemplateWriteGuard,
   ): Promise<MonthlyPassTemplateWithQuotaWindows>;
   updateTemplate(
     id: string,
     data: Prisma.MonthlyPassTemplateUncheckedUpdateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassTemplateWriteGuard,
   ): Promise<MonthlyPassTemplateWithQuotaWindows>;
-  softDeleteTemplate(id: string): Promise<MonthlyPassTemplate>;
+  softDeleteTemplate(id: string, guard?: MonthlyPassTemplateWriteGuard): Promise<MonthlyPassTemplate>;
   listPublishedTemplates(): Promise<MonthlyPassTemplateWithQuotaWindows[]>;
   listTemplates(
     where: Prisma.MonthlyPassTemplateWhereInput,

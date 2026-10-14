@@ -28,3 +28,12 @@ export function platformTerminalTemplateControlArn() {
     path: "remote-terminal-template-control",
   });
 }
+
+export function platformMonthlyPassTemplateControlArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "monthly-pass-template-control",
+  });
+}

@@ -164,6 +164,24 @@ export const IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS = Object.freeze([
 ] as const)
 export type IamTerminalManagementMutation =
   (typeof IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS)[number]['operation']
+/** Real platform monthly-pass mutation endpoints; template administration retains its platform ceiling. */
+export const IAM_MONTHLY_PASS_TEMPLATE_WRITE_OPERATIONS = Object.freeze([
+  { operation: 'CreateTemplate', route: 'POST /v1/monthly-passes/templates', create: true },
+  { operation: 'UpdateTemplate', route: 'PUT /v1/monthly-passes/templates/{id}', create: false },
+  { operation: 'DeleteTemplate', route: 'DELETE /v1/monthly-passes/templates/{id}', create: false },
+  {
+    operation: 'PublishTemplate',
+    route: 'POST /v1/monthly-passes/templates/{id}/publish',
+    create: false,
+  },
+  {
+    operation: 'UnpublishTemplate',
+    route: 'POST /v1/monthly-passes/templates/{id}/unpublish',
+    create: false,
+  },
+] as const)
+export type IamMonthlyPassTemplateWriteOperation =
+  (typeof IAM_MONTHLY_PASS_TEMPLATE_WRITE_OPERATIONS)[number]['operation']
 export const IAM_TERMINAL_REGISTRATION_ROTATIONS = Object.freeze([
   {
     operation: 'RotateRegistrationToken',
@@ -197,6 +215,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     ...resource('platform', 'remote-terminal-template-control', 0),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':remote-terminal-template-control',
+  },
+  {
+    ...resource('platform', 'monthly-pass-template-control', 0),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':monthly-pass-template-control',
   },
   ...[
     { type: 'remote-terminal-entitlement', segments: 2 },
@@ -863,6 +886,26 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       authorizationStage: 'declared',
       authorizationBoundary: 'platform',
       legacyPermission: definition.permission,
+    }),
+  ),
+  ...IAM_MONTHLY_PASS_TEMPLATE_WRITE_OPERATIONS.map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:monthly_pass:' + definition.operation,
+      service: 'monthly_pass',
+      operation: definition.operation,
+      accessLevel: 'Write',
+      resourceTypes: definition.create
+        ? ['platform/monthly-pass-template-control', 'platform/monthly-pass-template']
+        : ['platform/monthly-pass-template'],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.MONTHLY_PASS_TEMPLATE_WRITE,
+      ...(definition.operation === 'UpdateTemplate'
+        ? { conditionalActions: ['quyan:monthly_pass:DeleteTemplate'] }
+        : {}),
     }),
   ),
   ...IAM_REMOTE_TERMINAL_TEMPLATE_WRITE_OPERATIONS.map(

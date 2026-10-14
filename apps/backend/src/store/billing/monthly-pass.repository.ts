@@ -1,3 +1,5 @@
+import { iamAccountDenied } from "../users/iam-account-principal";
+import { runMonthlyPassTemplateWrite, type MonthlyPassTemplateWriteGuard } from "./monthly-pass-template-write";
 import { prisma } from "@/config/database";
 import { BadRequestError } from "@/util/errors";
 import type { MonthlyPassTemplate, MonthlyPassUsage, Prisma, UserMonthlyPass } from "@prisma/client";
@@ -110,8 +112,9 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   async createTemplate(
     data: Prisma.MonthlyPassTemplateUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[] = [],
+    guard?: MonthlyPassTemplateWriteGuard,
   ): Promise<MonthlyPassTemplateWithQuotaWindows> {
-    return prisma.$transaction(async (tx) => {
+    return runMonthlyPassTemplateWrite(guard, undefined, data, async (tx) => {
       const created = await tx.monthlyPassTemplate.create({ data });
 
       if (quotaWindows.length > 0)
@@ -133,8 +136,10 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     id: string,
     data: Prisma.MonthlyPassTemplateUncheckedUpdateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassTemplateWriteGuard,
   ): Promise<MonthlyPassTemplateWithQuotaWindows> {
-    return prisma.$transaction(async (tx) => {
+    if (guard && guard.operation !== "UpdateTemplate" && quotaWindows !== undefined) throw iamAccountDenied();
+    return runMonthlyPassTemplateWrite(guard, id, data, async (tx) => {
       await tx.monthlyPassTemplate.update({ where: { id }, data });
 
       if (quotaWindows !== undefined) {
@@ -155,11 +160,9 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     });
   }
 
-  async softDeleteTemplate(id: string): Promise<MonthlyPassTemplate> {
-    return prisma.monthlyPassTemplate.update({
-      where: { id },
-      data: { status: MANAGED_STATUS.DELETED },
-    });
+  async softDeleteTemplate(id: string, guard?: MonthlyPassTemplateWriteGuard): Promise<MonthlyPassTemplate> {
+    const data = { status: MANAGED_STATUS.DELETED };
+    return runMonthlyPassTemplateWrite(guard, id, data, (tx) => tx.monthlyPassTemplate.update({ where: { id }, data }));
   }
 
   async listPublishedTemplates(): Promise<MonthlyPassTemplateWithQuotaWindows[]> {

@@ -1,3 +1,4 @@
+import { PlatformMonthlyPassTemplateWriteIamService } from "./platform-monthly-pass-template-write-iam.service";
 import type { TypedRequest } from "@/types/express";
 import { env } from "@/config/env";
 import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
@@ -918,6 +919,11 @@ export class MonthlyPassService {
     actorUserId: string,
     request?: Request,
   ): Promise<MonthlyPassTemplateDto> {
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "CreateTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+    );
     const name = data.name.trim();
     const existed = await this.monthlyPassRepository.findTemplateByName(name);
     if (existed)
@@ -982,6 +988,7 @@ export class MonthlyPassService {
               status: MANAGED_STATUS.ENABLED,
             },
             quotaWindows,
+            iam?.guard,
           );
         })()
       : await (async () => {
@@ -1039,6 +1046,7 @@ export class MonthlyPassService {
               status: MANAGED_STATUS.ENABLED,
             },
             quotaWindows,
+            iam?.guard,
           );
         })();
 
@@ -1058,7 +1066,13 @@ export class MonthlyPassService {
   }
 
   async publishTemplate(id: string, actorUserId: string, request?: Request): Promise<MonthlyPassTemplateDto> {
-    const existing = await this.monthlyPassRepository.findTemplateById(id);
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "PublishTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+    );
+    const existing = iam?.target?.record ?? (await this.monthlyPassRepository.findTemplateById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -1075,10 +1089,15 @@ export class MonthlyPassService {
       actorUserId,
     );
 
-    const record = await this.monthlyPassRepository.updateTemplate(id, {
-      publishStatus: "published",
-      publishedAt: new Date(),
-    });
+    const record = await this.monthlyPassRepository.updateTemplate(
+      id,
+      {
+        publishStatus: "published",
+        publishedAt: new Date(),
+      },
+      undefined,
+      iam?.guard,
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_PUBLISH,
@@ -1096,7 +1115,13 @@ export class MonthlyPassService {
   }
 
   async unpublishTemplate(id: string, actorUserId: string, request?: Request): Promise<MonthlyPassTemplateDto> {
-    const existing = await this.monthlyPassRepository.findTemplateById(id);
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "UnpublishTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+    );
+    const existing = iam?.target?.record ?? (await this.monthlyPassRepository.findTemplateById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -1107,10 +1132,15 @@ export class MonthlyPassService {
         messageKey: "monthlyPass.templateAlreadyUnpublished",
       });
 
-    const record = await this.monthlyPassRepository.updateTemplate(id, {
-      publishStatus: "draft",
-      publishedAt: null,
-    });
+    const record = await this.monthlyPassRepository.updateTemplate(
+      id,
+      {
+        publishStatus: "draft",
+        publishedAt: null,
+      },
+      undefined,
+      iam?.guard,
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_UNPUBLISH,
@@ -1133,7 +1163,14 @@ export class MonthlyPassService {
     actorUserId: string,
     request?: Request,
   ): Promise<MonthlyPassTemplateDto> {
-    const existing = await this.monthlyPassRepository.findTemplateById(id);
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "UpdateTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+      data.status === -1,
+    );
+    const existing = iam?.target?.record ?? (await this.monthlyPassRepository.findTemplateById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -1360,7 +1397,12 @@ export class MonthlyPassService {
         });
     }
 
-    const record = await this.monthlyPassRepository.updateTemplate(id, updatePayload, quotaWindowsForUpdate);
+    const record = await this.monthlyPassRepository.updateTemplate(
+      id,
+      updatePayload,
+      quotaWindowsForUpdate,
+      iam?.guard,
+    );
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_UPDATE,
@@ -1378,13 +1420,19 @@ export class MonthlyPassService {
   }
 
   async deleteTemplate(id: string, actorUserId: string, request?: Request): Promise<void> {
-    const existing = await this.monthlyPassRepository.findTemplateById(id);
+    const iam = await PlatformMonthlyPassTemplateWriteIamService.getInstance().prepare(
+      "DeleteTemplate",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+    );
+    const existing = iam?.target?.record ?? (await this.monthlyPassRepository.findTemplateById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
       });
 
-    await this.monthlyPassRepository.softDeleteTemplate(id);
+    await this.monthlyPassRepository.softDeleteTemplate(id, iam?.guard);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_TEMPLATE_DELETE,

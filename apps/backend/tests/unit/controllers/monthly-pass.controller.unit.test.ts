@@ -1,10 +1,12 @@
-import { CustomCode } from "@quyan/shared";
+import { env } from "@/config/env";
+import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { platformMonthlyPassTemplateWriteResource } from "@/iam/request/platform-monthly-pass-template-write-resource-resolvers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MonthlyPassController } from "../../../src/api/controllers/v1/billing/monthly-pass.controller";
 import { MonthlyPassService } from "../../../src/services/billing/monthly-pass.service";
 import { PermissionService } from "../../../src/services/users/permission.service";
 import { MANAGED_STATUS } from "../../../src/constant/status";
-import { ForbiddenError } from "../../../src/util/errors";
+const originalMode = env.security.iamAuthorizationMode;
 
 describe("MonthlyPassController publish endpoints", () => {
   const now = new Date("2026-05-07T12:00:00.000Z");
@@ -38,6 +40,7 @@ describe("MonthlyPassController publish endpoints", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    env.security.iamAuthorizationMode = "enforce";
     vi.spyOn(MonthlyPassService, "getInstance").mockReturnValue(
       monthlyPassServiceMock as unknown as MonthlyPassService,
     );
@@ -47,6 +50,7 @@ describe("MonthlyPassController publish endpoints", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    env.security.iamAuthorizationMode = originalMode;
   });
 
   it("lists published templates from service", async () => {
@@ -70,30 +74,53 @@ describe("MonthlyPassController publish endpoints", () => {
     expect(result).toEqual(publishedTemplate);
   });
 
-  it("rejects publish when request user is missing", async () => {
-    const controller = new MonthlyPassController();
-
-    await expect(controller.publishTemplate("template-1", {} as any)).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(controller.publishTemplate("template-1", {} as any)).rejects.toMatchObject({
-      message: "未授权访问，请先登录",
-    });
+  it("rejects PublishTemplate before entering the handler when JWT context is missing", async () => {
+    const authorize = vi.fn(),
+      next = vi.fn();
+    const middleware = iamAuthenticatedAuthorizationMiddleware(
+      {
+        action: "quyan:monthly_pass:PublishTemplate",
+        resourceKind: "single-resource",
+        resource: platformMonthlyPassTemplateWriteResource,
+      },
+      { authorize } as never,
+    );
+    await middleware({ params: { id: "template-1" } } as never, {} as never, next);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401 }));
+    expect(authorize).not.toHaveBeenCalled();
     expect(monthlyPassServiceMock.publishTemplate).not.toHaveBeenCalled();
   });
 
-  it("rejects publish when permission check fails", async () => {
-    permissionServiceMock.checkUserPermissions.mockResolvedValueOnce({
-      hasPermission: false,
-      missingPermissions: ["monthly_pass:template:write"],
-    });
-    const controller = new MonthlyPassController();
-    const request = { user: { userId: "actor-1" } } as any;
-
-    await expect(controller.publishTemplate("template-1", request)).rejects.toMatchObject({
-      name: "Error",
-      statusCode: 403,
-      code: CustomCode.PERMISSION_DENIED,
-      messageKey: "permission.insufficientPermission",
-    });
+  it("rejects PublishTemplate at the resource middleware before invoking the service", async () => {
+    const authorize = vi
+        .fn()
+        .mockResolvedValue({ decision: "ExplicitDeny", reason: "fixture-deny", matchedStatements: [] }),
+      next = vi.fn();
+    const middleware = iamAuthenticatedAuthorizationMiddleware(
+      {
+        action: "quyan:monthly_pass:PublishTemplate",
+        resourceKind: "single-resource",
+        resource: platformMonthlyPassTemplateWriteResource,
+      },
+      { authorize } as never,
+    );
+    const request = {
+      user: { userId: "actor-1" },
+      authContext: { principalUserId: "actor-1", accountOwnerId: "owner" },
+      params: { id: "template-1" },
+      headers: {},
+      secure: true,
+    };
+    await middleware(request as never, {} as never, next);
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 403, messageKey: "permission.insufficientPermission" }),
+    );
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "quyan:monthly_pass:PublishTemplate",
+        resource: "acs:platform:*:platform:monthly-pass-template/template-1",
+      }),
+    );
     expect(monthlyPassServiceMock.publishTemplate).not.toHaveBeenCalled();
   });
 
@@ -108,30 +135,53 @@ describe("MonthlyPassController publish endpoints", () => {
     expect(result).toEqual(draftTemplate);
   });
 
-  it("rejects unpublish when request user is missing", async () => {
-    const controller = new MonthlyPassController();
-
-    await expect(controller.unpublishTemplate("template-1", {} as any)).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(controller.unpublishTemplate("template-1", {} as any)).rejects.toMatchObject({
-      message: "未授权访问，请先登录",
-    });
+  it("rejects UnpublishTemplate before entering the handler when JWT context is missing", async () => {
+    const authorize = vi.fn(),
+      next = vi.fn();
+    const middleware = iamAuthenticatedAuthorizationMiddleware(
+      {
+        action: "quyan:monthly_pass:UnpublishTemplate",
+        resourceKind: "single-resource",
+        resource: platformMonthlyPassTemplateWriteResource,
+      },
+      { authorize } as never,
+    );
+    await middleware({ params: { id: "template-1" } } as never, {} as never, next);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 401 }));
+    expect(authorize).not.toHaveBeenCalled();
     expect(monthlyPassServiceMock.unpublishTemplate).not.toHaveBeenCalled();
   });
 
-  it("rejects unpublish when permission check fails", async () => {
-    permissionServiceMock.checkUserPermissions.mockResolvedValueOnce({
-      hasPermission: false,
-      missingPermissions: ["monthly_pass:template:write"],
-    });
-    const controller = new MonthlyPassController();
-    const request = { user: { userId: "actor-2" } } as any;
-
-    await expect(controller.unpublishTemplate("template-1", request)).rejects.toMatchObject({
-      name: "Error",
-      statusCode: 403,
-      code: CustomCode.PERMISSION_DENIED,
-      messageKey: "permission.insufficientPermission",
-    });
+  it("rejects UnpublishTemplate at the resource middleware before invoking the service", async () => {
+    const authorize = vi
+        .fn()
+        .mockResolvedValue({ decision: "ExplicitDeny", reason: "fixture-deny", matchedStatements: [] }),
+      next = vi.fn();
+    const middleware = iamAuthenticatedAuthorizationMiddleware(
+      {
+        action: "quyan:monthly_pass:UnpublishTemplate",
+        resourceKind: "single-resource",
+        resource: platformMonthlyPassTemplateWriteResource,
+      },
+      { authorize } as never,
+    );
+    const request = {
+      user: { userId: "actor-1" },
+      authContext: { principalUserId: "actor-1", accountOwnerId: "owner" },
+      params: { id: "template-1" },
+      headers: {},
+      secure: true,
+    };
+    await middleware(request as never, {} as never, next);
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 403, messageKey: "permission.insufficientPermission" }),
+    );
+    expect(authorize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "quyan:monthly_pass:UnpublishTemplate",
+        resource: "acs:platform:*:platform:monthly-pass-template/template-1",
+      }),
+    );
     expect(monthlyPassServiceMock.unpublishTemplate).not.toHaveBeenCalled();
   });
 });

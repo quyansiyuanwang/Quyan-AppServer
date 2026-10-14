@@ -1,4 +1,8 @@
 import {
+  platformMonthlyPassTemplateCreateResource,
+  platformMonthlyPassTemplateWriteResource,
+} from "@/iam/request/platform-monthly-pass-template-write-resource-resolvers";
+import {
   Body,
   Controller,
   Delete,
@@ -107,7 +111,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("templates")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:CreateTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateCreateResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -123,7 +133,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("templates/{id}/publish")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:PublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateWriteResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -136,7 +152,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("templates/{id}/unpublish")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:UnpublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateWriteResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -152,7 +174,13 @@ export class MonthlyPassController extends Controller {
 
   @Put("templates/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:UpdateTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateWriteResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -170,7 +198,13 @@ export class MonthlyPassController extends Controller {
 
   @Delete("templates/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:DeleteTemplate",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassTemplateWriteResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
