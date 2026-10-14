@@ -325,6 +325,17 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('carpool', 'order'),
   resource('script', 'script', 2),
   resource('script', 'execution', 2),
+  {
+    ...resource('platform', 'redemption-code-control'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':redemption-code-control/{resourceId}',
+  },
+  {
+    ...resource('platform', 'redemption-code'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':redemption-code/{resourceId}',
+  },
   resource('ticket', 'ticket', 2),
   resource('mcp', 'server', 2),
   resource('agent', 'machine', 2),
@@ -1787,6 +1798,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
+  },
+  {
+    action: 'quyan:redemption_code:ListCodes',
+    service: 'redemption_code',
+    operation: 'ListCodes',
+    accessLevel: 'List',
+    resourceTypes: ['platform/redemption-code-control', 'platform/redemption-code'],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.REDEMPTION_CODE_READ,
   },
   {
     action: 'quyan:relay:GetConcurrencyStatus',

@@ -40,6 +40,14 @@
 | 创建兑换码（批量） | `REDEMPTION_CODE_CREATE` |
 | 删除兑换码         | `REDEMPTION_CODE_DELETE` |
 
+## 资源级读取
+
+IAM 强制模式下，列表接口 `GET /v1/redemption-codes/list` 使用 `quyan:redemption_code:ListCodes`。认证主体还必须属于有效的部署管理全局组，且该组具有 `REDEMPTION_CODE_READ`；个人附加权限、私有用户组或账号所有者身份不能替代这一资格。
+
+列表集合需要允许 `acs:platform:*:platform:redemption-code-control/default`；每个兑换码使用 `acs:platform:*:platform:redemption-code/<兑换码 ID>`。只有获准记录会返回兑换码原文、金额和使用状态。匹配的 Deny 优先，未获准记录不会出现在列表、分页或总数中。此处按兑换码 ID 授权，不应把兑换码原文写入资源 ARN。
+
+强制模式的 `page` 从 1 开始，最大 10000；`pageSize` 默认 50，最大 100。旧权限和影子模式保留原默认分页。禁用记录不会返回。列表按创建时间从新到旧排列，读取期间记录内容、授权、资格或角色会话变化，或条件不再满足时，请求会失败，不返回旧快照。
+
 ## 说明
 
 - 兑换码通常会影响余额或权益。
