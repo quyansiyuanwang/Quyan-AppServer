@@ -1,3 +1,4 @@
+import { parseTerminalBrowserFrame } from "./browser-frame";
 import {
   TERMINAL_SESSION_STORAGE,
   terminalSessionRedisKey as buildRemoteTerminalSessionRedisKey,
@@ -12,7 +13,6 @@ import {
   RemoteTerminalDirectoryBrowseResultMessage,
   RemoteTerminalPreferencesResultMessage,
   RemoteTerminalBrowserConnectedMessage,
-  RemoteTerminalBrowserToServerMessage,
   RemoteTerminalServerToAgentMessage,
   RemoteTerminalServerToBrowserMessage,
   RemoteTerminalSessionCreateRequest,
@@ -526,7 +526,11 @@ export class RemoteTerminalSessionGateway {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
-    const message = JSON.parse(raw) as RemoteTerminalBrowserToServerMessage;
+    const message = parseTerminalBrowserFrame(raw, sessionId);
+    if (!message) {
+      this.stopSession(sessionId, "Invalid browser frame.");
+      return;
+    }
     const agentSocket = this.agentSockets.get(session.deviceId);
     if (!agentSocket) {
       this.emitBrowserError(sessionId, "Agent is offline.");

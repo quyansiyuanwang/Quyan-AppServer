@@ -126,6 +126,52 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
       "redis:" + "a".repeat(40),
     );
   });
+  it("blocks a browser from selecting another session or bypassing preference authorization", async () => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry),
+      agent = new EventEmitter() as EventEmitter & {
+        send: ReturnType<typeof vi.fn>;
+        close: ReturnType<typeof vi.fn>;
+        readyState: number;
+      };
+    agent.send = vi.fn();
+    agent.close = vi.fn();
+    agent.readyState = WebSocket.OPEN;
+    gateway.attachAgent("device-1", agent as unknown as WebSocket);
+    const create = () =>
+      gateway.createSession("user-1", { deviceId: "device-1", mode: "shell", shellType: "powershell" }, "ws://fixture");
+    const victim = await create(),
+      attacker = await create();
+    const browser = new EventEmitter() as EventEmitter & {
+      send: ReturnType<typeof vi.fn>;
+      close: ReturnType<typeof vi.fn>;
+      readyState: number;
+    };
+    browser.send = vi.fn();
+    browser.close = vi.fn();
+    browser.readyState = WebSocket.OPEN;
+    gateway.attachBrowser(attacker.sessionId, attacker.browserToken, browser as unknown as WebSocket);
+    agent.send.mockClear();
+    browser.emit(
+      "message",
+      Buffer.from(JSON.stringify({ type: "session-input", sessionId: victim.sessionId, data: "forged" })),
+    );
+    expect(agent.send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(agent.send.mock.calls[0][0])).toEqual({ type: "session-stop", sessionId: attacker.sessionId });
+    expect((await gateway.listSessions("user-1")).map((row) => row.sessionId)).toEqual([victim.sessionId]);
+    const third = await create(),
+      otherBrowser = new EventEmitter() as typeof browser;
+    otherBrowser.send = vi.fn();
+    otherBrowser.close = vi.fn();
+    otherBrowser.readyState = WebSocket.OPEN;
+    gateway.attachBrowser(third.sessionId, third.browserToken, otherBrowser as unknown as WebSocket);
+    agent.send.mockClear();
+    otherBrowser.emit(
+      "message",
+      Buffer.from(JSON.stringify({ type: "preferences-set", requestId: "forged", preferences: {} })),
+    );
+    expect(agent.send).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(agent.send.mock.calls[0][0]).type).toBe("session-stop");
+  });
   it("stores created sessions in redis with 3 day ttl", async () => {
     const gateway = new RemoteTerminalSessionGateway(deviceRegistry);
     const agentSocket = {
