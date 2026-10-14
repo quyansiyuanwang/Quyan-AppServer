@@ -45,6 +45,8 @@ If you need to answer questions like “who can see this channel?”, “which u
 - Purpose: replace raw monitor IDs with clearer admin-facing labels.
 - Effect: changes presentation only, not actual routing logic.
 
+The settings page loads relay configuration and custom-key configuration independently. Fields from a group that could not be loaded are disabled and are not submitted. Saving sends changed relay fields only, so changing queue settings does not replace unchanged prices. Zero-cost prices are valid. Changing pricing still replaces the complete active list, including records not visible under your read permissions. If one configuration group saves and the other fails, the page reports partial success and retry submits only the unsaved changes.
+
 ### Global configuration save permission
 
 In IAM enforcement mode, saving global settings uses `quyan:relay:UpdateConfiguration`. It requires `MODEL_PRICING_UPDATE` eligibility from a real global group and an Allow for `acs:platform:*:platform:relay-configuration/default`.

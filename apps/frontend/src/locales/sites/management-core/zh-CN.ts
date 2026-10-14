@@ -391,6 +391,16 @@ const zhCN = {
     importSuccess: '导入成功',
     importFormatError: '导入格式错误，请检查JSON格式',
     importPricingPlaceholder: '粘贴JSON格式的模型定价数据，格式：',
+    invalidModelId:
+      '模型 ID 仅允许字母、数字、点、下划线、冒号、斜杠和连字符，长度不得超过 200 个字符。',
+    invalidModelPricing: '价格和缓存倍率必须为有限的非负数，按次计费必须填写固定价格。',
+    noConfigurationChanges: '已加载的配置没有变更。',
+    configurationPartiallySaved: '部分设置已保存，失败的设置尚未保存，请解决错误后重试。',
+    relayConfigurationUnavailable: '中转配置未能加载，恢复访问权限后请刷新，这些字段不会被保存。',
+    systemRelayConfigurationUnavailable:
+      '自定义密钥配置未能加载，恢复访问权限后请刷新，这些字段不会被保存。',
+    pricingReplacementHint:
+      '修改模型价格会替换全部有效价格列表，包括读取权限未展示的模型。每个受影响模型都需要写入权限。',
     duplicateModelName: '存在重复的模型名称，请检查后重试',
     monitorConfigDescription: '配置说明：为每个监控项设置显示名称',
     monitorIdFormat: '监控项 ID 格式：2, 3, 7, 11, 12（来自上游 API 的数字 ID）',

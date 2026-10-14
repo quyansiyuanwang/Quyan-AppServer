@@ -3,7 +3,7 @@ import { IAM_MANAGEMENT_PAGINATION, type IamManagementPageResult } from '@quyan/
 
 /** Pages remain navigable after IAM filtering, including empty candidate pages. */
 export function useIamManagementPage<T>(
-  fetch: (query: { page: number; pageSize: number }) => Promise<IamManagementPageResult<T>>,
+  fetchPage: (query: { page: number; pageSize: number }) => Promise<IamManagementPageResult<T>>,
 ) {
   const page = ref(1)
   const pageSize = ref<number>(IAM_MANAGEMENT_PAGINATION.defaultPageSize)
@@ -28,7 +28,7 @@ export function useIamManagementPage<T>(
     items.value = []
     hasNext.value = false
     try {
-      const result = await fetch({ page: targetPage, pageSize: size })
+      const result = await fetchPage({ page: targetPage, pageSize: size })
       if (ticket !== sequence) return false
       page.value = result.page
       items.value = result.items
