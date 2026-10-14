@@ -29,6 +29,12 @@ export function iamAuthenticatedAuthorizationMiddleware(
   return (req, res, next) => {
     const mode = env.security.iamAuthorizationMode;
     if (mode === "legacy") return next();
+    if (mode !== "shadow" && mode !== "enforce")
+      return next(
+        new ForbiddenError("Unsupported IAM authorization mode", undefined, {
+          messageKey: "permission.insufficientPermission",
+        }),
+      );
     const middleware = createIamAuthorizationMiddleware(definition, service, mode);
     return middleware(req, res, (error?: unknown) => {
       if (mode === "shadow") {
@@ -57,6 +63,12 @@ export function iamCollectionAuthorizationMiddleware(
   return async (req, _res, next) => {
     const mode = env.security.iamAuthorizationMode;
     if (mode === "legacy") return next();
+    if (mode !== "shadow" && mode !== "enforce")
+      return next(
+        new ForbiddenError("Unsupported IAM authorization mode", undefined, {
+          messageKey: "permission.insufficientPermission",
+        }),
+      );
     try {
       const request = req as TypedRequest,
         principal = getIamPrincipal(request);

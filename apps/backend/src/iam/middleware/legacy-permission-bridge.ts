@@ -43,6 +43,20 @@ export async function authorizeLegacyPermissions(
   const principal = getIamPrincipal(request);
   if (!principal)
     throw new UnauthorizedError("IAM principal missing", undefined, { messageKey: "permission.loginRequired" });
+  if (mode !== "shadow" && mode !== "enforce")
+    throw new ForbiddenError("Unsupported IAM authorization mode", undefined, {
+      messageKey: "permission.insufficientPermission",
+    });
+  if (mode === "enforce" && !definitions) {
+    logger.warn("IAM endpoint definition missing", {
+      reason: "iam-endpoint-definition-missing",
+      principalUserId: principal.principalUserId,
+      requestId: request.res?.locals.requestId,
+    });
+    throw new ForbiddenError("Explicit IAM endpoint definition is required", undefined, {
+      messageKey: "permission.insufficientPermission",
+    });
+  }
   const legacyAllowed = mode === "shadow" ? await legacyResult(request, permissions, any) : undefined;
   const start = performance.now();
   try {

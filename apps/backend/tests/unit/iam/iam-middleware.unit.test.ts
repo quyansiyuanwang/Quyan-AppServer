@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Permission } from "@quyan/shared";
+import { Permission, actionForPermission } from "@quyan/shared";
 import type { IamConditionContext } from "@quyan/shared";
 import { evaluatePolicies } from "../../../src/iam/evaluator/policy-evaluator";
 import type { IamPolicyInput } from "../../../src/iam/evaluator/policy-evaluator";
@@ -273,7 +273,13 @@ describe("IAM middleware and rollout bridge", () => {
   it("does not call legacy as fallback when policy loading fails in enforce mode", async () => {
     mocks.mode = "enforce";
     mocks.loadPolicies.mockRejectedValue(Error("offline"));
-    await expect(authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false)).rejects.toThrow("offline");
+    await expect(
+      authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false, {
+        action: "quyan:ram:CreateUser",
+        resourceKind: "account",
+        resource: ramAccountResourceResolver,
+      }),
+    ).rejects.toThrow("offline");
     expect(mocks.legacy).not.toHaveBeenCalled();
   });
   it("preserves legacy decisions in legacy and shadow modes, including shadow engine failure", async () => {
@@ -317,7 +323,9 @@ describe("IAM middleware and rollout bridge", () => {
     expect((req as { iamDecisions?: { resource: string }[] }).iamDecisions?.[0].resource).toBe(
       "acs:quyan:*:owner:user/target",
     );
-    expect(await authorizeLegacyPermissions(request(), [Permission.RAM_USER_UPDATE], false)).toBe(false);
+    await expect(authorizeLegacyPermissions(request(), [Permission.RAM_USER_UPDATE], false)).rejects.toMatchObject({
+      statusCode: 403,
+    });
     expect(mocks.legacy).not.toHaveBeenCalled();
   });
   it("preserves rollback modes for declared resources, including resolver failure in shadow", async () => {
@@ -399,11 +407,77 @@ describe("IAM middleware and rollout bridge", () => {
       },
     ]);
     expect(
-      await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ], true),
+      await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ], true, [
+        { action: "quyan:ram:CreateUser", resourceKind: "account", resource: ramAccountResourceResolver },
+        {
+          action: actionForPermission(Permission.RAM_USER_READ),
+          resourceKind: "account",
+          resource: ramAccountResourceResolver,
+        },
+      ]),
     ).toBe(true);
     expect(
-      await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ], false),
+      await authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE, Permission.RAM_USER_READ], false, [
+        { action: "quyan:ram:CreateUser", resourceKind: "account", resource: ramAccountResourceResolver },
+        {
+          action: actionForPermission(Permission.RAM_USER_READ),
+          resourceKind: "account",
+          resource: ramAccountResourceResolver,
+        },
+      ]),
     ).toBe(false);
+  });
+  it.each([false, true])(
+    "rejects missing endpoint metadata in enforce even with wildcard grants and ANY=%s",
+    async (any) => {
+      mocks.mode = "enforce";
+      mocks.loadPolicies.mockResolvedValue([
+        {
+          policyId: "all",
+          document: parseIamPolicy({ Version: "1", Statement: { Effect: "Allow", Action: "*", Resource: "*" } })
+            .document,
+        },
+      ]);
+      const mutation = vi.fn();
+      await expect(
+        authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], any).then((allowed) => {
+          if (allowed) mutation();
+        }),
+      ).rejects.toMatchObject({ statusCode: 403, messageKey: "permission.insufficientPermission" });
+      expect(mutation).not.toHaveBeenCalled();
+      expect(mocks.loadPolicies).not.toHaveBeenCalled();
+      expect(mocks.legacy).not.toHaveBeenCalled();
+    },
+  );
+  it("rejects unsupported rollout mode before policy or legacy evaluation", async () => {
+    mocks.mode = "invalid" as never;
+    await expect(
+      authorizeLegacyPermissions(request(), [Permission.RAM_USER_CREATE], false, {
+        action: "quyan:ram:CreateUser",
+        resourceKind: "account",
+        resource: ramAccountResourceResolver,
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(mocks.loadPolicies).not.toHaveBeenCalled();
+    expect(mocks.legacy).not.toHaveBeenCalled();
+  });
+  it("rejects unsupported modes in authenticated and collection middleware", async () => {
+    mocks.mode = "invalid" as never;
+    const service = mockDeep<IamAuthorizationService>(),
+      next = vi.fn();
+    await iamAuthenticatedAuthorizationMiddleware(
+      { action: "quyan:ram:CreateUser", resourceKind: "account", resource: ramAccountResourceResolver },
+      service,
+    )(request(), {} as never, next);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
+    next.mockClear();
+    await iamCollectionAuthorizationMiddleware(
+      { action: "quyan:ram:CreateUser", resourceKind: "collection", resource: ramAccountResourceResolver },
+      service,
+    )(request(), {} as never, next);
+    expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
+    expect(service.authorize).not.toHaveBeenCalled();
+    expect(service.loadPolicies).not.toHaveBeenCalled();
   });
   it("refuses absent or invalid resolver metadata at startup", () => {
     expect(() =>
