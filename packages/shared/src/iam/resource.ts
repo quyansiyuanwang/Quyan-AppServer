@@ -122,15 +122,30 @@ export function authenticatedSelfResourcePatterns(
     path: 'user/' + userId,
   })
   return IAM_RESOURCE_TYPE_CATALOG.filter((type) => type.authenticatedSelfScope).map((type) => {
+    const [arnPrefix, service, region, account, resourcePath] = type.arnTemplate.split(':')
+    const [resourceType, ...identifiers] = (resourcePath ?? '').split('/')
     if (
+      type.accountScope === 'platform' ||
+      arnPrefix !== 'acs' ||
+      service !== type.service ||
+      region !== '*' ||
+      account !== '{accountId}' ||
+      resourceType !== type.type ||
+      identifiers.length !== type.identifierSegments ||
+      identifiers.some((value) => !/^\{[A-Za-z]+Id\}$/.test(value)) ||
       (type.authenticatedSelfScope === 'identity' && type.identifierSegments !== 1) ||
-      (type.authenticatedSelfScope === 'children' && type.identifierSegments !== 2)
+      (type.authenticatedSelfScope === 'children' && ![2, 3].includes(type.identifierSegments))
     )
       throw new Error('Invalid registered self resource scope')
-    const pattern = type.arnTemplate
-      .replace('{accountId}', accountOwnerId)
-      .replace('{parentId}', userId)
-      .replace('{resourceId}', type.authenticatedSelfScope === 'identity' ? userId : '*')
+    // The first identifier is always the authenticated owner, including grandchildren.
+    // Replacing a named parent placeholder is unsafe when a three-level template has an ancestor.
+    const pattern = [
+      'acs',
+      service,
+      region,
+      accountOwnerId,
+      [resourceType, userId, ...identifiers.slice(1).map(() => '*')].join('/'),
+    ].join(':')
     if (!getIamResourcePatternTypes(pattern).some((candidate) => candidate.id === type.id))
       throw new Error('Invalid registered self resource pattern')
     return pattern

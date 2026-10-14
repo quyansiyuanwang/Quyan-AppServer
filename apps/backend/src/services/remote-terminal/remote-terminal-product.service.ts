@@ -1,3 +1,9 @@
+import { TerminalRegistrationRotationIamService } from "./terminal-registration-rotation-iam.service";
+import { TerminalRegistrationRotationRepository } from "@/store/remote-terminal-product/terminal-registration-rotation.repository";
+import type {
+  TerminalRegistrationRotationTarget,
+  TerminalRegistrationRotationGuard,
+} from "@/store/remote-terminal-product/terminal-registration-rotation.store";
 import { TerminalPersonalUnbindIamService } from "./terminal-personal-unbind-iam.service";
 import { TerminalPersonalUnbindRepository } from "@/store/remote-terminal-product/terminal-personal-unbind.repository";
 import { PlatformTerminalManagementMutationIamService } from "./platform-terminal-management-mutation-iam.service";
@@ -1717,6 +1723,55 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalRegistrationTokenDto> {
+    const native = await TerminalRegistrationRotationIamService.getInstance().prepare(
+      "RotateRegistrationToken",
+      actorUserId,
+      request,
+      entitlementId,
+    );
+    if (native) return this.rotateRegistrationTokenNative(native.target, native.guard, body, actorUserId, request);
+    return this.rotateRegistrationTokenLegacy(entitlementId, body, actorUserId, request);
+  }
+  private async rotateRegistrationTokenNative(
+    target: TerminalRegistrationRotationTarget,
+    guard: TerminalRegistrationRotationGuard,
+    body: RotateRemoteTerminalRegistrationTokenRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalRegistrationTokenDto> {
+    const rotated = await TerminalRegistrationRotationRepository.getInstance().rotate(
+      target,
+      {
+        token: this.buildRandomToken(),
+        label:
+          body.label !== undefined ? (normalizeText(body.label) ?? null) : (target.registrationToken?.label ?? null),
+        expiresAt:
+          body.expiresAt !== undefined
+            ? (parseOptionalDate("expiresAt", body.expiresAt) ?? null)
+            : (target.registrationToken?.expiresAt ?? null),
+      },
+      guard,
+    );
+    await this.businessLogService.logOperation({
+      operationType: OperationType.REMOTE_TERMINAL_REGISTRATION_TOKEN_ROTATE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetUserId: target.userId,
+      targetResourceType: "REMOTE_TERMINAL_REGISTRATION_TOKEN",
+      targetResourceId: rotated.id,
+      description: `Rotated remote terminal registration token for entitlement '${target.name}'`,
+      changes: { entitlementId: target.id, label: body.label, expiresAt: body.expiresAt },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return this.toRegistrationTokenDto(rotated);
+  }
+  private async rotateRegistrationTokenLegacy(
+    entitlementId: string,
+    body: RotateRemoteTerminalRegistrationTokenRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalRegistrationTokenDto> {
     const entitlement = await this.productRepository.findEntitlementById(entitlementId);
     if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
@@ -1764,6 +1819,13 @@ export class RemoteTerminalProductService {
     body: RotateRemoteTerminalRegistrationTokenRequest,
     request?: TypedRequest,
   ): Promise<RemoteTerminalRegistrationTokenDto> {
+    const native = await TerminalRegistrationRotationIamService.getInstance().prepare(
+      "RotateMyRegistrationToken",
+      userId,
+      request,
+      entitlementId,
+    );
+    if (native) return this.rotateRegistrationTokenNative(native.target, native.guard, body, userId, request);
     const entitlement = await this.productRepository.findEntitlementById(entitlementId);
     if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
@@ -1774,7 +1836,7 @@ export class RemoteTerminalProductService {
         messageKey: "remoteTerminalProduct.rotateOwnTokenOnly",
       });
 
-    return this.rotateRegistrationToken(entitlementId, body, userId, request);
+    return this.rotateRegistrationTokenLegacy(entitlementId, body, userId, request);
   }
 
   public async issueInstallToken(userId: string, entitlementId: string): Promise<RemoteTerminalInstallTokenDto> {

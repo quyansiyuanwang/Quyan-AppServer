@@ -19,7 +19,6 @@ describe("self-service IAM action catalog", () => {
       "quyan:monthly_pass:ClaimPublishedTemplate",
       "quyan:remote_terminal:ListMyEntitlements",
       "quyan:remote_terminal:ClaimPublishedTemplate",
-      "quyan:remote_terminal:RotateMyRegistrationToken",
       "quyan:remote_terminal:GetMyInstallToken",
       "quyan:remote_terminal:ListMyDevices",
     ];

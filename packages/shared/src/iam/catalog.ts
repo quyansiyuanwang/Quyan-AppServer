@@ -160,6 +160,20 @@ export const IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS = Object.freeze([
 ] as const)
 export type IamTerminalManagementMutation =
   (typeof IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS)[number]['operation']
+export const IAM_TERMINAL_REGISTRATION_ROTATIONS = Object.freeze([
+  {
+    operation: 'RotateRegistrationToken',
+    management: true,
+    route: 'POST /v1/remote-terminal/products/entitlements/{id}/registration-token',
+  },
+  {
+    operation: 'RotateMyRegistrationToken',
+    management: false,
+    route: 'POST /v1/remote-terminal/products/me/entitlements/{id}/registration-token',
+  },
+] as const)
+export type IamTerminalRegistrationRotation =
+  (typeof IAM_TERMINAL_REGISTRATION_ROTATIONS)[number]['operation']
 export const IAM_TERMINAL_PERSONAL_UNBIND_OPERATIONS = Object.freeze([
   'RevokeMyDeviceBinding',
   'GetMyUnbindReminder',
@@ -204,6 +218,10 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'authorization'),
   resource('quyan', 'resource-group'),
   resource('quyan', 'role-session'),
+  {
+    ...resource('remote-terminal', 'product-registration-token', 3),
+    authenticatedSelfScope: 'children',
+  },
   { ...resource('remote-terminal', 'product-binding', 2), authenticatedSelfScope: 'children' },
   { ...resource('remote-terminal', 'product-entitlement', 2), authenticatedSelfScope: 'children' },
   resource('remote-terminal', 'device', 2),
@@ -692,6 +710,27 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       Permission.REMOTE_TERMINAL_SESSION_READ,
     ],
   },
+  ...IAM_TERMINAL_REGISTRATION_ROTATIONS.map(
+    (entry): IamActionDefinition => ({
+      action: 'quyan:remote_terminal:' + entry.operation,
+      service: 'remote_terminal',
+      operation: entry.operation,
+      accessLevel: 'Write',
+      resourceTypes: entry.management
+        ? ['platform/remote-terminal-entitlement', 'platform/remote-terminal-registration-token']
+        : ['remote-terminal/product-entitlement', 'remote-terminal/product-registration-token'],
+      apiRoutes: [entry.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      ...(entry.management
+        ? {
+            authorizationBoundary: 'platform' as const,
+            legacyPermission: Permission.REMOTE_TERMINAL_REGISTRATION_TOKEN_WRITE,
+          }
+        : { defaultAuthorizationScope: 'self' as const }),
+    }),
+  ),
   ...IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS.map(
     (definition): IamActionDefinition => ({
       action: 'quyan:remote_terminal:' + definition.operation,
@@ -1310,12 +1349,6 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     {
       service: 'remote_terminal',
       operation: 'ClaimPublishedTemplate',
-      accessLevel: 'Write',
-      resourceTypes: ['quyan/user'],
-    },
-    {
-      service: 'remote_terminal',
-      operation: 'RotateMyRegistrationToken',
       accessLevel: 'Write',
       resourceTypes: ['quyan/user'],
     },

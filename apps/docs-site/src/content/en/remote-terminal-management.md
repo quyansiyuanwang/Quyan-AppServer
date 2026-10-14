@@ -20,6 +20,8 @@ User selectors in entitlement and device filters and entitlement assignment dial
 
 In IAM enforcement mode, management writes also require permission on the target resource: `quyan:remote_terminal:RevokeDeviceBinding` controls `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`; `quyan:remote_terminal:DeleteEntitlement` and `quyan:remote_terminal:ResetUnbindCount` control `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`. The server determines the resource owner. Operators must still belong to a global group with the corresponding management capability and complete step-up verification. A denied resource or an authorization change during the operation causes the operation to fail. Administrator revocation bypasses the personal unbind allowance check; resetting the allowance affects only the selected entitlement.
 
+Registration rotation uses `quyan:remote_terminal:RotateRegistrationToken`. This Action controls both `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>` and `acs:platform:*:platform:remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>`; a token wildcard under the selected entitlement can cover first-time creation. Entitlement management permission alone does not authorize token rotation: the operator also needs the global group's registration-token management capability. A successful rotation returns the new token. A failed authorization check preserves the previous token and does not return a new credential.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.

@@ -20,6 +20,8 @@
 
 启用 IAM 强制模式后，管理写操作也按目标资源限制：`quyan:remote_terminal:RevokeDeviceBinding` 控制 `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`；`quyan:remote_terminal:DeleteEntitlement` 和 `quyan:remote_terminal:ResetUnbindCount` 控制 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`。资源中的用户 ID 由服务端确认。操作人员仍须属于具有对应管理资格的全局组，并完成二次验证；具体资源被拒绝或操作期间授权发生变化时，操作失败。管理员解绑不受个人解绑次数检查限制，重置次数只影响所选权益。
 
+注册令牌轮换使用 `quyan:remote_terminal:RotateRegistrationToken`。该 Action 同时控制权益资源 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>` 和令牌资源 `acs:platform:*:platform:remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>`；首次创建可使用当前权益下的令牌通配范围。仅有权益管理权限不足以轮换指定令牌，还须具备全局组配置的注册令牌管理资格。轮换成功后返回新令牌；授权检查失败时保留原令牌，界面不会得到新凭据。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

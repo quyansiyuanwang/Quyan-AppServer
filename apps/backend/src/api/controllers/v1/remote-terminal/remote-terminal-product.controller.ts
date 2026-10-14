@@ -1,3 +1,7 @@
+import {
+  terminalPersonalRegistrationRotationResource,
+  terminalManagementRegistrationRotationResource,
+} from "@/iam/request/terminal-registration-rotation-resource-resolvers";
 import { terminalPersonalUnbindResource } from "@/iam/request/terminal-personal-unbind-resource-resolver";
 import {
   platformTerminalRevokeBindingResource,
@@ -372,7 +376,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("entitlements/{id}/registration-token")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_REGISTRATION_TOKEN_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:RotateRegistrationToken",
+      resourceKind: "single-resource",
+      resource: terminalManagementRegistrationRotationResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -401,7 +411,7 @@ export class RemoteTerminalProductController extends Controller {
     iamAuthenticatedAuthorizationMiddleware({
       action: "quyan:remote_terminal:RotateMyRegistrationToken",
       resourceKind: "single-resource",
-      resource: iamAuthenticatedUserResourceResolver,
+      resource: terminalPersonalRegistrationRotationResource,
     }),
   )
   public async rotateCurrentUserRegistrationToken(

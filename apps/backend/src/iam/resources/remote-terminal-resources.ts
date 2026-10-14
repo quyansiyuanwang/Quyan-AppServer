@@ -42,3 +42,19 @@ export const remoteTerminalProductBindingArn = (accountOwnerId: string, userId: 
   productResource(accountOwnerId, userId, id, "product-binding");
 export const remoteTerminalProductEntitlementArn = (accountOwnerId: string, userId: string, id: string) =>
   productResource(accountOwnerId, userId, id, "product-entitlement");
+
+export function remoteTerminalProductRegistrationTokenArn(
+  accountOwnerId: string,
+  userId: string,
+  entitlementId: string,
+  tokenId: string,
+) {
+  if (![userId, entitlementId, tokenId].every(isRemoteTerminalId))
+    throw new Error("Invalid terminal registration resource ID");
+  return buildAcsResource({
+    service: "remote-terminal",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "product-registration-token/" + userId + "/" + entitlementId + "/" + tokenId,
+  });
+}
