@@ -12,6 +12,8 @@
 
 启用 IAM 强制模式后，权益管理列表使用 `quyan:remote_terminal:ListEntitlements`，检查 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`。总数只包含获准权益。相同 Action 还分别控制关联的 `user/<userId>`、`remote-terminal-template/<templateId>`、`remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>` 和 `remote-terminal-device-binding/<userId>/<bindingId>` 平台资源。未获准的用户名、套餐名称或令牌元数据会省略；只要一个设备绑定不可读，就会省略设备总数，而不会显示零或部分数量。管理列表中的令牌始终完全遮罩，不返回明文。个人安装和令牌轮换保持各自的授权流程。此操作仍要求部署管理员配置的全局权益读取权限上限。
 
+套餐、权益和设备管理表格均使用服务端分页，可调整每页条数并查看当前查询的总数；IAM 强制模式下，已经完成资源授权迁移的列表只统计获准记录。更改筛选条件会回到第一页，写操作后刷新当前页；删除或授权范围缩小时，若当前页已不存在，会重新请求最后一个有效页。设备筛选中的权益选择器单独分页，并按所选用户限制候选范围。加载和失败时清空旧记录，失败后可点击刷新重试；切换身份或权限时会清空列表、选择器和已打开的管理对话框。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

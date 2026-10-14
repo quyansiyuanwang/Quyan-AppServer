@@ -12,6 +12,8 @@ Management entitlement lists show registration-token metadata and a masked value
 
 With IAM enforcement enabled, the management entitlement list uses `quyan:remote_terminal:ListEntitlements` against `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`. Totals count permitted entitlements only. The same action separately controls related platform resources: `user/<userId>`, `remote-terminal-template/<templateId>`, `remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>`, and `remote-terminal-device-binding/<userId>/<bindingId>`. Unreadable usernames, template names, and token metadata are omitted. If any device binding is unreadable, the complete device count is omitted rather than shown as zero or a partial count. Management tokens are always fully masked and never returned as plaintext. Personal installation and token rotation keep their own authorization flows. The deployment administrator's global entitlement-read ceiling is still required.
 
+Template, entitlement, and device management tables use server-side pagination, with adjustable page sizes and totals for the current query. Under IAM enforcement, lists already migrated to resource authorization count permitted records only. Filter changes return to page one; writes refresh the current page. If deletion or a smaller grant removes that page, the last available page is fetched again. The device filter's entitlement selector has independent pagination and narrows candidates to the selected user. Loading and failures clear old records; Refresh retries a failed request. Identity or permission changes clear lists, selectors, and open management dialogs.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.

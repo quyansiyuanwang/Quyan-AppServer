@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RemoteTerminalManagementPagination from './RemoteTerminalManagementPagination.vue'
 import { computed } from 'vue'
 import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
@@ -48,7 +49,7 @@ const formatTemplatePurchaseLimit = state.formatTemplatePurchaseLimit
     </el-button>
   </div>
 
-  <el-table :data="templates" border stripe>
+  <el-table v-loading="state.templateList.loading.value" :data="templates" border stripe>
     <el-table-column prop="name" :label="t('remoteTerminalProduct.templateName')" min-width="180" />
     <el-table-column :label="t('remoteTerminalProduct.offeredUnits')" min-width="220">
       <template #default="{ row }">
@@ -157,4 +158,5 @@ const formatTemplatePurchaseLimit = state.formatTemplatePurchaseLimit
       </template>
     </el-table-column>
   </el-table>
+  <RemoteTerminalManagementPagination section="templates" />
 </template>

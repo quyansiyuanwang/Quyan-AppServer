@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RemoteTerminalManagementPagination from './RemoteTerminalManagementPagination.vue'
 import RemoteTerminalTemplateSelect from './RemoteTerminalTemplateSelect.vue'
 import { computed } from 'vue'
 import { i18ns } from '@/locales'
@@ -63,7 +64,7 @@ const handleUserSearch = state.handleUserSearch
     </el-button>
   </div>
 
-  <el-table :data="entitlements" border stripe>
+  <el-table v-loading="state.entitlementList.loading.value" :data="entitlements" border stripe>
     <el-table-column prop="username" :label="t('common.user')" min-width="150" />
     <el-table-column
       prop="name"
@@ -139,4 +140,5 @@ const handleUserSearch = state.handleUserSearch
       </template>
     </el-table-column>
   </el-table>
+  <RemoteTerminalManagementPagination section="entitlements" />
 </template>

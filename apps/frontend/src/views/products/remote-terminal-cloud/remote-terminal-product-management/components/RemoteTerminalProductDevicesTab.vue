@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import RemoteTerminalEntitlementSelect from './RemoteTerminalEntitlementSelect.vue'
+import RemoteTerminalManagementPagination from './RemoteTerminalManagementPagination.vue'
 import { computed } from 'vue'
 import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
@@ -6,7 +8,6 @@ import { useRemoteTerminalProductManagementContext } from '../context'
 const state = useRemoteTerminalProductManagementContext()
 const t = i18ns.t
 const userOptions = computed(() => state.userOptions.value)
-const entitlements = computed(() => state.entitlements.value)
 const userOptionsLoading = state.userOptionsLoading
 const deviceFilter = state.deviceFilter
 const deviceStatusOptions = computed(() => state.filterOptions.deviceStatusOptions)
@@ -37,19 +38,7 @@ const handleRevokeDevice = state.handleRevokeDevice
         :value="user.id"
       />
     </el-select>
-    <el-select
-      v-model="deviceFilter.entitlementId"
-      class="toolbar-select"
-      clearable
-      :placeholder="t('remoteTerminalProduct.selectEntitlement')"
-    >
-      <el-option
-        v-for="entitlement in entitlements"
-        :key="entitlement.id"
-        :label="entitlement.name || entitlement.id"
-        :value="entitlement.id"
-      />
-    </el-select>
+    <RemoteTerminalEntitlementSelect v-model="deviceFilter.entitlementId" class="toolbar-select" />
     <el-select
       v-model="deviceFilter.status"
       class="toolbar-select"
@@ -65,7 +54,7 @@ const handleRevokeDevice = state.handleRevokeDevice
     </el-select>
   </div>
 
-  <el-table :data="devices" border stripe>
+  <el-table v-loading="state.deviceList.loading.value" :data="devices" border stripe>
     <el-table-column prop="username" :label="t('common.user')" min-width="140" />
     <el-table-column
       prop="deviceName"
@@ -96,4 +85,5 @@ const handleRevokeDevice = state.handleRevokeDevice
       </template>
     </el-table-column>
   </el-table>
+  <RemoteTerminalManagementPagination section="devices" />
 </template>
