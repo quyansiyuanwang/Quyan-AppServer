@@ -1,4 +1,10 @@
 import {
+  platformCarpoolTemplateWriteResource,
+  platformCarpoolTemplateCreateResources,
+  platformCarpoolTemplateUpdateResources,
+  platformCarpoolTemplateDuplicateResources,
+} from "@/iam/request/platform-carpool-template-write-resource-resolvers";
+import {
   Body,
   Controller,
   Get,
@@ -112,50 +118,90 @@ export class CarpoolController extends Controller {
   }
   @Post("packages")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:CreateTemplate",
+      resourceKind: "batch",
+      resource: platformCarpoolTemplateCreateResources,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateBody(createCarpoolPackageTemplateBodySchema))
-  public createPackage(@Body() body: CreateCarpoolPackageTemplateRequest) {
-    return this.service.createTemplate(body);
+  public createPackage(@Body() body: CreateCarpoolPackageTemplateRequest, @Request() request: TypedRequest) {
+    return this.service.createTemplate(body, request);
   }
   @Put("packages/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:UpdateTemplate",
+      resourceKind: "batch",
+      resource: platformCarpoolTemplateUpdateResources,
+    }),
+  )
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(carpoolIdParamsSchema),
     validateBody(updateCarpoolPackageTemplateBodySchema),
   )
-  public updatePackage(@Path() id: string, @Body() body: UpdateCarpoolPackageTemplateRequest) {
-    return this.service.updateTemplate(id, body);
+  public updatePackage(
+    @Path() id: string,
+    @Body() body: UpdateCarpoolPackageTemplateRequest,
+    @Request() request: TypedRequest,
+  ) {
+    return this.service.updateTemplate(id, body, request);
   }
   @Post("packages/{id}/duplicate")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:DuplicateTemplate",
+      resourceKind: "batch",
+      resource: platformCarpoolTemplateDuplicateResources,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public duplicatePackage(@Path() id: string) {
-    return this.service.duplicateTemplate(id);
+  public duplicatePackage(@Path() id: string, @Request() request: TypedRequest) {
+    return this.service.duplicateTemplate(id, request);
   }
   @Post("packages/{id}/archive")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:ArchiveTemplate",
+      resourceKind: "single-resource",
+      resource: platformCarpoolTemplateWriteResource,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public async archivePackage(@Path() id: string): Promise<{ archived: true }> {
-    await this.service.archiveTemplate(id);
+  public async archivePackage(@Path() id: string, @Request() request: TypedRequest): Promise<{ archived: true }> {
+    await this.service.archiveTemplate(id, request);
     return { archived: true };
   }
   @Post("packages/{id}/publish")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:PublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformCarpoolTemplateWriteResource,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public publishPackage(@Path() id: string) {
-    return this.service.publishTemplate(id, true);
+  public publishPackage(@Path() id: string, @Request() request: TypedRequest) {
+    return this.service.publishTemplate(id, true, request);
   }
   @Post("packages/{id}/unpublish")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_TEMPLATE_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:UnpublishTemplate",
+      resourceKind: "single-resource",
+      resource: platformCarpoolTemplateWriteResource,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
-  public unpublishPackage(@Path() id: string) {
-    return this.service.publishTemplate(id, false);
+  public unpublishPackage(@Path() id: string, @Request() request: TypedRequest) {
+    return this.service.publishTemplate(id, false, request);
   }
 
   @Get("me")

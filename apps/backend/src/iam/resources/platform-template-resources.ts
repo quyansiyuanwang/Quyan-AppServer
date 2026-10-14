@@ -37,3 +37,12 @@ export function platformMonthlyPassTemplateControlArn() {
     path: "monthly-pass-template-control",
   });
 }
+
+export function platformCarpoolTemplateControlArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "carpool-template-control",
+  });
+}

@@ -2,8 +2,6 @@
 
 本页面面向具备拼车权限的运营人员，用于维护拼车套餐、受理已提交订单，以及完成交付或失败退款。
 
-启用 IAM 强制授权后，套餐管理列表使用 `quyan:carpool:ListTemplates`，逐条检查 `acs:platform:*:platform:carpool-template/<templateId>`。分页记录和总数只包含获准查看的模板；拒绝访问的模板不会返回名称、成本或交付快照。模板属于部署共享资源，除了 IAM 策略，还必须保留部署管理员配置的全局管理组权限上限，账号自己的策略或用户组不能自行取得这项管理资格。这一读取权限不会授予编辑套餐或处理订单的权限。
-
 ## 套餐管理
 
 套餐定义可交付的月卡模板、额度、有效期、成员上限、成团期限、售价和成本。你可以：
@@ -46,6 +44,26 @@
 | 创建、编辑、复制、发布、下线、归档套餐 | `CARPOOL_TEMPLATE_WRITE` |
 | 查看拼车订单与详情                     | `CARPOOL_ORDER_READ`     |
 | 受理、交付、失败退款                   | `CARPOOL_ORDER_FULFILL`  |
+
+## IAM 套餐授权
+
+启用 IAM 强制授权后，套餐管理使用以下独立操作：
+
+| 操作         | Action                            | 检查的资源                         |
+| ------------ | --------------------------------- | ---------------------------------- |
+| 查看管理列表 | `quyan:carpool:ListTemplates`     | 每个套餐模板                       |
+| 创建         | `quyan:carpool:CreateTemplate`    | 创建控制资源、来源月卡模板、新套餐 |
+| 编辑         | `quyan:carpool:UpdateTemplate`    | 目标套餐、来源月卡模板             |
+| 复制         | `quyan:carpool:DuplicateTemplate` | 源套餐、创建控制资源、新套餐       |
+| 发布         | `quyan:carpool:PublishTemplate`   | 目标套餐                           |
+| 下线         | `quyan:carpool:UnpublishTemplate` | 目标套餐                           |
+| 归档         | `quyan:carpool:ArchiveTemplate`   | 目标套餐                           |
+
+套餐 ARN 为 `acs:platform:*:platform:carpool-template/<templateId>`；来源月卡模板为 `acs:platform:*:platform:monthly-pass-template/<templateId>`；创建控制资源为 `acs:platform:*:platform:carpool-template-control`。复制保留源套餐的交付快照，创建和编辑使用当前获准引用的月卡模板。
+
+分页记录和总数只包含获准查看的套餐，拒绝访问的套餐不会返回名称、成本或交付快照。查看权限不授予编辑权限；更新权限也不授予发布或归档权限。显式 Deny 优先；新资源被拒绝时创建或复制一起回滚。
+
+这些模板属于部署共享资源。IAM 授权还需要部署管理员配置的全局管理组资格；账号自己的策略或用户组不能自行获得该资格。授权、资格或来源模板在操作期间发生变化时，请刷新后重新操作。已创建订单继续使用其原有快照。
 
 ## 注意事项
 

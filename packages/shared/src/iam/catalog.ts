@@ -196,6 +196,25 @@ export const IAM_MONTHLY_PASS_TEMPLATE_WRITE_OPERATIONS = Object.freeze([
 ] as const)
 export type IamMonthlyPassTemplateWriteOperation =
   (typeof IAM_MONTHLY_PASS_TEMPLATE_WRITE_OPERATIONS)[number]['operation']
+/** Real carpool template mutations, including distinct source and generated resources for copies. */
+export const IAM_CARPOOL_TEMPLATE_WRITE_OPERATIONS = Object.freeze([
+  { operation: 'CreateTemplate', route: 'POST /v1/carpools/packages', create: true },
+  { operation: 'UpdateTemplate', route: 'PUT /v1/carpools/packages/{id}', create: false },
+  {
+    operation: 'DuplicateTemplate',
+    route: 'POST /v1/carpools/packages/{id}/duplicate',
+    create: true,
+  },
+  { operation: 'ArchiveTemplate', route: 'POST /v1/carpools/packages/{id}/archive', create: false },
+  { operation: 'PublishTemplate', route: 'POST /v1/carpools/packages/{id}/publish', create: false },
+  {
+    operation: 'UnpublishTemplate',
+    route: 'POST /v1/carpools/packages/{id}/unpublish',
+    create: false,
+  },
+] as const)
+export type IamCarpoolTemplateWriteOperation =
+  (typeof IAM_CARPOOL_TEMPLATE_WRITE_OPERATIONS)[number]['operation']
 export const IAM_TERMINAL_REGISTRATION_ROTATIONS = Object.freeze([
   {
     operation: 'RotateRegistrationToken',
@@ -234,6 +253,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     ...resource('platform', 'monthly-pass-template-control', 0),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':monthly-pass-template-control',
+  },
+  {
+    ...resource('platform', 'carpool-template-control', 0),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':carpool-template-control',
   },
   ...[
     { type: 'remote-terminal-entitlement', segments: 2 },
@@ -1031,6 +1055,27 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       ...(definition.operation === 'UpdateTemplate'
         ? { conditionalActions: ['quyan:monthly_pass:DeleteTemplate'] }
         : {}),
+    }),
+  ),
+  ...IAM_CARPOOL_TEMPLATE_WRITE_OPERATIONS.map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:carpool:' + definition.operation,
+      service: 'carpool',
+      operation: definition.operation,
+      accessLevel: 'Write',
+      resourceTypes: [
+        'platform/carpool-template',
+        ...(definition.create ? ['platform/carpool-template-control'] : []),
+        ...(['CreateTemplate', 'UpdateTemplate'].includes(definition.operation)
+          ? ['platform/monthly-pass-template']
+          : []),
+      ],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.CARPOOL_TEMPLATE_WRITE,
     }),
   ),
   ...IAM_REMOTE_TERMINAL_TEMPLATE_WRITE_OPERATIONS.map(

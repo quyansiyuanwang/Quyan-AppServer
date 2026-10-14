@@ -1,3 +1,6 @@
+import { PlatformCarpoolTemplateWriteIamService } from "./platform-carpool-template-write-iam.service";
+import { bindCarpoolTemplateWrite } from "@/store/billing/carpool-template-write";
+import type { MonthlyPassTemplate } from "@prisma/client";
 import { PlatformTemplateReadIamService } from "@/services/billing/platform-template-read-iam.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { env } from "@/config/env";
@@ -254,8 +257,11 @@ export class CarpoolService {
     );
     return { total, records: records.map((item) => this.packageDto(item, true)) };
   }
-  private async templateData(data: CreateCarpoolPackageTemplateRequest | UpdateCarpoolPackageTemplateRequest) {
-    const monthly = await this.repository.findActiveMonthlyPassTemplate(data.monthlyPassTemplateId);
+  private async templateData(
+    data: CreateCarpoolPackageTemplateRequest | UpdateCarpoolPackageTemplateRequest,
+    source?: MonthlyPassTemplate,
+  ) {
+    const monthly = source ?? (await this.repository.findActiveMonthlyPassTemplate(data.monthlyPassTemplateId));
     if (!monthly)
       throw new NotFoundError("Monthly pass template not found", undefined, {
         messageKey: "monthlyPass.templateNotFound",
@@ -273,49 +279,93 @@ export class CarpoolService {
       snapshotAllowedChannels: monthly.allowedChannels,
     };
   }
-  async createTemplate(data: CreateCarpoolPackageTemplateRequest) {
-    return this.packageDto(await this.repository.createTemplate(await this.templateData(data)), true);
+  async createTemplate(data: CreateCarpoolPackageTemplateRequest, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      "CreateTemplate",
+      request?.user?.userId ?? "",
+      request,
+      undefined,
+      data.monthlyPassTemplateId,
+    );
+    const input = {
+      ...(await this.templateData(data, prepared?.guard.monthlySource?.record)),
+      status: 1,
+      publishStatus: "draft",
+      publishedAt: null,
+    };
+    if (prepared) bindCarpoolTemplateWrite(prepared.guard, input);
+    return this.packageDto(await this.repository.createTemplate(input, ...(prepared ? [prepared.guard] : [])), true);
   }
-  async updateTemplate(id: string, data: UpdateCarpoolPackageTemplateRequest) {
-    if (!(await this.repository.findTemplate(id)))
+  async updateTemplate(id: string, data: UpdateCarpoolPackageTemplateRequest, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      "UpdateTemplate",
+      request?.user?.userId ?? "",
+      request,
+      id,
+      data.monthlyPassTemplateId,
+    );
+    if (!(prepared?.target?.record ?? (await this.repository.findTemplate(id))))
       throw new NotFoundError("Carpool package template not found", undefined, {
         messageKey: "carpool.packageTemplateNotFound",
       });
-    return this.packageDto(await this.repository.updateTemplate(id, await this.templateData(data)), true);
+    const input = await this.templateData(data, prepared?.guard.monthlySource?.record);
+    if (prepared) bindCarpoolTemplateWrite(prepared.guard, input);
+    return this.packageDto(
+      await this.repository.updateTemplate(id, input, ...(prepared ? [prepared.guard] : [])),
+      true,
+    );
   }
-  async duplicateTemplate(id: string) {
-    const template = await this.repository.findTemplate(id);
+  async duplicateTemplate(id: string, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      "DuplicateTemplate",
+      request?.user?.userId ?? "",
+      request,
+      id,
+    );
+    const template = prepared?.target?.record ?? (await this.repository.findTemplate(id));
     if (!template)
       throw new NotFoundError("Carpool package template not found", undefined, {
         messageKey: "carpool.packageTemplateNotFound",
       });
+    const { id: _id, createTime: _created, updateTime: _updated, ...fields } = template;
+    const input = {
+      ...fields,
+      name: `${template.name} Copy ${Date.now().toString().slice(-6)}`,
+      publishStatus: "draft",
+      publishedAt: null,
+      status: 1,
+    };
+    if (prepared) bindCarpoolTemplateWrite(prepared.guard, input);
+    return this.packageDto(await this.repository.createTemplate(input, ...(prepared ? [prepared.guard] : [])), true);
+  }
+  async archiveTemplate(id: string, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      "ArchiveTemplate",
+      request?.user?.userId ?? "",
+      request,
+      id,
+    );
+    if (!(prepared?.target?.record ?? (await this.repository.findTemplate(id))))
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
+    await this.repository.archiveTemplate(id, ...(prepared ? [prepared.guard] : []));
+  }
+  async publishTemplate(id: string, published: boolean, request?: TypedRequest) {
+    const prepared = await PlatformCarpoolTemplateWriteIamService.getInstance().prepare(
+      published ? "PublishTemplate" : "UnpublishTemplate",
+      request?.user?.userId ?? "",
+      request,
+      id,
+    );
+    if (!(prepared?.target?.record ?? (await this.repository.findTemplate(id))))
+      throw new NotFoundError("Carpool package template not found", undefined, {
+        messageKey: "carpool.packageTemplateNotFound",
+      });
     return this.packageDto(
-      await this.repository.createTemplate({
-        ...template,
-        id: undefined,
-        name: `${template.name} Copy ${Date.now().toString().slice(-6)}`,
-        publishStatus: "draft",
-        publishedAt: null,
-        status: 1,
-        createTime: undefined,
-        updateTime: undefined,
-      }),
+      await this.repository.updateTemplatePublication(id, published, ...(prepared ? [prepared.guard] : [])),
       true,
     );
-  }
-  async archiveTemplate(id: string) {
-    if (!(await this.repository.findTemplate(id)))
-      throw new NotFoundError("Carpool package template not found", undefined, {
-        messageKey: "carpool.packageTemplateNotFound",
-      });
-    await this.repository.archiveTemplate(id);
-  }
-  async publishTemplate(id: string, published: boolean) {
-    if (!(await this.repository.findTemplate(id)))
-      throw new NotFoundError("Carpool package template not found", undefined, {
-        messageKey: "carpool.packageTemplateNotFound",
-      });
-    return this.packageDto(await this.repository.updateTemplatePublication(id, published), true);
   }
 
   async createOrder(data: CreateCarpoolOrderRequest, userId: string) {

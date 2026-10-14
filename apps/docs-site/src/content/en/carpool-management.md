@@ -2,8 +2,6 @@
 
 This page is for operators with carpool permissions. Use it to maintain carpool packages, accept submitted orders, and complete delivery or failure refunds.
 
-With IAM enforcement enabled, the management template list uses `quyan:carpool:ListTemplates` against each `acs:platform:*:platform:carpool-template/<templateId>`. Page records and totals include only permitted templates; denied templates do not expose names, costs, or delivery snapshots. Templates are shared deployment resources, so IAM grants also require the global management group ceiling configured by the deployment administrator. An account policy or account-owned group cannot grant that management eligibility. This read permission does not grant package editing or order processing.
-
 ## Package management
 
 A package defines the deliverable monthly-pass template, quota, validity, member limit, formation deadline, selling price, and cost. You can:
@@ -46,6 +44,26 @@ Every sensitive operation requires confirmation. Never put Relay tokens, upstrea
 | Create, edit, duplicate, publish, unpublish, or archive packages | `CARPOOL_TEMPLATE_WRITE` |
 | View carpool orders and details                                  | `CARPOOL_ORDER_READ`     |
 | Accept, deliver, or fail with refund                             | `CARPOOL_ORDER_FULFILL`  |
+
+## IAM package authorization
+
+When IAM enforcement is enabled, package administration uses these distinct operations:
+
+| Operation                 | Action                            | Evaluated resources                                         |
+| ------------------------- | --------------------------------- | ----------------------------------------------------------- |
+| List management templates | `quyan:carpool:ListTemplates`     | Each package template                                       |
+| Create                    | `quyan:carpool:CreateTemplate`    | Creation control, source monthly-pass template, new package |
+| Edit                      | `quyan:carpool:UpdateTemplate`    | Target package, source monthly-pass template                |
+| Duplicate                 | `quyan:carpool:DuplicateTemplate` | Source package, creation control, new package               |
+| Publish                   | `quyan:carpool:PublishTemplate`   | Target package                                              |
+| Unpublish                 | `quyan:carpool:UnpublishTemplate` | Target package                                              |
+| Archive                   | `quyan:carpool:ArchiveTemplate`   | Target package                                              |
+
+Package ARNs use `acs:platform:*:platform:carpool-template/<templateId>`. Source monthly-pass templates use `acs:platform:*:platform:monthly-pass-template/<templateId>`; creation control uses `acs:platform:*:platform:carpool-template-control`. Copies preserve their source package's delivery snapshot. Creation and editing use the currently authorized monthly-pass template.
+
+Page records and totals include only permitted packages. Denied packages expose no names, costs or delivery snapshots. Viewing does not grant editing; updating does not grant publication or archival. Explicit Deny takes priority. Denying the generated resource rolls back creation or duplication.
+
+These templates are shared deployment resources. IAM grants also require the global management group qualification configured by the deployment administrator. An account policy or account-owned group cannot grant that qualification. Refresh and retry if authorization, qualification or source terms change during the operation. Existing orders continue to use their original snapshots.
 
 ## Notes
 

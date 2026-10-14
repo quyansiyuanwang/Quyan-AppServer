@@ -1,3 +1,8 @@
+import {
+  runCarpoolTemplateWrite,
+  bindCarpoolTemplateWrite,
+  type CarpoolTemplateWriteGuard,
+} from "./carpool-template-write";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { prisma } from "@/config/database";
 import { Prisma } from "@prisma/client";
@@ -37,23 +42,25 @@ export class CarpoolRepository {
   findActiveMonthlyPassTemplate(id: string) {
     return prisma.monthlyPassTemplate.findFirst({ where: { id, status: 1 } });
   }
-  createTemplate(data: Prisma.CarpoolPackageTemplateUncheckedCreateInput) {
-    return prisma.carpoolPackageTemplate.create({ data });
+  createTemplate(data: Prisma.CarpoolPackageTemplateUncheckedCreateInput, guard?: CarpoolTemplateWriteGuard) {
+    return runCarpoolTemplateWrite(guard, undefined, data, (tx) => tx.carpoolPackageTemplate.create({ data }));
   }
-  updateTemplate(id: string, data: Prisma.CarpoolPackageTemplateUncheckedUpdateInput) {
-    return prisma.carpoolPackageTemplate.update({ where: { id }, data });
+  updateTemplate(
+    id: string,
+    data: Prisma.CarpoolPackageTemplateUncheckedUpdateInput,
+    guard?: CarpoolTemplateWriteGuard,
+  ) {
+    return runCarpoolTemplateWrite(guard, id, data, (tx) => tx.carpoolPackageTemplate.update({ where: { id }, data }));
   }
-  updateTemplatePublication(id: string, published: boolean) {
-    return prisma.carpoolPackageTemplate.update({
-      where: { id },
-      data: { publishStatus: published ? "published" : "draft", publishedAt: published ? new Date() : null },
-    });
+  updateTemplatePublication(id: string, published: boolean, guard?: CarpoolTemplateWriteGuard) {
+    const data = { publishStatus: published ? "published" : "draft", publishedAt: published ? new Date() : null };
+    if (guard) bindCarpoolTemplateWrite(guard, data);
+    return runCarpoolTemplateWrite(guard, id, data, (tx) => tx.carpoolPackageTemplate.update({ where: { id }, data }));
   }
-  archiveTemplate(id: string) {
-    return prisma.carpoolPackageTemplate.update({
-      where: { id },
-      data: { status: -1, publishStatus: "draft", publishedAt: null },
-    });
+  archiveTemplate(id: string, guard?: CarpoolTemplateWriteGuard) {
+    const data = { status: -1, publishStatus: "draft", publishedAt: null };
+    if (guard) bindCarpoolTemplateWrite(guard, data);
+    return runCarpoolTemplateWrite(guard, id, data, (tx) => tx.carpoolPackageTemplate.update({ where: { id }, data }));
   }
   findTemplate(id: string) {
     return prisma.carpoolPackageTemplate.findFirst({ where: { id, status: { gte: 0 } } });
