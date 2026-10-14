@@ -386,6 +386,7 @@ const emoji = {
     resetUnbindDescription: '🔄 📜，👤 📜。',
     deviceName: '🖥️ 🏷️',
     clientDeviceId: '🆔 🖥️',
+    bindingRevoked: '🔗 ❌',
     revokeBinding: '🛑 🔗',
     selectEntitlement: '👇 🪪',
     minDeviceCountLabel: '🔽 🖥️',

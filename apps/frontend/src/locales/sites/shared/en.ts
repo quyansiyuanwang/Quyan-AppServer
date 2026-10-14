@@ -426,6 +426,7 @@ const en = {
       'Reset the unbind quota so the user can unbind devices again immediately.',
     deviceName: 'Device Name',
     clientDeviceId: 'Client Device ID',
+    bindingRevoked: 'Binding revoked',
     revokeBinding: 'Revoke Binding',
     selectEntitlement: 'Select entitlement',
     minDeviceCountLabel: 'Min Devices',

@@ -16,6 +16,8 @@ Template, entitlement, and device management tables use server-side pagination, 
 
 With IAM enforcement enabled, the device management list uses `quyan:remote_terminal:ListDeviceBindings` against each `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`. The same action separately controls related `acs:platform:*:platform:user/<userId>` and `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>` resources; unreadable usernames or entitlement names are omitted. Pages and totals include permitted devices only. Responses expose public device fields and available shell names, without heartbeat credentials or complete device snapshots. Eligibility still requires the deployment administrator's global device management read ceiling. This action does not grant terminal sessions, directory access, or device revocation; personal terminal `ListDevices` grants remain separate.
 
+User selectors in entitlement and device filters and entitlement assignment dialogs support server-side search and independent pagination. Candidate users and totals follow the user-list endpoint's authorization; device or entitlement management does not automatically grant user-directory access. Browse search results by page and retry failures with Refresh. Identity or permission changes clear candidates. When editing an existing entitlement, the selected user's label may be retained from the currently permitted record. Device tables show hostname, client device ID, and the actual binding status; denied related usernames or entitlement names are not filled from old candidate caches.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.

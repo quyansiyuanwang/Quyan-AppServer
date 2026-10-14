@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RemoteTerminalUserSelect from './RemoteTerminalUserSelect.vue'
 import RemoteTerminalManagementPagination from './RemoteTerminalManagementPagination.vue'
 import RemoteTerminalTemplateSelect from './RemoteTerminalTemplateSelect.vue'
 import { computed } from 'vue'
@@ -7,8 +8,6 @@ import { useRemoteTerminalProductManagementContext } from '../context'
 
 const state = useRemoteTerminalProductManagementContext()
 const t = i18ns.t
-const userOptions = computed(() => state.userOptions.value)
-const userOptionsLoading = state.userOptionsLoading
 const entitlementFilter = state.entitlementFilter
 const assignmentStatusOptions = computed(() => state.filterOptions.assignmentStatusOptions)
 const canWriteAssignment = state.canWriteAssignment
@@ -21,29 +20,11 @@ const hasDeviceQuota = state.hasDeviceQuota
 const openRotateTokenDialog = state.openRotateTokenDialog
 const openLimitAdjustDialog = state.openLimitAdjustDialog
 const handleDeleteEntitlement = state.handleDeleteEntitlement
-const handleUserSearch = state.handleUserSearch
 </script>
 
 <template>
   <div class="toolbar-row">
-    <el-select
-      v-model="entitlementFilter.userId"
-      class="toolbar-user-select"
-      clearable
-      filterable
-      remote
-      reserve-keyword
-      :remote-method="handleUserSearch"
-      :loading="userOptionsLoading"
-      :placeholder="t('remoteTerminalProduct.selectUser')"
-    >
-      <el-option
-        v-for="user in userOptions"
-        :key="user.id"
-        :label="user.username"
-        :value="user.id"
-      />
-    </el-select>
+    <RemoteTerminalUserSelect v-model="entitlementFilter.userId" class="toolbar-user-select" />
     <RemoteTerminalTemplateSelect v-model="entitlementFilter.templateId" class="toolbar-select" />
     <el-select
       v-model="entitlementFilter.status"

@@ -16,6 +16,8 @@
 
 启用 IAM 强制模式后，设备管理列表使用 `quyan:remote_terminal:ListDeviceBindings`，逐条检查 `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`。相同 Action 分别控制关联的 `acs:platform:*:platform:user/<userId>` 和 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`；没有获准关联资源时，用户名或权益名称会省略。分页和总数只包含获准设备，响应仅提供公开设备字段与可用 shell 名称，不返回心跳凭据或完整设备快照。管理资格仍由部署管理员配置的全局设备管理读取权限限制。此 Action 不授予终端会话、目录访问或设备撤销权限；个人终端的 `ListDevices` 授权保持独立。
 
+权益和设备筛选、权益分配对话框中的用户选择器支持服务端搜索与独立分页。候选用户及其总数由用户列表接口的权限决定，不会因拥有设备或权益管理权限而自动获得用户目录访问。可翻页浏览搜索结果；失败后可刷新重试，切换身份或权限会清空候选。编辑已有权益时，已选用户可保留当前获准记录中的显示名称。设备表格显示主机名、客户端设备 ID 和实际绑定状态；关联用户或权益名称被拒绝时不会从旧候选缓存补回。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

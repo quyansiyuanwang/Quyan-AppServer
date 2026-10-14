@@ -400,6 +400,7 @@ const zhCN = {
     resetUnbindDescription: '重置解绑额度后，用户可以立即再次解绑设备。',
     deviceName: '设备名称',
     clientDeviceId: '客户端设备 ID',
+    bindingRevoked: '绑定已撤销',
     revokeBinding: '解除绑定',
     selectEntitlement: '选择授权',
     minDeviceCountLabel: '最小设备数',

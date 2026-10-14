@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import RemoteTerminalUserSelect from './RemoteTerminalUserSelect.vue'
 import RemoteTerminalTemplateSelect from './RemoteTerminalTemplateSelect.vue'
-import { computed } from 'vue'
 import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
 
 const state = useRemoteTerminalProductManagementContext()
 const t = i18ns.t
-const userOptions = computed(() => state.userOptions.value)
 const templateDialogVisible = state.templateDialogVisible
 const templateDialogTitle = state.templateDialogTitle
 const templateFormRef = state.templateFormRef
@@ -15,8 +14,6 @@ const submitTemplateDialog = state.submitTemplateDialog
 const entitlementDialogVisible = state.entitlementDialogVisible
 const entitlementDialogTitle = state.entitlementDialogTitle
 const entitlementFormRef = state.entitlementFormRef
-const handleUserSearch = state.handleUserSearch
-const userOptionsLoading = state.userOptionsLoading
 const submitEntitlementDialog = state.submitEntitlementDialog
 const tokenDialogVisible = state.tokenDialogVisible
 const submitRotateToken = state.submitRotateToken
@@ -162,22 +159,7 @@ const closeLimitAdjustDialog = () => {
       label-width="160px"
     >
       <el-form-item prop="userId" :label="t('common.user')">
-        <el-select
-          v-model="state.entitlementForm.userId"
-          class="full-width"
-          filterable
-          remote
-          reserve-keyword
-          :remote-method="handleUserSearch"
-          :loading="userOptionsLoading"
-        >
-          <el-option
-            v-for="user in userOptions"
-            :key="user.id"
-            :label="user.username"
-            :value="user.id"
-          />
-        </el-select>
+        <RemoteTerminalUserSelect v-model="state.entitlementForm.userId" class="full-width" />
       </el-form-item>
       <el-form-item :label="t('remoteTerminalProduct.templateName')">
         <RemoteTerminalTemplateSelect

@@ -191,4 +191,33 @@ describe('terminal management list integration', () => {
     await flushPromises()
     expect(state.userOptions.value).toEqual([])
   })
+  it('pages server user candidates without widening management permissions', async () => {
+    fixture.getAllUsers.mockImplementation(async (params) => {
+      const result = page(params)
+      return { ...result, users: result.records.map((row) => ({ id: row.id, username: row.id })) }
+    })
+    const state = await host('entitlements')
+    expect(state.userChoices.total.value).toBe(45)
+    await state.userChoices.changePage(2)
+    expect(fixture.getAllUsers).toHaveBeenLastCalledWith({
+      page: 2,
+      pageSize: 20,
+      keyword: undefined,
+    })
+    expect(state.userOptions.value[0]!.id).toBe('row-20')
+    state.handleUserSearch('customer')
+    await flushPromises()
+    expect(fixture.getAllUsers).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 20,
+      keyword: 'customer',
+    })
+  })
+  it('does not substitute table usernames when the user directory denies access', async () => {
+    fixture.getAllUsers.mockRejectedValue(new Error('denied user directory'))
+    const state = await host('devices')
+    expect(state.devices.value).toHaveLength(20)
+    expect(state.userOptions.value).toEqual([])
+    expect(state.userChoices.failed.value).toBe(true)
+  })
 })
