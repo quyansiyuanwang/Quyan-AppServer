@@ -1,4 +1,10 @@
-import { randomUUID } from "node:crypto";
+import {
+  TERMINAL_SESSION_STORAGE,
+  terminalSessionRedisKey as buildRemoteTerminalSessionRedisKey,
+  type TerminalSessionMetadata,
+} from "@/services/infrastructure/remote-terminal-session-projection";
+import { terminalDeviceDenied } from "@/store/remote-terminal-product/remote-terminal-device-snapshot";
+import { createHash, randomUUID } from "node:crypto";
 import {
   RemoteTerminalDeviceProbeResponse,
   RemoteTerminalAgentPreferencesData,
@@ -43,8 +49,8 @@ interface RemoteTerminalPersistedSessionRecord {
   createdAt: string;
 }
 
-const REMOTE_TERMINAL_SESSION_REDIS_PREFIX = "remote_terminal:session";
-const REMOTE_TERMINAL_SESSION_REDIS_TTL_SECONDS = 3 * 24 * 60 * 60;
+const REMOTE_TERMINAL_SESSION_REDIS_PREFIX = TERMINAL_SESSION_STORAGE.prefix;
+const REMOTE_TERMINAL_SESSION_REDIS_TTL_SECONDS = TERMINAL_SESSION_STORAGE.ttlSeconds;
 const REMOTE_TERMINAL_SESSION_REDIS_SCAN_LIMIT = 500;
 const REMOTE_TERMINAL_DIRECTORY_BROWSE_TIMEOUT_MS = 10_000;
 const REMOTE_TERMINAL_PREFERENCES_TIMEOUT_MS = 10_000;
@@ -69,10 +75,6 @@ interface PendingPreferencesRequest {
   timer: ReturnType<typeof setTimeout>;
   resolve: (payload: RemoteTerminalPreferencesResultMessage) => void;
   reject: (error: Error) => void;
-}
-
-function buildRemoteTerminalSessionRedisKey(sessionId: string): string {
-  return `${REMOTE_TERMINAL_SESSION_REDIS_PREFIX}:${sessionId}`;
 }
 
 function toSessionSummary(session: RemoteTerminalPersistedSessionRecord): RemoteTerminalSessionSummary {
@@ -177,6 +179,105 @@ export class RemoteTerminalSessionGateway {
       .filter((item) => item.ownerUserId === ownerUserId)
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
       .map(toSessionSummary);
+  }
+
+  private liveMetadata(session: RemoteTerminalSessionRecord): TerminalSessionMetadata {
+    const summary = toSessionSummary(session);
+    return {
+      sessionId: session.sessionId,
+      ownerUserId: session.ownerUserId,
+      entitlementId: session.entitlementId,
+      deviceId: session.deviceId,
+      status: session.status,
+      revision:
+        "live:" +
+        createHash("sha256")
+          .update(JSON.stringify([session.ownerUserId, session.entitlementId, summary]))
+          .digest("hex"),
+    };
+  }
+
+  /** Complete metadata scan of old and new persisted sessions; no private source hydration. */
+  public async listSessionMetadata(ownerUserId: string): Promise<TerminalSessionMetadata[]> {
+    const records = new Map<string, TerminalSessionMetadata>();
+    const seenKeys = new Set<string>(),
+      seenCursors = new Set<string>();
+    let cursor = "0";
+    do {
+      if (seenCursors.has(cursor)) throw terminalDeviceDenied();
+      seenCursors.add(cursor);
+      const page = await this.redisService.scanKeyPageWithResult(REMOTE_TERMINAL_SESSION_REDIS_PREFIX + ":*", cursor);
+      if (!page) throw terminalDeviceDenied();
+      cursor = page.cursor;
+      const keys = [...new Set(page.keys)].filter((key) => !seenKeys.has(key));
+      keys.forEach((key) => seenKeys.add(key));
+      for (let offset = 0; offset < keys.length; offset += TERMINAL_SESSION_STORAGE.projectionBatchSize) {
+        const batch = keys.slice(offset, offset + TERMINAL_SESSION_STORAGE.projectionBatchSize);
+        const rows = await this.redisService.projectTerminalSessions(ownerUserId, batch);
+        if (!rows || rows.length !== batch.length) throw terminalDeviceDenied();
+        for (let index = 0; index < rows.length; index++) {
+          const row = rows[index];
+          if (row.state === "missing" || row.state === "foreign") continue;
+          if (row.state !== "present" || row.metadata.ownerUserId !== ownerUserId) throw terminalDeviceDenied();
+          if (batch[index] !== buildRemoteTerminalSessionRedisKey(row.metadata.sessionId)) throw terminalDeviceDenied();
+          records.set(row.metadata.sessionId, row.metadata);
+        }
+      }
+    } while (cursor !== "0");
+    // Preserve live-over-persisted behavior without copying capability tokens or working directories.
+    for (const session of this.sessions.values()) {
+      if (session.ownerUserId === ownerUserId) records.set(session.sessionId, this.liveMetadata(session));
+    }
+    return [...records.values()];
+  }
+
+  /** Called only with admitted metadata. A changed/missing source fails the whole read. */
+  public async hydrateSessionSummaries(
+    ownerUserId: string,
+    targets: readonly TerminalSessionMetadata[],
+  ): Promise<RemoteTerminalSessionSummary[]> {
+    const summaries = new Map<string, RemoteTerminalSessionSummary>();
+    const persisted: TerminalSessionMetadata[] = [];
+    if (new Set(targets.map((target) => target.sessionId)).size !== targets.length) throw terminalDeviceDenied();
+    for (const target of targets) {
+      if (target.ownerUserId !== ownerUserId) throw terminalDeviceDenied();
+      const live = this.sessions.get(target.sessionId);
+      if (live) {
+        if (live.ownerUserId !== ownerUserId || this.liveMetadata(live).revision !== target.revision)
+          throw terminalDeviceDenied();
+        summaries.set(target.sessionId, toSessionSummary(live));
+      } else {
+        if (!target.revision.startsWith("redis:")) throw terminalDeviceDenied();
+        persisted.push(target);
+      }
+    }
+    for (let offset = 0; offset < persisted.length; offset += TERMINAL_SESSION_STORAGE.projectionBatchSize) {
+      const batch = persisted.slice(offset, offset + TERMINAL_SESSION_STORAGE.projectionBatchSize);
+      const rows = await this.redisService.projectTerminalSessions(
+        ownerUserId,
+        batch.map((target) => buildRemoteTerminalSessionRedisKey(target.sessionId)),
+        batch.map((target) => target.revision),
+      );
+      if (!rows || rows.length !== batch.length) throw terminalDeviceDenied();
+      for (let index = 0; index < rows.length; index++) {
+        const row = rows[index],
+          target = batch[index];
+        if (
+          row.state !== "present" ||
+          !row.summary ||
+          row.metadata.sessionId !== target.sessionId ||
+          row.metadata.ownerUserId !== ownerUserId ||
+          row.metadata.revision !== target.revision ||
+          row.metadata.deviceId !== target.deviceId ||
+          row.metadata.entitlementId !== target.entitlementId ||
+          row.metadata.status !== target.status ||
+          this.sessions.has(target.sessionId)
+        )
+          throw terminalDeviceDenied();
+        summaries.set(target.sessionId, row.summary);
+      }
+    }
+    return targets.map((target) => summaries.get(target.sessionId)!);
   }
 
   public async closeReconnectableSessions(ownerUserId: string, deviceId: string): Promise<void> {

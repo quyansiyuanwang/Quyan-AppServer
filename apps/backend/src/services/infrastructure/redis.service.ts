@@ -1,3 +1,11 @@
+import {
+  TERMINAL_SESSION_STORAGE,
+  TERMINAL_SESSION_PROJECTION_SCRIPT,
+  terminalSessionProjectionShells,
+  isTerminalSessionIdentifier,
+  parseTerminalSessionProjections,
+  type TerminalSessionProjection,
+} from "./remote-terminal-session-projection";
 import { canonicalIpAddressIdentifier } from "@/util/ip-address-identity";
 import { IP_ERROR_WEIGHT_LIMITS } from "@/constant/ip-error-weight";
 import { IP_ERROR_WEIGHT_WRITE_SCRIPT, type IpErrorWeightWrite } from "./ip-error-weight-script";
@@ -416,6 +424,40 @@ export class RedisService {
       } while (cursor !== "0" && (!normalizedLimit || keys.length < normalizedLimit));
 
       return keys;
+    });
+  }
+
+  /** Narrow, read-only session projection; null means the source could not be confirmed. */
+  public async projectTerminalSessions(
+    ownerUserId: string,
+    keys: readonly string[],
+    expectedRevisions?: readonly string[],
+  ): Promise<TerminalSessionProjection[] | null> {
+    if (
+      !isTerminalSessionIdentifier(ownerUserId) ||
+      keys.length > TERMINAL_SESSION_STORAGE.projectionBatchSize ||
+      keys.some(
+        (key) =>
+          !key.startsWith(TERMINAL_SESSION_STORAGE.prefix + ":") ||
+          !isTerminalSessionIdentifier(key.slice(TERMINAL_SESSION_STORAGE.prefix.length + 1)),
+      ) ||
+      (expectedRevisions &&
+        (expectedRevisions.length !== keys.length ||
+          expectedRevisions.some((value) => !/^redis:[a-f0-9]{40}$/.test(value))))
+    )
+      return null;
+    if (!keys.length) return [];
+    return this.executeWithCircuit("projectTerminalSessions", null as TerminalSessionProjection[] | null, async () => {
+      const result = await this.client!.eval(
+        TERMINAL_SESSION_PROJECTION_SCRIPT,
+        keys.length,
+        ...keys,
+        ownerUserId,
+        terminalSessionProjectionShells,
+        TERMINAL_SESSION_STORAGE.prefix,
+        ...(expectedRevisions ?? keys.map(() => "")),
+      );
+      return parseTerminalSessionProjections(result, keys.length);
     });
   }
 
