@@ -132,7 +132,7 @@ export class PlatformTerminalManagementMutationRepository implements PlatformTer
               select: { userId: true },
             });
             if (!parent || parent.userId !== current.userId) throw iamAccountDenied();
-            // Administrator revocation deliberately does not consume personal unbind allowance.
+            // Administrator revocation bypasses the personal allowance check; deleted bindings still count in its history.
             await tx.remoteTerminalDeviceBinding.update({
               where: { id: current.id },
               data: { status: -1, online: false },

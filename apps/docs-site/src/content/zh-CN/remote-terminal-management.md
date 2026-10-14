@@ -22,6 +22,8 @@
 
 注册令牌轮换使用 `quyan:remote_terminal:RotateRegistrationToken`。该 Action 同时控制权益资源 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>` 和令牌资源 `acs:platform:*:platform:remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>`；首次创建可使用当前权益下的令牌通配范围。仅有权益管理权限不足以轮换指定令牌，还须具备全局组配置的注册令牌管理资格。轮换成功后返回新令牌；授权检查失败时保留原令牌，界面不会得到新凭据。
 
+IAM 强制模式下，修改权益使用 `quyan:remote_terminal:UpdateEntitlement`，资源为 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`；将状态设为删除还需要 `quyan:remote_terminal:DeleteEntitlement`。修改结果仅返回权益字段，不返回注册凭据或关联资源详情。增加设备额度不会自动签发注册令牌，获取凭据需使用具有独立授权的注册令牌轮换操作。权益、归属用户、已注册设备或授权在修改期间发生变化时，本次修改不会提交。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

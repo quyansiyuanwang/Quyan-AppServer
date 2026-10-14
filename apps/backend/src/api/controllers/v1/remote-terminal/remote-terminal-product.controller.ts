@@ -317,7 +317,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Put("entitlements/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:UpdateEntitlement",
+      resourceKind: "single-resource",
+      resource: platformTerminalDeleteEntitlementResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

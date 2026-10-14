@@ -743,6 +743,20 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
         : { defaultAuthorizationScope: 'self' as const }),
     }),
   ),
+  {
+    action: 'quyan:remote_terminal:UpdateEntitlement',
+    service: 'remote_terminal',
+    operation: 'UpdateEntitlement',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/remote-terminal-entitlement'],
+    apiRoutes: ['PUT /v1/remote-terminal/products/entitlements/{id}'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE,
+    conditionalActions: ['quyan:remote_terminal:DeleteEntitlement'],
+  },
   ...IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS.map(
     (definition): IamActionDefinition => ({
       action: 'quyan:remote_terminal:' + definition.operation,

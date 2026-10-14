@@ -1,3 +1,5 @@
+import { PlatformTerminalEntitlementUpdateIamService } from "./platform-terminal-entitlement-update-iam.service";
+import { PlatformTerminalEntitlementUpdateRepository } from "@/store/remote-terminal-product/platform-terminal-entitlement-update.repository";
 import { TerminalInstallTokenIamService } from "./terminal-install-token-iam.service";
 import { TerminalRegistrationRotationIamService } from "./terminal-registration-rotation-iam.service";
 import { TerminalRegistrationRotationRepository } from "@/store/remote-terminal-product/terminal-registration-rotation.repository";
@@ -1612,7 +1614,15 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementDto> {
-    const existing = await this.productRepository.findEntitlementById(id);
+    const native = await PlatformTerminalEntitlementUpdateIamService.getInstance().prepare(
+      actorUserId,
+      request,
+      id,
+      body.status === MANAGED_STATUS.DELETED,
+    );
+    const existing = native
+      ? { ...native.target.record, devices: native.target.deviceIds }
+      : await this.productRepository.findEntitlementById(id);
     if (!existing || existing.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {
         messageKey: "remoteTerminalProduct.entitlementNotFound",
@@ -1658,6 +1668,27 @@ export class RemoteTerminalProductService {
     if (body.maxDeviceCount !== undefined) updateData.maxDeviceCount = body.maxDeviceCount;
     if (body.maxTerminalCount !== undefined) updateData.maxTerminalCount = body.maxTerminalCount;
 
+    if (native) {
+      const updated = await PlatformTerminalEntitlementUpdateRepository.getInstance().update(
+        native.target,
+        updateData,
+        native.guard,
+      );
+      await this.businessLogService.logOperation({
+        operationType: OperationType.REMOTE_TERMINAL_ASSIGNMENT_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: updated.userId,
+        targetResourceType: "REMOTE_TERMINAL_ENTITLEMENT",
+        targetResourceId: updated.id,
+        description: "Updated remote terminal entitlement",
+        changes: body,
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      // Mutations return their entitlement only; credential issuance and related-resource reads have dedicated actions.
+      return this.toEntitlementScalarDto(updated);
+    }
     const updated = await this.productRepository.updateEntitlement(id, updateData);
 
     const usernamesById = await this.getUsernamesByIds([updated.assignedBy]);

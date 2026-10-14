@@ -22,6 +22,8 @@ In IAM enforcement mode, management writes also require permission on the target
 
 Registration rotation uses `quyan:remote_terminal:RotateRegistrationToken`. This Action controls both `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>` and `acs:platform:*:platform:remote-terminal-registration-token/<userId>/<entitlementId>/<tokenId>`; a token wildcard under the selected entitlement can cover first-time creation. Entitlement management permission alone does not authorize token rotation: the operator also needs the global group's registration-token management capability. A successful rotation returns the new token. A failed authorization check preserves the previous token and does not return a new credential.
 
+In IAM enforcement mode, editing an entitlement uses `quyan:remote_terminal:UpdateEntitlement` on `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`. Setting its status to deleted also requires `quyan:remote_terminal:DeleteEntitlement`. Edits return entitlement fields without registration credentials or related-resource details. Increasing device allowance does not issue a registration token; use the dedicated registration-token rotation operation with its own authorization. Concurrent changes to the entitlement, its owner, registered devices or authorization prevent the edit from committing.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.
