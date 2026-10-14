@@ -35,7 +35,7 @@
       @validity="visualPolicyValid = $event"
     />
     <el-select
-      v-if="canReadPolicies && policyEditorMode === 'json'"
+      v-if="policyEditorMode === 'json'"
       :model-value="''"
       filterable
       :loading="iamActionsLoading"
@@ -89,9 +89,9 @@
         >{{ i18ns.t('RamManagement.simulateCurrentDraft') }}</el-button
       >
       <el-button
-        v-if="canReadPolicies"
+        data-test="download-policy-schema"
         :loading="schemaDownloading"
-        :disabled="submitting"
+        :disabled="submitting || schemaDownloading"
         @click="downloadSchema"
         >{{ i18ns.t('RamManagement.downloadPolicySchema') }}</el-button
       >
@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { InputInstance } from 'element-plus/es'
 import type { IamPolicyDocument, IamDiagnostic } from '@quyan/shared'
 import RamIamPolicyAiDraft from './RamIamPolicyAiDraft.vue'
@@ -154,7 +154,6 @@ const {
   iamActionsLoading,
   iamActionsFailed,
   loadIamActions,
-  canReadPolicies,
   policyDocumentText,
   policyValidation,
   policyDiagnostics,
@@ -206,6 +205,10 @@ const applyVisualDocument = (document: IamPolicyDocument) => {
   policyDocumentText.value = JSON.stringify(document, null, 2)
 }
 
+let disposed = false
+onBeforeUnmount(() => {
+  disposed = true
+})
 const schemaDownloading = ref(false)
 const schemaDownloadFailed = ref(false)
 const focusDiagnostic = async (diagnostic: IamDiagnostic) => {
@@ -222,11 +225,13 @@ const formatDocument = async () => {
   if (document) policyDocumentText.value = JSON.stringify(document, null, 2)
 }
 const downloadSchema = async () => {
+  if (disposed || submitting.value || schemaDownloading.value) return
   schemaDownloading.value = true
   schemaDownloadFailed.value = false
   let url: string | undefined
   try {
     const schema = await ramService.getPolicySchema()
+    if (disposed) return
     url = URL.createObjectURL(
       new Blob([JSON.stringify(schema, null, 2)], { type: 'application/schema+json' }),
     )
@@ -242,7 +247,7 @@ const downloadSchema = async () => {
   }
 }
 onMounted(() => {
-  if (canReadPolicies.value) void loadIamActions()
+  void loadIamActions()
 })
 const insertSelectedAction = async (action: string) => {
   const textarea = documentInput.value?.textarea

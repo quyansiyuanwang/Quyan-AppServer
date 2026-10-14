@@ -129,7 +129,7 @@ Operators and keys combine with AND; multiple values for one key use OR. `String
 
 ### Service and resource catalog
 
-With policy-read permission, use `GET /v1/iam/catalog/services`, `GET /v1/iam/catalog/services/{service}/actions`, and `GET /v1/iam/catalog/resources` for platform services, access levels, and ARN templates. API links are generated from server route metadata. The `legacy` stage identifies compatibility authorization; registering a resource template does not mean every endpoint enforces resource-level access. Existing Action names stay compatible; `ReadUser` is not automatically renamed to `GetUser`.
+With catalog-read permission, use `GET /v1/iam/catalog/services`, `GET /v1/iam/catalog/services/{service}/actions`, and `GET /v1/iam/catalog/resources` for platform services, access levels, and ARN templates. API links are generated from server route metadata. The `legacy` stage identifies compatibility authorization; registering a resource template does not mean every endpoint enforces resource-level access. Existing Action names stay compatible; `ReadUser` is not automatically renamed to `GetUser`.
 
 ARN construction, policy validation and evaluation accept registered resource types only. Concrete targets require the correct number of identifier segments; policy versions need both policy and version IDs. Unknown services/types, empty identifiers and extra path segments are rejected. Incompatible Action/Resource pairs fail policy validation. Even a wildcard policy cannot authorize a concrete target outside the Action's registered types. Requests must belong to the authenticated account, and explicit foreign-account policy ARNs cannot be published. Business services still enforce database ownership and list isolation.
 
@@ -144,6 +144,8 @@ Send original JSON text to `POST /v1/ram/policies/diagnose` using `documentText`
 In enforce mode, delegation also respects the operator’s actual account and platform management qualification. `Resource: "*"` does not grant cross-account authority and cannot prove that authority can be delegated. Use explicit ARNs in the current account or account-scoped wildcards for registered resource types. Platform management Actions require the corresponding qualification from an active global group; personal permission additions, private groups, and custom policies cannot replace it. Authorization scope, resource-group membership, Condition, and explicit Deny also constrain delegation. If wildcard coverage cannot be proved, delegation is rejected.
 
 The JSON editor sends original text when you choose Validate JSON, grouping results as errors, security warnings, warnings and suggestions. Click a diagnostic to focus its source position. Editing immediately invalidates previous diagnostics and validation. Format validated JSON first validates on the server, then formats the normalized document. Download JSON Schema exports the current contract for external AI draft assistance.
+
+Action autocomplete and Schema downloads request static catalog access directly; the editor does not require account policy-read permission to offer these tools. If the server denies catalog access, the editor displays a failure with retry and preserves the draft text.
 
 ### APIs and permissions
 

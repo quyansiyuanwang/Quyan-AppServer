@@ -53,7 +53,10 @@ const optionStub = defineComponent({
 const tagStub = defineComponent({ template: '<span><slot /></span>' })
 
 describe('IAM policy editor controls and warnings', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getIamActions.mockResolvedValue([])
+  })
   it('validates entered JSON, presents Deny and scope warnings, and clears them after an edit', async () => {
     context = {
       ...useIamPolicyEditor(),
@@ -140,13 +143,13 @@ describe('IAM policy editor controls and warnings', () => {
     expect(wrapper.get('[data-test="json-mode"]').attributes()).toHaveProperty('disabled')
     wrapper.unmount()
   })
-  it('inserts catalog actions into the actual textarea selection and invalidates validation', async () => {
+  it('loads and inserts static catalog Actions without account policy-read permission', async () => {
     getIamActions.mockResolvedValue(['quyan:ram:CreateUser'])
     context = {
       ...useIamPolicyEditor(),
       ...useIamPolicyTools(),
       submitting: ref(false),
-      canReadPolicies: ref(true),
+      canReadPolicies: ref(false),
     }
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
@@ -231,7 +234,7 @@ describe('IAM policy editor controls and warnings', () => {
       ...useIamPolicyEditor(),
       ...useIamPolicyTools(),
       submitting: ref(false),
-      canReadPolicies: ref(true),
+      canReadPolicies: ref(false),
     }
     getIamActions.mockResolvedValue([])
     getPolicySchema.mockRejectedValueOnce(new Error('Denied'))
@@ -310,5 +313,77 @@ describe('IAM policy editor controls and warnings', () => {
     expect(context.iamSimulationForm.documentText).toBe('{draft-two')
     expect(context.iamSimulationResult.value).toBeNull()
     wrapper.unmount()
+  })
+  it('shows denied catalog loads and retries without requiring policy-read permission', async () => {
+    getIamActions.mockRejectedValueOnce(new Error('ExplicitDeny'))
+    context = {
+      ...useIamPolicyEditor(),
+      ...useIamPolicyTools(),
+      submitting: ref(false),
+      canReadPolicies: ref(false),
+    }
+    const wrapper = mount(RamIamPolicyEditor, {
+      global: {
+        stubs: {
+          RamIamPolicyAiDraft: true,
+          'el-input': inputStub,
+          'el-alert': alertStub,
+          'el-button': buttonStub,
+          'el-select': selectStub,
+          'el-option': optionStub,
+        },
+      },
+    })
+    await flushPromises()
+    expect(context.iamActions.value).toEqual([])
+    expect(wrapper.text()).toContain('RamManagement.iamActionsFailed')
+    getIamActions.mockResolvedValueOnce(['quyan:ram:ReadUser'])
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'RamManagement.reloadIamActions')!
+      .trigger('click')
+    await flushPromises()
+    expect(context.iamActions.value).toEqual(['quyan:ram:ReadUser'])
+    expect(context.iamActionsFailed.value).toBe(false)
+    wrapper.unmount()
+  })
+  it('coalesces Schema download clicks and does not download a late result after leaving', async () => {
+    let resolve!: (schema: object) => void
+    getPolicySchema.mockReturnValueOnce(
+      new Promise((done) => {
+        resolve = done
+      }),
+    )
+    context = {
+      ...useIamPolicyEditor(),
+      ...useIamPolicyTools(),
+      submitting: ref(false),
+      canReadPolicies: ref(false),
+    }
+    const wrapper = mount(RamIamPolicyEditor, {
+      global: {
+        stubs: {
+          RamIamPolicyAiDraft: true,
+          'el-input': inputStub,
+          'el-alert': alertStub,
+          'el-button': buttonStub,
+        },
+      },
+    })
+    await flushPromises()
+    const download = wrapper.get('[data-test="download-policy-schema"]')
+    await download.trigger('click')
+    await download.trigger('click')
+    expect(getPolicySchema).toHaveBeenCalledOnce()
+    expect(download.attributes()).toHaveProperty('disabled')
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      wrapper.unmount()
+      resolve({ title: 'Schema' })
+      await flushPromises()
+      expect(click).not.toHaveBeenCalled()
+    } finally {
+      click.mockRestore()
+    }
   })
 })
