@@ -1,3 +1,4 @@
+import { TerminalInstallTokenIamService } from "./terminal-install-token-iam.service";
 import { TerminalRegistrationRotationIamService } from "./terminal-registration-rotation-iam.service";
 import { TerminalRegistrationRotationRepository } from "@/store/remote-terminal-product/terminal-registration-rotation.repository";
 import type {
@@ -1839,7 +1840,16 @@ export class RemoteTerminalProductService {
     return this.rotateRegistrationTokenLegacy(entitlementId, body, userId, request);
   }
 
-  public async issueInstallToken(userId: string, entitlementId: string): Promise<RemoteTerminalInstallTokenDto> {
+  public issueInstallToken(
+    userId: string,
+    entitlementId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalInstallTokenDto> {
+    return TerminalInstallTokenIamService.getInstance().issue(userId, entitlementId, request, () =>
+      this.issueInstallTokenLegacy(userId, entitlementId),
+    );
+  }
+  private async issueInstallTokenLegacy(userId: string, entitlementId: string): Promise<RemoteTerminalInstallTokenDto> {
     const entitlement = await this.productRepository.findEntitlementById(entitlementId);
     if (!entitlement || entitlement.status === MANAGED_STATUS.DELETED)
       throw new NotFoundError("Entitlement not found", undefined, {

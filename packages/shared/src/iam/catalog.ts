@@ -710,6 +710,18 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       Permission.REMOTE_TERMINAL_SESSION_READ,
     ],
   },
+  {
+    action: 'quyan:remote_terminal:GetMyInstallToken',
+    service: 'remote_terminal',
+    operation: 'GetMyInstallToken',
+    accessLevel: 'Read',
+    resourceTypes: ['remote-terminal/product-entitlement'],
+    apiRoutes: ['GET /v1/remote-terminal/products/me/entitlements/{id}/install-token'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    defaultAuthorizationScope: 'self',
+  },
   ...IAM_TERMINAL_REGISTRATION_ROTATIONS.map(
     (entry): IamActionDefinition => ({
       action: 'quyan:remote_terminal:' + entry.operation,
@@ -1350,12 +1362,6 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       service: 'remote_terminal',
       operation: 'ClaimPublishedTemplate',
       accessLevel: 'Write',
-      resourceTypes: ['quyan/user'],
-    },
-    {
-      service: 'remote_terminal',
-      operation: 'GetMyInstallToken',
-      accessLevel: 'Read',
       resourceTypes: ['quyan/user'],
     },
     {

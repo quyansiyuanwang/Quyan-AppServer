@@ -6,6 +6,8 @@ In IAM enforcement mode, revocation uses `quyan:remote_terminal:RevokeMyDeviceBi
 
 Your registration-token rotation uses `quyan:remote_terminal:RotateMyRegistrationToken` and checks both `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>` and `acs:remote-terminal:*:<accountId>:product-registration-token/<userId>/<entitlementId>/<tokenId>`. Authenticated identities retain their own rotation capability, while a matching explicit Deny still blocks the operation. A token wildcard under the selected entitlement can cover first-time creation. Failed rotations preserve the previous token; after a successful rotation, update the Agent configuration with the new token.
 
+Install-token issuance uses `quyan:remote_terminal:GetMyInstallToken` on `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`. Authenticated users retain issuance for their own entitlements, while a matching explicit Deny still blocks the operation. Other users' entitlements and entitlements with zero device allowance cannot receive an install token. The server rechecks entitlement state and authorization before returning the token; changes during issuance prevent credential delivery. The install protocol is unchanged, and the response's expiration time still determines the token's validity.
+
 ## Page purpose
 
 - Browse published remote terminal product plans with pricing.

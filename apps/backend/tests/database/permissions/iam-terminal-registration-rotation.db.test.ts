@@ -46,11 +46,12 @@ const user = async (accountOwnerId?: string) =>
       },
     })
   ).id;
-const request = () =>
+const request = (body?: { token: string }) =>
   ({
     user: { userId: actor },
     authContext: { principalUserId: actor, accountOwnerId: owner },
     headers: { "x-action": "client:Fake" },
+    body,
     secure: true,
     ip: "192.0.2.42",
   }) as unknown as TypedRequest;
@@ -141,9 +142,8 @@ describe("registration token transaction authority", () => {
   });
   it("keeps old and new credentials, JWTs and policy documents out of mutation audit context", async () => {
     const log = vi.spyOn(BusinessLogService.getInstance(), "logOperation").mockResolvedValue(undefined);
-    const req = request();
+    const req = request({ token: "PRIVATE-BODY-FIXTURE" });
     req.headers.authorization = "Bearer PRIVATE-JWT-FIXTURE";
-    req.body = { token: "PRIVATE-BODY-FIXTURE" };
     const result = await RemoteTerminalProductService.getInstance().rotateRegistrationToken(
       entitlement,
       {},

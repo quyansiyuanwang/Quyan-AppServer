@@ -1,3 +1,4 @@
+import { terminalInstallTokenResource } from "@/iam/request/terminal-install-token-resource-resolver";
 import {
   terminalPersonalRegistrationRotationResource,
   terminalManagementRegistrationRotationResource,
@@ -434,14 +435,14 @@ export class RemoteTerminalProductController extends Controller {
     iamAuthenticatedAuthorizationMiddleware({
       action: "quyan:remote_terminal:GetMyInstallToken",
       resourceKind: "single-resource",
-      resource: iamAuthenticatedUserResourceResolver,
+      resource: terminalInstallTokenResource,
     }),
   )
   public async getMyInstallToken(
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<RemoteTerminalInstallTokenDto> {
-    return this.remoteTerminalProductService.issueInstallToken(request.user!.userId, id);
+    return this.remoteTerminalProductService.issueInstallToken(request.user!.userId, id, request);
   }
 
   @Get("devices")

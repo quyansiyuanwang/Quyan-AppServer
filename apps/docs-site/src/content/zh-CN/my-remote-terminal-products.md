@@ -6,6 +6,8 @@
 
 本人注册令牌轮换使用 `quyan:remote_terminal:RotateMyRegistrationToken`，同时检查权益 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>` 和令牌 `acs:remote-terminal:*:<accountId>:product-registration-token/<userId>/<entitlementId>/<tokenId>`。登录身份保留本人轮换能力，匹配的显式拒绝仍会阻止操作；首次创建可对当前权益下的令牌使用 `*`。轮换失败会保留原令牌，成功后需用新令牌更新 Agent 配置。
 
+安装令牌签发使用 `quyan:remote_terminal:GetMyInstallToken`，资源为 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`。已登录用户保留本人权益的签发能力，匹配的显式拒绝仍会阻止操作；其他用户权益或设备额度为零时不能签发。服务端在返回令牌前复查权益和授权，操作期间变化时不返回凭据。安装令牌仍按响应中的到期时间失效，安装协议保持不变。
+
 ## 页面用途
 
 - 浏览已发布的远程终端产品方案与价格。
