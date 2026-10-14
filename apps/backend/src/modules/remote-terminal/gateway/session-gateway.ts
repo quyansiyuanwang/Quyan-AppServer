@@ -197,6 +197,7 @@ export class RemoteTerminalSessionGateway {
     ownerUserId: string,
     deviceId: string,
     targetPath?: string,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalDirectoryBrowseResultMessage> {
     const device = await this.deviceRegistry.getAccessibleDevice(ownerUserId, deviceId);
     if (!device.online) throw new Error("Device is offline.");
@@ -204,6 +205,7 @@ export class RemoteTerminalSessionGateway {
     const agentSocket = this.agentSockets.get(deviceId);
     if (!agentSocket) throw new Error("Device is offline.");
 
+    await authorize?.();
     return await new Promise<RemoteTerminalDirectoryBrowseResultMessage>((resolve, reject) => {
       const requestId = randomUUID();
       const timer = setTimeout(() => {
@@ -226,11 +228,20 @@ export class RemoteTerminalSessionGateway {
     });
   }
 
-  public async getAgentPreferences(ownerUserId: string, deviceId: string): Promise<RemoteTerminalAgentPreferencesData> {
-    const response = await this.requestAgentPreferences(ownerUserId, deviceId, {
-      type: "preferences-get",
-      requestId: randomUUID(),
-    });
+  public async getAgentPreferences(
+    ownerUserId: string,
+    deviceId: string,
+    authorize?: () => Promise<void>,
+  ): Promise<RemoteTerminalAgentPreferencesData> {
+    const response = await this.requestAgentPreferences(
+      ownerUserId,
+      deviceId,
+      {
+        type: "preferences-get",
+        requestId: randomUUID(),
+      },
+      authorize,
+    );
 
     return response.preferences;
   }
@@ -452,6 +463,7 @@ export class RemoteTerminalSessionGateway {
     ownerUserId: string,
     deviceId: string,
     message: Extract<RemoteTerminalServerToAgentMessage, { type: "preferences-get" } | { type: "preferences-set" }>,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalPreferencesResultMessage> {
     const device = await this.deviceRegistry.getAccessibleDevice(ownerUserId, deviceId);
     if (!device.online) throw new Error("Device is offline.");
@@ -459,6 +471,7 @@ export class RemoteTerminalSessionGateway {
     const agentSocket = this.agentSockets.get(deviceId);
     if (!agentSocket) throw new Error("Device is offline.");
 
+    await authorize?.();
     return await new Promise<RemoteTerminalPreferencesResultMessage>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingPreferencesRequests.delete(message.requestId);

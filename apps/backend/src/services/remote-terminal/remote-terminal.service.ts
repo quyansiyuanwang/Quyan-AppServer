@@ -9,7 +9,9 @@ import type {
   RemoteTerminalUsageSummaryDto,
   UpdateRemoteTerminalAgentPreferencesRequest,
 } from "@/api/dto/remote-terminal/remote-terminal.dto";
-import { BadRequestError } from "@/util/errors";
+import { BadRequestError, ForbiddenError } from "@/util/errors";
+import type { TypedRequest } from "@/types/express";
+import { RemoteTerminalDeviceReadIamService } from "./remote-terminal-device-read-iam.service";
 import { RemoteTerminalGatewayService } from "@/modules/remote-terminal/gateway/gateway.service";
 import { RemoteTerminalProductService } from "./remote-terminal-product.service";
 
@@ -24,9 +26,11 @@ export class RemoteTerminalService {
     return this.instance;
   }
 
-  public async listDevicesForUser(userId: string): Promise<RemoteTerminalDeviceListDto> {
+  public async listDevicesForUser(userId: string, request?: TypedRequest): Promise<RemoteTerminalDeviceListDto> {
     return {
-      items: await this.gatewayService.listDevices(userId),
+      items: await RemoteTerminalDeviceReadIamService.getInstance().list(userId, request, () =>
+        this.gatewayService.listDevices(userId),
+      ),
     };
   }
 
@@ -68,46 +72,70 @@ export class RemoteTerminalService {
     userId: string,
     deviceId: string,
     targetPath?: string,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalDirectoryBrowseDto> {
-    try {
-      const response = await this.gatewayService.browseDirectories(userId, deviceId, targetPath?.trim() || undefined);
-      return {
-        currentPath: response.currentPath,
-        parentPath: response.parentPath || undefined,
-        items: response.items,
-      };
-    } catch (error) {
-      throw new BadRequestError(
-        error instanceof Error ? error.message : "Remote directory browsing failed",
-        undefined,
-        {
-          messageKey: "remoteTerminal.directoryBrowsingFailed",
-        },
-      );
-    }
+    return RemoteTerminalDeviceReadIamService.getInstance().readDevice(
+      userId,
+      deviceId,
+      "quyan:remote_terminal:BrowseDirectories",
+      request,
+      async (guard) => {
+        try {
+          const response = guard
+            ? await this.gatewayService.browseDirectories(userId, deviceId, targetPath?.trim() || undefined, guard)
+            : await this.gatewayService.browseDirectories(userId, deviceId, targetPath?.trim() || undefined);
+          return {
+            currentPath: response.currentPath,
+            parentPath: response.parentPath || undefined,
+            items: response.items,
+          };
+        } catch (error) {
+          if (error instanceof ForbiddenError) throw error;
+          throw new BadRequestError(
+            error instanceof Error ? error.message : "Remote directory browsing failed",
+            undefined,
+            {
+              messageKey: "remoteTerminal.directoryBrowsingFailed",
+            },
+          );
+        }
+      },
+    );
   }
 
   public async getAgentPreferencesForUser(
     userId: string,
     deviceId: string,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalAgentPreferencesDto> {
-    try {
-      const preferences = await this.gatewayService.getAgentPreferences(userId, deviceId);
-      return {
-        deviceId,
-        defaultWorkingDirectory: preferences.defaultWorkingDirectory || undefined,
-        shortcuts: preferences.shortcuts,
-        quickCommands: preferences.quickCommands,
-      };
-    } catch (error) {
-      throw new BadRequestError(
-        error instanceof Error ? error.message : "Failed to load remote terminal preferences",
-        undefined,
-        {
-          messageKey: "remoteTerminal.preferencesLoadFailed",
-        },
-      );
-    }
+    return RemoteTerminalDeviceReadIamService.getInstance().readDevice(
+      userId,
+      deviceId,
+      "quyan:remote_terminal:GetAgentPreferences",
+      request,
+      async (guard) => {
+        try {
+          const preferences = guard
+            ? await this.gatewayService.getAgentPreferences(userId, deviceId, guard)
+            : await this.gatewayService.getAgentPreferences(userId, deviceId);
+          return {
+            deviceId,
+            defaultWorkingDirectory: preferences.defaultWorkingDirectory || undefined,
+            shortcuts: preferences.shortcuts,
+            quickCommands: preferences.quickCommands,
+          };
+        } catch (error) {
+          if (error instanceof ForbiddenError) throw error;
+          throw new BadRequestError(
+            error instanceof Error ? error.message : "Failed to load remote terminal preferences",
+            undefined,
+            {
+              messageKey: "remoteTerminal.preferencesLoadFailed",
+            },
+          );
+        }
+      },
+    );
   }
 
   public async updateAgentPreferencesForUser(

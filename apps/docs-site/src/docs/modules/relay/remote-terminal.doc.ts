@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'remote-terminal',
+  updatedAt: '2026-10-14',
   category: {
     en: 'Relay',
     'zh-CN': '转发',

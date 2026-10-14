@@ -66,12 +66,17 @@ export class RemoteTerminalGatewayService {
     userId: string,
     deviceId: string,
     targetPath?: string,
+    authorize?: () => Promise<void>,
   ): Promise<RemoteTerminalDirectoryBrowseResultMessage> {
-    return this.sessionGateway.browseDirectories(userId, deviceId, targetPath);
+    return this.sessionGateway.browseDirectories(userId, deviceId, targetPath, authorize);
   }
 
-  public async getAgentPreferences(userId: string, deviceId: string): Promise<RemoteTerminalAgentPreferencesData> {
-    return this.sessionGateway.getAgentPreferences(userId, deviceId);
+  public async getAgentPreferences(
+    userId: string,
+    deviceId: string,
+    authorize?: () => Promise<void>,
+  ): Promise<RemoteTerminalAgentPreferencesData> {
+    return this.sessionGateway.getAgentPreferences(userId, deviceId, authorize);
   }
 
   public async updateAgentPreferences(

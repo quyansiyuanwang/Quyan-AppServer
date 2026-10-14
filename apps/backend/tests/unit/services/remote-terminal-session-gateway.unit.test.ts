@@ -419,4 +419,71 @@ describe("RemoteTerminalSessionGateway redis persistence", () => {
       online: false,
     });
   });
+  it.each(["directories", "preferences"] as const)(
+    "denies %s dispatch after accessible device lookup",
+    async (kind) => {
+      const gateway = new RemoteTerminalSessionGateway(deviceRegistry);
+      const agentSocket = {
+        readyState: WebSocket.OPEN,
+        on: vi.fn(),
+        close: vi.fn(),
+        send: vi.fn(),
+      } as unknown as WebSocket;
+      gateway.attachAgent("device-1", agentSocket);
+      const authorize = vi.fn(async () => {
+        throw new Error("fixture authorization denied");
+      });
+      await expect(
+        kind === "directories"
+          ? gateway.browseDirectories("user-1", "device-1", "/fixture", authorize)
+          : gateway.getAgentPreferences("user-1", "device-1", authorize),
+      ).rejects.toThrow("fixture authorization denied");
+      expect(deviceRegistry.getAccessibleDevice).toHaveBeenCalledWith("user-1", "device-1");
+      expect(authorize).toHaveBeenCalledTimes(1);
+      expect(agentSocket.send).not.toHaveBeenCalled();
+      expect(gateway["pendingDirectoryBrowses"].size).toBe(0);
+      expect(gateway["pendingPreferencesRequests"].size).toBe(0);
+    },
+  );
+  it.each(["directories", "preferences"] as const)("allows %s dispatch only after the guard resolves", async (kind) => {
+    const gateway = new RemoteTerminalSessionGateway(deviceRegistry);
+    const events: string[] = [];
+    const agentSocket = {
+      readyState: WebSocket.OPEN,
+      on: vi.fn(),
+      close: vi.fn(),
+      send: vi.fn((raw: string) => {
+        events.push("send");
+        const message = JSON.parse(raw);
+        gateway["handleAgentMessage"](
+          "device-1",
+          JSON.stringify(
+            kind === "directories"
+              ? {
+                  type: "directory-browse-result",
+                  requestId: message.requestId,
+                  ok: true,
+                  currentPath: "/fixture",
+                  items: [],
+                }
+              : {
+                  type: "preferences-result",
+                  requestId: message.requestId,
+                  ok: true,
+                  preferences: { shortcuts: [], quickCommands: [] },
+                },
+          ),
+        );
+      }),
+    } as unknown as WebSocket;
+    gateway.attachAgent("device-1", agentSocket);
+    const authorize = async () => {
+      events.push("authorize");
+    };
+    await (kind === "directories"
+      ? gateway.browseDirectories("user-1", "device-1", "/fixture", authorize)
+      : gateway.getAgentPreferences("user-1", "device-1", authorize));
+    expect(events).toEqual(["authorize", "send"]);
+    expect(agentSocket.send).toHaveBeenCalledTimes(1);
+  });
 });

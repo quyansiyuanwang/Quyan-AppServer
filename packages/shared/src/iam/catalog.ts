@@ -76,6 +76,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'authorization'),
   resource('quyan', 'resource-group'),
   resource('quyan', 'role-session'),
+  resource('remote-terminal', 'device', 2),
   {
     ...resource('platform', 'user'),
     accountScope: 'platform',
@@ -924,6 +925,39 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
+    }),
+  ),
+  ...[
+    {
+      operation: 'ListDevices',
+      accessLevel: 'List',
+      route: 'devices',
+      resourceTypes: ['quyan/user', 'remote-terminal/device'],
+    },
+    {
+      operation: 'BrowseDirectories',
+      accessLevel: 'Read',
+      route: 'directories',
+      resourceTypes: ['remote-terminal/device'],
+    },
+    {
+      operation: 'GetAgentPreferences',
+      accessLevel: 'Read',
+      route: 'preferences',
+      resourceTypes: ['remote-terminal/device'],
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:remote_terminal:' + definition.operation,
+      service: 'remote_terminal',
+      operation: definition.operation,
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      apiRoutes: ['GET /v1/remote-terminal/' + definition.route],
+      resourceTypes: definition.resourceTypes,
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: false,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.REMOTE_TERMINAL_DEVICE_READ,
     }),
   ),
   ...[

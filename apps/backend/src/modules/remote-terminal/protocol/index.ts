@@ -1,5 +1,14 @@
 export type RemoteTerminalPlatformId = "windows" | "linux" | "macos";
-export type RemoteTerminalProtocolShellType = "system-default" | "cmd" | "powershell" | "pwsh" | "bash" | "zsh" | "sh";
+export const REMOTE_TERMINAL_PROTOCOL_SHELL_TYPES = [
+  "system-default",
+  "cmd",
+  "powershell",
+  "pwsh",
+  "bash",
+  "zsh",
+  "sh",
+] as const;
+export type RemoteTerminalProtocolShellType = (typeof REMOTE_TERMINAL_PROTOCOL_SHELL_TYPES)[number];
 
 export interface RemoteTerminalAgentCapabilities {
   sshForward: boolean;

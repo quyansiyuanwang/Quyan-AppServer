@@ -70,6 +70,32 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
     const active = { status: AccountStatus.ACTIVE };
     const userOwner = { OR: [{ accountOwnerId }, { id: accountOwnerId, accountOwnerId: null }] };
     switch (type.id) {
+      case "remote-terminal/device": {
+        const at = new Date();
+        const device = await prisma.remoteTerminalDeviceBinding.findFirst({
+          where: {
+            deviceId: childId,
+            userId: id,
+            ...active,
+            user: { ...active, ...userOwner },
+            entitlement: { userId: id, ...active, startAt: { lte: at }, endAt: { gte: at } },
+          },
+          select: {
+            deviceId: true,
+            userId: true,
+            user: { select: { id: true, accountOwnerId: true } },
+            entitlement: { select: { userId: true } },
+          },
+        });
+        return Boolean(
+          device &&
+            device.deviceId === childId &&
+            device.userId === id &&
+            device.entitlement.userId === id &&
+            device.user.id === id &&
+            (device.user.accountOwnerId || device.user.id) === accountOwnerId,
+        );
+      }
       case "balance/transaction": {
         const owner = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
         if (!owner) return false;

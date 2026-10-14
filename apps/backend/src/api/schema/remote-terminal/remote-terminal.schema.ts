@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REMOTE_TERMINAL_PROTOCOL_SHELL_TYPES } from "@/modules/remote-terminal/protocol";
 
 const quotaLimitSchema = z.coerce.number().int().min(0).max(999999);
 const purchaseUnitCountSchema = z.coerce.number().int().min(1).max(3650);
@@ -8,7 +9,7 @@ const billingUnitSchema = z.enum(["day", "week", "month"]);
 export const createRemoteTerminalSessionBodySchema = z.object({
   deviceId: z.string().trim().min(1).max(200),
   mode: z.enum(["shell"]),
-  shellType: z.enum(["system-default", "cmd", "powershell", "pwsh", "bash", "zsh", "sh"]),
+  shellType: z.enum(REMOTE_TERMINAL_PROTOCOL_SHELL_TYPES),
   workingDirectory: z.string().trim().max(500).optional(),
 });
 

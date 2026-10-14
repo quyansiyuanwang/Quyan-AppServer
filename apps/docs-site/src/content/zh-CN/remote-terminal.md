@@ -13,7 +13,7 @@
 
 ### 设备列表
 
-左侧栏列出当前账号所有已绑定设备，每张卡片显示：
+左侧栏显示当前用户绑定、且套餐仍有效的设备；启用 IAM 强制授权后，只列出获准查看的设备。每张卡片显示：
 
 - 主机名、平台与架构（如 `linux/amd64`）。
 - 在线 / 离线状态标签。
@@ -52,3 +52,38 @@
 ## 相关页面
 
 - `my-monthly-passes`
+
+## 按设备授权读取
+
+启用 IAM 强制授权后，设备列表、目录浏览和偏好读取分别由以下操作控制：
+
+| 操作         | Action                                      | 资源       |
+| ------------ | ------------------------------------------- | ---------- |
+| 查看设备列表 | `quyan:remote_terminal:ListDevices`         | 逐设备过滤 |
+| 浏览目录     | `quyan:remote_terminal:BrowseDirectories`   | 选定设备   |
+| 读取偏好     | `quyan:remote_terminal:GetAgentPreferences` | 选定设备   |
+
+设备 ARN 格式为 `acs:remote-terminal:*:<accountId>:device/<userId>/<deviceId>`。账号 ID、绑定用户和设备 ID 以服务端确认的归属为准。授权不会让你访问其他用户的设备，也不会延长套餐有效期。
+
+以下策略仅允许查看一个设备及读取其目录和偏好。将示例占位符替换为实际 ID 后，可在 [RAM 管理](/docs/ram-management) 中校验、模拟并绑定；这份策略不授予修改偏好或创建终端会话的权限。
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "quyan:remote_terminal:ListDevices",
+        "quyan:remote_terminal:BrowseDirectories",
+        "quyan:remote_terminal:GetAgentPreferences"
+      ],
+      "Resource": "acs:remote-terminal:*:account-id:device/user-id/device-id"
+    }
+  ]
+}
+```
+
+显式 Deny 覆盖 Allow；未获准的设备不出现在设备列表中。目录或偏好读取被拒绝时返回权限错误，设备不可用和策略详情不会通过该错误公开。读取期间权限被撤销或设备套餐失效，结果也不会返回。
+
+仍使用兼容授权模式的部署保留原有权限行为；差异比较模式只记录 IAM 结果，不会为比较结果重复向设备发送请求。
