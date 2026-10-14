@@ -1,3 +1,4 @@
+import { runMonthlyPassAssignmentWrite, type MonthlyPassAssignmentWriteGuard } from "./monthly-pass-assignment-write";
 import { iamAccountDenied } from "../users/iam-account-principal";
 import { runMonthlyPassTemplateWrite, type MonthlyPassTemplateWriteGuard } from "./monthly-pass-template-write";
 import { prisma } from "@/config/database";
@@ -195,6 +196,9 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     return { total, records };
   }
 
+  async findUserPassIdentity(id: string) {
+    return prisma.userMonthlyPass.findUnique({ where: { id }, select: { id: true, userId: true, status: true } });
+  }
   async findUserPassById(id: string): Promise<UserMonthlyPassWithTemplate | null> {
     return prisma.userMonthlyPass.findUnique({
       where: { id },
@@ -303,8 +307,10 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     id: string,
     data: Prisma.UserMonthlyPassUncheckedUpdateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassAssignmentWriteGuard,
   ): Promise<UserMonthlyPassWithTemplate> {
-    return prisma.$transaction(async (tx) => {
+    if (guard && guard.operation !== "UpdateUserPass") throw iamAccountDenied();
+    return runMonthlyPassAssignmentWrite(guard, id, data, async (tx) => {
       await tx.userMonthlyPass.update({ where: { id }, data });
 
       if (quotaWindows !== undefined) {
@@ -325,11 +331,10 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     });
   }
 
-  async softDeleteUserPass(id: string): Promise<UserMonthlyPass> {
-    return prisma.userMonthlyPass.update({
-      where: { id },
-      data: { status: MANAGED_STATUS.DELETED },
-    });
+  async softDeleteUserPass(id: string, guard?: MonthlyPassAssignmentWriteGuard): Promise<UserMonthlyPass> {
+    if (guard && guard.operation !== "DeleteUserPass") throw iamAccountDenied();
+    const data = { status: MANAGED_STATUS.DELETED };
+    return runMonthlyPassAssignmentWrite(guard, id, data, (tx) => tx.userMonthlyPass.update({ where: { id }, data }));
   }
 
   async listUserPasses(

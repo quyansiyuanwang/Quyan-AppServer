@@ -1,3 +1,4 @@
+import { platformMonthlyPassAssignmentResource } from "@/iam/request/platform-monthly-pass-assignment-resource-resolvers";
 import {
   platformMonthlyPassTemplateCreateResource,
   platformMonthlyPassTemplateWriteResource,
@@ -300,7 +301,13 @@ export class MonthlyPassController extends Controller {
 
   @Put("user-passes/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:UpdateUserPass",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassAssignmentResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -318,7 +325,13 @@ export class MonthlyPassController extends Controller {
 
   @Delete("user-passes/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:DeleteUserPass",
+      resourceKind: "single-resource",
+      resource: platformMonthlyPassAssignmentResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

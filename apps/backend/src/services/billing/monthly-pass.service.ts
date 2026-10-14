@@ -1,3 +1,4 @@
+import { PlatformMonthlyPassAssignmentWriteIamService } from "./platform-monthly-pass-assignment-write-iam.service";
 import { PlatformMonthlyPassUsageReadIamService } from "./platform-monthly-pass-usage-read-iam.service";
 import { PlatformMonthlyPassTemplateWriteIamService } from "./platform-monthly-pass-template-write-iam.service";
 import type { TypedRequest } from "@/types/express";
@@ -1707,7 +1708,14 @@ export class MonthlyPassService {
     actorUserId: string,
     request?: Request,
   ): Promise<UserMonthlyPassDto> {
-    const existing = await this.monthlyPassRepository.findUserPassById(id);
+    const prepared = await PlatformMonthlyPassAssignmentWriteIamService.getInstance().prepare(
+      "UpdateUserPass",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+      data.status === -1,
+    );
+    const existing = prepared?.target.record ?? (await this.monthlyPassRepository.findUserPassById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("User monthly pass not found", undefined, { messageKey: "monthlyPass.userPassNotFound" });
 
@@ -1794,6 +1802,7 @@ export class MonthlyPassService {
         status: data.status,
       },
       quotaWindowsForUpdate,
+      prepared?.guard,
     );
 
     await this.businessLogService.logOperation({
@@ -1809,15 +1818,32 @@ export class MonthlyPassService {
       ...buildBusinessLogRequestContext(request),
     });
 
-    return this.toUserPassDto(record);
+    const response = prepared?.guard.response;
+    return this.toUserPassDto(
+      response
+        ? {
+            ...record,
+            user: response.username ? record.user : { username: "" },
+            template: response.template
+              ? record.template
+              : { ...record.template, name: "", description: null, allowedModels: null, allowedChannels: null },
+          }
+        : record,
+    );
   }
 
   async deleteUserPass(id: string, actorUserId: string, request?: Request): Promise<void> {
-    const existing = await this.monthlyPassRepository.findUserPassById(id);
+    const prepared = await PlatformMonthlyPassAssignmentWriteIamService.getInstance().prepare(
+      "DeleteUserPass",
+      actorUserId,
+      request as TypedRequest | undefined,
+      id,
+    );
+    const existing = prepared?.target.record ?? (await this.monthlyPassRepository.findUserPassById(id));
     if (!existing || existing.status < MANAGED_STATUS.DISABLED)
       throw new NotFoundError("User monthly pass not found", undefined, { messageKey: "monthlyPass.userPassNotFound" });
 
-    await this.monthlyPassRepository.softDeleteUserPass(id);
+    await this.monthlyPassRepository.softDeleteUserPass(id, prepared?.guard);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.MONTHLY_PASS_ASSIGNMENT_DELETE,

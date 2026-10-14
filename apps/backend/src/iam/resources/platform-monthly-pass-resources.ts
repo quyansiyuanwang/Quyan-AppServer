@@ -9,3 +9,13 @@ export function platformMonthlyPassUsageArn(userId: string, passId: string, id: 
     path: `monthly-pass-usage/${userId}/${passId}/${id}`,
   });
 }
+
+export function platformMonthlyPassArn(userId: string, id: string) {
+  if (![userId, id].every(isPlatformLogResourceId)) throw new Error("Invalid monthly pass identity");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: `monthly-pass/${userId}/${id}`,
+  });
+}

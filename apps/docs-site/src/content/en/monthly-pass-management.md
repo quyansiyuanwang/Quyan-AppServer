@@ -6,6 +6,8 @@ With IAM enforcement enabled, the management template list uses `quyan:monthly_p
 
 With IAM enforcement enabled, usage records use `quyan:monthly_pass:ListUsages` against each `acs:platform:*:platform:monthly-pass-usage/<userId>/<passId>/<usageId>`. Counts and pages include only allowed records. Showing a template name additionally requires the same Action to allow its `acs:platform:*:platform:monthly-pass-template/<templateId>`; otherwise the name is empty. Historical model and channel names are returned as part of the authorized usage record and do not grant access to current channel configuration. This operation also requires monthly-pass usage read eligibility in a deployment-managed global group.
 
+Assignment updates and deletes use `quyan:monthly_pass:UpdateUserPass` and `quyan:monthly_pass:DeleteUserPass` on `acs:platform:*:platform:monthly-pass/<userId>/<passId>`. Setting the deleted status through an update also requires DeleteUserPass. The transaction rechecks assignment quotas and quota windows; a concurrent consumption, revoked policy or changed management eligibility rejects the entire change. Usernames and template details in an update response additionally require UpdateUserPass to allow the relevant `platform/user` and `platform/monthly-pass-template` resources. Without that read scope, the response contains only the assignment itself.
+
 ## Page purpose
 
 - Maintain monthly-pass templates.

@@ -164,6 +164,14 @@ export const IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS = Object.freeze([
 ] as const)
 export type IamTerminalManagementMutation =
   (typeof IAM_REMOTE_TERMINAL_MANAGEMENT_MUTATIONS)[number]['operation']
+/** Existing monthly-pass assignment mutation endpoints. */
+export const IAM_MONTHLY_PASS_ASSIGNMENT_WRITE_OPERATIONS = Object.freeze([
+  { operation: 'UpdateUserPass', route: 'PUT /v1/monthly-passes/user-passes/{id}' },
+  { operation: 'DeleteUserPass', route: 'DELETE /v1/monthly-passes/user-passes/{id}' },
+] as const)
+export type IamMonthlyPassAssignmentWriteOperation =
+  (typeof IAM_MONTHLY_PASS_ASSIGNMENT_WRITE_OPERATIONS)[number]['operation']
+
 /** Real platform monthly-pass mutation endpoints; template administration retains its platform ceiling. */
 export const IAM_MONTHLY_PASS_TEMPLATE_WRITE_OPERATIONS = Object.freeze([
   { operation: 'CreateTemplate', route: 'POST /v1/monthly-passes/templates', create: true },
@@ -243,6 +251,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' +
       IAM_PLATFORM_ACCOUNT_ID +
       ':monthly-pass-usage/{userId}/{passId}/{resourceId}',
+  },
+  {
+    ...resource('platform', 'monthly-pass', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':monthly-pass/{userId}/{resourceId}',
   },
   resource('quyan', 'account', 0),
   { ...resource('quyan', 'user', 1, true), authenticatedSelfScope: 'identity' },
@@ -909,6 +923,27 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationBoundary: 'platform',
     legacyPermission: Permission.MONTHLY_PASS_USAGE_READ,
   },
+  ...IAM_MONTHLY_PASS_ASSIGNMENT_WRITE_OPERATIONS.map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:monthly_pass:' + definition.operation,
+      service: 'monthly_pass',
+      operation: definition.operation,
+      accessLevel: 'Write',
+      resourceTypes:
+        definition.operation === 'UpdateUserPass'
+          ? ['platform/monthly-pass', 'platform/user', 'platform/monthly-pass-template']
+          : ['platform/monthly-pass'],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.MONTHLY_PASS_ASSIGNMENT_WRITE,
+      ...(definition.operation === 'UpdateUserPass'
+        ? { conditionalActions: ['quyan:monthly_pass:DeleteUserPass'] }
+        : {}),
+    }),
+  ),
   ...IAM_MONTHLY_PASS_TEMPLATE_WRITE_OPERATIONS.map(
     (definition): IamActionDefinition => ({
       action: 'quyan:monthly_pass:' + definition.operation,

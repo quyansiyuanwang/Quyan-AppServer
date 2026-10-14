@@ -6,6 +6,8 @@
 
 启用 IAM 强制授权后，用量记录使用 `quyan:monthly_pass:ListUsages`，逐条检查 `acs:platform:*:platform:monthly-pass-usage/<userId>/<passId>/<usageId>`。总数和分页仅包含获准记录。要显示模板名称，还需同一 Action 允许对应的 `acs:platform:*:platform:monthly-pass-template/<templateId>`；否则模板名称为空。用量记录中的历史模型和渠道名称随记录授权返回，不授予访问当前渠道配置的权限。此操作同样需要全局管理组的月卡用量读取资格。
 
+分配记录的更新和删除分别使用 `quyan:monthly_pass:UpdateUserPass`、`quyan:monthly_pass:DeleteUserPass`，资源为 `acs:platform:*:platform:monthly-pass/<userId>/<passId>`。更新时将状态改为删除还需同时允许 DeleteUserPass。事务会复核分配额度和额度窗口，若并发消费、策略撤销或管理资格变更导致依据失效，则拒绝整次修改。更新响应中的用户名和模板详情需要 UpdateUserPass 对相应 `platform/user` 和 `platform/monthly-pass-template` 资源的 Allow；缺少这项读取范围时仅返回分配记录自身内容。
+
 ## 页面用途
 
 - 维护月卡模板。
