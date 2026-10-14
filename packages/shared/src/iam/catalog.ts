@@ -744,6 +744,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   {
+    action: 'quyan:remote_terminal:AssignEntitlement',
+    service: 'remote_terminal',
+    operation: 'AssignEntitlement',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'platform/user',
+      'platform/remote-terminal-template',
+      'platform/remote-terminal-entitlement',
+    ],
+    apiRoutes: ['POST /v1/remote-terminal/products/entitlements'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE,
+  },
+  {
     action: 'quyan:remote_terminal:UpdateEntitlement',
     service: 'remote_terminal',
     operation: 'UpdateEntitlement',

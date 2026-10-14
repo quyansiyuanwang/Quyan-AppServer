@@ -1,3 +1,5 @@
+import { PlatformTerminalEntitlementAssignIamService } from "./platform-terminal-entitlement-assign-iam.service";
+import { PlatformTerminalEntitlementAssignRepository } from "@/store/remote-terminal-product/platform-terminal-entitlement-assign.repository";
 import { PlatformTerminalEntitlementUpdateIamService } from "./platform-terminal-entitlement-update-iam.service";
 import { PlatformTerminalEntitlementUpdateRepository } from "@/store/remote-terminal-product/platform-terminal-entitlement-update.repository";
 import { TerminalInstallTokenIamService } from "./terminal-install-token-iam.service";
@@ -1276,14 +1278,24 @@ export class RemoteTerminalProductService {
     actorUserId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementDto> {
-    await this.ensureUserExists(body.userId);
+    const native = await PlatformTerminalEntitlementAssignIamService.getInstance().prepare(
+      actorUserId,
+      request,
+      body.userId,
+      body.templateId,
+    );
+    if (!native) await this.ensureUserExists(body.userId);
 
-    const template = body.templateId ? await this.productRepository.findTemplateById(body.templateId) : null;
+    const template = native
+      ? native.template
+      : body.templateId
+        ? await this.productRepository.findTemplateById(body.templateId)
+        : null;
     if (body.templateId && (!template || template.status === MANAGED_STATUS.DELETED))
       throw new NotFoundError("Template not found", undefined, {
         messageKey: "remoteTerminalProduct.templateNotFound",
       });
-    if (template) await this.enforceTemplatePurchaseLimit(body.userId, template);
+    if (template && !native) await this.enforceTemplatePurchaseLimit(body.userId, template);
 
     const startAt = parseRequiredDate("startAt", body.startAt);
     const endAt = parseRequiredDate("endAt", body.endAt);
@@ -1317,7 +1329,7 @@ export class RemoteTerminalProductService {
     const deviceDailyPrice = template?.deviceDailyPrice != null ? Number(template.deviceDailyPrice) : null;
     const terminalDailyPrice = template?.terminalDailyPrice != null ? Number(template.terminalDailyPrice) : null;
 
-    const created = await this.productRepository.createEntitlement({
+    const createData: Prisma.RemoteTerminalUserEntitlementUncheckedCreateInput = {
       userId: body.userId,
       templateId: body.templateId ?? null,
       name,
@@ -1340,7 +1352,24 @@ export class RemoteTerminalProductService {
       assignedBy: actorUserId,
       note: normalizeText(body.note) ?? null,
       status: MANAGED_STATUS.ENABLED,
-    });
+    };
+    if (native) {
+      const created = await PlatformTerminalEntitlementAssignRepository.getInstance().create(createData, native.guard);
+      await this.businessLogService.logOperation({
+        operationType: OperationType.REMOTE_TERMINAL_ASSIGNMENT_CREATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: created.userId,
+        targetResourceType: "REMOTE_TERMINAL_ENTITLEMENT",
+        targetResourceId: created.id,
+        description: "Assigned remote terminal entitlement",
+        changes: body,
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+      return this.toEntitlementScalarDto(created);
+    }
+    const created = await this.productRepository.createEntitlement(createData);
 
     const token = this.canIssueRegistrationToken(deviceLimit)
       ? await this.ensureRegistrationTokenForEntitlement(created.id)

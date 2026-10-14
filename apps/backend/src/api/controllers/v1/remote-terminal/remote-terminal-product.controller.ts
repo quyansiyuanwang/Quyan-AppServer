@@ -1,3 +1,4 @@
+import { platformTerminalEntitlementAssignResource } from "@/iam/request/platform-terminal-entitlement-assign-resource-resolver";
 import { terminalInstallTokenResource } from "@/iam/request/terminal-install-token-resource-resolver";
 import {
   terminalPersonalRegistrationRotationResource,
@@ -60,7 +61,6 @@ import {
   platformTerminalTemplateCreateResource,
   platformTerminalTemplateWriteResource,
 } from "@/iam/request/platform-terminal-template-write-resource-resolvers";
-import { Permission } from "@/constant/permission";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { RemoteTerminalProductService } from "@/services/remote-terminal/remote-terminal-product.service";
@@ -70,7 +70,6 @@ import {
   iamCollectionAuthorizationMiddleware,
 } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
-import { RequirePermission } from "@/util/permission/permission-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 
@@ -284,7 +283,13 @@ export class RemoteTerminalProductController extends Controller {
 
   @Post("entitlements")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:remote_terminal:AssignEntitlement",
+      resourceKind: "single-resource",
+      resource: platformTerminalEntitlementAssignResource,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

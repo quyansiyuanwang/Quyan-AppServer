@@ -24,6 +24,8 @@ Registration rotation uses `quyan:remote_terminal:RotateRegistrationToken`. This
 
 In IAM enforcement mode, editing an entitlement uses `quyan:remote_terminal:UpdateEntitlement` on `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`. Setting its status to deleted also requires `quyan:remote_terminal:DeleteEntitlement`. Edits return entitlement fields without registration credentials or related-resource details. Increasing device allowance does not issue a registration token; use the dedicated registration-token rotation operation with its own authorization. Concurrent changes to the entitlement, its owner, registered devices or authorization prevent the edit from committing.
 
+Assigning an entitlement uses `quyan:remote_terminal:AssignEntitlement` and requires authorization for the target platform user, any selected remote terminal template, and the newly created entitlement. User and entitlement patterns must both cover the recipient; a template pattern is also required when assigning from a template. Template purchase limits are enforced within the assignment transaction. A matching Deny on the generated entitlement rolls back the assignment. Assignment does not charge the recipient or issue a registration token; use the dedicated token rotation operation to obtain a credential.
+
 ## Page purpose
 
 - Create, publish, and maintain product plan templates.

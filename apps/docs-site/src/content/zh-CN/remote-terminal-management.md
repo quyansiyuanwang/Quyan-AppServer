@@ -24,6 +24,8 @@
 
 IAM 强制模式下，修改权益使用 `quyan:remote_terminal:UpdateEntitlement`，资源为 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`；将状态设为删除还需要 `quyan:remote_terminal:DeleteEntitlement`。修改结果仅返回权益字段，不返回注册凭据或关联资源详情。增加设备额度不会自动签发注册令牌，获取凭据需使用具有独立授权的注册令牌轮换操作。权益、归属用户、已注册设备或授权在修改期间发生变化时，本次修改不会提交。
 
+分配权益使用 `quyan:remote_terminal:AssignEntitlement`，同时检查目标平台用户、选用的远程终端模板和新建权益。策略中的用户与权益资源范围必须覆盖接收者；使用模板分配时还需包含该模板的资源。模板限购在分配事务中检查，新建权益命中 Deny 时整个分配回滚。管理员分配不扣取用户余额，也不签发注册令牌；获取凭据需另行使用令牌轮换操作。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。
