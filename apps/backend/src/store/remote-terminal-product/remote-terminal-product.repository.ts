@@ -197,11 +197,9 @@ export class RemoteTerminalProductRepository implements RemoteTerminalProductSto
     data: RemoteTerminalPurchaseAndUpdateEntitlementParams,
   ): Promise<RemoteTerminalEntitlementWithRelations> {
     await prisma.$transaction(async (tx) => {
-      const purchaseAmount = Number(data.entitlement.purchaseAmount ?? 0);
-
       await chargeTerminalPurchase(tx, {
         userId: data.userId,
-        purchaseAmount,
+        purchaseAmount: data.chargeAmount,
         templateName: data.templateName,
       });
 

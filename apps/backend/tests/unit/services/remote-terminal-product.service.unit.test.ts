@@ -319,6 +319,7 @@ describe("RemoteTerminalProductService", () => {
       registrationToken: {
         id: "rtok-existing",
         entitlementId: "ent-existing",
+        chargeAmount: 3.75,
         token: "rtm_existing_token",
         label: "default",
         expiresAt: null,
@@ -434,6 +435,7 @@ describe("RemoteTerminalProductService", () => {
       registrationToken: {
         id: "rtok-existing",
         entitlementId: "ent-existing",
+        chargeAmount: 14.25,
         token: "rtm_existing_token",
         label: "default",
         expiresAt: null,
@@ -617,6 +619,7 @@ describe("RemoteTerminalProductService", () => {
       registrationToken: {
         id: "rtok-existing",
         entitlementId: "ent-existing",
+        chargeAmount: 42.5714,
         token: "rtm_existing_token",
         label: "default",
         expiresAt: null,

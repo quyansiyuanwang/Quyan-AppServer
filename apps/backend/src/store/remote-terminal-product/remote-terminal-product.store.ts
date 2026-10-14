@@ -52,6 +52,8 @@ export interface RemoteTerminalPurchaseEntitlementParams {
 }
 
 export interface RemoteTerminalPurchaseAndUpdateEntitlementParams {
+  /** Debit for this operation; the entitlement retains its cumulative purchase amount. */
+  chargeAmount: number;
   userId: string;
   templateName: string;
   description?: string;

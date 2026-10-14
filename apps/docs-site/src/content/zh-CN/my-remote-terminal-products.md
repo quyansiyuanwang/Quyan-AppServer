@@ -20,6 +20,8 @@ IAM 强制模式下，购买及续期使用 `quyan:remote_terminal:ClaimPublishe
 
 在 IAM 强制模式下，已发布套餐列表使用 `quyan:remote_terminal:ListPublishedTemplates`，逐项检查 `acs:remote-terminal:*:<accountId>:published-template/<userId>/<templateId>`。只显示已启用、已发布且当前身份可访问的套餐。显式 Deny 可隐藏指定套餐或全部套餐。查看套餐不授予购买或管理平台模板的权限，这些操作使用独立 Action。
 
+每次续期或升级只扣除本次操作的费用。权益中的购买金额记录历次购买和续期的累计实付金额，不会再次按累计金额扣款；免费续期保留累计金额，不新增购买扣款。余额不足以支付本次费用时，续期失败，权益保持原状。
+
 ## 页面用途
 
 - 浏览已发布的远程终端产品方案与价格。

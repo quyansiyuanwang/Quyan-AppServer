@@ -1574,6 +1574,7 @@ export class RemoteTerminalProductService {
         templateName: template.name,
         description: template.description ?? undefined,
         entitlementId: existing.id,
+        chargeAmount: mergedPurchaseAmount,
         entitlement: {
           name: body.name?.trim() || existing.name,
           description: existing.description ?? template.description ?? null,

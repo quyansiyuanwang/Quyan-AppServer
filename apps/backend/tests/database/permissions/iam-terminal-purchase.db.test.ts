@@ -184,6 +184,68 @@ describe("terminal purchase transaction authority", () => {
       (await prisma.balanceTransaction.findMany({ where: { userId: actor } })).map((row) => Number(row.amount)),
     ).toEqual([-1, -1]);
   });
+  it.each(["legacy", "shadow"] as const)(
+    "charges each renewal once while preserving cumulative totals in %s",
+    async (selected) => {
+      env.security.iamAuthorizationMode = selected;
+      const service = RemoteTerminalProductService.getInstance(),
+        first = await service.claimPublishedTemplate(body(), actor, request());
+      const renewal = { ...body(), targetEntitlementId: first.id };
+      await service.claimPublishedTemplate(renewal, actor, request());
+      const result = await service.claimPublishedTemplate(renewal, actor, request());
+      expect(result.purchaseAmount).toBe(3);
+      const account = await prisma.balanceAccount.findUniqueOrThrow({ where: { userId: actor } });
+      expect(Number(account.balance)).toBe(97);
+      expect(Number(account.totalUsed)).toBe(3);
+      expect(
+        (await prisma.balanceTransaction.findMany({ where: { userId: actor }, orderBy: { createTime: "asc" } })).map(
+          (row) => Number(row.amount),
+        ),
+      ).toEqual([-1, -1, -1]);
+    },
+  );
+  it.each(["legacy", "shadow"] as const)(
+    "does not charge historical purchases for a free renewal in %s",
+    async (selected) => {
+      env.security.iamAuthorizationMode = selected;
+      const service = RemoteTerminalProductService.getInstance(),
+        first = await service.claimPublishedTemplate(body(), actor, request());
+      await prisma.remoteTerminalProductTemplate.update({ where: { id: template }, data: { devicePrice: 0 } });
+      const result = await service.claimPublishedTemplate(
+        { ...body(), targetEntitlementId: first.id },
+        actor,
+        request(),
+      );
+      expect(result.purchaseAmount).toBe(1);
+      expect(Number((await prisma.balanceAccount.findUniqueOrThrow({ where: { userId: actor } })).balance)).toBe(99);
+      expect(await prisma.balanceTransaction.count({ where: { userId: actor } })).toBe(1);
+    },
+  );
+  it.each(["legacy", "shadow"] as const)(
+    "accepts a balance sufficient for only the current renewal in %s",
+    async (selected) => {
+      env.security.iamAuthorizationMode = selected;
+      const service = RemoteTerminalProductService.getInstance(),
+        first = await service.claimPublishedTemplate(body(), actor, request());
+      await prisma.balanceAccount.update({ where: { userId: actor }, data: { balance: 1 } });
+      const result = await service.claimPublishedTemplate(
+        { ...body(), targetEntitlementId: first.id },
+        actor,
+        request(),
+      );
+      expect(result.purchaseAmount).toBe(2);
+      expect(Number((await prisma.balanceAccount.findUniqueOrThrow({ where: { userId: actor } })).balance)).toBe(0);
+      await expect(
+        service.claimPublishedTemplate({ ...body(), targetEntitlementId: first.id }, actor, request()),
+      ).rejects.toMatchObject({ statusCode: 400 });
+      expect(
+        Number(
+          (await prisma.remoteTerminalUserEntitlement.findUniqueOrThrow({ where: { id: first.id } })).purchaseAmount,
+        ),
+      ).toBe(2);
+      expect(await prisma.balanceTransaction.count({ where: { userId: actor } })).toBe(2);
+    },
+  );
   it("rejects renewal denial before charging", async () => {
     const first = await RemoteTerminalProductService.getInstance().claimPublishedTemplate(body(), actor, request());
     await deny(remoteTerminalProductEntitlementArn(owner, actor, first.id));

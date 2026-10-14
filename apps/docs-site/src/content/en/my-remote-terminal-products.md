@@ -20,6 +20,8 @@ Your device list uses `quyan:remote_terminal:ListMyDevices` on each `product-bin
 
 In IAM enforcement mode, published plans use `quyan:remote_terminal:ListPublishedTemplates` on each offer `acs:remote-terminal:*:<accountId>:published-template/<userId>/<templateId>`. Only enabled, published plans admitted for your identity appear. An explicit Deny can hide a specific plan or every plan. Viewing an offer does not grant permission to purchase it or manage its platform template; those operations have separate actions.
 
+Each renewal or upgrade debits only the amount for that operation. The entitlement’s purchase amount is the cumulative amount paid across purchases and renewals; it is not debited again. A free renewal retains that total and creates no new purchase debit. If the current charge exceeds your balance, the renewal fails and leaves the entitlement unchanged.
+
 ## Page purpose
 
 - Browse published remote terminal product plans with pricing.
