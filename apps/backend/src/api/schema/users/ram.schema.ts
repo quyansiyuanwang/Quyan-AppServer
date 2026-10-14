@@ -1,6 +1,6 @@
 import { IAM_POLICY_DRAFT_LIMITS } from "@/iam/ai/draft-limits";
 import { iamTrustPolicyDocumentSchema } from "@/iam/trust/trust-policy";
-import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { iamManagementPaginationSchema, iamManagementKeywordSchema } from "@/iam/management-pagination";
 import { z } from "zod";
 export { iamVersionPaginationSchema as ramPolicyVersionsQuerySchema } from "@/iam/policy-version-pagination";
 import { ALL_PERMISSIONS } from "@/constant/permission";
@@ -180,7 +180,7 @@ export const detachPolicyBodySchema = z.object({
 });
 
 export const ramGroupPageQuerySchema = iamManagementPaginationSchema.extend({
-  keyword: z.string().trim().max(100).optional(),
+  keyword: iamManagementKeywordSchema.optional(),
 });
 
 export const ramGroupListQuerySchema = z.object({

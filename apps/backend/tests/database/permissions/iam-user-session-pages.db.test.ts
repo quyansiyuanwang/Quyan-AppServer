@@ -169,9 +169,9 @@ describe("bounded RAM identity and session views", () => {
     ]);
     expect((await service.listRoleSessionPage(actor, { principalUserId: foreign })).items).toEqual([]);
   });
-  it("checks collection access, bounds query inputs and preserves historical mode results", async () => {
-    await expect(run((request) => controller.listUsersPage(request))).rejects.toMatchObject({ statusCode: 403 });
-    await expect(run((request) => controller.listSessionsPage(request))).rejects.toMatchObject({ statusCode: 403 });
+  it("returns empty unauthorized collections, bounds query inputs and preserves historical mode results", async () => {
+    expect((await run((request) => controller.listUsersPage(request))).items).toEqual([]);
+    expect((await run((request) => controller.listSessionsPage(request))).items).toEqual([]);
     await expect(service.listRamUserPage(actor, { page: 0 })).rejects.toMatchObject({ statusCode: 400 });
     await expect(service.listRoleSessionPage(actor, { pageSize: 101 })).rejects.toMatchObject({ statusCode: 400 });
     await expect(service.listRoleSessionPage(actor, { principalUserId: "" })).rejects.toMatchObject({

@@ -21,6 +21,7 @@ export function buildNonDeletedUserWhere(filters: UserListFilters = {}, minGroup
       OR: [
         { id: { contains: keyword } },
         { username: { contains: keyword } },
+        { ramUsername: { contains: keyword } },
         { email: { contains: keyword } },
         { name: { contains: keyword } },
       ],

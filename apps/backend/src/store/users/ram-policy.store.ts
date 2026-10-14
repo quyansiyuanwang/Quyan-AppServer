@@ -1,5 +1,5 @@
 import type { IamManagementPageResult } from "@quyan/shared";
-import type { IamManagementPage } from "@/iam/management-pagination";
+import type { IamManagementPage, IamManagementSearchPage } from "@/iam/management-pagination";
 import type { IamVersionPagination } from "@/iam/policy-version-pagination";
 import type { RamPolicy, RamPolicyVersion } from "@prisma/client";
 
@@ -61,7 +61,7 @@ export interface RamPolicyStore {
   listPolicies(accountOwnerId: string): Promise<RamPolicyWithVersion[]>;
   listPoliciesPage(
     accountOwnerId: string,
-    pagination: IamManagementPage,
+    pagination: IamManagementSearchPage,
   ): Promise<IamManagementPageResult<RamPolicyWithVersion>>;
   updatePolicy(policyId: string, data: UpdateRamPolicyInput): Promise<RamPolicyWithVersion>;
   listVersions(

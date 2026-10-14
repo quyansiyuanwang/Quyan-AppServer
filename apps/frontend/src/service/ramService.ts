@@ -41,7 +41,7 @@ export class RamService {
     return this.instance
   }
 
-  async listUsersPage(query: { page: number; pageSize: number }) {
+  async listUsersPage(query: { page: number; pageSize: number; keyword?: string }) {
     const result = await ramApi.listUsersPage({ params: query })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
@@ -82,7 +82,7 @@ export class RamService {
     throw toServiceError(result)
   }
 
-  async listRolesPage(query: { page: number; pageSize: number }) {
+  async listRolesPage(query: { page: number; pageSize: number; keyword?: string }) {
     const result = await ramApi.listRolesPage({ params: query })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
@@ -183,7 +183,7 @@ export class RamService {
 
   // ── 权限策略 ──
 
-  async listPoliciesPage(query: { page: number; pageSize: number }) {
+  async listPoliciesPage(query: { page: number; pageSize: number; keyword?: string }) {
     const result = await ramApi.listPoliciesPage({ params: query })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
@@ -307,7 +307,7 @@ export class RamService {
     if (result?.code === CustomCode.OK) return
     throw toServiceError(result)
   }
-  async listResourceGroupPage(query: { page: number; pageSize: number }) {
+  async listResourceGroupPage(query: { page: number; pageSize: number; keyword?: string }) {
     const result = await ramApi.listResourceGroupPage({ params: query })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)

@@ -12,3 +12,16 @@ export const iamManagementPaginationSchema = z.object({
     .default(IAM_MANAGEMENT_PAGINATION.defaultPageSize),
 });
 export type IamManagementPage = z.infer<typeof iamManagementPaginationSchema>;
+
+/** Search terms are data, never patterns or resource selectors. */
+export const iamManagementKeywordSchema = z
+  .string()
+  .trim()
+  .max(100)
+  .refine((value) => [...value].every((character) => character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127));
+export const iamManagementSearchPaginationSchema = iamManagementPaginationSchema
+  .extend({
+    keyword: iamManagementKeywordSchema.optional(),
+  })
+  .strict();
+export type IamManagementSearchPage = z.infer<typeof iamManagementSearchPaginationSchema>;

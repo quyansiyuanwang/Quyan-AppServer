@@ -14,6 +14,28 @@ beforeEach(() => {
   vi.resetAllMocks()
 })
 describe('RAM service IAM document operations', () => {
+  it.each([
+    ['listUsersPage', 'RamControllerListUsersPage'],
+    ['listRolesPage', 'RamControllerListRolesPage'],
+    ['listPoliciesPage', 'RamControllerListPoliciesPage'],
+    ['listResourceGroupPage', 'RamControllerListResourceGroupPage'],
+  ] as const)(
+    'passes server search through %s without an unbounded fallback',
+    async (method, name) => {
+      const query = { page: 2, pageSize: 25, keyword: 'specific resource' }
+      const data = { items: [], page: 2, pageSize: 25, hasNext: true }
+      requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data })
+      expect(await ramService[method](query)).toEqual(data)
+      expect(requestMock.get).toHaveBeenLastCalledWith(
+        expect.objectContaining({ name }),
+        { params: query },
+        undefined,
+      )
+      requestMock.get.mockResolvedValueOnce({ code: CustomCode.PERMISSION_DENIED })
+      await expect(ramService[method](query)).rejects.toThrow()
+      expect(requestMock.get).toHaveBeenCalledTimes(2)
+    },
+  )
   it('loads an attachment page through its policy path without a fallback on denial', async () => {
     const query = { page: 2, pageSize: 25 },
       data = { items: [], ...query, hasNext: true }

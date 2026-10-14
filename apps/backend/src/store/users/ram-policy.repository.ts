@@ -1,4 +1,4 @@
-import type { IamManagementPage } from "@/iam/management-pagination";
+import type { IamManagementPage, IamManagementSearchPage } from "@/iam/management-pagination";
 import { iamAuthorizationScopeKey } from "@/iam/authorization-scope";
 import { RamAuthorizationRepository } from "./ram-authorization.repository";
 import { AccountStatus } from "@/util/auth/account-status";
@@ -76,9 +76,21 @@ export class RamPolicyRepository implements RamPolicyStore {
       orderBy: { createTime: "desc" },
     });
   }
-  async listPoliciesPage(accountOwnerId: string, pagination: IamManagementPage) {
+  async listPoliciesPage(accountOwnerId: string, pagination: IamManagementSearchPage) {
     const candidates = await prisma.ramPolicy.findMany({
-      where: { accountOwnerId, ...ACTIVE_WHERE },
+      where: {
+        accountOwnerId,
+        ...ACTIVE_WHERE,
+        ...(pagination.keyword
+          ? {
+              OR: [
+                { id: { contains: pagination.keyword } },
+                { name: { contains: pagination.keyword } },
+                { description: { contains: pagination.keyword } },
+              ],
+            }
+          : {}),
+      },
       include: { defaultVersion: true },
       orderBy: [{ createTime: "desc" }, { id: "asc" }],
       skip: (pagination.page - 1) * pagination.pageSize,

@@ -1,5 +1,5 @@
 import type { IamManagementPageResult } from "@quyan/shared";
-import type { IamManagementPage } from "@/iam/management-pagination";
+import type { IamManagementPage, IamManagementSearchPage } from "@/iam/management-pagination";
 import type { RamRole, RamRoleSession, Prisma } from "@prisma/client";
 
 export type RamRoleWithBindings = Prisma.RamRoleGetPayload<{
@@ -41,7 +41,7 @@ export interface RamRoleStore {
   findRoleById(roleId: string): Promise<RamRole | null>;
   findRoleByName(accountOwnerId: string, name: string): Promise<RamRole | null>;
   listRoles(accountOwnerId: string): Promise<RamRole[]>;
-  listRolesPage(accountOwnerId: string, pagination: IamManagementPage): Promise<IamManagementPageResult<RamRole>>;
+  listRolesPage(accountOwnerId: string, pagination: IamManagementSearchPage): Promise<IamManagementPageResult<RamRole>>;
   updateRole(roleId: string, data: UpdateRamRoleInput): Promise<RamRole>;
   softDeleteRole(roleId: string): Promise<RamRole>;
   bindRoleToUser(accountOwnerId: string, roleId: string, userId: string): Promise<void>;

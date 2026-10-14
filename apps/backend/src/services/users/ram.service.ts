@@ -11,7 +11,7 @@ import { principalConditionContext } from "@/iam/request/condition-context";
 import { auditIamDecision } from "@/iam/audit/iam-audit.service";
 import { performance } from "node:perf_hooks";
 import { auditIamManagement } from "@/iam/audit/iam-audit.service";
-import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { iamManagementPaginationSchema, iamManagementSearchPaginationSchema } from "@/iam/management-pagination";
 import { requestConditionContext } from "@/iam/request/condition-context";
 import {
   createIamAuthorizationBodySchema,
@@ -341,9 +341,9 @@ export class RamService {
   }
   async listResourceGroupPage(
     actorUserId: string,
-    query: { page?: number; pageSize?: number } = {},
+    query: { page?: number; pageSize?: number; keyword?: string } = {},
   ): Promise<RamResourceGroupPageDto> {
-    const parsed = iamManagementPaginationSchema.safeParse(query);
+    const parsed = iamManagementSearchPaginationSchema.safeParse(query);
     if (!parsed.success)
       throw new BadRequestError("Invalid resource group query", undefined, {
         messageKey: "iam.authorizationScopeInvalid",
@@ -781,9 +781,9 @@ export class RamService {
 
   async listRamUserPage(
     actorUserId: string,
-    query: { page?: number; pageSize?: number } = {},
+    query: { page?: number; pageSize?: number; keyword?: string } = {},
   ): Promise<RamUserPageDto> {
-    const parsed = iamManagementPaginationSchema.safeParse(query);
+    const parsed = iamManagementSearchPaginationSchema.safeParse(query);
     if (!parsed.success)
       throw new BadRequestError("Invalid RAM user page", undefined, {
         messageKey: "validation.fieldInvalidValue",
@@ -793,8 +793,14 @@ export class RamService {
       owner = this.resolveAccountOwnerId(actor);
     const actorGroup = actor.groupId ? await this.groupRepository.findById(actor.groupId) : null;
     const isAdmin = actorGroup?.username === env.security.superAdminGroupUsername;
-    const { page, pageSize } = parsed.data;
-    const filters = { accountOwnerId: owner, userType: "ram_user", skip: (page - 1) * pageSize, take: pageSize + 1 };
+    const { page, pageSize, keyword } = parsed.data;
+    const filters = {
+      accountOwnerId: owner,
+      userType: "ram_user",
+      keyword,
+      skip: (page - 1) * pageSize,
+      take: pageSize + 1,
+    };
     const candidates =
       isAdmin || (env.security.iamAuthorizationMode === "enforce" && !actorGroup)
         ? await this.userRepository.listNonDeletedPaginated(filters)
@@ -1020,8 +1026,11 @@ export class RamService {
     });
   }
 
-  async listRolesPage(actorUserId: string, query: { page?: number; pageSize?: number } = {}): Promise<RamRolePageDto> {
-    const parsed = iamManagementPaginationSchema.safeParse(query);
+  async listRolesPage(
+    actorUserId: string,
+    query: { page?: number; pageSize?: number; keyword?: string } = {},
+  ): Promise<RamRolePageDto> {
+    const parsed = iamManagementSearchPaginationSchema.safeParse(query);
     if (!parsed.success)
       throw new BadRequestError("Invalid IAM entity page", undefined, {
         messageKey: "validation.fieldInvalidValue",
@@ -1842,9 +1851,9 @@ export class RamService {
 
   async listPoliciesPage(
     actorUserId: string,
-    query: { page?: number; pageSize?: number } = {},
+    query: { page?: number; pageSize?: number; keyword?: string } = {},
   ): Promise<RamPolicyPageDto> {
-    const parsed = iamManagementPaginationSchema.safeParse(query);
+    const parsed = iamManagementSearchPaginationSchema.safeParse(query);
     if (!parsed.success)
       throw new BadRequestError("Invalid IAM entity page", undefined, {
         messageKey: "validation.fieldInvalidValue",

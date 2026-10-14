@@ -7,7 +7,7 @@ import { ArticleManagementRepository } from "@/store/content/article-management.
 import { developerKvKeyFromArnSegment } from "@/iam/resources/developer-resources";
 import { developerSecretAliasSchema } from "@/api/schema/developer/developer.schema";
 import { lockRamResourceGroup } from "./ram-resource-group-lock";
-import type { IamManagementPage } from "@/iam/management-pagination";
+import type { IamManagementPage, IamManagementSearchPage } from "@/iam/management-pagination";
 import { iamManagementPaginationSchema } from "@/iam/management-pagination";
 import { getIamResourceType } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -31,9 +31,21 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
       take: page.pageSize,
     });
   }
-  async listSummaryPage(accountOwnerId: string, page: IamManagementPage) {
+  async listSummaryPage(accountOwnerId: string, page: IamManagementSearchPage) {
     const records = await prisma.ramResourceGroup.findMany({
-      where: { accountOwnerId, status: AccountStatus.ACTIVE },
+      where: {
+        accountOwnerId,
+        status: AccountStatus.ACTIVE,
+        ...(page.keyword
+          ? {
+              OR: [
+                { id: { contains: page.keyword } },
+                { name: { contains: page.keyword } },
+                { description: { contains: page.keyword } },
+              ],
+            }
+          : {}),
+      },
       orderBy: [{ createTime: "desc" }, { id: "desc" }],
       skip: (page.page - 1) * page.pageSize,
       take: page.pageSize + 1,

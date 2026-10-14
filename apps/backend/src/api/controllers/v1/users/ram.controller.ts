@@ -1,4 +1,4 @@
-import { iamManagementPaginationSchema } from "@/iam/management-pagination";
+import { iamManagementPaginationSchema, iamManagementSearchPaginationSchema } from "@/iam/management-pagination";
 import type { RamRolePageDto, RamPolicyPageDto } from "@/api/dto/users/ram.dto";
 import {
   Body,
@@ -148,7 +148,7 @@ export class RamController extends Controller {
 
   @Get("users/page")
   @Security("jwt")
-  @Middlewares(validateQuery(iamManagementPaginationSchema))
+  @Middlewares(validateQuery(iamManagementSearchPaginationSchema))
   @Middlewares(
     iamCollectionAuthorizationMiddleware({
       action: "quyan:ram:ReadUser",
@@ -161,8 +161,9 @@ export class RamController extends Controller {
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
+    @Query() keyword?: string,
   ): Promise<RamUserPageDto> {
-    return this.ramService.listRamUserPage(request.user!.userId, { page, pageSize });
+    return this.ramService.listRamUserPage(request.user!.userId, { page, pageSize, keyword });
   }
 
   @Get("users")
@@ -290,7 +291,7 @@ export class RamController extends Controller {
 
   @Get("roles/page")
   @Security("jwt")
-  @Middlewares(validateQuery(iamManagementPaginationSchema))
+  @Middlewares(validateQuery(iamManagementSearchPaginationSchema))
   @Middlewares(
     iamCollectionAuthorizationMiddleware({
       action: "quyan:ram:role:Read",
@@ -303,8 +304,9 @@ export class RamController extends Controller {
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
+    @Query() keyword?: string,
   ): Promise<RamRolePageDto> {
-    return this.ramService.listRolesPage(request.user!.userId, { page, pageSize });
+    return this.ramService.listRolesPage(request.user!.userId, { page, pageSize, keyword });
   }
 
   @Get("roles")
@@ -631,7 +633,7 @@ export class RamController extends Controller {
 
   @Get("policies/page")
   @Security("jwt")
-  @Middlewares(validateQuery(iamManagementPaginationSchema))
+  @Middlewares(validateQuery(iamManagementSearchPaginationSchema))
   @Middlewares(
     iamCollectionAuthorizationMiddleware({
       action: "quyan:ram:ReadPolicy",
@@ -644,8 +646,9 @@ export class RamController extends Controller {
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
+    @Query() keyword?: string,
   ): Promise<RamPolicyPageDto> {
-    return this.ramService.listPoliciesPage(request.user!.userId, { page, pageSize });
+    return this.ramService.listPoliciesPage(request.user!.userId, { page, pageSize, keyword });
   }
 
   @Get("policies")
@@ -830,7 +833,7 @@ export class RamController extends Controller {
   }
   @Get("resource-groups/page")
   @Security("jwt")
-  @Middlewares(validateQuery(iamResourceGroupQuerySchema))
+  @Middlewares(validateQuery(iamManagementSearchPaginationSchema))
   @Middlewares(
     iamCollectionAuthorizationMiddleware({
       action: "quyan:ram:ListResourceGroups",
@@ -843,8 +846,9 @@ export class RamController extends Controller {
     @Request() request: TypedRequest,
     @Query() page?: number,
     @Query() pageSize?: number,
+    @Query() keyword?: string,
   ): Promise<RamResourceGroupPageDto> {
-    return this.ramService.listResourceGroupPage(request.user!.userId, { page, pageSize });
+    return this.ramService.listResourceGroupPage(request.user!.userId, { page, pageSize, keyword });
   }
   @Get("resource-groups/{groupId}/members")
   @Security("jwt")
