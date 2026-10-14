@@ -2710,6 +2710,24 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     }),
   ),
   ...[
+    { operation: 'UpdateReviewTicket', accessLevel: 'Write' as const },
+    { operation: 'AddReviewComment', accessLevel: 'Write' as const },
+    { operation: 'DeleteReviewTicket', accessLevel: 'Write' as const },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:ticket:' + definition.operation,
+      service: 'ticket',
+      resourceTypes: ['platform/ticket-review'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationBoundary: 'platform',
+      authorizationStage: 'declared',
+      legacyPermission: Permission.TICKET_REVIEW_UPDATE,
+    }),
+  ),
+  ...[
     {
       operation: 'CreateTicket',
       accessLevel: 'Write',

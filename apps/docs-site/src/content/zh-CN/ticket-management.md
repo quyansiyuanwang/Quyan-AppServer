@@ -60,6 +60,12 @@ IAM 强制模式下，审核列表使用 `quyan:ticket:ListReviewTickets`，详�
 
 未获准工单不会进入列表、总数、分页或 `hasMore`。没有获准工单时返回空页。列表保持按最近回复排序，每页最多 100 条，页码最多 10,000。不存在或被拒绝的详情返回通用授权错误，不返回联系方式或评论。读取期间工单内容、评论、相关显示身份、管理资格或授权变化时，请求被拒绝。
 
+## 工单审核修改的资源权限
+
+IAM 强制模式下，更新工单使用 `quyan:ticket:UpdateReviewTicket`，审核回复使用 `quyan:ticket:AddReviewComment`，删除使用 `quyan:ticket:DeleteReviewTicket`。三项操作与审核读取共用 `acs:platform:*:platform:ticket-review/<提交者用户ID>/<工单ID>`，认证主体必须属于具有 `TICKET_REVIEW_UPDATE` 的有效平台全局组。策略可以独立限制各项操作；更新权限不自动授予删除或回复权限。
+
+提交前在写事务内复核授权和当前请求条件，失败时整笔回滚，包括评论和最近回复时间。更新响应使用同一事务内的详情，由更新权限授权，不额外要求详情读取权限。接口不支持修改提交者或指定评论作者。保存分配时处理人必须仍处于有效状态。删除后工单退出有效列表。现有重放保护、业务审计和公开回复通知继续生效。
+
 ## 分配规则的资源权限
 
 IAM 强制模式下，读取与更新分配规则分别使用 `quyan:ticket:GetAssignmentRules` 和 `quyan:ticket:UpdateAssignmentRules`，资源统一为 `acs:platform:*:platform:config-item/notification.ticketAssignmentRules`。这个 ARN 与通用配置接口使用同一资源身份，因此可以用 `Action: "*"` 的 Deny 同时限制两个入口。认证主体还必须属于有效部署管理全局组，且该组具有 `TICKET_REVIEW_UPDATE`；个人附加权限、私有组或账号所有者身份不能替代该资格。

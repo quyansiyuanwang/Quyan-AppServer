@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   createdDetail: vi.fn(),
   reviewList: vi.fn(),
   reviewDetail: vi.fn(),
+  reviewMutation: vi.fn(),
 }));
 vi.mock("@/config/env", () => ({
   env: {
@@ -44,6 +45,9 @@ vi.mock("@/services/ticket/own-ticket-iam.service", () => ({
 }));
 vi.mock("@/services/ticket/platform-ticket-review-read-iam.service", () => ({
   PlatformTicketReviewReadIamService: { getInstance: () => ({ list: mocks.reviewList, detail: mocks.reviewDetail }) },
+}));
+vi.mock("@/services/ticket/platform-ticket-review-mutation-iam.service", () => ({
+  PlatformTicketReviewMutationIamService: { getInstance: () => ({ execute: mocks.reviewMutation }) },
 }));
 vi.mock("@/store/ticket/ticket.repository", () => ({ TicketRepository: { getInstance: vi.fn() } }));
 vi.mock("@/store/users/user.repository", () => ({ UserRepository: { getInstance: vi.fn() } }));
@@ -216,5 +220,80 @@ describe("review ticket read rollout", () => {
     await expect(service.getReviewTicketDetail("ticket")).rejects.toMatchObject({ statusCode: 403 });
     mocks.mode = "invalid";
     await expect(service.listReviewTickets({}, request)).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("review ticket mutation rollout", () => {
+  const comment = {
+    id: "comment",
+    ticketId: "ticket",
+    status: 1,
+    authorUserId: "actor",
+    content: "fixture",
+    visibility: "internal",
+    createTime: new Date(0),
+    updateTime: new Date(0),
+    author: { id: "actor", username: "fixture" },
+  };
+  it("uses native mutation responses without reloading through the read action", async () => {
+    mocks.reviewMutation.mockResolvedValue({
+      before: ticket,
+      detail: { ticket: { ...ticket, priority: "high" }, comments: [] },
+    });
+    expect((await service.reviewTicket("ticket", "actor", { priority: "high" }, request)).priority).toBe("high");
+    expect(repository.update).not.toHaveBeenCalled();
+    expect(repository.findByIdWithRelations).not.toHaveBeenCalled();
+    expect(mocks.reviewDetail).not.toHaveBeenCalled();
+    mocks.reviewMutation.mockResolvedValue({ before: ticket, comment });
+    expect(
+      (await service.addReviewComment("ticket", "actor", { content: "fixture", visibility: "internal" }, request))
+        .content,
+    ).toBe("fixture");
+    expect(repository.createComment).not.toHaveBeenCalled();
+    mocks.reviewMutation.mockResolvedValue({ before: ticket });
+    await service.deleteTicket("ticket", "actor", request);
+    expect(repository.delete).not.toHaveBeenCalled();
+    expect(repository.findById).not.toHaveBeenCalled();
+  });
+  it("never falls back to legacy writes after enforce denial", async () => {
+    mocks.reviewMutation.mockRejectedValue(new Error("denied"));
+    await expect(service.reviewTicket("ticket", "actor", { priority: "high" }, request)).rejects.toThrow("denied");
+    await expect(
+      service.addReviewComment("ticket", "actor", { content: "fixture", visibility: "internal" }, request),
+    ).rejects.toThrow("denied");
+    await expect(service.deleteTicket("ticket", "actor", request)).rejects.toThrow("denied");
+    expect(repository.update).not.toHaveBeenCalled();
+    expect(repository.createComment).not.toHaveBeenCalled();
+    expect(repository.delete).not.toHaveBeenCalled();
+    expect(log.logOperation).not.toHaveBeenCalled();
+  });
+  it.each(["legacy", "shadow"])("preserves update-only permissions and single writes in %s", async (mode) => {
+    mocks.mode = mode;
+    repository.update.mockResolvedValue({ ...ticket, priority: "high" });
+    mocks.reviewMutation.mockRejectedValue(new Error("IAM unavailable"));
+    await service.reviewTicket("ticket", "actor", { priority: "high" }, request);
+    expect(repository.update).toHaveBeenCalledOnce();
+    expect(permissions.checkUserPermissions).toHaveBeenCalledWith("actor", ["ticket:review:update"], {
+      assumedRoleSessionId: "session",
+    });
+    expect(mocks.reviewDetail).not.toHaveBeenCalled();
+    if (mode === "shadow")
+      expect(mocks.reviewMutation).toHaveBeenCalledWith(
+        "ticket",
+        "actor",
+        { kind: "update", data: { priority: "high" } },
+        request,
+        false,
+      );
+    else expect(mocks.reviewMutation).not.toHaveBeenCalled();
+    permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false, checkedPermissions: [] });
+    await expect(service.deleteTicket("ticket", "actor", request)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.delete).not.toHaveBeenCalled();
+  });
+  it("requires the authenticated reviewer and supported mode", async () => {
+    await expect(service.deleteTicket("ticket", "other", request)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.deleteTicket("ticket", "actor")).rejects.toMatchObject({ statusCode: 403 });
+    mocks.mode = "invalid";
+    await expect(service.deleteTicket("ticket", "actor", request)).rejects.toMatchObject({ statusCode: 403 });
   });
 });

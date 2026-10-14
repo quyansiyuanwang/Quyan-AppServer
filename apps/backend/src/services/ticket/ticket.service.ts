@@ -1,3 +1,5 @@
+import { PlatformTicketReviewMutationIamService } from "./platform-ticket-review-mutation-iam.service";
+import type { TicketReviewMutationInput } from "@/store/ticket/platform-ticket-review-mutation.store";
 import { PlatformTicketReviewReadIamService } from "./platform-ticket-review-read-iam.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import type { Ticket, TicketComment } from "@prisma/client";
@@ -396,13 +398,55 @@ export class TicketService {
     return this.toDetailDto(ticket, comments);
   }
 
+  private async reviewMutation(
+    id: string,
+    reviewerUserId: string,
+    input: TicketReviewMutationInput,
+    request?: Request,
+  ) {
+    const typed = request as TypedRequest | undefined,
+      mode = env.security.iamAuthorizationMode;
+    if (!typed?.user || typed.user.userId !== reviewerUserId || !["legacy", "shadow", "enforce"].includes(mode))
+      throw iamAccountDenied();
+    if (mode === "enforce") {
+      const result = await PlatformTicketReviewMutationIamService.getInstance().execute(
+        id,
+        reviewerUserId,
+        input,
+        typed,
+      );
+      if (!result || (input.kind === "update" && !result.detail) || (input.kind === "comment" && !result.comment))
+        throw iamAccountDenied();
+      return result;
+    }
+    if (
+      !(
+        await this.permissionService.checkUserPermissions(reviewerUserId, [Permission.TICKET_REVIEW_UPDATE], {
+          assumedRoleSessionId: typed.user.roleSessionId,
+        })
+      ).hasPermission
+    )
+      throw iamAccountDenied();
+    if (mode === "shadow") {
+      try {
+        await PlatformTicketReviewMutationIamService.getInstance().execute(id, reviewerUserId, input, typed, false);
+      } catch {
+        getLogger("TicketService", LogCategory.SECURITY).warn("IAM ticket review mutation shadow evaluation failed", {
+          operation: input.kind,
+        });
+      }
+    }
+    return undefined;
+  }
+
   async reviewTicket(
     id: string,
     reviewerUserId: string,
     body: ReviewTicketDto,
     request?: Request,
   ): Promise<TicketDetailDto> {
-    const existing = await this.repository.findByIdWithRelations(id);
+    const native = await this.reviewMutation(id, reviewerUserId, { kind: "update", data: body }, request);
+    const existing = native ? native.before : await this.repository.findByIdWithRelations(id);
     if (!existing) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
 
     const updateData: Record<string, unknown> = {};
@@ -416,7 +460,7 @@ export class TicketService {
 
     if (Object.prototype.hasOwnProperty.call(body, "assigneeUserId")) {
       const normalizedAssignee = this.normalizeNullableId(body.assigneeUserId);
-      if (normalizedAssignee) {
+      if (normalizedAssignee && !native) {
         const assignee = await this.userRepository.findActiveById(normalizedAssignee);
         if (!assignee)
           throw new BadRequestError("分配的处理人不存在或不可用", undefined, {
@@ -426,9 +470,12 @@ export class TicketService {
       updateData.assigneeUserId = normalizedAssignee;
     }
 
-    if (Object.keys(updateData).length === 0) return this.loadReviewTicketDetail(id);
+    if (Object.keys(updateData).length === 0)
+      return native
+        ? this.toDetailDto(native.detail!.ticket, native.detail!.comments)
+        : this.loadReviewTicketDetail(id);
 
-    const updated = await this.repository.update(id, updateData);
+    const updated = native ? native.detail!.ticket : await this.repository.update(id, updateData);
 
     if (existing.type !== updated.type)
       await this.businessLogService.logOperation({
@@ -507,7 +554,7 @@ export class TicketService {
         });
     }
 
-    return this.loadReviewTicketDetail(id);
+    return native ? this.toDetailDto(native.detail!.ticket, native.detail!.comments) : this.loadReviewTicketDetail(id);
   }
 
   async addReviewComment(
@@ -516,17 +563,20 @@ export class TicketService {
     body: CreateTicketReviewCommentDto,
     request?: Request,
   ): Promise<TicketCommentDto> {
-    const ticket = await this.repository.findByIdWithRelations(id);
+    const native = await this.reviewMutation(id, reviewerUserId, { kind: "comment", data: body }, request);
+    const ticket = native ? native.before : await this.repository.findByIdWithRelations(id);
     if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
 
-    const created = await this.repository.createComment({
-      ticketId: id,
-      authorUserId: reviewerUserId,
-      visibility: body.visibility,
-      content: body.content.trim(),
-    });
+    const created = native
+      ? native.comment!
+      : await this.repository.createComment({
+          ticketId: id,
+          authorUserId: reviewerUserId,
+          visibility: body.visibility,
+          content: body.content.trim(),
+        });
 
-    await this.repository.update(id, { lastReplyAt: created.createTime });
+    if (!native) await this.repository.update(id, { lastReplyAt: created.createTime });
 
     await this.businessLogService.logOperation({
       operationType: OperationType.TICKET_COMMENT_CREATE,
@@ -548,6 +598,7 @@ export class TicketService {
         ticketId: ticket.id,
       });
 
+    if (native) return this.toCommentDto(native.comment!);
     return this.toCommentDto({
       ...created,
       author: {
@@ -558,9 +609,10 @@ export class TicketService {
   }
 
   async deleteTicket(id: string, reviewerUserId: string, request?: Request): Promise<void> {
-    const ticket = await this.repository.findById(id);
+    const native = await this.reviewMutation(id, reviewerUserId, { kind: "delete" }, request);
+    const ticket = native ? native.before : await this.repository.findById(id);
     if (!ticket) throw new NotFoundError("工单不存在", undefined, { messageKey: "ticket.notFound" });
-    await this.repository.delete(id);
+    if (!native) await this.repository.delete(id);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.TICKET_DELETE,

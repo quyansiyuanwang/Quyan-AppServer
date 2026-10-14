@@ -60,6 +60,12 @@ Both operations require membership in an active deployment-managed global group 
 
 Denied tickets do not appear in the queue or contribute to its total, pagination, or `hasMore`. An empty authorized set returns an empty page. Pages retain the review queue's last-reply order; page sizes are limited to 100 and page numbers to 10,000. An unavailable or denied detail returns a generic authorization error without contact information or comments. Changes to ticket content, comment content, related display identities, eligibility, or authorization during a read cause rejection.
 
+## Resource permissions for review changes
+
+In IAM enforcement mode, updates use `quyan:ticket:UpdateReviewTicket`, reviewer replies use `quyan:ticket:AddReviewComment`, and deletion uses `quyan:ticket:DeleteReviewTicket`. All three use the same `acs:platform:*:platform:ticket-review/<submitterUserId>/<ticketId>` resource as review reads. The subject must belong to an active deployment-managed global group with `TICKET_REVIEW_UPDATE`. A policy can restrict each operation independently; an update grant does not grant deletion or replies.
+
+Authorization and live request conditions are checked inside the write transaction before commit. Failure rolls back the entire operation, including any comment and its last-reply timestamp. Updates return the detail from that transaction using the update grant, without requiring a separate detail-read grant. Changing the submitting user or supplying an author ID is not supported. Assignees must still be active when the assignment is saved. Deletion removes the item from active views. Existing replay protection, audit records, and public-reply notifications remain in effect.
+
 ## Resource permissions for assignment rules
 
 In IAM enforcement mode, reading and updating assignment rules use `quyan:ticket:GetAssignmentRules` and `quyan:ticket:UpdateAssignmentRules`. Both use `acs:platform:*:platform:config-item/notification.ticketAssignmentRules`, the same resource identity as the general configuration API. A Deny with `Action: "*"` can therefore restrict both entry points. The authenticated subject must also belong to an active deployment-managed global group with `TICKET_REVIEW_UPDATE`; personal permissions, a private group, or account-owner identity cannot replace that eligibility.

@@ -1,3 +1,4 @@
+import { platformTicketReviewMutationResourceResolver } from "@/iam/request/platform-ticket-review-mutation-resource-resolver";
 import { platformTicketReviewResourceResolver } from "@/iam/request/platform-ticket-review-resource-resolver";
 import { PlatformTicketAssignmentIamService } from "@/services/ticket/platform-ticket-assignment-iam.service";
 import { platformTicketAssignmentArn } from "@/iam/resources/platform-ticket-assignment-resources";
@@ -38,7 +39,7 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
 import { TicketService } from "@/services/ticket/ticket.service";
 import type { TypedRequest } from "@/types/express";
-import { RequirePermission, CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import {
   createTicketBodySchema,
   createTicketCommentBodySchema,
@@ -246,7 +247,13 @@ export class TicketController extends Controller {
 
   @Put("review/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:ticket:UpdateReviewTicket",
+      resourceKind: "single-resource",
+      resource: platformTicketReviewMutationResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(replayProtectionMiddleware, validateParams(ticketIdParamsSchema), validateBody(reviewTicketBodySchema))
@@ -260,7 +267,13 @@ export class TicketController extends Controller {
 
   @Post("review/{id}/comments")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:ticket:AddReviewComment",
+      resourceKind: "single-resource",
+      resource: platformTicketReviewMutationResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(
@@ -278,7 +291,13 @@ export class TicketController extends Controller {
 
   @Delete("review/{id}")
   @Security("jwt")
-  @RequirePermission(Permission.TICKET_REVIEW_UPDATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:ticket:DeleteReviewTicket",
+      resourceKind: "single-resource",
+      resource: platformTicketReviewMutationResourceResolver,
+    }),
+  )
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "工单不存在")
   @Middlewares(replayProtectionMiddleware, validateParams(ticketIdParamsSchema))
