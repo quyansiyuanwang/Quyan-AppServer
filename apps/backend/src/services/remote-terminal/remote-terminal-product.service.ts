@@ -1,3 +1,8 @@
+import { PlatformTerminalDeviceReadIamService } from "./platform-terminal-device-read-iam.service";
+import type {
+  TerminalDeviceReadView,
+  TerminalDevicePublicRecord,
+} from "@/store/remote-terminal-product/platform-terminal-device-read.store";
 import { PlatformTerminalEntitlementReadIamService } from "./platform-terminal-entitlement-read-iam.service";
 import type { TerminalEntitlementReadView } from "@/store/remote-terminal-product/platform-terminal-entitlement-read.store";
 import type { RemoteTerminalUserEntitlement } from "@prisma/client";
@@ -723,18 +728,36 @@ export class RemoteTerminalProductService {
 
   private toDeviceDto(record: RemoteTerminalDeviceBindingWithRelations): RemoteTerminalBoundDeviceDto {
     return {
+      ...this.toDeviceScalarDto(record, getSnapshotAvailableShells(record.snapshot)),
+      entitlementName: record.entitlement.name,
+      username: record.user.username,
+    };
+  }
+  private toNativeDeviceDto(view: TerminalDeviceReadView): RemoteTerminalBoundDeviceDto {
+    return {
+      ...this.toDeviceScalarDto(
+        view.record,
+        getSnapshotAvailableShells({ diagnostics: { availableShells: view.availableShells } }),
+      ),
+      entitlementName: view.entitlementName,
+      username: view.username,
+    };
+  }
+  private toDeviceScalarDto(
+    record: TerminalDevicePublicRecord,
+    availableShells: RemoteTerminalBoundDeviceDto["availableShells"],
+  ): RemoteTerminalBoundDeviceDto {
+    return {
       id: record.id,
       entitlementId: record.entitlementId,
-      entitlementName: record.entitlement.name,
       userId: record.userId,
-      username: record.user.username,
       registrationTokenId: record.registrationTokenId ?? undefined,
       deviceId: record.deviceId,
       fingerprint: record.fingerprint,
       hostname: record.hostname,
       platform: record.platform as RemoteTerminalBoundDeviceDto["platform"],
       arch: record.arch,
-      availableShells: getSnapshotAvailableShells(record.snapshot),
+      availableShells,
       online: record.online,
       registeredAt: record.registeredAt,
       lastSeenAt: record.lastSeenAt,
@@ -1751,6 +1774,26 @@ export class RemoteTerminalProductService {
     userId?: string,
     entitlementId?: string,
     status?: number,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalBoundDeviceListResponse> {
+    const legacy = () => this.readDevicesLegacy(page, pageSize, userId, entitlementId, status);
+    if (request)
+      return PlatformTerminalDeviceReadIamService.getInstance().list(
+        request,
+        normalizePagination(page, pageSize),
+        { userId, entitlementId, status },
+        (view) => this.toNativeDeviceDto(view),
+        legacy,
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return legacy();
+  }
+  private async readDevicesLegacy(
+    page?: number,
+    pageSize?: number,
+    userId?: string,
+    entitlementId?: string,
+    status?: number,
   ): Promise<RemoteTerminalBoundDeviceListResponse> {
     const pagination = normalizePagination(page, pageSize);
     const result = await this.productRepository.listDeviceBindings(
@@ -1777,7 +1820,7 @@ export class RemoteTerminalProductService {
     pageSize?: number,
     status?: number,
   ): Promise<RemoteTerminalBoundDeviceListResponse> {
-    return this.listDevices(page, pageSize, userId, undefined, status);
+    return this.readDevicesLegacy(page, pageSize, userId, undefined, status);
   }
 
   public async revokeDevice(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {

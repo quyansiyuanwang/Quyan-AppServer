@@ -1,3 +1,4 @@
+import { platformScalarColumns } from "../system/platform-scalar-revision";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -12,23 +13,6 @@ import type {
   TerminalEntitlementFilters,
   TerminalEntitlementProjection,
 } from "./platform-terminal-entitlement-read.store";
-const identifier = (name: string) => {
-  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) throw iamAccountDenied();
-  return Prisma.raw("`" + name + "`");
-};
-const model = (name: string) => {
-  const result = Prisma.dmmf.datamodel.models.find((entry) => entry.name === name);
-  if (!result) throw iamAccountDenied();
-  return result;
-};
-/** Selected relation fields are exactly the public contribution, never credential/password columns. */
-const fields = (name: string, alias: string, selected?: readonly string[]) => {
-  const entries = model(name).fields.filter(
-    (field) => field.kind !== "object" && (!selected || selected.includes(field.name)),
-  );
-  if (selected && entries.length !== selected.length) throw iamAccountDenied();
-  return entries.map((field) => Prisma.sql`${identifier(alias)}.${identifier(field.dbName ?? field.name)}`);
-};
 const tokenSelect = {
   id: true,
   entitlementId: true,
@@ -65,11 +49,16 @@ export class PlatformTerminalEntitlementReadRepository implements PlatformTermin
     return { ...filters };
   }
   private revision() {
-    const columns = fields("RemoteTerminalUserEntitlement", "t");
-    const user = fields("User", "u", ["id", "username", "status", "updateTime", "accountOwnerId"]);
-    const template = fields("RemoteTerminalProductTemplate", "p", ["id", "name", "status", "updateTime"]);
-    const token = fields("RemoteTerminalEntitlementToken", "k", Object.keys(tokenSelect));
-    const device = fields("RemoteTerminalDeviceBinding", "d", [
+    const columns = platformScalarColumns("RemoteTerminalUserEntitlement", "t");
+    const user = platformScalarColumns("User", "u", ["id", "username", "status", "updateTime", "accountOwnerId"]);
+    const template = platformScalarColumns("RemoteTerminalProductTemplate", "p", [
+      "id",
+      "name",
+      "status",
+      "updateTime",
+    ]);
+    const token = platformScalarColumns("RemoteTerminalEntitlementToken", "k", Object.keys(tokenSelect));
+    const device = platformScalarColumns("RemoteTerminalDeviceBinding", "d", [
       "id",
       "userId",
       "entitlementId",

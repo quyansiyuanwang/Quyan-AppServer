@@ -669,6 +669,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
   },
+  {
+    action: 'quyan:remote_terminal:ListDeviceBindings',
+    service: 'remote_terminal',
+    operation: 'ListDeviceBindings',
+    accessLevel: 'List',
+    resourceTypes: [
+      'platform/remote-terminal-device-binding',
+      'platform/user',
+      'platform/remote-terminal-entitlement',
+    ],
+    apiRoutes: ['GET /v1/remote-terminal/products/devices'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
+  },
   ...ALL_PERMISSIONS.map(fromPermission),
   ...[
     {

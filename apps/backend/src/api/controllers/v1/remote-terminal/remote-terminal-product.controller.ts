@@ -418,16 +418,23 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("devices")
   @Security("jwt")
-  @RequirePermission(Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ)
-  @Middlewares(validateQuery(listRemoteTerminalDevicesQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListDeviceBindings",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(listRemoteTerminalDevicesQuerySchema),
+  )
   public async listDevices(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() userId?: string,
     @Query() entitlementId?: string,
     @Query() status?: number,
+    @Request() request?: TypedRequest,
   ): Promise<RemoteTerminalBoundDeviceListResponse> {
-    return this.remoteTerminalProductService.listDevices(page, pageSize, userId, entitlementId, status);
+    return this.remoteTerminalProductService.listDevices(page, pageSize, userId, entitlementId, status, request);
   }
 
   @Get("me/devices")

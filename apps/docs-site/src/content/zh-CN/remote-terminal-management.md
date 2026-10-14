@@ -14,6 +14,8 @@
 
 套餐、权益和设备管理表格均使用服务端分页，可调整每页条数并查看当前查询的总数；IAM 强制模式下，已经完成资源授权迁移的列表只统计获准记录。更改筛选条件会回到第一页，写操作后刷新当前页；删除或授权范围缩小时，若当前页已不存在，会重新请求最后一个有效页。设备筛选中的权益选择器单独分页，并按所选用户限制候选范围。加载和失败时清空旧记录，失败后可点击刷新重试；切换身份或权限时会清空列表、选择器和已打开的管理对话框。
 
+启用 IAM 强制模式后，设备管理列表使用 `quyan:remote_terminal:ListDeviceBindings`，逐条检查 `acs:platform:*:platform:remote-terminal-device-binding/<userId>/<bindingId>`。相同 Action 分别控制关联的 `acs:platform:*:platform:user/<userId>` 和 `acs:platform:*:platform:remote-terminal-entitlement/<userId>/<entitlementId>`；没有获准关联资源时，用户名或权益名称会省略。分页和总数只包含获准设备，响应仅提供公开设备字段与可用 shell 名称，不返回心跳凭据或完整设备快照。管理资格仍由部署管理员配置的全局设备管理读取权限限制。此 Action 不授予终端会话、目录访问或设备撤销权限；个人终端的 `ListDevices` 授权保持独立。
+
 ## 页面用途
 
 - 创建、发布和管理产品套餐模板。

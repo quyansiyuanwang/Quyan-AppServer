@@ -1,4 +1,3 @@
-import { CustomCode } from "@quyan/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RemoteTerminalProductController } from "../../../src/api/controllers/v1/remote-terminal/remote-terminal-product.controller";
 import { RemoteTerminalProductService } from "../../../src/services/remote-terminal/remote-terminal-product.service";
@@ -42,22 +41,17 @@ describe("RemoteTerminalProductController permissions", () => {
     vi.restoreAllMocks();
   });
 
-  it("requires device write permission for management device list", async () => {
-    permissionServiceMock.checkUserPermissions.mockResolvedValueOnce({
-      hasPermission: false,
-      missingPermissions: ["remote_terminal:device:manage:read"],
-      checkedPermissions: ["remote_terminal:device:manage:read"],
-    });
+  it("forwards trusted request and filters to native device collection admission", async () => {
     const controller = new RemoteTerminalProductController();
-
-    await expect(
-      (controller as any).listDevices(undefined, undefined, undefined, undefined, undefined, request),
-    ).rejects.toMatchObject({
-      statusCode: 403,
-      code: CustomCode.PERMISSION_DENIED,
-      messageKey: "permission.insufficientPermission",
-    });
-    expect(remoteTerminalProductServiceMock.listDevices).not.toHaveBeenCalled();
+    await controller.listDevices(2, 10, "customer", "entitlement", 1, request);
+    expect(remoteTerminalProductServiceMock.listDevices).toHaveBeenCalledWith(
+      2,
+      10,
+      "customer",
+      "entitlement",
+      1,
+      request,
+    );
   });
 
   it("forwards pagination, search and authenticated context for native option authorization", async () => {

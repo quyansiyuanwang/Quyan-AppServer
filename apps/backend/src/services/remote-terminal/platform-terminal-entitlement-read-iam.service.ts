@@ -1,11 +1,9 @@
+import { platformCollectionDecisions } from "@/services/system/platform-collection-decisions";
 import { createHash } from "node:crypto";
-import { performance } from "node:perf_hooks";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
-import { requestConditionContext } from "@/iam/request/condition-context";
-import { auditIamDecision } from "@/iam/audit/iam-audit.service";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isPlatformLogResourceId } from "@/iam/resources/platform-log-resources";
 import { platformUserArn } from "@/iam/resources/platform-user-resources";
@@ -51,38 +49,8 @@ export class PlatformTerminalEntitlementReadIamService {
     private readonly snapshots: PlatformManagementReadStore = PlatformManagementReadRepository.getInstance(),
     private readonly permissions: Pick<PermissionService, "checkUserPermissions"> = PermissionService.getInstance(),
   ) {}
-  private async decisions(principal: IamPrincipal, request: TypedRequest, resources: readonly string[]) {
-    if (resources.length > batchSize) throw iamAccountDenied();
-    if (!resources.length) return [];
-    const started = performance.now();
-    const results = await this.iam.authorizeMany({
-      principal,
-      action,
-      resources: [...resources],
-      context: requestConditionContext(request, principal),
-    });
-    if (
-      !Array.isArray(results) ||
-      results.length !== resources.length ||
-      results.some((result) => !result || !["Allow", "ExplicitDeny", "ImplicitDeny"].includes(result.decision))
-    )
-      throw iamAccountDenied();
-    const attached = (request.iamDecisions ??= []);
-    attached.splice(0, Math.max(0, attached.length + results.length - batchSize));
-    results.forEach((result, index) => {
-      attached.push({ ...result, action, resource: resources[index]! });
-      auditIamDecision({
-        requestId: request.res?.locals.requestId,
-        principal,
-        action,
-        resource: resources[index]!,
-        result,
-        evaluationLatencyMs: performance.now() - started,
-        authorizationMode: env.security.iamAuthorizationMode === "shadow" ? "shadow" : "enforce",
-        ...(env.security.iamAuthorizationMode === "shadow" ? { legacyAllowed: true } : {}),
-      });
-    });
-    return results.map((result) => result.decision);
+  private decisions(principal: IamPrincipal, request: TypedRequest, resources: readonly string[]) {
+    return platformCollectionDecisions(this.iam, { action, principal, request, resources });
   }
   private async project(principal: IamPrincipal, request: TypedRequest, target: TerminalEntitlementTarget) {
     const references = [
