@@ -13429,18 +13429,7 @@
 						"description": "Ok",
 						"content": {
 							"application/json": {
-								"schema": {
-									"properties": {
-										"created": {
-											"type": "number",
-											"format": "double"
-										}
-									},
-									"required": [
-										"created"
-									],
-									"type": "object"
-								}
+								"schema": {}
 							}
 						}
 					}
@@ -13728,141 +13717,7 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"total": {
-											"type": "number",
-											"format": "double"
-										},
-										"incidents": {
-											"items": {
-												"properties": {
-													"matchText": {
-														"type": "string"
-													},
-													"matchContext": {
-														"type": "string"
-													},
-													"auditDurationMs": {
-														"type": "number",
-														"format": "double"
-													},
-													"auditCost": {
-														"$ref": "#/components/schemas/Decimal"
-													},
-													"auditTotalTokens": {
-														"type": "number",
-														"format": "double"
-													},
-													"auditOutputTokens": {
-														"type": "number",
-														"format": "double"
-													},
-													"auditInputTokens": {
-														"type": "number",
-														"format": "double"
-													},
-													"auditModel": {
-														"type": "string"
-													},
-													"channelId": {
-														"type": "string"
-													},
-													"relayTokenId": {
-														"type": "string"
-													},
-													"requestId": {
-														"type": "string"
-													},
-													"blocked": {
-														"type": "boolean"
-													},
-													"replaced": {
-														"type": "boolean"
-													},
-													"rule": {
-														"properties": {
-															"pattern": {
-																"type": "string"
-															},
-															"type": {
-																"type": "string"
-															},
-															"name": {
-																"type": "string"
-															}
-														},
-														"required": [
-															"pattern",
-															"type",
-															"name"
-														],
-														"type": "object"
-													},
-													"ruleId": {
-														"type": "string"
-													},
-													"action": {
-														"type": "string"
-													},
-													"direction": {
-														"type": "string"
-													},
-													"source": {
-														"type": "string"
-													},
-													"statusCode": {
-														"type": "number",
-														"format": "double"
-													},
-													"userId": {
-														"type": "string"
-													},
-													"createTime": {
-														"type": "string",
-														"format": "date-time"
-													},
-													"id": {
-														"type": "string"
-													},
-													"channelName": {},
-													"relayTokenName": {}
-												},
-												"required": [
-													"matchText",
-													"matchContext",
-													"auditDurationMs",
-													"auditCost",
-													"auditTotalTokens",
-													"auditOutputTokens",
-													"auditInputTokens",
-													"auditModel",
-													"channelId",
-													"relayTokenId",
-													"requestId",
-													"blocked",
-													"replaced",
-													"rule",
-													"ruleId",
-													"action",
-													"direction",
-													"source",
-													"statusCode",
-													"userId",
-													"createTime",
-													"id",
-													"channelName",
-													"relayTokenName"
-												],
-												"type": "object"
-											},
-											"type": "array"
-										}
-									},
-									"required": [
-										"total",
-										"incidents"
-									],
-									"type": "object"
+									"$ref": "#/components/schemas/ContentSafetySystemIncidentResponse"
 								}
 							}
 						}
@@ -14029,18 +13884,21 @@
 										"incidents": {
 											"items": {
 												"properties": {
+													"matchContext": {
+														"type": "string"
+													},
 													"matchText": {
 														"type": "string"
 													},
-													"matchContext": {
-														"type": "string"
+													"blocked": {
+														"type": "boolean"
+													},
+													"replaced": {
+														"type": "boolean"
 													},
 													"auditDurationMs": {
 														"type": "number",
 														"format": "double"
-													},
-													"auditCost": {
-														"$ref": "#/components/schemas/Decimal"
 													},
 													"auditTotalTokens": {
 														"type": "number",
@@ -14060,17 +13918,14 @@
 													"channelId": {
 														"type": "string"
 													},
-													"relayTokenId": {
-														"type": "string"
-													},
 													"requestId": {
 														"type": "string"
 													},
-													"blocked": {
-														"type": "boolean"
+													"relayTokenId": {
+														"type": "string"
 													},
-													"replaced": {
-														"type": "boolean"
+													"auditCost": {
+														"$ref": "#/components/schemas/Decimal"
 													},
 													"rule": {
 														"properties": {
@@ -14121,19 +13976,19 @@
 													"relayTokenName": {}
 												},
 												"required": [
-													"matchText",
 													"matchContext",
+													"matchText",
+													"blocked",
+													"replaced",
 													"auditDurationMs",
-													"auditCost",
 													"auditTotalTokens",
 													"auditOutputTokens",
 													"auditInputTokens",
 													"auditModel",
 													"channelId",
-													"relayTokenId",
 													"requestId",
-													"blocked",
-													"replaced",
+													"relayTokenId",
+													"auditCost",
 													"rule",
 													"ruleId",
 													"action",
@@ -47384,6 +47239,257 @@
 					"imported",
 					"skipped",
 					"errors"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Pick_ContentSafetyIncidentDto.Exclude_keyofContentSafetyIncidentDto.auditCost__": {
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"source": {
+						"type": "string"
+					},
+					"direction": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"ruleId": {
+						"type": "string"
+					},
+					"rule": {
+						"properties": {
+							"pattern": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"type",
+							"name"
+						],
+						"type": "object"
+					},
+					"relayTokenId": {
+						"type": "string"
+					},
+					"relayTokenName": {
+						"type": "string"
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					},
+					"auditModel": {
+						"type": "string"
+					},
+					"auditInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditOutputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditTotalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditDurationMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"replaced": {
+						"type": "boolean"
+					},
+					"blocked": {
+						"type": "boolean"
+					},
+					"matchText": {
+						"type": "string"
+					},
+					"matchContext": {
+						"type": "string",
+						"description": "One combined excerpt; the UI highlights the matching portion temporarily."
+					}
+				},
+				"required": [
+					"id",
+					"createTime",
+					"userId",
+					"source",
+					"direction",
+					"action",
+					"auditInputTokens",
+					"auditOutputTokens",
+					"auditTotalTokens",
+					"auditDurationMs",
+					"replaced",
+					"blocked"
+				],
+				"type": "object",
+				"description": "From T, pick a set of properties whose keys are in the union K"
+			},
+			"ContentSafetySystemIncidentDto": {
+				"description": "JSON wire representation: Prisma decimal costs have always serialized as strings.",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"createTime": {
+						"type": "string"
+					},
+					"userId": {
+						"type": "string"
+					},
+					"statusCode": {
+						"type": "number",
+						"format": "double"
+					},
+					"source": {
+						"type": "string"
+					},
+					"direction": {
+						"type": "string"
+					},
+					"action": {
+						"type": "string"
+					},
+					"ruleId": {
+						"type": "string"
+					},
+					"rule": {
+						"properties": {
+							"pattern": {
+								"type": "string"
+							},
+							"type": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"type",
+							"name"
+						],
+						"type": "object"
+					},
+					"relayTokenId": {
+						"type": "string"
+					},
+					"relayTokenName": {
+						"type": "string"
+					},
+					"requestId": {
+						"type": "string"
+					},
+					"channelId": {
+						"type": "string"
+					},
+					"channelName": {
+						"type": "string"
+					},
+					"model": {
+						"type": "string"
+					},
+					"auditModel": {
+						"type": "string"
+					},
+					"auditInputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditOutputTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditTotalTokens": {
+						"type": "number",
+						"format": "double"
+					},
+					"auditDurationMs": {
+						"type": "number",
+						"format": "double"
+					},
+					"replaced": {
+						"type": "boolean"
+					},
+					"blocked": {
+						"type": "boolean"
+					},
+					"matchText": {
+						"type": "string"
+					},
+					"matchContext": {
+						"type": "string",
+						"description": "One combined excerpt; the UI highlights the matching portion temporarily."
+					},
+					"auditCost": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"createTime",
+					"userId",
+					"source",
+					"direction",
+					"action",
+					"auditInputTokens",
+					"auditOutputTokens",
+					"auditTotalTokens",
+					"auditDurationMs",
+					"replaced",
+					"blocked",
+					"auditCost"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ContentSafetySystemIncidentResponse": {
+				"properties": {
+					"incidents": {
+						"items": {
+							"$ref": "#/components/schemas/ContentSafetySystemIncidentDto"
+						},
+						"type": "array"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"incidents",
+					"total"
 				],
 				"type": "object",
 				"additionalProperties": false

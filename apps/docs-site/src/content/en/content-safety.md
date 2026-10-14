@@ -67,6 +67,14 @@ CSV preview returns old values for authorized system rules only. An explicit ID 
 
 Application is atomic: a denied target or generated resource, a ruleset or authorization change, or the shared capacity limit rolls back all writes. Default import is repeatable and checks existing default targets; private copies do not count as installed system defaults. Legacy and shadow modes keep one old import, with shadow checking the real created IDs.
 
+## System incident scope
+
+In IAM enforcement mode, `quyan:content_safety:ListSystemIncidents` controls each `acs:platform:*:platform:content-safety-incident/<incidentId>`. Records are authorized before pagination and counting; only allowed records contribute to totals or expose matching excerpts. The usual filters and sort choices still apply. The operator must retain system configuration management eligibility; role sessions require their own policy Allow.
+
+Associated rule names and types provide context. A live system rule pattern additionally requires `ListSystemRules` authority for that rule; denied, private, or inactive rule patterns are omitted. The UI can show the rule ID instead. Token and channel names may appear as context, while credentials are never returned. Changes to contributing incident content, rule data, context names, or authorization during the read cause rejection.
+
+API dates remain ISO timestamps and incident costs are decimal strings. `legacy` and `shadow` retain the previous system incident scope; shadow compares IAM results without changing the old response.
+
 ## Programming workflows and rule updates
 
 The default import uses a relaxed development baseline: only complete PEM private-key material is blocked. Tool definitions, system prompts, common code, commands and configuration paths are not blocking signals by themselves. Placeholders, standalone markers and abbreviated key templates do not match; avoid sending complete real credentials.

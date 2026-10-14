@@ -28,3 +28,13 @@ export function contentSafetySystemRuleControlArn() {
     path: "content-safety-rule-control",
   });
 }
+
+export function contentSafetySystemIncidentArn(id: string) {
+  if (!isContentSafetyRuleId(id)) throw new Error("Invalid content safety incident identifier");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "content-safety-incident/" + id,
+  });
+}

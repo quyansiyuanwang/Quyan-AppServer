@@ -1,3 +1,4 @@
+import { ContentSafetySystemIncidentIamService } from "./content-safety-system-incident-iam.service";
 import { ContentSafetySystemRuleImportIamService } from "./content-safety-system-rule-import-iam.service";
 import { contentSafetyRuleSchema } from "@/api/schema/system/content-safety.schema";
 import type { ContentSafetyRule } from "@prisma/client";
@@ -32,7 +33,11 @@ import { NotificationEvent } from "@/constant/notification-event";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import BusinessLogService from "./businesslog.service";
 import { BadRequestError } from "@/util/errors";
-import type { ContentSafetyIncidentQuery, ContentSafetyConfigRequest } from "@/api/dto/system/content-safety.dto";
+import type {
+  ContentSafetyIncidentQuery,
+  ContentSafetyConfigRequest,
+  ContentSafetySystemIncidentResponse,
+} from "@/api/dto/system/content-safety.dto";
 
 type Rule = {
   id: string;
@@ -1246,6 +1251,25 @@ export class ContentSafetyService {
     } as any;
   }
 
+  async listSystemIncidents(
+    query: ContentSafetyIncidentQuery = {},
+    request?: TypedRequest,
+  ): Promise<ContentSafetySystemIncidentResponse> {
+    if (!request && env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    const result = request
+      ? await ContentSafetySystemIncidentIamService.getInstance().list(query, request, () =>
+          this.repository.listIncidents(query),
+        )
+      : await this.repository.listIncidents(query);
+    return {
+      total: result.total,
+      incidents: result.incidents.map((row) => ({
+        ...row,
+        createTime: row.createTime.toISOString(),
+        auditCost: row.auditCost.toString(),
+      })),
+    };
+  }
   async listIncidents(query: ContentSafetyIncidentQuery = {}) {
     return this.repository.listIncidents(query);
   }

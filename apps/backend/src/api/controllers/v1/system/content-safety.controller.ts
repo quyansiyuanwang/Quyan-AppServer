@@ -24,11 +24,12 @@ import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-res
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { contentSafetyUserResourceResolver } from "@/iam/request/content-safety-resource-resolvers";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type {
   ContentSafetyConfigDto,
+  ContentSafetySystemIncidentResponse,
   ContentSafetyConfigRequest,
   ContentSafetyRuleRequest,
   ContentSafetyCsvImportRequest,
@@ -372,8 +373,15 @@ export class ContentSafetyController extends Controller {
     return { success: true };
   }
   @Get("incidents")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:content_safety:ListSystemIncidents",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   async listIncidents(
+    @Request() request: TypedRequest,
     @Query() page = 1,
     @Query() pageSize = 50,
     @Query() userId?: string,
@@ -387,22 +395,25 @@ export class ContentSafetyController extends Controller {
     @Query() channelName?: string,
     @Query() sortBy?: "createTime" | "requestId" | "action" | "source" | "statusCode",
     @Query() sortOrder?: "asc" | "desc",
-  ) {
-    return this.service.listIncidents({
-      page,
-      pageSize,
-      userId,
-      startTime,
-      endTime,
-      direction,
-      source,
-      processingStatus,
-      requestId,
-      relayTokenName,
-      channelName,
-      sortBy,
-      sortOrder,
-    });
+  ): Promise<ContentSafetySystemIncidentResponse> {
+    return this.service.listSystemIncidents(
+      {
+        page,
+        pageSize,
+        userId,
+        startTime,
+        endTime,
+        direction,
+        source,
+        processingStatus,
+        requestId,
+        relayTokenName,
+        channelName,
+        sortBy,
+        sortOrder,
+      },
+      request,
+    );
   }
 
   @Get("user-incidents")

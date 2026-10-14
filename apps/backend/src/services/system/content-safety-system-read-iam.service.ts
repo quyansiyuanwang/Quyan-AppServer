@@ -1,3 +1,4 @@
+import { CONTENT_SAFETY_READ_LIMITS as readLimits } from "@/constant/content-safety-read";
 import type { ContentSafetyRule } from "@prisma/client";
 import { Permission } from "@quyan/shared";
 import { env } from "@/config/env";
@@ -23,7 +24,7 @@ import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 import { renderContentSafetyPolicyExport } from "./content-safety-policy-export";
-const readLimits = Object.freeze({ maxPage: 10000, maxPageSize: 100 });
+
 export class ContentSafetySystemReadIamService {
   private static instance: ContentSafetySystemReadIamService;
   constructor(

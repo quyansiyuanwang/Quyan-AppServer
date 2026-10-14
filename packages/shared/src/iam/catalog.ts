@@ -97,6 +97,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':content-safety-rule/{resourceId}',
   },
   {
+    ...resource('platform', 'content-safety-incident'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':content-safety-incident/{resourceId}',
+  },
+  {
     ...resource('platform', 'user-directory', 0),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':user-directory',
@@ -2764,6 +2770,11 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       resourceTypes: ['platform/content-safety-config'],
     },
     {
+      operation: 'ListSystemIncidents',
+      accessLevel: 'List' as const,
+      resourceTypes: ['platform/content-safety-incident'],
+    },
+    {
       operation: 'ListSystemRules',
       accessLevel: 'List' as const,
       resourceTypes: ['platform/content-safety-rule'],
@@ -2786,7 +2797,9 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: Permission.SYSTEM_CONFIG,
       ...(definition.operation === 'ExportSystemRules'
         ? { conditionalActions: ['quyan:content_safety:GetSystemConfig'] }
-        : {}),
+        : definition.operation === 'ListSystemIncidents'
+          ? { conditionalActions: ['quyan:content_safety:ListSystemRules'] }
+          : {}),
     }),
   ),
   {
