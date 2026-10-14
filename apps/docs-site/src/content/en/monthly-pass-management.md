@@ -10,6 +10,8 @@ Assignment updates and deletes use `quyan:monthly_pass:UpdateUserPass` and `quya
 
 The assignment list uses `quyan:monthly_pass:ListUserPasses` to authorize each `acs:platform:*:platform:monthly-pass/<userId>/<passId>` before counting and pagination. Usernames and template details separately require this Action to allow the relevant `platform/user` and `platform/monthly-pass-template` resources. The assignment's stored used and remaining quotas are returned with the record. Window usage is returned only if ListUserPasses allows every relevant active usage record, preventing partial visibility from producing misleading zero or underestimated usage. Template access includes allowed channel identifiers and does not grant current channel names or configuration.
 
+Creating an assignment uses `quyan:monthly_pass:AssignUserPass` and requires the target `platform/user`, the source `platform/monthly-pass-template` and the generated `platform/monthly-pass/<userId>/<passId>` to be allowed. A pass wildcard under the target user can define the creation scope; allowing only the user and template does not allow a new assignment. If template data, user ownership or management eligibility changes during the operation, or the new assignment is denied, the entire creation and its quota windows roll back.
+
 ## Page purpose
 
 - Maintain monthly-pass templates.

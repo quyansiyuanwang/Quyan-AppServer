@@ -1,3 +1,4 @@
+import type { MonthlyPassAssignGuard, MonthlyPassAssignmentUser } from "./monthly-pass-assign";
 import type { MonthlyPassAssignmentWriteGuard } from "./monthly-pass-assignment-write";
 import type { MonthlyPassTemplateWriteGuard } from "./monthly-pass-template-write";
 import type {
@@ -99,6 +100,7 @@ export interface MonthlyPassStore {
     pageSize: number,
   ): Promise<{ total: number; records: MonthlyPassTemplateWithQuotaWindows[] }>;
 
+  findAssignmentUser(id: string): Promise<MonthlyPassAssignmentUser | null>;
   findUserPassIdentity(id: string): Promise<Pick<UserMonthlyPass, "id" | "userId" | "status"> | null>;
   findUserPassById(id: string): Promise<UserMonthlyPassWithTemplate | null>;
   findLatestUserPassByUserAndTemplate(userId: string, templateId: string): Promise<UserMonthlyPassWithTemplate | null>;
@@ -106,6 +108,7 @@ export interface MonthlyPassStore {
   createUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows?: MonthlyPassQuotaWindowInput[],
+    guard?: MonthlyPassAssignGuard,
   ): Promise<UserMonthlyPassWithTemplate>;
   purchaseUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,

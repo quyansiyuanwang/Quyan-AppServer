@@ -1,3 +1,8 @@
+import {
+  MONTHLY_PASS_ASSIGNMENT_USER_SELECT,
+  runMonthlyPassAssignmentCreate,
+  type MonthlyPassAssignGuard,
+} from "./monthly-pass-assign";
 import { summarizeMonthlyPassWindowUsage } from "./monthly-pass-usage-summary";
 import { runMonthlyPassAssignmentWrite, type MonthlyPassAssignmentWriteGuard } from "./monthly-pass-assignment-write";
 import { iamAccountDenied } from "../users/iam-account-principal";
@@ -191,6 +196,9 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     return { total, records };
   }
 
+  async findAssignmentUser(id: string) {
+    return prisma.user.findUnique({ where: { id }, select: MONTHLY_PASS_ASSIGNMENT_USER_SELECT });
+  }
   async findUserPassIdentity(id: string) {
     return prisma.userMonthlyPass.findUnique({ where: { id }, select: { id: true, userId: true, status: true } });
   }
@@ -230,8 +238,9 @@ export class MonthlyPassRepository implements MonthlyPassStore {
   async createUserPass(
     data: Prisma.UserMonthlyPassUncheckedCreateInput,
     quotaWindows: MonthlyPassQuotaWindowInput[] = [],
+    guard?: MonthlyPassAssignGuard,
   ): Promise<UserMonthlyPassWithTemplate> {
-    return prisma.$transaction(async (tx) => {
+    return runMonthlyPassAssignmentCreate(guard, data, async (tx) => {
       const created = await tx.userMonthlyPass.create({ data });
 
       if (quotaWindows.length > 0)

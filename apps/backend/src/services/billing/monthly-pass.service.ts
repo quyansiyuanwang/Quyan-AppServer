@@ -1,3 +1,4 @@
+import { PlatformMonthlyPassAssignIamService } from "./platform-monthly-pass-assign-iam.service";
 import { MonthlyPassPersonalReadIamService } from "./monthly-pass-personal-read-iam.service";
 import {
   normalizeMonthlyPassQuotaUnit as normalizeQuotaUnit,
@@ -1578,12 +1579,18 @@ export class MonthlyPassService {
     assignedBy: string,
     request?: Request,
   ): Promise<UserMonthlyPassDto> {
+    const prepared = await PlatformMonthlyPassAssignIamService.getInstance().prepare(
+      assignedBy,
+      request as TypedRequest | undefined,
+      data.userId,
+      data.templateId,
+    );
     const startAt = parseRequiredDateStringOrThrow("startAt", data.startAt);
     const endAt = parseRequiredDateStringOrThrow("endAt", data.endAt);
 
     const [user, template] = await Promise.all([
-      this.userRepository.findById(data.userId),
-      this.monthlyPassRepository.findTemplateById(data.templateId),
+      prepared ? prepared.customer : this.userRepository.findById(data.userId),
+      prepared ? prepared.template : this.monthlyPassRepository.findTemplateById(data.templateId),
     ]);
 
     if (!user || user.status < AccountStatus.DISABLED)
@@ -1654,6 +1661,7 @@ export class MonthlyPassService {
         status: MANAGED_STATUS.ENABLED,
       },
       quotaWindows,
+      prepared?.guard,
     );
 
     await this.businessLogService.logOperation({
@@ -2003,6 +2011,7 @@ export class MonthlyPassService {
             note: data.note,
           },
           actorUserId,
+          request,
         );
 
         results.push({

@@ -10,6 +10,8 @@
 
 分配列表使用 `quyan:monthly_pass:ListUserPasses`，逐条检查 `acs:platform:*:platform:monthly-pass/<userId>/<passId>` 后统计和分页。用户名及模板详情分别需要该 Action 对相应的 `platform/user`、`platform/monthly-pass-template` 资源的 Allow。单张月卡的已用和剩余额度随该记录返回；额度窗口用量只有在所有相关有效用量记录都获得 ListUserPasses 的 Allow 时才返回，不能根据部分可见记录显示错误的零值或低估用量。模板授权包含可用渠道标识，不会因此获取当前渠道名称或配置。
 
+新建分配使用 `quyan:monthly_pass:AssignUserPass`，必须同时允许目标 `platform/user`、所用 `platform/monthly-pass-template` 和生成的 `platform/monthly-pass/<userId>/<passId>`。可用目标用户下的月卡通配符授予创建范围；仅允许用户和模板并不足以创建新月卡。模板、用户归属或管理资格在操作期间变化，或新月卡未获授权时，整次创建及其额度窗口都会回滚。
+
 ## 页面用途
 
 - 维护月卡模板。

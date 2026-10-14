@@ -1,3 +1,4 @@
+import { platformMonthlyPassAssignResources } from "@/iam/request/platform-monthly-pass-assign-resource-resolvers";
 import { platformMonthlyPassAssignmentResource } from "@/iam/request/platform-monthly-pass-assignment-resource-resolvers";
 import {
   platformMonthlyPassTemplateCreateResource,
@@ -277,7 +278,13 @@ export class MonthlyPassController extends Controller {
 
   @Post("user-passes")
   @Security("jwt")
-  @RequirePermission(Permission.MONTHLY_PASS_ASSIGNMENT_WRITE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:monthly_pass:AssignUserPass",
+      resourceKind: "batch",
+      resource: platformMonthlyPassAssignResources,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
