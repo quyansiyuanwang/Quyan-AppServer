@@ -1,3 +1,7 @@
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { ContentSafetySystemReadIamService } from "./content-safety-system-read-iam.service";
+import { renderContentSafetyPolicyExport } from "./content-safety-policy-export";
+import type { TypedRequest } from "@/types/express";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { attemptValue } from "./content-safety-attempt";
 import type { Request } from "express";
@@ -98,8 +102,15 @@ export class ContentSafetyService {
     return Buffer.concat([decipher.update(Buffer.from(text, "base64")), decipher.final()]).toString("utf8");
   }
 
-  async getPublicConfig() {
-    const values = await this.policyValues();
+  async readSystemConfig(request: TypedRequest) {
+    return ContentSafetySystemReadIamService.getInstance().config(
+      request,
+      () => this.getPublicConfig(),
+      (values) => this.getPublicConfig(values),
+    );
+  }
+  async getPublicConfig(trustedValues?: Record<string, string>) {
+    const values = trustedValues ?? (await this.policyValues());
     const action = (value: string | undefined): ContentSafetyAction =>
       validActions.has(value as ContentSafetyAction) ? (value as ContentSafetyAction) : "unreachable";
     return {
@@ -900,7 +911,23 @@ export class ContentSafetyService {
     return { updated: ids.length };
   }
 
-  async exportPolicy(userId: string | undefined, format: "json" | "csv", scope: "user" | "system") {
+  async exportPolicy(
+    userId: string | undefined,
+    format: "json" | "csv",
+    scope: "user" | "system",
+    request?: TypedRequest,
+  ) {
+    if (scope === "system" && request)
+      return ContentSafetySystemReadIamService.getInstance().export(
+        request,
+        format,
+        () => this.renderPolicyExport(userId, format, scope),
+        (values) => this.getPublicConfig(values),
+      );
+    if (scope === "system" && env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    return this.renderPolicyExport(userId, format, scope);
+  }
+  private async renderPolicyExport(userId: string | undefined, format: "json" | "csv", scope: "user" | "system") {
     const config = scope === "user" && userId ? await this.getEffectivePolicy(userId) : await this.getPublicConfig();
     const rows = await this.repository.listRulesForExport(scope === "user" ? userId : undefined);
     const rules = rows.map((row: any) => ({
@@ -915,45 +942,14 @@ export class ContentSafetyService {
       priority: row.priority,
       source: row.source,
     }));
-    if (format === "csv") {
-      const header = "id,name,type,pattern,direction,action,enabled,priority,source";
-      const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-      const content = [
-        header,
-        ...rules.map((rule) =>
-          [
-            rule.id,
-            rule.name,
-            rule.type,
-            rule.pattern,
-            rule.direction,
-            rule.action,
-            rule.enabled,
-            rule.priority,
-            rule.source,
-          ]
-            .map(escape)
-            .join(","),
-        ),
-      ].join("\n");
-      return { format, filename: `content-safety-${scope}.csv`, content };
-    }
-    return {
-      format,
-      filename: `content-safety-${scope}.json`,
-      content: JSON.stringify(
-        {
-          exportedAt: new Date().toISOString(),
-          scope,
-          config: { ...config, aiApiKeyConfigured: Boolean((config as any).aiApiKeyConfigured) },
-          rules,
-        },
-        null,
-        2,
-      ),
-    };
+    return renderContentSafetyPolicyExport(config, rules, format, scope);
   }
-  async listRules(page = 1, pageSize = 50) {
+  async listRules(page = 1, pageSize = 50, request?: TypedRequest) {
+    if (request)
+      return ContentSafetySystemReadIamService.getInstance().list(request, page, pageSize, () =>
+        this.repository.listAllRules(page, pageSize),
+      );
+    if (env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
     return this.repository.listAllRules(page, pageSize);
   }
   async createRule(input: any) {

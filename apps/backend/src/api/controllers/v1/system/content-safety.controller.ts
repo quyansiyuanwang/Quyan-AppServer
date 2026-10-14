@@ -14,9 +14,12 @@ import {
   Middlewares,
 } from "@tsoa/runtime";
 import { ContentSafetyService } from "@/services/system/content-safety.service";
+import { contentSafetySystemConfigResourceResolver } from "@/iam/request/content-safety-system-resource-resolvers";
+import { iamAuthenticatedUserResourceResolver } from "@/iam/request/resource-resolvers";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { contentSafetyUserResourceResolver } from "@/iam/request/content-safety-resource-resolvers";
-import { RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type {
@@ -62,9 +65,13 @@ export class ContentSafetyController extends Controller {
     return targetUserId;
   }
   @Get("config")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
-  async getConfig(): Promise<ContentSafetyConfigDto> {
-    return this.service.getPublicConfig();
+  @CheckPermission(Permission.SYSTEM_CONFIG, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:content_safety:GetSystemConfig",
+    resourceKind: "single-resource",
+    resource: contentSafetySystemConfigResourceResolver,
+  })
+  async getConfig(@Request() request: TypedRequest): Promise<ContentSafetyConfigDto> {
+    return this.service.readSystemConfig(request);
   }
 
   @Get("user-config")
@@ -247,9 +254,15 @@ export class ContentSafetyController extends Controller {
     return this.service.updateConfig(body, request.user!.userId, request);
   }
   @Get("rules")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
-  async listRules(@Query() page = 1, @Query() pageSize = 50) {
-    return this.service.listRules(page, pageSize);
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:content_safety:ListSystemRules",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
+  async listRules(@Request() request: TypedRequest, @Query() page = 1, @Query() pageSize = 50) {
+    return this.service.listRules(page, pageSize, request);
   }
   @Post("rules/import-defaults")
   @RequirePermission(Permission.SYSTEM_CONFIG)
@@ -278,10 +291,19 @@ export class ContentSafetyController extends Controller {
     return this.service.batchUpdateRules(body.ids, body.changes);
   }
   @Post("rules/export")
-  @RequirePermission(Permission.SYSTEM_CONFIG)
-  @Middlewares(validateBody(contentSafetyExportSchema))
-  async exportRules(@Body() body: ContentSafetyExportRequest): Promise<ContentSafetyExportDto> {
-    return this.service.exportPolicy(undefined, body.format ?? "json", "system");
+  @Middlewares(
+    validateBody(contentSafetyExportSchema),
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:content_safety:ExportSystemRules",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
+  async exportRules(
+    @Body() body: ContentSafetyExportRequest,
+    @Request() request: TypedRequest,
+  ): Promise<ContentSafetyExportDto> {
+    return this.service.exportPolicy(undefined, body.format ?? "json", "system", request);
   }
   @Post("rules")
   @RequirePermission(Permission.SYSTEM_CONFIG)

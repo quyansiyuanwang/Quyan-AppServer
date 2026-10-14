@@ -26,6 +26,24 @@ Users and administrators can export the current scope as JSON policy or CSV rule
 
 Administrators with system configuration permission can manage the system baseline, AI channel, default rules, system rules, and all incident records from the System Content Safety page. Existing security verification remains required for system changes.
 
+## Resource permissions for system policy reads
+
+In IAM enforcement mode, system configuration, rule lists, and rule exports use separate Actions:
+
+| Operation                 | Action                                   | Resource                                                                     |
+| ------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------- |
+| Read system configuration | `quyan:content_safety:GetSystemConfig`   | `acs:platform:*:platform:content-safety-config`                              |
+| List system rules         | `quyan:content_safety:ListSystemRules`   | `acs:platform:*:platform:content-safety-rule/<ruleId>`                       |
+| Export system rules       | `quyan:content_safety:ExportSystemRules` | The same rule resource; choose specific rules or use `content-safety-rule/*` |
+
+The operator must still belong to an active global group with system configuration management eligibility. Account policies cannot manufacture that membership. Role sessions use the role's own Allow, and matching explicit Deny takes precedence.
+
+Each rule resource is evaluated before pagination, and totals include allowed rules only. System reads include system rules; use the corresponding user rule workflow for private rules. A list can be empty when no Allow matches. Denied rule bodies are neither read nor exported.
+
+JSON export includes system configuration and therefore also requires separate configuration read authority. CSV contains rules only and does not require config read authority. Responses and exports never return API keys, only whether a key is configured. Policy, rule content, ownership, or config changes during a read cause rejection to prevent a result assembled from mixed states.
+
+`legacy` and `shadow` retain the previous system configuration permission checks and response scope. Shadow compares the new resource checks without replacing the old result. Adding a specific-resource Allow does not remove existing broad Allows; review the identity's other policies and group grants when restricting scope.
+
 ## Programming workflows and rule updates
 
 The default import uses a relaxed development baseline: only complete PEM private-key material is blocked. Tool definitions, system prompts, common code, commands and configuration paths are not blocking signals by themselves. Placeholders, standalone markers and abbreviated key templates do not match; avoid sending complete real credentials.

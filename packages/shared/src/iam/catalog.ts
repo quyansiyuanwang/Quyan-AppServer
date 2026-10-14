@@ -82,6 +82,16 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':user/{resourceId}',
   },
   {
+    ...resource('platform', 'content-safety-config', 0),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':content-safety-config',
+  },
+  {
+    ...resource('platform', 'content-safety-rule'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':content-safety-rule/{resourceId}',
+  },
+  {
     ...resource('platform', 'user-directory', 0),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':user-directory',
@@ -2705,6 +2715,38 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
+    }),
+  ),
+  ...[
+    {
+      operation: 'GetSystemConfig',
+      accessLevel: 'Read' as const,
+      resourceTypes: ['platform/content-safety-config'],
+    },
+    {
+      operation: 'ListSystemRules',
+      accessLevel: 'List' as const,
+      resourceTypes: ['platform/content-safety-rule'],
+    },
+    {
+      operation: 'ExportSystemRules',
+      accessLevel: 'Read' as const,
+      resourceTypes: ['platform/content-safety-rule'],
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:content_safety:' + definition.operation,
+      service: 'content_safety',
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationBoundary: 'platform',
+      authorizationStage: 'declared',
+      legacyPermission: Permission.SYSTEM_CONFIG,
+      ...(definition.operation === 'ExportSystemRules'
+        ? { conditionalActions: ['quyan:content_safety:GetSystemConfig'] }
+        : {}),
     }),
   ),
   {
