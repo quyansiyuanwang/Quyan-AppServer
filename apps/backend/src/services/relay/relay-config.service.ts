@@ -1,12 +1,13 @@
+import { assertRelayConfigurationTopology } from "@/util/relay-configuration-topology";
+import { prepareRelayConfigurationUpdate } from "@/util/relay-configuration-update";
 import { projectRelayConfiguration, projectRelayModelRates } from "./relay-configuration-projection";
 import type { ModelPricingItemDto, RelayConfigDto, UpdateRelayConfigRequest } from "@/api/dto/relay/relay-config.dto";
-import { Prisma } from "@prisma/client";
-import { BadRequestError, NotFoundError } from "@/util/errors";
+import { NotFoundError } from "@/util/errors";
 import { DEFAULT_RELAY_CONFIG } from "@/constant/relay-config";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { ModelPricingRepository } from "@/store/relay/model-pricing.repository";
-import { RelayConfigRepository, RelayModelRateInput } from "@/store/relay/relay-config.repository";
+import { RelayConfigRepository } from "@/store/relay/relay-config.repository";
 import type { ModelPricingStore } from "@/store/relay/model-pricing.store";
 import type { RelayConfigStore } from "@/store/relay/relay-config.store";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
@@ -14,8 +15,6 @@ import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { RECORD_STATUS } from "@/constant/status";
 import type { Request } from "express";
 import { RelayChannelRepository } from "@/store/relay/relay-channel.repository";
-
-const MAX_MODEL_FIELD_LENGTH = 200;
 
 const summarizeRelayConfigChanges = (data: UpdateRelayConfigRequest) => ({
   globalMultiplier: data.globalMultiplier,
@@ -26,11 +25,12 @@ const summarizeRelayConfigChanges = (data: UpdateRelayConfigRequest) => ({
   enableQueue: data.enableQueue,
   apiCatalogPoolVisibility: data.apiCatalogPoolVisibility,
   channelTopologyMode: data.channelTopologyMode,
-  uptimeStatusUrl: data.uptimeStatusUrl,
-  monitorNameMapping: data.monitorNameMapping,
+  uptimeStatusConfigured: data.uptimeStatusUrl === undefined ? undefined : Boolean(data.uptimeStatusUrl),
+  monitorNameMappingCount:
+    data.monitorNameMapping === undefined ? undefined : Object.keys(data.monitorNameMapping ?? {}).length,
   showOnlyConfigured: data.showOnlyConfigured,
-  uptimeTransformRules: data.uptimeTransformRules,
-  uptimeStaticData: data.uptimeStaticData,
+  uptimeTransformRulesProvided: data.uptimeTransformRules === undefined ? undefined : true,
+  uptimeStaticDataProvided: data.uptimeStaticData === undefined ? undefined : true,
   modelRates:
     data.modelRates === undefined
       ? undefined
@@ -62,32 +62,7 @@ export class RelayConfigService {
   /** Strict mode is an explicit migration gate, never a best-effort conversion. */
   private async assertStrictTwoTierTopology(): Promise<void> {
     const channels = await RelayChannelRepository.getInstance().listVisible();
-    const byId = new Map(channels.map((channel) => [channel.id, channel]));
-    const issues: string[] = [];
-    for (const channel of channels) {
-      const type = channel.channelType || "standalone";
-      const legacyMembers = (channel as typeof channel & { poolMembers?: unknown[] }).poolMembers ?? [];
-      if (type === "pooled" && legacyMembers.length) issues.push(`pooled '${channel.name}' still has legacy members`);
-      if (type === "pooled-member") {
-        const parent = channel.pooledParentId ? byId.get(channel.pooledParentId) : undefined;
-        if (!parent || parent.channelType !== "pooled")
-          issues.push(`pooled-member '${channel.name}' has no valid pooled parent`);
-      } else if (channel.pooledParentId) {
-        issues.push(`non-member '${channel.name}' has a pooled parent`);
-      }
-      if (type === "automatic-proxy-pool") {
-        for (const member of legacyMembers as Array<{ memberChannelId?: string }>) {
-          const target = member.memberChannelId ? byId.get(member.memberChannelId) : undefined;
-          if (!target || target.channelType !== "pooled")
-            issues.push(`automatic pool '${channel.name}' contains a non-logical-pool member`);
-        }
-      }
-    }
-    if (issues.length)
-      throw new BadRequestError(`Strict two-tier topology audit failed: ${issues.slice(0, 10).join("; ")}`, undefined, {
-        messageKey: "relay.topologyAuditFailed",
-        messageParams: { count: issues.length },
-      });
+    assertRelayConfigurationTopology(channels);
   }
 
   private async fetchModelRates(): Promise<ModelPricingItemDto[]> {
@@ -127,85 +102,28 @@ export class RelayConfigService {
     if (data.channelTopologyMode === "strict-two-tier" && existing.channelTopologyMode !== "strict-two-tier")
       await this.assertStrictTwoTierTopology();
 
-    let normalizedModelRates: RelayModelRateInput[] | undefined;
-    if (data.modelRates !== undefined)
-      normalizedModelRates = data.modelRates.map((rate) => {
-        const modelName = rate.model.trim();
-        if (!modelName) throw new Error("model is required and cannot be empty");
-        if (modelName.length > MAX_MODEL_FIELD_LENGTH)
-          throw new Error(`model length must be <= ${MAX_MODEL_FIELD_LENGTH}`);
+    const prepared = prepareRelayConfigurationUpdate(data);
+    await this.relayConfigRepository.updateConfigAndModelRates(existing.id, prepared.configData, prepared.modelRates);
+    await this.logConfigurationUpdate(data, actorUserId, existing.id, request);
+    return this.getRelayConfig();
+  }
 
-        const trimmedModelId = rate.modelId?.trim();
-        const resolvedModelId = trimmedModelId && trimmedModelId.length > 0 ? trimmedModelId : modelName;
-        if (!resolvedModelId.length) throw new Error("modelId is required and cannot be empty after trim");
-        if (resolvedModelId.length > MAX_MODEL_FIELD_LENGTH)
-          throw new Error(`modelId length must be <= ${MAX_MODEL_FIELD_LENGTH}`);
-
-        const pricingType = rate.pricingType || "token-based";
-        if (pricingType !== "token-based" && pricingType !== "per-request")
-          throw new Error(`Invalid pricingType '${pricingType}' for model ${modelName}`);
-
-        if (pricingType === "per-request") {
-          if (rate.fixedPrice == null || rate.fixedPrice < 0)
-            throw new Error(`fixedPrice is required and must be >= 0 for per-request model ${modelName}`);
-        } else {
-          if (rate.inputPrice == null || rate.inputPrice < 0)
-            throw new Error(`inputPrice must be >= 0 for token-based model ${modelName}`);
-
-          if (rate.outputPrice == null || rate.outputPrice < 0)
-            throw new Error(`outputPrice must be >= 0 for token-based model ${modelName}`);
-        }
-
-        return {
-          model: modelName,
-          modelId: resolvedModelId,
-          pricingType,
-          inputPrice: rate.inputPrice,
-          outputPrice: rate.outputPrice,
-          fixedPrice: rate.fixedPrice,
-          cacheCreationMultiplier: rate.cacheCreationMultiplier,
-          cacheReadMultiplier: rate.cacheReadMultiplier,
-          supportedFormats: rate.supportedFormats,
-        };
-      });
-
-    await this.relayConfigRepository.updateConfigAndModelRates(
-      existing.id,
-      {
-        globalMultiplier: data.globalMultiplier,
-        maxConcurrency: data.maxConcurrency,
-        queueTimeout: data.queueTimeout,
-        upstreamStreamTimeout: data.upstreamStreamTimeout,
-        preflightBufferLimitBytes: data.preflightBufferLimitBytes,
-        enableQueue: data.enableQueue,
-        apiCatalogPoolVisibility: data.apiCatalogPoolVisibility,
-        channelTopologyMode: data.channelTopologyMode,
-        uptimeStatusUrl: data.uptimeStatusUrl,
-        monitorNameMapping:
-          data.monitorNameMapping === null
-            ? Prisma.DbNull
-            : data.monitorNameMapping === undefined
-              ? undefined
-              : (data.monitorNameMapping as Prisma.InputJsonValue),
-        showOnlyConfigured: data.showOnlyConfigured,
-        uptimeTransformRules: data.uptimeTransformRules,
-        uptimeStaticData: data.uptimeStaticData,
-      },
-      normalizedModelRates,
-    );
-
+  async logConfigurationUpdate(
+    data: UpdateRelayConfigRequest,
+    actorUserId: string,
+    configId: string,
+    request?: Request,
+  ): Promise<void> {
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CONFIG_UPDATE,
       operationCategory: OperationCategory.RELAY,
       actorUserId,
-      targetResourceId: existing.id,
+      targetResourceId: configId,
       targetResourceType: "RELAY_CONFIG",
       description: "更新了中转配置",
       changes: maskSensitiveData(summarizeRelayConfigChanges(data)),
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
-
-    return this.getRelayConfig();
   }
 }

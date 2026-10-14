@@ -1,3 +1,4 @@
+import { configRevision, priceRevision } from "./relay-configuration-revisions";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -11,9 +12,6 @@ import type {
 } from "./platform-relay-configuration-read.store";
 type Metadata = Pick<RelayConfigurationReadTarget, "recordId" | "status" | "createTime" | "updateTime" | "revision">;
 const size = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
-// Hash the exact visible projection inputs in SQL; unauthorized payloads never enter the service.
-const configRevision = Prisma.sql`SHA2(CAST(JSON_ARRAY(id, status, globalMultiplier, maxConcurrency, queueTimeout, upstreamStreamTimeout, preflightBufferLimitBytes, enableQueue, apiCatalogPoolVisibility, channelTopologyMode, uptimeStatusUrl, monitorNameMapping, showOnlyConfigured, uptimeTransformRules, uptimeStaticData) AS CHAR),256)`;
-const priceRevision = Prisma.sql`SHA2(CAST(JSON_ARRAY(id, status, model, pricingType, inputPrice, outputPrice, fixedPrice, provider, cacheCreationMultiplier, cacheReadMultiplier, supportedFormats) AS CHAR),256)`;
 export class PlatformRelayConfigurationReadRepository implements PlatformRelayConfigurationReadStore {
   private static instance: PlatformRelayConfigurationReadRepository;
   static getInstance() {
