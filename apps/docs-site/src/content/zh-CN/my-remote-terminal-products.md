@@ -14,6 +14,8 @@ IAM 强制模式下，购买及续期使用 `quyan:remote_terminal:ClaimPublishe
 
 个人设备列表使用 `quyan:remote_terminal:ListMyDevices`，先逐项检查 `product-binding` 资源，再计算总数和分页，拒绝的设备不会出现在列表中。父权益被拒绝时省略权益名称，注册令牌资源被拒绝时省略令牌引用。列表只返回支持的 Shell 名称，不读取心跳凭据或完整主机快照。设备和所属权益必须归属于当前身份，归属关系不一致时拒绝读取。
 
+在 IAM 强制模式下，已发布套餐列表使用 `quyan:remote_terminal:ListPublishedTemplates`，逐项检查 `acs:remote-terminal:*:<accountId>:published-template/<userId>/<templateId>`。只显示已启用、已发布且当前身份可访问的套餐。显式 Deny 可隐藏指定套餐或全部套餐。查看套餐不授予购买或管理平台模板的权限，这些操作使用独立 Action。
+
 ## 页面用途
 
 - 浏览已发布的远程终端产品方案与价格。

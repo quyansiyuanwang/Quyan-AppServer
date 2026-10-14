@@ -1433,14 +1433,15 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       service: 'remote_terminal',
       operation: 'ListPublishedTemplates',
       accessLevel: 'List',
-      resourceTypes: ['quyan/account'],
+      resourceTypes: ['remote-terminal/published-template'],
+      defaultAuthorizationScope: 'self' as const,
     },
   ].map(
     (definition): IamActionDefinition => ({
       ...definition,
       action: 'quyan:remote_terminal:' + definition.operation,
       service: 'remote_terminal',
-      apiRoutes: [],
+      apiRoutes: ['GET /v1/remote-terminal/products/templates/published'],
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       sensitive: definition.accessLevel === 'Write',

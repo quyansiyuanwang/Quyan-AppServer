@@ -101,14 +101,14 @@ export class RemoteTerminalProductController extends Controller {
   @Get("templates/published")
   @Security("jwt")
   @Middlewares(
-    iamAuthenticatedAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:remote_terminal:ListPublishedTemplates",
-      resourceKind: "single-resource",
+      resourceKind: "collection",
       resource: ramAccountResourceResolver,
     }),
   )
-  public async listPublishedTemplates(): Promise<RemoteTerminalProductTemplateDto[]> {
-    return this.remoteTerminalProductService.listPublishedTemplates();
+  public async listPublishedTemplates(@Request() request?: TypedRequest): Promise<RemoteTerminalProductTemplateDto[]> {
+    return this.remoteTerminalProductService.listPublishedTemplates(request);
   }
 
   @Get("templates")

@@ -48,22 +48,7 @@ export abstract class TerminalPersonalCollectionIamService<TView extends { recor
       throw iamAccountDenied();
     if (mode === "legacy") return legacy();
     const native = async () => {
-      const ids = [...new Set([userId, principal.accountOwnerId])],
-        snapshot = await this.users.targets(principal, ids),
-        policies = fingerprintIamPolicies(await this.iam.loadPolicies(principal));
-      const recheck = async () => {
-        const current = await this.users.targets(principal, ids);
-        if (
-          snapshot.length !== ids.length ||
-          current.length !== ids.length ||
-          current.some(
-            (row) =>
-              !snapshot.some((old) => row.id === old.id && row.updateTime.getTime() === old.updateTime.getTime()),
-          ) ||
-          fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== policies
-        )
-          throw iamAccountDenied();
-      };
+      const recheck = await createTerminalPersonalReadRecheck(principal, this.iam, this.users);
       await recheck();
       const result = await this.repository.list(
         principal,
@@ -89,10 +74,33 @@ export abstract class TerminalPersonalCollectionIamService<TView extends { recor
       await native();
     } catch {
       getLogger("TerminalPersonalCollectionIam", LogCategory.SECURITY).warn(
-        "Personal entitlement list shadow evaluation failed",
+        "Personal terminal collection shadow evaluation failed",
         { action, reason: "iam-evaluation-denied-or-unavailable" },
       );
     }
     return legacy();
   }
+}
+
+/** Freeze account membership and the contributing policy set for a personal read. */
+export async function createTerminalPersonalReadRecheck(
+  principal: IamPrincipal,
+  iam: Pick<IamAuthorizationService, "loadPolicies">,
+  users: Pick<IamAccountUserRepository, "targets">,
+) {
+  const ids = [...new Set([principal.subjectUserId, principal.accountOwnerId])],
+    snapshot = await users.targets(principal, ids),
+    policies = fingerprintIamPolicies(await iam.loadPolicies(principal));
+  return async () => {
+    const current = await users.targets(principal, ids);
+    if (
+      snapshot.length !== ids.length ||
+      current.length !== ids.length ||
+      current.some(
+        (row) => !snapshot.some((old) => row.id === old.id && row.updateTime.getTime() === old.updateTime.getTime()),
+      ) ||
+      fingerprintIamPolicies(await iam.loadPolicies(principal)) !== policies
+    )
+      throw iamAccountDenied();
+  };
 }

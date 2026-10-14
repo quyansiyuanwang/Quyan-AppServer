@@ -48,6 +48,7 @@ describe("IAM service and resource catalog", () => {
       "quyan:notification:ListInbox",
       "quyan:notification:MarkInboxRead",
       "quyan:notification:ConfirmPixelOpenedInboxRead",
+      "quyan:remote_terminal:ListPublishedTemplates",
       "quyan:user:GetCurrentUser",
       "quyan:notification:ListEvents",
       "quyan:balance:GetAccount",

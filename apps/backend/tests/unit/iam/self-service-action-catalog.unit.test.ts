@@ -34,7 +34,8 @@ describe("self-service IAM action catalog", () => {
       resourceTypes: ["quyan/account"],
     });
     expect(getIamActionDefinition("quyan:remote_terminal:ListPublishedTemplates")).toMatchObject({
-      resourceTypes: ["quyan/account"],
+      resourceTypes: ["remote-terminal/published-template"],
+      defaultAuthorizationScope: "self",
     });
     for (const action of [
       "quyan:carpool:GetOrder",

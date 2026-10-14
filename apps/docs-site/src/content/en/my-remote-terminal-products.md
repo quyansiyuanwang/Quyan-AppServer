@@ -14,6 +14,8 @@ Your entitlement list uses `quyan:remote_terminal:ListMyEntitlements` and evalua
 
 Your device list uses `quyan:remote_terminal:ListMyDevices` on each `product-binding` resource before calculating the total or selecting a page. Denied devices are omitted. A denied parent entitlement hides its name; a denied registration-token resource hides its reference. The list returns supported shell names without reading heartbeat credentials or the full host snapshot. Device rows and parent entitlements must belong to your identity; inconsistent ownership is rejected.
 
+In IAM enforcement mode, published plans use `quyan:remote_terminal:ListPublishedTemplates` on each offer `acs:remote-terminal:*:<accountId>:published-template/<userId>/<templateId>`. Only enabled, published plans admitted for your identity appear. An explicit Deny can hide a specific plan or every plan. Viewing an offer does not grant permission to purchase it or manage its platform template; those operations have separate actions.
+
 ## Page purpose
 
 - Browse published remote terminal product plans with pricing.

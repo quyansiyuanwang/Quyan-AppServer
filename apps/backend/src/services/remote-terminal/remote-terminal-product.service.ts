@@ -1,3 +1,4 @@
+import { TerminalPublishedTemplateReadIamService } from "./terminal-published-template-read-iam.service";
 import { TerminalPersonalDeviceReadIamService } from "./terminal-personal-device-read-iam.service";
 import { TerminalPersonalEntitlementReadIamService } from "./terminal-personal-entitlement-read-iam.service";
 import { TerminalPurchaseIamService } from "./terminal-purchase-iam.service";
@@ -864,9 +865,15 @@ export class RemoteTerminalProductService {
     };
   }
 
-  public async listPublishedTemplates(): Promise<RemoteTerminalProductTemplateDto[]> {
-    const records = await this.productRepository.listPublishedTemplates();
-    return records.map((item) => this.toTemplateDto(item));
+  public async listPublishedTemplates(request?: TypedRequest): Promise<RemoteTerminalProductTemplateDto[]> {
+    return TerminalPublishedTemplateReadIamService.getInstance().list(
+      request,
+      (record) => this.toTemplateDto(record),
+      async () => {
+        const records = await this.productRepository.listPublishedTemplates();
+        return records.map((item) => this.toTemplateDto(item));
+      },
+    );
   }
 
   public async listTemplates(
