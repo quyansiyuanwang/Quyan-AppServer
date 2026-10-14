@@ -76,6 +76,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'authorization'),
   resource('quyan', 'resource-group'),
   resource('quyan', 'role-session'),
+  {
+    ...resource('platform', 'user'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':user/{resourceId}',
+  },
   resource('quyan', 'access-key', 2),
   resource('quyan', 'passkey', 2),
   resource('quyan', 'online-session', 2),
@@ -2690,6 +2695,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
+    }),
+  ),
+  ...[
+    { operation: 'ListUsers', accessLevel: 'List' as const },
+    { operation: 'GetUser', accessLevel: 'Read' as const },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:user:' + definition.operation,
+      service: 'user',
+      resourceTypes: ['platform/user'],
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationBoundary: 'platform',
+      authorizationStage: 'declared',
+      legacyPermission: Permission.USER_READ,
     }),
   ),
   ...[

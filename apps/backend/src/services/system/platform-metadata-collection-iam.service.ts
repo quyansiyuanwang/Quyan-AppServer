@@ -29,6 +29,7 @@ export class PlatformMetadataCollectionIamService<
     private readonly repository: PlatformCollectionStore<Filters, Where, Target>,
     private readonly resource: (target: Target) => string,
     private readonly contribution?: (target: Target) => readonly unknown[],
+    private readonly targetValidator: (target: Target) => boolean = PlatformMetadataCollectionIamService.valid,
   ) {}
   static valid(row: PlatformCollectionTarget) {
     return (
@@ -91,7 +92,7 @@ export class PlatformMetadataCollectionIamService<
           new Set(rows.map((row) => row.id)).size !== rows.length ||
           rows.some(
             (row, index) =>
-              !PlatformMetadataCollectionIamService.valid(row) ||
+              !this.targetValidator(row) ||
               (index &&
                 (row.createTime.getTime() > rows[index - 1]!.createTime.getTime() ||
                   (row.createTime.getTime() === rows[index - 1]!.createTime.getTime() &&

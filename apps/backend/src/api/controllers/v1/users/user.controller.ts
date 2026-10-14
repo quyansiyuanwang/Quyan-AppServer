@@ -1,4 +1,9 @@
-import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { PlatformUserReadIamService } from "@/services/users/platform-user-read-iam.service";
+import { platformUserResourceResolver } from "@/iam/request/platform-user-resource-resolver";
+import {
+  iamAuthenticatedAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import { iamAuthenticatedUserResourceResolver, ramUserResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Get,
@@ -263,7 +268,13 @@ export class UserController extends Controller {
   @SuccessResponse(HttpStatusCode.Ok, "Success")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:user:ListUsers",
+      resourceKind: "collection",
+      resource: iamAuthenticatedUserResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(userListQuerySchema))
   public async getAllUsers(
     @Request() request: TypedRequest,
@@ -276,17 +287,19 @@ export class UserController extends Controller {
     @Query() userType?: string,
     @Query() hasRamPermission?: boolean,
   ): Promise<GetAllUsersResponse> {
-    return this.userService.getVisibleUsersPage({
-      actorUserId: request.user!.userId,
-      page,
-      pageSize,
-      keyword,
-      userId,
-      groupId,
-      excludeCurrentUser,
-      userType,
-      hasRamPermission,
-    });
+    return PlatformUserReadIamService.getInstance().list(
+      {
+        page,
+        pageSize,
+        keyword,
+        userId,
+        groupId,
+        excludeCurrentUser,
+        userType,
+        hasRamPermission,
+      },
+      request,
+    );
   }
 
   /**
@@ -650,10 +663,16 @@ export class UserController extends Controller {
   @Response<ErrorResponse>(HttpStatusCode.NotFound, "用户不存在")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
   @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
-  @RequirePermission(Permission.USER_READ)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:user:GetUser",
+      resourceKind: "single-resource",
+      resource: platformUserResourceResolver,
+    }),
+  )
   @Middlewares(validateParams(userIdParamsSchema))
   public async getUserById(@Request() request: Express.Request, @Path() userId: string): Promise<GetUserByIdResponse> {
-    const user = await this.userService.getUserById(userId);
+    const user = await PlatformUserReadIamService.getInstance().detail(userId, request as TypedRequest);
 
     if (!user) throw new NotFoundError("用户不存在", undefined, { messageKey: "user.notFound" });
 

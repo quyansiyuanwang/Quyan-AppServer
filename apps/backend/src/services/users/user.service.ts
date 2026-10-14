@@ -1,3 +1,4 @@
+import { userViewDto } from "./user-view";
 import { UserProfileIamService } from "./user-profile-iam.service";
 import { userProfileAuthorizationDenied } from "@/store/users/user-profile-management.repository";
 import type { TypedRequest } from "@/types/express";
@@ -30,6 +31,11 @@ import { extractClientIp } from "@/util/ip-extractor";
 type UserEntity = NonNullable<Awaited<ReturnType<UserStore["findById"]>>>;
 
 export class UserService {
+  private static instance: UserService;
+  static getInstance() {
+    return (this.instance ??= new UserService());
+  }
+
   constructor(
     private readonly userRepository: UserStore = UserRepository.getInstance(),
     private readonly groupRepository: GroupStore = GroupRepository.getInstance(),
@@ -72,19 +78,7 @@ export class UserService {
       this.userRepository.findBalanceAccountByUserId(user.id),
       user.groupId ? this.groupRepository.findById(user.groupId) : Promise.resolve(null),
     ]);
-    return {
-      id: user.id,
-      accountOwnerId: user.accountOwnerId || user.id,
-      username: user.username,
-      email: user.email,
-      name: user.name,
-      status: user.status,
-      groupId: user.groupId ?? undefined,
-      groupName: group?.name || group?.username || null,
-      balance: balanceAccount ? Number(balanceAccount.balance) : 0,
-      createdAt: user.createTime.toISOString(),
-      updatedAt: user.updateTime.toISOString(),
-    };
+    return userViewDto(user, balanceAccount, group);
   }
 
   private async mapUsersToDtos(users: UserEntity[]): Promise<UserDto[]> {
@@ -107,19 +101,7 @@ export class UserService {
       const balanceAccount = balanceMap.get(user.id);
       const group = user.groupId ? groupMap.get(user.groupId) : null;
 
-      return {
-        id: user.id,
-        accountOwnerId: user.accountOwnerId || user.id,
-        username: user.username,
-        email: user.email,
-        name: user.name,
-        status: user.status,
-        groupId: user.groupId ?? undefined,
-        groupName: group?.name || group?.username || null,
-        balance: balanceAccount ? Number(balanceAccount.balance) : 0,
-        createdAt: user.createTime.toISOString(),
-        updatedAt: user.updateTime.toISOString(),
-      };
+      return userViewDto(user, balanceAccount, group);
     });
   }
 

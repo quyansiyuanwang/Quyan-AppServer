@@ -62,6 +62,14 @@ All deletions are recorded in the **business log** and can be queried on the bus
 
 Changing another user's password additionally requires a fresh 2FA step-up challenge.
 
+## Resource permissions for directory reads
+
+In IAM enforcement mode, the user directory uses `quyan:user:ListUsers` and details use `quyan:user:GetUser`. Each managed user is identified by `acs:platform:*:platform:user/<userId>`. Both operations require an active deployment-managed global group with `USER_READ`; a personal permission, private group, or account-owner identity cannot replace that eligibility. Account RAM-user management continues to use its own account resources and actions.
+
+The list retains the existing group-level visibility range and RAM-user filters, then removes users denied by policy before calculating totals, pages, or `hasMore`. Only the authorized page is loaded. A list grant does not grant details. Disabled users remain available for account management, while deleted users are excluded from these reads. An unavailable or denied detail returns a generic authorization error without profile or balance data.
+
+Pages contain at most 100 users and page numbers are limited to 10,000. Changes to source profile data, ownership, balance, group display data, list eligibility, policies, or role sessions during a read cause rejection. Responses keep the existing profile fields and never include passwords or permission arrays. AssumeRole requests use role grants rather than inheriting the actor's global-group Allow; authenticated AccessKeys use the same resource checks.
+
 ## Notes
 
 - Before deleting or disabling a user, confirm related balances, permissions, and owned resources.
