@@ -267,9 +267,9 @@ export class RemoteTerminalProductController extends Controller {
   @Security("jwt")
   @Middlewares(
     validateQuery(listRemoteTerminalEntitlementsQuerySchema),
-    iamAuthenticatedAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:remote_terminal:ListMyEntitlements",
-      resourceKind: "single-resource",
+      resourceKind: "collection",
       resource: iamAuthenticatedUserResourceResolver,
     }),
   )
@@ -279,7 +279,13 @@ export class RemoteTerminalProductController extends Controller {
     @Query() pageSize?: number,
     @Query() status?: number,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
-    return this.remoteTerminalProductService.listCurrentUserEntitlements(request.user!.userId, page, pageSize, status);
+    return this.remoteTerminalProductService.listCurrentUserEntitlements(
+      request.user!.userId,
+      page,
+      pageSize,
+      status,
+      request,
+    );
   }
 
   @Post("entitlements")

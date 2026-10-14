@@ -1,3 +1,4 @@
+import { TerminalPersonalEntitlementReadIamService } from "./terminal-personal-entitlement-read-iam.service";
 import { TerminalPurchaseIamService } from "./terminal-purchase-iam.service";
 import { TerminalPurchaseRepository } from "@/store/remote-terminal-product/terminal-purchase.repository";
 import { PlatformTerminalEntitlementAssignIamService } from "./platform-terminal-entitlement-assign-iam.service";
@@ -1271,8 +1272,18 @@ export class RemoteTerminalProductService {
     page?: number,
     pageSize?: number,
     status?: number,
+    request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementListResponse> {
-    return this.readEntitlements(page, pageSize, userId, undefined, status, true);
+    const pagination = normalizePagination(page, pageSize);
+    const result = await TerminalPersonalEntitlementReadIamService.getInstance().list(
+      userId,
+      request,
+      pagination,
+      status,
+      (view) => this.toNativeEntitlementDto(view),
+      () => this.readEntitlements(page, pageSize, userId, undefined, status, true),
+    );
+    return { ...result, ...pagination };
   }
 
   public async assignEntitlement(

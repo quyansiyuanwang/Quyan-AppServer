@@ -712,6 +712,24 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     ],
   },
   {
+    action: 'quyan:remote_terminal:ListMyEntitlements',
+    service: 'remote_terminal',
+    operation: 'ListMyEntitlements',
+    accessLevel: 'List',
+    resourceTypes: [
+      'quyan/user',
+      'remote-terminal/product-entitlement',
+      'remote-terminal/product-binding',
+      'remote-terminal/product-registration-token',
+      'remote-terminal/published-template',
+    ],
+    apiRoutes: ['GET /v1/remote-terminal/products/me/entitlements'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    defaultAuthorizationScope: 'self',
+  },
+  {
     action: 'quyan:remote_terminal:ClaimPublishedTemplate',
     service: 'remote_terminal',
     operation: 'ClaimPublishedTemplate',
@@ -1399,12 +1417,6 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       operation: 'ListPublishedTemplates',
       accessLevel: 'List',
       resourceTypes: ['quyan/account'],
-    },
-    {
-      service: 'remote_terminal',
-      operation: 'ListMyEntitlements',
-      accessLevel: 'List',
-      resourceTypes: ['quyan/user'],
     },
 
     {
