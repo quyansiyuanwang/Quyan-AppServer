@@ -256,6 +256,24 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':developer-quota-override/{resourceId}',
   },
   {
+    ...resource('platform', 'relay-concurrency-control'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-concurrency-control/{resourceId}',
+  },
+  {
+    ...resource('platform', 'relay-concurrency-user'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-concurrency-user/{resourceId}',
+  },
+  {
+    ...resource('platform', 'relay-concurrency-scope'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-concurrency-scope/{resourceId}',
+  },
+  {
     ...resource('platform', 'relay-uptime-control'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-uptime-control/{resourceId}',
@@ -1769,6 +1787,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
+  },
+  {
+    action: 'quyan:relay:GetConcurrencyStatus',
+    service: 'relay',
+    operation: 'GetConcurrencyStatus',
+    accessLevel: 'Read',
+    resourceTypes: [
+      'platform/relay-concurrency-control',
+      'platform/relay-concurrency-user',
+      'platform/relay-concurrency-scope',
+    ],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: false,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.UPSTREAM_STATUS_READ,
   },
   {
     action: 'quyan:relay:GetUptimeStatus',

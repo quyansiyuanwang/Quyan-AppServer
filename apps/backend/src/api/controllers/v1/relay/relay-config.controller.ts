@@ -1,3 +1,5 @@
+import { PlatformRelayConcurrencyReadIamService } from "@/services/relay/platform-relay-concurrency-read-iam.service";
+import { platformRelayConcurrencyArn } from "@/iam/resources/platform-relay-concurrency-resources";
 import { PlatformRelayUptimeReadIamService } from "@/services/relay/platform-relay-uptime-read-iam.service";
 import { platformRelayUptimeArn } from "@/iam/resources/platform-relay-uptime-resources";
 import { PlatformRelayConfigurationWriteIamService } from "@/services/relay/platform-relay-configuration-write-iam.service";
@@ -27,21 +29,16 @@ import type {
   UpdateRelayConfigRequest,
   UptimeResponse,
 } from "@/api/dto/relay/relay-config.dto";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { Permission } from "@/constant/permission";
 import { HttpStatusCode } from "axios";
 import { updateRelayConfigBodySchema } from "@/api/schema/relay/relay-config.schema";
 import { validateBody } from "@/middleware/validation";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import type { TypedRequest } from "@/types/express";
-import { RelayProxyService } from "@/services/relay/relay-proxy.service";
 
 @Route("v1/relay-config")
 @Tags("Relay Config")
 export class RelayConfigController extends Controller {
-  private relayProxyService = RelayProxyService.getInstance();
-
   @Get()
   @Security("jwt")
   @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
@@ -103,8 +100,23 @@ export class RelayConfigController extends Controller {
 
   @Get("concurrency-status")
   @Security("jwt")
-  @RequirePermission(Permission.UPSTREAM_STATUS_READ)
-  public async getConcurrencyStatus(@Query() userId?: string): Promise<RelayConcurrencyStatusResponse> {
-    return this.relayProxyService.getConcurrencyStatus(userId);
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Response<ErrorResponse>(HttpStatusCode.BadRequest, "分页参数无效")
+  @Response<ErrorResponse>(HttpStatusCode.ServiceUnavailable, "并发统计后端不可用")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:GetConcurrencyStatus",
+      resourceKind: "collection",
+      resource: platformRelayConcurrencyArn,
+    }),
+  )
+  public async getConcurrencyStatus(
+    @Request() request: TypedRequest,
+    @Query() userId?: string,
+    @Query() page?: number,
+    @Query() pageSize?: number,
+  ): Promise<RelayConcurrencyStatusResponse> {
+    return PlatformRelayConcurrencyReadIamService.getInstance().read(request, userId, { page, pageSize });
   }
 }

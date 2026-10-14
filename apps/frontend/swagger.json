@@ -19494,6 +19494,46 @@
 								}
 							}
 						}
+					},
+					"400": {
+						"description": "分页参数无效",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "并发统计后端不可用",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -19511,6 +19551,24 @@
 						"required": false,
 						"schema": {
 							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
 						}
 					}
 				]
@@ -53886,6 +53944,22 @@
 							"$ref": "#/components/schemas/RelayConcurrencyStatusItemDto"
 						},
 						"type": "array"
+					},
+					"page": {
+						"type": "number",
+						"format": "double",
+						"description": "IAM enforcement mode returns a bounded authorized page; totals cover all permitted records."
+					},
+					"pageSize": {
+						"type": "number",
+						"format": "double"
+					},
+					"total": {
+						"type": "number",
+						"format": "double"
+					},
+					"hasNext": {
+						"type": "boolean"
 					}
 				},
 				"required": [
