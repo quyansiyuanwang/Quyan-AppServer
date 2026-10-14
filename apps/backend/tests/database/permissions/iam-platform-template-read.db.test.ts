@@ -48,11 +48,11 @@ const read = (kind: IamPlatformTemplateKind, page = 1, pageSize = 1, filters = {
       throw new Error("legacy read must not run");
     },
   );
-async function deny(kind: IamPlatformTemplateKind, id: string) {
+async function deny(kind: IamPlatformTemplateKind, id: string, action?: string) {
   const definition = platformTemplateDefinition(kind);
   const parsed = parseIamPolicy({
     Version: "1",
-    Statement: { Effect: "Deny", Action: definition.action, Resource: platformTemplateArn(kind, id) },
+    Statement: { Effect: "Deny", Action: action ?? definition.action, Resource: platformTemplateArn(kind, id) },
   });
   const policy = await RamPolicyRepository.getInstance().createPolicy({
     accountOwnerId: owner,
@@ -244,5 +244,65 @@ describe("persisted platform template resource reads", () => {
     expect(terminalResult.records.map((row) => row.id)).toEqual([terminal[1]]);
     expect(carpoolResult.records.map((row) => row.id)).toEqual([carpool[1]]);
     expect(carpoolResult.records[0]?.upstreamCost).toBe(2);
+  });
+});
+
+const optionRead = (page = 1, pageSize = 20, keyword?: string) =>
+  RemoteTerminalProductService.getInstance().getFilterOptions(page, pageSize, keyword, request());
+describe("terminal template option database boundary", () => {
+  it("returns only admitted option names and totals without loading price DTOs", async () => {
+    await deny("remote-terminal", terminal[0]!, "quyan:remote_terminal:ListTemplateOptions");
+    const repo = PlatformTemplateReadRepository.getInstance("remote-terminal");
+    const full = vi.spyOn(repo, "hydrate"),
+      options = vi.spyOn(repo, "hydrateOptions");
+    const result = await optionRead(1, 1);
+    expect(result.templateTotal).toBe(1);
+    expect(result.templates.map((row) => row.id)).toEqual([terminal[1]]);
+    expect(Object.keys(result.templates[0]!).sort()).toEqual(["id", "name", "publishStatus", "status"]);
+    expect(full).not.toHaveBeenCalled();
+    expect(options.mock.calls[0][1].map((row) => row.id)).toEqual([terminal[1]]);
+  });
+  it.each([Permission.REMOTE_TERMINAL_ASSIGNMENT_READ, Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ])(
+    "allows the persisted global ANY ceiling through %s without product-detail permission",
+    async (permission) => {
+      await prisma.group.update({ where: { id: groupId }, data: { permissions: [permission] } });
+      expect((await optionRead()).templateTotal).toBe(2);
+      await expect(read("remote-terminal")).rejects.toMatchObject({ statusCode: 403 });
+    },
+  );
+  it("orders option pages by name and preserves literal keyword filtering", async () => {
+    await prisma.remoteTerminalProductTemplate.update({ where: { id: terminal[0] }, data: { name: "z-template" } });
+    await prisma.remoteTerminalProductTemplate.update({ where: { id: terminal[1] }, data: { name: "a-template%_" } });
+    expect((await optionRead(1, 1)).templates[0]?.id).toBe(terminal[1]);
+    expect((await optionRead(2, 1)).templates[0]?.id).toBe(terminal[0]);
+    expect((await optionRead(1, 20, "%_")).templates.map((row) => row.id)).toEqual([terminal[1]]);
+    expect((await optionRead(3, 1)).templates).toEqual([]);
+  });
+  it("rejects option names changed without a timestamp update", async () => {
+    const repo = PlatformTemplateReadRepository.getInstance("remote-terminal"),
+      targets = await repo.scan({ order: "name" });
+    await prisma.$executeRaw`UPDATE remote_terminal_product_templates SET name='fixture-new-name' WHERE id=${terminal[0]}`;
+    await expect(
+      repo.hydrateOptions(
+        { subjectUserId: actor, principalUserId: actor, accountOwnerId: owner, subjectType: "sub_user" },
+        targets,
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("rejects revoked platform eligibility after narrow hydration", async () => {
+    const repo = PlatformTemplateReadRepository.getInstance("remote-terminal"),
+      hydrate = repo.hydrateOptions.bind(repo);
+    vi.spyOn(repo, "hydrateOptions").mockImplementationOnce(async (principal, targets) => {
+      const result = await hydrate(principal, targets);
+      await prisma.group.update({ where: { id: groupId }, data: { status: 0 } });
+      return result;
+    });
+    await expect(optionRead()).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("refuses an account-owned group before scanning option metadata", async () => {
+    await prisma.group.update({ where: { id: groupId }, data: { accountOwnerId: owner } });
+    const scan = vi.spyOn(PlatformTemplateReadRepository.getInstance("remote-terminal"), "scan");
+    await expect(optionRead()).rejects.toMatchObject({ statusCode: 403 });
+    expect(scan).not.toHaveBeenCalled();
   });
 });

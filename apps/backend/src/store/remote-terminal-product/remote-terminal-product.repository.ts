@@ -158,19 +158,31 @@ export class RemoteTerminalProductRepository implements RemoteTerminalProductSto
     return { total, records };
   }
 
-  async listTemplateFilterOptions(): Promise<RemoteTerminalProductTemplateFilterOption[]> {
-    return prisma.remoteTerminalProductTemplate.findMany({
-      where: {
-        status: { gte: MANAGED_STATUS.DISABLED },
-      },
-      select: {
-        id: true,
-        name: true,
-        publishStatus: true,
-        status: true,
-      },
-      orderBy: [{ name: "asc" }],
-    });
+  async listTemplateFilterOptions(
+    page: number,
+    pageSize: number,
+    keyword?: string,
+  ): Promise<{ total: number; records: RemoteTerminalProductTemplateFilterOption[] }> {
+    const where = {
+      status: { gte: MANAGED_STATUS.DISABLED },
+      ...(keyword ? { OR: [{ name: { contains: keyword } }, { description: { contains: keyword } }] } : {}),
+    };
+    const [total, records] = await prisma.$transaction([
+      prisma.remoteTerminalProductTemplate.count({ where }),
+      prisma.remoteTerminalProductTemplate.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          name: true,
+          publishStatus: true,
+          status: true,
+        },
+        orderBy: [{ name: "asc" }, { updateTime: "desc" }, { id: "desc" }],
+      }),
+    ]);
+    return { total, records };
   }
 
   async findEntitlementById(id: string): Promise<RemoteTerminalEntitlementWithRelations | null> {

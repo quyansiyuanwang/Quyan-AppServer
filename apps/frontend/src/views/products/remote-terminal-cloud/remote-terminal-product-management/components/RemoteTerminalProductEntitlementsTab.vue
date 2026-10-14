@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RemoteTerminalTemplateSelect from './RemoteTerminalTemplateSelect.vue'
 import { computed } from 'vue'
 import { i18ns } from '@/locales'
 import { useRemoteTerminalProductManagementContext } from '../context'
@@ -9,7 +10,6 @@ const userOptions = computed(() => state.userOptions.value)
 const userOptionsLoading = state.userOptionsLoading
 const entitlementFilter = state.entitlementFilter
 const assignmentStatusOptions = computed(() => state.filterOptions.assignmentStatusOptions)
-const templateOptions = computed(() => state.filterOptions.templates)
 const canWriteAssignment = state.canWriteAssignment
 const canWriteToken = state.canWriteToken
 const openAssignEntitlementDialog = state.openAssignEntitlementDialog
@@ -43,19 +43,7 @@ const handleUserSearch = state.handleUserSearch
         :value="user.id"
       />
     </el-select>
-    <el-select
-      v-model="entitlementFilter.templateId"
-      class="toolbar-select"
-      clearable
-      :placeholder="t('remoteTerminalProduct.selectTemplate')"
-    >
-      <el-option
-        v-for="template in templateOptions"
-        :key="template.id"
-        :label="template.name"
-        :value="template.id"
-      />
-    </el-select>
+    <RemoteTerminalTemplateSelect v-model="entitlementFilter.templateId" class="toolbar-select" />
     <el-select
       v-model="entitlementFilter.status"
       class="toolbar-select"

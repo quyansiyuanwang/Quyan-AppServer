@@ -1,4 +1,9 @@
-import type { IamPlatformTemplateKind } from "@quyan/shared";
+import {
+  IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION,
+  type IamPlatformTemplateKind,
+  type IamPrincipal,
+  type Permission,
+} from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -14,6 +19,8 @@ import type {
   PlatformTemplateFilters,
   PlatformTemplateTarget,
   PlatformTemplateRecordMap,
+  PlatformTerminalTemplateOptionsStore,
+  PlatformTerminalTemplateOption,
 } from "@/store/billing/platform-template-read.store";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PlatformMetadataCollectionIamService } from "@/services/system/platform-metadata-collection-iam.service";
@@ -43,12 +50,56 @@ export class PlatformTemplateReadIamService<K extends IamPlatformTemplateKind> {
     > = IamAuthorizationService.getInstance(),
     private readonly snapshots: PlatformManagementReadStore = PlatformManagementReadRepository.getInstance(),
     private readonly permissions: Pick<PermissionService, "checkUserPermissions"> = PermissionService.getInstance(),
+    private readonly optionsRepository: PlatformTerminalTemplateOptionsStore = PlatformTemplateReadRepository.getInstance(
+      "remote-terminal",
+    ),
   ) {}
   async list<T>(
     request: TypedRequest,
     pagination: { page: number; pageSize: number },
     filters: PlatformTemplateFilters,
     map: (record: PlatformTemplateRecordMap[K]) => T,
+    legacy: () => Promise<{ total: number; records: T[] }>,
+  ) {
+    const definition = platformTemplateDefinition(this.kind);
+    return this.read(
+      request,
+      pagination,
+      filters,
+      definition.action,
+      [definition.legacyPermission],
+      (principal, targets) => this.repository.hydrate(principal, targets),
+      map,
+      legacy,
+    );
+  }
+  async listOptions(
+    this: PlatformTemplateReadIamService<"remote-terminal">,
+    request: TypedRequest,
+    pagination: { page: number; pageSize: number },
+    keyword: string | undefined,
+    legacy: () => Promise<{ total: number; records: PlatformTerminalTemplateOption[] }>,
+  ) {
+    const definition = IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION;
+    return this.read(
+      request,
+      pagination,
+      { keyword, order: "name" },
+      definition.action,
+      [...definition.legacyPermissions],
+      (principal, targets) => this.optionsRepository.hydrateOptions(principal, targets),
+      (record) => record,
+      legacy,
+    );
+  }
+  private async read<R extends { id: string }, T>(
+    request: TypedRequest,
+    pagination: { page: number; pageSize: number },
+    filters: PlatformTemplateFilters,
+    action: string,
+    required: Permission[],
+    hydrate: (principal: IamPrincipal, targets: readonly PlatformTemplateTarget[]) => Promise<R[]>,
+    map: (record: R) => T,
     legacy: () => Promise<{ total: number; records: T[] }>,
   ) {
     const principal = request && getIamPrincipal(request),
@@ -65,7 +116,6 @@ export class PlatformTemplateReadIamService<K extends IamPlatformTemplateKind> {
       pagination.pageSize > 100
     )
       throw iamAccountDenied();
-    const definition = platformTemplateDefinition(this.kind);
     const native = async () => {
       const selected: PlatformTemplateTarget[] = [];
       const result = await new PlatformMetadataCollectionIamService(
@@ -75,7 +125,7 @@ export class PlatformTemplateReadIamService<K extends IamPlatformTemplateKind> {
         (target) => platformTemplateArn(this.kind, target.id),
         (target) => [target.revision, target.displayOrder],
         validPlatformTemplateTarget,
-      ).read(definition.action, principal, request, filters, {
+      ).read(action, principal, request, filters, {
         visit: async (targets) => {
           selected.push(...targets);
         },
@@ -85,7 +135,7 @@ export class PlatformTemplateReadIamService<K extends IamPlatformTemplateKind> {
             (pagination.page - 1) * pagination.pageSize,
             pagination.page * pagination.pageSize,
           );
-          const rows = await this.repository.hydrate(principal, page);
+          const rows = await hydrate(principal, page);
           if (
             rows.length !== page.length ||
             new Set(rows.map((row) => row.id)).size !== page.length ||
@@ -99,20 +149,26 @@ export class PlatformTemplateReadIamService<K extends IamPlatformTemplateKind> {
       return result;
     };
     if (mode === "enforce") return native();
-    if (
-      !(
-        await this.permissions.checkUserPermissions(principal.subjectUserId, [definition.legacyPermission], {
-          assumedRoleSessionId: principal.roleSessionId,
-        })
-      ).hasPermission
-    )
-      throw iamAccountDenied();
+    let legacyAllowed = false;
+    for (const permission of required) {
+      if (
+        (
+          await this.permissions.checkUserPermissions(principal.subjectUserId, [permission], {
+            assumedRoleSessionId: principal.roleSessionId,
+          })
+        ).hasPermission
+      ) {
+        legacyAllowed = true;
+        break;
+      }
+    }
+    if (!legacyAllowed) throw iamAccountDenied();
     if (mode === "shadow")
       try {
         await native();
       } catch {
         getLogger("PlatformTemplateIam", LogCategory.SECURITY).warn("Template shadow evaluation failed", {
-          action: definition.action,
+          action,
           reason: "iam-evaluation-denied-or-unavailable",
         });
       }

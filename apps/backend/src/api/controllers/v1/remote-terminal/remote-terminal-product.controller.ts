@@ -37,6 +37,7 @@ import {
   listRemoteTerminalDevicesQuerySchema,
   listRemoteTerminalEntitlementsQuerySchema,
   listRemoteTerminalTemplatesQuerySchema,
+  listRemoteTerminalTemplateOptionsQuerySchema,
   remoteTerminalDeviceBindingIdParamsSchema,
   remoteTerminalTemplateIdParamsSchema,
   rotateRemoteTerminalRegistrationTokenBodySchema,
@@ -65,13 +66,21 @@ export class RemoteTerminalProductController extends Controller {
 
   @Get("filter-options")
   @Security("jwt")
-  @RequireAnyPermission([
-    Permission.REMOTE_TERMINAL_PRODUCT_READ,
-    Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
-    Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
-  ])
-  public async getFilterOptions(): Promise<RemoteTerminalFilterOptionsDto> {
-    return this.remoteTerminalProductService.getFilterOptions();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:remote_terminal:ListTemplateOptions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+    validateQuery(listRemoteTerminalTemplateOptionsQuerySchema),
+  )
+  public async getFilterOptions(
+    @Query() page?: number,
+    @Query() pageSize?: number,
+    @Query() keyword?: string,
+    @Request() request?: TypedRequest,
+  ): Promise<RemoteTerminalFilterOptionsDto> {
+    return this.remoteTerminalProductService.getFilterOptions(page, pageSize, keyword, request);
   }
 
   @Get("templates/published")

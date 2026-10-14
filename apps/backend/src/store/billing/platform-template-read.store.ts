@@ -10,11 +10,22 @@ export interface PlatformTemplateFilters {
   status?: number;
   keyword?: string;
   publishStatus?: string;
+  order?: "name";
 }
 export interface PlatformTemplateRecordMap {
   "monthly-pass": MonthlyPassTemplateWithQuotaWindows;
   "remote-terminal": RemoteTerminalProductTemplate;
   carpool: CarpoolPackageTemplate;
+}
+export type PlatformTerminalTemplateOption = Pick<
+  RemoteTerminalProductTemplate,
+  "id" | "name" | "status" | "publishStatus"
+>;
+export interface PlatformTerminalTemplateOptionsStore {
+  hydrateOptions(
+    principal: IamPrincipal,
+    targets: readonly PlatformTemplateTarget[],
+  ): Promise<PlatformTerminalTemplateOption[]>;
 }
 export interface PlatformTemplateReadStore<K extends IamPlatformTemplateKind>
   extends PlatformCollectionStore<PlatformTemplateFilters, PlatformTemplateFilters, PlatformTemplateTarget> {

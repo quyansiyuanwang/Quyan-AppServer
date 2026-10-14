@@ -59,27 +59,9 @@ describe("RemoteTerminalProductController permissions", () => {
     expect(remoteTerminalProductServiceMock.listDevices).not.toHaveBeenCalled();
   });
 
-  it("requires device write or other management permission for filter options", async () => {
-    permissionServiceMock.checkUserPermissions.mockResolvedValueOnce({
-      hasPermission: false,
-      missingPermissions: [
-        "remote_terminal:product:read",
-        "remote_terminal:assignment:read",
-        "remote_terminal:device:manage:read",
-      ],
-      checkedPermissions: [
-        "remote_terminal:product:read",
-        "remote_terminal:assignment:read",
-        "remote_terminal:device:manage:read",
-      ],
-    });
+  it("forwards pagination, search and authenticated context for native option authorization", async () => {
     const controller = new RemoteTerminalProductController();
-
-    await expect((controller as any).getFilterOptions(request)).rejects.toMatchObject({
-      statusCode: 403,
-      code: CustomCode.PERMISSION_DENIED,
-      messageKey: "permission.insufficientPermission",
-    });
-    expect(remoteTerminalProductServiceMock.getFilterOptions).not.toHaveBeenCalled();
+    await controller.getFilterOptions(2, 20, "starter", request);
+    expect(remoteTerminalProductServiceMock.getFilterOptions).toHaveBeenCalledWith(2, 20, "starter", request);
   });
 });

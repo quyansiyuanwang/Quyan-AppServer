@@ -16695,7 +16695,34 @@
 						"jwt": []
 					}
 				],
-				"parameters": []
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "pageSize",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "keyword",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/v1/remote-terminal/products/templates/published": {
@@ -50391,6 +50418,19 @@
 							"$ref": "#/components/schemas/RemoteTerminalProductTemplateFilterOptionDto"
 						},
 						"type": "array"
+					},
+					"templateTotal": {
+						"type": "number",
+						"format": "double",
+						"description": "Number of template options admitted for the current principal and search."
+					},
+					"templatePage": {
+						"type": "number",
+						"format": "double"
+					},
+					"templatePageSize": {
+						"type": "number",
+						"format": "double"
 					}
 				},
 				"required": [

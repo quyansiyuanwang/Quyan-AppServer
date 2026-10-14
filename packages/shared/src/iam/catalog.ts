@@ -95,6 +95,16 @@ export const IAM_PLATFORM_TEMPLATE_DEFINITIONS = Object.freeze([
     legacyPermission: Permission.CARPOOL_TEMPLATE_READ,
   },
 ] as const)
+/** Template names are a separate read capability; it does not grant price or quota details. */
+export const IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION = Object.freeze({
+  action: 'quyan:remote_terminal:ListTemplateOptions',
+  legacyPermissions: [
+    Permission.REMOTE_TERMINAL_PRODUCT_READ,
+    Permission.REMOTE_TERMINAL_ASSIGNMENT_READ,
+    Permission.REMOTE_TERMINAL_DEVICE_MANAGE_READ,
+  ],
+  route: 'GET /v1/remote-terminal/products/filter-options',
+})
 export type IamPlatformTemplateKind = (typeof IAM_PLATFORM_TEMPLATE_DEFINITIONS)[number]['kind']
 
 export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = Object.freeze([
@@ -558,6 +568,19 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       legacyPermission: definition.legacyPermission,
     }),
   ),
+  {
+    action: IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION.action,
+    service: 'remote_terminal',
+    operation: 'ListTemplateOptions',
+    accessLevel: 'List',
+    resourceTypes: ['platform/remote-terminal-template'],
+    apiRoutes: [IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION.route],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermissions: [...IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION.legacyPermissions],
+  },
   ...ALL_PERMISSIONS.map(fromPermission),
   ...[
     {

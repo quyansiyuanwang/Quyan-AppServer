@@ -143,6 +143,10 @@ export interface RemoteTerminalFilterOptionsDto {
   deviceStatusOptions: RemoteTerminalNumberFilterOptionDto[];
   publishStatusOptions: RemoteTerminalStringFilterOptionDto[];
   templates: RemoteTerminalProductTemplateFilterOptionDto[];
+  /** Number of template options admitted for the current principal and search. */
+  templateTotal?: number;
+  templatePage?: number;
+  templatePageSize?: number;
 }
 
 export type RemoteTerminalBillingUnit = "day" | "week" | "month";

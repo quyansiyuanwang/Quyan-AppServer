@@ -742,14 +742,33 @@ export class RemoteTerminalProductService {
     return this.productRepository.sumActiveDeviceLimitForUser(userId, at);
   }
 
-  public async getFilterOptions(): Promise<RemoteTerminalFilterOptionsDto> {
-    const templates = await this.productRepository.listTemplateFilterOptions();
+  public async getFilterOptions(
+    page?: number,
+    pageSize?: number,
+    keyword?: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalFilterOptionsDto> {
+    const pagination = normalizePagination(page, pageSize);
+    const legacy = () =>
+      this.productRepository.listTemplateFilterOptions(pagination.page, pagination.pageSize, keyword?.trim());
+    if (!request && env.security.iamAuthorizationMode !== "legacy") throw iamAccountDenied();
+    const result = request
+      ? await PlatformTemplateReadIamService.getInstance("remote-terminal").listOptions(
+          request,
+          pagination,
+          keyword?.trim(),
+          legacy,
+        )
+      : { ...(await legacy()), ...pagination };
     return {
       templateStatusOptions: DEFAULT_STATUS_OPTIONS,
       assignmentStatusOptions: DEFAULT_STATUS_OPTIONS,
       deviceStatusOptions: DEFAULT_STATUS_OPTIONS,
       publishStatusOptions: DEFAULT_PUBLISH_STATUS_OPTIONS,
-      templates,
+      templates: result.records,
+      templateTotal: result.total,
+      templatePage: result.page,
+      templatePageSize: result.pageSize,
     };
   }
 

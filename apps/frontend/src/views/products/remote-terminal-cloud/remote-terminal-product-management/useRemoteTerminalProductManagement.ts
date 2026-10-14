@@ -5,13 +5,15 @@ import type { FormInstance, FormRules } from 'element-plus/es'
 import { i18ns } from '@/locales'
 import { Permission } from '@/constant/permission'
 import { remoteTerminalProductService } from '@/service/remoteTerminalProductService'
+import { useSessionStore } from '@/stores/sessionStore'
+import { sessionCoordinator } from '@/service/sessionCoordinator'
+import { useRemoteTerminalTemplateOptions } from './useRemoteTerminalTemplateOptions'
 import { permissionService } from '@/service/permissionService'
 import { userService } from '@/service/userService'
 import { usePermissionStore } from '@/stores/permissionStore'
 import type {
   RemoteTerminalBillingUnit,
   RemoteTerminalBoundDeviceDto,
-  RemoteTerminalFilterOptionsDto,
   RemoteTerminalProductTemplateDto,
   RemoteTerminalUserEntitlementDto,
 } from '@/client/types.gen'
@@ -29,6 +31,7 @@ export function useRemoteTerminalProductManagement(
   section: RemoteTerminalProductManagementSection,
 ) {
   const permissionStore = usePermissionStore()
+  const session = useSessionStore()
 
   const loading = ref(false)
   const dialogSubmitting = ref(false)
@@ -37,13 +40,10 @@ export function useRemoteTerminalProductManagement(
   const templates = ref<RemoteTerminalProductTemplateDto[]>([])
   const entitlements = ref<RemoteTerminalUserEntitlementDto[]>([])
   const devices = ref<RemoteTerminalBoundDeviceDto[]>([])
-  const filterOptions = reactive<RemoteTerminalFilterOptionsDto>({
-    templateStatusOptions: [],
-    assignmentStatusOptions: [],
-    deviceStatusOptions: [],
-    publishStatusOptions: [],
-    templates: [],
-  })
+  const templateOptions = useRemoteTerminalTemplateOptions(remoteTerminalProductService, () =>
+    sessionCoordinator.getAuthorizationIdentity(),
+  )
+  const { filterOptions } = templateOptions
 
   const templateKeyword = ref('')
   const templateStatus = ref<number | undefined>()
@@ -386,20 +386,18 @@ export function useRemoteTerminalProductManagement(
 
   const loadFilterOptions = async () => {
     if (!canView.value) {
-      filterOptions.templateStatusOptions = []
-      filterOptions.assignmentStatusOptions = []
-      filterOptions.deviceStatusOptions = []
-      filterOptions.publishStatusOptions = []
-      filterOptions.templates = []
+      templateOptions.reset()
       return
     }
 
-    const result = await remoteTerminalProductService.getFilterOptions()
-    filterOptions.templateStatusOptions = result.templateStatusOptions || []
-    filterOptions.assignmentStatusOptions = result.assignmentStatusOptions || []
-    filterOptions.deviceStatusOptions = result.deviceStatusOptions || []
-    filterOptions.publishStatusOptions = result.publishStatusOptions || []
-    filterOptions.templates = result.templates || []
+    await templateOptions.load()
+  }
+  const loadTemplateOptions = async (page = 1, keyword = templateOptions.keyword.value) => {
+    if (!canView.value) {
+      templateOptions.reset()
+      return
+    }
+    await templateOptions.load(page, keyword)
   }
 
   const loadTemplates = async () => {
@@ -735,6 +733,21 @@ export function useRemoteTerminalProductManagement(
     }
   }
 
+  watch(
+    () => {
+      // Track token replacement without retaining bearer values in option state.
+      void session.accessToken
+      return sessionCoordinator.getAuthorizationIdentity()
+    },
+    () => templateOptions.reset(),
+    { flush: 'sync' },
+  )
+  watch(
+    () => permissionStore.currentUserPermissions,
+    () => templateOptions.reset(),
+    { flush: 'sync' },
+  )
+
   watch([templateKeyword, templateStatus], () => {
     if (!canReadTemplate.value) return
     void loadTemplates()
@@ -783,6 +796,8 @@ export function useRemoteTerminalProductManagement(
     entitlementFormRules,
     entitlements,
     filterOptions,
+    templateOptions,
+    loadTemplateOptions,
     formatBillingUnitLabel,
     formatDateTime,
     formatPrice,

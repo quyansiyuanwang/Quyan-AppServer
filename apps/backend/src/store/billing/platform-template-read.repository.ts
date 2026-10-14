@@ -1,5 +1,9 @@
 import { Prisma } from "@prisma/client";
-import type { IamPrincipal, IamPlatformTemplateKind } from "@quyan/shared";
+import {
+  IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION,
+  type IamPrincipal,
+  type IamPlatformTemplateKind,
+} from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isPlatformLogResourceId } from "@/iam/resources/platform-log-resources";
@@ -12,6 +16,7 @@ import type {
   PlatformTemplateReadStore,
   PlatformTemplateTarget,
   PlatformTemplateRecordMap,
+  PlatformTerminalTemplateOption,
 } from "./platform-template-read.store";
 
 const modelNames = {
@@ -53,7 +58,8 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
     if (
       (filters.status !== undefined && ![-1, 0, 1].includes(filters.status)) ||
       (filters.keyword !== undefined && (typeof filters.keyword !== "string" || filters.keyword.length > 200)) ||
-      (filters.publishStatus !== undefined && !["draft", "published"].includes(filters.publishStatus))
+      (filters.publishStatus !== undefined && !["draft", "published"].includes(filters.publishStatus)) ||
+      (filters.order !== undefined && filters.order !== "name")
     )
       throw iamAccountDenied();
     return { ...filters };
@@ -87,9 +93,9 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
       ${keyword ? Prisma.sql`AND (LOCATE(${keyword}, t.name) > 0 OR LOCATE(${keyword}, t.description) > 0)` : Prisma.empty}
       ${filters.publishStatus ? Prisma.sql`AND t.publishStatus = ${filters.publishStatus}` : Prisma.empty}`;
     const order =
-      this.kind === "remote-terminal"
+      this.kind === "remote-terminal" && filters.order !== "name"
         ? Prisma.sql`t.updateTime DESC,t.id DESC`
-        : this.kind === "monthly-pass"
+        : this.kind === "monthly-pass" || filters.order === "name"
           ? Prisma.sql`t.name ASC,t.updateTime DESC,t.id DESC`
           : Prisma.sql`t.createTime DESC,t.id DESC`;
     return Prisma.sql`SELECT t.id,t.status,t.createTime,t.updateTime,${this.revision()} AS revision,
@@ -119,6 +125,20 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
     principal: IamPrincipal,
     targets: readonly PlatformTemplateTarget[],
   ): Promise<PlatformTemplateRecordMap[K][]> {
+    return this.hydrateRecords(principal, targets, false) as Promise<PlatformTemplateRecordMap[K][]>;
+  }
+  async hydrateOptions(
+    principal: IamPrincipal,
+    targets: readonly PlatformTemplateTarget[],
+  ): Promise<PlatformTerminalTemplateOption[]> {
+    if (this.kind !== "remote-terminal") throw iamAccountDenied();
+    return this.hydrateRecords(principal, targets, true) as Promise<PlatformTerminalTemplateOption[]>;
+  }
+  private async hydrateRecords(
+    principal: IamPrincipal,
+    targets: readonly PlatformTemplateTarget[],
+    optionsOnly: boolean,
+  ) {
     if (!targets.length) return [];
     if (
       targets.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
@@ -126,7 +146,9 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
       targets.some((row) => !validPlatformTemplateTarget(row))
     )
       throw iamAccountDenied();
-    const permission = platformTemplateDefinition(this.kind).legacyPermission;
+    const permission = optionsOnly
+      ? [...IAM_REMOTE_TERMINAL_TEMPLATE_OPTIONS_DEFINITION.legacyPermissions]
+      : platformTemplateDefinition(this.kind).legacyPermission;
     return prisma.$transaction(
       async (tx) => {
         await platformManagementGroupSnapshot(principal, permission, tx);
@@ -134,6 +156,7 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
           this.kind === "remote-terminal"
             ? await tx.remoteTerminalProductTemplate.findMany({
                 where: { id: { in: targets.map((row) => row.id) }, status: { in: [-1, 0, 1] } },
+                ...(optionsOnly ? { select: { id: true, name: true, status: true, publishStatus: true } } : {}),
               })
             : this.kind === "carpool"
               ? await tx.carpoolPackageTemplate.findMany({
@@ -162,12 +185,12 @@ export class PlatformTemplateReadRepository<K extends IamPlatformTemplateKind> i
                 (target) =>
                   target.id === row.id &&
                   target.status === row.status &&
-                  target.updateTime.getTime() === row.updateTime.getTime(),
+                  (optionsOnly || target.updateTime.getTime() === row.updateTime.getTime()),
               ),
           )
         )
           throw iamAccountDenied();
-        return targets.map((target) => byId.get(target.id)!) as PlatformTemplateRecordMap[K][];
+        return targets.map((target) => byId.get(target.id)!);
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );

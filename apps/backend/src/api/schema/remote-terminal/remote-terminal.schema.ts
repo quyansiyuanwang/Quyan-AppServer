@@ -205,3 +205,9 @@ export const listRemoteTerminalDevicesQuerySchema = z.object({
   entitlementId: z.string().trim().min(1).max(64).optional(),
   status: z.coerce.number().int().min(-1).max(1).optional(),
 });
+
+export const listRemoteTerminalTemplateOptionsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  keyword: z.string().trim().max(200).optional(),
+});

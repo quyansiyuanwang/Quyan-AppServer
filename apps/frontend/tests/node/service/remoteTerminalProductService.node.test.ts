@@ -1,15 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { remoteTerminalProductService } from '@/service/remoteTerminalProductService'
 
-const {
-  getAxiosMock,
-  apiFactoryMock,
-  apiMethodsMock,
-} = vi.hoisted(() => ({
+const { getAxiosMock, apiFactoryMock, apiMethodsMock } = vi.hoisted(() => ({
   getAxiosMock: vi.fn(),
   apiFactoryMock: vi.fn(),
   apiMethodsMock: {
     listPublishedTemplates: vi.fn(),
+    getFilterOptions: vi.fn(),
     listCurrentUserEntitlements: vi.fn(),
     claimPublishedTemplate: vi.fn(),
     rotateRegistrationToken: vi.fn(),
@@ -37,7 +34,9 @@ describe('remoteTerminalProductService', () => {
   })
 
   it('lists published templates from generated api', async () => {
-    apiMethodsMock.listPublishedTemplates.mockResolvedValue({ data: [{ id: 'tpl-1', name: 'starter' }] })
+    apiMethodsMock.listPublishedTemplates.mockResolvedValue({
+      data: [{ id: 'tpl-1', name: 'starter' }],
+    })
 
     const result = await remoteTerminalProductService.listPublishedTemplates()
 
@@ -83,7 +82,11 @@ describe('remoteTerminalProductService', () => {
       data: { records: [{ id: 'dev-1' }], total: 1, page: 1, pageSize: 20 },
     })
 
-    const result = await remoteTerminalProductService.listMyDevices({ page: 2, pageSize: 50, status: 1 })
+    const result = await remoteTerminalProductService.listMyDevices({
+      page: 2,
+      pageSize: 50,
+      status: 1,
+    })
 
     expect(apiMethodsMock.listCurrentUserDevices).toHaveBeenCalledWith({
       params: { page: 2, pageSize: 50, status: 1 },
@@ -98,6 +101,19 @@ describe('remoteTerminalProductService', () => {
 
     expect(apiMethodsMock.revokeCurrentUserDevice).toHaveBeenCalledWith({
       path: { id: 'dev-1' },
+    })
+  })
+  it('forwards template option pagination and search through the generated client', async () => {
+    apiMethodsMock.getFilterOptions.mockResolvedValue({ data: { templates: [], templateTotal: 0 } })
+    expect(
+      await remoteTerminalProductService.getFilterOptions({
+        page: 3,
+        pageSize: 20,
+        keyword: 'starter',
+      }),
+    ).toEqual({ templates: [], templateTotal: 0 })
+    expect(apiMethodsMock.getFilterOptions).toHaveBeenCalledWith({
+      params: { page: 3, pageSize: 20, keyword: 'starter' },
     })
   })
 })
