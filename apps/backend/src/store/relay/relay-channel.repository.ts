@@ -8,7 +8,7 @@ import type {
   RelayChannelTransactionClient,
 } from "./relay-channel.store";
 
-const relayChannelManagementSelect = {
+export const relayChannelManagementSelect = {
   id: true,
   name: true,
   submittedByUserId: true,

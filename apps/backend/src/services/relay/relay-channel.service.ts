@@ -1,3 +1,17 @@
+import { PlatformRelayChannelManagementReadIamService } from "./platform-relay-channel-management-read-iam.service";
+import {
+  projectRelayManagementChannels,
+  DEFAULT_CHANNEL_TYPE,
+  DEFAULT_ROUTING_STRATEGY,
+  DEFAULT_VISIBILITY_MODE,
+  isProviderServiceEnabled,
+  isChannelServiceEnabled,
+} from "./relay-channel-management-projection";
+import {
+  buildRelayChannelManagementQuery,
+  type RelayChannelManagementFilters,
+} from "@/store/relay/relay-channel-management-query";
+import type { TypedRequest } from "@/types/express";
 import type { RelayChannelSelectionMetadata } from "@/store/relay/relay-channel.store";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
@@ -162,19 +176,10 @@ type RelayChannelChangeRequestSnapshot = CreateRelayChannelChangeRequest & {
   previousProviderServiceEnabled?: boolean;
 };
 
-const DEFAULT_CHANNEL_TYPE: RelayChannelType = "standalone";
-const DEFAULT_ROUTING_STRATEGY: RelayChannelRoutingStrategy = "priority";
-const DEFAULT_VISIBILITY_MODE: RelayChannelVisibilityMode = "public";
 const DEFAULT_AUTOMATIC_POOL_RANKING_MODE = "price-first" as const;
 const UPSTREAM_MODELS_TIMEOUT_MS = 15_000;
 const UPSTREAM_MODELS_MAX_BYTES = 2 * 1024 * 1024;
 const UPSTREAM_MODELS_BATCH_CONCURRENCY = 4;
-
-const isProviderServiceEnabled = (channel: Pick<RelayChannel, "providerServiceEnabled">): boolean =>
-  channel.providerServiceEnabled !== false;
-
-const isChannelServiceEnabled = (channel: Pick<RelayChannel, "status" | "providerServiceEnabled">): boolean =>
-  channel.status === RELAY_CHANNEL_STATUS.ENABLED && isProviderServiceEnabled(channel);
 
 const nextDailyProviderSettlementAt = (settlementTime: string | undefined, now: Date): Date => {
   const [hours, minutes] = (settlementTime || "00:00").split(":").map(Number);
@@ -284,49 +289,25 @@ export class RelayChannelService {
 
   async listManagementChannels(
     actorUserId: string,
-    query: {
-      page?: number;
-      pageSize?: number;
-      keyword?: string;
-      channelType?: RelayChannelType;
-      channelTypes?: RelayChannelType[];
-      enabled?: boolean;
-      submissionStatus?: RelayChannelSubmissionStatus;
-      models?: string[];
-      modelMatchMode?: "any" | "all";
-    },
+    query: RelayChannelManagementFilters,
+    request?: TypedRequest,
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 25;
-    const modelFilters = [...new Set((query.models ?? []).map((model) => model.trim()).filter(Boolean))];
-    const modelMatchMode = query.modelMatchMode ?? "any";
-    const where: Prisma.RelayChannelWhereInput = {
-      status:
-        query.enabled === undefined
-          ? { in: VISIBLE_RELAY_CHANNEL_STATUSES }
-          : query.enabled
-            ? RELAY_CHANNEL_STATUS.ENABLED
-            : RELAY_CHANNEL_STATUS.DISABLED,
-    };
-
-    if (query.keyword?.trim()) where.name = { contains: query.keyword.trim() };
-    if (query.channelType && query.channelTypes?.length)
-      throw new BadRequestError("channelType and channelTypes cannot be used together", undefined, {
-        messageKey: "relayChannel.channelTypeConflict",
-      });
-    if (query.channelTypes?.length) where.channelType = { in: query.channelTypes };
-    else if (query.channelType) where.channelType = query.channelType;
-    if (query.submissionStatus === "pending") {
-      where.OR = [
-        { submissionStatus: "pending" },
-        { changeRequests: { some: { status: 1, reviewStatus: "pending" } } },
-      ];
-    } else if (query.submissionStatus) {
-      where.submissionStatus = query.submissionStatus;
-    }
-
-    const visibilityWhere = await this.buildManagementVisibilityWhere(actorUserId);
-    if (visibilityWhere) where.AND = [visibilityWhere];
+    return PlatformRelayChannelManagementReadIamService.getInstance().list(
+      actorUserId,
+      request,
+      query,
+      () => this.buildManagementVisibilityWhere(actorUserId),
+      () => this.listManagementChannelsLegacy(actorUserId, query),
+    );
+  }
+  private async listManagementChannelsLegacy(
+    actorUserId: string,
+    query: RelayChannelManagementFilters,
+  ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
+    const { where, page, pageSize, modelFilters, modelMatchMode } = buildRelayChannelManagementQuery(
+      query,
+      await this.buildManagementVisibilityWhere(actorUserId),
+    );
 
     let records;
     let total;
@@ -358,41 +339,7 @@ export class RelayChannelService {
       total = result.total;
     }
 
-    return {
-      items: records.map((channel) => {
-        const providers = channel.providers ?? [];
-        return {
-          id: channel.id,
-          name: channel.name,
-          submittedByUserId: channel.submittedByUserId || undefined,
-          submittedByUsername: channel.submittedBy?.username || channel.submittedByUserId || undefined,
-          enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-          providerServiceEnabled: channel.providerServiceEnabled !== false,
-          serviceEnabled: isChannelServiceEnabled(channel),
-          channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
-          routingStrategy:
-            (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
-          visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
-          poolMemberCount: new Set([
-            ...channel.poolMembers.map((member) => member.memberChannelId),
-            ...(channel.channelType === "pooled" ? channel.pooledChildren.map((member) => member.id) : []),
-          ]).size,
-          pooledParentId: channel.pooledParentId || undefined,
-          pooledParentName: channel.pooledParent?.name,
-          multiplier: Number(channel.multiplier),
-          submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
-          providerCount: providers.length,
-          providerCommissionPercent: providers.reduce(
-            (total, provider) => total + Number(provider.commissionPercent),
-            0,
-          ),
-          updateTime: channel.updateTime,
-        };
-      }),
-      total,
-      page,
-      pageSize,
-    };
+    return projectRelayManagementChannels(records, total, page, pageSize);
   }
 
   async listChannelOptions(

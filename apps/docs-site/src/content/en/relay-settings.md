@@ -15,6 +15,10 @@ If you need to answer questions like “who can see this channel?”, “which u
 - Create standalone channels, pooled channels, or automatic proxy pools.
 - Set visibility, routing, upstream credentials, and pricing multipliers per channel.
 
+## IAM channel management list
+
+With IAM enforcement enabled, the management table uses `quyan:relay:ListManagementChannels` against each `acs:platform:*:platform:relay-channel/<channelId>`. Records, pagination and totals include only allowed channels within the existing visibility and filter rules. Denied parent names and member references are hidden. Model filters use only admitted paths through the channel pool, preserving strict child settings over duplicate legacy membership; a denied leaf cannot contribute models. This Action grants list access, while channel changes and delivery require their own Actions. Deployment management qualification is still required. Refresh and retry if authority changes while loading.
+
 ## Global settings
 
 ### Global multiplier

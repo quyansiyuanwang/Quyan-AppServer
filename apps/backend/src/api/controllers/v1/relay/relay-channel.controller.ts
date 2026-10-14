@@ -1,3 +1,5 @@
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Body,
   Controller,
@@ -119,7 +121,13 @@ export class RelayChannelController extends Controller {
 
   @Get("management")
   @Security("jwt", ["relay:channel:read"])
-  @RequireAnyPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListManagementChannels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(relayChannelManagementQuerySchema))
   public async listManagementChannels(
     @Request() request: TypedRequest,
@@ -133,17 +141,21 @@ export class RelayChannelController extends Controller {
     @Query() models?: string[],
     @Query() modelMatchMode?: RelayChannelModelMatchMode,
   ): Promise<PaginatedResponse<RelayChannelManagementListItemDto>> {
-    return this.channelService.listManagementChannels(request.user!.userId, {
-      page,
-      pageSize,
-      keyword,
-      channelType,
-      channelTypes,
-      enabled,
-      submissionStatus,
-      models,
-      modelMatchMode,
-    });
+    return this.channelService.listManagementChannels(
+      request.user!.userId,
+      {
+        page,
+        pageSize,
+        keyword,
+        channelType,
+        channelTypes,
+        enabled,
+        submissionStatus,
+        models,
+        modelMatchMode,
+      },
+      request,
+    );
   }
 
   @Get("topology-audit")
