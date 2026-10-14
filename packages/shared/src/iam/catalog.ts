@@ -254,6 +254,20 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':monthly-pass-template-control',
   },
+  ...[
+    { type: 'balance-account', segments: 1 },
+    { type: 'balance-transaction', segments: 2 },
+  ].map(({ type, segments }) => ({
+    ...resource('platform', type, segments),
+    accountScope: 'platform' as const,
+    arnTemplate:
+      'acs:platform:*:' +
+      IAM_PLATFORM_ACCOUNT_ID +
+      ':' +
+      type +
+      '/{userId}' +
+      (segments === 2 ? '/{resourceId}' : ''),
+  })),
   {
     ...resource('platform', 'carpool-order'),
     accountScope: 'platform',
@@ -1087,6 +1101,24 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     accessLevel: 'Write',
     resourceTypes: ['platform/carpool-order'],
     apiRoutes: ['POST /v1/carpools/admin/{id}/accept'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.CARPOOL_ORDER_FULFILL,
+  },
+  {
+    action: 'quyan:carpool:FailOrder',
+    service: 'carpool',
+    operation: 'FailOrder',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'platform/carpool-order',
+      'platform/user',
+      'platform/balance-account',
+      'platform/balance-transaction',
+    ],
+    apiRoutes: ['POST /v1/carpools/admin/{id}/fail'],
     conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,
     authorizationStage: 'declared',

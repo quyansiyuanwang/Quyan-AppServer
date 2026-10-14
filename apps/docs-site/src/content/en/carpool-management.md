@@ -40,6 +40,10 @@ When an operator opens the delivery dialog, the page reloads the latest detail b
 2. Choose an eligible Relay channel within that order and confirm delivery. The channel picker only shows channels the server considers deliverable, and the server checks eligibility again during delivery; a browser cannot bypass this by forging a channel ID.
 3. If delivery fails, choose **Fail and refund** and provide a clear failure reason. The reason is stored in the order event history for user and operator review.
 
+With IAM enforcement enabled, refunds use the separate `quyan:carpool:FailOrder` Action. It checks the order ARN, each participating member's `acs:platform:*:platform:user/<userId>` and `acs:platform:*:platform:balance-account/<userId>`, and each generated `acs:platform:*:platform:balance-transaction/<userId>/<transactionId>`. Reading or accepting an order does not grant refund authority.
+
+Denying any recipient, wallet or ledger entry rolls back all members' refunds, reservation changes, order state and event for that attempt. Refunds use current locked balances. Departed members are excluded from that refund attempt; disabled users can still receive refunds of captured payments. Concurrent duplicate refunds complete once.
+
 Every sensitive operation requires confirmation. Never put Relay tokens, upstream keys, or other credentials in notes, event descriptions, or external tickets.
 
 ## Required permissions

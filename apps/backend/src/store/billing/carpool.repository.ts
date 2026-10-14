@@ -1,4 +1,10 @@
 import {
+  runCarpoolOrderRefund,
+  CARPOOL_REFUND_SOURCE_INCLUDE,
+  CARPOOL_REFUND_CUSTOMER_SELECT,
+  type CarpoolOrderRefundGuard,
+} from "./carpool-order-refund";
+import {
   runCarpoolOrderManagementWrite,
   type CarpoolOrderManagementWriteGuard,
 } from "./carpool-order-management-write";
@@ -42,6 +48,15 @@ export class CarpoolRepository {
   withTransaction<T>(callback: (tx: Prisma.TransactionClient) => Promise<T>, guard?: CarpoolOrderManagementWriteGuard) {
     if (guard) return runCarpoolOrderManagementWrite(guard, callback);
     return prisma.$transaction(callback, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+  withRefundTransaction<T>(guard: CarpoolOrderRefundGuard, callback: (tx: Prisma.TransactionClient) => Promise<T>) {
+    return runCarpoolOrderRefund(guard, callback);
+  }
+  findOrderRefundTarget(id: string) {
+    return prisma.carpoolOrder.findFirst({ where: { id, status: { gte: 0 } }, include: CARPOOL_REFUND_SOURCE_INCLUDE });
+  }
+  findRefundCustomerTargets(ids: readonly string[]) {
+    return prisma.user.findMany({ where: { id: { in: [...ids] } }, select: CARPOOL_REFUND_CUSTOMER_SELECT });
   }
   findOrderManagementTarget(id: string) {
     return prisma.carpoolOrder.findFirst({ where: { id, status: { gte: 0 } }, include: { members: true } });

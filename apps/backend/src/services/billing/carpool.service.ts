@@ -1,3 +1,4 @@
+import { PlatformCarpoolOrderRefundIamService } from "./platform-carpool-order-refund-iam.service";
 import { PlatformCarpoolOrderWriteIamService } from "./platform-carpool-order-write-iam.service";
 import { PlatformCarpoolOrderReadIamService } from "./platform-carpool-order-read-iam.service";
 import { PlatformCarpoolTemplateWriteIamService } from "./platform-carpool-template-write-iam.service";
@@ -851,8 +852,14 @@ export class CarpoolService {
       );
     });
   }
-  async fail(orderId: string, reason: string, actorUserId?: string) {
-    return this.repository.withTransaction(async (tx) => {
+  async fail(orderId: string, reason: string, actorUserId?: string, request?: TypedRequest) {
+    const guard = await PlatformCarpoolOrderRefundIamService.getInstance().prepare(
+      actorUserId,
+      request,
+      orderId,
+      reason,
+    );
+    const mutate = async (tx: Prisma.TransactionClient) => {
       const order = await tx.carpoolOrder.findUniqueOrThrow({
         where: { id: orderId },
         include: { members: { include: { reservation: true } } },
@@ -878,7 +885,7 @@ export class CarpoolService {
           throw new BadRequestError("Balance account unavailable", undefined, {
             messageKey: "carpool.balanceAccountUnavailable",
           });
-        await tx.balanceTransaction.create({
+        const ledger = await tx.balanceTransaction.create({
           data: {
             userId: member.userId,
             type: "carpool_refund",
@@ -890,6 +897,7 @@ export class CarpoolService {
             model: "carpool",
           },
         });
+        if (guard) await guard.checkLedger(member.userId, ledger.id);
         await tx.balanceReservation.update({ where: { id: member.reservation.id }, data: { state: "refunded" } });
       }
       await tx.carpoolOrder.update({
@@ -902,7 +910,8 @@ export class CarpoolService {
         undefined,
         true,
       );
-    });
+    };
+    return guard ? this.repository.withRefundTransaction(guard, mutate) : this.repository.withTransaction(mutate);
   }
   /**
    * Carries the legacy order deadline into its dedicated snapshot field.

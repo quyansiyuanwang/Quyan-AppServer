@@ -438,7 +438,13 @@ export class CarpoolController extends Controller {
   }
   @Post("admin/{id}/fail")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:FailOrder",
+      resourceKind: "single-resource",
+      resource: platformCarpoolOrderResource,
+    }),
+  )
   @Middlewares(
     replayProtectionMiddleware,
     validateParams(carpoolIdParamsSchema),
@@ -449,6 +455,6 @@ export class CarpoolController extends Controller {
     @Body() body: FailCarpoolOrderRequest,
     @Request() request: TypedRequest,
   ): Promise<CarpoolOrderDto> {
-    return this.service.fail(id, body.reason, request.user!.userId);
+    return this.service.fail(id, body.reason, request.user!.userId, request);
   }
 }

@@ -21,7 +21,10 @@ export function carpoolOrderManagementRevision(row: CarpoolOrderManagementTarget
     .update(JSON.stringify([scalars(fields), [...members].sort((a, b) => a.id.localeCompare(b.id)).map(scalars)]))
     .digest("hex");
 }
-async function identity(tx: Prisma.TransactionClient, guard: CarpoolOrderManagementWriteGuard) {
+export async function assertCarpoolOrderManagementIdentity(
+  tx: Prisma.TransactionClient,
+  guard: Pick<CarpoolOrderManagementWriteGuard, "group" | "users">,
+) {
   if (guard.users.targetUserId !== guard.users.principal.subjectUserId) throw iamAccountDenied();
   await assertIamAccountUserMutation(tx, guard.users, guard.users.targetUserId);
   await tx.$queryRaw`SELECT id FROM \`groups\` WHERE id=${guard.group.id} FOR UPDATE`;
@@ -42,7 +45,7 @@ export async function runCarpoolOrderManagementWrite<T>(
   try {
     return await prisma.$transaction(
       async (tx) => {
-        await identity(tx, guard);
+        await assertCarpoolOrderManagementIdentity(tx, guard);
         const revision = await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId);
         await tx.$queryRaw`SELECT id FROM carpool_orders WHERE id=${id} FOR UPDATE`;
         await tx.$queryRaw`SELECT id FROM carpool_members WHERE orderId=${id} ORDER BY id FOR UPDATE`;
@@ -70,7 +73,7 @@ export async function runCarpoolOrderManagementWrite<T>(
           }) !== guard.target.revision
         )
           throw iamAccountDenied();
-        await identity(tx, guard);
+        await assertCarpoolOrderManagementIdentity(tx, guard);
         if ((await readIamAuthorizationRevision(tx, guard.users.principal.accountOwnerId)) !== revision)
           throw iamAccountDenied();
         return result;
