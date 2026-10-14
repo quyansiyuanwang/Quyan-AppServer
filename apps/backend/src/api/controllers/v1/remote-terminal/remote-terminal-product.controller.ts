@@ -1,3 +1,4 @@
+import { terminalPurchaseResource } from "@/iam/request/terminal-purchase-resource-resolver";
 import { platformTerminalEntitlementAssignResource } from "@/iam/request/platform-terminal-entitlement-assign-resource-resolver";
 import { terminalInstallTokenResource } from "@/iam/request/terminal-install-token-resource-resolver";
 import {
@@ -310,7 +311,7 @@ export class RemoteTerminalProductController extends Controller {
     iamAuthenticatedAuthorizationMiddleware({
       action: "quyan:remote_terminal:ClaimPublishedTemplate",
       resourceKind: "single-resource",
-      resource: iamAuthenticatedUserResourceResolver,
+      resource: terminalPurchaseResource,
     }),
   )
   public async claimPublishedTemplate(

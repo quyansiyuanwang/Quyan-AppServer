@@ -224,6 +224,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   },
   { ...resource('remote-terminal', 'product-binding', 2), authenticatedSelfScope: 'children' },
   { ...resource('remote-terminal', 'product-entitlement', 2), authenticatedSelfScope: 'children' },
+  { ...resource('remote-terminal', 'published-template', 2), authenticatedSelfScope: 'children' },
   resource('remote-terminal', 'device', 2),
   resource('remote-terminal', 'session', 2),
   {
@@ -709,6 +710,22 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       Permission.REMOTE_TERMINAL_SESSION_CREATE,
       Permission.REMOTE_TERMINAL_SESSION_READ,
     ],
+  },
+  {
+    action: 'quyan:remote_terminal:ClaimPublishedTemplate',
+    service: 'remote_terminal',
+    operation: 'ClaimPublishedTemplate',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'quyan/user',
+      'remote-terminal/published-template',
+      'remote-terminal/product-entitlement',
+    ],
+    apiRoutes: ['POST /v1/remote-terminal/products/me/entitlements/claim'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    defaultAuthorizationScope: 'self',
   },
   {
     action: 'quyan:remote_terminal:GetMyInstallToken',
@@ -1389,12 +1406,7 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
       accessLevel: 'List',
       resourceTypes: ['quyan/user'],
     },
-    {
-      service: 'remote_terminal',
-      operation: 'ClaimPublishedTemplate',
-      accessLevel: 'Write',
-      resourceTypes: ['quyan/user'],
-    },
+
     {
       service: 'remote_terminal',
       operation: 'ListMyDevices',

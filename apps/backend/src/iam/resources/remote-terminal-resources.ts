@@ -28,7 +28,7 @@ function productResource(
   accountOwnerId: string,
   userId: string,
   id: string,
-  type: "product-binding" | "product-entitlement",
+  type: "product-binding" | "product-entitlement" | "published-template",
 ) {
   if (!isRemoteTerminalId(userId) || !isRemoteTerminalId(id)) throw new Error("Invalid terminal product resource ID");
   return buildAcsResource({
@@ -58,3 +58,6 @@ export function remoteTerminalProductRegistrationTokenArn(
     path: "product-registration-token/" + userId + "/" + entitlementId + "/" + tokenId,
   });
 }
+
+export const remoteTerminalPublishedTemplateArn = (accountOwnerId: string, userId: string, id: string) =>
+  productResource(accountOwnerId, userId, id, "published-template");

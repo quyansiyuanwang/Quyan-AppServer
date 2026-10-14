@@ -1,3 +1,5 @@
+import { TerminalPurchaseIamService } from "./terminal-purchase-iam.service";
+import { TerminalPurchaseRepository } from "@/store/remote-terminal-product/terminal-purchase.repository";
 import { PlatformTerminalEntitlementAssignIamService } from "./platform-terminal-entitlement-assign-iam.service";
 import { PlatformTerminalEntitlementAssignRepository } from "@/store/remote-terminal-product/platform-terminal-entitlement-assign.repository";
 import { PlatformTerminalEntitlementUpdateIamService } from "./platform-terminal-entitlement-update-iam.service";
@@ -1403,9 +1405,15 @@ export class RemoteTerminalProductService {
     userId: string,
     request?: TypedRequest,
   ): Promise<RemoteTerminalUserEntitlementDto> {
-    await this.ensureUserExists(userId);
+    const native = await TerminalPurchaseIamService.getInstance().prepare(
+      userId,
+      request,
+      body.templateId,
+      body.targetEntitlementId,
+    );
+    if (!native) await this.ensureUserExists(userId);
 
-    const template = await this.productRepository.findTemplateById(body.templateId);
+    const template = native ? native.template : await this.productRepository.findTemplateById(body.templateId);
     if (!template || template.status !== MANAGED_STATUS.ENABLED || template.publishStatus !== "published")
       throw new NotFoundError("Published template not found", undefined, {
         messageKey: "remoteTerminalProduct.publishedTemplateNotFound",
@@ -1493,7 +1501,7 @@ export class RemoteTerminalProductService {
           },
         );
     }
-    if (!targetEntitlementId) await this.enforceTemplatePurchaseLimit(userId, template);
+    if (!targetEntitlementId && !native) await this.enforceTemplatePurchaseLimit(userId, template);
 
     const purchaseAmount = this.calculatePurchaseAmount({
       durationDays,
@@ -1508,7 +1516,7 @@ export class RemoteTerminalProductService {
     let token: RemoteTerminalRegistrationTokenDto | undefined;
 
     if (targetEntitlementId) {
-      const existing = await this.productRepository.findEntitlementById(targetEntitlementId);
+      const existing = native ? native.target : await this.productRepository.findEntitlementById(targetEntitlementId);
       if (!existing || existing.status === MANAGED_STATUS.DELETED)
         throw new NotFoundError("Target entitlement not found", undefined, {
           messageKey: "remoteTerminalProduct.targetEntitlementNotFound",
@@ -1542,7 +1550,7 @@ export class RemoteTerminalProductService {
       });
       const cumulativePurchaseAmount = Number((Number(existing.purchaseAmount ?? 0) + mergedPurchaseAmount).toFixed(4));
 
-      record = await this.productRepository.purchaseAndUpdateEntitlement({
+      const purchaseData = {
         userId,
         templateName: template.name,
         description: template.description ?? undefined,
@@ -1569,7 +1577,18 @@ export class RemoteTerminalProductService {
           note: DEFAULT_SELF_CLAIM_NOTE,
           status: MANAGED_STATUS.ENABLED,
         },
-      });
+      };
+      if (native)
+        return this.completeNativeTerminalPurchase(
+          await TerminalPurchaseRepository.getInstance().purchase(
+            { kind: "renew", entitlement: purchaseData.entitlement, chargeAmount: mergedPurchaseAmount },
+            native.guard,
+          ),
+          body,
+          userId,
+          request,
+        );
+      record = await this.productRepository.purchaseAndUpdateEntitlement(purchaseData);
 
       token =
         this.canIssueRegistrationToken(deviceCount) && !record.registrationToken
@@ -1579,7 +1598,7 @@ export class RemoteTerminalProductService {
             : undefined;
     } else {
       const { startAt, endAt } = this.buildTemplateEntitlementRange(durationDays);
-      record = await this.productRepository.purchaseEntitlement({
+      const purchaseData = {
         userId,
         templateName: template.name,
         description: template.description ?? undefined,
@@ -1607,7 +1626,18 @@ export class RemoteTerminalProductService {
           note: DEFAULT_SELF_CLAIM_NOTE,
           status: MANAGED_STATUS.ENABLED,
         },
-      });
+      };
+      if (native)
+        return this.completeNativeTerminalPurchase(
+          await TerminalPurchaseRepository.getInstance().purchase(
+            { kind: "create", entitlement: purchaseData.entitlement, chargeAmount: purchaseAmount },
+            native.guard,
+          ),
+          body,
+          userId,
+          request,
+        );
+      record = await this.productRepository.purchaseEntitlement(purchaseData);
 
       token = this.canIssueRegistrationToken(deviceCount)
         ? await this.ensureRegistrationTokenForEntitlement(record.id)
@@ -1635,6 +1665,29 @@ export class RemoteTerminalProductService {
       ...this.toEntitlementDto(record, usernamesById),
       registrationToken: token,
     };
+  }
+
+  private async completeNativeTerminalPurchase(
+    record: RemoteTerminalUserEntitlement,
+    body: ClaimRemoteTerminalProductTemplateRequest,
+    userId: string,
+    request?: TypedRequest,
+  ): Promise<RemoteTerminalUserEntitlementDto> {
+    await this.businessLogService.logOperation({
+      operationType: OperationType.REMOTE_TERMINAL_ASSIGNMENT_SELF_CLAIM,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId: userId,
+      targetUserId: userId,
+      targetResourceType: "REMOTE_TERMINAL_ENTITLEMENT",
+      targetResourceId: record.id,
+      description: body.targetEntitlementId
+        ? "Renewed remote terminal entitlement"
+        : "Purchased remote terminal entitlement",
+      changes: body,
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+    return this.toEntitlementScalarDto(record);
   }
 
   public async updateEntitlement(

@@ -8,6 +8,8 @@ Your registration-token rotation uses `quyan:remote_terminal:RotateMyRegistratio
 
 Install-token issuance uses `quyan:remote_terminal:GetMyInstallToken` on `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`. Authenticated users retain issuance for their own entitlements, while a matching explicit Deny still blocks the operation. Other users' entitlements and entitlements with zero device allowance cannot receive an install token. The server rechecks entitlement state and authorization before returning the token; changes during issuance prevent credential delivery. The install protocol is unchanged, and the response's expiration time still determines the token's validity.
 
+In IAM enforcement mode, purchase and renewal use `quyan:remote_terminal:ClaimPublishedTemplate` on your user resource, the published offer `acs:remote-terminal:*:<accountId>:published-template/<userId>/<templateId>`, and the resulting entitlement. The offer is the published plan available to your identity and grants no access to platform template management. Authenticated users retain purchases for their own resources; matching explicit Deny still blocks them. Balance deductions, transaction records and entitlement changes commit together; failed authorization returns no entitlement or credential and rolls back the charge. Renewal charges only the current renewal or upgrade amount, while the entitlement records the cumulative purchase amount. Purchase results omit registration credentials; obtain one through the separate registration-token rotation operation.
+
 ## Page purpose
 
 - Browse published remote terminal product plans with pricing.

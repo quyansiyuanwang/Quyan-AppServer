@@ -1,7 +1,5 @@
 import { prisma } from "@/config/database";
 import { MANAGED_STATUS } from "@/constant/status";
-import { BadRequestError } from "@/util/errors";
-import { Decimal } from "@prisma/client/runtime/library";
 import type { Prisma } from "@prisma/client";
 import type {
   RemoteTerminalActiveEntitlementTokenRecord,
@@ -13,7 +11,7 @@ import type {
   RemoteTerminalProductTemplateRecord,
   RemoteTerminalProductTemplateFilterOption,
 } from "./remote-terminal-product.store";
-import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
+import { chargeTerminalPurchase } from "./terminal-purchase-charge";
 
 type RemoteTerminalUserEntitlementRecord = Prisma.RemoteTerminalUserEntitlementGetPayload<Record<string, never>>;
 type RemoteTerminalEntitlementTokenRecord = Prisma.RemoteTerminalEntitlementTokenGetPayload<Record<string, never>>;
@@ -67,34 +65,6 @@ export class RemoteTerminalProductRepository implements RemoteTerminalProductSto
       RemoteTerminalProductRepository.instance = new RemoteTerminalProductRepository();
 
     return RemoteTerminalProductRepository.instance;
-  }
-
-  private async chargePurchase(
-    tx: Prisma.TransactionClient,
-    data: { userId: string; purchaseAmount: number; templateName: string },
-  ): Promise<void> {
-    if (data.purchaseAmount <= 0) return;
-
-    const mutation = await applyBalanceAccountMutation(tx, {
-      userId: data.userId,
-      balanceDelta: new Decimal(-data.purchaseAmount),
-      totalUsedDelta: new Decimal(data.purchaseAmount),
-      minimumBalance: 0,
-    });
-    if (!mutation)
-      throw new BadRequestError("Insufficient balance", undefined, { messageKey: "billing.insufficientBalance" });
-
-    await tx.balanceTransaction.create({
-      data: {
-        userId: data.userId,
-        type: "remote_terminal_purchase",
-        amount: new Decimal(-data.purchaseAmount),
-        balanceBefore: mutation.balanceBefore,
-        balanceAfter: mutation.balanceAfter,
-        description: `远程终端购买: ${data.templateName}`,
-        model: "remote_terminal_product",
-      },
-    });
   }
 
   async findTemplateById(id: string): Promise<RemoteTerminalProductTemplateRecord | null> {
@@ -208,7 +178,7 @@ export class RemoteTerminalProductRepository implements RemoteTerminalProductSto
     const created = await prisma.$transaction(async (tx) => {
       const purchaseAmount = Number(data.entitlement.purchaseAmount ?? 0);
 
-      await this.chargePurchase(tx, {
+      await chargeTerminalPurchase(tx, {
         userId: data.userId,
         purchaseAmount,
         templateName: data.templateName,
@@ -229,7 +199,7 @@ export class RemoteTerminalProductRepository implements RemoteTerminalProductSto
     await prisma.$transaction(async (tx) => {
       const purchaseAmount = Number(data.entitlement.purchaseAmount ?? 0);
 
-      await this.chargePurchase(tx, {
+      await chargeTerminalPurchase(tx, {
         userId: data.userId,
         purchaseAmount,
         templateName: data.templateName,

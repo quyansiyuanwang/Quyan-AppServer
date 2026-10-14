@@ -8,6 +8,8 @@
 
 安装令牌签发使用 `quyan:remote_terminal:GetMyInstallToken`，资源为 `acs:remote-terminal:*:<accountId>:product-entitlement/<userId>/<entitlementId>`。已登录用户保留本人权益的签发能力，匹配的显式拒绝仍会阻止操作；其他用户权益或设备额度为零时不能签发。服务端在返回令牌前复查权益和授权，操作期间变化时不返回凭据。安装令牌仍按响应中的到期时间失效，安装协议保持不变。
 
+IAM 强制模式下，购买及续期使用 `quyan:remote_terminal:ClaimPublishedTemplate`，同时检查本人用户资源、已发布商品 `acs:remote-terminal:*:<accountId>:published-template/<userId>/<templateId>` 和最终权益。商品资源表示向该身份开放的已发布套餐，不授予平台模板管理权限。认证用户保留购买本人资源的能力，匹配的显式 Deny 仍可阻止购买。余额扣减、交易流水与权益变更在同一事务中提交；授权失败时不会返回权益或凭据，扣款一并回滚。续期只收取本次续期或升级费用，权益中的购买金额记录累计值。购买结果不返回注册凭据，获取凭据需另行使用注册令牌轮换操作。
+
 ## 页面用途
 
 - 浏览已发布的远程终端产品方案与价格。

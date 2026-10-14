@@ -18,7 +18,6 @@ describe("self-service IAM action catalog", () => {
       "quyan:monthly_pass:ListMyPasses",
       "quyan:monthly_pass:ClaimPublishedTemplate",
       "quyan:remote_terminal:ListMyEntitlements",
-      "quyan:remote_terminal:ClaimPublishedTemplate",
       "quyan:remote_terminal:ListMyDevices",
     ];
     for (const action of userActions)
