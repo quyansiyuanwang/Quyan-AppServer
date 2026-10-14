@@ -1,3 +1,7 @@
+import {
+  platformRedemptionCodeCreationResourceResolver,
+  platformRedemptionCodeResourceResolver,
+} from "@/iam/request/redemption-code-resource-resolvers";
 import { PlatformRedemptionCodeReadIamService } from "@/services/billing/platform-redemption-code-read-iam.service";
 import { platformRedemptionCodeCollectionArn } from "@/iam/resources/platform-redemption-code-resources";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -16,8 +20,6 @@ import {
   Query,
   Middlewares,
 } from "@tsoa/runtime";
-import { RequirePermission } from "@/util/permission/permission-decorator";
-import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import type { CreateRedemptionCodeDto, RedemptionCodeDto, RedeemCodeDto } from "@/api/dto/billing/redemption-code.dto";
 import { RedemptionCodeService } from "@/services/billing/redemption-code.service";
@@ -41,7 +43,13 @@ export class RedemptionCodeController extends Controller {
 
   @Post("create")
   @Security("jwt")
-  @RequirePermission(Permission.REDEMPTION_CODE_CREATE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:redemption_code:CreateCodes",
+      resourceKind: "batch",
+      resource: platformRedemptionCodeCreationResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -91,7 +99,13 @@ export class RedemptionCodeController extends Controller {
 
   @Delete("{id}")
   @Security("jwt")
-  @RequirePermission(Permission.REDEMPTION_CODE_DELETE)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:redemption_code:DeleteCode",
+      resourceKind: "single-resource",
+      resource: platformRedemptionCodeResourceResolver,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

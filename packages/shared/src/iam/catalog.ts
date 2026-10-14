@@ -1799,6 +1799,30 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     authorizationBoundary: 'platform',
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
+  ...[
+    {
+      operation: 'CreateCodes',
+      resourceTypes: ['platform/redemption-code-control', 'platform/redemption-code'],
+      legacyPermission: Permission.REDEMPTION_CODE_CREATE,
+    },
+    {
+      operation: 'DeleteCode',
+      resourceTypes: ['platform/redemption-code'],
+      legacyPermission: Permission.REDEMPTION_CODE_DELETE,
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      ...definition,
+      action: 'quyan:redemption_code:' + definition.operation,
+      service: 'redemption_code',
+      accessLevel: 'Write',
+      apiRoutes: [],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+    }),
+  ),
   {
     action: 'quyan:redemption_code:ListCodes',
     service: 'redemption_code',

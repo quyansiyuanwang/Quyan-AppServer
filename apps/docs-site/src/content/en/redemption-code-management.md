@@ -48,6 +48,12 @@ The collection requires an Allow for `acs:platform:*:platform:redemption-code-co
 
 In enforcement mode, `page` starts at 1 and cannot exceed 10000; `pageSize` defaults to 50 and cannot exceed 100. Legacy and shadow modes retain their original pagination default. Disabled records are excluded. Records are sorted newest first. Changes to record content, authorization, eligibility, or role sessions during reading, or conditions that cease to hold, cause the request to fail rather than return a stale snapshot.
 
+## Resource-scoped creation and deletion
+
+In enforcement mode, batch issuance uses `quyan:redemption_code:CreateCodes` and requires deployment-managed global group eligibility for `REDEMPTION_CODE_CREATE`. The policy must allow both `acs:platform:*:platform:redemption-code-control/default` and the new record resources `acs:platform:*:platform:redemption-code/<redemption code ID>`. The server generates new record IDs; creation scope normally uses `acs:platform:*:platform:redemption-code/*`. A collection grant does not override a record-level Deny. A batch can contain at most 1000 records. If any record is denied or authorization ceases to hold before commit, the whole batch rolls back without returning or retaining partially generated results.
+
+Deletion uses `quyan:redemption_code:DeleteCode`, requires deployment-managed global group eligibility for `REDEMPTION_CODE_DELETE`, and needs an Allow on the target ARN. Changes to target content or authorization during deletion cause rejection. Both creation and deletion retain two-factor challenges and replay protection. Creating codes does not grant permission to read the code list.
+
 ## Notes
 
 - Redemption codes usually affect balance or user benefits.
