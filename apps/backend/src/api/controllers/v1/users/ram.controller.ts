@@ -65,7 +65,10 @@ import {
   resourceGroupIdParamsSchema,
   resourceGroupMemberParamsSchema,
 } from "@/api/schema/users/ram.schema";
-import { iamAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import {
+  iamAuthorizationMiddleware,
+  iamCollectionAuthorizationMiddleware,
+} from "@/iam/middleware/iam-authorization.middleware";
 import {
   ramAuthorizationResourceResolver,
   ramResourceGroupResourceResolver,
@@ -148,11 +151,14 @@ export class RamController extends Controller {
   @Get("users/page")
   @Security("jwt")
   @Middlewares(validateQuery(iamManagementPaginationSchema))
-  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadUser",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ReadUser",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_USER_READ],
+    }),
+  )
   public async listUsersPage(
     @Request() request: TypedRequest,
     @Query() page?: number,
@@ -164,11 +170,14 @@ export class RamController extends Controller {
   @Get("users")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM用户列表成功")
-  @CheckPermission(Permission.RAM_USER_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadUser",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ReadUser",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_USER_READ],
+    }),
+  )
   public async listUsers(@Request() request: TypedRequest): Promise<GetRamUsersResponse> {
     return this.ramService.listRamUsers(request.user!.userId);
   }
@@ -287,11 +296,14 @@ export class RamController extends Controller {
   @Get("roles/page")
   @Security("jwt")
   @Middlewares(validateQuery(iamManagementPaginationSchema))
-  @CheckPermission(Permission.RAM_ROLE_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:role:Read",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:role:Read",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_ROLE_READ],
+    }),
+  )
   public async listRolesPage(
     @Request() request: TypedRequest,
     @Query() page?: number,
@@ -303,11 +315,14 @@ export class RamController extends Controller {
   @Get("roles")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM角色列表成功")
-  @CheckPermission(Permission.RAM_ROLE_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:role:Read",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:role:Read",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_ROLE_READ],
+    }),
+  )
   public async listRoles(@Request() request: TypedRequest): Promise<GetRamRolesResponse> {
     return this.ramService.listRoles(request.user!.userId);
   }
@@ -559,11 +574,14 @@ export class RamController extends Controller {
   @Get("sessions/page")
   @Security("jwt")
   @Middlewares(validateQuery(ramSessionPageQuerySchema))
-  @CheckPermission(Permission.RAM_SESSION_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:session:Read",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:session:Read",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_SESSION_READ],
+    }),
+  )
   public async listSessionsPage(
     @Request() request: TypedRequest,
     @Query() page?: number,
@@ -576,11 +594,14 @@ export class RamController extends Controller {
   @Get("sessions")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取RAM角色会话成功")
-  @CheckPermission(Permission.RAM_SESSION_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:session:Read",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:session:Read",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_SESSION_READ],
+    }),
+  )
   public async listSessions(
     @Request() request: TypedRequest,
     @Query() principalUserId?: string,
@@ -616,11 +637,14 @@ export class RamController extends Controller {
   @Get("policies/page")
   @Security("jwt")
   @Middlewares(validateQuery(iamManagementPaginationSchema))
-  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ReadPolicy",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_POLICY_READ],
+    }),
+  )
   public async listPoliciesPage(
     @Request() request: TypedRequest,
     @Query() page?: number,
@@ -632,11 +656,14 @@ export class RamController extends Controller {
   @Get("policies")
   @Security("jwt")
   @SuccessResponse(HttpStatusCode.Ok, "获取权限策略列表成功")
-  @CheckPermission(Permission.RAM_POLICY_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:ram:ReadPolicy",
-    resourceKind: "account",
-    resource: ramAccountResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ReadPolicy",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_POLICY_READ],
+    }),
+  )
   public async listPolicies(@Request() request: TypedRequest): Promise<GetRamPoliciesResponse> {
     return this.ramService.listPolicies(request.user!.userId);
   }
@@ -790,10 +817,11 @@ export class RamController extends Controller {
   @Security("jwt")
   @Middlewares(validateQuery(iamAuthorizationQuerySchema))
   @Middlewares(
-    iamAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:ram:ListAuthorizations",
-      resourceKind: "account",
+      resourceKind: "collection",
       resource: ramAccountResourceResolver,
+      alwaysEnforce: true,
     }),
   )
   public async listAuthorizationPage(
@@ -809,10 +837,11 @@ export class RamController extends Controller {
   @Security("jwt")
   @Middlewares(validateQuery(iamResourceGroupQuerySchema))
   @Middlewares(
-    iamAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:ram:ListResourceGroups",
-      resourceKind: "account",
+      resourceKind: "collection",
       resource: ramAccountResourceResolver,
+      alwaysEnforce: true,
     }),
   )
   public async listResourceGroupPage(
@@ -845,10 +874,11 @@ export class RamController extends Controller {
   @Security("jwt")
   @Middlewares(validateQuery(iamAuthorizationQuerySchema))
   @Middlewares(
-    iamAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:ram:ListAuthorizations",
-      resourceKind: "account",
+      resourceKind: "collection",
       resource: ramAccountResourceResolver,
+      alwaysEnforce: true,
     }),
   )
   public async listAuthorizations(
@@ -911,10 +941,11 @@ export class RamController extends Controller {
   @Get("resource-groups")
   @Security("jwt")
   @Middlewares(
-    iamAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:ram:ListResourceGroups",
-      resourceKind: "account",
+      resourceKind: "collection",
       resource: ramAccountResourceResolver,
+      alwaysEnforce: true,
     }),
   )
   @Middlewares(validateQuery(iamResourceGroupQuerySchema))

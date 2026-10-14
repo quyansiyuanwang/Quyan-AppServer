@@ -1,3 +1,5 @@
+import { Project } from "ts-morph";
+import { collectIamRoutes } from "../../../scripts/iam/route-inventory";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Permission, actionForPermission } from "@quyan/shared";
 import type { IamConditionContext } from "@quyan/shared";
@@ -503,5 +505,65 @@ describe("IAM middleware and rollout bridge", () => {
         resource: ramAccountResourceResolver,
       }),
     ).toThrow();
+  });
+  it("keeps RAM collection legacy denials in both legacy and shadow modes", async () => {
+    for (const mode of ["legacy", "shadow"] as const) {
+      mocks.mode = mode;
+      mocks.legacy.mockResolvedValue({
+        hasPermission: false,
+        checkedPermissions: [Permission.RAM_USER_READ],
+        missingPermissions: [Permission.RAM_USER_READ],
+      });
+      const next = vi.fn();
+      await iamCollectionAuthorizationMiddleware({
+        action: "quyan:ram:ReadUser",
+        resourceKind: "collection",
+        resource: ramAccountResourceResolver,
+        legacyPermissions: [Permission.RAM_USER_READ],
+      })(request(), {} as never, next);
+      expect(next.mock.calls[0][0]).toMatchObject({ statusCode: 403 });
+    }
+    expect(mocks.loadPolicies).not.toHaveBeenCalled();
+  });
+  it("admits a scoped IAM collection without requiring an account-wide Allow or legacy permission", async () => {
+    mocks.mode = "enforce";
+    mocks.authorize.mockResolvedValue(deny);
+    mocks.legacy.mockResolvedValue({ hasPermission: false });
+    const next = vi.fn();
+    await iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ReadUser",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RAM_USER_READ],
+    })(request(), {} as never, next);
+    expect(next).toHaveBeenCalledExactlyOnceWith();
+    expect(mocks.loadPolicies).toHaveBeenCalled();
+    expect(mocks.authorize).not.toHaveBeenCalled();
+    expect(mocks.legacy).not.toHaveBeenCalled();
+  });
+  it("retains native RAM collection IAM enforcement when legacy rollout is selected", async () => {
+    mocks.mode = "legacy";
+    mocks.loadPolicies.mockRejectedValue(new Error("fixture policy unavailable"));
+    const next = vi.fn();
+    await iamCollectionAuthorizationMiddleware({
+      action: "quyan:ram:ListAuthorizations",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      alwaysEnforce: true,
+    })(request(), {} as never, next);
+    expect(next.mock.calls[0][0]).toBeInstanceOf(Error);
+    expect(mocks.loadPolicies).toHaveBeenCalled();
+  });
+  it("declares every RAM summary collection without an account-wide permission gate", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/users/ram.controller.ts");
+    const routes = collectIamRoutes(project.getSourceFiles(), process.cwd());
+    for (const entity of ["users", "roles", "policies", "sessions", "authorizations", "resource-groups"])
+      for (const suffix of ["", "/page"])
+        expect(routes.find((route) => route.key === "GET /v1/ram/" + entity + suffix)).toMatchObject({
+          coverage: "explicit",
+          resourceKind: "collection",
+          issues: [],
+        });
   });
 });

@@ -4,6 +4,8 @@ RAM is the authorization and access control hub. It lets you create sub-users, d
 
 Remote terminal product entitlements, device bindings and registration-token metadata can be added to resource groups using their database resource IDs. Disabled or expired product metadata remains addressable; deleted products and deleted parents are excluded. A published-template member represents an offer for the user in its ARN and must refer to an enabled, published plan. It grants no access to platform template management. Product ownership and parent relationships are checked without reading credential values; membership removal changes scoped decisions on the next request.
 
+RAM user, role, policy and role-session lists apply IAM to each returned resource. A grant for a specific resource is sufficient to see that resource; an account-wide Allow is not required. Authorization and resource-group lists also filter rows by their respective list Actions. Candidate pages can be empty while hasNext remains true. In legacy and shadow rollout modes, existing user, role, policy and session list permission checks remain enforced; the native authorization and resource-group APIs retain IAM enforcement in every mode.
+
 ## What you can manage
 
 - **RAM Users** — Sub-accounts under your main account with separate credentials.

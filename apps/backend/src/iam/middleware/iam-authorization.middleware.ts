@@ -1,3 +1,5 @@
+import type { Permission } from "@quyan/shared";
+import { PermissionService } from "@/services/users/permission.service";
 import { env } from "@/config/env";
 import { getLogger, LogCategory } from "@/util/logger";
 import { isSafeIamResourceBatch } from "../authorization-limits";
@@ -55,23 +57,45 @@ export function iamAuthenticatedAuthorizationMiddleware(
  * The service must apply database account isolation, pagination and per-row evaluation.
  */
 export function iamCollectionAuthorizationMiddleware(
-  definition: IamAuthorizationDefinition & { resourceKind: "collection" },
+  definition: IamAuthorizationDefinition & {
+    resourceKind: "collection";
+    legacyPermissions?: readonly Permission[];
+    /** Native RAM management collections already enforce IAM in every rollout mode. */
+    alwaysEnforce?: boolean;
+  },
   service = IamAuthorizationService.getInstance(),
 ): RequestHandler {
   assertIamAuthorizationDefinition(definition);
   if (definition.resourceKind !== "collection") throw new Error("Collection middleware requires collection metadata");
   return async (req, _res, next) => {
-    const mode = env.security.iamAuthorizationMode;
-    if (mode === "legacy") return next();
-    if (mode !== "shadow" && mode !== "enforce")
+    const mode = definition.alwaysEnforce ? "enforce" : env.security.iamAuthorizationMode;
+    let legacyAllowed = !definition.legacyPermissions?.length;
+    if (mode !== "legacy" && mode !== "shadow" && mode !== "enforce")
       return next(
         new ForbiddenError("Unsupported IAM authorization mode", undefined, {
           messageKey: "permission.insufficientPermission",
         }),
       );
     try {
-      const request = req as TypedRequest,
-        principal = getIamPrincipal(request);
+      const request = req as TypedRequest;
+      if ((mode === "legacy" || mode === "shadow") && definition.legacyPermissions?.length) {
+        if (!request.user?.userId)
+          throw new UnauthorizedError("IAM collection principal missing", undefined, {
+            messageKey: "permission.loginRequired",
+          });
+        const result = await PermissionService.getInstance().checkUserPermissions(
+          request.user.userId,
+          [...definition.legacyPermissions],
+          { assumedRoleSessionId: request.user.roleSessionId },
+        );
+        if (!result.hasPermission)
+          throw new ForbiddenError("Legacy collection permission denied", undefined, {
+            messageKey: "permission.insufficientPermission",
+          });
+        legacyAllowed = true;
+      }
+      if (mode === "legacy") return next();
+      const principal = getIamPrincipal(request);
       if (!principal)
         throw new UnauthorizedError("IAM collection principal missing", undefined, {
           messageKey: "permission.loginRequired",
@@ -90,7 +114,7 @@ export function iamCollectionAuthorizationMiddleware(
       await service.loadPolicies(principal);
       next();
     } catch (error) {
-      if (mode === "shadow") {
+      if (mode === "shadow" && legacyAllowed) {
         getLogger("IamCollectionBridge", LogCategory.SECURITY).warn("IAM collection shadow evaluation failed", {
           action: definition.action,
           reason: "iam-collection-unavailable",
