@@ -17,7 +17,7 @@ export default defineDocsPage({
     'zh-CN': '说明月卡模板、发布状态和用户分配管理。',
   },
   tags: ['monthly-pass', 'template', 'assignment'],
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-15',
   content: {
     en: contentEn,
     'zh-CN': contentZh,

@@ -39,7 +39,6 @@ import type {
   UserMonthlyPassListResponse,
 } from "@/api/dto/billing/monthly-pass.dto";
 import { MonthlyPassService } from "@/services/billing/monthly-pass.service";
-import { RequireAnyPermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import {
   assignUserMonthlyPassBodySchema,
@@ -72,13 +71,15 @@ export class MonthlyPassController extends Controller {
 
   @Get("filter-options")
   @Security("jwt")
-  @RequireAnyPermission([
-    Permission.MONTHLY_PASS_TEMPLATE_READ,
-    Permission.MONTHLY_PASS_ASSIGNMENT_READ,
-    Permission.MONTHLY_PASS_USAGE_READ,
-  ])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:monthly_pass:GetFilterOptions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async getFilterOptions(@Request() request: TypedRequest): Promise<MonthlyPassFilterOptionsDto> {
-    return this.monthlyPassService.getFilterOptions(request.user!.userId);
+    return this.monthlyPassService.getFilterOptions(request.user!.userId, request);
   }
 
   @Get("templates/published")

@@ -204,6 +204,12 @@ type RelayChannelWithMembers = RelayChannel & {
   }>;
 };
 
+const RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS = [
+  Permission.RELAY_CHANNEL_CREATE,
+  Permission.RELAY_CHANNEL_UPDATE,
+  Permission.RELAY_CHANNEL_DELETE,
+  Permission.RELAY_CHANNEL_REVIEW,
+];
 export class RelayChannelService {
   private static instance: RelayChannelService;
 
@@ -1365,12 +1371,7 @@ export class RelayChannelService {
   }
 
   private async canBypassVisibility(actorUserId: string): Promise<boolean> {
-    return this.permissionService.hasAnyPermission(actorUserId, [
-      Permission.RELAY_CHANNEL_CREATE,
-      Permission.RELAY_CHANNEL_UPDATE,
-      Permission.RELAY_CHANNEL_DELETE,
-      Permission.RELAY_CHANNEL_REVIEW,
-    ]);
+    return this.permissionService.hasAnyPermission(actorUserId, RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS);
   }
 
   private async buildManagementVisibilityWhere(
@@ -1419,6 +1420,21 @@ export class RelayChannelService {
     };
   }
 
+  /** Share option visibility rules with authorized metadata consumers without loading channel credentials. */
+  async canAccessChannelOption(
+    channel: Pick<RelayChannel, "visibilityMode" | "visibilityConfig">,
+    actorUserId: string,
+    assumedRoleSessionId?: string,
+  ): Promise<boolean> {
+    if (channel.visibilityMode === "hidden") return false;
+    if (!assumedRoleSessionId) return this.canUserAccessChannel(channel, actorUserId);
+    const checks = await Promise.all(
+      RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS.map((permission) =>
+        this.permissionService.checkUserPermissions(actorUserId, [permission], { assumedRoleSessionId }),
+      ),
+    );
+    return checks.some((result) => result.hasPermission) || this.canUserAccessChannel(channel, actorUserId, false);
+  }
   private async canUserAccessChannel(
     channel: Pick<RelayChannel, "visibilityMode" | "visibilityConfig">,
     actorUserId: string,

@@ -1,4 +1,5 @@
 import type { IamMonthlyPassAssignOperation } from "@quyan/shared";
+import { MonthlyPassFilterOptionsIamService } from "./monthly-pass-filter-options-iam.service";
 import { PlatformMonthlyPassAssignIamService } from "./platform-monthly-pass-assign-iam.service";
 import { MonthlyPassPersonalReadIamService } from "./monthly-pass-personal-read-iam.service";
 import {
@@ -842,7 +843,21 @@ export class MonthlyPassService {
       );
   }
 
-  async getFilterOptions(actorUserId: string): Promise<MonthlyPassFilterOptionsDto> {
+  async getFilterOptions(actorUserId: string, request?: TypedRequest): Promise<MonthlyPassFilterOptionsDto> {
+    return MonthlyPassFilterOptionsIamService.getInstance().read(
+      actorUserId,
+      request,
+      () => this.getFilterOptionsLegacy(actorUserId),
+      {
+        templateStatusOptions: DEFAULT_NUMBER_STATUS_OPTIONS,
+        assignmentStatusOptions: DEFAULT_NUMBER_STATUS_OPTIONS,
+        publishStatusOptions: DEFAULT_PUBLISH_STATUS_OPTIONS,
+        assignmentModeOptions: DEFAULT_ASSIGNMENT_MODE_OPTIONS,
+        quotaUnitOptions: DEFAULT_QUOTA_UNIT_OPTIONS,
+      },
+    );
+  }
+  private async getFilterOptionsLegacy(actorUserId: string): Promise<MonthlyPassFilterOptionsDto> {
     const [templateResult, modelRecords, relayChannels, groups] = await Promise.all([
       this.listTemplatesLegacy(1, MONTHLY_PASS_MAX_PAGE_SIZE),
       this.modelPricingRepository.listActiveOrderedByModel(),

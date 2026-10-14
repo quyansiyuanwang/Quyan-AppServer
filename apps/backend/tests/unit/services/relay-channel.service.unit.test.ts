@@ -50,6 +50,7 @@ describe("RelayChannelService", () => {
     listRoleBindingsForUser: vi.fn(),
   };
   const permissionService = {
+    checkUserPermissions: vi.fn(),
     hasAnyPermission: vi.fn(),
     hasPermission: vi.fn(),
   };
@@ -2317,5 +2318,46 @@ describe("RelayChannelService", () => {
     const result = await service.getChannel("channel-1", "actor-user");
 
     expect(result.inputTokensIncludeCacheRead).toBe(true);
+  });
+  it("does not borrow the actor management bypass during a restricted role session", async () => {
+    permissionService.hasAnyPermission.mockResolvedValue(true);
+    permissionService.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    expect(
+      await service.canAccessChannelOption(
+        { visibilityMode: "private", visibilityConfig: null },
+        "actor-user",
+        "role-session",
+      ),
+    ).toBe(false);
+    expect(permissionService.hasAnyPermission).not.toHaveBeenCalled();
+    expect(
+      permissionService.checkUserPermissions.mock.calls.every(
+        ([, , options]) => options.assumedRoleSessionId === "role-session",
+      ),
+    ).toBe(true);
+  });
+  it("keeps hidden channels hidden and preserves authorized public and whitelist options", async () => {
+    permissionService.checkUserPermissions.mockResolvedValue({ hasPermission: false });
+    expect(
+      await service.canAccessChannelOption(
+        { visibilityMode: "hidden", visibilityConfig: null },
+        "actor-user",
+        "role-session",
+      ),
+    ).toBe(false);
+    expect(
+      await service.canAccessChannelOption(
+        { visibilityMode: "public", visibilityConfig: null },
+        "actor-user",
+        "role-session",
+      ),
+    ).toBe(true);
+    expect(
+      await service.canAccessChannelOption(
+        { visibilityMode: "whitelist", visibilityConfig: { userIds: ["actor-user"] } },
+        "actor-user",
+        "role-session",
+      ),
+    ).toBe(true);
   });
 });

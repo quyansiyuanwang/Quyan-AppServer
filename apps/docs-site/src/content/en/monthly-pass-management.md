@@ -2,18 +2,6 @@
 
 Use this page to manage monthly-pass templates and user assignments.
 
-With IAM enforcement enabled, the management template list uses `quyan:monthly_pass:ListTemplates` against each `acs:platform:*:platform:monthly-pass-template/<templateId>`. Page records and totals include only permitted templates, and quota windows are returned only with an admitted template. Monthly pass templates are shared deployment resources, so IAM grants also require the global management group ceiling configured by the deployment administrator. An account policy or account-owned group cannot grant that management eligibility. This read permission does not grant template editing, publication, or pass assignment.
-
-With IAM enforcement enabled, usage records use `quyan:monthly_pass:ListUsages` against each `acs:platform:*:platform:monthly-pass-usage/<userId>/<passId>/<usageId>`. Counts and pages include only allowed records. Showing a template name additionally requires the same Action to allow its `acs:platform:*:platform:monthly-pass-template/<templateId>`; otherwise the name is empty. Historical model and channel names are returned as part of the authorized usage record and do not grant access to current channel configuration. This operation also requires monthly-pass usage read eligibility in a deployment-managed global group.
-
-Assignment updates and deletes use `quyan:monthly_pass:UpdateUserPass` and `quyan:monthly_pass:DeleteUserPass` on `acs:platform:*:platform:monthly-pass/<userId>/<passId>`. Setting the deleted status through an update also requires DeleteUserPass. The transaction rechecks assignment quotas and quota windows; a concurrent consumption, revoked policy or changed management eligibility rejects the entire change. Usernames and template details in an update response additionally require UpdateUserPass to allow the relevant `platform/user` and `platform/monthly-pass-template` resources. Without that read scope, the response contains only the assignment itself.
-
-The assignment list uses `quyan:monthly_pass:ListUserPasses` to authorize each `acs:platform:*:platform:monthly-pass/<userId>/<passId>` before counting and pagination. Usernames and template details separately require this Action to allow the relevant `platform/user` and `platform/monthly-pass-template` resources. The assignment's stored used and remaining quotas are returned with the record. Window usage is returned only if ListUserPasses allows every relevant active usage record, preventing partial visibility from producing misleading zero or underestimated usage. Template access includes allowed channel identifiers and does not grant current channel names or configuration.
-
-Creating an assignment uses `quyan:monthly_pass:AssignUserPass` and requires the target `platform/user`, the source `platform/monthly-pass-template` and the generated `platform/monthly-pass/<userId>/<passId>` to be allowed. A pass wildcard under the target user can define the creation scope; allowing only the user and template does not allow a new assignment. If template data, user ownership or management eligibility changes during the operation, or the new assignment is denied, the entire creation and its quota windows roll back.
-
-Batch assignment uses the separate `quyan:monthly_pass:AssignUserPassBatch` Action. Each target requires access to its user, template and created or extended pass. A failed target rolls back independently while other authorized targets can succeed. Extensions preserve concurrent consumption: changes to the customer, template, existing pass or quota windows reject that target without replacing its quota. Failed results omit unauthorized usernames; users discovered by filters are omitted from the results when not authorized.
-
 ## Page purpose
 
 - Maintain monthly-pass templates.
@@ -65,6 +53,29 @@ Batch assignment uses the separate `quyan:monthly_pass:AssignUserPassBatch` Acti
 | View assignments                                  | `MONTHLY_PASS_ASSIGNMENT_READ`  |
 | Create, edit, delete assignment (single or batch) | `MONTHLY_PASS_ASSIGNMENT_WRITE` |
 | View usage records                                | `MONTHLY_PASS_USAGE_READ`       |
+
+## Resource-level authorization
+
+When IAM enforcement is enabled, monthly pass management uses the server Actions below. Templates and management assignments are deployment-wide resources. Operators also need eligibility from a deployment-managed global group; account policies and account-owned groups cannot grant that eligibility.
+
+All resource paths below use the prefix `acs:platform:*:platform:`. Replace identifiers such as `userId` and `passId` with actual resource IDs.
+
+| Operation              | Action                                   | Resource path                                                                                                   |
+| ---------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| View templates         | `quyan:monthly_pass:ListTemplates`       | `monthly-pass-template/<templateId>`                                                                            |
+| View assignments       | `quyan:monthly_pass:ListUserPasses`      | `monthly-pass/<userId>/<passId>`                                                                                |
+| View usage             | `quyan:monthly_pass:ListUsages`          | `monthly-pass-usage/<userId>/<passId>/<usageId>`                                                                |
+| Create an assignment   | `quyan:monthly_pass:AssignUserPass`      | The target `user/<userId>`, `monthly-pass-template/<templateId>` and generated `monthly-pass/<userId>/<passId>` |
+| Batch create or extend | `quyan:monthly_pass:AssignUserPassBatch` | Each target's user, template and created or extended pass                                                       |
+| Update an assignment   | `quyan:monthly_pass:UpdateUserPass`      | `monthly-pass/<userId>/<passId>`                                                                                |
+| Delete an assignment   | `quyan:monthly_pass:DeleteUserPass`      | `monthly-pass/<userId>/<passId>`                                                                                |
+| Fetch filter options   | `quyan:monthly_pass:GetFilterOptions`    | The relevant `monthly-pass-template`, `model-pricing`, `relay-channel` and `group` resources                    |
+
+Lists authorize resources before counting and pagination. Usernames and template details in assignment lists require `ListUserPasses` on the related user and template. Template names in usage lists require `ListUsages` on the template. Related details in update results are controlled by `UpdateUserPass`. Stored consumed and remaining quota belong to the authorized pass. Quota-window usage is returned only when every relevant active usage record is allowed, avoiding misleading zeroes or understated usage from a partially visible set.
+
+Creating an assignment requires its target user, template and generated pass ARN. Use `monthly-pass/<userId>/*` to limit creation to that user. Access to only the user and template is insufficient. Changing an assignment's status to deleted also requires `DeleteUserPass`. Changes to permissions, customer ownership, templates or quota windows, or concurrent consumption, reject an operation and preserve the existing quota. Batches process each target independently: a failed target rolls back while other authorized targets can succeed. Failed results omit unauthorized usernames, and unauthorized users discovered by filters are omitted from the results.
+
+Unauthorized filter options are omitted. Existing hidden, private and whitelist channel rules still apply. Groups include only global groups visible at the current management level, excluding account-owned groups. Filter access returns names and identifiers without granting channel credentials, group permission settings or full template details. Historical model and channel information belong to an authorized usage record; channel identifiers in templates do not grant access to current channel configuration.
 
 ## Related pages
 

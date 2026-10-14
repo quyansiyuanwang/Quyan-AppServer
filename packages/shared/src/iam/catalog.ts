@@ -554,6 +554,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':ip-whitelist/{resourceId}',
   },
   resource('json-endpoint', 'endpoint', 2),
+  {
+    ...resource('platform', 'relay-channel'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-channel/{resourceId}',
+  },
   resource('relay', 'channel'),
   resource('relay', 'token', 2),
   resource('developer', 'project'),
@@ -919,6 +924,28 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       legacyPermission: definition.permission,
     }),
   ),
+  {
+    action: 'quyan:monthly_pass:GetFilterOptions',
+    service: 'monthly_pass',
+    operation: 'GetFilterOptions',
+    accessLevel: 'List',
+    resourceTypes: [
+      'platform/monthly-pass-template',
+      'platform/model-pricing',
+      'platform/relay-channel',
+      'platform/group',
+    ],
+    apiRoutes: ['GET /v1/monthly-passes/filter-options'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermissions: [
+      Permission.MONTHLY_PASS_TEMPLATE_READ,
+      Permission.MONTHLY_PASS_ASSIGNMENT_READ,
+      Permission.MONTHLY_PASS_USAGE_READ,
+    ],
+  },
   ...IAM_MONTHLY_PASS_ASSIGN_OPERATIONS.map(
     (definition): IamActionDefinition => ({
       action: 'quyan:monthly_pass:' + definition.operation,
