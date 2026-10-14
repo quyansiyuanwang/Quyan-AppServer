@@ -1,5 +1,4 @@
 import { checkIamDelegation } from "@/iam/delegation/delegation-check";
-import { projectScopedPolicyForDelegation } from "@/iam/delegation/scoped-policy";
 import { legacyPermissionsToPolicy } from "@/iam/legacy-policy";
 import { principalConditionContext } from "@/iam/request/condition-context";
 import { accountEntityResourceResolver } from "@/iam/request/resource-resolvers";
@@ -107,14 +106,8 @@ export class PermissionService {
       if (principal.subjectType === "root" && operatorUser.userType === "root" && operatorUser.id === owner) return;
       const candidate = legacyPermissionsToPolicy(permissions, owner);
       if (!candidate) return;
-      const grants = await IamAuthorizationService.getInstance().loadPolicies(principal);
-      const result = checkIamDelegation(
-        candidate,
-        grants.flatMap((policy) => {
-          const projected = projectScopedPolicyForDelegation(policy);
-          return projected ? [projected] : [];
-        }),
-      );
+      const grants = await IamAuthorizationService.getInstance().loadDelegatablePolicies(principal);
+      const result = checkIamDelegation(candidate, grants);
       if (!result.allowed)
         throw new ForbiddenError("Legacy permission exceeds current IAM scope", undefined, {
           messageKey: "iam.delegationDenied",

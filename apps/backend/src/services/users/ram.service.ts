@@ -1677,14 +1677,8 @@ export class RamService {
       throw new ForbiddenError("Invalid delegation context", undefined, { messageKey: "iam.delegationDenied" });
     if (principal.subjectType === "root" && actor.userType === "root" && actor.id === owner)
       return { allowed: true, issues: [] };
-    const grants = await IamAuthorizationService.getInstance().loadPolicies(principal);
-    return checkIamDelegation(
-      parsed.document,
-      grants.flatMap((policy) => {
-        const projected = projectScopedPolicyForDelegation(policy);
-        return projected ? [projected] : [];
-      }),
-    );
+    const grants = await IamAuthorizationService.getInstance().loadDelegatablePolicies(principal);
+    return checkIamDelegation(parsed.document, grants);
   }
   async diagnosePolicy(actorUserId: string, documentText: string, policyKind: "identity" | "trust" = "identity") {
     return diagnoseIamPolicy(documentText, await this.getAccountOwnerId(actorUserId), policyKind);

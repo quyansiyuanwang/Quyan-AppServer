@@ -101,3 +101,70 @@ describe("legacy grants preserve IAM delegation scope", () => {
     await expect(permissions.setGroupPermissions(group.id, [], child)).rejects.toMatchObject({ statusCode: 403 });
   });
 });
+
+describe("runtime delegation boundaries", () => {
+  const platformAction = "quyan:oauth:ListSystemClients";
+  const platformResource = "acs:platform:*:platform:oauth-client/client";
+  const platformCandidate: IamPolicyDocument = {
+    Version: "1",
+    Statement: { Effect: "Allow", Action: platformAction, Resource: platformResource },
+  };
+  it("cannot turn a stored wildcard into a delegatable cross-account grant", async () => {
+    await grant(reader("*"));
+    expect(await ram.checkPolicyDelegation(child, reader("acs:quyan:*:" + owner + ":user/" + target))).toMatchObject({
+      allowed: true,
+    });
+    expect(await ram.checkPolicyDelegation(child, reader("*"))).toMatchObject({ allowed: false });
+    await expect(
+      ram.checkPolicyDelegation(child, reader("acs:quyan:*:" + foreign + ":user/" + foreign)),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+  it("requires persisted global-group qualification even with an explicitly bound platform policy", async () => {
+    await grant({ Version: "1", Statement: { Effect: "Allow", Action: platformAction, Resource: "*" } });
+    expect(await ram.checkPolicyDelegation(child, platformCandidate)).toMatchObject({ allowed: false });
+    await prisma.user.update({
+      where: { id: child },
+      data: { permissionAdds: [Permission.OAUTH_CLIENT_SYSTEM_MANAGE] },
+    });
+    expect(await ram.checkPolicyDelegation(child, platformCandidate)).toMatchObject({ allowed: false });
+    const group = await prisma.group.create({
+      data: {
+        accountOwnerId: owner,
+        name: "private ceiling fixture",
+        username: "delegation-private-" + randomUUID(),
+        level: 10,
+        permissions: [Permission.OAUTH_CLIENT_SYSTEM_MANAGE],
+      },
+    });
+    await prisma.user.update({ where: { id: child }, data: { groupId: group.id } });
+    expect(await ram.checkPolicyDelegation(child, platformCandidate)).toMatchObject({ allowed: false });
+  });
+  it("allows the qualified platform subset and keeps legacy explicit Deny", async () => {
+    const group = await prisma.group.create({
+      data: {
+        accountOwnerId: null,
+        name: "global qualification fixture",
+        username: "delegation-global-" + randomUUID(),
+        level: 10,
+        permissions: [Permission.OAUTH_CLIENT_SYSTEM_MANAGE],
+      },
+    });
+    await prisma.user.update({ where: { id: child }, data: { groupId: group.id } });
+    expect(await ram.checkPolicyDelegation(child, platformCandidate)).toMatchObject({ allowed: true });
+    expect(
+      await ram.checkPolicyDelegation(child, {
+        Version: "1",
+        Statement: {
+          Effect: "Allow",
+          Action: "quyan:user:DeleteUser",
+          Resource: "acs:platform:*:platform:user/target",
+        },
+      }),
+    ).toMatchObject({ allowed: false });
+    await prisma.user.update({
+      where: { id: child },
+      data: { permissionRemoves: [Permission.OAUTH_CLIENT_SYSTEM_MANAGE] },
+    });
+    expect(await ram.checkPolicyDelegation(child, platformCandidate)).toMatchObject({ allowed: false });
+  });
+});

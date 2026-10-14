@@ -148,3 +148,51 @@ describe("deployment-wide IAM authorization boundary", () => {
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 });
+
+describe("live delegation qualification", () => {
+  const candidate = parseIamPolicy({
+    Version: "1",
+    Statement: { Effect: "Allow", Action: action, Resource: resource },
+  }).document;
+  it("retains platform grants only for the real persisted global group", async () => {
+    const { checkIamDelegation } = await import("@/iam/delegation/delegation-check");
+    expect(checkIamDelegation(candidate, await service.loadDelegatablePolicies(principal)).allowed).toBe(true);
+    actor.group.accountOwnerId = "actor";
+    actor.permissionAdds = [Permission.OAUTH_CLIENT_SYSTEM_MANAGE];
+    expect(checkIamDelegation(candidate, await service.loadDelegatablePolicies(principal)).allowed).toBe(false);
+  });
+  it("cannot substitute personal permission additions or mismatched group identities for the ceiling", async () => {
+    const { checkIamDelegation } = await import("@/iam/delegation/delegation-check");
+    actor.permissionAdds = [Permission.OAUTH_CLIENT_SYSTEM_MANAGE];
+    for (const group of [
+      { ...actor.group, permissions: [] },
+      { ...actor.group, status: 0 },
+    ]) {
+      actor.group = group;
+      expect(checkIamDelegation(candidate, await service.loadDelegatablePolicies(principal)).allowed).toBe(false);
+    }
+    actor.group = { ...actor.group, status: 1, permissions: [Permission.OAUTH_CLIENT_SYSTEM_MANAGE] };
+    actor.groupId = "different";
+    expect(checkIamDelegation(candidate, await service.loadDelegatablePolicies(principal)).allowed).toBe(false);
+  });
+  it("preserves explicit denies even when platform qualification is valid", async () => {
+    const { checkIamDelegation } = await import("@/iam/delegation/delegation-check");
+    actor.permissionRemoves = [Permission.OAUTH_CLIENT_SYSTEM_MANAGE];
+    expect(checkIamDelegation(candidate, await service.loadDelegatablePolicies(principal)).allowed).toBe(false);
+  });
+  it("propagates failed live identity or session reads", async () => {
+    actor.status = 0;
+    await expect(service.loadDelegatablePolicies(principal)).rejects.toMatchObject({ statusCode: 403 });
+    actor.status = 1;
+    await expect(
+      service.loadDelegatablePolicies({
+        ...principal,
+        subjectType: "assumed_role",
+        assumedRoleId: "role",
+        roleSessionId: "expired",
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    users.findByIdWithGroup.mockRejectedValue(new Error("unavailable"));
+    await expect(service.loadDelegatablePolicies(principal)).rejects.toThrow("unavailable");
+  });
+});

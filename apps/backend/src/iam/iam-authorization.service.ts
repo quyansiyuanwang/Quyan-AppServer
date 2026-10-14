@@ -1,3 +1,5 @@
+import { projectRuntimePoliciesForDelegation } from "./delegation/runtime-policy";
+import { IAM_ACTION_DEFINITIONS } from "@quyan/shared";
 import { GroupRepository } from "@/store/users/group.repository";
 import type { GroupStore } from "@/store/users/group.store";
 import {
@@ -138,6 +140,31 @@ export class IamAuthorizationService {
     return result.concat(
       await this.loadAttachedPolicies(principal.accountOwnerId, attached, targets, principal.principalUserId),
     );
+  }
+  /** Subject/session validation and platform ceilings must also constrain delegation proofs. */
+  async loadDelegatablePolicies(principal: IamPrincipal) {
+    const policies = await this.loadPolicies(principal);
+    const user = await this.users.findByIdWithGroup(principal.principalUserId);
+    if (
+      !user ||
+      user.id !== principal.principalUserId ||
+      user.status !== 1 ||
+      (user.accountOwnerId || user.id) !== principal.accountOwnerId
+    )
+      throw deny();
+    const group = user.group;
+    const permissions =
+      group && group.id === user.groupId && group.status === 1 && group.accountOwnerId === null
+        ? parseLegacyPermissions(group.permissions)
+        : [];
+    const qualified = new Set(
+      IAM_ACTION_DEFINITIONS.filter(
+        (definition) =>
+          definition.authorizationBoundary === "platform" &&
+          permissions.some((permission) => iamLegacyPermissionsForAction(definition.action).includes(permission)),
+      ).map((definition) => definition.action),
+    );
+    return projectRuntimePoliciesForDelegation(policies, principal.accountOwnerId, qualified);
   }
   /** Candidate upper bound for delegation, not executable grants: unknown authors must never be underestimated. */
   async loadRolePolicies(accountOwnerId: string, roleId: string): Promise<IamPolicyInput[]> {
