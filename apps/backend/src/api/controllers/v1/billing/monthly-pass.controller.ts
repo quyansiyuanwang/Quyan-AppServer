@@ -243,9 +243,9 @@ export class MonthlyPassController extends Controller {
   @Security("jwt")
   @Middlewares(
     validateQuery(listMyMonthlyPassesQuerySchema),
-    iamAuthenticatedAuthorizationMiddleware({
+    iamCollectionAuthorizationMiddleware({
       action: "quyan:monthly_pass:ListMyPasses",
-      resourceKind: "single-resource",
+      resourceKind: "collection",
       resource: iamAuthenticatedUserResourceResolver,
     }),
   )
@@ -255,7 +255,7 @@ export class MonthlyPassController extends Controller {
     @Query() pageSize?: number,
     @Query() status?: number,
   ): Promise<UserMonthlyPassListResponse> {
-    return this.monthlyPassService.listUserPasses(page, pageSize, request.user!.userId, undefined, status);
+    return this.monthlyPassService.listMyPasses(request.user!.userId, request, page, pageSize, status);
   }
 
   @Post("me/claim")

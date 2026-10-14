@@ -1,3 +1,9 @@
+import { MonthlyPassPersonalReadIamService } from "./monthly-pass-personal-read-iam.service";
+import {
+  normalizeMonthlyPassQuotaUnit as normalizeQuotaUnit,
+  normalizeMonthlyPassQuotaWindowHours as normalizeQuotaWindowHours,
+  getUserMonthlyPassQuotaWindows,
+} from "@/util/monthly-pass-quota-windows";
 import { PlatformMonthlyPassAssignmentReadIamService } from "./platform-monthly-pass-assignment-read-iam.service";
 import { PlatformMonthlyPassAssignmentWriteIamService } from "./platform-monthly-pass-assignment-write-iam.service";
 import { PlatformMonthlyPassUsageReadIamService } from "./platform-monthly-pass-usage-read-iam.service";
@@ -49,7 +55,6 @@ import {
   MONTHLY_PASS_DEFAULT_QUOTA_WINDOW_HOURS,
   MONTHLY_PASS_DEFAULT_VALIDITY_DAYS,
   MONTHLY_PASS_MAX_PAGE_SIZE,
-  MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS,
   MONTHLY_PASS_MAX_VALIDITY_DAYS,
 } from "@/constant/monthly-pass";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -80,7 +85,6 @@ import {
   getMonthlyPassPositiveIntegerValidationError,
   getMonthlyPassPriceValidationError,
   getMonthlyPassQuotaValidationError,
-  getMonthlyPassQuotaWindowHoursValidationError,
   isMonthlyPassIntegerQuotaUnit,
   MONTHLY_PASS_PURCHASE_LIMIT_MAX,
   MONTHLY_PASS_PURCHASE_LIMIT_WINDOW_MAX_DAYS,
@@ -116,11 +120,6 @@ const DEFAULT_QUOTA_UNIT_OPTIONS: MonthlyPassStringFilterOptionDto[] = [
   { value: "request", label: "request" },
   { value: "token", label: "token" },
 ];
-
-const normalizeQuotaUnit = (value?: string | null): MonthlyPassQuotaUnit => {
-  if (value === "request" || value === "token") return value;
-  return "amount";
-};
 
 const isIntegerQuotaUnit = (unit: MonthlyPassQuotaUnit): boolean => {
   return isMonthlyPassIntegerQuotaUnit(unit);
@@ -253,25 +252,6 @@ const isPriceFirstTemplateRecord = (record: {
   discountPercent: DecimalLike | null;
 }): boolean => {
   return record.originalPrice != null || record.discountPercent != null;
-};
-
-const normalizeQuotaWindowHours = (value?: number | null, enforceMax = false): number | null => {
-  if (value == null) return null;
-  const error = getMonthlyPassQuotaWindowHoursValidationError(value, { allowExceedMax: !enforceMax });
-  if (error) {
-    if (enforceMax)
-      throw new BadRequestError("monthly pass validation failed", undefined, {
-        messageKey: error.key,
-        messageParams: error.params,
-      });
-    return null;
-  }
-
-  if (value > MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS) {
-    // Clamp legacy overflow values so existing records remain usable while new input is validated.
-    return MONTHLY_PASS_MAX_QUOTA_WINDOW_HOURS;
-  }
-  return value;
 };
 
 const getWindowConsumed = (
@@ -415,18 +395,7 @@ export class MonthlyPassService {
   private getUserPassQuotaWindows(
     record: Pick<UserMonthlyPassWithTemplate, "dailyQuota" | "quotaUnit" | "quotaWindowHours" | "quotaWindows">,
   ): MonthlyPassQuotaWindowInput[] {
-    if (Array.isArray(record.quotaWindows) && record.quotaWindows.length > 0)
-      return record.quotaWindows.map((item) => ({
-        quotaLimit: Number(item.quotaLimit),
-        quotaUnit: normalizeQuotaUnit(item.quotaUnit),
-        quotaWindowHours: Number(item.quotaWindowHours),
-      }));
-
-    return this.synthesizeLegacyQuotaWindows(
-      record.dailyQuota == null ? null : Number(record.dailyQuota),
-      normalizeQuotaUnit(record.quotaUnit),
-      record.quotaWindowHours == null ? null : Number(record.quotaWindowHours),
-    );
+    return getUserMonthlyPassQuotaWindows(record);
   }
 
   private resolveQuotaWindowsForPersist(options: {
@@ -1857,6 +1826,25 @@ export class MonthlyPassService {
       success: true,
       ...buildBusinessLogRequestContext(request),
     });
+  }
+
+  async listMyPasses(
+    userId: string,
+    request: TypedRequest,
+    page?: number,
+    pageSize?: number,
+    status?: number,
+  ): Promise<UserMonthlyPassListResponse> {
+    const pagination = normalizePagination(page, pageSize);
+    const result = await MonthlyPassPersonalReadIamService.getInstance().list(
+      userId,
+      request,
+      pagination,
+      status,
+      (view) => this.toUserPassDto(view.record, undefined, view.usageSummary),
+      () => this.listUserPasses(page, pageSize, userId, undefined, status),
+    );
+    return { ...result, ...pagination };
   }
 
   async listUserPasses(

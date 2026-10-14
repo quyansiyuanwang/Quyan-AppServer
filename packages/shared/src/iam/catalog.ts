@@ -258,6 +258,9 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate:
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':monthly-pass/{userId}/{resourceId}',
   },
+  { ...resource('monthly-pass', 'assignment', 2), authenticatedSelfScope: 'children' },
+  { ...resource('monthly-pass', 'template', 2), authenticatedSelfScope: 'children' },
+  { ...resource('monthly-pass', 'usage', 3), authenticatedSelfScope: 'children' },
   resource('quyan', 'account', 0),
   { ...resource('quyan', 'user', 1, true), authenticatedSelfScope: 'identity' },
   resource('quyan', 'group', 1, true),
@@ -1434,7 +1437,12 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       service: 'monthly_pass',
       operation: 'ListMyPasses',
       accessLevel: 'List',
-      resourceTypes: ['quyan/user'],
+      resourceTypes: [
+        'quyan/user',
+        'monthly-pass/assignment',
+        'monthly-pass/template',
+        'monthly-pass/usage',
+      ],
     },
     {
       service: 'monthly_pass',
@@ -1458,6 +1466,9 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
       sensitive: definition.accessLevel === 'Write',
       authorizationStage: 'declared',
+      ...(definition.operation === 'ListMyPasses'
+        ? { defaultAuthorizationScope: 'self' as const }
+        : {}),
     }),
   ),
   ...[

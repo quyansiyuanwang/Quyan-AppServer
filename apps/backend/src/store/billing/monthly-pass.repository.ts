@@ -1,3 +1,4 @@
+import { summarizeMonthlyPassWindowUsage } from "./monthly-pass-usage-summary";
 import { runMonthlyPassAssignmentWrite, type MonthlyPassAssignmentWriteGuard } from "./monthly-pass-assignment-write";
 import { iamAccountDenied } from "../users/iam-account-principal";
 import { runMonthlyPassTemplateWrite, type MonthlyPassTemplateWriteGuard } from "./monthly-pass-template-write";
@@ -7,7 +8,6 @@ import type { MonthlyPassTemplate, MonthlyPassUsage, Prisma, UserMonthlyPass } f
 import { Decimal } from "@prisma/client/runtime/library";
 import type {
   ActiveMonthlyPassCandidate,
-  MonthlyPassQuotaUnit,
   MonthlyPassQuotaWindowInput,
   MonthlyPassTemplateWithQuotaWindows,
   MonthlyPassUsageSummary,
@@ -26,11 +26,6 @@ export type {
   MonthlyPassTemplateWithQuotaWindows,
   MonthlyPassUsageWithDetails,
 } from "./monthly-pass.store";
-
-const getUsageSummaryPassHoursKey = (passId: string, quotaWindowHours: number): string =>
-  `${passId}:${quotaWindowHours}`;
-const getUsageSummaryRuleKey = (passId: string, quotaUnit: MonthlyPassQuotaUnit, quotaWindowHours: number): string =>
-  `${passId}:${quotaWindowHours}:${quotaUnit}`;
 
 const monthlyPassTemplateInclude = {
   quotaWindows: {
@@ -404,48 +399,7 @@ export class MonthlyPassRepository implements MonthlyPassStore {
     quotaWindowRules: MonthlyPassUsageSummaryRule[],
     endAt: Date,
   ): Promise<Record<string, MonthlyPassUsageSummary>> {
-    if (quotaWindowRules.length === 0) return {};
-
-    const uniquePassIds = [...new Set(quotaWindowRules.map((item) => item.passId))];
-    const uniqueWindowHours = [...new Set(quotaWindowRules.map((item) => Number(item.quotaWindowHours)))];
-    const summaryByPassHoursKey: Record<string, MonthlyPassUsageSummary> = {};
-
-    await Promise.all(
-      uniqueWindowHours.map(async (windowHours) => {
-        const startAt = new Date(endAt.getTime() - windowHours * 60 * 60 * 1000);
-        const grouped = await prisma.monthlyPassUsage.groupBy({
-          by: ["userMonthlyPassId"],
-          where: {
-            status: MANAGED_STATUS.ENABLED,
-            userMonthlyPassId: { in: uniquePassIds },
-            createTime: {
-              gte: startAt,
-              lte: endAt,
-            },
-          },
-          _sum: {
-            coveredAmount: true,
-            coveredRequests: true,
-            coveredTokens: true,
-          },
-        });
-
-        for (const item of grouped)
-          summaryByPassHoursKey[getUsageSummaryPassHoursKey(item.userMonthlyPassId, windowHours)] = {
-            coveredAmount: Number(item._sum.coveredAmount || 0),
-            coveredRequests: Number(item._sum.coveredRequests || 0),
-            coveredTokens: Number(item._sum.coveredTokens || 0),
-          };
-      }),
-    );
-
-    const result: Record<string, MonthlyPassUsageSummary> = {};
-    for (const rule of quotaWindowRules) {
-      const summary = summaryByPassHoursKey[getUsageSummaryPassHoursKey(rule.passId, Number(rule.quotaWindowHours))];
-      if (summary) result[getUsageSummaryRuleKey(rule.passId, rule.quotaUnit, Number(rule.quotaWindowHours))] = summary;
-    }
-
-    return result;
+    return summarizeMonthlyPassWindowUsage(prisma, quotaWindowRules, endAt);
   }
 
   async createUsageRecord(data: Prisma.MonthlyPassUsageUncheckedCreateInput): Promise<MonthlyPassUsage> {

@@ -2,6 +2,8 @@
 
 Use this page to review monthly-pass benefits already assigned to your account.
 
+With IAM enforcement enabled, My Monthly Passes authorizes each `acs:monthly-pass:*:<accountId>:assignment/<userId>/<passId>` using `quyan:monthly_pass:ListMyPasses` and never reads another user's assignments. Your own assignment, template and usage children are readable by default, with explicit Deny taking precedence. Template details use `acs:monthly-pass:*:<accountId>:template/<userId>/<templateId>`. Window usage requires every related `acs:monthly-pass:*:<accountId>:usage/<userId>/<passId>/<usageId>` to be allowed. Denied template details or window counters remain empty while an allowed assignment's own quotas remain visible.
+
 ## Page purpose
 
 - See active, pending, or expired passes.
