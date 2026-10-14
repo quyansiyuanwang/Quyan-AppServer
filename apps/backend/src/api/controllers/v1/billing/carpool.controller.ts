@@ -410,10 +410,16 @@ export class CarpoolController extends Controller {
 
   @Post("admin/{id}/accept")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:carpool:AcceptOrder",
+      resourceKind: "single-resource",
+      resource: platformCarpoolOrderResource,
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateParams(carpoolIdParamsSchema))
   public accept(@Path() id: string, @Request() request: TypedRequest): Promise<CarpoolOrderDto> {
-    return this.service.accept(id, request.user!.userId);
+    return this.service.accept(id, request.user!.userId, request);
   }
   @Post("admin/{id}/fulfill")
   @Security("jwt")

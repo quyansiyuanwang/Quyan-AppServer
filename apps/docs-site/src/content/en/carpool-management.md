@@ -28,6 +28,8 @@ The operations list uses `quyan:carpool:ListAdminOrders`; operations details use
 
 Records, pagination totals and state counters include only permitted orders. A selected state filters the table; counters still cover all permitted orders matching the current keyword. Denied orders reveal no names, costs, members or events and do not contribute to counts. List authorization does not grant detail access, and the member-facing `quyan:carpool:GetOrder` does not grant operations details. Refresh and retry if identity or authorization changes during a read.
 
+Accepting an order uses `quyan:carpool:AcceptOrder` against the same order ARN and requires the global management group's order-processing qualification. Only a submitted order can be accepted. Listing, details and acceptance are authorized independently. Changes to identity, policies, qualification or order contents during acceptance refuse the operation and roll back both the state transition and its event. Concurrent acceptance of one order succeeds once.
+
 ## Delivery dialog and order changes
 
 When an operator opens the delivery dialog, the page reloads the latest detail by order ID before loading channels allowed by that order snapshot. Confirmation and post-delivery refresh use the same order ID. If the order was already processed, deleted, or changed state, the dialog closes, the list refreshes, and the page asks the operator to refresh and retry. The server still validates existence, the accepted state, the channel snapshot, and channel eligibility.

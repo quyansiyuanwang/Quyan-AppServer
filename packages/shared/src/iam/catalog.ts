@@ -1080,6 +1080,19 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       legacyPermission: Permission.CARPOOL_ORDER_READ,
     }),
   ),
+  {
+    action: 'quyan:carpool:AcceptOrder',
+    service: 'carpool',
+    operation: 'AcceptOrder',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/carpool-order'],
+    apiRoutes: ['POST /v1/carpools/admin/{id}/accept'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.CARPOOL_ORDER_FULFILL,
+  },
   ...IAM_CARPOOL_TEMPLATE_WRITE_OPERATIONS.map(
     (definition): IamActionDefinition => ({
       action: 'quyan:carpool:' + definition.operation,

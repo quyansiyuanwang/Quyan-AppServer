@@ -1,4 +1,8 @@
 import {
+  runCarpoolOrderManagementWrite,
+  type CarpoolOrderManagementWriteGuard,
+} from "./carpool-order-management-write";
+import {
   runCarpoolTemplateWrite,
   bindCarpoolTemplateWrite,
   type CarpoolTemplateWriteGuard,
@@ -35,8 +39,12 @@ export class CarpoolRepository {
   static getInstance() {
     return (this.instance ??= new CarpoolRepository());
   }
-  withTransaction<T>(callback: (tx: Prisma.TransactionClient) => Promise<T>) {
+  withTransaction<T>(callback: (tx: Prisma.TransactionClient) => Promise<T>, guard?: CarpoolOrderManagementWriteGuard) {
+    if (guard) return runCarpoolOrderManagementWrite(guard, callback);
     return prisma.$transaction(callback, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+  findOrderManagementTarget(id: string) {
+    return prisma.carpoolOrder.findFirst({ where: { id, status: { gte: 0 } }, include: { members: true } });
   }
   findPublishedTemplates() {
     return prisma.carpoolPackageTemplate.findMany({

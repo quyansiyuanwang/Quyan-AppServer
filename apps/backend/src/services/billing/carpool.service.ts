@@ -1,3 +1,4 @@
+import { PlatformCarpoolOrderWriteIamService } from "./platform-carpool-order-write-iam.service";
 import { PlatformCarpoolOrderReadIamService } from "./platform-carpool-order-read-iam.service";
 import { PlatformCarpoolTemplateWriteIamService } from "./platform-carpool-template-write-iam.service";
 import { bindCarpoolTemplateWrite } from "@/store/billing/carpool-template-write";
@@ -727,19 +728,25 @@ export class CarpoolService {
       );
     });
   }
-  async accept(orderId: string, actorUserId?: string) {
-    return this.repository.withTransaction(async (tx) => {
-      const order = await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId } });
-      if (order.state !== "submitted")
-        throw new BadRequestError("Carpool has not been submitted", undefined, { messageKey: "carpool.notSubmitted" });
-      await tx.carpoolOrder.update({ where: { id: orderId }, data: { state: "accepted", acceptedAt: new Date() } });
-      await this.event(tx, orderId, "accepted", actorUserId);
-      return this.dto(
-        await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId }, include: carpoolOrderInclude }),
-        undefined,
-        true,
-      );
-    });
+  async accept(orderId: string, actorUserId?: string, request?: TypedRequest) {
+    const guard = await PlatformCarpoolOrderWriteIamService.getInstance().prepare(actorUserId, request, orderId);
+    return this.repository.withTransaction(
+      async (tx) => {
+        const order = await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId } });
+        if (order.state !== "submitted")
+          throw new BadRequestError("Carpool has not been submitted", undefined, {
+            messageKey: "carpool.notSubmitted",
+          });
+        await tx.carpoolOrder.update({ where: { id: orderId }, data: { state: "accepted", acceptedAt: new Date() } });
+        await this.event(tx, orderId, "accepted", actorUserId);
+        return this.dto(
+          await tx.carpoolOrder.findUniqueOrThrow({ where: { id: orderId }, include: carpoolOrderInclude }),
+          undefined,
+          true,
+        );
+      },
+      ...(guard ? [guard] : []),
+    );
   }
   async listDeliveryChannels(
     page = 1,
