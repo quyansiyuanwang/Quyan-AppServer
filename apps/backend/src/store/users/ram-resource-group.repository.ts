@@ -91,6 +91,50 @@ export class RamResourceGroupRepository implements RamResourceGroupStore {
             row.metadata.sessionId === childId,
         );
       }
+      // Product metadata remains addressable while disabled or expired; deleted parents never qualify.
+      // These resources use database IDs. The live device/session types below use their protocol IDs.
+      case "remote-terminal/product-entitlement": {
+        const row = await prisma.remoteTerminalUserEntitlement.findFirst({
+          where: { id: childId, userId: id, status: { in: [0, 1] }, user: { ...active, ...userOwner } },
+          select: { id: true, userId: true },
+        });
+        return row?.id === childId && row.userId === id;
+      }
+      case "remote-terminal/product-binding": {
+        const row = await prisma.remoteTerminalDeviceBinding.findFirst({
+          where: {
+            id: childId,
+            userId: id,
+            status: { in: [0, 1] },
+            user: { ...active, ...userOwner },
+            entitlement: { userId: id, status: { in: [0, 1] } },
+          },
+          select: { id: true, userId: true, entitlement: { select: { userId: true } } },
+        });
+        return row?.id === childId && row.userId === id && row.entitlement.userId === id;
+      }
+      case "remote-terminal/product-registration-token": {
+        const row = await prisma.remoteTerminalEntitlementToken.findFirst({
+          where: {
+            id: nestedId,
+            entitlementId: childId,
+            status: { in: [0, 1] },
+            entitlement: { userId: id, status: { in: [0, 1] }, user: { ...active, ...userOwner } },
+          },
+          select: { id: true, entitlementId: true, entitlement: { select: { userId: true } } },
+        });
+        return row?.id === nestedId && row.entitlementId === childId && row.entitlement.userId === id;
+      }
+      case "remote-terminal/published-template": {
+        // An account owns only its identity's published offer projection, never the platform template.
+        const user = await prisma.user.findFirst({ where: { id, ...active, ...userOwner }, select: { id: true } });
+        if (user?.id !== id) return false;
+        const row = await prisma.remoteTerminalProductTemplate.findFirst({
+          where: { id: childId, ...active, publishStatus: "published" },
+          select: { id: true },
+        });
+        return row?.id === childId;
+      }
       case "remote-terminal/device": {
         const at = new Date();
         const device = await prisma.remoteTerminalDeviceBinding.findFirst({

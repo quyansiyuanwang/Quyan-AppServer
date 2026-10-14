@@ -2,6 +2,8 @@
 
 RAM is the authorization and access control hub. It lets you create sub-users, define roles, write permission policies, and bind them together. Every mutating operation requires a 2FA step-up challenge, and all role/policy/attachment changes trigger security notification events.
 
+Remote terminal product entitlements, device bindings and registration-token metadata can be added to resource groups using their database resource IDs. Disabled or expired product metadata remains addressable; deleted products and deleted parents are excluded. A published-template member represents an offer for the user in its ARN and must refer to an enabled, published plan. It grants no access to platform template management. Product ownership and parent relationships are checked without reading credential values; membership removal changes scoped decisions on the next request.
+
 ## What you can manage
 
 - **RAM Users** — Sub-accounts under your main account with separate credentials.
