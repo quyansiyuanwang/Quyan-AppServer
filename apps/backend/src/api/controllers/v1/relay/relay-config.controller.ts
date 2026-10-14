@@ -1,5 +1,9 @@
+import { PlatformRelayConfigurationWriteIamService } from "@/services/relay/platform-relay-configuration-write-iam.service";
 import { PlatformRelayConfigurationReadIamService } from "@/services/relay/platform-relay-configuration-read-iam.service";
-import { platformRelayConfigurationArn } from "@/iam/resources/platform-relay-configuration-resources";
+import {
+  platformRelayConfigurationArn,
+  platformRelayConfigurationWriteResources,
+} from "@/iam/resources/platform-relay-configuration-resources";
 import { iamAuthenticatedAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import type { ErrorResponse } from "@/api/response";
 import {
@@ -60,7 +64,15 @@ export class RelayConfigController extends Controller {
 
   @Put()
   @Security("jwt")
-  @RequirePermission(Permission.MODEL_PRICING_UPDATE)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "未授权，请先登录")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "权限不足")
+  @Middlewares(
+    iamAuthenticatedAuthorizationMiddleware({
+      action: "quyan:relay:UpdateConfiguration",
+      resourceKind: "batch",
+      resource: platformRelayConfigurationWriteResources,
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -71,8 +83,7 @@ export class RelayConfigController extends Controller {
     @Body() body: UpdateRelayConfigRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayConfigDto> {
-    const config = await this.relayConfigService.updateRelayConfig(body, request.user!.userId, request);
-    return config;
+    return PlatformRelayConfigurationWriteIamService.getInstance().write(body, request);
   }
 
   /**

@@ -1761,6 +1761,23 @@ export const IAM_ACTION_DEFINITIONS: readonly IamActionDefinition[] = Object.fre
     legacyPermission: Permission.AUTH_CENTER_CLIENT_REVIEW_READ,
   },
   {
+    action: 'quyan:relay:UpdateConfiguration',
+    service: 'relay',
+    operation: 'UpdateConfiguration',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'platform/relay-configuration',
+      'platform/model-pricing',
+      'platform/model-pricing-control',
+    ],
+    apiRoutes: [],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.MODEL_PRICING_UPDATE,
+  },
+  {
     action: 'quyan:relay:GetConfiguration',
     service: 'relay',
     operation: 'GetConfiguration',

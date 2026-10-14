@@ -19385,6 +19385,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "未授权，请先登录",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "权限不足",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [

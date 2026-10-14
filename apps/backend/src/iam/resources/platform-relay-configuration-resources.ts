@@ -8,3 +8,8 @@ export function platformRelayConfigurationArn() {
     path: "relay-configuration/default",
   });
 }
+
+/** The handler admits every affected pricing ARN inside the write transaction. */
+export function platformRelayConfigurationWriteResources() {
+  return [platformRelayConfigurationArn()];
+}

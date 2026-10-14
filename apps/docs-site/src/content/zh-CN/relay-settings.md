@@ -45,6 +45,18 @@
 - 作用：把状态页上的监控 ID 映射成管理员更容易识别的显示名称。
 - 影响：只改变展示，不改变真实路由逻辑。
 
+### 全局配置保存权限
+
+IAM 强制模式下，保存全局设置使用 `quyan:relay:UpdateConfiguration`，需要真实全局组中的 `MODEL_PRICING_UPDATE` 资格，并允许 `acs:platform:*:platform:relay-configuration/default`。
+
+尚未保存配置时，已授权的保存会以读取接口提供的默认设置为基础创建配置，读取本身不会创建配置。并发首次保存会在提交前重新检查；授权被拒绝或保存失败时，不会留下部分配置。
+
+`modelRates` 的含义是替换有效价格列表：省略该字段会保留现有价格；提供空数组会删除全部有效价格；提供列表会更新已有模型、以原 ID 恢复已删除模型、创建新模型，并删除未列出的有效模型。每个受影响记录，包括未列出的删除目标，都需要允许其 `acs:platform:*:platform:model-pricing/<记录 ID>`。新建还需要允许 `acs:platform:*:platform:model-pricing-control/default` 和生成后的实际记录 ARN。
+
+任一资源被拒绝、配置或价格快照过期、权限或角色会话变化时，整个保存失败，不部分更新。严格渠道拓扑切换仍须通过拓扑检查。重复模型名称、无效计价方式或支持格式会被拒绝；按次计费的固定价格可以为零。2FA 验证和重放保护继续适用。
+
+保存成功后的价格列表按 `quyan:relay:GetConfiguration` 逐记录检查读取权限，没有价格读取权限时可返回空列表；这不表示已有价格被删除。保存权限不自动授予价格读取权限。
+
 ### 全局配置读取权限
 
 IAM 强制模式下，读取全局设置使用 `quyan:relay:GetConfiguration`，需要真实全局组中的 `MODEL_PRICING_UPDATE` 资格，并允许配置资源 `acs:platform:*:platform:relay-configuration/default`。配置权限与模型价格权限分别判断：价格使用 `acs:platform:*:platform:model-pricing/<记录 ID>`，返回结果只包含获得授权的记录。只允许配置时，价格列表可以为空；只允许价格时，不能读取全局配置。匹配的 Deny 优先。
