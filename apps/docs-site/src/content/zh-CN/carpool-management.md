@@ -46,6 +46,8 @@
 
 所有敏感操作均要求确认。不要在备注、事件说明或外部工单中写入 Relay token、上游密钥等凭据。
 
+启用 IAM 强制授权后，渠道选择使用 `quyan:carpool:ListDeliveryChannels`，检查所选订单 ARN 和每个 `acs:platform:*:platform:relay-channel/<channelId>`。分页和总数只包含已受理订单快照范围内允许查看且可交付的渠道。查看渠道不会授予交付权限；授权或管理资格变化时需要刷新重试。
+
 ## 所需权限
 
 | 操作                                   | 所需权限                 |

@@ -246,15 +246,22 @@ export class CarpoolController extends Controller {
   // Static admin paths must precede admin/{id} in the generated Express router.
   @Get("admin/delivery-channels")
   @Security("jwt")
-  @RequirePermission(Permission.CARPOOL_ORDER_FULFILL)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:carpool:ListDeliveryChannels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @Middlewares(validateQuery(carpoolPageQuerySchema))
   public listDeliveryChannels(
     @Query() page?: number,
     @Query() pageSize?: number,
     @Query() keyword?: string,
     @Query() orderId?: string,
+    @Request() request?: TypedRequest,
   ): Promise<CarpoolDeliveryChannelListResponse> {
-    return this.service.listDeliveryChannels(page, pageSize, keyword, orderId);
+    return this.service.listDeliveryChannels(page, pageSize, keyword, orderId, request);
   }
 
   /** Operations-only detail endpoint. The member-facing order endpoint must not be used by operators. */

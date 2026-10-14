@@ -46,6 +46,8 @@ Denying any recipient, wallet or ledger entry rolls back all members' refunds, r
 
 Every sensitive operation requires confirmation. Never put Relay tokens, upstream keys, or other credentials in notes, event descriptions, or external tickets.
 
+With IAM enforcement enabled, the channel picker uses `quyan:carpool:ListDeliveryChannels`. It checks the selected order ARN and each `acs:platform:*:platform:relay-channel/<channelId>`. Pagination and totals include only allowed eligible channels within the accepted order’s snapshot. This permission does not grant delivery authority. Changes to authorization or qualification require refreshing and retrying.
+
 ## Required permissions
 
 | Action                                                           | Required permission      |

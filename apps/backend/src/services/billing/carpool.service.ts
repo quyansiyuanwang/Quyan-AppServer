@@ -1,3 +1,4 @@
+import { PlatformCarpoolDeliveryChannelReadIamService } from "./platform-carpool-delivery-channel-read-iam.service";
 import { PlatformCarpoolOrderRefundIamService } from "./platform-carpool-order-refund-iam.service";
 import { PlatformCarpoolOrderWriteIamService } from "./platform-carpool-order-write-iam.service";
 import { PlatformCarpoolOrderReadIamService } from "./platform-carpool-order-read-iam.service";
@@ -754,25 +755,35 @@ export class CarpoolService {
     pageSize = 20,
     keyword?: string,
     orderId?: string,
+    request?: TypedRequest,
   ): Promise<CarpoolDeliveryChannelListResponse> {
-    let allowedChannelIds: string[] | undefined;
-    if (orderId) {
-      const order = await this.repository.findOrderSummary(orderId);
-      if (!order)
-        throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
-      if (order.state !== "accepted")
-        throw new BadRequestError("Carpool must be accepted before selecting a delivery channel", undefined, {
-          messageKey: "carpool.acceptBeforeChannel",
-        });
-      allowedChannelIds = parseAllowedChannels(order.allowedChannels) ?? undefined;
-    }
-    const [total, records] = await this.repository.listEligibleDeliveryChannels(
-      Math.max(1, page),
-      Math.min(100, Math.max(1, pageSize)),
-      keyword,
-      allowedChannelIds,
+    return PlatformCarpoolDeliveryChannelReadIamService.getInstance().list(
+      request,
+      { page: Math.max(1, page), pageSize: Math.min(100, Math.max(1, pageSize)), keyword, orderId },
+      async () => {
+        let allowedChannelIds: string[] | undefined;
+        if (orderId) {
+          const order = await this.repository.findOrderSummary(orderId);
+          if (!order)
+            throw new NotFoundError("Carpool order not found", undefined, { messageKey: "carpool.orderNotFound" });
+          if (order.state !== "accepted")
+            throw new BadRequestError("Carpool must be accepted before selecting a delivery channel", undefined, {
+              messageKey: "carpool.acceptBeforeChannel",
+            });
+          allowedChannelIds = parseAllowedChannels(order.allowedChannels) ?? undefined;
+        }
+        const [total, records] = await this.repository.listEligibleDeliveryChannels(
+          Math.max(1, page),
+          Math.min(100, Math.max(1, pageSize)),
+          keyword,
+          allowedChannelIds,
+        );
+        return {
+          total,
+          records: records.map((item) => ({ id: item.id, name: item.name, channelType: item.channelType })),
+        };
+      },
     );
-    return { total, records: records.map((item) => ({ id: item.id, name: item.name, channelType: item.channelType })) };
   }
   async fulfill(orderId: string, relayChannelId: string, actorUserId?: string) {
     return this.repository.withTransaction(async (tx) => {
