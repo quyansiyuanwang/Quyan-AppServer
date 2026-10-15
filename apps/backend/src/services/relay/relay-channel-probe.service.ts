@@ -1,3 +1,7 @@
+import {
+  RelayProbeOverviewReadRepository,
+  type RelayProbeOverviewRecord,
+} from "@/store/relay/relay-probe-overview-read.repository";
 import { RelayProbeProfileDeleteRepository } from "@/store/relay/relay-probe-profile-delete.repository";
 import { RelayProbeProfileReadRepository } from "@/store/relay/relay-probe-profile-read.repository";
 import { RelayProbeMutationIamService } from "./relay-probe-mutation-iam.service";
@@ -146,6 +150,9 @@ export type RelayChannelProbeTopologyItem = Pick<
   "id" | "name" | "enabled" | "channelType" | "poolMembers"
 >;
 
+type ProbeCompatibilityMetadata = Pick<RelayChannel, "allowedFormats" | "allowedModels"> & {
+  upstreamConfigured: boolean;
+};
 type ProbeFormat = RelayProbeFormat;
 type ConfiguredProbeFormat = RelayConfiguredRequestFormat;
 type ProbeBalanceSnapshot = { balance: number; observedAt: string };
@@ -740,7 +747,98 @@ export class RelayChannelProbeService {
     return this.instance;
   }
 
-  async listOverview(actorUserId: string): Promise<RelayChannelProbeOverviewItemDto[]> {
+  async listOverview(actorUserId: string, request?: TypedRequest): Promise<RelayChannelProbeOverviewItemDto[]> {
+    return RelayProbeReadIamService.getInstance().read(
+      "quyan:relay:ListProbeOverview",
+      actorUserId,
+      request,
+      ({ principal, decide, decideRelated, recheck, visible }) =>
+        RelayProbeOverviewReadRepository.getInstance().list(
+          principal,
+          decide,
+          decideRelated,
+          recheck,
+          visible,
+          (records) => this.toIamOverview(records),
+        ),
+      () => this.listOverviewLegacy(actorUserId),
+    );
+  }
+
+  private toIamOverview(records: RelayProbeOverviewRecord[]): RelayChannelProbeOverviewItemDto[] {
+    const enabled = (channel: RelayProbeOverviewRecord["channel"]) =>
+      channel.status === RELAY_CHANNEL_STATUS.ENABLED && channel.providerServiceEnabled !== false;
+    const topology: RelayChannelProbeTopologyItem[] = records.map((row) => ({
+      id: row.channel.id,
+      name: row.channel.name,
+      channelType: row.channel.channelType as RelayChannelType,
+      enabled: enabled(row.channel),
+      poolMembers: row.members?.map((member) => ({
+        memberChannelId: member.channel.id,
+        enabled: member.membershipEnabled,
+        memberChannelEnabled: enabled(member.channel) && member.channel.pooledMemberEnabled !== false,
+        priority: 0,
+        weight: 1,
+      })),
+    }));
+    return records.map((row) => {
+      const channel = row.channel,
+        profile = row.profile;
+      // Decryption is reached only after the exact profile grant; denied/member-external names never enter the DTO.
+      const credentials = profile?.encryptedCredentials ? this.decryptCredentials(profile) : {};
+      const profileDto = profile ? this.toProfileDto(profile) : undefined;
+      if (profileDto && row.members)
+        profileDto.credentialNames = profileDto.credentialNames.filter((id) => row.profileMembers.has(id));
+      return {
+        channelId: channel.id,
+        channelName: channel.name,
+        channelType: channel.channelType as RelayChannelType,
+        enabled: enabled(channel),
+        visibilityMode: channel.visibilityMode as RelayChannelProbeOverviewItemDto["visibilityMode"],
+        customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
+        multiplier: Number(channel.multiplier),
+        allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats ?? ""),
+        allowedProbeModels: parseAllowedModelsJson(channel.allowedModels) ?? [],
+        profile: profileDto,
+        targetConfig: this.toTargetConfigDto(channel.id, undefined, row.targetConfig ?? null),
+        ...(row.latestRun ? { latestRun: this.toRunDto(row.latestRun) } : {}),
+        ...(row.members
+          ? {
+              members: row.members.map((member) => {
+                const compatibility = profile
+                  ? this.getProbeChannelCompatibility(
+                      {
+                        allowedFormats: member.channel.allowedFormats,
+                        allowedModels: member.channel.allowedModels,
+                        upstreamConfigured: member.upstreamConfigured,
+                      },
+                      member.targetConfig?.probeFormat ?? profile.probeFormat,
+                      member.targetConfig?.probeModel ?? profile.probeModel,
+                    )
+                  : { compatible: true };
+                return {
+                  channelId: member.channel.id,
+                  channelName: member.channel.name,
+                  enabled:
+                    member.membershipEnabled && enabled(member.channel) && member.channel.pooledMemberEnabled !== false,
+                  hasCredentials:
+                    (row.profileMembers.has(member.channel.id) && Boolean(credentials[member.channel.id])) ||
+                    Boolean(member.targetConfig?.accountId),
+                  allowedProbeFormats: this.toAllowedProbeFormats(member.channel.allowedFormats ?? ""),
+                  allowedProbeModels: parseAllowedModelsJson(member.channel.allowedModels) ?? [],
+                  compatible: compatibility.compatible,
+                  ...(compatibility.reason ? { incompatibilityReason: compatibility.reason } : {}),
+                  targetConfig: this.toTargetConfigDto(channel.id, member.channel.id, member.targetConfig ?? null),
+                  ...(member.latestRun ? { latestRun: this.toRunDto(member.latestRun) } : {}),
+                };
+              }),
+            }
+          : {}),
+      };
+    });
+  }
+
+  private async listOverviewLegacy(actorUserId: string): Promise<RelayChannelProbeOverviewItemDto[]> {
     const [channels, topology] = await Promise.all([
       RelayChannelService.getInstance().listChannels(actorUserId, true),
       this.listChannelTopology(),
@@ -770,7 +868,7 @@ export class RelayChannelProbeService {
           visibilityMode: channel.visibilityMode,
           customerFacingTargets: resolveProbeCustomerFacingTargets(topology, channel.id),
           multiplier: channel.multiplier,
-          allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats),
+          allowedProbeFormats: this.toAllowedProbeFormats(channel.allowedFormats ?? ""),
           allowedProbeModels: channel.allowedModels,
           profile: profile ? this.toProfileDto(profile) : undefined,
           targetConfig: profile
@@ -868,13 +966,17 @@ export class RelayChannelProbeService {
     profile: Pick<ProbeProfileRecord, "encryptedCredentials" | "credentialIv" | "credentialAuthTag">,
   ) {
     try {
-      return this.decryptCredentials(profile as ProbeProfileRecord);
+      return this.decryptCredentials(profile);
     } catch {
       return {};
     }
   }
 
-  private getProbeChannelCompatibility(member: RelayChannel, format: string, model: string) {
+  private getProbeChannelCompatibility(
+    member: RelayChannel | ProbeCompatibilityMetadata,
+    format: string,
+    model: string,
+  ) {
     try {
       this.assertProbeRelayChannelCompatibility(member, format, model);
       return { compatible: true };
@@ -883,7 +985,11 @@ export class RelayChannelProbeService {
     }
   }
 
-  private assertProbeRelayChannelCompatibility(channel: RelayChannel, format: string, model: string): void {
+  private assertProbeRelayChannelCompatibility(
+    channel: RelayChannel | ProbeCompatibilityMetadata,
+    format: string,
+    model: string,
+  ): void {
     if (!supportsRelayRequestFormat(channel.allowedFormats, format as RelayRequestFormat))
       throw new BadRequestError(`渠道不支持 ${format} 格式探针请求`, undefined, {
         messageKey: "relayChannelProbe.formatProbeUnsupported",
@@ -894,11 +1000,13 @@ export class RelayChannelProbeService {
         messageKey: "relayChannelProbe.modelNotSupportedByChannel",
       });
     const upstreamConfigured =
-      format === "openai" || format.startsWith("openai-")
-        ? Boolean(channel.openaiUpstreamUrl && channel.openaiUpstreamApiKey)
-        : format === "anthropic"
-          ? Boolean(channel.anthropicUpstreamUrl && channel.anthropicUpstreamApiKey)
-          : Boolean(channel.geminiUpstreamUrl && channel.geminiUpstreamApiKey);
+      "upstreamConfigured" in channel
+        ? channel.upstreamConfigured
+        : format === "openai" || format.startsWith("openai-")
+          ? Boolean(channel.openaiUpstreamUrl && channel.openaiUpstreamApiKey)
+          : format === "anthropic"
+            ? Boolean(channel.anthropicUpstreamUrl && channel.anthropicUpstreamApiKey)
+            : Boolean(channel.geminiUpstreamUrl && channel.geminiUpstreamApiKey);
     if (!upstreamConfigured)
       throw new BadRequestError(`渠道缺少 ${format} 格式的上游地址或凭据`, undefined, {
         messageKey: "relayChannelProbe.upstreamMissingForFormat",
@@ -2491,7 +2599,9 @@ export class RelayChannelProbeService {
     );
     return { ciphertext, iv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64") };
   }
-  private decryptCredentials(profile: ProbeProfileRecord): Record<string, unknown> {
+  private decryptCredentials(
+    profile: Pick<ProbeProfileRecord, "encryptedCredentials" | "credentialIv" | "credentialAuthTag">,
+  ): Record<string, unknown> {
     if (!profile.encryptedCredentials || !profile.credentialIv || !profile.credentialAuthTag)
       throw new BadRequestError("渠道探针凭据未配置", undefined, {
         messageKey: "relayChannelProbe.credentialsNotConfigured",

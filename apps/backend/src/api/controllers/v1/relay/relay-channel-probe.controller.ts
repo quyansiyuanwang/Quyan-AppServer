@@ -78,9 +78,16 @@ export class RelayChannelProbeController extends Controller {
 
   @Get()
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeOverview",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+  )
   public listOverview(@Request() request: TypedRequest): Promise<RelayChannelProbeOverviewItemDto[]> {
-    return this.service.listOverview(request.user!.userId);
+    return this.service.listOverview(request.user!.userId, request);
   }
 
   @Get("{channelId}/profile")

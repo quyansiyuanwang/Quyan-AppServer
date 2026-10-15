@@ -192,3 +192,70 @@ describe("probe profile catalog boundary", () => {
     expect(() => platformRelayProbeProfileArn("channel", value)).toThrow();
   });
 });
+
+describe("probe overview component action boundary", () => {
+  const guard = new RelayProbeReadIamService(iam, snapshots, permissions, channels);
+  it("declares the server-side overview action on its JWT route", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel-probe.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "GET /v1/relay-channel-probes",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: ["quyan:relay:ListProbeOverview"], issues: [] });
+  });
+  it("registers native overview and its related read actions", () => {
+    expect(getIamActionDefinition("quyan:relay:ListProbeOverview")).toMatchObject({
+      resourceTypes: ["platform/relay-channel"],
+      conditionalActions: [
+        "quyan:relay:GetProbeProfile",
+        "quyan:relay:ListLatestProbeRuns",
+        "quyan:relay:GetProbeTargetConfig",
+      ],
+      legacyPermission: Permission.RELAY_CHANNEL_PROBE_READ,
+    });
+    expect(getIamActionDefinition("quyan:relay:GetProbeTargetConfig")?.resourceTypes).toContain(
+      "platform/relay-probe-account",
+    );
+  });
+  it("checks server-declared related actions rather than the client action header", async () => {
+    await guard.read(
+      "quyan:relay:ListProbeOverview",
+      "actor",
+      request(),
+      async ({ decideRelated }) => {
+        await decideRelated("quyan:relay:GetProbeProfile", [platformRelayProbeProfileArn("channel", "profile")]);
+        return "overview";
+      },
+      legacy,
+    );
+    expect(iam.authorizeMany).toHaveBeenCalledWith(expect.objectContaining({ action: "quyan:relay:GetProbeProfile" }));
+  });
+  it("refuses component actions outside the primary catalog declaration", async () => {
+    await expect(
+      guard.read(
+        "quyan:relay:ListProbeOverview",
+        "actor",
+        request(),
+        async ({ decideRelated }) => {
+          await decideRelated("quyan:relay:DeleteProbeProfile", [platformRelayProbeProfileArn("channel", "profile")]);
+        },
+        legacy,
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(iam.authorizeMany).not.toHaveBeenCalled();
+  });
+  it("does not expose overview-only related actions through ordinary profile reads", async () => {
+    await expect(
+      guard.read(
+        "quyan:relay:GetProbeProfile",
+        "actor",
+        request(),
+        async ({ decideRelated }) => {
+          await decideRelated("quyan:relay:ListLatestProbeRuns", [platformRelayChannelArn("channel")]);
+        },
+        legacy,
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});

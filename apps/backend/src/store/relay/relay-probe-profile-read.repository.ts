@@ -9,7 +9,7 @@ import { iamAccountDenied } from "../users/iam-account-principal";
 import type { ProbeChannelVisibilityRecord } from "./relay-probe-latest-run-read.repository";
 import { relayProbeReadTarget } from "./relay-probe-read-target";
 /** Workflow and encrypted credential names are loaded only after the profile resource is admitted. */
-const profileSelect = {
+export const relayProbeProfileReadSelect = {
   id: true,
   relayChannelId: true,
   enabled: true,
@@ -37,7 +37,9 @@ const profileSelect = {
   createTime: true,
   updateTime: true,
 } as const satisfies Prisma.RelayChannelProbeProfileSelect;
-export type RelayProbeProfileReadRecord = Prisma.RelayChannelProbeProfileGetPayload<{ select: typeof profileSelect }>;
+export type RelayProbeProfileReadRecord = Prisma.RelayChannelProbeProfileGetPayload<{
+  select: typeof relayProbeProfileReadSelect;
+}>;
 export class RelayProbeProfileReadRepository {
   private static instance: RelayProbeProfileReadRepository;
   static getInstance() {
@@ -76,7 +78,7 @@ export class RelayProbeProfileReadRepository {
       }
       const record = await tx.relayChannelProbeProfile.findUnique({
         where: { id: metadata.id },
-        select: profileSelect,
+        select: relayProbeProfileReadSelect,
       });
       if (
         !record ||

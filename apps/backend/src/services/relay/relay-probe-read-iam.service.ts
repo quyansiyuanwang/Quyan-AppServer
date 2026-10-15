@@ -1,4 +1,4 @@
-import { Permission, type IamPrincipal } from "@quyan/shared";
+import { getIamActionDefinition, Permission, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -15,6 +15,7 @@ import type { TypedRequest } from "@/types/express";
 export interface RelayProbeReadContext {
   principal: IamPrincipal;
   decide: (resources: readonly string[]) => Promise<readonly string[]>;
+  decideRelated: (action: string, resources: readonly string[]) => Promise<readonly string[]>;
   recheck: () => Promise<void>;
   visible: (channel: ProbeChannelVisibilityRecord) => Promise<boolean>;
 }
@@ -37,7 +38,11 @@ export class RelayProbeReadIamService {
     > = RelayChannelService.getInstance(),
   ) {}
   async read<T>(
-    action: "quyan:relay:ListLatestProbeRuns" | "quyan:relay:ListProbeRuns" | "quyan:relay:GetProbeProfile",
+    action:
+      | "quyan:relay:ListLatestProbeRuns"
+      | "quyan:relay:ListProbeRuns"
+      | "quyan:relay:GetProbeProfile"
+      | "quyan:relay:ListProbeOverview",
     actorUserId: string,
     request: TypedRequest | undefined,
     read: (context: RelayProbeReadContext) => Promise<T>,
@@ -78,6 +83,10 @@ export class RelayProbeReadIamService {
       const result = await read({
         principal,
         decide: (resources) => platformCollectionDecisions(this.iam, { principal, action, request, resources }),
+        decideRelated: (relatedAction, resources) => {
+          if (!getIamActionDefinition(action)?.conditionalActions?.includes(relatedAction)) throw iamAccountDenied();
+          return platformCollectionDecisions(this.iam, { principal, action: relatedAction, request, resources });
+        },
         recheck,
         visible: (channel) => this.channels.canAccessChannelMetadata(channel, actorUserId, principal.roleSessionId),
       });

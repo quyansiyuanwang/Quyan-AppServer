@@ -34,6 +34,8 @@
 
 成员探针的建议倍率不会自动改变价格。拥有倍率调整权限的操作人员必须在确认界面中选择结果后，才会把该建议应用到所属逻辑混池的对外倍率。大幅变更仍需要同一账号的另一条稳定结果确认，除非明确启用强制确认选项。
 
+原生 IAM 强制模式下，概览使用 `quyan:relay:ListProbeOverview` 逐渠道授权。被拒绝或不可见的渠道与成员不会展示，也不会通过面向客户的池名称泄露。档案内容另外要求 `quyan:relay:GetProbeProfile`，最新结果另外要求 `quyan:relay:ListLatestProbeRuns`，资源检查与各自的独立查询接口一致；这些内容可以单独隐藏，而不影响其他已获准的渠道信息。目标覆盖配置要求 `quyan:relay:GetProbeTargetConfig` 对父渠道、目标渠道和档案均获准；若绑定共享账号，还须对该账号 ARN 获准，否则不展示覆盖配置及由该绑定推导的凭据状态。即使所有严格成员被拒绝或不可用，严格成员关系仍优先，不会退回旧成员关系。
+
 启用 IAM 原生强制授权后，最新结果轮询会对渠道 ARN（`acs:platform:*:platform:relay-channel/<channelId>`）和运行记录 ARN（`acs:platform:*:platform:relay-probe-run/<channelId>/<runId>`）检查 `quyan:relay:ListLatestProbeRuns`。混池目标还必须具有当前物理成员的访问权限。被拒绝的渠道不会返回；最新运行记录被拒绝时，该目标不展示结果，也不会替换成更早的记录。渠道可见性和部署管理员分配的探针读取资格仍然生效。
 
 历史记录使用 `quyan:relay:ListProbeRuns` 检查父渠道、指定的物理成员及每条返回的运行记录。分页和总数仅计算获准的记录；已经离开混池的成员记录不会展示，显式指定的成员必须仍属于当前混池。
