@@ -1,3 +1,4 @@
+import { relayTokenCredential, collectRelayTokenCredentials } from '@/utils/relay-token-credential'
 import type { RelayTokenMemberConfigInputDto } from '@/client/types.gen'
 import { createUserFacingError, getErrorMessage } from '@/utils/error-utils'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
@@ -1402,9 +1403,14 @@ export const useRelayTokenManagement = () => {
     }
   }
 
-  const copyToken = async (token: string) => {
+  const copyToken = async (token?: string) => {
+    const credential = relayTokenCredential(token)
+    if (!credential) {
+      ElMessage.warning(i18ns.t('relay.tokenCredentialUnavailable'))
+      return
+    }
     try {
-      const copied = await copyTextWithFallback(token)
+      const copied = await copyTextWithFallback(credential)
 
       if (!copied) {
         throw createUserFacingError(i18ns.t('copyFailed'))
@@ -1426,7 +1432,12 @@ export const useRelayTokenManagement = () => {
       return
     }
 
-    await copyToken(selectedRows.map((token) => token.token).join('\n'))
+    const credentials = collectRelayTokenCredentials(selectedRows)
+    if (!credentials) {
+      ElMessage.warning(i18ns.t('relay.tokenCredentialUnavailable'))
+      return
+    }
+    await copyToken(credentials.join('\n'))
   }
 
   const handleBatchCopyTokenJson = async () => {
@@ -2398,7 +2409,12 @@ export const useRelayTokenManagement = () => {
       invalidateAllTokensCache()
 
       try {
-        await navigator.clipboard.writeText(refreshedToken.token)
+        const credential = relayTokenCredential(refreshedToken.token)
+        if (!credential) {
+          ElMessage.success(i18ns.t('relay.refreshTokenSuccess'))
+          return
+        }
+        await navigator.clipboard.writeText(credential)
         ElMessage.success(i18ns.t('relay.refreshTokenSuccessAndCopied'))
       } catch {
         ElMessage.success(i18ns.t('relay.refreshTokenSuccess'))
@@ -2464,6 +2480,7 @@ export const useRelayTokenManagement = () => {
   }
 
   const getCcswitchLaunchFormats = (row: RelayTokenDto): RelayFormat[] => {
+    if (!relayTokenCredential(row.token)) return []
     const launchFormats: RelayFormat[] = []
     const seenApps = new Set<CcswitchApp>()
     for (const format of getTokenSupportedFormats(row)) {
@@ -2476,6 +2493,8 @@ export const useRelayTokenManagement = () => {
   }
 
   const buildCcswitchImportUri = (row: RelayTokenDto, format: RelayFormat) => {
+    const credential = relayTokenCredential(row.token)
+    if (!credential) throw createUserFacingError(i18ns.t('relay.tokenCredentialUnavailable'))
     const baseEndpoint = getAIEndpointUrl()
     const name =
       row.name?.trim() ||
@@ -2500,7 +2519,7 @@ export const useRelayTokenManagement = () => {
       app: RELAY_FORMAT_TO_CCSWITCH_APP[format],
       name,
       endpoint,
-      apiKey: row.token,
+      apiKey: credential,
       homepage: endpoint,
       enabled: 'true',
     })
@@ -2509,6 +2528,10 @@ export const useRelayTokenManagement = () => {
   }
 
   const openBalanceScriptDialog = (row: RelayTokenDto) => {
+    if (!relayTokenCredential(row.token)) {
+      ElMessage.warning(i18ns.t('relay.tokenCredentialUnavailable'))
+      return
+    }
     currentBalanceScriptToken.value = row
     showBalanceScriptDialog.value = true
   }
@@ -2783,7 +2806,7 @@ export const useRelayTokenManagement = () => {
 
   const openSwitchLogsDialog = async (row: RelayTokenDto) => {
     currentSwitchLogTokenId.value = row.id
-    currentSwitchLogTokenName.value = row.name || row.token.slice(0, 12)
+    currentSwitchLogTokenName.value = row.name || row.id.slice(0, 12)
     switchLogs.value = []
     showSwitchLogDialog.value = true
     await loadSwitchLogs(row.id)

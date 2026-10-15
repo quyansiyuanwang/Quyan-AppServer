@@ -14,7 +14,7 @@ function includesForScope(name: string, include: string[]): string[] {
   if (scope === "integration" && name === "backend-database") return ["tests/integration/**/*.test.ts"];
   if (scope === "contract") {
     if (name === "backend-database") return ["tests/contract/openapi-operations.contract.test.ts"];
-    if (name === "backend-contract") return ["tests/contract/openapi-schema.contract.test.ts"];
+    if (name === "backend-contract") return include;
   }
 
   return [];

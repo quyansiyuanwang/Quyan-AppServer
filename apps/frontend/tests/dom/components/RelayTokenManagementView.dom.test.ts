@@ -14,6 +14,7 @@ const {
   listChannelsMock,
   messageSuccessMock,
   messageErrorMock,
+  messageWarningMock,
   confirmMock,
   clipboardWriteTextMock,
   deviceModeMock,
@@ -27,6 +28,7 @@ const {
   listChannelsMock: vi.fn(),
   messageSuccessMock: vi.fn(),
   messageErrorMock: vi.fn(),
+  messageWarningMock: vi.fn(),
   confirmMock: vi.fn(),
   clipboardWriteTextMock: vi.fn(),
   deviceModeMock: {
@@ -87,6 +89,7 @@ vi.mock('@/utils/elementPlusRuntime', () => ({
   ElMessage: {
     success: messageSuccessMock,
     error: messageErrorMock,
+    warning: messageWarningMock,
   },
   ElMessageBox: {
     confirm: confirmMock,
@@ -1588,6 +1591,58 @@ describe('RelayTokenManagementView', () => {
     expect(getRelayTokensMock).toHaveBeenCalledTimes(2)
   })
 
+  it.each([true, false])('renders metadata-only tokens safely on desktop=%s', async (desktop) => {
+    deviceModeMock.isDesktop = desktop
+    deviceModeMock.isMobile = !desktop
+    getRelayTokensMock.mockResolvedValue({
+      items: [{ ...relayToken, token: undefined, name: null }],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+    })
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    expect(wrapper.text()).toContain('未获准读取令牌凭据')
+    expect(vm.getCcswitchLaunchFormats({ ...relayToken, token: undefined })).toEqual([])
+    await vm.openSwitchLogsDialog({ ...relayToken, token: undefined, name: null })
+    expect(vm.currentSwitchLogTokenName).toBe(relayToken.id.slice(0, 12))
+    wrapper.unmount()
+  })
+  it('never copies missing credentials or opens credential scripts', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.copyToken(undefined)
+    await vm.handleMoreCommand('export-ccswitch', { ...relayToken, token: undefined })
+    expect(clipboardWriteTextMock).not.toHaveBeenCalled()
+    expect(messageWarningMock).toHaveBeenCalledTimes(2)
+    expect(vm.showBalanceScriptDialog).toBe(false)
+    wrapper.unmount()
+  })
+  it('does not silently drop redacted rows during bulk credential copy', async () => {
+    const rows = [relayToken, { ...relayToken, id: 'metadata-only', token: undefined }]
+    getRelayTokensMock.mockResolvedValue({ items: rows, page: 1, pageSize: 20, total: 2 })
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.handleTokenSelectionChange(rows)
+    await vm.handleBatchTokenCommand('copy-token-value')
+    expect(clipboardWriteTextMock).not.toHaveBeenCalled()
+    expect(messageWarningMock).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+  it('handles a refreshed token without disclosing or fabricating its credential', async () => {
+    refreshRelayTokenMock.mockResolvedValue({ ...relayToken, token: undefined })
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.handleRefreshToken(relayToken)
+    await flushPromises()
+    expect(clipboardWriteTextMock).not.toHaveBeenCalled()
+    expect(messageSuccessMock).toHaveBeenCalledWith('令牌刷新成功')
+    wrapper.unmount()
+  })
   it('copies token text to clipboard', async () => {
     const wrapper = mountView()
     await flushPromises()

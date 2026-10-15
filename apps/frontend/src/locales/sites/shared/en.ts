@@ -1845,6 +1845,7 @@ const en = {
     requestCount: 'Request Count',
     tokenStatsColumn: 'Requests / Tokens',
     copyToken: 'Copy Token',
+    tokenCredentialUnavailable: 'Token credential is not authorized for disclosure',
     refreshToken: 'Refresh Token',
     deleteToken: 'Delete Token',
     disableToken: 'Disable Token',

@@ -131,13 +131,35 @@ export function legacyPermissionsToPrincipalPolicy(
           }),
         ],
       });
+    const personalRelayRead = statement.Action.filter((action) =>
+      ["quyan:relay:ListTokens", "quyan:relay:GetToken", "quyan:relay:RevealToken"].includes(action),
+    );
+    if (personalRelayRead.length)
+      statements.push({
+        Effect: "Allow",
+        Sid: "LegacyRelayOwnRead",
+        Action: personalRelayRead,
+        Resource: [
+          buildAcsResource({
+            service: "quyan",
+            region: "*",
+            accountId: accountOwnerId,
+            path: "user/" + principalUserId,
+          }),
+          IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/token")!
+            .arnTemplate.replace("{accountId}", accountOwnerId)
+            .replace("{parentId}", principalUserId)
+            .replace("{resourceId}", "*"),
+        ],
+      });
     const other = statement.Action.filter(
       (action) =>
         !authorOnly.has(action) &&
         !list.includes(action) &&
         !jsonAccess.includes(action) &&
         !jsonCreate.includes(action) &&
-        !ojAccess.includes(action),
+        !ojAccess.includes(action) &&
+        !personalRelayRead.includes(action),
     );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>

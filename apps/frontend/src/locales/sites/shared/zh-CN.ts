@@ -1775,6 +1775,7 @@ const zhCN = {
     requestCount: '请求次数',
     tokenStatsColumn: '请求 / Token',
     copyToken: '复制令牌',
+    tokenCredentialUnavailable: '未获准读取令牌凭据',
     refreshToken: '刷新令牌',
     deleteToken: '删除令牌',
     disableToken: '禁用令牌',

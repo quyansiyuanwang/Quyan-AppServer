@@ -17943,6 +17943,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -18324,6 +18344,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayTokenDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -51814,7 +51854,8 @@
 						"type": "string"
 					},
 					"token": {
-						"type": "string"
+						"type": "string",
+						"description": "List/get omit this without the credential-reveal Action; mutation responses have separate authorization."
 					},
 					"balance": {
 						"type": "number",
@@ -51933,7 +51974,6 @@
 				"required": [
 					"id",
 					"userId",
-					"token",
 					"balance",
 					"totalTokens",
 					"requestCount",

@@ -182,7 +182,7 @@ const metricFormatOptions = computed(() => [
 ])
 
 const scriptPreview = computed(() => {
-  if (!props.token) return ''
+  if (!props.token?.token) return ''
   return buildV1CcswitchBalanceScript(props.token.token, {
     extraLayout: settings.value.extraLayout,
     decimalPlaces: settings.value.decimalPlaces,

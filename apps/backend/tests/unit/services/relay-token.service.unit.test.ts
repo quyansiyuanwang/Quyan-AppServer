@@ -14,6 +14,7 @@ describe("RelayTokenService", () => {
     findByIdWithRelations: vi.fn(),
     findById: vi.fn(),
     update: vi.fn(),
+    updateStatus: vi.fn(),
     withTransaction: vi.fn(),
     withSerializableTransaction: vi.fn(),
     findManagedPoolByRelayTokenId: vi.fn(),
@@ -125,6 +126,22 @@ describe("RelayTokenService", () => {
     relayTokenRepository.withSerializableTransaction.mockImplementation(
       async (callback: (tx: any) => Promise<unknown>) => callback({}),
     );
+  });
+
+  it("keeps an unmigrated status mutation response on its existing service guard", async () => {
+    const token = createToken();
+    relayTokenRepository.findByIdWithRelations.mockResolvedValue(token);
+    relayTokenRepository.updateStatus.mockResolvedValue(token);
+    const publicRead = vi
+      .spyOn(service, "getToken")
+      .mockRejectedValue(new Error("Public IAM read must not run after an unguarded commit"));
+    try {
+      expect(await service.toggleTokenStatus(token.id, token.userId)).toMatchObject({ id: token.id });
+      expect(relayTokenRepository.updateStatus).toHaveBeenCalledWith(token.id, MANAGED_STATUS.DISABLED);
+      expect(publicRead).not.toHaveBeenCalled();
+    } finally {
+      publicRead.mockRestore();
+    }
   });
 
   it.skip("legacy managed pool attachment was replaced by shared automatic proxy pools", async () => {

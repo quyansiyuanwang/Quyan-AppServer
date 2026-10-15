@@ -264,7 +264,8 @@ export interface RelayTokenDto {
   username?: string;
   ownerName?: string;
   name?: string;
-  token: string;
+  /** List/get omit this without the credential-reveal Action; mutation responses have separate authorization. */
+  token?: string;
   balance: number;
   totalTokens: number;
   requestCount: number;

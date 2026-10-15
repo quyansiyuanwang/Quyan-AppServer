@@ -1,3 +1,7 @@
+import { HttpStatusCode } from "axios";
+import type { ErrorResponse } from "@/api/response";
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import type { RelayCompositionPreviewDto, RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
 import { relayCompositionPreviewBodySchema } from "@/api/schema/relay/relay.schema";
 import type { RelayCompositionCandidatesDto } from "@/api/dto/relay/relay.dto";
@@ -17,6 +21,7 @@ import {
   Body,
   Query,
   Middlewares,
+  Response,
 } from "@tsoa/runtime";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
 import type {
@@ -120,8 +125,17 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListTokens",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateQuery(relayTokenListQuerySchema))
   async listTokens(
     @Request() request: TypedRequest,
@@ -129,7 +143,7 @@ export class RelayController extends Controller {
     @Query() pageSize?: number,
     @Query() targetUserId?: string,
   ): Promise<RelayTokenPageDto> {
-    return this.relayTokenService.listTokens(request.user!.userId, page, pageSize, targetUserId);
+    return this.relayTokenService.listTokens(request.user!.userId, page, pageSize, targetUserId, request);
   }
 
   @Post("tokens/composition-preview")
@@ -216,15 +230,24 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema))
   async getToken(
     @Path() id: string,
     @Request() request: TypedRequest,
     @Query() targetUserId?: string,
   ): Promise<RelayTokenDto> {
-    return this.relayTokenService.getToken(id, request.user!.userId, targetUserId);
+    return this.relayTokenService.getToken(id, request.user!.userId, targetUserId, request);
   }
 
   @Delete("tokens/{id}")

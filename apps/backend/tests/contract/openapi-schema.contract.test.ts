@@ -332,7 +332,7 @@ describe("RAM IAM policy API contract", () => {
     ["policies", "RamPolicyDto"],
   ])("keeps %s candidate pagination distinct from an authorized total", (resource, dto) => {
     const operation = openApi.paths["/v1/ram/" + resource + "/page"]?.get;
-    expect(operation?.parameters?.map((parameter) => parameter.name)).toEqual(["page", "pageSize"]);
+    expect(operation?.parameters?.map((parameter) => parameter.name)).toEqual(["page", "pageSize", "keyword"]);
     const schema = openApi.components?.schemas?.["IamManagementPageResult_" + dto + "_"] as {
       properties: Record<string, unknown>;
       required: string[];

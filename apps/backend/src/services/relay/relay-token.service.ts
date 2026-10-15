@@ -1,3 +1,5 @@
+import { RelayTokenReadIamService } from "./relay-token-read-iam.service";
+import type { TypedRequest } from "@/types/express";
 import type { RelayCompositionPreviewDto, RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
 import { validateRelayComposition } from "@/util/relay/relay-composition.util";
 import { RelayCompositionRepository } from "@/store/relay/relay-composition.repository";
@@ -625,7 +627,7 @@ export class RelayTokenService {
     await this.relayTokenRepo.update(tokenId, {
       token: refreshedTokenValue,
     });
-    const refreshedToken = await this.getToken(tokenId, actorUserId, token.userId);
+    const refreshedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_REFRESH,
@@ -685,6 +687,25 @@ export class RelayTokenService {
     page?: number,
     pageSize?: number,
     targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenPageDto> {
+    return RelayTokenReadIamService.getInstance().read(
+      "ListTokens",
+      actorUserId,
+      { page, pageSize, targetUserId },
+      request,
+      async (records) => {
+        const usage = await this.buildQuotaWindowUsageMap(records);
+        return records.map((row) => this.toDto(row, usage));
+      },
+      () => this.listTokensLegacy(actorUserId, page, pageSize, targetUserId),
+    );
+  }
+  private async listTokensLegacy(
+    actorUserId: string,
+    page?: number,
+    pageSize?: number,
+    targetUserId?: string,
   ): Promise<RelayTokenPageDto> {
     const userId = await this.resolveManagedUserId(actorUserId, targetUserId);
     const result = await this.relayTokenRepo.findPageWithRelations(
@@ -702,7 +723,33 @@ export class RelayTokenService {
     };
   }
 
-  async getToken(tokenId: string, actorUserId: string, targetUserId?: string): Promise<RelayTokenDto> {
+  async getToken(
+    tokenId: string,
+    actorUserId: string,
+    targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenDto> {
+    const result = await RelayTokenReadIamService.getInstance().read(
+      "GetToken",
+      actorUserId,
+      { id: tokenId, targetUserId },
+      request,
+      async (records) => {
+        const usage = await this.buildQuotaWindowUsageMap(records);
+        return records.map((row) => this.toDto(row, usage));
+      },
+      async () => ({
+        items: [await this.getTokenLegacy(tokenId, actorUserId, targetUserId)],
+        total: 1,
+        page: 1,
+        pageSize: 1,
+      }),
+    );
+    return result.items[0]!;
+  }
+  // Unmigrated mutation responses retain their existing authorization boundary.
+  // Public GET/list must use the IAM reader; migrate these callers with their atomic writes.
+  private async getTokenLegacy(tokenId: string, actorUserId: string, targetUserId?: string): Promise<RelayTokenDto> {
     const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
 
     const quotaWindowUsageMap = await this.buildQuotaWindowUsageMap([token]);
@@ -769,7 +816,7 @@ export class RelayTokenService {
       await this.relayTokenRepo.replaceChannelConfigs(tokenId, data.channelId, reorderedConfigs);
     }
 
-    const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
+    const updatedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_CHANNEL_UPDATE,
@@ -897,7 +944,7 @@ export class RelayTokenService {
             : undefined),
       }),
     );
-    const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
+    const updatedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_UPDATE,
@@ -1136,7 +1183,7 @@ export class RelayTokenService {
 
     const newStatus = token.status === MANAGED_STATUS.ENABLED ? MANAGED_STATUS.DISABLED : MANAGED_STATUS.ENABLED;
     await this.relayTokenRepo.updateStatus(tokenId, newStatus);
-    const updatedToken = await this.getToken(tokenId, actorUserId, token.userId);
+    const updatedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_TOKEN_STATUS_CHANGE,
@@ -1629,8 +1676,10 @@ export class RelayTokenService {
       username: token.user?.username || undefined,
       ownerName: token.user?.name || token.user?.username || undefined,
       name: token.name,
-      token: toCanonicalCredential(token.token, "relayToken"),
-      balance: Number(token.balance),
+      ...(typeof token.token === "string" && token.token
+        ? { token: toCanonicalCredential(token.token, "relayToken") }
+        : {}),
+      balance: Number(token.balance ?? 0),
       totalTokens: token.totalTokens,
       requestCount: token.requestCount,
       usedQuota: Number(token.usedQuota || 0),
@@ -1947,7 +1996,10 @@ export class RelayTokenService {
   }
 
   private async buildQuotaWindowUsageMap(
-    tokens: Array<Pick<RelayTokenWithRelations, "id" | "quotaWindows">>,
+    tokens: Array<{
+      id: string;
+      quotaWindows: Array<Pick<RelayTokenWithRelations["quotaWindows"][number], "quotaWindowHours">>;
+    }>,
   ): Promise<Map<string, RelayTokenUsageAggregate>> {
     const relayTokenIds = [...new Set(tokens.map((token) => token.id).filter(Boolean))];
     if (relayTokenIds.length === 0) return new Map();

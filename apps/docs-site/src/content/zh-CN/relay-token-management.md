@@ -19,6 +19,16 @@
 - 到期时间、状态与额度使用情况。
 - 分页模式或全部展示模式。
 
+### 资源级访问与凭据披露
+
+启用 IAM 强制模式后，列表使用 `quyan:relay:ListTokens`，单个 Token 查询使用 `quyan:relay:GetToken`。服务端逐项评估 Token 资源 `acs:relay:*:<accountId>:token/<userId>/<tokenId>`，没有读取权限的记录不会出现在当前页或总数中；知道 Token ID 不代表获得访问权限。已停用但获准读取的 Token 仍可见，已删除的 Token 不可见。
+
+允许读取 Token 元数据不等于允许获取凭据。这两个读取接口只有在同一资源也获准执行 `quyan:relay:RevealToken` 时才返回 `token` 字段；显式 Deny 优先于 Allow。没有披露权限时，页面仍可展示获准读取的用量和配置，但凭据位置显示不可用提示。复制凭据、打开余额脚本、导入受支持客户端都需要接口实际返回凭据。批量复制时，只要任一选中项没有凭据就停止，不会用 Token ID 替代，也不会悄悄漏掉部分选中项。
+
+读取其他用户的 Token（包括同账户内其他用户）还需要平台管理资格，以及目标用户和 Token 资源上的 `ListManagedTokens` / `GetManagedToken` 授权；披露凭据另需 `RevealManagedToken`。账户策略中的 `"*"` 不能自行赋予平台管理资格。OAuth 访问还受应用和访问令牌当前的 scope、有效期与撤销状态限制。
+
+以上披露规则针对列表与单个 Token 读取接口。导出、刷新、复制和修改属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
+
 ### 额度窗口（Quota Windows）
 
 每个 Token 可配置一到多个滚动时间窗口限制，例如每分钟、每小时或每天的最大用量：

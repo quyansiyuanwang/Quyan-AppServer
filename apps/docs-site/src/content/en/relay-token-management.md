@@ -19,6 +19,16 @@ Use this page to manage relay tokens, channel routing, quotas, and failover beha
 - Expiry, status, and quota usage.
 - Paged or show-all display modes.
 
+### Resource-scoped access and credential disclosure
+
+When IAM enforcement is enabled, the list uses `quyan:relay:ListTokens` and a single-token read uses `quyan:relay:GetToken`. The server evaluates each token resource, `acs:relay:*:<accountId>:token/<userId>/<tokenId>`. Unauthorized rows are excluded from both the page and its total; knowing a token ID does not grant access. Disabled tokens remain visible if authorized, while deleted tokens do not.
+
+Reading token metadata does not automatically disclose its credential. These two read APIs only include `token` when `quyan:relay:RevealToken` also allows the same resource; an explicit Deny overrides an Allow. Without disclosure permission, the page can still show authorized usage and configuration, but shows a credential-unavailable notice. Copying the credential, opening a balance script, and importing it into a supported client require an actual returned credential. Bulk credential copy stops if any selected row lacks one; it never substitutes a token ID or silently copies a partial selection.
+
+Reading another user's tokens, including another user in the same account, additionally requires the platform management qualification and `ListManagedTokens` / `GetManagedToken` on the target user and token resources. Disclosure then uses `RevealManagedToken`. An account policy containing `"*"` cannot create that platform qualification. OAuth access also remains limited by the current application's and access token's scopes, validity, and revocation state.
+
+These disclosure rules describe the list and single-token read APIs. Export, refresh, duplication, and modification are separate operations with their own authorization requirements; do not treat metadata-only access as a guarantee that other granted operations cannot return credentials. In legacy or shadow mode, the existing permission checks remain authoritative; shadow comparison does not enable IAM enforcement.
+
 ### Quota windows
 
 Each token can have one or more rolling time-window rate limits (e.g. per-minute, per-hour, per-day):

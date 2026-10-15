@@ -1735,6 +1735,7 @@ const emoji = {
     copyToken: '📋 🪙',
     duplicateToken: '📄🪙',
     cloneToken: '🧬 🪙',
+    tokenCredentialUnavailable: '🔒 🪙',
     refreshToken: '♻️ 🪙',
     deleteToken: '🗑️ 🪙',
     disableToken: '🔴 🪙',

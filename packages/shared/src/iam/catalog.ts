@@ -1355,6 +1355,74 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_CHANNEL_PROBE_READ,
   },
+  ...[
+    {
+      operation: 'ListTokens',
+      accessLevel: 'List',
+      route: 'GET /v1/relay/tokens',
+      managed: 'ListManagedTokens',
+    },
+    {
+      operation: 'GetToken',
+      accessLevel: 'Read',
+      route: 'GET /v1/relay/tokens/{id}',
+      managed: 'GetManagedToken',
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:relay:' + definition.operation,
+      service: 'relay',
+      operation: definition.operation,
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: ['quyan/user', 'relay/token'],
+      apiRoutes: [definition.route],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      conditionalActions: [
+        'quyan:relay:RevealToken',
+        'quyan:relay:' + definition.managed,
+        'quyan:relay:RevealManagedToken',
+      ],
+      sensitive: true,
+      authorizationStage: 'declared',
+      legacyPermission: Permission.RELAY_TOKEN_READ,
+    }),
+  ),
+  {
+    action: 'quyan:relay:RevealToken',
+    service: 'relay',
+    operation: 'RevealToken',
+    accessLevel: 'Read',
+    resourceTypes: ['relay/token'],
+    apiRoutes: ['GET /v1/relay/tokens', 'GET /v1/relay/tokens/{id}'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.RELAY_TOKEN_READ,
+  },
+  ...[
+    { operation: 'ListManagedTokens', accessLevel: 'List', route: 'GET /v1/relay/tokens' },
+    { operation: 'GetManagedToken', accessLevel: 'Read', route: 'GET /v1/relay/tokens/{id}' },
+    { operation: 'RevealManagedToken', accessLevel: 'Read' },
+  ].map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:relay:' + definition.operation,
+      service: 'relay',
+      operation: definition.operation,
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes:
+        definition.operation === 'RevealManagedToken'
+          ? ['platform/relay-token']
+          : ['platform/user', 'platform/relay-token'],
+      apiRoutes: definition.route
+        ? [definition.route]
+        : ['GET /v1/relay/tokens', 'GET /v1/relay/tokens/{id}'],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
+    }),
+  ),
   {
     action: 'quyan:relay:ApplyProbeRun',
     service: 'relay',
