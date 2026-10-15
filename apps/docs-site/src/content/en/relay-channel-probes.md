@@ -50,6 +50,18 @@ Saving a profile under native IAM enforcement requires `quyan:relay:SaveProbePro
 
 Deleting a profile requires `quyan:relay:DeleteProbeProfile` on its channel, profile, configured physical targets and linked historical runs. History is retained with its profile link removed. A bound shared account also requires `quyan:relay:UnbindProbeAccount` on that account ARN and the dedicated deployment-managed account-pool qualification. Queued or running tasks block deletion. All configuration removal and history detachment roll back if authorization is revoked at commit.
 
+## Run authorization and queue validity
+
+Under IAM enforcement, creating a single run requires `quyan:relay:CreateProbeRun` on the channel, profile, server-reserved run ARN and queue slot. Pooled runs also require the selected physical member; a bound account requires its account ARN. Executing a bound-account probe does not grant account-management access. The deployment-managed probe-executor qualification remains required.
+
+Run resources use `acs:platform:*:platform:relay-probe-run/<channelId>/<runId>`. Queue slots use `acs:platform:*:platform:relay-probe-queue-slot/<channelId>/<memberId-or-channel>`: standalone channels use the literal final segment `channel`, while pooled members use their actual member ID. The server generates the run ID, so creation policies commonly use a run wildcard restricted to the intended channel. An explicit deny on any related resource prevents creation.
+
+Before execution, after shared-lock waits, before each balance/model/account-login request and before publishing results, the worker rechecks its lease, identity, role session, current policies and profile/target configuration. A reset, revoked authorization or configuration change stops subsequent probe requests. Requests already sent upstream cannot be recalled and may still incur charges.
+
+AccessKey-initiated runs are also bound to the specific key: disabling, expiring, rotating or reassigning it stops execution, while normal usage-counter updates do not revoke the run. Changes to the user or account-owner record invalidate older queue authorization as well.
+
+Server-side queue authorization context remains valid for at most two hours. Enforcement does not continue when that context expires, its cache is lost or authorization is unavailable; investigate and submit a new run. Handle older queued jobs without this context before enabling enforcement. Browsers never receive the queue authorization context, credentials or tokens.
+
 ## Prerequisites and notes
 
 - Reading requires channel-probe read permission. Saving an ordinary profile, running, clearing or resetting requires execute permission, step-up verification and replay protection. Editing or deleting a profile bound to a shared account additionally requires the dedicated account-pool management permission, preventing unauthorized changes to requests carrying shared tokens.

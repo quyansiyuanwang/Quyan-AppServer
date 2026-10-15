@@ -27,7 +27,6 @@ import type { TypedRequest } from "@/types/express";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { validateBody, validateParams, validateQuery } from "@/middleware/validation";
-import { relayChannelProbeResourceResolver } from "@/iam/request/resource-resolvers";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import {
   applyRelayChannelProbeRunsBodySchema,
@@ -155,11 +154,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("{channelId}/runs")
   @Security("jwt")
-  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:probe:Execute",
-    resourceKind: "single-resource",
-    resource: relayChannelProbeResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:CreateProbeRun",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -174,7 +176,7 @@ export class RelayChannelProbeController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<RelayChannelProbeRunDto> {
     this.setStatus(202);
-    return this.service.createRun(channelId, body, request.user!.userId);
+    return this.service.createRun(channelId, body, request.user!.userId, request);
   }
 
   @Post("{channelId}/runs/reset")

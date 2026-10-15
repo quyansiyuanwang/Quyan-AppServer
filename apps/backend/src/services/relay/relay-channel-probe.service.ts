@@ -1,3 +1,12 @@
+import { captureIamAccessKeyRevision } from "@/store/users/iam-access-key-authority";
+import { PlatformManagementReadRepository } from "@/store/system/platform-management-read.repository";
+import { assertProbeRunExecution, withProbeRunExecution } from "./relay-probe-execution-context";
+import { RelayProbeRunAdmissionStore } from "./relay-probe-run-admission";
+import { RelayProbeRunExecutionIamService } from "./relay-probe-run-execution-iam.service";
+import { RelayProbeRunCreateRepository } from "@/store/relay/relay-probe-run-create.repository";
+import { requestTransportConditionContext } from "@/iam/request/condition-context";
+import { getIamPrincipal } from "@/iam/request/principal-context";
+import { createRelayChannelProbeRunBodySchema } from "@/api/schema/relay/relay-channel-probe.schema";
 import { RELAY_PROBE_QUEUE_POLICY, relayProbeQueueSlotKey } from "./relay-channel-probe-queue-policy";
 import {
   RelayProbeRunResetRepository,
@@ -1394,15 +1403,105 @@ export class RelayChannelProbeService {
 
   async createRun(
     channelId: string,
-    body: CreateRelayChannelProbeRunRequest,
+    input: CreateRelayChannelProbeRunRequest,
     actorUserId: string,
+    request?: TypedRequest,
   ): Promise<RelayChannelProbeRunDto> {
-    return this.channelLockService.withQueueWrite(channelId, () => this.createRunLegacy(channelId, body, actorUserId));
+    const parsed = createRelayChannelProbeRunBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe target", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data,
+      runId = createId();
+    const result = await RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:CreateProbeRun",
+      actorUserId,
+      request,
+      (guard) =>
+        this.channelLockService.withQueueWrite(channelId, async () => {
+          try {
+            platformRelayChannelArn(channelId);
+            if (body.memberChannelId) platformRelayChannelArn(body.memberChannelId);
+          } catch {
+            throw iamAccountDenied();
+          }
+          const queueKey = relayProbeQueueSlotKey(channelId, body.memberChannelId);
+          let undoAdmission: (() => Promise<void>) | undefined,
+            owned = false;
+          try {
+            const run = await RelayProbeRunCreateRepository.getInstance().create(
+              channelId,
+              runId,
+              body,
+              guard,
+              (format, previous, override) =>
+                override
+                  ? defaultProbeEndpoint(format as ProbeFormat)
+                  : normalizeProbeEndpoint(previous, format as ProbeFormat),
+              async (target) => {
+                if (
+                  request!.user?.impersonatorId ||
+                  request!.user?.updatedAt !==
+                    guard.snapshot.users
+                      .find((user) => user.id === guard.principal.subjectUserId)
+                      ?.updateTime.toISOString()
+                )
+                  throw iamAccountDenied();
+                const reserved = await this.redis.setIfNotExists(queueKey, runId, RELAY_PROBE_QUEUE_POLICY.slotTtlMs);
+                if (reserved !== true)
+                  throw reserved === false
+                    ? new ConflictError("Probe already reserved", undefined, {
+                        messageKey: "relayChannelProbe.probeAlreadyQueued",
+                      })
+                    : new LockBackendUnavailableError("Probe queue unavailable", undefined, {
+                        messageKey: "relayChannelProbe.queueBackendUnavailable",
+                      });
+                owned = true;
+                undoAdmission = await RelayProbeRunAdmissionStore.getInstance().save({
+                  version: 1,
+                  runId,
+                  channelId,
+                  memberChannelId: body.memberChannelId ?? null,
+                  ...target,
+                  principal: guard.principal,
+                  identity: {
+                    principalUpdatedAt: guard.snapshot.users
+                      .find((user) => user.id === guard.principal.subjectUserId)!
+                      .updateTime.toISOString(),
+                    ownerUpdatedAt: guard.snapshot.users
+                      .find((user) => user.id === guard.principal.accountOwnerId)!
+                      .updateTime.toISOString(),
+                    accessKeyId: request!.accessKey?.id,
+                    accessKeyRevision: await captureIamAccessKeyRevision(guard.principal, request!.accessKey?.id),
+                  },
+                  transport: {
+                    ...requestTransportConditionContext(request!),
+                    "acs:SecureTransport": request!.secure === true,
+                  },
+                  expiresAt: Date.now() + RELAY_PROBE_QUEUE_POLICY.slotTtlMs,
+                });
+              },
+            );
+            return run ? this.toRunDto(run) : undefined;
+          } catch (error) {
+            await undoAdmission?.().catch(() => undefined);
+            if (owned) await this.redis.deleteIfValueMatches(queueKey, runId).catch(() => null);
+            throw error;
+          }
+        }),
+      () =>
+        this.channelLockService.withQueueWrite(channelId, () =>
+          this.createRunLegacy(channelId, body, actorUserId, runId, request),
+        ),
+    );
+    if (!result) throw iamAccountDenied();
+    return result;
   }
   private async createRunLegacy(
     channelId: string,
     body: CreateRelayChannelProbeRunRequest,
     actorUserId: string,
+    reservedId?: string,
+    request?: TypedRequest,
   ): Promise<RelayChannelProbeRunDto> {
     const profile = await this.repository.findProfileWithChannel(channelId);
     if (!profile)
@@ -1452,6 +1551,7 @@ export class RelayChannelProbeService {
 
     try {
       const run = await this.repository.createRun({
+        ...(reservedId ? { id: reservedId } : {}),
         relayChannelId: channelId,
         probeMemberChannelId: memberChannelId,
         probeMemberChannelName: memberChannelId ? executionChannel.name : null,
@@ -1468,6 +1568,52 @@ export class RelayChannelProbeService {
         balanceSettlementReads: profile.balanceSettlementReads,
         forceWithoutCacheBuster: body.forceWithoutCacheBuster === true,
       });
+      if (request && env.security.iamAuthorizationMode === "shadow") {
+        const principal = getIamPrincipal(request);
+        if (principal) {
+          try {
+            const snapshot = await PlatformManagementReadRepository.getInstance().snapshot(
+              principal,
+              Permission.RELAY_CHANNEL_PROBE_EXECUTE,
+            );
+            if (
+              request.user?.impersonatorId ||
+              request.user?.updatedAt !==
+                snapshot.users.find((user) => user.id === principal.subjectUserId)?.updateTime.toISOString()
+            )
+              throw iamAccountDenied();
+            await RelayProbeRunAdmissionStore.getInstance().save({
+              version: 1,
+              runId: run.id,
+              channelId,
+              memberChannelId,
+              profileId: profile.id,
+              profileUpdatedAt: profile.updateTime.toISOString(),
+              targetConfigId: targetConfig?.id ?? null,
+              targetConfigUpdatedAt: targetConfig?.updateTime.toISOString() ?? null,
+              accountId: targetConfig?.accountId ?? null,
+              principal,
+              identity: {
+                principalUpdatedAt: snapshot.users
+                  .find((user) => user.id === principal.subjectUserId)!
+                  .updateTime.toISOString(),
+                ownerUpdatedAt: snapshot.users
+                  .find((user) => user.id === principal.accountOwnerId)!
+                  .updateTime.toISOString(),
+                accessKeyId: request.accessKey?.id,
+                accessKeyRevision: await captureIamAccessKeyRevision(principal, request.accessKey?.id),
+              },
+              transport: {
+                ...requestTransportConditionContext(request),
+                "acs:SecureTransport": request.secure === true,
+              },
+              expiresAt: Date.now() + RELAY_PROBE_QUEUE_POLICY.slotTtlMs,
+            });
+          } catch {
+            /* Shadow admission storage must not change the legacy result. */
+          }
+        }
+      }
       const attached = await this.redis.replaceIfValueMatches(
         queueKey,
         reservationId,
@@ -2048,16 +2194,47 @@ export class RelayChannelProbeService {
   }
 
   private async executeRun(runId: string, owner: string): Promise<void> {
+    try {
+      const recheck = await RelayProbeRunExecutionIamService.getInstance().prepare(runId, owner);
+      await withProbeRunExecution(recheck, () => this.executeAuthorizedRun(runId, owner));
+    } catch {
+      const cancelled = await this.repository.completeClaimedRun(runId, owner, {
+        status: "cancelled",
+        finishedAt: new Date(),
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        errorMessage: "Probe execution authorization unavailable",
+      });
+      if (!cancelled.count) return;
+      const identity = await this.repository.findRunQueueIdentity(runId);
+      if (identity)
+        await this.redis
+          .deleteIfValueMatches(
+            relayProbeQueueSlotKey(identity.relayChannelId, identity.probeMemberChannelId ?? undefined),
+            runId,
+          )
+          .catch(() => null);
+    }
+  }
+  private async executeAuthorizedRun(runId: string, owner: string): Promise<void> {
+    await assertProbeRunExecution();
     const run = await this.repository.findRunWithProfile(runId);
     if (!run || run.leaseOwner !== owner) return;
     if (!run.profile) {
-      await this.repository.completeClaimedRun(runId, owner, {
+      const finalized = await this.repository.completeClaimedRun(runId, owner, {
         status: "cancelled",
         finishedAt: new Date(),
         leaseOwner: null,
         leaseExpiresAt: null,
         errorMessage: "探针档案已清空，任务已取消",
       });
+      if (finalized.count)
+        await this.redis
+          .deleteIfValueMatches(
+            relayProbeQueueSlotKey(run.relayChannelId, run.probeMemberChannelId ?? undefined),
+            runId,
+          )
+          .catch(() => null);
       return;
     }
     const leaseHeartbeat = setInterval(
@@ -2067,7 +2244,8 @@ export class RelayChannelProbeService {
       Math.floor(RUN_LEASE_MS / 3),
     );
     leaseHeartbeat.unref();
-    let accountBound = false;
+    let accountBound = false,
+      completed = false;
     try {
       const original = run.profile;
       const target = await this.accountRepository.findTarget(
@@ -2099,7 +2277,8 @@ export class RelayChannelProbeService {
           ? executeSamples()
           : this.channelLockService.withWrite(scopes[index]!, () => withScopes(index + 1), GROUP_LOCK_TIMEOUT_MS);
       const result = await withScopes(0);
-      await this.repository.completeClaimedRun(runId, owner, {
+      await assertProbeRunExecution();
+      const finalized = await this.repository.completeClaimedRun(runId, owner, {
         status: result.succeededCount ? "succeeded" : "failed",
         finishedAt: new Date(),
         leaseOwner: null,
@@ -2136,22 +2315,25 @@ export class RelayChannelProbeService {
         balanceSnapshots: result.balanceSnapshots as Prisma.InputJsonValue,
         errorMessage: result.succeededCount ? null : (result.samples[0]?.errorMessage ?? "所有探针样本均失败"),
       });
+      completed = finalized.count > 0;
     } catch (error) {
-      await this.repository.completeClaimedRun(runId, owner, {
+      const finalized = await this.repository.completeClaimedRun(runId, owner, {
         status: axios.isAxiosError(error) && error.code === "ECONNABORTED" ? "timed_out" : "failed",
         finishedAt: new Date(),
         leaseOwner: null,
         leaseExpiresAt: null,
         errorMessage: accountBound ? "号池探针执行失败，请检查账号状态和登录冷却" : this.safeError(error),
       });
+      completed = finalized.count > 0;
     } finally {
       clearInterval(leaseHeartbeat);
-      await this.redis
-        .deleteIfValueMatches(
-          relayProbeQueueSlotKey(run.profile.relayChannelId, run.probeMemberChannelId || undefined),
-          runId,
-        )
-        .catch(() => null);
+      if (completed)
+        await this.redis
+          .deleteIfValueMatches(
+            relayProbeQueueSlotKey(run.profile.relayChannelId, run.probeMemberChannelId || undefined),
+            runId,
+          )
+          .catch(() => null);
     }
   }
 
@@ -2173,6 +2355,7 @@ export class RelayChannelProbeService {
       let modelRequestSent = false;
       let observedAccountToken: string | undefined;
       try {
+        await assertProbeRunExecution();
         const executionChannel = this.resolveProbeExecutionChannel(profile, run.probeMemberChannelId);
         const variables = await this.resolveProbeVariables(profile, executionChannel.id, accountId);
         observedAccountToken = accountId ? variables.accountToken : undefined;
@@ -2292,6 +2475,7 @@ export class RelayChannelProbeService {
                 : "缓存命中未被上游用量验证",
         });
       } catch (error) {
+        await assertProbeRunExecution();
         const balanceUnauthorized =
           accountId && error instanceof Error && error.message.includes("PROBE_BALANCE_AUTH_EXPIRED");
         if (balanceUnauthorized) {
@@ -2375,6 +2559,7 @@ export class RelayChannelProbeService {
       const rawUrl = interpolateRequiredProbeVariables(step.url, variables) as string;
       const safe = configureAIOutboundAgents(await assertSafeOutboundUrl(rawUrl));
       try {
+        await assertProbeRunExecution();
         const body = interpolateRequiredProbeVariables(step.body || {}, variables);
         const headers = getProbeWorkflowHeaders(
           step.method,
@@ -2533,6 +2718,7 @@ export class RelayChannelProbeService {
           : { Authorization: `Bearer ${apiKey}` };
       const endpointUrl = new URL(buildProbeUpstreamEndpoint(base.url.toString(), format, upstreamModelId, endpoint));
       if (format === "gemini") endpointUrl.searchParams.set("key", apiKey);
+      await assertProbeRunExecution();
       const response = await axios.post(endpointUrl.toString(), payload, {
         headers,
         httpAgent: base.httpAgent,
@@ -2799,7 +2985,10 @@ export class RelayChannelProbeService {
         messageKey: "relayChannelProbe.credentialsInvalidFormat",
       });
     const variables = Object.fromEntries(entries) as Record<string, string>;
-    if (accountId) variables.accountToken = await this.accountService.getToken(accountId);
+    if (accountId) {
+      await assertProbeRunExecution();
+      variables.accountToken = await this.accountService.getToken(accountId);
+    }
     return variables;
   }
   private toProfileDto(profile: any): RelayChannelProbeProfileDto {

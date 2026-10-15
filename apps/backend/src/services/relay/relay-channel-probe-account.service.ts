@@ -2,6 +2,7 @@ import {
   PlatformRelayProbeAccountRefreshIamService,
   type ProbeAccountRefreshGuard,
 } from "./platform-relay-probe-account-refresh-iam.service";
+import { assertProbeRunExecution } from "./relay-probe-execution-context";
 import { RELAY_PROBE_ACCOUNT_POLICY } from "./relay-probe-account-policy";
 import { PlatformRelayProbeAccountCreateIamService } from "./platform-relay-probe-account-create-iam.service";
 import { PlatformRelayProbeAccountUpdateIamService } from "./platform-relay-probe-account-update-iam.service";
@@ -315,6 +316,7 @@ export class RelayChannelProbeAccountService {
       publish: (value: string, expiresAt: number) => Promise<void>;
     },
   ): Promise<string> {
+    await assertProbeRunExecution();
     await refresh?.recheck();
     await this.assertExists(id);
     if (!refresh) {
@@ -328,6 +330,7 @@ export class RelayChannelProbeAccountService {
       if (refresh) throw bad("accountLoginInProgress");
       for (let attempt = 0; attempt < 110; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 300));
+        await assertProbeRunExecution();
         const renewed = await this.readSession(id);
         if (renewed) return renewed.token;
       }
@@ -335,9 +338,11 @@ export class RelayChannelProbeAccountService {
     }
     try {
       if (!refresh) {
+        await assertProbeRunExecution();
         const renewed = await this.readSession(id);
         if (renewed) return renewed.token;
       }
+      await assertProbeRunExecution();
       await refresh?.recheck();
       const latest = await this.assertExists(id);
       if (
@@ -346,7 +351,11 @@ export class RelayChannelProbeAccountService {
       )
         throw bad("accountLoginCooldown");
       if (refresh) await refresh.recordAttempt();
-      else await this.repository.update(id, { lastLoginAttemptAt: new Date() });
+      else {
+        await assertProbeRunExecution();
+        await this.repository.update(id, { lastLoginAttemptAt: new Date() });
+      }
+      await assertProbeRunExecution();
       await refresh?.recheck();
       const stored = this.decrypt({
         ciphertext: latest.encryptedCredentials,
@@ -369,6 +378,7 @@ export class RelayChannelProbeAccountService {
       }
       let data: unknown;
       try {
+        await assertProbeRunExecution();
         await refresh?.recheck();
         try {
           const response = await axios.request({
@@ -396,6 +406,7 @@ export class RelayChannelProbeAccountService {
         safe.httpAgent.destroy();
         safe.httpsAgent.destroy();
       }
+      await assertProbeRunExecution();
       await refresh?.recheck();
       const raw = readProbeJsonPath(data, latest.tokenPath);
       if (typeof raw !== "string" || !raw.trim()) throw bad("accountLoginFailed");

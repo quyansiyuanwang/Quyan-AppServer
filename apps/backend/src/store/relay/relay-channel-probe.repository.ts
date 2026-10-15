@@ -104,6 +104,13 @@ export class RelayChannelProbeRepository {
     });
   }
 
+  public findRunQueueIdentity(id: string) {
+    return prisma.relayChannelProbeRun.findUnique({
+      where: { id },
+      select: { relayChannelId: true, probeMemberChannelId: true },
+    });
+  }
+
   public createRun(data: Prisma.RelayChannelProbeRunUncheckedCreateInput) {
     return prisma.relayChannelProbeRun.create({ data });
   }

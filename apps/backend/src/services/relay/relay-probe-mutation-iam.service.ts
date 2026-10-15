@@ -36,7 +36,8 @@ export class RelayProbeMutationIamService {
       | "quyan:relay:ClearProbeHistory"
       | "quyan:relay:DeleteProbeProfile"
       | "quyan:relay:SaveProbeProfile"
-      | "quyan:relay:ResetProbeRuns",
+      | "quyan:relay:ResetProbeRuns"
+      | "quyan:relay:CreateProbeRun",
     actorUserId: string,
     request: TypedRequest | undefined,
     mutate: (context: RelayProbeMutationContext) => Promise<T>,

@@ -1,3 +1,5 @@
+import { withProbeRunExecution } from "@/services/relay/relay-probe-execution-context";
+import { assertSafeOutboundUrl } from "@/util/developer-outbound-url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RelayChannelProbeAccountService } from "@/services/relay/relay-channel-probe-account.service";
 
@@ -243,5 +245,75 @@ describe("shared probe account login", () => {
       service.getToken("account-1", { recheck: vi.fn(), recordAttempt: vi.fn(), publish: vi.fn() }),
     ).rejects.toThrow();
     expect(login).not.toHaveBeenCalled();
+  });
+  it("worker revocation prevents even reading account credentials", async () => {
+    repository.find.mockClear();
+    const denied = Object.assign(new Error("worker revoked"), { statusCode: 403 });
+    await expect(
+      withProbeRunExecution(
+        async () => {
+          throw denied;
+        },
+        () => RelayChannelProbeAccountService.getInstance().getToken("account-1"),
+      ),
+    ).rejects.toBe(denied);
+    expect(repository.find).not.toHaveBeenCalled();
+    expect(login).not.toHaveBeenCalled();
+  });
+  it("rechecks worker authority after DNS validation and before login dispatch", async () => {
+    let revoked = false;
+    const validate = vi.mocked(assertSafeOutboundUrl).getMockImplementation()!;
+    vi.mocked(assertSafeOutboundUrl).mockImplementationOnce(async (url) => {
+      revoked = true;
+      return validate(url);
+    });
+    const denied = Object.assign(new Error("worker revoked"), { statusCode: 403 });
+    await expect(
+      withProbeRunExecution(
+        async () => {
+          if (revoked) throw denied;
+        },
+        () => RelayChannelProbeAccountService.getInstance().getToken("account-1"),
+      ),
+    ).rejects.toBe(denied);
+    expect(login).not.toHaveBeenCalled();
+  });
+  it("does not publish a worker login result after a reset or revocation", async () => {
+    let revoked = false;
+    login.mockImplementationOnce(async () => {
+      revoked = true;
+      return { data: { data: { token: "fixture-session", expires_in: 900 } } };
+    });
+    const denied = Object.assign(new Error("worker revoked"), { statusCode: 403 });
+    await expect(
+      withProbeRunExecution(
+        async () => {
+          if (revoked) throw denied;
+        },
+        () => RelayChannelProbeAccountService.getInstance().getToken("account-1"),
+      ),
+    ).rejects.toBe(denied);
+    expect(cache.has("relay:probe-account:v1:session:account-1")).toBe(false);
+  });
+  it("rechecks worker authority after waiting on another login lease", async () => {
+    vi.useFakeTimers();
+    try {
+      cache.set("relay:probe-account:v1:login:account-1", "other-worker");
+      let checks = 0;
+      const denied = Object.assign(new Error("worker revoked during wait"), { statusCode: 403 });
+      const pending = withProbeRunExecution(
+        async () => {
+          if (++checks >= 2) throw denied;
+        },
+        () => RelayChannelProbeAccountService.getInstance().getToken("account-1"),
+      );
+      const rejected = expect(pending).rejects.toBe(denied);
+      await vi.advanceTimersByTimeAsync(300);
+      await rejected;
+      expect(login).not.toHaveBeenCalled();
+      expect(cache.get("relay:probe-account:v1:login:account-1")).toBe("other-worker");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

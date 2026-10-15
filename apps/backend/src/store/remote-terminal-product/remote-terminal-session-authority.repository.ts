@@ -1,3 +1,4 @@
+import { captureIamAccessKeyRevision } from "../users/iam-access-key-authority";
 import { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
@@ -45,17 +46,7 @@ export class RemoteTerminalSessionAuthorityRepository implements TerminalSession
       !/^[a-f0-9]{64}$/.test(users[0].revision)
     )
       throw iamAccountDenied();
-    let keyRevision: string | undefined;
-    if (accessKeyId) {
-      // lastUsedAt/requestCount changes do not revoke a connection; rotation/reassignment/expiry do.
-      const keys = await prisma.$queryRaw<{ id: string; revision: string }[]>(Prisma.sql`
-        SELECT k.id,SHA2(CAST(JSON_ARRAY(k.id,k.userId,k.status,k.key,k.legacyKey,k.expiresAt) AS CHAR),256) AS revision
-        FROM access_keys k WHERE BINARY k.id=BINARY ${accessKeyId} AND BINARY k.userId=BINARY ${principal.subjectUserId}
-          AND k.status=1 AND (k.expiresAt IS NULL OR k.expiresAt>${new Date()})`);
-      if (keys.length !== 1 || keys[0].id !== accessKeyId || !/^[a-f0-9]{64}$/.test(keys[0].revision))
-        throw iamAccountDenied();
-      keyRevision = keys[0].revision;
-    }
+    const keyRevision = await captureIamAccessKeyRevision(principal, accessKeyId);
     const targets = await RemoteTerminalDeviceReadRepository.getInstance().targets(principal, [deviceId]);
     if (targets.length !== 1 || targets[0].deviceId !== deviceId || targets[0].userId !== principal.subjectUserId)
       throw iamAccountDenied();
