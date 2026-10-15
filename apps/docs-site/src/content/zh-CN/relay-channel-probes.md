@@ -44,6 +44,8 @@
 
 在 IAM 原生强制授权下读取探针档案，需要对渠道及 `acs:platform:*:platform:relay-probe-profile/<channelId>/<profileId>` 具有 `quyan:relay:GetProbeProfile`。通过检查后才读取工作流配置和凭据名称，响应不包含凭据值。混池档案的凭据名称仅包含当前仍属于该池、且通过同一 Action 检查的成员；被拒绝或已经移出的成员名称不会返回。
 
+原生 IAM 强制模式下，保存档案要求 `quyan:relay:SaveProbeProfile` 对渠道及现有档案 ARN（新建时为服务端预留 ARN）均获准。更新混池还须对全部当前物理成员和已配置目标获准；任一拒绝会阻止整次保存。绑定共享账号的档案还要求 `quyan:relay:ModifyBoundProbeProfile` 对每个绑定账号 ARN 获准，并保留部署管理的账号池管理资格。服务端在取得渠道锁后与事务提交前重新检查授权；撤权会回滚创建或更新。未提供独立渠道凭据时保留原值，混池凭据仅保留当前成员；原混池凭据损坏时保存失败，不会静默丢弃。
+
 删除档案需要对渠道、档案、已配置的物理目标及关联历史记录具有 `quyan:relay:DeleteProbeProfile`。历史记录会保留，但解除与档案的关联；若绑定了共享号池，还需要对号池 ARN 具有 `quyan:relay:UnbindProbeAccount`，并具备部署管理员分配的专门号池管理资格。排队或运行中的任务会阻止删除。提交时撤权会完整回滚配置删除和历史关联变更。
 
 ## 前提和注意事项

@@ -1,3 +1,4 @@
+import { relayProbeUpstreamConfigured } from "./relay-probe-read-target";
 import { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
 import { VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
@@ -262,15 +263,7 @@ export class RelayProbeOverviewReadRepository {
           }
           if (profile) {
             const format = target.targetConfig?.probeFormat ?? profile.probeFormat;
-            const upstream =
-              format === "openai" || format.startsWith("openai-")
-                ? { openaiUpstreamUrl: { not: "" }, openaiUpstreamApiKey: { not: "" } }
-                : format === "anthropic"
-                  ? { anthropicUpstreamUrl: { not: "" }, anthropicUpstreamApiKey: { not: "" } }
-                  : { geminiUpstreamUrl: { not: "" }, geminiUpstreamApiKey: { not: "" } };
-            // Only the existence of usable upstream settings is needed; never load their values.
-            target.upstreamConfigured =
-              (await tx.relayChannel.count({ where: { id: target.channel.id, ...upstream } })) === 1;
+            target.upstreamConfigured = await relayProbeUpstreamConfigured(tx, target.channel.id, format);
           }
         }
         output.push(row);

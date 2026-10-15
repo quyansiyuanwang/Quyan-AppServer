@@ -32,7 +32,7 @@ export class RelayProbeMutationIamService {
     > = RelayChannelService.getInstance(),
   ) {}
   async mutate<T>(
-    action: "quyan:relay:ClearProbeHistory" | "quyan:relay:DeleteProbeProfile",
+    action: "quyan:relay:ClearProbeHistory" | "quyan:relay:DeleteProbeProfile" | "quyan:relay:SaveProbeProfile",
     actorUserId: string,
     request: TypedRequest | undefined,
     mutate: (context: RelayProbeMutationContext) => Promise<T>,
@@ -94,6 +94,10 @@ export class RelayProbeMutationIamService {
         principal,
         snapshot,
         authorize,
+        authorizeBoundProfileEdit: async (batch) => {
+          if (action !== "quyan:relay:SaveProbeProfile") throw iamAccountDenied();
+          await authorizeAction("quyan:relay:ModifyBoundProbeProfile", batch);
+        },
         authorizeAccountUnbind: async (batch) => {
           if (action !== "quyan:relay:DeleteProbeProfile") throw iamAccountDenied();
           await authorizeAction("quyan:relay:UnbindProbeAccount", batch);

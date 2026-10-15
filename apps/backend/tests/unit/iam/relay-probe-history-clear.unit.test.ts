@@ -188,3 +188,66 @@ describe("profile deletion conditional account action", () => {
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 });
+
+describe("probe profile save authorization contract", () => {
+  it("declares a distinct save Action while retaining step-up and replay protection", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    const file = project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel-probe.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "PUT /v1/relay-channel-probes/{channelId}/profile",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: ["quyan:relay:SaveProbeProfile"], issues: [] });
+    const method = file.getClassOrThrow("RelayChannelProbeController").getMethodOrThrow("upsertProfile").getText();
+    expect(method).toContain("@ReplayProtected()");
+    expect(method).toContain("@TwoFactorChallengeProtected");
+    expect(getIamActionDefinition("quyan:relay:SaveProbeProfile")).toMatchObject({
+      resourceTypes: ["platform/relay-channel", "platform/relay-probe-profile"],
+      conditionalActions: ["quyan:relay:ModifyBoundProbeProfile"],
+      legacyPermission: Permission.RELAY_CHANNEL_PROBE_EXECUTE,
+    });
+    expect(getIamActionDefinition("quyan:relay:ModifyBoundProbeProfile")?.legacyPermission).toBe(
+      Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+    );
+  });
+  it("checks the supplementary bound-account Action separately and rechecks it at commit", async () => {
+    await service.mutate(
+      "quyan:relay:SaveProbeProfile",
+      "actor",
+      request(),
+      async (guard) => {
+        await guard.authorize([platformRelayProbeProfileArn("channel", "profile")]);
+        await guard.authorizeBoundProfileEdit([platformRelayProbeAccountArn("account")]);
+        await guard.recheck();
+      },
+      legacy,
+    );
+    expect(
+      iam.authorizeMany.mock.calls.filter(([input]) => input.action === "quyan:relay:ModifyBoundProbeProfile"),
+    ).toHaveLength(2);
+    expect(legacy).not.toHaveBeenCalled();
+  });
+  it("does not allow history cleanup to request bound-edit authorization", async () => {
+    await expect(
+      service.mutate(
+        "quyan:relay:ClearProbeHistory",
+        "actor",
+        request(),
+        (guard) => guard.authorizeBoundProfileEdit([platformRelayProbeAccountArn("account")]),
+        legacy,
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(iam.authorizeMany).not.toHaveBeenCalled();
+  });
+  it("does not allow profile save to use the unbind supplement", async () => {
+    await expect(
+      service.mutate(
+        "quyan:relay:SaveProbeProfile",
+        "actor",
+        request(),
+        (guard) => guard.authorizeAccountUnbind([platformRelayProbeAccountArn("account")]),
+        legacy,
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});

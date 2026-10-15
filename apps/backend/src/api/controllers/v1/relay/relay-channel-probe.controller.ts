@@ -107,11 +107,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Put("{channelId}/profile")
   @Security("jwt")
-  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:probe:Execute",
-    resourceKind: "single-resource",
-    resource: relayChannelProbeResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SaveProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -125,7 +128,7 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: UpsertRelayChannelProbeProfileRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayChannelProbeProfileDto> {
-    return this.service.upsertProfile(channelId, body, request.user!.userId);
+    return this.service.upsertProfile(channelId, body, request.user!.userId, request);
   }
 
   @Delete("{channelId}/profile")

@@ -12,6 +12,7 @@ export interface RelayProbeMutationContext {
   principal: IamPrincipal;
   snapshot: PlatformManagementReadSnapshot;
   authorize: (resources: readonly string[]) => Promise<void>;
+  authorizeBoundProfileEdit: (resources: readonly string[]) => Promise<void>;
   authorizeAccountUnbind: (resources: readonly string[]) => Promise<void>;
   recheck: () => Promise<void>;
   visible: (channel: ProbeChannelVisibilityRecord) => Promise<boolean>;

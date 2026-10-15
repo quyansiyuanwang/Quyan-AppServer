@@ -34,3 +34,18 @@ export async function relayProbeReadTarget(
   if (memberChannelId && !members.has(memberChannelId)) throw iamAccountDenied();
   return { channel, members };
 }
+
+/** Inspect presence only; readers and profile writers must not fetch upstream credential values. */
+export async function relayProbeUpstreamConfigured(
+  tx: Prisma.TransactionClient,
+  channelId: string,
+  format: string,
+): Promise<boolean> {
+  const upstream =
+    format === "openai" || format.startsWith("openai-")
+      ? { openaiUpstreamUrl: { not: "" }, openaiUpstreamApiKey: { not: "" } }
+      : format === "anthropic"
+        ? { anthropicUpstreamUrl: { not: "" }, anthropicUpstreamApiKey: { not: "" } }
+        : { geminiUpstreamUrl: { not: "" }, geminiUpstreamApiKey: { not: "" } };
+  return (await tx.relayChannel.count({ where: { id: channelId, ...upstream } })) === 1;
+}

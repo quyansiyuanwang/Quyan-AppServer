@@ -1,3 +1,9 @@
+import { createId } from "@paralleldrive/cuid2";
+import {
+  RelayProbeProfileSaveRepository,
+  type RelayProbeProfileSaveMetadata,
+} from "@/store/relay/relay-probe-profile-save.repository";
+import type { RelayProbeProfileReadRecord } from "@/store/relay/relay-probe-profile-read.repository";
 import {
   RelayProbeOverviewReadRepository,
   type RelayProbeOverviewRecord,
@@ -6,7 +12,10 @@ import { RelayProbeProfileDeleteRepository } from "@/store/relay/relay-probe-pro
 import { RelayProbeProfileReadRepository } from "@/store/relay/relay-probe-profile-read.repository";
 import { RelayProbeMutationIamService } from "./relay-probe-mutation-iam.service";
 import { RelayProbeRunHistoryMutationRepository } from "@/store/relay/relay-probe-run-history-mutation.repository";
-import { clearRelayChannelProbeRunHistoryQuerySchema } from "@/api/schema/relay/relay-channel-probe.schema";
+import {
+  clearRelayChannelProbeRunHistoryQuerySchema,
+  upsertRelayChannelProbeProfileBodySchema,
+} from "@/api/schema/relay/relay-channel-probe.schema";
 import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { RelayProbeReadIamService } from "./relay-probe-read-iam.service";
@@ -1105,16 +1114,86 @@ export class RelayChannelProbeService {
     }
   }
 
-  async upsertProfile(channelId: string, body: UpsertRelayChannelProbeProfileRequest, actorUserId: string) {
+  async upsertProfile(
+    channelId: string,
+    input: UpsertRelayChannelProbeProfileRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelProbeProfileDto> {
+    const body = upsertRelayChannelProbeProfileBodySchema.parse(input),
+      reservedId = createId();
+    const result = await RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:SaveProbeProfile",
+      actorUserId,
+      request,
+      (guard) => {
+        try {
+          platformRelayChannelArn(channelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return this.channelLockService.withWrite(channelId, () =>
+          RelayProbeProfileSaveRepository.getInstance().save(
+            channelId,
+            reservedId,
+            body.probeFormat,
+            guard,
+            (metadata, previous) => {
+              if (metadata.channelType !== "pooled")
+                this.assertProbeRelayChannelCompatibility(metadata, body.probeFormat, body.probeModel);
+              return this.prepareProfileConfiguration(body, metadata, previous);
+            },
+            (profile) => this.toProfileDto(profile),
+          ),
+        );
+      },
+      () => this.upsertProfileLegacy(channelId, body, actorUserId, reservedId),
+    );
+    if (!result) throw iamAccountDenied();
+    return result;
+  }
+  private async upsertProfileLegacy(
+    channelId: string,
+    body: UpsertRelayChannelProbeProfileRequest,
+    actorUserId: string,
+    reservedId: string,
+  ) {
     const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     if (!isProbeableChannelType(channel.channelType))
-      throw new BadRequestError("仅独立渠道或逻辑混池支持余额探针", undefined, {
+      throw new BadRequestError("Unsupported probe target", undefined, {
         messageKey: "relayChannelProbe.balanceProbeScopeInvalid",
       });
     const existing = await this.repository.findProfile(channelId);
     if (existing) await this.assertCanModifyBoundProfile(existing.id, actorUserId);
     if (channel.channelType !== "pooled")
       this.assertProbeChannelCompatibility(channel, body.probeFormat, body.probeModel);
+    const members = channel.channelType === "pooled" ? await this.resolvePoolMembers(channelId) : [];
+    const data = this.prepareProfileConfiguration(
+      body,
+      {
+        channelType: channel.channelType,
+        allowedFormats: channel.allowedFormats,
+        allowedModels: JSON.stringify(channel.allowedModels),
+        upstreamConfigured: true,
+        members: members.map((member) => ({
+          id: member.channel.id,
+          active: member.membershipEnabled && this.isEnabledProbeMember(member.channel),
+        })),
+      },
+      existing ?? undefined,
+    );
+    const profile = await this.repository.upsertProfile({
+      where: { relayChannelId: channelId },
+      create: { ...data, id: reservedId, relayChannelId: channelId },
+      update: data,
+    });
+    return this.toProfileDto(profile);
+  }
+  private prepareProfileConfiguration(
+    body: UpsertRelayChannelProbeProfileRequest,
+    metadata: RelayProbeProfileSaveMetadata,
+    existing: RelayProbeProfileReadRecord | undefined,
+  ): Omit<Prisma.RelayChannelProbeProfileUncheckedCreateInput, "id" | "relayChannelId"> {
     const probeEndpoint = body.probeEndpoint ?? normalizeProbeEndpoint(existing?.probeEndpoint, body.probeFormat);
     assertProbeEndpointCompatibility(probeEndpoint, body.probeFormat);
     const cacheMode: RelayChannelProbeCacheMode =
@@ -1129,21 +1208,19 @@ export class RelayChannelProbeService {
       : (body.preventCache ?? existing?.preventCache ?? true);
     const encrypted = body.credentials ? this.encryptCredentials(body.credentials) : undefined;
     let encryptedMemberCredentials: { ciphertext: string; iv: string; authTag: string } | undefined;
-    if (channel.channelType === "pooled") {
+    if (metadata.channelType === "pooled") {
       if (body.credentials)
         throw new BadRequestError("逻辑混池必须按物理成员配置探针凭据", undefined, {
           messageKey: "relayChannelProbe.pooledMemberCredentialsRequired",
         });
-      const members = await this.resolvePoolMembers(channelId);
-      const activeMembers = members.filter(
-        (member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel),
-      );
+      const members = metadata.members;
+      const activeMembers = members.filter((member) => member.active);
       if (!activeMembers.length)
         throw new BadRequestError("逻辑混池没有可用的物理成员用于探针", undefined, {
           messageKey: "relayChannelProbe.pooledNoUsableMember",
         });
-      const memberIds = new Set(members.map((member) => member.channel.id));
-      const existingCredentials = existing ? this.tryDecryptCredentials(existing) : {};
+      const memberIds = new Set(members.map((member) => member.id));
+      const existingCredentials = existing?.encryptedCredentials ? this.decryptCredentials(existing) : {};
       if (body.memberCredentials && Object.keys(body.memberCredentials).some((id) => !memberIds.has(id)))
         throw new BadRequestError("逻辑混池包含无效的物理成员探针凭据", undefined, {
           messageKey: "relayChannelProbe.pooledInvalidMemberCredentials",
@@ -1162,63 +1239,34 @@ export class RelayChannelProbeService {
         messageKey: "relayChannelProbe.pooledMemberCredentialsOnly",
       });
     }
-    const profile = await this.repository.upsertProfile({
-      where: { relayChannelId: channelId },
-      create: {
-        relayChannelId: channelId,
-        enabled: body.enabled,
-        probeFormat: body.probeFormat,
-        probeEndpoint,
-        probeModel: body.probeModel,
-        probePayload: body.probePayload as Prisma.InputJsonValue,
-        preventCache,
-        cacheMode,
-        sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
-        strictCalibrationValidation: body.strictCalibrationValidation ?? existing?.strictCalibrationValidation ?? false,
-        measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
-        balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
-        balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
-        upstreamCurrency: body.upstreamCurrency || "CNY",
-        localCurrency: body.localCurrency || "CNY",
-        upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
-        upstreamRateMultiplier: body.upstreamRateMultiplier ?? 1,
-        probeGroup: this.normalizeProbeGroup(body.probeGroup),
-        distributionMultiplier: body.distributionMultiplier ?? 1,
-        workflow: body.workflow as unknown as Prisma.InputJsonValue,
-        encryptedCredentials: encryptedMemberCredentials?.ciphertext ?? encrypted?.ciphertext,
-        credentialIv: encryptedMemberCredentials?.iv ?? encrypted?.iv,
-        credentialAuthTag: encryptedMemberCredentials?.authTag ?? encrypted?.authTag,
-      },
-      update: {
-        enabled: body.enabled,
-        probeFormat: body.probeFormat,
-        probeEndpoint,
-        probeModel: body.probeModel,
-        probePayload: body.probePayload as Prisma.InputJsonValue,
-        preventCache,
-        cacheMode,
-        sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
-        strictCalibrationValidation: body.strictCalibrationValidation ?? existing?.strictCalibrationValidation ?? false,
-        measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
-        balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
-        balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
-        upstreamCurrency: body.upstreamCurrency || "CNY",
-        localCurrency: body.localCurrency || "CNY",
-        upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
-        upstreamRateMultiplier: body.upstreamRateMultiplier ?? 1,
-        probeGroup: this.normalizeProbeGroup(body.probeGroup),
-        distributionMultiplier: body.distributionMultiplier ?? 1,
-        workflow: body.workflow as unknown as Prisma.InputJsonValue,
-        ...(encryptedMemberCredentials || encrypted
-          ? {
-              encryptedCredentials: (encryptedMemberCredentials ?? encrypted)!.ciphertext,
-              credentialIv: (encryptedMemberCredentials ?? encrypted)!.iv,
-              credentialAuthTag: (encryptedMemberCredentials ?? encrypted)!.authTag,
-            }
-          : {}),
-      },
-    });
-    return this.toProfileDto(profile);
+    return {
+      enabled: body.enabled,
+      probeFormat: body.probeFormat,
+      probeEndpoint,
+      probeModel: body.probeModel,
+      probePayload: body.probePayload as Prisma.InputJsonValue,
+      preventCache,
+      cacheMode,
+      sampleCount: body.sampleCount ?? existing?.sampleCount ?? MIN_VERIFIED_SAMPLE_COUNT,
+      strictCalibrationValidation: body.strictCalibrationValidation ?? existing?.strictCalibrationValidation ?? false,
+      measurementInputTokens: body.measurementInputTokens ?? existing?.measurementInputTokens ?? 1024,
+      balanceSettlementTolerance: body.balanceSettlementTolerance ?? existing?.balanceSettlementTolerance ?? 0.000001,
+      balanceSettlementReads: body.balanceSettlementReads ?? existing?.balanceSettlementReads ?? 2,
+      upstreamCurrency: body.upstreamCurrency || "CNY",
+      localCurrency: body.localCurrency || "CNY",
+      upstreamBalanceDivisor: body.upstreamBalanceDivisor ?? 1,
+      upstreamRateMultiplier: body.upstreamRateMultiplier ?? 1,
+      probeGroup: this.normalizeProbeGroup(body.probeGroup),
+      distributionMultiplier: body.distributionMultiplier ?? 1,
+      workflow: body.workflow as unknown as Prisma.InputJsonValue,
+      ...(encryptedMemberCredentials || encrypted
+        ? {
+            encryptedCredentials: (encryptedMemberCredentials ?? encrypted)!.ciphertext,
+            credentialIv: (encryptedMemberCredentials ?? encrypted)!.iv,
+            credentialAuthTag: (encryptedMemberCredentials ?? encrypted)!.authTag,
+          }
+        : {}),
+    };
   }
 
   async clearProfile(channelId: string, actorUserId: string, request?: TypedRequest): Promise<void> {
