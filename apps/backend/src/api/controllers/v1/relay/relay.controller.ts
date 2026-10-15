@@ -459,8 +459,17 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}/usage")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:usage:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenUsage",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenUsageQuerySchema))
   async getUsage(
     @Path() id: string,
@@ -471,12 +480,21 @@ export class RelayController extends Controller {
   ): Promise<RelayUsageStatsDto> {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    return this.relayTokenService.getUsageStats(id, request.user!.userId, start, end, targetUserId);
+    return this.relayTokenService.getUsageStats(id, request.user!.userId, start, end, targetUserId, request);
   }
 
   @Get("tokens/{id}/usage-summary")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:usage:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenUsage",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenUsageDetailQuerySchema))
   async getUsageSummary(
     @Path() id: string,
@@ -489,7 +507,16 @@ export class RelayController extends Controller {
   ): Promise<RelayTokenUsageDetailDto> {
     const start = startDate ? new Date(startDate) : undefined;
     const end = endDate ? new Date(endDate) : undefined;
-    return this.relayTokenService.getUsageSummary(id, request.user!.userId, start, end, limit, offset, targetUserId);
+    return this.relayTokenService.getUsageSummary(
+      id,
+      request.user!.userId,
+      start,
+      end,
+      limit,
+      offset,
+      targetUserId,
+      request,
+    );
   }
 
   @Get("request-diagnostics")

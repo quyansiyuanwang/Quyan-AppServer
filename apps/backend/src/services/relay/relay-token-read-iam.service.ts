@@ -110,7 +110,7 @@ export class RelayTokenReadIamService {
         fingerprint = fingerprintIamPolicies(await this.iam.loadPolicies(principal));
       const keyId = request.accessKey?.id,
         keyRevision = await captureIamAccessKeyRevision(principal, keyId);
-      const recheck = async () => {
+      const assertRequest = () => {
         const actual = getIamPrincipal(request);
         if (
           JSON.stringify(actual) !== JSON.stringify(principal) ||
@@ -122,12 +122,16 @@ export class RelayTokenReadIamService {
             : Boolean(request.oauthAccessToken))
         )
           throw iamAccountDenied();
+      };
+      const recheck = async () => {
+        assertRequest();
         await this.repository.recheck(identity, snapshot);
         if (
           fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== fingerprint ||
           (await captureIamAccessKeyRevision(principal, keyId)) !== keyRevision
         )
           throw iamAccountDenied();
+        assertRequest();
       };
       const decide = (action: string, resources: readonly string[]) =>
         platformCollectionDecisions(this.iam, { action, principal, request, resources });

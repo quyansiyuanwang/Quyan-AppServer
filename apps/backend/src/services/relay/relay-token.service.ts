@@ -1,3 +1,4 @@
+import { RelayTokenInspectionIamService } from "./relay-token-inspection-iam.service";
 import { RelayTokenBatchUpdateIamService } from "./relay-token-batch-update-iam.service";
 import { RelayTokenDeleteIamService } from "./relay-token-delete-iam.service";
 import { env } from "@/config/env";
@@ -1458,9 +1459,29 @@ export class RelayTokenService {
     startDate?: Date,
     endDate?: Date,
     targetUserId?: string,
+    request?: TypedRequest,
   ): Promise<RelayUsageStatsDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
-
+    return RelayTokenInspectionIamService.getInstance().usage(
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      (token) => this.buildTokenUsageStats(token, startDate, endDate, true),
+      async () =>
+        this.buildTokenUsageStats(
+          await this.getAccessibleToken(tokenId, actorUserId, targetUserId),
+          startDate,
+          endDate,
+        ),
+    );
+  }
+  private async buildTokenUsageStats(
+    token: { id: string; requestCount: number },
+    startDate?: Date,
+    endDate?: Date,
+    scoped = false,
+  ): Promise<RelayUsageStatsDto> {
+    const tokenId = token.id;
     const [usages, aggregates] = await Promise.all([
       this.relayUsageRepo.findByRelayTokenId(tokenId, startDate, endDate),
       this.relayUsageRepo.aggregateByRelayTokenIds([tokenId], startDate, endDate),
@@ -1473,7 +1494,7 @@ export class RelayTokenService {
       avgTokensPerRequest: requestCount > 0 ? totalTokens / requestCount : 0,
       usages: usages.map((u) => ({
         id: u.id,
-        relayTokenId: u.relayTokenId,
+        relayTokenId: scoped ? tokenId : u.relayTokenId,
         requestTokens: u.requestTokens,
         responseTokens: u.responseTokens,
         totalTokens: u.totalTokens,
@@ -1607,9 +1628,33 @@ export class RelayTokenService {
     limit: number = 20,
     offset: number = 0,
     targetUserId?: string,
+    request?: TypedRequest,
   ): Promise<RelayTokenUsageDetailDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
-
+    return RelayTokenInspectionIamService.getInstance().usage(
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      (token) => this.buildTokenUsageDetail(token, startDate, endDate, limit, offset, true),
+      async () =>
+        this.buildTokenUsageDetail(
+          await this.getAccessibleToken(tokenId, actorUserId, targetUserId),
+          startDate,
+          endDate,
+          limit,
+          offset,
+        ),
+    );
+  }
+  private async buildTokenUsageDetail(
+    token: RelayTokenUsageSummaryTarget,
+    startDate?: Date,
+    endDate?: Date,
+    limit = 20,
+    offset = 0,
+    scoped = false,
+  ): Promise<RelayTokenUsageDetailDto> {
+    const tokenId = token.id;
     const [aggregateRows, usageDetailPage] = await Promise.all([
       this.relayUsageRepo.aggregateByRelayTokenIds([tokenId], startDate, endDate),
       this.relayUsageRepo.findUsageDetailPageByRelayTokenId(tokenId, startDate, endDate, limit, offset),
@@ -1624,7 +1669,7 @@ export class RelayTokenService {
       offset,
       usages: usageDetailPage.usages.map((usage) => ({
         id: usage.id,
-        relayTokenId: usage.relayTokenId,
+        relayTokenId: scoped ? tokenId : usage.relayTokenId,
         requestTokens: usage.requestTokens,
         responseTokens: usage.responseTokens,
         totalTokens: usage.totalTokens,

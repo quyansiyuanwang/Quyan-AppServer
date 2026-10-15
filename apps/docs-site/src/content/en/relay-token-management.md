@@ -31,6 +31,14 @@ Export requires `quyan:relay:ExportTokens` and `RevealToken` on every selected t
 
 These disclosure rules cover list, single-token read, and export. Refresh, duplication, and modification remain separate operations with their own authorization requirements; do not treat metadata-only access as a guarantee that other granted operations cannot return credentials. In legacy or shadow mode, the existing permission checks remain authoritative; shadow comparison does not enable IAM enforcement.
 
+### Single-token usage and details
+
+With IAM enforcement enabled, single-token usage statistics and usage details use the independent `quyan:relay:GetTokenUsage` action on the same token ARN. They do not additionally require `GetToken` or `RevealToken`, and neither endpoint returns token credentials or upstream secrets. Disabled or expired tokens remain inspectable when authorized, as long as they have not been deleted.
+
+Inspecting another user's usage, including a same-account peer's, also requires platform-management read eligibility, the current user's endpoint admission, and `GetManagedTokenUsage` on the target platform user and token. Management-write eligibility alone does not grant usage access. Identity, authorization and the target resource are checked again after aggregation; revoking access during the query prevents the computed result from being returned.
+
+Usage attributed to a composite call remains visible under the selected token without granting access to other member tokens; detail rows identify the authorized queried token. These rules cover the single-token usage and detail endpoints, not other batch-usage, diagnostics or route-trace interfaces.
+
 ### Single and batch deletion
 
 With IAM enforcement enabled, single and batch deletion check `quyan:relay:DeleteToken` on every target resource. Deletion does not additionally require read or credential-disclosure permission, and its response does not return credentials. Deleting another user's tokens, including a same-account peer's, also requires platform-management eligibility, the current user's delete endpoint admission, and `quyan:relay:DeleteManagedToken` on the target platform user and every token. Management-read eligibility alone is insufficient.

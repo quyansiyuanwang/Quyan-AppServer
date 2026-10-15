@@ -66,6 +66,17 @@ afterEach(() => {
   env.security.iamAuthorizationMode = originalMode;
 });
 describe("resource-scoped token read contract", () => {
+  it("rejects request rebinding during an asynchronous identity proof after projection", async () => {
+    const req = request();
+    project.mockImplementation(async () => {
+      repository.recheck.mockImplementation(async () => {
+        req.authContext!.accountOwnerId = "foreign";
+      });
+      return ["fixture-native"];
+    });
+    await expect(read(req)).rejects.toMatchObject({ statusCode: 403 });
+  });
+
   it("declares fixed server actions on both read routes", () => {
     const source = new Project({ skipAddingFilesFromTsConfig: true });
     source.addSourceFileAtPath("src/api/controllers/v1/relay/relay.controller.ts");

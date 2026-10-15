@@ -66,3 +66,21 @@ describe("generated resource-authorized token batch metadata contract", () => {
     expect(document.components.schemas.BatchRelayTokensResultDto.properties).not.toHaveProperty("token");
   });
 });
+
+describe("generated resource-authorized token usage contract", () => {
+  it.each(["/v1/relay/tokens/{id}/usage", "/v1/relay/tokens/{id}/usage-summary"])(
+    "retains authenticated usage scope and safe denial responses for %s",
+    (path) => {
+      const operation = document.paths[path].get;
+      expect(operation.security).toContainEqual({ jwt: ["relay:usage:read"] });
+      expect(operation.responses).toHaveProperty("401");
+      expect(operation.responses).toHaveProperty("403");
+    },
+  );
+  it.each(["RelayUsageStatsDto", "RelayTokenUsageDetailDto"])("does not add credential fields to %s", (name) => {
+    const properties = document.components.schemas[name].properties;
+    expect(properties).not.toHaveProperty("token");
+    expect(properties).not.toHaveProperty("upstreamApiKey");
+    expect(properties).not.toHaveProperty("legacyToken");
+  });
+});
