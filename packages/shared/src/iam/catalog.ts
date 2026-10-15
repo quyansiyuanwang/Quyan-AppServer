@@ -57,7 +57,7 @@ const resource = (
   identifierSegments,
   ...(resourceGroupCondition ? { resourceGroupCondition: true } : {}),
   arnTemplate:
-    type === 'account'
+    service === 'quyan' && type === 'account' && identifierSegments === 0
       ? 'acs:quyan:*:{accountId}:account'
       : 'acs:' +
         service +
@@ -368,6 +368,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('quyan', 'passkey', 2, true),
   resource('quyan', 'online-session', 2, true),
   resource('balance', 'transaction', 2),
+  resource('balance', 'account'),
   resource('oj', 'api-key', 2),
   resource('oauth', 'client', 2),
   resource('auth-center', 'client', 2),
@@ -610,6 +611,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   resource('relay', 'channel'),
   resource('relay', 'provider', 2),
   resource('relay', 'provider-earning', 2),
+  resource('relay', 'provider-settlement', 2),
   resource('relay', 'token', 2),
   resource('developer', 'project'),
   resource('developer', 'kv-item', 2),
@@ -1101,6 +1103,24 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       legacyPermission: Permission.CARPOOL_ORDER_READ,
     }),
   ),
+  {
+    action: 'quyan:relay:ClaimMyProviderEarnings',
+    service: 'relay',
+    operation: 'ClaimMyProviderEarnings',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'relay/provider',
+      'relay/provider-earning',
+      'relay/provider-settlement',
+      'balance/account',
+      'balance/transaction',
+    ],
+    apiRoutes: ['POST /v1/relay-channels/provider/earnings/claim'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.RELAY_CHANNEL_PROVIDER_SETTLE,
+  },
   {
     action: 'quyan:relay:ListMyProviderEarnings',
     service: 'relay',

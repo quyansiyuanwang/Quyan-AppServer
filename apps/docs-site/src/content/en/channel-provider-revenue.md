@@ -28,6 +28,8 @@ A channel can have several providers. Each provider can receive 0% through 100%,
 
 When resource-level IAM enforcement is enabled, earnings details require both `quyan:relay:ListMyProviderEarnings` on your provider resource (`acs:relay:*:<accountId>:provider/<userId>/<providerId>`) and on the earning resource (`acs:relay:*:<accountId>:provider-earning/<userId>/<earningId>`). Denied earnings are excluded from records, total count, and pending/settled summaries. A broad policy never exposes another user’s earnings. Historical earnings remain available after a provider configuration is disabled, subject to the same authorization.
 
+With IAM enforcement enabled, Transfer to balance requires `quyan:relay:ClaimMyProviderEarnings` for every manual provider and pending earning included in the transfer, your balance account (`acs:balance:*:<accountId>:account/<userId>`), and the new settlement and transaction resources (`acs:relay:*:<accountId>:provider-settlement/<userId>/*` and `acs:balance:*:<accountId>:transaction/<userId>/*`). A denied resource or authorization change cancels the entire transfer without settling any provider or crediting your balance. Repeating a successful transfer does not credit already settled earnings again. Real-time and scheduled settlements continue to use their configured settlement mode.
+
 ## Related pages
 
 - `relay-settings`

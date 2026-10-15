@@ -14,3 +14,9 @@ export function balanceGiftCodeArn(accountOwnerId: string, userId: string, giftC
     path: "gift-code/" + userId + "/" + giftCodeId,
   });
 }
+
+/** Stable user-scoped balance identity, including first-time account creation. */
+export function balanceAccountArn(accountOwnerId: string, userId: string): string {
+  if (!isCanonicalBalanceId(userId)) throw new Error("Invalid balance account resource identifier");
+  return buildAcsResource({ service: "balance", region: "*", accountId: accountOwnerId, path: "account/" + userId });
+}

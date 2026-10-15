@@ -28,6 +28,8 @@
 
 启用资源级 IAM 强制授权时，收益明细需要 `quyan:relay:ListMyProviderEarnings` 同时允许本人的提供者资源（`acs:relay:*:<accountId>:provider/<userId>/<providerId>`）和收益资源（`acs:relay:*:<accountId>:provider-earning/<userId>/<earningId>`）。被拒绝的收益不会计入明细、总数及待结算／已结算汇总。宽泛策略也不能读取他人的收益。提供者配置停用后，历史收益仍可查询，但同样受资源授权约束。
 
+启用 IAM 强制授权时，“转入余额”需要 `quyan:relay:ClaimMyProviderEarnings` 同时允许本次涉及的所有手动结算提供者、待结算收益、本人的余额账户（`acs:balance:*:<accountId>:account/<userId>`）及新结算和流水资源（`acs:relay:*:<accountId>:provider-settlement/<userId>/*`、`acs:balance:*:<accountId>:transaction/<userId>/*`）。任何资源被拒绝或授权发生变化，整次转入都会取消，不会留下部分提供者已结算或余额已增加的结果。重复领取不会再次转入已结算收益。实时和定时结算继续遵循其配置的结算方式。
+
 ## 相关页面
 
 - `relay-settings`

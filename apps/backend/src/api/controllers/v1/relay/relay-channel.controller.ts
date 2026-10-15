@@ -1,3 +1,4 @@
+import { relayProviderClaimBalanceResourceResolver } from "@/iam/request/relay-provider-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
@@ -581,12 +582,16 @@ export class RelayChannelController extends Controller {
 
   @Post("provider/earnings/claim")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROVIDER_SETTLE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROVIDER_SETTLE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:ClaimMyProviderEarnings",
+    resourceKind: "single-resource",
+    resource: relayProviderClaimBalanceResourceResolver,
+  })
   @Middlewares(replayProtectionMiddleware)
   public async claimMyProviderEarnings(
     @Request() request: TypedRequest,
   ): Promise<ClaimRelayChannelProviderEarningsResponse> {
-    return this.providerRevenueService.claimOwnEarnings(request.user!.userId);
+    return this.providerRevenueService.claimOwnEarnings(request.user!.userId, request);
   }
 
   @Get("{id}")
