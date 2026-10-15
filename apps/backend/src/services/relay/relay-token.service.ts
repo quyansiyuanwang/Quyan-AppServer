@@ -1,3 +1,4 @@
+import { prepareRelayTokenUpdate } from "./relay-token-update-preparation";
 import { RelayTokenCapabilityReadService } from "./relay-token-capability-read.service";
 import { RelayTokenCompositionReadService } from "./relay-token-composition-read.service";
 import { RelayModelCatalogReadIamService } from "./relay-model-catalog-read-iam.service";
@@ -1025,98 +1026,30 @@ export class RelayTokenService {
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
 
-    const hasChannelId = Object.prototype.hasOwnProperty.call(data, "channelId");
-    const hasChannelConfigs = Object.prototype.hasOwnProperty.call(data, "channelConfigs");
-    const hasAutomaticMode = data.routingMode === "automatic-pool";
-    const automaticPoolId = hasAutomaticMode ? data.automaticProxyPoolChannelId : undefined;
-    const automaticPool = automaticPoolId
-      ? await this.assertAutomaticProxyPool(automaticPoolId, actorUserId)
-      : undefined;
-    const blockedAutomaticProxyPoolChannelIds = automaticPool
-      ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
-      : data.routingMode === "ordered"
-        ? []
-        : undefined;
-    const hasCompositeMode = (data.routingMode ?? token.routingMode) === "composite";
-    if (!hasCompositeMode && data.memberTokenConfigs?.length) throw compositionError("mode");
-    if (hasCompositeMode && (data.channelId || data.channelConfigs?.length || data.automaticProxyPoolChannelId))
-      throw compositionError("mode");
-    const hasRoutingUpdate = data.routingMode !== undefined || hasChannelId || hasChannelConfigs;
-    if (token.routingMode === "composite") throw compositionError("mode");
-    const normalizedConfig =
-      hasCompositeMode || hasAutomaticMode
-        ? { defaultChannelId: null, channelConfigs: [] }
-        : hasRoutingUpdate
-          ? await this.normalizeChannelConfiguration(
-              actorUserId,
-              data.channelId ?? token.channelId ?? undefined,
-              data.channelConfigs,
-            )
-          : null;
-    const hasName = Object.prototype.hasOwnProperty.call(data, "name");
-    const hasExpiresAt = Object.prototype.hasOwnProperty.call(data, "expiresAt");
-    const hasQuotaWindows = Object.prototype.hasOwnProperty.call(data, "quotaWindows");
-    const hasQuotaLimit = Object.prototype.hasOwnProperty.call(data, "quotaLimit");
-    const hasAllowedModels = Object.prototype.hasOwnProperty.call(data, "allowedModels");
-    const hasModelMapping = Object.prototype.hasOwnProperty.call(data, "modelMapping");
-    const hasRequestFormatTransforms = Object.prototype.hasOwnProperty.call(data, "requestFormatTransforms");
-    const hasNormalizerConfig = Object.prototype.hasOwnProperty.call(data, "normalizerConfig");
-    const hasContentSafetyConfig = Object.prototype.hasOwnProperty.call(data, "contentSafetyConfig");
-    const hasToken = Object.prototype.hasOwnProperty.call(data, "token");
-
-    let tokenValue: string | undefined;
-    let isCustomKey: boolean | undefined;
-
-    if (hasToken && data.token) {
-      await this.checkCustomKeyPermission(actorUserId);
-      if (!(await this.canBypassCustomKeyLimits(actorUserId, token.userId))) {
-        if (!token.isCustomKey) await this.assertCustomKeyLimit(token.userId);
-        await this.assertCustomKeySetRateLimit(token.userId);
-      }
-      tokenValue = toCanonicalCredential(await this.resolveImportedTokenValue(data.token), "relayToken");
-      isCustomKey = true;
-    }
-
-    await this.withGraphWrite(token.userId, token.routingMode === "composite" || hasCompositeMode, () =>
-      this.relayTokenRepo.update(tokenId, {
-        name: hasName ? data.name?.trim() || null : undefined,
-        ...(hasToken
-          ? {
-              token: tokenValue,
-              legacyToken: data.token && data.token !== tokenValue ? data.token : null,
-              isCustomKey,
-            }
-          : {}),
-        expiresAt: hasExpiresAt ? (this.normalizeOptionalExpiresAt(data.expiresAt) ?? null) : undefined,
-        quotaLimit: hasQuotaLimit ? (data.quotaLimit ?? null) : undefined,
-        quotaWindows: hasQuotaWindows ? this.normalizeQuotaWindows(data.quotaWindows) : undefined,
-        allowedModels: hasAllowedModels ? data.allowedModels?.trim() || null : undefined,
-        ipWhitelist: Object.prototype.hasOwnProperty.call(data, "ipWhitelist")
-          ? this.normalizeOptionalIpWhitelist(data.ipWhitelist)
-          : undefined,
-        modelMapping: hasModelMapping ? (data.modelMapping ?? null) : undefined,
-        requestFormatTransforms: hasRequestFormatTransforms
-          ? normalizeRequestFormatTransforms(data.requestFormatTransforms)
-          : undefined,
-        normalizerConfig: hasNormalizerConfig ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig) : undefined,
-        contentSafetyConfig: hasContentSafetyConfig ? (data.contentSafetyConfig ?? null) : undefined,
-        channelId: normalizedConfig?.defaultChannelId,
-        channelConfigs: normalizedConfig?.channelConfigs,
-        routingMode: data.routingMode,
-        memberTokenConfigs: data.memberTokenConfigs,
-        streamConfig: data.streamConfig,
-        automaticProxyPoolChannelId: hasAutomaticMode
-          ? automaticPoolId
-          : data.routingMode === "ordered" || hasCompositeMode
-            ? null
-            : undefined,
-        blockedAutomaticProxyPoolChannelIds,
-        failoverConfig:
-          data.failoverConfig ??
-          (hasCompositeMode && token.routingMode !== "composite"
-            ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0)
-            : undefined),
-      }),
+    const prepared = await prepareRelayTokenUpdate(token, data, {
+      orderedChannels: (channelId, configs) => this.normalizeChannelConfiguration(actorUserId, channelId, configs),
+      automaticPool: async (channelId, blockedIds) =>
+        this.normalizeBlockedAutomaticProxyPoolChannelIds(
+          await this.assertAutomaticProxyPool(channelId, actorUserId),
+          blockedIds,
+        ),
+      customCredential: async (preferred) => {
+        await this.checkCustomKeyPermission(actorUserId);
+        if (!(await this.canBypassCustomKeyLimits(actorUserId, token.userId))) {
+          if (!token.isCustomKey) await this.assertCustomKeyLimit(token.userId);
+          await this.assertCustomKeySetRateLimit(token.userId);
+        }
+        return toCanonicalCredential(await this.resolveImportedTokenValue(preferred), "relayToken");
+      },
+      expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+      quotaWindows: (value) => this.normalizeQuotaWindows(value),
+      ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+      requestFormatTransforms: normalizeRequestFormatTransforms,
+      normalizerConfig: normalizeRelayTokenNormalizerConfig,
+      compositeFailover: (count) => this.compositeFailover(count),
+    });
+    await this.withGraphWrite(token.userId, prepared.requiresGraphLock, () =>
+      this.relayTokenRepo.update(tokenId, prepared.update),
     );
     const updatedToken = await this.getTokenLegacy(tokenId, actorUserId, token.userId);
 
