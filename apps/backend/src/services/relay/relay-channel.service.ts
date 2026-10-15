@@ -1,3 +1,4 @@
+import { PlatformRelayChannelStatusIamService } from "./platform-relay-channel-status-iam.service";
 import { RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS } from "@/constant/relay-channel";
 import { normalizeRelayChannelVisibilityConfig } from "@/util/relay/relay-channel-visibility.util";
 import { PlatformRelayChannelManagementReadIamService } from "./platform-relay-channel-management-read-iam.service";
@@ -3317,6 +3318,29 @@ export class RelayChannelService {
   }
 
   async batchSetChannelStatus(
+    body: BatchSetRelayChannelStatusRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await PlatformRelayChannelStatusIamService.getInstance().execute(body, actorUserId, request, () =>
+      this.batchSetChannelStatusLegacy(body, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_CHANNEL_BATCH_STATUS_CHANGE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceType: "RELAY_CHANNEL",
+        description: "批量修改了中转渠道启用状态",
+        metadata: { ids: body.ids, enabled: body.enabled },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+
+  private async batchSetChannelStatusLegacy(
     body: BatchSetRelayChannelStatusRequest,
     actorUserId: string,
     request?: Request,

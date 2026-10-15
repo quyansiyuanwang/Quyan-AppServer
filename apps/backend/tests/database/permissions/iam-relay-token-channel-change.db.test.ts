@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-import { Permission } from "@quyan/shared";
+import { Permission, RELAY_CHANNEL_STATUS } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { env } from "@/config/env";
 import { RelayTokenService } from "@/services/relay/relay-token.service";
@@ -265,8 +265,8 @@ describe("atomic resource-authorized token channel changes", () => {
     { visibilityMode: "hidden" },
     { visibilityMode: "private" },
     { visibilityMode: "whitelist", visibilityConfig: {} },
-    { status: 0 },
-    { status: -1 },
+    { status: RELAY_CHANNEL_STATUS.DISABLED },
+    { status: RELAY_CHANNEL_STATUS.DELETED },
     { providerServiceEnabled: false },
     { channelType: "automatic-proxy-pool" },
     { visibilityMode: "unknown" },

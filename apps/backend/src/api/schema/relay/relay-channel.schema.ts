@@ -284,7 +284,7 @@ export const duplicateRelayChannelBodySchema = z.object({
 
 export const batchSetRelayChannelStatusBodySchema = z.object({
   ids: relayChannelIdsSchema,
-  enabled: z.coerce.boolean(),
+  enabled: z.boolean(),
 });
 
 export const batchDeleteRelayChannelsBodySchema = z.object({

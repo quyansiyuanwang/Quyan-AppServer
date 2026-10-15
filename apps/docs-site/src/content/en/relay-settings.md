@@ -19,6 +19,12 @@ If you need to answer questions like “who can see this channel?”, “which u
 
 With IAM enforcement enabled, the management table uses `quyan:relay:ListManagementChannels` against each `acs:platform:*:platform:relay-channel/<channelId>`. Records, pagination and totals include only allowed channels within the existing visibility and filter rules. Denied parent names and member references are hidden. Model filters use only admitted paths through the channel pool, preserving strict child settings over duplicate legacy membership; a denied leaf cannot contribute models. This Action grants list access, while channel changes and delivery require their own Actions. Deployment management qualification is still required. Refresh and retry if authority changes while loading.
 
+## Batch channel enable/disable
+
+In IAM enforce mode, batch enable/disable uses `quyan:relay:SetChannelStatus` on every selected `acs:platform:*:platform:relay-channel/<channelId>`. It requires `RELAY_CHANNEL_UPDATE` eligibility from an active deployment-managed global group; an account-owned group, extra user permission, or wildcard policy cannot create that eligibility. A role session uses only its role grants, within the same management ceiling.
+
+Submit 1–200 distinct, existing, undeleted channel IDs and a JSON boolean `enabled` (`true` or `false`, not the string `"false"`). Every selected resource must be allowed. A denied or missing channel, or a change to resource, identity, policy, AccessKey, OAuth, or role-session authority before commit, prevents the whole batch from taking effect. OAuth clients and access tokens must retain the channel-update scope. The endpoint returns only counts: it does not read credentials, require channel-read permission, detach tokens, change pool membership, or change provider-service eligibility. Replay protection and step-up verification remain required. Legacy/shadow keep their original authorization behavior; shadow does not issue a second status write.
+
 ## Global settings
 
 ### Global multiplier

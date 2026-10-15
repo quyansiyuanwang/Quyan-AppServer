@@ -757,7 +757,14 @@ export class RelayChannelController extends Controller {
 
   @Patch("batch/status")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SetChannelStatus",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

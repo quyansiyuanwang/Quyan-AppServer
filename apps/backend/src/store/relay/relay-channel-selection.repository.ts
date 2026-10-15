@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { isRelayTokenResourceId } from "@/iam/resources/relay-token-resources";
-import { RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS } from "@/constant/relay-channel";
+import { RELAY_CHANNEL_STATUS, RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS } from "@/constant/relay-channel";
 import { isRelayChannelVisible } from "@/util/relay/relay-channel-visibility.util";
 import { parseLegacyPermissions } from "@/iam/legacy-policy";
 import { iamAccountDenied, assertIamAccountPrincipal } from "../users/iam-account-principal";
@@ -100,7 +100,7 @@ export class RelayChannelSelectionRepository {
       channels.some(
         (channel) =>
           !ids.includes(channel.id) ||
-          channel.status !== 1 ||
+          channel.status !== RELAY_CHANNEL_STATUS.ENABLED ||
           channel.providerServiceEnabled === false ||
           ["automatic-proxy-pool"].includes(channel.channelType) ||
           channel.visibilityMode === "hidden" ||
