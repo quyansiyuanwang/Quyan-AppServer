@@ -1,4 +1,4 @@
-import { RELAY_PROBE_BATCH_POLICY } from "@/constant/relay-probe";
+import { RELAY_PROBE_APPLY_POLICY, RELAY_PROBE_BATCH_POLICY } from "@/constant/relay-probe";
 import { z } from "zod";
 import { RELAY_PROBE_FORMATS } from "@quyan/shared";
 
@@ -192,7 +192,11 @@ export const applyRelayChannelProbeRunsBodySchema = z
       .array(
         z.object({
           runId: z.string().trim().min(1),
-          multiplier: z.coerce.number().finite().min(0.000001).max(1000),
+          multiplier: z.coerce
+            .number()
+            .finite()
+            .min(RELAY_PROBE_APPLY_POLICY.minimumMultiplier)
+            .max(RELAY_PROBE_APPLY_POLICY.maximumMultiplier),
         }),
       )
       .max(100)

@@ -22,7 +22,7 @@ import {
 import { RelayChannelProbeAccountService } from "@/services/relay/relay-channel-probe-account.service";
 import { RelayChannelProbeService } from "@/services/relay/relay-channel-probe.service";
 import { Permission } from "@/constant/permission";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import type { TypedRequest } from "@/types/express";
 import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.middleware";
 import { ReplayProtected } from "@/util/replay-protected-decorator";
@@ -323,7 +323,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("runs/apply")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ApplyProbeRun",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -335,7 +342,7 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: ApplyRelayChannelProbeRunsRequest,
     @Request() request: TypedRequest,
   ): Promise<ApplyRelayChannelProbeRunsResponse> {
-    return this.service.applyRuns(body, request.user!.userId);
+    return this.service.applyRuns(body, request.user!.userId, request);
   }
 
   @Get("accounts")

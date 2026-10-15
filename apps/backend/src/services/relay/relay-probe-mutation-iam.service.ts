@@ -39,7 +39,8 @@ export class RelayProbeMutationIamService {
       | "quyan:relay:CreateProbeRun"
       | "quyan:relay:CopyProbeProfile"
       | "quyan:relay:BindProbeAccount"
-      | "quyan:relay:ConfigureProbeTarget",
+      | "quyan:relay:ConfigureProbeTarget"
+      | "quyan:relay:ApplyProbeRun",
     actorUserId: string,
     request: TypedRequest | undefined,
     mutate: (context: RelayProbeMutationContext) => Promise<T>,
@@ -48,7 +49,9 @@ export class RelayProbeMutationIamService {
     const permission =
       action === "quyan:relay:BindProbeAccount"
         ? Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE
-        : Permission.RELAY_CHANNEL_PROBE_EXECUTE;
+        : action === "quyan:relay:ApplyProbeRun"
+          ? Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST
+          : Permission.RELAY_CHANNEL_PROBE_EXECUTE;
     const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {

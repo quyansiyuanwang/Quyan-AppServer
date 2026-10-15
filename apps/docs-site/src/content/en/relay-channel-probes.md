@@ -28,6 +28,14 @@ Creating an account requires `quyan:relay:CreateProbeAccount` on both the creati
 
 Manual refresh requires `quyan:relay:RefreshProbeAccount` for the account ARN, plus step-up verification and replay protection. Native refresh rechecks authorization after waiting for active probes, before sending the login request and when publishing the session. Failure or revocation does not replace a valid existing session with the new session. Login attempts still count toward cooldown. Shadow mode previews metadata authorization, then executes the original refresh flow once.
 
+## Applying suggested multipliers
+
+In IAM enforcement mode, applying a probe result uses `quyan:relay:ApplyProbeRun`. It requires platform multiplier-management qualification and grants on the run, channel, profile and physical member ARNs. A logical pool multiplier affects the entire pool, so every affected current member must also be authorized; access to only one member is insufficient. This operation does not read or return profile credentials, upstream keys, balance ledgers or probe samples.
+
+Only successful, stability-verified, unapplied results from the past 24 hours are eligible. The current channel multiplier and pricing snapshot must still match the measurement. Changes to model pricing, mappings, target overrides, endpoints or time/context multipliers require a new probe. Large changes normally need another stable result with the same current pricing snapshot, and that confirmation run must also be authorized. Explicit large-change confirmation bypasses only the second-result requirement, never resource authorization, expiry or pricing validation.
+
+Each result commits independently. The multiplier update and applied marker share a transaction; revocation or a concurrent conflict rolls both back, while other successful results remain applied. Shadow mode previews resource scopes and executes the existing application flow once.
+
 ## Per-target configuration and shared templates
 
 Under IAM enforcement, batch target configuration uses `quyan:relay:ConfigureProbeTarget` on the selected channel, profile and physical member. A source template additionally requires its channel/profile resources. When a profile is missing, the server reserves its ARN and commits the new profile with target settings together; failed validation or revocation leaves no partial profile. Templates transfer shared settings, not source credentials or account bindings.

@@ -1,3 +1,17 @@
+import { RelayProbeRunApplyRepository } from "@/store/relay/relay-probe-run-apply.repository";
+import {
+  buildProbePricingSnapshot,
+  fingerprintProbePricing,
+  defaultProbeEndpoint,
+  requiresLargeMultiplierConfirmation,
+  resolveProbeModelPricing,
+} from "./relay-probe-pricing";
+export {
+  defaultProbeEndpoint,
+  requiresLargeMultiplierConfirmation,
+  resolveProbeModelPricing,
+} from "./relay-probe-pricing";
+import { RELAY_PROBE_APPLY_POLICY } from "@/constant/relay-probe";
 import { RelayProbeTargetConfigureRepository } from "@/store/relay/relay-probe-target-configure.repository";
 import { platformRelayProbeAccountArn } from "@/iam/resources/platform-relay-probe-resources";
 import { RelayProbeAccountBindingRepository } from "@/store/relay/relay-probe-account-binding.repository";
@@ -19,6 +33,7 @@ import {
   copyRelayChannelProbeProfileBodySchema,
   bindRelayChannelProbeAccountsBodySchema,
   configureRelayChannelProbeTargetsBodySchema,
+  applyRelayChannelProbeRunsBodySchema,
 } from "@/api/schema/relay/relay-channel-probe.schema";
 import { RELAY_PROBE_QUEUE_POLICY, relayProbeQueueSlotKey } from "./relay-channel-probe-queue-policy";
 import {
@@ -66,8 +81,6 @@ import {
   LockBackendUnavailableError,
   NotFoundError,
 } from "@/util/errors";
-import { resolveMappedModel } from "@/util/model-mapping.util";
-import { resolveModelId } from "@/util/model-resolution.util";
 import { RelayChannelService } from "./relay-channel.service";
 import { RelayConfigService } from "./relay-config.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
@@ -146,7 +159,7 @@ const PROBE_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const PROBE_LOCK_ACQUIRE_TIMEOUT_MS = 5 * 60 * 1000;
 const RUN_LEASE_MS = 6 * 60 * 1000;
-const SUGGESTION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const SUGGESTION_MAX_AGE_MS = RELAY_PROBE_APPLY_POLICY.suggestionMaxAgeMs;
 const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const GROUP_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -159,23 +172,7 @@ const PROBE_BALANCE_SETTLEMENT_POLL_MS = 2_000;
 const PROBE_BALANCE_SETTLEMENT_TIMEOUT_MS = 30_000;
 const MIN_VERIFIED_SAMPLE_COUNT = 3;
 const MAX_ACCEPTED_SAMPLE_SPREAD = 0.2;
-const LARGE_MULTIPLIER_CHANGE_RATIO = 0.2;
-
-export function requiresLargeMultiplierConfirmation(
-  sourceMultiplier: number,
-  targetMultiplier: number,
-  previousSuggestedMultiplier?: number,
-): boolean {
-  if (
-    Math.abs(targetMultiplier - sourceMultiplier) / Math.max(sourceMultiplier, Number.EPSILON) <=
-    LARGE_MULTIPLIER_CHANGE_RATIO
-  )
-    return false;
-  return (
-    previousSuggestedMultiplier == null ||
-    Math.abs(previousSuggestedMultiplier - targetMultiplier) / Math.max(targetMultiplier, Number.EPSILON) > 0.1
-  );
-}
+const LARGE_MULTIPLIER_CHANGE_RATIO = RELAY_PROBE_APPLY_POLICY.largeChangeRatio;
 
 type ProbeProfileRecord = RelayChannelProbeProfileRecord;
 type ProbeRunRecord = RelayChannelProbeRunRecord;
@@ -211,18 +208,6 @@ export function resolveProbeBillableInputTokens(
   inputIncludesCacheRead: boolean,
 ): number {
   return resolveFreshInputTokens(requestTokens, cacheReadTokens, cacheCreationTokens, inputIncludesCacheRead);
-}
-
-export function defaultProbeEndpoint(format: ProbeFormat): RelayChannelProbeEndpoint {
-  return format === "openai-responses"
-    ? "openai-responses"
-    : format === "openai" || format === "openai-chat-completions"
-      ? "openai-chat-completions"
-      : format === "anthropic"
-        ? "anthropic-messages"
-        : format === "gemini"
-          ? "gemini-generate-content"
-          : "openai-chat-completions";
 }
 
 export function assertProbeEndpointCompatibility(endpoint: RelayChannelProbeEndpoint, format: ProbeFormat): void {
@@ -622,30 +607,6 @@ export function resolveProbeLockScopes(probeGroup?: string | null, accountId?: s
       : []),
     ...(accountId ? [`probe-account:${accountId}`] : []),
   ].sort();
-}
-
-/**
- * Probe traffic must resolve models in the same way as relay traffic: the
- * configured model name selects local pricing, while its modelId is what the
- * upstream receives. This matters for channel-level aliases and mappings.
- */
-export function resolveProbeModelPricing(
-  probeModel: string,
-  channelModelMapping: Record<string, string> | null | undefined,
-  modelRates: ModelPricingItemDto[],
-): { rate: ModelPricingItemDto; upstreamModelId: string } {
-  const pricingModel = resolveMappedModel(probeModel.trim(), channelModelMapping);
-  const rate = modelRates.find((item) => item.model === pricingModel);
-  if (!rate)
-    throw new BadRequestError("探针模型没有本地定价配置", undefined, {
-      messageKey: "relayChannelProbe.modelNoLocalPricing",
-    });
-  const upstreamModelId = rate.modelId?.trim() || resolveModelId(rate).trim();
-  if (!upstreamModelId)
-    throw new BadRequestError("探针模型缺少上游模型标识", undefined, {
-      messageKey: "relayChannelProbe.modelMissingUpstreamId",
-    });
-  return { rate, upstreamModelId };
 }
 
 type ProbeUsage = {
@@ -2237,6 +2198,67 @@ export class RelayChannelProbeService {
   }
 
   async applyRuns(
+    input: ApplyRelayChannelProbeRunsRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<ApplyRelayChannelProbeRunsResponse> {
+    const parsed = applyRelayChannelProbeRunsBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe applications", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data;
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:ApplyProbeRun",
+      actorUserId,
+      request,
+      async (guard) => {
+        let applied = 0;
+        const rejected: ApplyRelayChannelProbeRunsResponse["rejected"] = [];
+        const overrides = new Map((body.overrides ?? []).map((row) => [row.runId, row.multiplier]));
+        for (const runId of body.runIds) {
+          try {
+            if (
+              await RelayProbeRunApplyRepository.getInstance().apply(
+                runId,
+                overrides.get(runId),
+                Boolean(body.forceLargeChange),
+                guard,
+                (channelId, operation) => this.channelLockService.withWrite(channelId, operation),
+              )
+            )
+              applied++;
+          } catch (error) {
+            // Only parameter-free, closed-domain diagnostics may reach this partial-success response.
+            const messageKey =
+              error instanceof BadRequestError || error instanceof ConflictError
+                ? (
+                    [
+                      "relayChannelProbe.resultNotApplicable",
+                      "relayChannelProbe.resultStabilityFailed",
+                      "relayChannelProbe.suggestionExpired",
+                      "relayChannelProbe.legacyResultMissingBillingSnapshot",
+                      "relayChannelProbe.multiplierChangedReprobe",
+                      "relayChannelProbe.billingConfigChangedReprobe",
+                      "relayChannelProbe.largeMultiplierChangeNeedsConfirmation",
+                      "relayChannelProbe.modelNoLocalPricing",
+                      "relayChannelProbe.modelMissingUpstreamId",
+                    ] as const
+                  ).find((key) => key === error.messageKey)
+                : undefined;
+            rejected.push({
+              runId,
+              reason: translateMessage(
+                messageKey ?? "permission.insufficientPermission",
+                request?.locale ?? DEFAULT_BACKEND_LOCALE,
+              ),
+            });
+          }
+        }
+        return { applied, rejected };
+      },
+      () => this.applyRunsLegacy(body, actorUserId),
+    );
+  }
+  private async applyRunsLegacy(
     body: ApplyRelayChannelProbeRunsRequest,
     actorUserId: string,
   ): Promise<ApplyRelayChannelProbeRunsResponse> {
@@ -3093,22 +3115,17 @@ export class RelayChannelProbeService {
   ): Promise<Record<string, unknown>> {
     const relayConfig = await RelayConfigService.getInstance().getRelayConfig();
     const executionChannel = this.resolveProbeExecutionChannel(profile, memberChannelId ?? null);
-    return {
-      model: profile.probeModel,
-      modelMapping: executionChannel.modelMapping ?? {},
+    return buildProbePricingSnapshot(
+      profile,
+      profile.relayChannel,
+      executionChannel.modelMapping,
       rate,
-      globalMultiplier: relayConfig.globalMultiplier,
-      timeMultiplier: computeMultiplierForTime((profile.relayChannel.timePeriodMultipliers as any[]) || [], new Date()),
-      timePeriodMultipliers: profile.relayChannel.timePeriodMultipliers ?? [],
-      contextLengthMultipliers: profile.relayChannel.contextLengthMultipliers ?? [],
-      inputTokensIncludeCacheRead: profile.relayChannel.inputTokensIncludeCacheRead === true,
-      cacheMode: profile.cacheMode,
-      endpoint: profile.probeEndpoint,
-    };
+      relayConfig.globalMultiplier,
+    );
   }
 
   private fingerprintPricingSnapshot(snapshot: Record<string, unknown>): string {
-    return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+    return fingerprintProbePricing(snapshot);
   }
 
   private getEncryptionKey(): Buffer {

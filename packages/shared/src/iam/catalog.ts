@@ -1356,6 +1356,23 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     legacyPermission: Permission.RELAY_CHANNEL_PROBE_READ,
   },
   {
+    action: 'quyan:relay:ApplyProbeRun',
+    service: 'relay',
+    operation: 'ApplyProbeRun',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'platform/relay-channel',
+      'platform/relay-probe-profile',
+      'platform/relay-probe-run',
+    ],
+    apiRoutes: ['POST /v1/relay-channel-probes/runs/apply'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_MULTIPLIER_ADJUST,
+  },
+  {
     action: 'quyan:relay:ConfigureProbeTarget',
     service: 'relay',
     operation: 'ConfigureProbeTarget',
