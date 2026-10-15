@@ -140,6 +140,7 @@ export function legacyPermissionsToPrincipalPolicy(
         "quyan:relay:DeleteToken",
         "quyan:relay:GetTokenUsage",
         "quyan:relay:SetTokenStatus",
+        "quyan:relay:RefreshToken",
         "quyan:relay:SetTokenContentSafety",
       ].includes(action),
     );

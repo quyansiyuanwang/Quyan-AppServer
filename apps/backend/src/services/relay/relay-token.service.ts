@@ -1,3 +1,5 @@
+import { RelayTokenLifecycleIamService } from "./relay-token-lifecycle-iam.service";
+import { generateRelayTokenValue } from "@/util/relay/relay-token-credential.util";
 import { RelayTokenInspectionIamService } from "./relay-token-inspection-iam.service";
 import { RelayTokenBatchUpdateIamService } from "./relay-token-batch-update-iam.service";
 import { RelayTokenDeleteIamService } from "./relay-token-delete-iam.service";
@@ -57,9 +59,8 @@ import { normalizeRetryStatusRules } from "@/util/relay";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { OperationCategory, OperationType } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
-import crypto from "crypto";
 import type { Request } from "express";
-import { getCredentialPrefix, toCanonicalCredential } from "@quyan/shared";
+import { toCanonicalCredential } from "@quyan/shared";
 import type { RelayChannel } from "@prisma/client";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { MANAGED_STATUS } from "@/constant/status";
@@ -656,6 +657,36 @@ export class RelayTokenService {
   async refreshToken(
     tokenId: string,
     actorUserId: string,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenLifecycleIamService.getInstance().execute(
+      "refresh",
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.refreshTokenLegacy(tokenId, actorUserId, request, targetUserId),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_REFRESH,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "刷新了中转令牌凭据",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+  private async refreshTokenLegacy(
+    tokenId: string,
+    actorUserId: string,
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {
@@ -1236,6 +1267,36 @@ export class RelayTokenService {
   }
 
   async toggleTokenStatus(
+    tokenId: string,
+    actorUserId: string,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenLifecycleIamService.getInstance().execute(
+      "toggle",
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.toggleTokenStatusLegacy(tokenId, actorUserId, request, targetUserId),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_STATUS_CHANGE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "切换了中转令牌状态",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+  private async toggleTokenStatusLegacy(
     tokenId: string,
     actorUserId: string,
     request?: Request,
@@ -2507,7 +2568,7 @@ export class RelayTokenService {
   }
 
   private generateRelayTokenValue(): string {
-    return `${getCredentialPrefix("relayToken")}${crypto.randomBytes(32).toString("hex")}`;
+    return generateRelayTokenValue();
   }
 
   private normalizeOptionalIpWhitelist(value?: string | null): string | null | undefined {

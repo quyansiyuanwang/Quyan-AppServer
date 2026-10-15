@@ -1,3 +1,4 @@
+import { generateRelayTokenValue } from "@/util/relay/relay-token-credential.util";
 import type { ContentSafetyPolicyOverride } from "@quyan/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
@@ -28,10 +29,15 @@ export interface RelayTokenMutationGuard {
 }
 export type RelayTokenMetadataMutation =
   | { kind: "delete" }
+  | { kind: "toggle" }
+  | { kind: "refresh" }
   | { kind: "status"; enabled: boolean }
   | { kind: "content-safety"; config: ContentSafetyPolicyOverride | null };
 function mutationData(change: RelayTokenMetadataMutation): Prisma.RelayTokenUpdateManyMutationInput {
   switch (change.kind) {
+    case "toggle":
+    case "refresh":
+      return {}; // Derived from the locked target after final admission, never from client data.
     case "delete":
       return { status: -1 };
     case "status":
@@ -86,11 +92,12 @@ export class RelayTokenMutationRepository {
       throw iamAccountDenied();
     return rows;
   }
-  async apply(
+  async apply<T = never>(
     targets: readonly RelayTokenMutationTarget[],
     guard: RelayTokenMutationGuard,
     change: RelayTokenMetadataMutation,
     persist: boolean,
+    response?: (tx: Prisma.TransactionClient) => Promise<T>,
   ) {
     const data = mutationData(change);
     const { identity, snapshot } = guard;
@@ -100,6 +107,7 @@ export class RelayTokenMutationRepository {
     const ids = targets.map((target) => target.id).sort();
     if (
       !targets.length ||
+      ((change.kind === "toggle" || change.kind === "refresh") && targets.length !== 1) ||
       targets.some((row) => row.userId !== identity.userId) ||
       new Set(ids).size !== ids.length ||
       ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest
@@ -152,18 +160,25 @@ export class RelayTokenMutationRepository {
                 userId: identity.userId,
                 OR: targets.map((row) => ({ id: row.id, status: row.status, updateTime: row.updateTime })),
               },
-              data,
+              data:
+                change.kind === "toggle"
+                  ? { status: current[0]!.status === 1 ? 0 : 1 }
+                  : change.kind === "refresh"
+                    ? { token: generateRelayTokenValue(), legacyToken: null }
+                    : data,
             });
             if (result.count !== targets.length) throw iamAccountDenied();
             affected = result.count;
           }
+          const projected = persist && response ? await response(tx) : undefined;
+          // Response projection and all proof reads remain inside the rollback boundary.
           // Denial here throws out the executed UPDATE too, not merely the HTTP response.
           await check();
           await guard.authorize();
           if ((await readIamAuthorizationRevision(tx, identity.principal.accountOwnerId)) !== revision)
             throw iamAccountDenied();
           await guard.recheck(tx);
-          return { total: targets.length, affected };
+          return { total: targets.length, affected, ...(response && persist ? { response: projected } : {}) };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: mutationPolicy.timeoutMs },
       );

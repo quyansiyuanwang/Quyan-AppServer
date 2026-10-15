@@ -84,3 +84,20 @@ describe("generated resource-authorized token usage contract", () => {
     expect(properties).not.toHaveProperty("legacyToken");
   });
 });
+
+describe("generated atomic token lifecycle contract", () => {
+  it.each([
+    ["/v1/relay/tokens/{id}/toggle", "patch"],
+    ["/v1/relay/tokens/{id}/refresh", "post"],
+  ])("retains UPDATE OAuth scope, replay, step-up and denial responses for %s %s", (path, method) => {
+    const operation = document.paths[path!][method!];
+    expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_UPDATE] });
+    expect(operation["X-Replay-Protected"]).toBe(true);
+    expect(operation["X-Two-Factor-Challenge"]).toMatchObject({ required: true, purpose: "stepup", method: "code" });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+    expect(operation.responses["200"].content["application/json"].schema).toEqual({
+      $ref: "#/components/schemas/RelayTokenDto",
+    });
+  });
+});
