@@ -169,6 +169,25 @@ describe('IAM visual policy round trip', () => {
 })
 
 describe('registered resource builders', () => {
+  it('builds platform probe resources from their channel and resource identifiers', () => {
+    for (const type of ['platform/relay-probe-profile', 'platform/relay-probe-run']) {
+      expect(visualResourceIdentifierFields(type)).toEqual(['channelId', 'resourceId'])
+      expect(
+        visualResourceTemplate(type, 'owner', { channelId: 'channel', resourceId: 'record' }),
+      ).toBe(`acs:platform:*:platform:${type.split('/')[1]}/channel/record`)
+      expect(
+        visualResourceTemplate(type, 'owner', { channelId: '../foreign', resourceId: 'record' }),
+      ).toBeUndefined()
+      expect(
+        visualResourceTemplate(type, 'owner', {
+          channelId: 'channel',
+          resourceId: 'record',
+          accountId: 'foreign',
+        }),
+      ).toBeUndefined()
+    }
+  })
+
   it('derives and resolves every production ARN template without a parallel identifier map', () => {
     for (const type of IAM_RESOURCE_TYPE_CATALOG) {
       const fields = visualResourceIdentifierFields(type.id)

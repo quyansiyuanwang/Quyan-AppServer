@@ -27,3 +27,14 @@ export function platformRelayProbeRunArn(channelId: string, runId: string) {
     path: "relay-probe-run/" + channelId + "/" + runId,
   });
 }
+
+export function platformRelayProbeProfileArn(channelId: string, profileId: string) {
+  if (!isPlatformLogResourceId(channelId) || !isPlatformLogResourceId(profileId))
+    throw new Error("Invalid platform probe profile identifier");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "relay-probe-profile/" + channelId + "/" + profileId,
+  });
+}

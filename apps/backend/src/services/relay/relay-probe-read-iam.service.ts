@@ -37,7 +37,7 @@ export class RelayProbeReadIamService {
     > = RelayChannelService.getInstance(),
   ) {}
   async read<T>(
-    action: "quyan:relay:ListLatestProbeRuns" | "quyan:relay:ListProbeRuns",
+    action: "quyan:relay:ListLatestProbeRuns" | "quyan:relay:ListProbeRuns" | "quyan:relay:GetProbeProfile",
     actorUserId: string,
     request: TypedRequest | undefined,
     read: (context: RelayProbeReadContext) => Promise<T>,

@@ -609,6 +609,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-token/{userId}/{resourceId}',
   },
   {
+    ...resource('platform', 'relay-probe-profile', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-probe-profile/{channelId}/{resourceId}',
+  },
+  {
     ...resource('platform', 'relay-probe-run', 2),
     accountScope: 'platform',
     arnTemplate:
@@ -1214,6 +1220,19 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_CHANNEL_PROBE_EXECUTE,
+  },
+  {
+    action: 'quyan:relay:GetProbeProfile',
+    service: 'relay',
+    operation: 'GetProbeProfile',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/relay-channel', 'platform/relay-probe-profile'],
+    apiRoutes: ['GET /v1/relay-channel-probes/{channelId}/profile'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_PROBE_READ,
   },
   {
     action: 'quyan:relay:ListProbeRuns',

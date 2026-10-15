@@ -1,3 +1,4 @@
+import { RelayProbeProfileReadRepository } from "@/store/relay/relay-probe-profile-read.repository";
 import { RelayProbeMutationIamService } from "./relay-probe-mutation-iam.service";
 import { RelayProbeRunHistoryMutationRepository } from "@/store/relay/relay-probe-run-history-mutation.repository";
 import { clearRelayChannelProbeRunHistoryQuerySchema } from "@/api/schema/relay/relay-channel-probe.schema";
@@ -942,7 +943,38 @@ export class RelayChannelProbeService {
     });
   }
 
-  async getProfile(channelId: string, actorUserId: string): Promise<RelayChannelProbeProfileDto> {
+  async getProfile(
+    channelId: string,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelProbeProfileDto> {
+    return RelayProbeReadIamService.getInstance().read(
+      "quyan:relay:GetProbeProfile",
+      actorUserId,
+      request,
+      async ({ principal, decide, recheck, visible }) => {
+        try {
+          platformRelayChannelArn(channelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return RelayProbeProfileReadRepository.getInstance().get(
+          principal,
+          channelId,
+          decide,
+          recheck,
+          visible,
+          (profile, members) => {
+            const dto = this.toProfileDto(profile);
+            if (members) dto.credentialNames = dto.credentialNames.filter((name) => members.has(name));
+            return dto;
+          },
+        );
+      },
+      () => this.getProfileLegacy(channelId, actorUserId),
+    );
+  }
+  private async getProfileLegacy(channelId: string, actorUserId: string): Promise<RelayChannelProbeProfileDto> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     const profile = await this.repository.findProfile(channelId);
     if (!profile)

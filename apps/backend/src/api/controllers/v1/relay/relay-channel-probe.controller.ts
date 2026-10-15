@@ -85,14 +85,17 @@ export class RelayChannelProbeController extends Controller {
 
   @Get("{channelId}/profile")
   @Security("jwt")
-  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:probe:Read",
-    resourceKind: "single-resource",
-    resource: relayChannelProbeResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+  )
   @Middlewares(validateParams(relayChannelProbeChannelParamsSchema))
   public getProfile(@Path() channelId: string, @Request() request: TypedRequest): Promise<RelayChannelProbeProfileDto> {
-    return this.service.getProfile(channelId, request.user!.userId);
+    return this.service.getProfile(channelId, request.user!.userId, request);
   }
 
   @Put("{channelId}/profile")

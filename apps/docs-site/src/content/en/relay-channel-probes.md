@@ -40,6 +40,8 @@ History uses `quyan:relay:ListProbeRuns` for the parent channel, any selected ph
 
 Clearing history under native IAM enforcement requires `quyan:relay:ClearProbeHistory` on the channel, related physical members, and every selected terminal run. If any selected resource is denied, the entire cleanup is refused. Authorization is checked again at commit and revocation rolls back deletion. Running and queued tasks are preserved; the failed-only scope also preserves successful results.
 
+Reading a probe profile under native IAM enforcement requires `quyan:relay:GetProbeProfile` on its channel and on `acs:platform:*:platform:relay-probe-profile/<channelId>/<profileId>`. Workflow configuration and credential names are read only after these checks. Responses contain no credential values. For a pooled profile, credential names include only current members allowed by the same Action; denied or former member names are omitted.
+
 ## Prerequisites and notes
 
 - Reading requires channel-probe read permission. Saving an ordinary profile, running, clearing or resetting requires execute permission, step-up verification and replay protection. Editing or deleting a profile bound to a shared account additionally requires the dedicated account-pool management permission, preventing unauthorized changes to requests carrying shared tokens.

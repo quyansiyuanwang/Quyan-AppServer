@@ -10,7 +10,7 @@ vi.mock("@/iam/audit/iam-audit.service", () => ({ auditIamDecision: vi.fn() }));
 import { env } from "@/config/env";
 import { RelayProbeReadIamService } from "@/services/relay/relay-probe-read-iam.service";
 import { RelayProbeLatestRunReadIamService } from "@/services/relay/relay-probe-latest-run-read-iam.service";
-import { platformRelayProbeRunArn } from "@/iam/resources/platform-relay-probe-resources";
+import { platformRelayProbeRunArn, platformRelayProbeProfileArn } from "@/iam/resources/platform-relay-probe-resources";
 import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
 import { getIamActionDefinition, isIamActionResourceCompatible, Permission } from "@quyan/shared";
 import { Project } from "ts-morph";
@@ -165,5 +165,30 @@ describe("shared probe history read guard", () => {
       return "page";
     });
     await expect(guard.read("quyan:relay:ListProbeRuns", "actor", request(), native, legacy)).rejects.toThrow();
+  });
+});
+
+describe("probe profile catalog boundary", () => {
+  it("declares an exact server action and channel/profile resources", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel-probe.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "GET /v1/relay-channel-probes/{channelId}/profile",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: ["quyan:relay:GetProbeProfile"], issues: [] });
+    expect(getIamActionDefinition("quyan:relay:GetProbeProfile")).toMatchObject({
+      resourceTypes: ["platform/relay-channel", "platform/relay-probe-profile"],
+      legacyPermission: Permission.RELAY_CHANNEL_PROBE_READ,
+    });
+    expect(
+      isIamActionResourceCompatible("quyan:relay:GetProbeProfile", platformRelayProbeProfileArn("channel", "profile")),
+    ).toBe(true);
+    expect(
+      isIamActionResourceCompatible("quyan:relay:GetProbeProfile", platformRelayProbeRunArn("channel", "run")),
+    ).toBe(false);
+  });
+  it.each(["../foreign", "wrong/channel", "other:profile"])("rejects unsafe profile identifiers %s", (value) => {
+    expect(() => platformRelayProbeProfileArn("channel", value)).toThrow();
   });
 });
