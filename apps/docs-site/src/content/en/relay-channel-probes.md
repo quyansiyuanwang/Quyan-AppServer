@@ -64,6 +64,14 @@ AccessKey-initiated runs are also bound to the specific key: disabling, expiring
 
 Server-side queue authorization context remains valid for at most two hours. Enforcement does not continue when that context expires, its cache is lost or authorization is unavailable; investigate and submit a new run. Handle older queued jobs without this context before enabling enforcement. Browsers never receive the queue authorization context, credentials or tokens.
 
+## Copying profile templates
+
+Under IAM enforcement, copying standalone-channel profiles requires `quyan:relay:CopyProbeProfile` on the source channel/profile and each target channel plus its existing or server-reserved profile ARN. Deployment-managed probe-executor qualification, step-up verification and replay protection remain required. Targets commit independently, so a denied target does not block others. Pooled channels do not support this copy entry point; configure members individually instead.
+
+Native copying transfers workflow and calibration settings only. It never reads or copies source ciphertext or transfers account bindings. New profiles do not inherit source credentials; overwrites preserve the target's credentials, account bindings and target configuration. Overwriting a bound profile additionally requires the dedicated account-pool qualification and `quyan:relay:ModifyBoundProbeProfile` on each target account. Queued/running work blocks target overwrites. Verify workflow variables against the target's own credentials before running a probe.
+
+Legacy/shadow modes retain the earlier copy workflow, including its standalone credential copying. Only enforcement uses the non-transferring behavior above. Check target credentials before switching modes rather than relying on legacy copies to supply them.
+
 ## Prerequisites and notes
 
 - Reading requires channel-probe read permission. Saving an ordinary profile, running, clearing or resetting requires execute permission, step-up verification and replay protection. Editing or deleting a profile bound to a shared account additionally requires the dedicated account-pool management permission, preventing unauthorized changes to requests carrying shared tokens.

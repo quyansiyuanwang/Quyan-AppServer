@@ -1,3 +1,4 @@
+import { RelayProbeProfileCopyRepository } from "@/store/relay/relay-probe-profile-copy.repository";
 import { RELAY_PROBE_BATCH_POLICY } from "@/constant/relay-probe";
 import { RelayProbeBatchTargetRepository } from "@/store/relay/relay-probe-batch-target.repository";
 import { translateMessage, DEFAULT_BACKEND_LOCALE } from "@/locales";
@@ -12,6 +13,7 @@ import { getIamPrincipal } from "@/iam/request/principal-context";
 import {
   createRelayChannelProbeRunBodySchema,
   createRelayChannelProbeRunsBodySchema,
+  copyRelayChannelProbeProfileBodySchema,
 } from "@/api/schema/relay/relay-channel-probe.schema";
 import { RELAY_PROBE_QUEUE_POLICY, relayProbeQueueSlotKey } from "./relay-channel-probe-queue-policy";
 import {
@@ -1744,8 +1746,58 @@ export class RelayChannelProbeService {
    * prevent the operator from configuring the rest of the selected set.
    */
   async copyProfile(
+    input: CopyRelayChannelProbeProfileRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<CopyRelayChannelProbeProfileResponse> {
+    const parsed = copyRelayChannelProbeProfileBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid profile copy targets", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data,
+      reserved = new Map(body.targetChannelIds.map((id) => [id, createId()]));
+    const result = await RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:CopyProbeProfile",
+      actorUserId,
+      request,
+      async (guard) => {
+        const copied: RelayChannelProbeProfileDto[] = [],
+          rejected: CopyRelayChannelProbeProfileResponse["rejected"] = [];
+        for (const targetId of body.targetChannelIds) {
+          try {
+            platformRelayChannelArn(body.sourceChannelId);
+            platformRelayChannelArn(targetId);
+            const ids = [body.sourceChannelId, targetId].sort();
+            const record = await this.channelLockService.withWrite(ids[0]!, () =>
+              this.channelLockService.withWrite(ids[1]!, () =>
+                RelayProbeProfileCopyRepository.getInstance().copy(
+                  body.sourceChannelId,
+                  targetId,
+                  reserved.get(targetId)!,
+                  Boolean(body.overwriteExisting),
+                  guard,
+                  (row) => this.toProfileDto(row),
+                ),
+              ),
+            );
+            if (record) copied.push(record);
+          } catch {
+            rejected.push({
+              channelId: targetId,
+              reason: translateMessage("permission.insufficientPermission", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+            });
+          }
+        }
+        return { copied, rejected };
+      },
+      () => this.copyProfileLegacy(body, actorUserId, reserved),
+    );
+    return result;
+  }
+
+  private async copyProfileLegacy(
     body: CopyRelayChannelProbeProfileRequest,
     actorUserId: string,
+    reserved?: ReadonlyMap<string, string>,
   ): Promise<CopyRelayChannelProbeProfileResponse> {
     const channelService = RelayChannelService.getInstance();
     const sourceChannel = await channelService.getChannel(body.sourceChannelId, actorUserId);
@@ -1792,7 +1844,11 @@ export class RelayChannelProbeService {
           continue;
         }
         if (existing) await this.assertCanModifyBoundProfile(existing.id, actorUserId);
-        copied.push(this.toProfileDto(await this.repository.copyProfile(sourceProfile, channelId)));
+        copied.push(
+          this.toProfileDto(
+            await this.repository.copyProfile(sourceProfile, channelId, true, reserved?.get(channelId)),
+          ),
+        );
       } catch (error) {
         rejected.push({
           channelId,

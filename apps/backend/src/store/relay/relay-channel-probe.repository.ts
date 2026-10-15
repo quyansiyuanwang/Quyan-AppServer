@@ -1,3 +1,4 @@
+import { copyProbeProfileSettings } from "./relay-probe-profile-template";
 import { relayProbeHistoryTerminalStatuses } from "./relay-probe-run-history-policy";
 import { prisma } from "@/config/database";
 import type { Prisma } from "@prisma/client";
@@ -54,27 +55,14 @@ export class RelayChannelProbeRepository {
   }
 
   /** Copies an already encrypted profile without ever decrypting its credentials for a caller. */
-  public copyProfile(source: RelayChannelProbeProfileRecord, targetChannelId: string, copyCredentials = true) {
+  public copyProfile(
+    source: RelayChannelProbeProfileRecord,
+    targetChannelId: string,
+    copyCredentials = true,
+    reservedId?: string,
+  ) {
     const data = {
-      enabled: source.enabled,
-      probeFormat: source.probeFormat,
-      probeEndpoint: source.probeEndpoint,
-      probeModel: source.probeModel,
-      probePayload: source.probePayload as Prisma.InputJsonValue,
-      preventCache: source.preventCache,
-      cacheMode: source.cacheMode,
-      sampleCount: source.sampleCount,
-      strictCalibrationValidation: source.strictCalibrationValidation,
-      measurementInputTokens: source.measurementInputTokens,
-      balanceSettlementTolerance: source.balanceSettlementTolerance,
-      balanceSettlementReads: source.balanceSettlementReads,
-      upstreamCurrency: source.upstreamCurrency,
-      localCurrency: source.localCurrency,
-      upstreamBalanceDivisor: source.upstreamBalanceDivisor,
-      upstreamRateMultiplier: source.upstreamRateMultiplier,
-      probeGroup: source.probeGroup,
-      distributionMultiplier: source.distributionMultiplier,
-      workflow: source.workflow as Prisma.InputJsonValue,
+      ...copyProbeProfileSettings(source),
       ...(copyCredentials
         ? {
             encryptedCredentials: source.encryptedCredentials,
@@ -85,7 +73,7 @@ export class RelayChannelProbeRepository {
     };
     return prisma.relayChannelProbeProfile.upsert({
       where: { relayChannelId: targetChannelId },
-      create: { relayChannelId: targetChannelId, ...data },
+      create: { ...(reservedId ? { id: reservedId } : {}), relayChannelId: targetChannelId, ...data },
       update: data,
     });
   }

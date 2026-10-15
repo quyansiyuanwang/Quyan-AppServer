@@ -251,7 +251,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("profiles/batch-copy")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:CopyProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -263,7 +270,7 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: CopyRelayChannelProbeProfileRequest,
     @Request() request: TypedRequest,
   ): Promise<CopyRelayChannelProbeProfileResponse> {
-    return this.service.copyProfile(body, request.user!.userId);
+    return this.service.copyProfile(body, request.user!.userId, request);
   }
 
   @Get("{channelId}/runs")
