@@ -664,13 +664,22 @@ export class RelayController extends Controller {
 
   @Get("tokens/{id}/available-models")
   @Security("jwt", ["relay:channel:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenAvailableModels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema))
   async getTokenAvailableModels(
     @Path() id: string,
     @Request() request: TypedRequest,
     @Query() targetUserId?: string,
   ): Promise<RelayTokenAvailableModelsDto> {
-    return this.relayTokenService.getTokenAvailableModels(id, request.user!.userId, targetUserId);
+    return this.relayTokenService.getTokenAvailableModels(id, request.user!.userId, targetUserId, request);
   }
 }

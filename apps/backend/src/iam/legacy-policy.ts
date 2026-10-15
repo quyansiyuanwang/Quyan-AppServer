@@ -1,3 +1,4 @@
+import { IAM_POLICY_LIMITS } from "./parser/policy-schema";
 import {
   ALL_PERMISSIONS,
   Permission,
@@ -24,6 +25,29 @@ export function parseLegacyPermissions(input: unknown): Permission[] {
     throw new IamPolicyValidationError();
   return [...new Set(input)] as Permission[];
 }
+/** Catalog growth must not produce oversized compatibility statements or skip type validation. */
+function boundLegacyStatements(
+  statements: NormalizedIamPolicyDocument["Statement"],
+): NormalizedIamPolicyDocument["Statement"] {
+  return statements.flatMap((statement) => {
+    if (statement.Action.length <= IAM_POLICY_LIMITS.patterns) return [statement];
+    const result: NormalizedIamPolicyDocument["Statement"] = [];
+    for (let offset = 0; offset < statement.Action.length; offset += IAM_POLICY_LIMITS.patterns) {
+      const Action = statement.Action.slice(offset, offset + IAM_POLICY_LIMITS.patterns);
+      const types = new Set(Action.flatMap((action) => getIamActionDefinition(action)!.resourceTypes));
+      const Resource = statement.Resource.filter(
+        (resource) => resource === "*" || getIamResourcePatternTypes(resource).some((type) => types.has(type.id)),
+      );
+      result.push({
+        ...statement,
+        Action,
+        Resource,
+        ...(statement.Sid ? { Sid: statement.Sid + "_" + offset / IAM_POLICY_LIMITS.patterns } : {}),
+      });
+    }
+    return result;
+  });
+}
 export function legacyPermissionsToPolicy(
   input: unknown,
   accountOwnerId: string,
@@ -46,13 +70,13 @@ export function legacyPermissionsToPolicy(
   );
   return {
     Version: "1",
-    Statement: [
+    Statement: boundLegacyStatements([
       {
         Effect: effect,
         Action: permissions.flatMap(iamActionsForLegacyPermission),
         Resource: effect === "Deny" ? ["*"] : [...new Set([account, ...resources])],
       },
-    ],
+    ]),
   };
 }
 
@@ -141,6 +165,7 @@ export function legacyPermissionsToPrincipalPolicy(
         "quyan:relay:GetTokenUsage",
         "quyan:relay:GetTokenSwitchLogs",
         "quyan:relay:ListTokenCompositionCandidates",
+        "quyan:relay:GetTokenAvailableModels",
         "quyan:relay:SetTokenStatus",
         "quyan:relay:RefreshToken",
         "quyan:relay:SetTokenContentSafety",
@@ -225,5 +250,5 @@ export function legacyPermissionsToPrincipalPolicy(
         Condition: { StringEquals: { "quyan:ResourceOwnerId": principalUserId } },
       });
   }
-  return { Version: "1", Statement: statements };
+  return { Version: "1", Statement: boundLegacyStatements(statements) };
 }

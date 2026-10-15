@@ -1,3 +1,4 @@
+import { resolveMappedModel } from "@/util/model-mapping.util";
 import { isModelIdAllowed, isModelNameAllowed, resolveModelId } from "@/util/model-resolution.util";
 import {
   parseRelayChannelAllowedModelNames,
@@ -89,4 +90,53 @@ export function projectRelayAvailableModels(
   addMappedModelKeys(token.modelMapping, tokenAvailableModelTargets);
 
   return [...modelIds].sort((left, right) => left.localeCompare(right));
+}
+
+/** Evaluate one route, never a union of capabilities from different paths. */
+export function canServeRelayDiscoveryModel(
+  token: RelayModelDiscoveryToken & { failoverConfig?: { maxAcceptedChannelMultiplier?: unknown } | null },
+  channel: RelayModelDiscoveryChannel & { multiplier?: unknown },
+  modelCatalog: readonly RelayModelFormatLike[],
+  format: RelayRequestFormat,
+  model: string,
+): boolean {
+  if (!supportsRelayRequestFormat(channel.allowedFormats, format)) return false;
+  const maximum = token.failoverConfig?.maxAcceptedChannelMultiplier;
+  if (maximum != null && Number(channel.multiplier) > Number(maximum)) return false;
+  const mapped = resolveMappedModel(
+    model,
+    channel.modelMapping as Record<string, string>,
+    token.modelMapping as Record<string, string>,
+  );
+  const allowedNames = parseRelayChannelAllowedModelNames(channel);
+  const candidates = modelCatalog.filter(
+    (row) => resolveModelId(row).trim() === mapped.trim() && supportsRelayRequestFormat(row.supportedFormats, format),
+  );
+  const effective =
+    allowedNames === null
+      ? candidates[0]
+      : (candidates.find((row) => isModelNameAllowed(allowedNames, row.model || "")) ??
+        candidates.find((row) => isModelNameAllowed(allowedNames, resolveModelId(row))));
+  if (!effective) return false;
+  const allowed = parseRelayTokenAllowedModelIds(token.allowedModels);
+  return (
+    !allowed.length ||
+    isModelIdAllowed(allowed, effective) ||
+    modelCatalog.some((row) => resolveModelId(row).trim() === model.trim() && isModelIdAllowed(allowed, row))
+  );
+}
+export function relayDiscoveryAllowsModels(
+  token: RelayModelDiscoveryToken,
+  catalog: readonly RelayModelFormatLike[],
+  ...names: string[]
+): boolean {
+  const allowed = parseRelayTokenAllowedModelIds(token.allowedModels);
+  return (
+    !allowed.length ||
+    names.some(
+      (name) =>
+        allowed.includes(name) ||
+        catalog.some((row) => resolveModelId(row).trim() === name.trim() && isModelIdAllowed(allowed, row)),
+    )
+  );
 }

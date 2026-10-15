@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   projectRelayAvailableModels,
+  canServeRelayDiscoveryModel,
+  relayDiscoveryAllowsModels,
   type RelayModelDiscoveryChannel,
   type RelayModelDiscoveryToken,
 } from "@/services/relay/utils/relay-model-discovery.util";
@@ -21,7 +23,7 @@ describe("credential-free model discovery", () => {
     expect(project({}, [channel({ allowedModels: null })])).toEqual([]);
   });
   it("honors token model restrictions and protocol independently", () => {
-    expect(project({ allowedModels: '["model-b"]' })).toEqual([]);
+    expect(project({ allowedModels: "model-b" })).toEqual([]);
     expect(project({}, [channel({ allowedFormats: "anthropic" })])).toEqual([]);
     expect(projectRelayAvailableModels({}, [channel()], models, "anthropic")).toEqual(["model-b"]);
   });
@@ -136,5 +138,51 @@ describe("snapshot-only capability leaf resolution", () => {
     ]);
     await expect(resolver.resolveCapabilityLeafCandidates(["root"], graph)).rejects.toMatchObject({ statusCode: 400 });
     expect(repository.listActive).not.toHaveBeenCalled();
+  });
+  it("bounds expansion of deep snapshot-only pools", async () => {
+    const { resolver, graph } = setup(
+      Array.from({ length: 66 }, (_, index) =>
+        node("n" + index, {
+          channelType: "pooled",
+          poolMembers: index < 65 ? [member("n" + (index + 1))] : [],
+        }),
+      ),
+    );
+    await expect(resolver.resolveCapabilityLeafCandidates(["n0"], graph)).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe("per-path serving proof", () => {
+  it("resolves protocol, model mapping and allow-list on the same path", () => {
+    expect(
+      canServeRelayDiscoveryModel({}, channel({ modelMapping: { alias: "model-a" } }), models, "openai", "alias"),
+    ).toBe(true);
+    expect(canServeRelayDiscoveryModel({}, channel(), models, "anthropic", "model-a")).toBe(false);
+    expect(canServeRelayDiscoveryModel({ allowedModels: "model-b" }, channel(), models, "openai", "model-a")).toBe(
+      false,
+    );
+  });
+  it("honors the inherited multiplier ceiling", () => {
+    expect(
+      canServeRelayDiscoveryModel(
+        { failoverConfig: { maxAcceptedChannelMultiplier: 1 } },
+        { ...channel(), multiplier: 2 },
+        models,
+        "openai",
+        "model-a",
+      ),
+    ).toBe(false);
+  });
+  it("does not treat a display label as the upstream model ID", () => {
+    expect(canServeRelayDiscoveryModel({}, channel(), models, "openai", "A")).toBe(false);
+  });
+  it("distinguishes an empty channel restriction from unrestricted channels", () => {
+    expect(canServeRelayDiscoveryModel({}, channel({ allowedModels: "[]" }), models, "openai", "model-a")).toBe(false);
+    expect(canServeRelayDiscoveryModel({}, channel({ allowedModels: null }), models, "openai", "model-a")).toBe(true);
+  });
+  it("checks composite allow-lists against requested and mapped names without changing case", () => {
+    expect(relayDiscoveryAllowsModels({ allowedModels: "model-a" }, models, "model-a")).toBe(true);
+    expect(relayDiscoveryAllowsModels({ allowedModels: "model-a" }, models, "MODEL-A")).toBe(false);
+    expect(relayDiscoveryAllowsModels({ allowedModels: "alias" }, models, "alias", "model-a")).toBe(true);
   });
 });

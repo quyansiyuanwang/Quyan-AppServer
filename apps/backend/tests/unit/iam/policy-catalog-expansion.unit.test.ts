@@ -5,10 +5,11 @@ import {
   getIamResourcePatternTypes,
   matchIamPattern,
   ALL_PERMISSIONS,
+  iamActionsForLegacyPermission,
 } from "@quyan/shared";
-import { iamStatementSchema } from "@/iam/parser/policy-schema";
+import { iamStatementSchema, IAM_POLICY_LIMITS } from "@/iam/parser/policy-schema";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
-import { legacyPermissionsToPrincipalPolicy } from "@/iam/legacy-policy";
+import { legacyPermissionsToPrincipalPolicy, legacyPermissionsToPolicy } from "@/iam/legacy-policy";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 const resources = [
   "*",
@@ -92,5 +93,13 @@ describe("statement-local catalog expansion preserves admission semantics", () =
     expect(
       iamStatementSchema.safeParse({ Effect: "Allow", Action: "quyan:ram:MissingAction", Resource: "*" }).success,
     ).toBe(false);
+  });
+  it.each(["Allow", "Deny"] as const)("bounds dense %s compatibility documents without dropping actions", (effect) => {
+    const document = parseIamPolicy(legacyPermissionsToPolicy(ALL_PERMISSIONS, "owner", effect)).document;
+    expect(document.Statement.every((statement) => statement.Action.length <= IAM_POLICY_LIMITS.patterns)).toBe(true);
+    expect(new Set(document.Statement.flatMap((statement) => statement.Action))).toEqual(
+      new Set(ALL_PERMISSIONS.flatMap(iamActionsForLegacyPermission)),
+    );
+    expect(document.Statement.every((statement) => statement.Effect === effect)).toBe(true);
   });
 });

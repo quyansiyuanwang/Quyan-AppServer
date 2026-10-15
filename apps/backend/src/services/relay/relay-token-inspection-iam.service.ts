@@ -19,9 +19,14 @@ import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 type Selection =
-  | { kind: "usage" | "switch-logs"; id: string }
+  | { kind: "usage" | "switch-logs" | "models"; id: string }
   | { kind: "usage-batch" | "composition-candidates"; ids?: string[] };
+export type RelayTokenInspectionAdmission = (ids: readonly string[]) => Promise<RelayTokenInspectionTarget[]>;
 const inspectionActions = Object.freeze({
+  models: {
+    action: "quyan:relay:GetTokenAvailableModels",
+    managedAction: "quyan:relay:GetManagedTokenAvailableModels",
+  },
   "composition-candidates": {
     action: "quyan:relay:ListTokenCompositionCandidates",
     managedAction: "quyan:relay:ListManagedTokenCompositionCandidates",
@@ -104,14 +109,31 @@ export class RelayTokenInspectionIamService {
     read: (targets: RelayTokenInspectionTarget[], userId: string) => Promise<T>,
     legacy: () => Promise<T>,
   ) {
-    return this.inspect({ kind: "composition-candidates" }, actorUserId, targetUserId, request, read, legacy);
+    return this.inspect(
+      { kind: "composition-candidates" },
+      actorUserId,
+      targetUserId,
+      request,
+      (targets, userId) => read(targets, userId),
+      legacy,
+    );
+  }
+  async models<T>(
+    actorUserId: string,
+    id: string,
+    targetUserId: string | undefined,
+    request: TypedRequest | undefined,
+    read: (targets: RelayTokenInspectionTarget[], userId: string, admit: RelayTokenInspectionAdmission) => Promise<T>,
+    legacy: () => Promise<T>,
+  ) {
+    return this.inspect({ kind: "models", id }, actorUserId, targetUserId, request, read, legacy);
   }
   private async inspect<T>(
     selection: Selection,
     actorUserId: string,
     targetUserId: string | undefined,
     request: TypedRequest | undefined,
-    read: (targets: RelayTokenInspectionTarget[], userId: string) => Promise<T>,
+    read: (targets: RelayTokenInspectionTarget[], userId: string, admit: RelayTokenInspectionAdmission) => Promise<T>,
     legacy: () => Promise<T>,
   ): Promise<T> {
     if (
@@ -142,7 +164,11 @@ export class RelayTokenInspectionIamService {
       throw iamAccountDenied();
     if (mode === "legacy") return legacy();
     const native = async <U>(
-      inspect: (targets: RelayTokenInspectionTarget[], userId: string) => Promise<U>,
+      inspect: (
+        targets: RelayTokenInspectionTarget[],
+        userId: string,
+        admit: RelayTokenInspectionAdmission,
+      ) => Promise<U>,
     ): Promise<U> => {
       await this.iam.loadPolicies(principal);
       const userId = targetUserId ?? ("id" in selection ? await this.repository.tokenOwner(selection.id) : actorUserId);
@@ -154,7 +180,8 @@ export class RelayTokenInspectionIamService {
         managed: userId !== actorUserId,
         ...(oauth ? { oauth: { id: oauth.id, clientId: oauth.oauthClientId } } : {}),
       };
-      const snapshot = await this.repository.snapshot(identity),
+      const profile = selection.kind === "models" ? "modelRead" : "read";
+      const snapshot = await this.repository.snapshot(identity, profile),
         fingerprint = fingerprintIamPolicies(await this.iam.loadPolicies(principal));
       const keyId = request.accessKey?.id,
         keyRevision = await captureIamAccessKeyRevision(principal, keyId);
@@ -173,7 +200,7 @@ export class RelayTokenInspectionIamService {
       const recheck = async () => {
         assertRequest();
         if (
-          JSON.stringify(await this.repository.snapshot(identity)) !== JSON.stringify(snapshot) ||
+          JSON.stringify(await this.repository.snapshot(identity, profile)) !== JSON.stringify(snapshot) ||
           fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== fingerprint ||
           (await captureIamAccessKeyRevision(principal, keyId)) !== keyRevision
         )
@@ -229,7 +256,25 @@ export class RelayTokenInspectionIamService {
               (ids) => decide(identity.managed ? managedAction : action, ids.map(resource)),
               recheck,
             );
-      const result = await inspect(targets, userId);
+      const descendants = new Map<string, RelayTokenInspectionTarget>();
+      const admit: RelayTokenInspectionAdmission = async (ids) => {
+        await recheck();
+        if (!ids.length) return [];
+        const rows = await this.repository.list(
+          userId,
+          ids,
+          (values) => decide(identity.managed ? managedAction : action, values.map(resource)),
+          recheck,
+        );
+        for (const row of rows) {
+          const old = descendants.get(row.id);
+          if (old && JSON.stringify(old) !== JSON.stringify(row)) throw iamAccountDenied();
+          descendants.set(row.id, row);
+        }
+        return rows;
+      };
+      const result = await inspect(targets, userId, admit);
+      await this.repository.assertTargets([...descendants.values()]);
       // Never release a projection authorized by a stale policy, owner or credential proof.
       if ("id" in selection) await this.repository.assertTarget(targets[0]!);
       else await this.repository.assertTargets(targets);

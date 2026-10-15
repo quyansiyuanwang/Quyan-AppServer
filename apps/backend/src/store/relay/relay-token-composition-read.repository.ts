@@ -4,7 +4,7 @@ import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { isRelayTokenResourceId } from "@/iam/resources/relay-token-resources";
 import { iamAccountDenied } from "../users/iam-account-principal";
 /** Topology proof only: no labels, credentials, routes, physical channels, or user records. */
-const graphSelect = {
+export const relayCompositionGraphSelect = {
   id: true,
   userId: true,
   status: true,
@@ -17,7 +17,7 @@ const graphSelect = {
     orderBy: [{ priority: "asc" }, { id: "asc" }],
   },
 } as const satisfies Prisma.RelayTokenSelect;
-export type RelayTokenCompositionReadNode = Prisma.RelayTokenGetPayload<{ select: typeof graphSelect }>;
+export type RelayTokenCompositionReadNode = Prisma.RelayTokenGetPayload<{ select: typeof relayCompositionGraphSelect }>;
 export class RelayTokenCompositionReadRepository {
   private static instance: RelayTokenCompositionReadRepository;
   static getInstance() {
@@ -35,7 +35,7 @@ export class RelayTokenCompositionReadRepository {
       const batch = targets.slice(offset, offset + IAM_AUTHORIZATION_LIMITS.resourcesPerRequest);
       const rows = await prisma.relayToken.findMany({
         where: { userId, OR: batch.map((row) => ({ id: row.id, status: row.status, updateTime: row.updateTime })) },
-        select: graphSelect,
+        select: relayCompositionGraphSelect,
         orderBy: { id: "asc" },
       });
       if (

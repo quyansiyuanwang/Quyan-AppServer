@@ -40,6 +40,7 @@ describe("legacy policy backfill planning", () => {
     expect(first.parsed.documentHash).toBe(second.parsed.documentHash);
     expect(first.parsed.document.Statement[0].Action).toContain(actionForPermission(Permission.USER_READ));
     expect(first.parsed.document.Statement[0].Resource).toEqual([
+      "acs:platform:*:platform:user/*",
       "acs:quyan:*:owner:account",
       "acs:quyan:*:owner:group/*",
       "acs:quyan:*:owner:user/*",

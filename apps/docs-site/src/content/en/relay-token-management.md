@@ -217,6 +217,14 @@ Request model mappings, protocol conversions and applicable normalization run ou
 
 Preview describes capabilities and configured order, not guaranteed availability: IP, quota, safety and upstream health are checked at request time. Member changes and disabling affect subsequent requests. Secret rotation does not require reconfiguring the composition because references use IDs. In-flight requests retain their routing snapshot.
 
+### Resource-scoped model discovery
+
+In IAM enforcement mode, **Load available models** requires `quyan:relay:GetTokenAvailableModels` on `acs:relay:*:<accountId>:token/<userId>/<tokenId>`. A composite token additionally requires that Action on every referenced descendant, including disabled references. A denied, deleted or foreign-owner reference rejects discovery rather than returning a partial catalog. Inactive or expired paths contribute no models.
+
+This grant is separate from reading Token metadata, revealing its credential, browsing the public model directory, or invoking a model. Aliases, protocol conversions, model restrictions, blocked pool members and ancestor multiplier limits remain tied to the same actual path. Responses never expose physical channel IDs, upstream configuration or prices. Discovery describes configured capabilities, not current health, quota or request-time availability.
+
+Viewing another user's models also requires the managed Action `quyan:relay:GetManagedTokenAvailableModels` on that user's platform user and Token resources, personal discovery admission, and existing global-group management eligibility. A same-account peer is still another user. OAuth clients retain the endpoint's channel-read scope; a Token-read scope alone is insufficient. If identity, policies, credentials or capability sources change during discovery, refresh and retry after reviewing the current grants.
+
 ### Usage and charges
 
 The entry composition, executed intermediate compositions and leaf token each record attributed usage and enforce their own lifetime and rolling-window limits. **Balance, monthly passes and channel revenue settle only once per call.** Unattempted branches have no usage; failed attempts retain existing failure-accounting behavior.

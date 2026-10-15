@@ -1,3 +1,4 @@
+import { RELAY_CAPABILITY_RESOLUTION_LIMITS } from "@/constant/relay-capability";
 import type { Prisma, RelayChannel } from "@prisma/client";
 import {
   parseRelayModelNameConstraint,
@@ -192,10 +193,20 @@ export class RelayPoolResolverService {
     graph: ReadonlyMap<string, TChannel>,
   ): Promise<Array<{ resolvedChannel: TChannel; routingChannelIds: string[] }>> {
     const candidates: Array<{ resolvedChannel: TChannel; routingChannelIds: string[] }> = [];
+    const budget = { remaining: RELAY_CAPABILITY_RESOLUTION_LIMITS.traversalVisits };
     for (const id of new Set(roots)) {
       const root = graph.get(id);
       if (!root || root.status !== RELAY_CHANNEL_STATUS.ENABLED || root.providerServiceEnabled === false) continue;
-      const paths = await this.resolveLeafPaths(root, graph, this.initialConstraints(), undefined, new Set());
+      const paths = await this.resolveLeafPaths(
+        root,
+        graph,
+        this.initialConstraints(),
+        undefined,
+        new Set(),
+        false,
+        false,
+        budget,
+      );
       for (const path of paths) {
         candidates.push({
           resolvedChannel: this.applyConstraints(path.channel, path.constraints),
@@ -302,7 +313,12 @@ export class RelayPoolResolverService {
     ancestors: Set<string>,
     includeDisabled = false,
     expandAllEligibleMembers = false,
+    budget?: { remaining: number },
   ): Promise<ResolvedLeafPath<TChannel>[]> {
+    if (budget && (--budget.remaining < 0 || ancestors.size > RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth))
+      throw new BadRequestError("Capability graph exceeds safe traversal limits", undefined, {
+        messageKey: "errors.badRequest",
+      });
     if (ancestors.has(channel.id))
       throw new BadRequestError(`Relay channel pool cycle detected at '${channel.name}'`, undefined, {
         messageKey: "relay.poolCycle",
@@ -341,6 +357,7 @@ export class RelayPoolResolverService {
           nextAncestors,
           includeDisabled,
           childPathsMustRemainReachable,
+          budget,
         )),
       );
     }

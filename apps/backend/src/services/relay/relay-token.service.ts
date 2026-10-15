@@ -1,3 +1,4 @@
+import { RelayTokenCapabilityReadService } from "./relay-token-capability-read.service";
 import { RelayTokenCompositionReadService } from "./relay-token-composition-read.service";
 import { RelayModelCatalogReadIamService } from "./relay-model-catalog-read-iam.service";
 import { relayModelCatalogArn } from "@/iam/resources/relay-model-catalog-resources";
@@ -1998,10 +1999,18 @@ export class RelayTokenService {
     tokenId: string,
     actorUserId: string,
     targetUserId?: string,
+    request?: TypedRequest,
   ): Promise<RelayTokenAvailableModelsDto> {
-    const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
-
-    return this.relayProxyService.getAvailableModelMapForToken(token);
+    return RelayTokenCapabilityReadService.getInstance().models(
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async () => {
+        const token = await this.getAccessibleToken(tokenId, actorUserId, targetUserId);
+        return this.relayProxyService.getAvailableModelMapForToken(token);
+      },
+    );
   }
 
   private toDto(

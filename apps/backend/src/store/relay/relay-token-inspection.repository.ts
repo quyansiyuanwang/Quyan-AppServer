@@ -31,8 +31,8 @@ export class RelayTokenInspectionRepository {
   tokenOwner(id: string) {
     return RelayTokenMutationRepository.getInstance().tokenOwner(id);
   }
-  snapshot(identity: RelayTokenAuthorityIdentity) {
-    return captureRelayTokenAuthority(identity, RELAY_TOKEN_AUTHORITY_REQUIREMENTS.read);
+  snapshot(identity: RelayTokenAuthorityIdentity, profile: "read" | "modelRead" = "read") {
+    return captureRelayTokenAuthority(identity, RELAY_TOKEN_AUTHORITY_REQUIREMENTS[profile]);
   }
   async target(userId: string, id: string) {
     const row = await prisma.relayToken.findFirst({

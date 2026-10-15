@@ -24,6 +24,11 @@ export const RELAY_TOKEN_AUTHORITY_REQUIREMENTS = Object.freeze({
     operationPermission: Permission.RELAY_TOKEN_READ,
     managementPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
   }),
+  modelRead: Object.freeze({
+    operationPermission: Permission.RELAY_TOKEN_READ,
+    managementPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
+    oauthPermission: Permission.RELAY_CHANNEL_READ,
+  }),
   update: Object.freeze({
     operationPermission: Permission.RELAY_TOKEN_UPDATE,
     managementPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
@@ -65,7 +70,10 @@ export async function captureRelayTokenAuthority(
   const oauthRevision = await captureIamOAuthRevision(
     principal,
     oauth,
-    [requirements.operationPermission, ...(managed ? [requirements.managementPermission] : [])],
+    [
+      "oauthPermission" in requirements ? requirements.oauthPermission : requirements.operationPermission,
+      ...(managed ? [requirements.managementPermission] : []),
+    ],
     tx,
   );
 

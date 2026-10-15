@@ -1,4 +1,9 @@
-import { projectRelayAvailableModels } from "./utils/relay-model-discovery.util";
+import { projectRelayCompositionCatalog } from "./utils/relay-composition-catalog.util";
+import {
+  projectRelayAvailableModels,
+  canServeRelayDiscoveryModel,
+  relayDiscoveryAllowsModels,
+} from "./utils/relay-model-discovery.util";
 import { projectRelayConcurrencyLimits } from "@/util/relay-concurrency-status-projection";
 import {
   assertRelayRequestBodyCapacity,
@@ -31,7 +36,6 @@ import {
   compositeStreamResponse,
   reverseCompositeResponse,
 } from "./relay-composite-transport.util";
-import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
 import { extractClientIp } from "@/util/ip-extractor";
 import { isIpWhitelisted } from "@/util/ip-whitelist.util";
 import axios from "axios";
@@ -2688,14 +2692,8 @@ export class RelayProxyService {
   }
 
   private async compositionAllows(token: RelayTokenAvailabilityInput, ...names: string[]): Promise<boolean> {
-    const allowed = parseRelayTokenAllowedModelIds(token.allowedModels);
-    if (!allowed.length) return true;
-    const pricing = await this.modelPricingService.getModelPricing();
-    return names.some(
-      (name) =>
-        allowed.includes(name) ||
-        this.resolveRequestedModelConfigs(pricing, name).some((model) => isModelIdAllowed(allowed, model)),
-    );
+    if (!parseRelayTokenAllowedModelIds(token.allowedModels).length) return true;
+    return relayDiscoveryAllowsModels(token, await this.modelPricingService.getModelPricing(), ...names);
   }
 
   private compositeLeafLimits(
@@ -2759,29 +2757,10 @@ export class RelayProxyService {
         ?.targetFormat ?? source;
     const model = String(this.extractRequestedModel(request, source) ?? "").trim();
     const pricing = await this.modelPricingService.getModelPricing();
-    const allowed = parseRelayTokenAllowedModelIds(token.allowedModels);
     const plan = await this.buildAttemptPlan(token);
-    return plan.channels.some((candidate) => {
-      const channel = candidate.resolvedChannel;
-      if (!supportsRelayRequestFormat(channel.allowedFormats, format)) return false;
-      const maximum = token.failoverConfig?.maxAcceptedChannelMultiplier;
-      if (maximum != null && Number(channel.multiplier) > Number(maximum)) return false;
-      const mapped = resolveMappedModel(
-        model,
-        channel.modelMapping as Record<string, string>,
-        token.modelMapping as Record<string, string>,
-      );
-      const models = this.resolveRequestedModelConfigs(pricing, mapped).filter((config) =>
-        supportsRelayRequestFormat(config.supportedFormats, format),
-      );
-      const effective = this.resolveChannelModelConfig(channel, mapped, models);
-      if (!effective) return false;
-      return (
-        !allowed.length ||
-        isModelIdAllowed(allowed, effective) ||
-        this.resolveRequestedModelConfigs(pricing, model).some((config) => isModelIdAllowed(allowed, config))
-      );
-    });
+    return plan.channels.some((candidate) =>
+      canServeRelayDiscoveryModel(token, candidate.resolvedChannel, pricing, format, model),
+    );
   }
 
   async getCompositeCatalog(
@@ -2791,20 +2770,8 @@ export class RelayProxyService {
   ): Promise<Array<{ model: string; tokenPathIds: string[] }>> {
     snapshot ??= await this.relayTokenRepo.loadCompositionSnapshot(id);
     const graph = snapshot;
-    const visit = async (
-      token: RelayTokenWithRelations,
-      requestFormat: RelayRequestFormat,
-      path: Set<string>,
-      requested: string[] = [],
-    ): Promise<Array<{ model: string; tokenPathIds: string[] }>> => {
-      if (
-        path.has(token.id) ||
-        path.size > RELAY_COMPOSITION_POLICY.maxDepth ||
-        token.status !== 1 ||
-        (token.expiresAt && token.expiresAt < new Date())
-      )
-        return [];
-      if (token.routingMode !== "composite") {
+    return projectRelayCompositionCatalog(id, format, graph, {
+      leaf: async (token, requestFormat, requested) => {
         try {
           const models = new Set(await this.getAvailableModelsForToken(token, requestFormat));
           // Explicit aliases can name a model on an unrestricted channel without exposing the global pricing catalog.
@@ -2818,43 +2785,14 @@ export class RelayProxyService {
                 : `/relay/proxy${relayConvertedRequestPath(requestFormat as RelayConvertibleRequestFormat)}`;
             if (await this.compositeLeafCanServe(token, { path, body: { model } })) models.add(model);
           }
-          return [...models].map((model) => ({ model, tokenPathIds: [token.id] }));
+          return [...models];
         } catch (error) {
           if (error instanceof BadRequestError) return [];
           throw error;
         }
-      }
-      const transform = resolveRelayRequestFormatTransform(
-        token.requestFormatTransforms,
-        requestFormat as RelayConvertibleRequestFormat,
-      );
-      const target = transform?.targetFormat ?? requestFormat;
-      const entries: Array<{ model: string; tokenPathIds: string[] }> = [];
-      for (const edge of [...token.memberTokenConfigs].sort((a, b) => a.priority - b.priority)) {
-        const child = graph.get(edge.tokenId);
-        if (!edge.enabled || !child || child.userId !== token.userId) continue;
-        const mapping = token.modelMapping as Record<string, string> | null;
-        const targets = [
-          ...requested.map((model) => resolveMappedModel(model, undefined, mapping)),
-          ...Object.values(mapping ?? {}),
-        ];
-        const available = await visit(child, target, new Set(path).add(token.id), targets);
-        const candidates = new Set([
-          ...available.map((item) => item.model),
-          ...Object.keys(mapping ?? {}).filter((key) => !/[?*]/.test(key)),
-        ]);
-        for (const model of candidates) {
-          const mapped = resolveMappedModel(model, undefined, mapping);
-          if (!(await this.compositionAllows(token, model, mapped))) continue;
-          for (const candidate of available)
-            if (candidate.model === mapped)
-              entries.push({ model, tokenPathIds: [token.id, ...candidate.tokenPathIds] });
-        }
-      }
-      return entries;
-    };
-    const root = graph.get(id);
-    return root ? visit(root, format, new Set()) : [];
+      },
+      allows: (token, model, mapped) => this.compositionAllows(token, model, mapped),
+    });
   }
 
   private async getCompositeModels(id: string, format: RelayRequestFormat): Promise<string[]> {
