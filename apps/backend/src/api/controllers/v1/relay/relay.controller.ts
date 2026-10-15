@@ -320,7 +320,14 @@ export class RelayController extends Controller {
 
   @Put("tokens/{id}/channel")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:UpdateTokenChannel",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

@@ -1,3 +1,9 @@
+import { RelayChannelSelectionRepository } from "@/store/relay/relay-channel-selection.repository";
+import {
+  RelayTokenChannelChangeRepository,
+  planRelayTokenChannelChange,
+} from "@/store/relay/relay-token-channel-change.repository";
+import { relayChannelSelectionArn } from "@/iam/resources/relay-channel-selection-resources";
 import type { Prisma } from "@prisma/client";
 import { Permission, buildAcsResource, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
@@ -19,6 +25,7 @@ import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 const operations = Object.freeze({
+  channel: { action: "quyan:relay:UpdateTokenChannel", managedAction: "quyan:relay:UpdateManagedTokenChannel" },
   toggle: { action: "quyan:relay:SetTokenStatus", managedAction: "quyan:relay:SetManagedTokenStatus" },
   refresh: { action: "quyan:relay:RefreshToken", managedAction: "quyan:relay:RefreshManagedToken" },
 });
@@ -35,6 +42,8 @@ export class RelayTokenLifecycleIamService {
     private readonly repository = RelayTokenMutationRepository.getInstance(),
     private readonly permissions: Pick<PermissionService, "checkUserPermissions"> = PermissionService.getInstance(),
     private readonly responses = RelayTokenMutationResponseRepository.getInstance(),
+    private readonly channelChanges = RelayTokenChannelChangeRepository.getInstance(),
+    private readonly channelSelections = RelayChannelSelectionRepository.getInstance(),
   ) {}
   async execute<T>(
     operation: keyof typeof operations,
@@ -44,9 +53,11 @@ export class RelayTokenLifecycleIamService {
     request: TypedRequest | undefined,
     project: (record: RelayTokenReadRecord) => Promise<T>,
     legacy: () => Promise<T>,
+    channelId?: string,
   ): Promise<T> {
     if (!isRelayTokenResourceId(tokenId) || (targetUserId !== undefined && !isRelayTokenResourceId(targetUserId)))
       throw new BadRequestError("Invalid token lifecycle target", undefined, { messageKey: "errors.badRequest" });
+    if (operation === "channel" && !isRelayTokenResourceId(channelId)) throw iamAccountDenied();
     const { action, managedAction } = operations[operation];
     const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
@@ -82,6 +93,12 @@ export class RelayTokenLifecycleIamService {
       const readSnapshot = await captureRelayTokenAuthority(identity, RELAY_TOKEN_AUTHORITY_REQUIREMENTS.read);
       const snapshot = await this.repository.snapshot(identity, operation),
         fingerprint = fingerprintIamPolicies(await this.iam.loadPolicies(principal));
+      const channelChange =
+        operation === "channel"
+          ? planRelayTokenChannelChange(await this.channelChanges.snapshot(userId, tokenId), channelId!)
+          : undefined;
+      const channelIds = channelChange?.configs.map((row) => row.channelId);
+      const selectionSnapshot = channelIds ? await this.channelSelections.snapshot(principal, channelIds) : undefined;
       const keyId = request.accessKey?.id,
         keyRevision = await captureIamAccessKeyRevision(principal, keyId);
       const assertRequest = () => {
@@ -105,6 +122,12 @@ export class RelayTokenLifecycleIamService {
             JSON.stringify(readSnapshot) ||
           fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== fingerprint ||
           (await captureIamAccessKeyRevision(principal, keyId, tx)) !== keyRevision
+        )
+          throw iamAccountDenied();
+        if (
+          channelIds &&
+          JSON.stringify(await this.channelSelections.snapshot(principal, channelIds, tx)) !==
+            JSON.stringify(selectionSnapshot)
         )
           throw iamAccountDenied();
         if (tx && verifyResponse) await verifyResponse(tx);
@@ -162,6 +185,11 @@ export class RelayTokenLifecycleIamService {
           await requireAllow(readAction, [platformUserArn(userId)]);
         }
         await requireAllow(readAction, [resource]);
+        if (channelIds)
+          await requireAllow(
+            "quyan:relay:SelectTokenChannel",
+            channelIds.map((id) => relayChannelSelectionArn(principal.accountOwnerId, id)),
+          );
         if (operation === "refresh") await requireAllow(revealAction, [resource]);
         for (const entry of [...evaluations.values()]) await decide(entry.action, entry.resources);
       };
@@ -169,10 +197,12 @@ export class RelayTokenLifecycleIamService {
       await authorize();
       const canReveal = (await decide(revealAction, [resource]))[0] === "Allow";
       const candidates = await this.repository.candidates(userId, [tokenId]);
+      const change = operation === "channel" ? channelChange : { kind: operation };
+      if (!change) throw iamAccountDenied();
       const result = await this.repository.apply(
         candidates,
         { identity, snapshot, recheck, authorize },
-        { kind: operation },
+        change,
         persist,
         async (tx) => {
           await recheck(tx);

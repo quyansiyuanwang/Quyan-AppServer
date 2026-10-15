@@ -169,6 +169,7 @@ export function legacyPermissionsToPrincipalPolicy(
         "quyan:relay:PreviewTokenComposition",
         "quyan:relay:SetTokenStatus",
         "quyan:relay:RefreshToken",
+        "quyan:relay:UpdateTokenChannel",
         "quyan:relay:SetTokenContentSafety",
       ].includes(action),
     );

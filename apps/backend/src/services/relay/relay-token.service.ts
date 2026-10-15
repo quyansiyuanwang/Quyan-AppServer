@@ -924,6 +924,39 @@ export class RelayTokenService {
     tokenId: string,
     actorUserId: string,
     data: UpdateRelayTokenChannelDto,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenLifecycleIamService.getInstance().execute(
+      "channel",
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.updateTokenChannelLegacy(tokenId, actorUserId, data, request, targetUserId),
+      data.channelId,
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_CHANNEL_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "更新了中转令牌的渠道绑定",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+
+  private async updateTokenChannelLegacy(
+    tokenId: string,
+    actorUserId: string,
+    data: UpdateRelayTokenChannelDto,
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {

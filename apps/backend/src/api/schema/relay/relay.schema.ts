@@ -1,3 +1,4 @@
+import { RELAY_TOKEN_ROUTING_LIMITS } from "@/constant/relay-token";
 import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
 import { z } from "zod";
 import {
@@ -257,7 +258,7 @@ export const createRelayTokenBodySchema = z
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
     channelId: z.string().trim().min(1).max(50).optional(),
-    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
+    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(RELAY_TOKEN_ROUTING_LIMITS.channels).optional(),
     failoverConfig: relayTokenFailoverConfigSchema.optional(),
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
@@ -372,7 +373,7 @@ export const updateRelayTokenBodySchema = z
     token: customTokenSchema.optional(),
     expiresAt: z.union([z.null(), z.coerce.date()]).optional(),
     channelId: z.string().trim().min(1).max(50).optional(),
-    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
+    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(RELAY_TOKEN_ROUTING_LIMITS.channels).optional(),
     failoverConfig: relayTokenFailoverConfigSchema.optional(),
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),
@@ -482,7 +483,7 @@ const relayTokenImportItemSchema = z
     automaticProxyPoolChannelId: z.string().trim().min(1).max(50).optional(),
     blockedAutomaticProxyPoolChannelIds: blockedAutomaticProxyPoolChannelIdsSchema,
     channelId: z.string().trim().min(1).max(50).optional(),
-    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(20).optional(),
+    channelConfigs: z.array(relayTokenChannelConfigSchema).min(1).max(RELAY_TOKEN_ROUTING_LIMITS.channels).optional(),
     failoverConfig: relayTokenFailoverConfigSchema.optional(),
     quotaLimit: z.union([z.null(), z.coerce.number().min(0).max(99999999.99)]).optional(),
     quotaWindows: z.array(relayTokenQuotaWindowSchema).max(20).optional(),

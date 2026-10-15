@@ -29,7 +29,7 @@ Reading another user's tokens, including another user in the same account, addit
 
 Export requires `quyan:relay:ExportTokens` and `RevealToken` on every selected token. Managed exports additionally require platform management qualification, personal endpoint admission, and `ExportManagedTokens` / `RevealManagedToken` on the target platform resources. Selected IDs preserve their request order. Without a selection, export includes enabled tokens; `includeDisabled: true` also includes disabled tokens, never deleted ones. If any requested token is missing or unauthorized, or a referenced composite member cannot be exported, the entire export fails; it does not silently produce a partial backup. Exported composite configuration preserves authorized member references but does not disclose member credentials unless those members are themselves selected and authorized for disclosure.
 
-These disclosure rules cover list, single-token read, export, and the single-token status and refresh operations described below. Duplication and other modifications remain separate operations with their own authorization requirements; do not treat metadata-only access as a guarantee that other granted operations cannot return credentials. In legacy or shadow mode, the existing permission checks remain authoritative; shadow comparison does not enable IAM enforcement.
+These disclosure rules cover list, single-token read, export, and the single-token status, refresh, and primary-channel operations described below. Duplication and other modifications remain separate operations with their own authorization requirements; do not treat metadata-only access as a guarantee that other granted operations cannot return credentials. In legacy or shadow mode, the existing permission checks remain authoritative; shadow comparison does not enable IAM enforcement.
 
 ### Resource boundaries for composition candidates
 
@@ -54,6 +54,14 @@ A toggle response includes credentials only with an additional `RevealToken` gra
 Managing another user additionally requires platform-management read and write eligibility, the current user's endpoint admission, and `SetManagedTokenStatus` / `RefreshManagedToken` plus `GetManagedToken` on the target platform user and token. Disclosure uses `RevealManagedToken`. Management-write eligibility does not automatically grant read or disclosure access. The OAuth application and access token must also retain both read and update scopes.
 
 The write, response configuration read and final authorization checks share one transaction boundary. Identity, policy, resource or disclosure changes, or a response-construction failure, roll back the operation instead of committing a rotation after response construction or authorization failed. This does not guarantee network delivery: if the connection fails after commit, an authorized caller can refresh again. Both endpoints retain replay protection and step-up verification. Legacy and shadow continue to execute their existing business logic and do not provide these enforce-mode guarantees.
+
+### Changing the primary ordered channel
+
+In IAM enforce mode, the primary-channel endpoint requires `quyan:relay:UpdateTokenChannel` and `quyan:relay:GetToken` on the target token. It also requires `quyan:relay:SelectTokenChannel` for **every channel in the resulting ordered list**, including retained fallback channels. Channel selection uses `acs:relay:*:<actorAccountId>:channel-selection/<channelId>`; this is not platform channel-management authority and does not permit reading upstream credentials.
+
+Channels must remain active, provider-enabled, and selectable under their business visibility rules. Hidden channels cannot be selected. A policy Allow does not override business visibility. Selecting an existing channel moves it to the front; selecting a new one preserves the previous channels as fallbacks, up to the ordered-list limit. This endpoint cannot convert a composite or automatic-pool token to ordered routing.
+
+The returned configuration requires metadata read access; the token string is included only with separate Reveal permission. Updating another user's token additionally requires the corresponding `UpdateManagedTokenChannel` and `GetManagedToken` grants and platform-management eligibility. Channel selection still uses the acting account's selection ARNs. The write, response read, and final authority checks share a transaction: a denial or response-construction failure rolls back both the primary channel and fallback-list changes. Existing OAuth scopes, replay protection, and step-up verification remain required. Legacy and shadow modes keep their existing authorization behavior.
 
 ### Single-token usage and details
 

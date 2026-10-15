@@ -1,3 +1,5 @@
+import { RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS } from "@/constant/relay-channel";
+import { normalizeRelayChannelVisibilityConfig } from "@/util/relay/relay-channel-visibility.util";
 import { PlatformRelayChannelManagementReadIamService } from "./platform-relay-channel-management-read-iam.service";
 import {
   projectRelayManagementChannels,
@@ -209,12 +211,6 @@ type RelayChannelWithMembers = RelayChannel & {
   }>;
 };
 
-const RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS = [
-  Permission.RELAY_CHANNEL_CREATE,
-  Permission.RELAY_CHANNEL_UPDATE,
-  Permission.RELAY_CHANNEL_DELETE,
-  Permission.RELAY_CHANNEL_REVIEW,
-];
 export class RelayChannelService {
   private static instance: RelayChannelService;
 
@@ -1318,7 +1314,7 @@ export class RelayChannelService {
   }
 
   private async canBypassVisibility(actorUserId: string): Promise<boolean> {
-    return this.permissionService.hasAnyPermission(actorUserId, RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS);
+    return this.permissionService.hasAnyPermission(actorUserId, [...RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS]);
   }
 
   private async buildManagementVisibilityWhere(
@@ -1360,11 +1356,7 @@ export class RelayChannelService {
   private normalizeVisibilityConfig(
     visibilityConfig?: RelayChannelVisibilityConfigDto | null,
   ): Required<RelayChannelVisibilityConfigDto> {
-    return {
-      userIds: Array.isArray(visibilityConfig?.userIds) ? visibilityConfig.userIds.filter(Boolean) : [],
-      groupIds: Array.isArray(visibilityConfig?.groupIds) ? visibilityConfig.groupIds.filter(Boolean) : [],
-      roleIds: Array.isArray(visibilityConfig?.roleIds) ? visibilityConfig.roleIds.filter(Boolean) : [],
-    };
+    return normalizeRelayChannelVisibilityConfig(visibilityConfig);
   }
 
   /** Share option visibility rules with authorized metadata consumers without loading channel credentials. */

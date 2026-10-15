@@ -1,3 +1,8 @@
+import {
+  RelayTokenChannelChangeRepository,
+  type RelayTokenChannelChange,
+} from "./relay-token-channel-change.repository";
+import { RelayChannelSelectionRepository } from "./relay-channel-selection.repository";
 import { generateRelayTokenValue } from "@/util/relay/relay-token-credential.util";
 import type { ContentSafetyPolicyOverride } from "@quyan/shared";
 import { Prisma } from "@prisma/client";
@@ -28,13 +33,16 @@ export interface RelayTokenMutationGuard {
   authorize: () => Promise<void>;
 }
 export type RelayTokenMetadataMutation =
+  | RelayTokenChannelChange
   | { kind: "delete" }
   | { kind: "toggle" }
   | { kind: "refresh" }
   | { kind: "status"; enabled: boolean }
   | { kind: "content-safety"; config: ContentSafetyPolicyOverride | null };
-function mutationData(change: RelayTokenMetadataMutation): Prisma.RelayTokenUpdateManyMutationInput {
+function mutationData(change: RelayTokenMetadataMutation): Prisma.RelayTokenUncheckedUpdateManyInput {
   switch (change.kind) {
+    case "channel":
+      return { channelId: change.channelId };
     case "toggle":
     case "refresh":
       return {}; // Derived from the locked target after final admission, never from client data.
@@ -107,8 +115,9 @@ export class RelayTokenMutationRepository {
     const ids = targets.map((target) => target.id).sort();
     if (
       !targets.length ||
-      ((change.kind === "toggle" || change.kind === "refresh") && targets.length !== 1) ||
+      ((change.kind === "toggle" || change.kind === "refresh" || change.kind === "channel") && targets.length !== 1) ||
       targets.some((row) => row.userId !== identity.userId) ||
+      (change.kind === "channel" && (change.source.id !== ids[0] || change.source.userId !== identity.userId)) ||
       new Set(ids).size !== ids.length ||
       ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest
     )
@@ -153,6 +162,15 @@ export class RelayTokenMutationRepository {
             throw iamAccountDenied();
           await check();
           await guard.authorize();
+          if (change.kind === "channel") {
+            await RelayChannelSelectionRepository.getInstance().lock(
+              tx,
+              change.configs.map((row) => row.channelId),
+            );
+            await RelayTokenChannelChangeRepository.getInstance().verify(change, false, tx);
+            await check();
+            await guard.authorize();
+          }
           let affected = 0;
           if (persist) {
             const result = await tx.relayToken.updateMany({
@@ -169,7 +187,15 @@ export class RelayTokenMutationRepository {
             });
             if (result.count !== targets.length) throw iamAccountDenied();
             affected = result.count;
+            if (change.kind === "channel") {
+              await tx.relayTokenChannelConfig.deleteMany({ where: { relayTokenId: ids[0] } });
+              await tx.relayTokenChannelConfig.createMany({
+                data: change.configs.map((row) => ({ ...row, relayTokenId: ids[0]! })),
+              });
+            }
           }
+          if (change.kind === "channel")
+            await RelayTokenChannelChangeRepository.getInstance().verify(change, persist, tx);
           const projected = persist && response ? await response(tx) : undefined;
           // Response projection and all proof reads remain inside the rollback boundary.
           // Denial here throws out the executed UPDATE too, not merely the HTTP response.
@@ -177,6 +203,8 @@ export class RelayTokenMutationRepository {
           await guard.authorize();
           if ((await readIamAuthorizationRevision(tx, identity.principal.accountOwnerId)) !== revision)
             throw iamAccountDenied();
+          if (change.kind === "channel")
+            await RelayTokenChannelChangeRepository.getInstance().verify(change, persist, tx);
           await guard.recheck(tx);
           return { total: targets.length, affected, ...(response && persist ? { response: projected } : {}) };
         },

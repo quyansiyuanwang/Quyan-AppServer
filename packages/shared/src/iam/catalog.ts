@@ -419,6 +419,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':error-group/{resourceId}',
   },
   resource('relay', 'model-catalog-entry'),
+  resource('relay', 'channel-selection'),
   {
     ...resource('platform', 'relay-request'),
     accountScope: 'platform',
@@ -1542,6 +1543,45 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
   },
+  {
+    action: 'quyan:relay:SelectTokenChannel',
+    service: 'relay',
+    operation: 'SelectTokenChannel',
+    accessLevel: 'Write',
+    resourceTypes: ['relay/channel-selection'],
+    apiRoutes: ['PUT /v1/relay/tokens/{id}/channel'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.RELAY_TOKEN_UPDATE,
+  },
+  ...[false, true].map(
+    (managed): IamActionDefinition => ({
+      action: managed ? 'quyan:relay:UpdateManagedTokenChannel' : 'quyan:relay:UpdateTokenChannel',
+      service: 'relay',
+      operation: managed ? 'UpdateManagedTokenChannel' : 'UpdateTokenChannel',
+      accessLevel: 'Write',
+      resourceTypes: managed
+        ? ['platform/user', 'platform/relay-token']
+        : ['quyan/user', 'relay/token'],
+      apiRoutes: ['PUT /v1/relay/tokens/{id}/channel'],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      ...(managed ? { authorizationBoundary: 'platform' as const } : {}),
+      conditionalActions: [
+        'quyan:relay:SelectTokenChannel',
+        'quyan:relay:GetToken',
+        'quyan:relay:GetManagedToken',
+        'quyan:relay:RevealToken',
+        'quyan:relay:RevealManagedToken',
+        ...(!managed ? ['quyan:relay:UpdateManagedTokenChannel'] : []),
+      ],
+      legacyPermission: managed
+        ? Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE
+        : Permission.RELAY_TOKEN_UPDATE,
+    }),
+  ),
   {
     action: 'quyan:relay:RefreshToken',
     service: 'relay',
