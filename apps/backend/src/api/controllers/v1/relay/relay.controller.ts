@@ -260,8 +260,17 @@ export class RelayController extends Controller {
   }
 
   @Delete("tokens/{id}")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:delete"])
-  @RequirePermission(Permission.RELAY_TOKEN_DELETE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DeleteToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_DELETE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -407,8 +416,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/batch/delete")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:delete"])
-  @RequirePermission(Permission.RELAY_TOKEN_DELETE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DeleteToken",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_DELETE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

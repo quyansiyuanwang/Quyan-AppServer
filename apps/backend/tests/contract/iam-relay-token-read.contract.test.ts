@@ -30,3 +30,17 @@ describe("generated resource-authorized relay token read contract", () => {
     expect(schema.properties).not.toHaveProperty("upstreamApiKey");
   });
 });
+
+describe("generated resource-authorized relay token deletion contract", () => {
+  it.each([
+    ["/v1/relay/tokens/{id}", "delete"],
+    ["/v1/relay/tokens/batch/delete", "post"],
+  ])("retains authenticated delete scope, replay and step-up protection for %s %s", (path, method) => {
+    const operation = document.paths[path!][method!];
+    expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_DELETE] });
+    expect(operation["X-Replay-Protected"]).toBe(true);
+    expect(operation["X-Two-Factor-Challenge"]).toMatchObject({ required: true, purpose: "stepup", method: "code" });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+  });
+});

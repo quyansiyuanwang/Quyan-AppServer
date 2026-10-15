@@ -1,5 +1,4 @@
 import { Prisma } from "@prisma/client";
-import { Permission, getOAuthScopeAliases, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import {
@@ -9,20 +8,16 @@ import {
   relayTokenReadAction,
   type RelayTokenReadOperation,
 } from "@/iam/resources/relay-token-resources";
-import { assertIamAccountPrincipal, iamAccountDenied } from "../users/iam-account-principal";
-import { platformManagementGroupSnapshot } from "../users/platform-management-principal";
+import { iamAccountDenied } from "../users/iam-account-principal";
 import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
-const userSelect = { id: true, accountOwnerId: true, groupId: true, status: true, updateTime: true } as const;
-export interface RelayTokenReadIdentity {
-  principal: IamPrincipal;
-  userId: string;
-  managed: boolean;
-  oauth?: { id: string; clientId: string };
-}
-export interface RelayTokenReadSnapshot {
-  users: Prisma.UserGetPayload<{ select: typeof userSelect }>[];
-  group?: { id: string; updateTime: Date };
-}
+import {
+  captureRelayTokenAuthority,
+  RELAY_TOKEN_AUTHORITY_REQUIREMENTS,
+  type RelayTokenAuthorityIdentity,
+  type RelayTokenAuthoritySnapshot,
+} from "./relay-token-authority";
+export type RelayTokenReadIdentity = RelayTokenAuthorityIdentity;
+export type RelayTokenReadSnapshot = RelayTokenAuthoritySnapshot;
 const metadataSelect = {
   id: true,
   userId: true,
@@ -100,72 +95,15 @@ export class RelayTokenReadRepository {
     if (!row || row.id !== id || !isRelayTokenResourceId(row.userId)) throw iamAccountDenied();
     return row.userId;
   }
-  async snapshot(
-    identity: RelayTokenReadIdentity,
-    tx: Prisma.TransactionClient = prisma,
-  ): Promise<RelayTokenReadSnapshot> {
-    const { principal, userId, managed, oauth } = identity;
-    if (!isRelayTokenResourceId(userId) || managed !== (userId !== principal.subjectUserId)) throw iamAccountDenied();
-    await assertIamAccountPrincipal(principal, tx);
-    const ids = [...new Set([principal.subjectUserId, principal.accountOwnerId, userId])].sort();
-    const users = await tx.user.findMany({
-      where: { id: { in: ids }, status: 1 },
-      select: userSelect,
-      orderBy: { id: "asc" },
-    });
-    if (users.length !== ids.length || users.some((row, index) => row.id !== ids[index])) throw iamAccountDenied();
-    const actor = users.find((row) => row.id === principal.subjectUserId)!;
-    if (actor.groupId) {
-      const group = await tx.group.findUnique({
-        where: { id: actor.groupId },
-        select: { status: true, accountOwnerId: true },
-      });
-      if (!group || group.status !== 1 || (group.accountOwnerId && group.accountOwnerId !== principal.accountOwnerId))
-        throw iamAccountDenied();
-    }
-    const group = managed
-      ? await platformManagementGroupSnapshot(principal, Permission.RELAY_TOKEN_MANAGE_OTHERS_READ, tx)
-      : undefined;
-    if (oauth) {
-      const token = await tx.oAuthAccessToken.findUnique({
-        where: { id: oauth.id },
-        select: {
-          userId: true,
-          oauthClientId: true,
-          status: true,
-          revokedAt: true,
-          expiresAt: true,
-          scopes: true,
-          oauthClient: { select: { status: true, reviewStatus: true, scopes: true } },
-        },
-      });
-      const required = [Permission.RELAY_TOKEN_READ, ...(managed ? [Permission.RELAY_TOKEN_MANAGE_OTHERS_READ] : [])];
-      const scoped = (scopes: unknown) =>
-        Array.isArray(scopes) &&
-        required.every((scope) => getOAuthScopeAliases(scope).some((alias) => scopes.includes(alias)));
-      if (
-        !token ||
-        token.userId !== principal.subjectUserId ||
-        token.oauthClientId !== oauth.clientId ||
-        token.status !== 1 ||
-        token.revokedAt ||
-        token.expiresAt <= new Date() ||
-        !scoped(token.scopes) ||
-        token.oauthClient.status !== 1 ||
-        token.oauthClient.reviewStatus !== "approved" ||
-        !scoped(token.oauthClient.scopes)
-      )
-        throw iamAccountDenied();
-    }
-    return { users, ...(group ? { group } : {}) };
+  snapshot(identity: RelayTokenReadIdentity, tx: Prisma.TransactionClient = prisma): Promise<RelayTokenReadSnapshot> {
+    return captureRelayTokenAuthority(identity, RELAY_TOKEN_AUTHORITY_REQUIREMENTS.read, tx);
   }
   async recheck(
     identity: RelayTokenReadIdentity,
     expected: RelayTokenReadSnapshot,
     tx: Prisma.TransactionClient = prisma,
   ) {
-    const current = await this.snapshot(identity, tx);
-    if (JSON.stringify(current) !== JSON.stringify(expected)) throw iamAccountDenied();
+    if (JSON.stringify(await this.snapshot(identity, tx)) !== JSON.stringify(expected)) throw iamAccountDenied();
   }
   async assertTargets(identity: RelayTokenReadIdentity, targets: readonly Target[]) {
     for (let offset = 0; offset < targets.length; offset += IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) {

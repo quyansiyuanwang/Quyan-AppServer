@@ -31,6 +31,14 @@ Export requires `quyan:relay:ExportTokens` and `RevealToken` on every selected t
 
 These disclosure rules cover list, single-token read, and export. Refresh, duplication, and modification remain separate operations with their own authorization requirements; do not treat metadata-only access as a guarantee that other granted operations cannot return credentials. In legacy or shadow mode, the existing permission checks remain authoritative; shadow comparison does not enable IAM enforcement.
 
+### Single and batch deletion
+
+With IAM enforcement enabled, single and batch deletion check `quyan:relay:DeleteToken` on every target resource. Deletion does not additionally require read or credential-disclosure permission, and its response does not return credentials. Deleting another user's tokens, including a same-account peer's, also requires platform-management eligibility, the current user's delete endpoint admission, and `quyan:relay:DeleteManagedToken` on the target platform user and every token. Management-read eligibility alone is insufficient.
+
+A batch accepts at most 200 distinct token IDs. If any target is missing, already deleted, outside the selected user, denied, or affected by an identity, authorization or resource change during execution, the entire request fails without partially deleting tokens. Disabled or expired tokens may still be deleted when authorized. Single deletion follows the same checks.
+
+Deletion makes a token unavailable without removing existing composite-member references or historical usage. A composite branch referencing it becomes unavailable; edit the composition separately to remove that reference. The endpoints retain replay protection and step-up verification. Legacy and shadow modes continue to execute the existing deletion behavior; the resource-level and all-or-nothing guarantees above apply to enforce mode.
+
 ### Quota windows
 
 Each token can have one or more rolling time-window rate limits (e.g. per-minute, per-hour, per-day):

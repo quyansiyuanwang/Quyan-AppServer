@@ -1,3 +1,4 @@
+import { RelayTokenDeleteIamService } from "./relay-token-delete-iam.service";
 import { env } from "@/config/env";
 import type { RelayTokenReadRecord } from "@/store/relay/relay-token-read.repository";
 import { RelayTokenReadIamService } from "./relay-token-read-iam.service";
@@ -796,7 +797,31 @@ export class RelayTokenService {
     return this.toDto(token, quotaWindowUsageMap);
   }
 
-  async revokeToken(tokenId: string, actorUserId: string, request?: Request, targetUserId?: string): Promise<void> {
+  async revokeToken(
+    tokenId: string,
+    actorUserId: string,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<void> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenDeleteIamService.getInstance().remove(
+      actorUserId,
+      { ids: [tokenId], targetUserId },
+      request,
+      true,
+      async () => {
+        await this.revokeTokenLegacy(tokenId, actorUserId, request, targetUserId);
+        return { total: 1, affected: 1 };
+      },
+    );
+    if (mode === "enforce") await this.logNativeTokenDeletion(actorUserId, [tokenId], result, request, true);
+  }
+  private async revokeTokenLegacy(
+    tokenId: string,
+    actorUserId: string,
+    request?: Request,
+    targetUserId?: string,
+  ): Promise<void> {
     const token = await this.getAccessibleToken(
       tokenId,
       actorUserId,
@@ -1313,6 +1338,38 @@ export class RelayTokenService {
   }
 
   async batchDeleteTokens(
+    body: BatchDeleteRelayTokensRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayTokensResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenDeleteIamService.getInstance().remove(actorUserId, body, request, false, () =>
+      this.batchDeleteTokensLegacy(body, actorUserId, request),
+    );
+    if (mode === "enforce") await this.logNativeTokenDeletion(actorUserId, body.ids, result, request, false);
+    return { total: result.total, affected: result.affected };
+  }
+  private async logNativeTokenDeletion(
+    actorUserId: string,
+    ids: string[],
+    result: { affected: number; userId?: string },
+    request: TypedRequest | undefined,
+    single: boolean,
+  ) {
+    await this.businessLogService.logOperation({
+      operationType: single ? OperationType.RELAY_TOKEN_DELETE : OperationType.RELAY_TOKEN_BATCH_DELETE,
+      operationCategory: OperationCategory.RELAY,
+      actorUserId,
+      targetUserId: result.userId,
+      targetResourceId: single ? ids[0] : undefined,
+      targetResourceType: "RELAY_TOKEN",
+      description: `删除了 ${result.affected} 个中转令牌`,
+      metadata: { ids, total: result.affected },
+      success: true,
+      ...buildBusinessLogRequestContext(request),
+    });
+  }
+  private async batchDeleteTokensLegacy(
     body: BatchDeleteRelayTokensRequest,
     actorUserId: string,
     request?: Request,

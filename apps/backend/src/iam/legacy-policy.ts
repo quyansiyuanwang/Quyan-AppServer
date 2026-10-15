@@ -131,19 +131,20 @@ export function legacyPermissionsToPrincipalPolicy(
           }),
         ],
       });
-    const personalRelayRead = statement.Action.filter((action) =>
+    const personalRelayAccess = statement.Action.filter((action) =>
       [
         "quyan:relay:ListTokens",
         "quyan:relay:GetToken",
         "quyan:relay:RevealToken",
         "quyan:relay:ExportTokens",
+        "quyan:relay:DeleteToken",
       ].includes(action),
     );
-    if (personalRelayRead.length)
+    if (personalRelayAccess.length)
       statements.push({
         Effect: "Allow",
-        Sid: "LegacyRelayOwnRead",
-        Action: personalRelayRead,
+        Sid: "LegacyRelayOwnAccess",
+        Action: personalRelayAccess,
         Resource: [
           buildAcsResource({
             service: "quyan",
@@ -164,7 +165,7 @@ export function legacyPermissionsToPrincipalPolicy(
         !jsonAccess.includes(action) &&
         !jsonCreate.includes(action) &&
         !ojAccess.includes(action) &&
-        !personalRelayRead.includes(action),
+        !personalRelayAccess.includes(action),
     );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>
