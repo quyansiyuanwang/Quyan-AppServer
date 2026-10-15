@@ -101,3 +101,21 @@ describe("generated atomic token lifecycle contract", () => {
     });
   });
 });
+
+describe("generated resource-filtered summary and switch-log contracts", () => {
+  it.each([
+    ["/v1/relay/tokens/usage-summaries", "relay:token:read"],
+    ["/v1/relay/tokens/{id}/switch-logs", "relay:usage:read"],
+  ])("retains authenticated scope and denial responses for %s", (path, scope) => {
+    const operation = document.paths[path!].get;
+    expect(operation.security).toContainEqual({ jwt: [scope] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+  });
+  it("keeps raw switch errors optional and never exposes physical channel IDs in its DTO", () => {
+    const schema = document.components.schemas.RelayChannelSwitchLogDto;
+    expect(schema.required).not.toContain("triggerError");
+    expect(schema.properties).not.toHaveProperty("fromChannelId");
+    expect(schema.properties).not.toHaveProperty("toChannelId");
+  });
+});

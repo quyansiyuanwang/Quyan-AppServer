@@ -80,7 +80,7 @@ const validateCompositionFields = (
 
 const blockedAutomaticProxyPoolChannelIdsSchema = z.array(z.string().trim().min(1).max(50)).max(100).optional();
 
-const relayTokenIdsSchema = z
+export const relayTokenIdsSchema = z
   .array(z.string().trim().min(1).max(50))
   .min(1)
   .max(200)
@@ -658,13 +658,8 @@ export const relayTokenUsageSummaryQuerySchema = relayTokenUsageQueryBaseSchema
       .string()
       .max(4000)
       .refine(
-        (value) =>
-          value
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean)
-            .every((item) => item.length <= 50),
-        "tokenIds must be a comma-separated list of token ids",
+        (value) => relayTokenIdsSchema.safeParse(value.split(",")).success,
+        "tokenIds must contain 1 to 200 unique nonempty token ids",
       )
       .optional(),
   })

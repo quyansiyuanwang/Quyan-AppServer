@@ -191,8 +191,17 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/usage-summaries")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenUsage",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateQuery(relayTokenUsageSummaryQuerySchema))
   async getUsageSummaries(
     @Request() request: TypedRequest,
@@ -208,7 +217,14 @@ export class RelayController extends Controller {
       .map((item) => item.trim())
       .filter(Boolean);
 
-    return this.relayTokenService.getUsageSummaries(request.user!.userId, parsedTokenIds, start, end, targetUserId);
+    return this.relayTokenService.getUsageSummaries(
+      request.user!.userId,
+      parsedTokenIds,
+      start,
+      end,
+      targetUserId,
+      request,
+    );
   }
 
   @Get("tokens/current/quota-summary")
@@ -584,8 +600,17 @@ export class RelayController extends Controller {
   }
 
   @Get("tokens/{id}/switch-logs")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:usage:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetTokenSwitchLogs",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateParams(relayTokenIdParamsSchema), validateQuery(relayTokenSwitchLogsQuerySchema))
   async getTokenSwitchLogs(
     @Path() id: string,
@@ -593,7 +618,7 @@ export class RelayController extends Controller {
     @Query() limit?: number,
     @Query() targetUserId?: string,
   ): Promise<RelayTokenSwitchLogsDto> {
-    return this.relayTokenService.getSwitchLogs(id, request.user!.userId, limit, targetUserId);
+    return this.relayTokenService.getSwitchLogs(id, request.user!.userId, limit, targetUserId, request);
   }
 
   @Get("tokens/{id}/available-models")

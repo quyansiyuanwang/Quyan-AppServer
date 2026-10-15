@@ -6,6 +6,7 @@ vi.mock("@/iam/audit/iam-audit.service", () => ({ auditIamDecision: vi.fn() }));
 vi.mock("@/store/users/iam-access-key-authority", () => ({ captureIamAccessKeyRevision: vi.fn() }));
 import { Project } from "ts-morph";
 import { Permission, getIamActionDefinition, isIamActionResourceCompatible } from "@quyan/shared";
+import { relayTokenUsageSummaryQuerySchema } from "@/api/schema/relay/relay.schema";
 import { env } from "@/config/env";
 import { RelayTokenInspectionIamService } from "@/services/relay/relay-token-inspection-iam.service";
 import { captureIamAccessKeyRevision } from "@/store/users/iam-access-key-authority";
@@ -18,7 +19,15 @@ import { collectIamRoutes } from "../../../scripts/iam/route-inventory";
 import type { TypedRequest } from "@/types/express";
 const mode = env.security.iamAuthorizationMode;
 const iam = { loadPolicies: vi.fn(), authorizeMany: vi.fn() },
-  repository = { snapshot: vi.fn(), tokenOwner: vi.fn(), target: vi.fn(), assertTarget: vi.fn() },
+  repository = {
+    snapshot: vi.fn(),
+    tokenOwner: vi.fn(),
+    target: vi.fn(),
+    assertTarget: vi.fn(),
+    list: vi.fn(),
+    assertTargets: vi.fn(),
+    switchLogs: vi.fn(),
+  },
   permissions = { checkUserPermissions: vi.fn() },
   legacy = vi.fn();
 const service = new RelayTokenInspectionIamService(iam, repository, permissions);
@@ -182,5 +191,102 @@ describe("token usage inspection authorization", () => {
     repository.target.mockRejectedValue(new Error("fixture unavailable"));
     await expect(read()).rejects.toThrow("fixture unavailable");
     expect(legacy).not.toHaveBeenCalled();
+  });
+});
+
+describe("batch usage and switch inspection admission", () => {
+  const summaries = (ids: string[] | undefined = undefined, req = request()) =>
+    service.summaries("actor", ids, undefined, req, project, legacy);
+  const logs = (req = request(), targetUserId?: string) =>
+    service.switchLogs("actor", "token", targetUserId, req, project, legacy);
+  it("declares batch usage and switch logs independently of credential access", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/relay/relay.controller.ts");
+    const routes = collectIamRoutes(project.getSourceFiles(), process.cwd());
+    expect(routes.find((row) => row.key === "GET /v1/relay/tokens/usage-summaries")).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:relay:GetTokenUsage"],
+      issues: [],
+    });
+    expect(routes.find((row) => row.key === "GET /v1/relay/tokens/{id}/switch-logs")).toMatchObject({
+      coverage: "explicit",
+      actions: ["quyan:relay:GetTokenSwitchLogs"],
+      issues: [],
+    });
+    expect(getIamActionDefinition("quyan:relay:GetManagedTokenSwitchLogs")).toMatchObject({
+      authorizationBoundary: "platform",
+      legacyPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
+    });
+  });
+  it("keeps batch selection order and checks every original decision again before release", async () => {
+    repository.list.mockImplementation(async (userId, ids, decide) => {
+      expect(userId).toBe("actor");
+      expect(ids).toEqual(["second", "first"]);
+      await decide(ids);
+      return [{ id: "second" }, { id: "first" }];
+    });
+    await summaries(["second", "first"]);
+    expect(project).toHaveBeenCalledWith([{ id: "second" }, { id: "first" }]);
+    expect(repository.assertTargets).toHaveBeenCalledOnce();
+    expect(iam.authorizeMany).toHaveBeenCalledTimes(2);
+  });
+  it("discards batch projections if a contributing decision changes", async () => {
+    repository.list.mockImplementation(async (_userId, _ids, decide) => {
+      await decide(["token"]);
+      return [{ id: "token" }];
+    });
+    project.mockImplementation(async () => {
+      iam.authorizeMany.mockResolvedValue([{ decision: "ExplicitDeny" }]);
+      return {};
+    });
+    await expect(summaries()).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("does not query a single-token owner for a list scope", async () => {
+    repository.list.mockResolvedValue([]);
+    await summaries();
+    expect(repository.tokenOwner).not.toHaveBeenCalled();
+    expect(project).toHaveBeenCalledWith([]);
+  });
+  it.each(
+    [[], ["same", "same"], ["../token"], Array.from({ length: 201 }, (_, i) => "id" + i)].map((ids) => ({ ids })),
+  )("rejects invalid explicit selections %j before any policy query", async ({ ids }) => {
+    await expect(summaries(ids)).rejects.toMatchObject({ statusCode: 400 });
+    expect(iam.loadPolicies).not.toHaveBeenCalled();
+  });
+  it.each(["", ",", "one,", "one,,two", "one, one", Array.from({ length: 201 }, (_, i) => "id" + i).join(",")])(
+    "rejects ambiguous or oversized comma-separated IDs %j",
+    (tokenIds) => {
+      expect(relayTokenUsageSummaryQuerySchema.safeParse({ tokenIds }).success).toBe(false);
+    },
+  );
+  it("accepts omitted IDs and canonicalizes whitespace only through the shared ID schema", () => {
+    expect(relayTokenUsageSummaryQuerySchema.safeParse({}).success).toBe(true);
+    expect(relayTokenUsageSummaryQuerySchema.safeParse({ tokenIds: "one, two" }).success).toBe(true);
+  });
+  it("uses fixed switch-log Action even when the client forges one", async () => {
+    await logs();
+    expect(new Set(iam.authorizeMany.mock.calls.map(([input]) => input.action))).toEqual(
+      new Set(["quyan:relay:GetTokenSwitchLogs"]),
+    );
+    expect(repository.list).not.toHaveBeenCalled();
+    expect(repository.assertTarget).toHaveBeenCalled();
+  });
+  it("managed switch logs require user and token platform grants", async () => {
+    await logs(request(), "peer");
+    const calls = iam.authorizeMany.mock.calls.map(([input]) => ({ action: input.action, resources: input.resources }));
+    expect(calls).toContainEqual({
+      action: "quyan:relay:GetManagedTokenSwitchLogs",
+      resources: [platformUserArn("peer")],
+    });
+    expect(calls).toContainEqual({
+      action: "quyan:relay:GetManagedTokenSwitchLogs",
+      resources: [platformRelayTokenArn("peer", "token")],
+    });
+  });
+  it("switch-log shadow mode never invokes its native data projection", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    await logs();
+    expect(project).not.toHaveBeenCalled();
+    expect(legacy).toHaveBeenCalledOnce();
   });
 });

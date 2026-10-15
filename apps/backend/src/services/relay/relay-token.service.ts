@@ -1,3 +1,5 @@
+import { relayTokenSwitchLogsQuerySchema } from "@/api/schema/relay/relay.schema";
+import { RelayTokenInspectionRepository } from "@/store/relay/relay-token-inspection.repository";
 import { RelayTokenLifecycleIamService } from "./relay-token-lifecycle-iam.service";
 import { generateRelayTokenValue } from "@/util/relay/relay-token-credential.util";
 import { RelayTokenInspectionIamService } from "./relay-token-inspection-iam.service";
@@ -1656,12 +1658,36 @@ export class RelayTokenService {
     startDate?: Date,
     endDate?: Date,
     targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenUsageSummaryBatchDto> {
+    return RelayTokenInspectionIamService.getInstance().summaries(
+      actorUserId,
+      tokenIds,
+      targetUserId,
+      request,
+      (targets) => this.buildTokenUsageSummaries(targets, startDate, endDate),
+      () => this.getUsageSummariesLegacy(actorUserId, tokenIds, startDate, endDate, targetUserId),
+    );
+  }
+  private async getUsageSummariesLegacy(
+    actorUserId: string,
+    tokenIds?: string[],
+    startDate?: Date,
+    endDate?: Date,
+    targetUserId?: string,
   ): Promise<RelayTokenUsageSummaryBatchDto> {
     const userId = await this.resolveManagedUserId(actorUserId, targetUserId);
     const targetTokens = tokenIds?.length
       ? await this.getRequestedUsageSummaryTargets(actorUserId, tokenIds, userId)
       : await this.relayTokenRepo.findUsageSummaryTargets(undefined, userId);
 
+    return this.buildTokenUsageSummaries(targetTokens, startDate, endDate);
+  }
+  private async buildTokenUsageSummaries(
+    targetTokens: RelayTokenUsageSummaryTarget[],
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<RelayTokenUsageSummaryBatchDto> {
     if (!startDate && !endDate)
       return {
         summaries: targetTokens.map((token) =>
@@ -1872,6 +1898,28 @@ export class RelayTokenService {
   }
 
   async getSwitchLogs(
+    tokenId: string,
+    actorUserId: string,
+    limit: number = 50,
+    targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenSwitchLogsDto> {
+    if (!relayTokenSwitchLogsQuerySchema.safeParse({ limit, targetUserId }).success)
+      throw new BadRequestError("Invalid switch log limit", undefined, { messageKey: "errors.badRequest" });
+    return RelayTokenInspectionIamService.getInstance().switchLogs(
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (target) => ({
+        logs: (await RelayTokenInspectionRepository.getInstance().switchLogs(target.userId, target.id, limit)).map(
+          (log) => this.toSwitchLogDto(log),
+        ),
+      }),
+      () => this.getSwitchLogsLegacy(tokenId, actorUserId, limit, targetUserId),
+    );
+  }
+  private async getSwitchLogsLegacy(
     tokenId: string,
     actorUserId: string,
     limit: number = 50,

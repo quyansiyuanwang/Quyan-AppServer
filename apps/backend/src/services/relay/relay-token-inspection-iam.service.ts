@@ -1,3 +1,4 @@
+import { relayTokenIdsSchema } from "@/api/schema/relay/relay.schema";
 import { Permission, buildAcsResource, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -17,8 +18,12 @@ import { PermissionService } from "@/services/users/permission.service";
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
-const action = "quyan:relay:GetTokenUsage",
-  managedAction = "quyan:relay:GetManagedTokenUsage";
+type Selection = { kind: "usage" | "switch-logs"; id: string } | { kind: "usage-batch"; ids?: string[] };
+const inspectionActions = Object.freeze({
+  usage: { action: "quyan:relay:GetTokenUsage", managedAction: "quyan:relay:GetManagedTokenUsage" },
+  "usage-batch": { action: "quyan:relay:GetTokenUsage", managedAction: "quyan:relay:GetManagedTokenUsage" },
+  "switch-logs": { action: "quyan:relay:GetTokenSwitchLogs", managedAction: "quyan:relay:GetManagedTokenSwitchLogs" },
+});
 export class RelayTokenInspectionIamService {
   private static instance: RelayTokenInspectionIamService;
   static getInstance() {
@@ -40,8 +45,67 @@ export class RelayTokenInspectionIamService {
     read: (target: RelayTokenInspectionTarget) => Promise<T>,
     legacy: () => Promise<T>,
   ): Promise<T> {
-    if (!isRelayTokenResourceId(tokenId) || (targetUserId !== undefined && !isRelayTokenResourceId(targetUserId)))
+    return this.inspect(
+      { kind: "usage", id: tokenId },
+      actorUserId,
+      targetUserId,
+      request,
+      (targets) => read(targets[0]!),
+      legacy,
+    );
+  }
+  async summaries<T>(
+    actorUserId: string,
+    ids: string[] | undefined,
+    targetUserId: string | undefined,
+    request: TypedRequest | undefined,
+    read: (targets: RelayTokenInspectionTarget[]) => Promise<T>,
+    legacy: () => Promise<T>,
+  ) {
+    const parsed = ids === undefined ? undefined : relayTokenIdsSchema.safeParse(ids);
+    if (parsed && !parsed.success)
       throw new BadRequestError("Invalid token usage selection", undefined, { messageKey: "errors.badRequest" });
+    return this.inspect(
+      { kind: "usage-batch", ids: parsed?.success ? parsed.data : undefined },
+      actorUserId,
+      targetUserId,
+      request,
+      read,
+      legacy,
+    );
+  }
+  async switchLogs<T>(
+    actorUserId: string,
+    id: string,
+    targetUserId: string | undefined,
+    request: TypedRequest | undefined,
+    read: (target: RelayTokenInspectionTarget) => Promise<T>,
+    legacy: () => Promise<T>,
+  ) {
+    return this.inspect(
+      { kind: "switch-logs", id },
+      actorUserId,
+      targetUserId,
+      request,
+      (targets) => read(targets[0]!),
+      legacy,
+    );
+  }
+  private async inspect<T>(
+    selection: Selection,
+    actorUserId: string,
+    targetUserId: string | undefined,
+    request: TypedRequest | undefined,
+    read: (targets: RelayTokenInspectionTarget[]) => Promise<T>,
+    legacy: () => Promise<T>,
+  ): Promise<T> {
+    if (
+      ("id" in selection && !isRelayTokenResourceId(selection.id)) ||
+      ("ids" in selection && selection.ids?.some((id) => !isRelayTokenResourceId(id))) ||
+      (targetUserId !== undefined && !isRelayTokenResourceId(targetUserId))
+    )
+      throw new BadRequestError("Invalid token inspection selection", undefined, { messageKey: "errors.badRequest" });
+    const { action, managedAction } = inspectionActions[selection.kind];
     const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {
@@ -62,9 +126,9 @@ export class RelayTokenInspectionIamService {
     )
       throw iamAccountDenied();
     if (mode === "legacy") return legacy();
-    const native = async <U>(inspect: (target: RelayTokenInspectionTarget) => Promise<U>): Promise<U> => {
+    const native = async <U>(inspect: (targets: RelayTokenInspectionTarget[]) => Promise<U>): Promise<U> => {
       await this.iam.loadPolicies(principal);
-      const userId = targetUserId ?? (await this.repository.tokenOwner(tokenId));
+      const userId = targetUserId ?? ("id" in selection ? await this.repository.tokenOwner(selection.id) : actorUserId);
       const oauth = request.oauthAccessToken;
       if (oauth && oauth.userId !== actorUserId) throw iamAccountDenied();
       const identity: RelayTokenAuthorityIdentity = {
@@ -100,17 +164,27 @@ export class RelayTokenInspectionIamService {
         // Async proof reads must not allow the request binding to change underneath them.
         assertRequest();
       };
-      const resource = identity.managed
-        ? platformRelayTokenArn(userId, tokenId)
-        : relayTokenArn(principal.accountOwnerId, userId, tokenId);
-      const requireAllow = async (operation: string, targets: readonly string[]) => {
-        const results = await platformCollectionDecisions(this.iam, {
+      const resource = (id: string) =>
+        identity.managed ? platformRelayTokenArn(userId, id) : relayTokenArn(principal.accountOwnerId, userId, id);
+      const evaluations = new Map<
+        string,
+        { action: string; resources: readonly string[]; decisions: readonly string[] }
+      >();
+      const decide = async (operation: string, targets: readonly string[]) => {
+        const decisions = await platformCollectionDecisions(this.iam, {
           principal,
           action: operation,
           request,
           resources: targets,
         });
-        if (results.some((result) => result !== "Allow")) throw iamAccountDenied();
+        const key = JSON.stringify([operation, targets]),
+          previous = evaluations.get(key);
+        if (previous && decisions.some((value, i) => value !== previous.decisions[i])) throw iamAccountDenied();
+        evaluations.set(key, { action: operation, resources: targets, decisions });
+        return decisions;
+      };
+      const requireAllow = async (operation: string, targets: readonly string[]) => {
+        if ((await decide(operation, targets)).some((result) => result !== "Allow")) throw iamAccountDenied();
       };
       const authorize = async () => {
         if (identity.managed) {
@@ -124,14 +198,24 @@ export class RelayTokenInspectionIamService {
           ]);
           await requireAllow(managedAction, [platformUserArn(userId)]);
         }
-        await requireAllow(identity.managed ? managedAction : action, [resource]);
+        if ("id" in selection) await requireAllow(identity.managed ? managedAction : action, [resource(selection.id)]);
+        for (const entry of [...evaluations.values()]) await decide(entry.action, entry.resources);
       };
       await recheck();
       await authorize();
-      const target = await this.repository.target(userId, tokenId);
-      const result = await inspect(target);
+      const targets =
+        "id" in selection
+          ? [await this.repository.target(userId, selection.id)]
+          : await this.repository.list(
+              userId,
+              selection.ids,
+              (ids) => decide(identity.managed ? managedAction : action, ids.map(resource)),
+              recheck,
+            );
+      const result = await inspect(targets);
       // Never release a projection authorized by a stale policy, owner or credential proof.
-      await this.repository.assertTarget(target);
+      if ("id" in selection) await this.repository.assertTarget(targets[0]!);
+      else await this.repository.assertTargets(targets);
       await recheck();
       await authorize();
       await recheck();
@@ -141,7 +225,7 @@ export class RelayTokenInspectionIamService {
     try {
       await native(async () => undefined);
     } catch {
-      getLogger("RelayTokenInspectionIam", LogCategory.SECURITY).warn("Token usage shadow evaluation failed", {
+      getLogger("RelayTokenInspectionIam", LogCategory.SECURITY).warn("Token inspection shadow evaluation failed", {
         action,
         reason: "iam-evaluation-denied-or-unavailable",
       });

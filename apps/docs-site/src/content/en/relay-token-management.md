@@ -47,7 +47,15 @@ With IAM enforcement enabled, single-token usage statistics and usage details us
 
 Inspecting another user's usage, including a same-account peer's, also requires platform-management read eligibility, the current user's endpoint admission, and `GetManagedTokenUsage` on the target platform user and token. Management-write eligibility alone does not grant usage access. Identity, authorization and the target resource are checked again after aggregation; revoking access during the query prevents the computed result from being returned.
 
-Usage attributed to a composite call remains visible under the selected token without granting access to other member tokens; detail rows identify the authorized queried token. These rules cover the single-token usage and detail endpoints, not other batch-usage, diagnostics or route-trace interfaces.
+Usage attributed to a composite call remains visible under the selected token without granting access to other member tokens; detail rows identify the authorized queried token. These rules cover single-token usage and details; batch usage and switch logs are described below and do not imply equivalent authorization for diagnostics or route traces.
+
+### Batch usage summaries and switch logs
+
+With IAM enforcement enabled, batch summaries also check `quyan:relay:GetTokenUsage` on each token. Managing another user uses `GetManagedTokenUsage` and additionally requires platform-management read eligibility and target-user authorization. Omitting `tokenIds` summarizes only authorized tokens and omits denied records. An explicit selection accepts at most 200 distinct, nonempty IDs and preserves request order. Any missing, deleted, wrong-owner or denied target fails the whole request rather than silently producing a partial summary. Authorized disabled or expired tokens remain queryable if they have not been deleted.
+
+Without a date range, summaries retain lifetime-usage semantics. With a range, only authorized resources enter the dated aggregation. Identity, targets and every contributing authorization decision are checked again afterward; revoking access prevents release of the computed data. Explicit empty selections, duplicates and empty comma-separated entries are rejected rather than accidentally becoming an all-token query.
+
+Switch logs use the independent `quyan:relay:GetTokenSwitchLogs` action, or `GetManagedTokenSwitchLogs` for other users, without additionally requiring `GetToken` or `RevealToken`. Native responses contain necessary display-channel identifiers, status codes and attempt information, but do not read or return physical channel IDs, secrets or unreviewed raw upstream error text. Each query accepts at most 100 rows, and authorization is rechecked after the data query. These resource-level, filtering and log-disclosure rules apply to enforce mode; legacy and shadow continue their existing queries.
 
 ### Single and batch deletion
 

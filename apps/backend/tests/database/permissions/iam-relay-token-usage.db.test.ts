@@ -172,6 +172,7 @@ afterEach(async () => {
     where: { relayTokenId: { in: [first, second, peerToken, foreignToken] } },
   });
   await prisma.relayToken.deleteMany({ where: { userId: { in: [actor, peer, foreign] } } });
+  await prisma.relayChannel.deleteMany({ where: { name: prefix } });
   await prisma.accessKey.deleteMany({ where: { userId: { in: [actor, peer] } } });
   await prisma.oAuthAccessToken.deleteMany({ where: { userId: actor } });
   await prisma.oAuthClient.deleteMany({ where: { userId: actor } });
@@ -368,6 +369,197 @@ describe("resource-authorized token usage inspection", () => {
     const target = vi.spyOn(RelayTokenInspectionRepository.getInstance(), "target");
     await stats();
     expect(target).toHaveBeenCalled();
+    expect(aggregate).toHaveBeenCalledOnce();
+  });
+});
+
+describe("resource-filtered batch usage and safe switch logs", () => {
+  const batch = (ids?: string[], targetUserId?: string, req = request(), startDate?: Date, endDate?: Date) =>
+    service().getUsageSummaries(actor, ids, startDate, endDate, targetUserId, req);
+  const logs = (id = first, targetUserId?: string, req = request(), limit = 50) =>
+    service().getSwitchLogs(id, actor, limit, targetUserId, req);
+  async function logFixture() {
+    const channel = await prisma.relayChannel.create({
+      data: {
+        name: prefix,
+        openaiUpstreamUrl: "https://fixture.invalid",
+        openaiUpstreamApiKey: "fixture-upstream-secret",
+      },
+    });
+    return prisma.relayChannelSwitchLog.create({
+      data: {
+        relayTokenId: first,
+        fromChannelId: channel.id,
+        toChannelId: channel.id,
+        fromDisplayChannelId: "display-from",
+        toDisplayChannelId: "display-to",
+        triggerError: "fixture-upstream-secret",
+        triggerStatusCode: 503,
+        attemptNumber: 1,
+        requestPath: "/v1/responses",
+        method: "POST",
+      },
+    });
+  }
+  it("filters an all-token summary to permitted resources before loading rich fields or aggregating", async () => {
+    await prisma.group.update({ where: { id: groupId }, data: { permissions: [] } });
+    await grant("quyan:relay:GetTokenUsage", relayTokenArn(owner, actor, first), "Allow");
+    const rich = vi.spyOn(RelayTokenRepository.getInstance(), "findByIdWithRelations"),
+      read = vi.spyOn(prisma.relayToken, "findMany");
+    const result = await batch();
+    expect(result.summaries.map((row) => row.relayTokenId)).toEqual([first]);
+    expect(rich).not.toHaveBeenCalled();
+    for (const [args] of read.mock.calls) {
+      expect(args?.select).not.toHaveProperty("token");
+      expect(args?.select).not.toHaveProperty("legacyToken");
+      expect(args?.select).not.toHaveProperty("upstreamApiKey");
+    }
+  });
+  it("preserves explicit selection order and fails the entire selection for one denied target", async () => {
+    expect((await batch([second, first])).summaries.map((row) => row.relayTokenId)).toEqual([second, first]);
+    await grant("quyan:relay:GetTokenUsage", relayTokenArn(owner, actor, second));
+    const usage = vi.spyOn(RelayUsageRepository.getInstance(), "aggregateByRelayTokenIds");
+    await expect(batch([first, second], undefined, request(), new Date(0))).rejects.toMatchObject({ statusCode: 403 });
+    expect(usage).not.toHaveBeenCalled();
+  });
+  it.each(["missing", "alias", "peer", "deleted"])(
+    "rejects an explicit %s target rather than silently dropping it",
+    async (kind) => {
+      if (kind === "deleted") await prisma.relayToken.update({ where: { id: second }, data: { status: -1 } });
+      await expect(
+        batch([
+          first,
+          kind === "missing"
+            ? "missing"
+            : kind === "alias"
+              ? second.toUpperCase()
+              : kind === "peer"
+                ? peerToken
+                : second,
+        ]),
+      ).rejects.toMatchObject({ statusCode: 403 });
+    },
+  );
+  it("permits disabled/expired tokens and omits deleted tokens in list mode", async () => {
+    await prisma.relayToken.update({ where: { id: first }, data: { status: 0, expiresAt: new Date(0) } });
+    await prisma.relayToken.update({ where: { id: second }, data: { status: -1 } });
+    expect((await batch()).summaries.map((row) => row.relayTokenId)).toEqual([first]);
+  });
+  it("queries only authorized IDs for a dated aggregation and keeps existing window semantics", async () => {
+    await grant("quyan:relay:GetTokenUsage", relayTokenArn(owner, actor, second));
+    await prisma.relayUsage.create({
+      data: {
+        relayTokenId: first,
+        totalTokens: 19,
+        path: "/v1/responses",
+        method: "POST",
+        statusCode: 200,
+        ipAddress: "127.0.0.1",
+      },
+    });
+    const aggregate = vi.spyOn(RelayUsageRepository.getInstance(), "aggregateByRelayTokenIds"),
+      start = new Date(0),
+      end = new Date(Date.now() + 60000);
+    const result = await batch(undefined, undefined, request(), start, end);
+    expect(aggregate).toHaveBeenCalledExactlyOnceWith([first], start, end);
+    expect(result.summaries).toMatchObject([{ relayTokenId: first, totalTokens: 19 }]);
+  });
+  it("handles more than one IAM decision batch without dropping or duplicating records", async () => {
+    await prisma.relayToken.createMany({
+      data: Array.from({ length: 501 }, (_, i) => ({
+        userId: actor,
+        name: prefix,
+        token: "fixture-batch-" + prefix + i,
+      })),
+    });
+    const result = await batch();
+    expect(result.summaries).toHaveLength(503);
+    expect(new Set(result.summaries.map((row) => row.relayTokenId)).size).toBe(503);
+  });
+  it("default-denied list mode returns no rows, while explicit requests are denied", async () => {
+    await prisma.group.update({ where: { id: groupId }, data: { permissions: [] } });
+    expect(await batch()).toEqual({ summaries: [] });
+    await expect(batch([first])).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("does not release a summary when its policy is revoked during aggregation", async () => {
+    vi.spyOn(RelayUsageRepository.getInstance(), "aggregateByRelayTokenIds").mockImplementation(async () => {
+      vi.spyOn(IamAuthorizationService.getInstance(), "authorizeMany").mockImplementation(async (input) =>
+        input.resources.map(() => ({ decision: "ExplicitDeny", reason: "explicit-deny", matchedStatements: [] })),
+      );
+      return [];
+    });
+    await expect(batch([first], undefined, request(), new Date(0))).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("requires management eligibility and limits managed batches to the selected user's platform resources", async () => {
+    await grant("quyan:relay:*", "*", "Allow");
+    await expect(batch([peerToken], peer)).rejects.toMatchObject({ statusCode: 403 });
+    await manager();
+    expect((await batch([foreignToken], foreign)).summaries.map((row) => row.relayTokenId)).toEqual([foreignToken]);
+    await grant("quyan:relay:GetManagedTokenUsage", platformRelayTokenArn(foreign, foreignToken));
+    await expect(batch([foreignToken], foreign)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("returns safe switch fields without raw upstream errors, physical channel IDs or credentials", async () => {
+    const fixture = await logFixture(),
+      read = vi.spyOn(prisma.relayChannelSwitchLog, "findMany"),
+      rich = vi.spyOn(RelayTokenRepository.getInstance(), "findByIdWithRelations");
+    const result = await logs();
+    expect(result.logs).toMatchObject([
+      {
+        id: fixture.id,
+        relayTokenId: first,
+        fromDisplayChannelId: "display-from",
+        toDisplayChannelId: "display-to",
+        triggerStatusCode: 503,
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/fixture-upstream-secret|openaiUpstream|fromChannelId|toChannelId/);
+    expect(rich).not.toHaveBeenCalled();
+    const select = read.mock.calls[0]![0]!.select;
+    expect(select).not.toHaveProperty("triggerError");
+    expect(select).not.toHaveProperty("fromChannelId");
+    expect(select).not.toHaveProperty("toChannelId");
+  });
+  it("allows exact JSON-only switch access without GetToken or Reveal", async () => {
+    await logFixture();
+    await prisma.group.update({ where: { id: groupId }, data: { permissions: [] } });
+    await grant("quyan:relay:GetTokenSwitchLogs", relayTokenArn(owner, actor, first), "Allow");
+    await grant("quyan:relay:GetToken", "*");
+    await grant("quyan:relay:RevealToken", "*");
+    expect((await logs()).logs).toHaveLength(1);
+  });
+  it("denies switch access before loading logs for an unauthorized resource", async () => {
+    await grant("quyan:relay:GetTokenSwitchLogs", relayTokenArn(owner, actor, first));
+    const read = vi.spyOn(prisma.relayChannelSwitchLog, "findMany");
+    await expect(logs()).rejects.toMatchObject({ statusCode: 403 });
+    expect(read).not.toHaveBeenCalled();
+  });
+  it("rechecks switch-log authorization after the data query before releasing it", async () => {
+    await logFixture();
+    const repo = RelayTokenInspectionRepository.getInstance(),
+      read = repo.switchLogs.bind(repo);
+    vi.spyOn(repo, "switchLogs").mockImplementation(async (...args) => {
+      const rows = await read(...args);
+      vi.spyOn(IamAuthorizationService.getInstance(), "authorizeMany").mockImplementation(async (input) =>
+        input.resources.map(() => ({ decision: "ExplicitDeny", reason: "explicit-deny", matchedStatements: [] })),
+      );
+      return rows;
+    });
+    await expect(logs()).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("managers need dedicated switch-log platform user and token permission", async () => {
+    await manager();
+    await grant("quyan:relay:GetManagedTokenSwitchLogs", platformUserArn(peer));
+    await expect(logs(peerToken, peer)).rejects.toMatchObject({ statusCode: 403 });
+    expect((await logs(foreignToken, foreign)).logs).toEqual([]);
+  });
+  it("validates switch-log limits from the same schema as the HTTP endpoint", async () => {
+    for (const limit of [0, 101, 1.5])
+      await expect(logs(first, undefined, request(), limit)).rejects.toMatchObject({ statusCode: 400 });
+  });
+  it("shadow projects no native summary data and invokes only the legacy aggregation", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    const aggregate = vi.spyOn(RelayUsageRepository.getInstance(), "aggregateByRelayTokenIds");
+    await batch(undefined, undefined, request(), new Date(0));
     expect(aggregate).toHaveBeenCalledOnce();
   });
 });
