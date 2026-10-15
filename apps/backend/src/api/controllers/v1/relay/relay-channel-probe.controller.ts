@@ -1,3 +1,4 @@
+import { platformRelayProbeAccountResourceResolver } from "@/iam/request/relay-probe-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
@@ -334,7 +335,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Delete("accounts/{accountId}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:DeleteProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -342,8 +347,8 @@ export class RelayChannelProbeController extends Controller {
     validateParams(relayChannelProbeAccountParamsSchema),
     replayProtectionMiddleware,
   )
-  public async deleteAccount(@Path() accountId: string): Promise<void> {
-    await this.accountService.remove(accountId);
+  public async deleteAccount(@Path() accountId: string, @Request() request: TypedRequest): Promise<void> {
+    await this.accountService.remove(accountId, request);
     this.setStatus(204);
   }
 

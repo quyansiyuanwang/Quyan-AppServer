@@ -18,6 +18,11 @@ vi.mock("@/services/relay/platform-relay-probe-account-read-iam.service", () => 
     getInstance: () => ({ list: (_request: unknown, _map: unknown, legacy: () => Promise<unknown>) => legacy() }),
   },
 }));
+vi.mock("@/services/relay/platform-relay-probe-account-delete-iam.service", () => ({
+  PlatformRelayProbeAccountDeleteIamService: {
+    getInstance: () => ({ remove: (_id: string, _request: unknown, legacy: () => Promise<void>) => legacy() }),
+  },
+}));
 vi.mock("@/store/system/server-config.repository", () => ({
   ServerConfigRepository: { getInstance: () => ({ findByKey: vi.fn(async () => null) }) },
 }));

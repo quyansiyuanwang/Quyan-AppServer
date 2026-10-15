@@ -16,6 +16,7 @@ import type {
 
 import type { TypedRequest } from "@/types/express";
 import { PlatformRelayProbeAccountReadIamService } from "./platform-relay-probe-account-read-iam.service";
+import { PlatformRelayProbeAccountDeleteIamService } from "./platform-relay-probe-account-delete-iam.service";
 import { projectRelayProbeAccount } from "./relay-probe-account-projection";
 
 const PREFIX = "relay:probe-account:v1";
@@ -142,7 +143,17 @@ export class RelayChannelProbeAccountService {
     if (existing) await this.redis.delete(this.cacheKey(account.id));
     return this.dto(account, false);
   }
-  async remove(id: string) {
+  async remove(id: string, request?: TypedRequest) {
+    return PlatformRelayProbeAccountDeleteIamService.getInstance().remove(
+      id,
+      request,
+      () => this.removeLegacy(id),
+      async () => {
+        await this.redis.delete(this.cacheKey(id));
+      },
+    );
+  }
+  private async removeLegacy(id: string) {
     const account = await this.repository.find(id);
     if (!account)
       throw new NotFoundError("Probe account not found", undefined, {
