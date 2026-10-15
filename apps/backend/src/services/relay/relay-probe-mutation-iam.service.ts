@@ -32,7 +32,7 @@ export class RelayProbeMutationIamService {
     > = RelayChannelService.getInstance(),
   ) {}
   async mutate<T>(
-    action: "quyan:relay:ClearProbeHistory",
+    action: "quyan:relay:ClearProbeHistory" | "quyan:relay:DeleteProbeProfile",
     actorUserId: string,
     request: TypedRequest | undefined,
     mutate: (context: RelayProbeMutationContext) => Promise<T>,
@@ -65,29 +65,39 @@ export class RelayProbeMutationIamService {
     const native = async (persist: boolean) => {
       const snapshot = await this.snapshots.snapshot(principal, permission),
         fingerprint = fingerprintIamPolicies(await this.iam.loadPolicies(principal)),
-        resources = new Set<string>();
-      const authorize = async (batch: readonly string[]) => {
+        resources = new Map<string, Set<string>>();
+      const authorizeAction = async (checkedAction: string, batch: readonly string[]) => {
         if (batch.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) throw iamAccountDenied();
         if (
-          (await platformCollectionDecisions(this.iam, { principal, action, request, resources: batch })).some(
-            (value) => value !== "Allow",
-          )
+          (
+            await platformCollectionDecisions(this.iam, { principal, action: checkedAction, request, resources: batch })
+          ).some((value) => value !== "Allow")
         )
           throw iamAccountDenied();
-        batch.forEach((resource) => resources.add(resource));
+        const registered = resources.get(checkedAction) ?? new Set<string>();
+        batch.forEach((resource) => registered.add(resource));
+        resources.set(checkedAction, registered);
       };
+      const authorize = (batch: readonly string[]) => authorizeAction(action, batch);
       const recheck = async () => {
         await this.snapshots.recheck(principal, permission, snapshot);
         if (fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== fingerprint) throw iamAccountDenied();
-        const all = [...resources],
-          limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
-        for (let offset = 0; offset < all.length; offset += limit) await authorize(all.slice(offset, offset + limit));
+        const limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
+        for (const [checkedAction, checkedResources] of resources) {
+          const all = [...checkedResources];
+          for (let offset = 0; offset < all.length; offset += limit)
+            await authorizeAction(checkedAction, all.slice(offset, offset + limit));
+        }
       };
       await recheck();
       return mutate({
         principal,
         snapshot,
         authorize,
+        authorizeAccountUnbind: async (batch) => {
+          if (action !== "quyan:relay:DeleteProbeProfile") throw iamAccountDenied();
+          await authorizeAction("quyan:relay:UnbindProbeAccount", batch);
+        },
         recheck,
         persist,
         visible: (channel) => this.channels.canAccessChannelMetadata(channel, actorUserId, principal.roleSessionId),

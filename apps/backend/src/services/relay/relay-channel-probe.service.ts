@@ -1,3 +1,4 @@
+import { RelayProbeProfileDeleteRepository } from "@/store/relay/relay-probe-profile-delete.repository";
 import { RelayProbeProfileReadRepository } from "@/store/relay/relay-probe-profile-read.repository";
 import { RelayProbeMutationIamService } from "./relay-probe-mutation-iam.service";
 import { RelayProbeRunHistoryMutationRepository } from "@/store/relay/relay-probe-run-history-mutation.repository";
@@ -1112,7 +1113,25 @@ export class RelayChannelProbeService {
     return this.toProfileDto(profile);
   }
 
-  async clearProfile(channelId: string, actorUserId: string): Promise<void> {
+  async clearProfile(channelId: string, actorUserId: string, request?: TypedRequest): Promise<void> {
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:DeleteProbeProfile",
+      actorUserId,
+      request,
+      async (guard) => {
+        try {
+          platformRelayChannelArn(channelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return this.channelLockService.withWrite(channelId, () =>
+          RelayProbeProfileDeleteRepository.getInstance().remove(channelId, guard),
+        );
+      },
+      () => this.clearProfileLegacy(channelId, actorUserId),
+    );
+  }
+  private async clearProfileLegacy(channelId: string, actorUserId: string): Promise<void> {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     await this.channelLockService.withWrite(channelId, async () => {
       if (await this.repository.findActiveRun(channelId))

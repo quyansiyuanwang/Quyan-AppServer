@@ -9,7 +9,11 @@ vi.mock("@/services/users/permission.service", () => ({ PermissionService: { get
 vi.mock("@/iam/audit/iam-audit.service", () => ({ auditIamDecision: vi.fn() }));
 import { env } from "@/config/env";
 import { RelayProbeMutationIamService } from "@/services/relay/relay-probe-mutation-iam.service";
-import { platformRelayProbeRunArn } from "@/iam/resources/platform-relay-probe-resources";
+import {
+  platformRelayProbeRunArn,
+  platformRelayProbeProfileArn,
+  platformRelayProbeAccountArn,
+} from "@/iam/resources/platform-relay-probe-resources";
 import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
 import { getIamActionDefinition, isIamActionResourceCompatible, Permission } from "@quyan/shared";
 import { Project } from "ts-morph";
@@ -114,6 +118,73 @@ describe("probe history cleanup authorization", () => {
   it("requires a trusted request outside legacy", async () => {
     await expect(
       service.mutate("quyan:relay:ClearProbeHistory", "actor", undefined, mutate, legacy),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("profile deletion conditional account action", () => {
+  it("registers profile deletion and its conditional unbind action", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel-probe.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "DELETE /v1/relay-channel-probes/{channelId}/profile",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: ["quyan:relay:DeleteProbeProfile"], issues: [] });
+    expect(getIamActionDefinition("quyan:relay:DeleteProbeProfile")).toMatchObject({
+      conditionalActions: ["quyan:relay:UnbindProbeAccount"],
+    });
+    expect(getIamActionDefinition("quyan:relay:UnbindProbeAccount")).toMatchObject({
+      resourceTypes: ["platform/relay-probe-account"],
+      legacyPermission: Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+    });
+  });
+  it("uses separate fixed actions for the profile and bound account", async () => {
+    await service.mutate(
+      "quyan:relay:DeleteProbeProfile",
+      "actor",
+      request(),
+      async (guard) => {
+        await guard.authorize([platformRelayProbeProfileArn("channel", "profile")]);
+        await guard.authorizeAccountUnbind([platformRelayProbeAccountArn("account")]);
+        await guard.recheck();
+      },
+      legacy,
+    );
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "quyan:relay:DeleteProbeProfile" }),
+    );
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "quyan:relay:UnbindProbeAccount" }),
+    );
+  });
+  it("does not expose conditional unbind authorization to history cleanup", async () => {
+    await expect(
+      service.mutate(
+        "quyan:relay:ClearProbeHistory",
+        "actor",
+        request(),
+        (guard) => guard.authorizeAccountUnbind([platformRelayProbeAccountArn("account")]),
+        legacy,
+      ),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(iam.authorizeMany).not.toHaveBeenCalled();
+  });
+  it("rechecks supplemental grants along with primary grants", async () => {
+    await expect(
+      service.mutate(
+        "quyan:relay:DeleteProbeProfile",
+        "actor",
+        request(),
+        async (guard) => {
+          await guard.authorizeAccountUnbind([platformRelayProbeAccountArn("account")]);
+          iam.authorizeMany.mockImplementation(async ({ resources }) =>
+            resources.map(() => ({ decision: "ExplicitDeny" })),
+          );
+          await guard.recheck();
+        },
+        legacy,
+      ),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 });

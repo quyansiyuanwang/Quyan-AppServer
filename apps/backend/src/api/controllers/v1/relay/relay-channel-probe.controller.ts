@@ -123,11 +123,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Delete("{channelId}/profile")
   @Security("jwt")
-  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:probe:Execute",
-    resourceKind: "single-resource",
-    resource: relayChannelProbeResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DeleteProbeProfile",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -136,7 +139,7 @@ export class RelayChannelProbeController extends Controller {
     replayProtectionMiddleware,
   )
   public async clearProfile(@Path() channelId: string, @Request() request: TypedRequest): Promise<void> {
-    await this.service.clearProfile(channelId, request.user!.userId);
+    await this.service.clearProfile(channelId, request.user!.userId, request);
     this.setStatus(204);
   }
 
