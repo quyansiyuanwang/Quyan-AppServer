@@ -1,3 +1,4 @@
+import { relayProbeHistoryTerminalStatuses } from "./relay-probe-run-history-policy";
 import { prisma } from "@/config/database";
 import type { Prisma } from "@prisma/client";
 
@@ -127,12 +128,11 @@ export class RelayChannelProbeRepository {
     scope: "all" | "failed",
     memberChannelId?: string,
   ): Promise<{ count: number }> {
-    const statuses =
-      scope === "failed" ? ["failed", "timed_out", "cancelled"] : ["succeeded", "failed", "timed_out", "cancelled"];
+    const statuses = relayProbeHistoryTerminalStatuses[scope];
     return prisma.relayChannelProbeRun.deleteMany({
       where: {
         relayChannelId: channelId,
-        status: { in: statuses },
+        status: { in: [...statuses] },
         ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}),
       },
     });

@@ -38,6 +38,8 @@ When native IAM enforcement is enabled, latest-result polling checks `quyan:rela
 
 History uses `quyan:relay:ListProbeRuns` for the parent channel, any selected physical member, and every returned run. Pagination and totals include only authorized records. Results for members that no longer belong to the pool are excluded; an explicitly requested member must still belong to that pool.
 
+Clearing history under native IAM enforcement requires `quyan:relay:ClearProbeHistory` on the channel, related physical members, and every selected terminal run. If any selected resource is denied, the entire cleanup is refused. Authorization is checked again at commit and revocation rolls back deletion. Running and queued tasks are preserved; the failed-only scope also preserves successful results.
+
 ## Prerequisites and notes
 
 - Reading requires channel-probe read permission. Saving an ordinary profile, running, clearing or resetting requires execute permission, step-up verification and replay protection. Editing or deleting a profile bound to a shared account additionally requires the dedicated account-pool management permission, preventing unauthorized changes to requests carrying shared tokens.

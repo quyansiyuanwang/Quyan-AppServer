@@ -1,3 +1,6 @@
+import { RelayProbeMutationIamService } from "./relay-probe-mutation-iam.service";
+import { RelayProbeRunHistoryMutationRepository } from "@/store/relay/relay-probe-run-history-mutation.repository";
+import { clearRelayChannelProbeRunHistoryQuerySchema } from "@/api/schema/relay/relay-channel-probe.schema";
 import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { RelayProbeReadIamService } from "./relay-probe-read-iam.service";
@@ -1544,6 +1547,37 @@ export class RelayChannelProbeService {
   }
 
   async clearRunHistory(
+    channelId: string,
+    scope: RelayChannelProbeRunHistoryScope,
+    actorUserId: string,
+    memberChannelId?: string,
+    request?: TypedRequest,
+  ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
+    const parsed = clearRelayChannelProbeRunHistoryQuerySchema.safeParse({ scope, memberChannelId });
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe history clear scope", undefined, { messageKey: "errors.badRequest" });
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:ClearProbeHistory",
+      actorUserId,
+      request,
+      async (guard) => {
+        try {
+          platformRelayChannelArn(channelId);
+          if (parsed.data.memberChannelId) platformRelayChannelArn(parsed.data.memberChannelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return RelayProbeRunHistoryMutationRepository.getInstance().clear(
+          channelId,
+          scope,
+          parsed.data.memberChannelId,
+          guard,
+        );
+      },
+      () => this.clearRunHistoryLegacy(channelId, scope, actorUserId, memberChannelId),
+    );
+  }
+  private async clearRunHistoryLegacy(
     channelId: string,
     scope: RelayChannelProbeRunHistoryScope,
     actorUserId: string,

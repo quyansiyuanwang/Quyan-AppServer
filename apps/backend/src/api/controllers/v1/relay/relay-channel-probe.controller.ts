@@ -261,11 +261,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Delete("{channelId}/runs")
   @Security("jwt")
-  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:probe:Execute",
-    resourceKind: "single-resource",
-    resource: relayChannelProbeResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ClearProbeHistory",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -280,7 +283,7 @@ export class RelayChannelProbeController extends Controller {
     @Request() request: TypedRequest,
     @Query() memberChannelId?: string,
   ): Promise<ClearRelayChannelProbeRunHistoryResponse> {
-    return this.service.clearRunHistory(channelId, scope, request.user!.userId, memberChannelId);
+    return this.service.clearRunHistory(channelId, scope, request.user!.userId, memberChannelId, request);
   }
 
   @Post("runs/apply")
