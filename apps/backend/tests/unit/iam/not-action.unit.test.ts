@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { IAM_ACTION_CATALOG, getIamActionDefinition, type IamPolicyDocument } from "@quyan/shared";
-import { IAM_POLICY_LIMITS } from "@/iam/parser/policy-schema";
+import { normalizeIamPolicy } from "@/iam/parser/policy-normalizer";
+import { IAM_POLICY_LIMITS, iamPolicyDocumentSchema } from "@/iam/parser/policy-schema";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 import { checkIamDelegation } from "@/iam/delegation/delegation-check";
@@ -108,24 +109,57 @@ describe("bounded catalog-snapshot NotAction", () => {
     expect(JSON.stringify(getIamPolicyJsonSchema())).toContain("NotAction");
     expect(JSON.stringify(getIamPolicyJsonSchema("trust"))).not.toContain('"NotAction"');
   });
-  it("rejects and diagnoses a compact complement whose expanded document exceeds the byte limit", () => {
-    // Keep the expansion within the per-statement action limit as the catalog grows.
-    const excluded = IAM_ACTION_CATALOG.slice(
-      0,
-      Math.max(1, IAM_ACTION_CATALOG.length - IAM_POLICY_LIMITS.patterns + 1),
-    );
+  /** Keep the exclusion compact instead of repeating an ever-growing list of exact actions. */
+  function compactComplement() {
+    const namespaces = new Map<string, string[]>();
+    for (const action of IAM_ACTION_CATALOG) {
+      const namespace = action.split(":").slice(0, 2).join(":");
+      const actions = namespaces.get(namespace) ?? [];
+      actions.push(action);
+      namespaces.set(namespace, actions);
+    }
+    const candidate = [...namespaces]
+      .filter(([, actions]) => actions.length <= IAM_POLICY_LIMITS.patterns)
+      .sort(([, a], [, b]) => Buffer.byteLength(JSON.stringify(b)) - Buffer.byteLength(JSON.stringify(a)))[0]!;
+    const excluded = [...namespaces.keys()]
+      .filter((namespace) => namespace !== candidate[0])
+      .map((namespace) => namespace + ":*");
     const input = {
-      Version: "1",
-      Statement: Array.from({ length: 100 }, (_, index) => ({
+      Version: "1" as const,
+      Statement: Array.from({ length: IAM_POLICY_LIMITS.statements }, (_, index) => ({
         Sid: "Snapshot" + index,
-        Effect: "Allow",
+        Effect: "Allow" as const,
         NotAction: excluded,
         Resource: "*",
       })),
     };
+    expect(excluded.length).toBeLessThanOrEqual(IAM_POLICY_LIMITS.patterns);
     expect(Buffer.byteLength(JSON.stringify(input))).toBeLessThan(IAM_POLICY_LIMITS.bytes);
-    expect(() => parseIamPolicy(input)).toThrow();
+    expect(iamPolicyDocumentSchema.safeParse(input).success).toBe(true);
+    return input;
+  }
+  it("rejects and diagnoses a compact complement whose expanded document exceeds the byte limit", () => {
+    const input = compactComplement();
+    const expanded = normalizeIamPolicy(input);
+    expect(expanded.Statement.every((statement) => statement.Action.length <= IAM_POLICY_LIMITS.patterns)).toBe(true);
+    expect(Buffer.byteLength(JSON.stringify(expanded))).toBeGreaterThan(IAM_POLICY_LIMITS.bytes);
+    expect(() => parseIamPolicy(input)).toThrow(expect.objectContaining({ reason: "document-limit" }));
     expect(diagnoseIamPolicy(JSON.stringify(input)).diagnostics[0].code).toBe("document-limit");
+  });
+  it("accepts the same compact complement when the explicit snapshot remains within the byte limit", () => {
+    const input = compactComplement();
+    const firstStatement = normalizeIamPolicy(input).Statement[0]!;
+    // Leave one statement of headroom for the document wrapper and longer Sid suffixes.
+    const count = Math.min(
+      input.Statement.length,
+      Math.floor(IAM_POLICY_LIMITS.bytes / Buffer.byteLength(JSON.stringify(firstStatement))) - 1,
+    );
+    expect(count).toBeGreaterThan(0);
+    input.Statement = input.Statement.slice(0, count);
+    const result = parseIamPolicy(input);
+    expect(Buffer.byteLength(result.canonicalJson)).toBeLessThanOrEqual(IAM_POLICY_LIMITS.bytes);
+    expect(parseIamPolicy(result.canonicalJson).documentHash).toBe(result.documentHash);
+    expect(diagnoseIamPolicy(JSON.stringify(input)).valid).toBe(true);
   });
   it("diagnoses both and missing selectors without calling them unsupported fields", () => {
     for (const Statement of [
