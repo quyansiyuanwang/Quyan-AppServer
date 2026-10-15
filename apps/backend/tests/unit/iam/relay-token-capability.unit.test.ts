@@ -29,4 +29,20 @@ describe("token capability action contract", () => {
       legacyPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
     });
   });
+  it("declares preview and managed preview separately without changing token-read OAuth scope", () => {
+    const p = new Project({ skipAddingFilesFromTsConfig: true });
+    const source = p.addSourceFileAtPath("src/api/controllers/v1/relay/relay.controller.ts");
+    expect(
+      collectIamRoutes(p.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "POST /v1/relay/tokens/composition-preview",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: ["quyan:relay:PreviewTokenComposition"], issues: [] });
+    const method = source.getClassOrThrow("RelayController").getMethodOrThrow("previewComposition");
+    expect(method.getDecoratorOrThrow("Security").getText()).toContain('"relay:token:read"');
+    expect(method.getBodyOrThrow().getText()).toContain("body, request");
+    expect(getIamActionDefinition("quyan:relay:PreviewManagedTokenComposition")).toMatchObject({
+      authorizationBoundary: "platform",
+      resourceTypes: ["platform/user", "platform/relay-token"],
+    });
+  });
 });

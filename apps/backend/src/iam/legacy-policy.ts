@@ -166,6 +166,7 @@ export function legacyPermissionsToPrincipalPolicy(
         "quyan:relay:GetTokenSwitchLogs",
         "quyan:relay:ListTokenCompositionCandidates",
         "quyan:relay:GetTokenAvailableModels",
+        "quyan:relay:PreviewTokenComposition",
         "quyan:relay:SetTokenStatus",
         "quyan:relay:RefreshToken",
         "quyan:relay:SetTokenContentSafety",

@@ -157,13 +157,22 @@ export class RelayController extends Controller {
 
   @Post("tokens/composition-preview")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:PreviewTokenComposition",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateBody(relayCompositionPreviewBodySchema))
   async previewComposition(
     @Body() body: RelayCompositionPreviewRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayCompositionPreviewDto> {
-    return this.relayTokenService.previewComposition(request.user!.userId, body);
+    return this.relayTokenService.previewComposition(request.user!.userId, body, request);
   }
 
   @Get("tokens/composition-candidates")

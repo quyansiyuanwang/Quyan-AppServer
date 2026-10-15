@@ -301,6 +301,15 @@ export class RelayTokenService {
   async previewComposition(
     actorUserId: string,
     data: RelayCompositionPreviewRequest,
+    request?: TypedRequest,
+  ): Promise<RelayCompositionPreviewDto> {
+    return RelayTokenCapabilityReadService.getInstance().preview(actorUserId, data, request, () =>
+      this.previewCompositionLegacy(actorUserId, data),
+    );
+  }
+  private async previewCompositionLegacy(
+    actorUserId: string,
+    data: RelayCompositionPreviewRequest,
   ): Promise<RelayCompositionPreviewDto> {
     const userId = await this.resolveManagedUserId(actorUserId, data.targetUserId);
     if (data.editingTokenId) await this.getAccessibleToken(data.editingTokenId, actorUserId, userId);

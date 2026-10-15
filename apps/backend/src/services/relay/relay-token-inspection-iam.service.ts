@@ -20,9 +20,13 @@ import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 type Selection =
   | { kind: "usage" | "switch-logs" | "models"; id: string }
-  | { kind: "usage-batch" | "composition-candidates"; ids?: string[] };
+  | { kind: "usage-batch" | "composition-candidates" | "preview"; ids?: string[] };
 export type RelayTokenInspectionAdmission = (ids: readonly string[]) => Promise<RelayTokenInspectionTarget[]>;
 const inspectionActions = Object.freeze({
+  preview: {
+    action: "quyan:relay:PreviewTokenComposition",
+    managedAction: "quyan:relay:PreviewManagedTokenComposition",
+  },
   models: {
     action: "quyan:relay:GetTokenAvailableModels",
     managedAction: "quyan:relay:GetManagedTokenAvailableModels",
@@ -128,6 +132,21 @@ export class RelayTokenInspectionIamService {
   ) {
     return this.inspect({ kind: "models", id }, actorUserId, targetUserId, request, read, legacy);
   }
+  async preview<T>(
+    actorUserId: string,
+    ids: string[],
+    targetUserId: string | undefined,
+    request: TypedRequest | undefined,
+    read: (targets: RelayTokenInspectionTarget[], userId: string, admit: RelayTokenInspectionAdmission) => Promise<T>,
+    legacy: () => Promise<T>,
+  ) {
+    const parsed = relayTokenIdsSchema.safeParse(ids);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid composition preview selection", undefined, {
+        messageKey: "errors.badRequest",
+      });
+    return this.inspect({ kind: "preview", ids: parsed.data }, actorUserId, targetUserId, request, read, legacy);
+  }
   private async inspect<T>(
     selection: Selection,
     actorUserId: string,
@@ -231,7 +250,7 @@ export class RelayTokenInspectionIamService {
         if ((await decide(operation, targets)).some((result) => result !== "Allow")) throw iamAccountDenied();
       };
       const authorize = async () => {
-        if (identity.managed) {
+        if (identity.managed || selection.kind === "preview") {
           await requireAllow(action, [
             buildAcsResource({
               service: "quyan",
@@ -240,7 +259,7 @@ export class RelayTokenInspectionIamService {
               path: "user/" + actorUserId,
             }),
           ]);
-          await requireAllow(managedAction, [platformUserArn(userId)]);
+          if (identity.managed) await requireAllow(managedAction, [platformUserArn(userId)]);
         }
         if ("id" in selection) await requireAllow(identity.managed ? managedAction : action, [resource(selection.id)]);
         for (const entry of [...evaluations.values()]) await decide(entry.action, entry.resources);

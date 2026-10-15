@@ -225,6 +225,12 @@ This grant is separate from reading Token metadata, revealing its credential, br
 
 Viewing another user's models also requires the managed Action `quyan:relay:GetManagedTokenAvailableModels` on that user's platform user and Token resources, personal discovery admission, and existing global-group management eligibility. A same-account peer is still another user. OAuth clients retain the endpoint's channel-read scope; a Token-read scope alone is insufficient. If identity, policies, credentials or capability sources change during discovery, refresh and retry after reviewing the current grants.
 
+### Resource-scoped composition preview
+
+In IAM enforcement mode, **Preview models and routes** uses `quyan:relay:PreviewTokenComposition`, not the separate model-discovery Action. It requires admission on the acting user's `acs:quyan:*:<accountId>:user/<userId>` resource and authorization on every selected Token and all referenced descendants, including disabled references. Editing also requires this Action on the edited Token. References removed by the draft are not included in the preview's access requirements. The draft must remain within one owner and pass the same depth, member-count and cycle checks.
+
+The returned real Token path IDs are all authorized. An unsaved root uses a fixed display placeholder, cannot replace an existing Token, and creates no stored resource. Model restrictions, protocol conversions and ancestor multiplier limits are computed on the proposed path. Preview does not grant creation, updates, invocation or credential disclosure. Other-user preview additionally requires `quyan:relay:PreviewManagedTokenComposition` on the selected platform user and Token resources plus global-group read-management eligibility. The original Token-read OAuth scope remains required. Revoked authorization or changed capability sources reject the result rather than returning partial paths.
+
 ### Usage and charges
 
 The entry composition, executed intermediate compositions and leaf token each record attributed usage and enforce their own lifetime and rolling-window limits. **Balance, monthly passes and channel revenue settle only once per call.** Unattempted branches have no usage; failed attempts retain existing failure-accounting behavior.

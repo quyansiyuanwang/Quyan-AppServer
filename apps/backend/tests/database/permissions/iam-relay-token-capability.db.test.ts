@@ -1,3 +1,4 @@
+import type { RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
 import { randomUUID } from "node:crypto";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { Permission } from "@quyan/shared";
@@ -37,7 +38,12 @@ const request = () =>
   }) as unknown as TypedRequest;
 const read = (id = parent, targetUserId?: string, req = request()) =>
   new RelayTokenService().getTokenAvailableModels(id, actor, targetUserId, req);
-async function grant(Action: string, Resource: string, Effect: "Allow" | "Deny" = "Deny") {
+async function grant(
+  Action: string,
+  Resource: string,
+  Effect: "Allow" | "Deny" = "Deny",
+  target: { type: "user" | "role"; id: string } = { type: "user", id: actor },
+) {
   const parsed = parseIamPolicy({ Version: "1", Statement: { Action, Resource, Effect } }),
     policy = await RamPolicyRepository.getInstance().createPolicy({
       accountOwnerId: owner,
@@ -48,8 +54,8 @@ async function grant(Action: string, Resource: string, Effect: "Allow" | "Deny" 
   await prisma.ramAuthorization.create({
     data: {
       accountOwnerId: owner,
-      principalType: "user",
-      principalId: actor,
+      principalType: target.type,
+      principalId: target.id,
       policyId: policy.id,
       scopeType: "account",
       scopeKey: "account",
@@ -135,6 +141,8 @@ afterEach(async () => {
   await prisma.accessKey.deleteMany({ where: { userId: actor } });
   await prisma.oAuthAccessToken.deleteMany({ where: { userId: actor } });
   await prisma.oAuthClient.deleteMany({ where: { userId: actor } });
+  await prisma.ramRoleSession.deleteMany({ where: { accountOwnerId: owner } });
+  await prisma.ramRole.deleteMany({ where: { accountOwnerId: owner } });
   await prisma.user.deleteMany({ where: { id: { in: [actor, peer, owner] } } });
   await prisma.group.deleteMany({ where: { id: group } });
 });
@@ -368,5 +376,206 @@ describe("resource-authorized token model capabilities", () => {
     expect(await read()).toEqual(empty);
     expect(rich).toHaveBeenCalledOnce();
     expect(safe).not.toHaveBeenCalled();
+  });
+});
+
+const previewAction = "quyan:relay:PreviewTokenComposition",
+  managedPreviewAction = "quyan:relay:PreviewManagedTokenComposition";
+const preview = (input: Partial<RelayCompositionPreviewRequest> = {}, req = request()) =>
+  new RelayTokenService().previewComposition(
+    actor,
+    {
+      routingMode: "composite",
+      memberTokenConfigs: [{ tokenId: child, priority: 0, enabled: true }],
+      ...input,
+    },
+    req,
+  );
+const actorArn = () => "acs:quyan:*:" + owner + ":user/" + actor;
+describe("resource-authorized composition preview", () => {
+  it("returns only admitted real paths under a nonpersistent public placeholder", async () => {
+    const rich = vi.spyOn(RelayTokenRepository.getInstance(), "loadCompositionSnapshot");
+    const result = await preview();
+    expect(result).toEqual({
+      models: { ...empty, openai: ["model-a"] },
+      routes: [{ protocol: "openai", model: "model-a", tokenPathIds: ["__composition_preview__", child] }],
+    });
+    expect(rich).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toMatch(
+      /fixture-channel-secret|fixture-composition-secret|upstream|channelId|preview_edge/,
+    );
+    expect(await prisma.relayToken.count({ where: { userId: actor } })).toBe(3);
+  });
+  it("requires explicit personal preview admission even when every selected token is allowed", async () => {
+    await prisma.group.update({ where: { id: group }, data: { permissions: [] } });
+    await grant(previewAction, relayTokenArn(owner, actor, child), "Allow");
+    const channels = vi.spyOn(repo(), "channels");
+    await expect(preview()).rejects.toMatchObject({ statusCode: 403 });
+    expect(channels).not.toHaveBeenCalled();
+    await grant(previewAction, actorArn(), "Allow");
+    expect((await preview()).models.openai).toEqual(["model-a"]);
+  });
+  it.each([true, false])("does not hydrate a denied selected reference enabled=%s", async (enabled) => {
+    await grant(previewAction, relayTokenArn(owner, actor, child));
+    const tokens = vi.spyOn(repo(), "tokens");
+    await expect(preview({ memberTokenConfigs: [{ tokenId: child, priority: 0, enabled }] })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    expect(tokens).not.toHaveBeenCalled();
+  });
+  it("does not let an allowed selected composition disclose a denied descendant", async () => {
+    await grant(previewAction, relayTokenArn(owner, actor, child));
+    const tokens = vi.spyOn(repo(), "tokens");
+    await expect(
+      preview({ memberTokenConfigs: [{ tokenId: parent, priority: 0, enabled: true }] }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    expect(tokens.mock.calls.every(([, targets]) => targets.every((row) => row.id !== child))).toBe(true);
+  });
+  it("requires the editing target separately and never grants it through member access", async () => {
+    await grant(previewAction, relayTokenArn(owner, actor, parent));
+    await expect(preview({ editingTokenId: parent })).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("previews the proposed graph rather than requiring access to references removed by the draft", async () => {
+    await grant(previewAction, relayTokenArn(owner, actor, child));
+    expect(
+      await preview({ editingTokenId: parent, memberTokenConfigs: [{ tokenId: other, priority: 0, enabled: true }] }),
+    ).toMatchObject({
+      routes: [{ tokenPathIds: [parent, other] }],
+    });
+  });
+  it("does not require GetToken, Reveal or model discovery to preview", async () => {
+    await prisma.group.update({ where: { id: group }, data: { permissions: [] } });
+    for (const resource of [actorArn(), relayTokenArn(owner, actor, child)])
+      await grant(previewAction, resource, "Allow");
+    for (const action of ["quyan:relay:GetToken", "quyan:relay:RevealToken", "quyan:relay:GetTokenAvailableModels"])
+      await grant(action, "*");
+    expect((await preview()).models.openai).toEqual(["model-a"]);
+  });
+  it.each(["self", "ancestor"])("rejects a proposed %s cycle including disabled references", async (kind) => {
+    const editingTokenId = kind === "self" ? parent : child;
+    await expect(
+      preview({ editingTokenId, memberTokenConfigs: [{ tokenId: parent, priority: 0, enabled: false }] }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+  });
+  it("does not accept another user's editing target or references", async () => {
+    await expect(preview({ editingTokenId: peerToken })).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      preview({ memberTokenConfigs: [{ tokenId: peerToken, priority: 0, enabled: true }] }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("keeps configured aliases and protocol conversion tied to the authorized subtree", async () => {
+    const result = await preview({
+      modelMapping: { alias: "model-a" },
+      requestFormatTransforms: [{ sourceFormat: "anthropic", targetFormat: "openai-chat-completions" }],
+    });
+    expect(result.models.openai).toEqual(["alias", "model-a"]);
+    expect(result.models.anthropic).toEqual(["alias", "model-a"]);
+    expect(result.routes.every((route) => route.tokenPathIds[1] === child)).toBe(true);
+  });
+  it("applies draft restrictions, expiration and ancestor multiplier limits", async () => {
+    expect((await preview({ allowedModels: "not-allowed" })).routes).toEqual([]);
+    expect((await preview({ expiresAt: new Date(0).toISOString() })).routes).toEqual([]);
+    expect(
+      (
+        await preview({
+          failoverConfig: {
+            enabled: true,
+            maxRetries: 1,
+            retryStatusCodes: [],
+            failoverThreshold: 0,
+            failbackCooldownMinutes: 0,
+            maxAcceptedChannelMultiplier: 0.5,
+          },
+        })
+      ).routes,
+    ).toEqual([]);
+  });
+  it("retains the original token-read OAuth scope for preview, separate from model reads", async () => {
+    expect((await preview({}, await oauthRequest([Permission.RELAY_TOKEN_READ]))).models.openai).toEqual(["model-a"]);
+    await expect(preview({}, await oauthRequest([Permission.RELAY_CHANNEL_READ]))).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+  it("does not manufacture peer management eligibility with preview wildcards", async () => {
+    await grant(managedPreviewAction, "*", "Allow");
+    await expect(
+      preview({ targetUserId: peer, memberTokenConfigs: [{ tokenId: peerToken, priority: 0, enabled: true }] }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("keeps managed preview bound to personal, target-user and per-token grants", async () => {
+    await prisma.group.update({
+      where: { id: group },
+      data: { permissions: [Permission.RELAY_TOKEN_READ, Permission.RELAY_TOKEN_MANAGE_OTHERS_READ] },
+    });
+    const input = { targetUserId: peer, memberTokenConfigs: [{ tokenId: peerToken, priority: 0, enabled: true }] };
+    expect((await preview(input)).routes).toMatchObject([{ tokenPathIds: ["__composition_preview__", peerToken] }]);
+    await grant(managedPreviewAction, platformRelayTokenArn(peer, peerToken));
+    await expect(preview(input)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it.each(["policy", "request", "source"])("rechecks %s before releasing real token path IDs", async (kind) => {
+    const req = request(),
+      original = repo().catalog.bind(repo());
+    let calls = 0;
+    vi.spyOn(repo(), "catalog").mockImplementation(async () => {
+      const result = await original();
+      if (!calls++) {
+        if (kind === "policy") await grant(previewAction, relayTokenArn(owner, actor, child));
+        else if (kind === "request") req.authContext!.accountOwnerId = peer;
+        else await prisma.relayToken.update({ where: { id: child }, data: { status: 0 } });
+      }
+      return result;
+    });
+    await expect(preview({}, req)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it.each([
+    { editingTokenId: "__composition_preview__" },
+    { editingTokenId: "*" },
+    { routingMode: "ordered", channelId: "fake" },
+    { memberTokenConfigs: [] },
+    { memberTokenConfigs: [{ tokenId: "*", priority: 0, enabled: true }] },
+  ])("rejects malformed or fabricated preview identities %j", async (input) => {
+    await expect(preview(input as Partial<RelayCompositionPreviewRequest>)).rejects.toMatchObject({ statusCode: 400 });
+  });
+  it.each(["before", "during"])("checks an assumed role session %s preview", async (phase) => {
+    const role = await prisma.ramRole.create({ data: { accountOwnerId: owner, name: prefix } });
+    const session = await prisma.ramRoleSession.create({
+      data: {
+        accountOwnerId: owner,
+        roleId: role.id,
+        subjectUserId: actor,
+        sessionName: "fixture",
+        expiresAt: new Date(Date.now() + 60000),
+      },
+    });
+    const req = request();
+    req.authContext!.assumedRoleId = role.id;
+    req.authContext!.roleSessionId = session.id;
+    await expect(preview({}, req)).rejects.toMatchObject({ statusCode: 403 });
+    for (const resource of [actorArn(), relayTokenArn(owner, actor, child)])
+      await grant(previewAction, resource, "Allow", { type: "role", id: role.id });
+    expect((await preview({}, req)).models.openai).toEqual(["model-a"]);
+    if (phase === "before")
+      await prisma.ramRoleSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+    else {
+      const original = repo().catalog.bind(repo());
+      let calls = 0;
+      vi.spyOn(repo(), "catalog").mockImplementation(async () => {
+        const result = await original();
+        if (!calls++)
+          await prisma.ramRoleSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+        return result;
+      });
+    }
+    await expect(preview({}, req)).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it.each(["legacy", "shadow"])("%s projects legacy once without native snapshots", async (mode) => {
+    env.security.iamAuthorizationMode = mode as typeof env.security.iamAuthorizationMode;
+    const native = vi.spyOn(repo(), "tokens"),
+      legacy = vi
+        .spyOn(RelayProxyService.getInstance(), "getCompositeCatalog")
+        .mockResolvedValue([{ model: "model-a", tokenPathIds: ["__composition_preview__", child] }]);
+    expect((await preview()).models.openai).toEqual(["model-a"]);
+    expect(legacy).toHaveBeenCalledTimes(4);
+    expect(native).not.toHaveBeenCalled();
   });
 });
