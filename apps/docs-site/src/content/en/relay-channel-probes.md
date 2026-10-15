@@ -28,6 +28,14 @@ Creating an account requires `quyan:relay:CreateProbeAccount` on both the creati
 
 Manual refresh requires `quyan:relay:RefreshProbeAccount` for the account ARN, plus step-up verification and replay protection. Native refresh rechecks authorization after waiting for active probes, before sending the login request and when publishing the session. Failure or revocation does not replace a valid existing session with the new session. Login attempts still count toward cooldown. Shadow mode previews metadata authorization, then executes the original refresh flow once.
 
+## Per-target configuration and shared templates
+
+Under IAM enforcement, batch target configuration uses `quyan:relay:ConfigureProbeTarget` on the selected channel, profile and physical member. A source template additionally requires its channel/profile resources. When a profile is missing, the server reserves its ARN and commits the new profile with target settings together; failed validation or revocation leaves no partial profile. Templates transfer shared settings, not source credentials or account bindings.
+
+A target-only format/model/payload/group edit protects that target and its bound account. Replacing shared profile defaults from a source additionally checks every affected current member, configured target and bound account. Bound-account edits require the dedicated account-pool qualification and `quyan:relay:ModifyBoundProbeProfile`, preventing ordinary configuration access from rewriting workflows that carry shared tokens.
+
+The target's credentials, account bindings and omitted target settings remain unchanged. Changing format requires a compatible payload. Each target commits independently, and active runs block changes. Configuration responses do not return existing account bindings; read them through an authorized read operation.
+
 ## Binding and unbinding shared accounts
 
 Under IAM enforcement, binding requires the dedicated deployment-managed account-pool qualification and `quyan:relay:BindProbeAccount` on the channel, profile, selected physical member and new account ARN. Ordinary probe-executor qualification or an account-owned wildcard policy cannot replace platform account-pool qualification.

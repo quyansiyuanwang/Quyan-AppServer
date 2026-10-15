@@ -1,3 +1,4 @@
+import { RelayProbeTargetConfigureRepository } from "@/store/relay/relay-probe-target-configure.repository";
 import { platformRelayProbeAccountArn } from "@/iam/resources/platform-relay-probe-resources";
 import { RelayProbeAccountBindingRepository } from "@/store/relay/relay-probe-account-binding.repository";
 import { RelayProbeProfileCopyRepository } from "@/store/relay/relay-probe-profile-copy.repository";
@@ -17,6 +18,7 @@ import {
   createRelayChannelProbeRunsBodySchema,
   copyRelayChannelProbeProfileBodySchema,
   bindRelayChannelProbeAccountsBodySchema,
+  configureRelayChannelProbeTargetsBodySchema,
 } from "@/api/schema/relay/relay-channel-probe.schema";
 import { RELAY_PROBE_QUEUE_POLICY, relayProbeQueueSlotKey } from "./relay-channel-probe-queue-policy";
 import {
@@ -1905,8 +1907,60 @@ export class RelayChannelProbeService {
   }
 
   async configureTargets(
+    input: ConfigureRelayChannelProbeTargetsRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
+    const parsed = configureRelayChannelProbeTargetsBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe targets", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data,
+      reserved = new Map([...new Set(body.targets.map((row) => row.channelId))].map((id) => [id, createId()]));
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:ConfigureProbeTarget",
+      actorUserId,
+      request,
+      async (guard) => {
+        const configured: RelayChannelProbeTargetConfigDto[] = [],
+          rejected: ConfigureRelayChannelProbeTargetsResponse["rejected"] = [];
+        for (const target of body.targets) {
+          try {
+            platformRelayChannelArn(target.channelId);
+            if (target.memberChannelId) platformRelayChannelArn(target.memberChannelId);
+            if (body.sourceChannelId) platformRelayChannelArn(body.sourceChannelId);
+            const ids = [
+              ...new Set([target.channelId, ...(body.sourceChannelId ? [body.sourceChannelId] : [])]),
+            ].sort();
+            const operation = () =>
+              RelayProbeTargetConfigureRepository.getInstance().configure(
+                target,
+                body.sourceChannelId,
+                reserved.get(target.channelId)!,
+                Boolean(body.overwriteExisting),
+                guard,
+              );
+            const record = await this.channelLockService.withWrite(ids[0]!, () =>
+              ids.length > 1 ? this.channelLockService.withWrite(ids[1]!, operation) : operation(),
+            );
+            if (record) configured.push(record);
+          } catch {
+            rejected.push({
+              channelId: target.channelId,
+              ...(target.memberChannelId ? { memberChannelId: target.memberChannelId } : {}),
+              reason: translateMessage("permission.insufficientPermission", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+            });
+          }
+        }
+        return { configured, rejected };
+      },
+      () => this.configureTargetsLegacy(body, actorUserId, reserved),
+    );
+  }
+
+  private async configureTargetsLegacy(
     body: ConfigureRelayChannelProbeTargetsRequest,
     actorUserId: string,
+    reserved?: ReadonlyMap<string, string>,
   ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
     const configured: RelayChannelProbeTargetConfigDto[] = [];
     const rejected: ConfigureRelayChannelProbeTargetsResponse["rejected"] = [];
@@ -1949,7 +2003,7 @@ export class RelayChannelProbeService {
         assertProbeEndpointCompatibility(defaultProbeEndpoint(format as ProbeFormat), format as ProbeFormat);
         if (template === source && source) {
           // Validate first; a rejected target must not retain an unusable copied profile.
-          profile = await this.repository.copyProfile(source, target.channelId, false);
+          profile = await this.repository.copyProfile(source, target.channelId, false, reserved?.get(target.channelId));
         }
         if (!profile)
           throw new BadRequestError("Configure a template first", undefined, {

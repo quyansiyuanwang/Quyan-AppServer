@@ -438,7 +438,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("targets/configure")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ConfigureProbeTarget",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -450,7 +457,7 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: ConfigureRelayChannelProbeTargetsRequest,
     @Request() request: TypedRequest,
   ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
-    return this.service.configureTargets(body, request.user!.userId);
+    return this.service.configureTargets(body, request.user!.userId, request);
   }
 
   @Post("accounts/bindings")
