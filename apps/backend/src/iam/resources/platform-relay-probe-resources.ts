@@ -17,3 +17,13 @@ export function platformRelayProbeAccountControlArn() {
     path: "relay-probe-account-control/default",
   });
 }
+export function platformRelayProbeRunArn(channelId: string, runId: string) {
+  if (!isPlatformLogResourceId(channelId) || !isPlatformLogResourceId(runId))
+    throw new Error("Invalid platform probe run identifier");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "relay-probe-run/" + channelId + "/" + runId,
+  });
+}

@@ -187,13 +187,20 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("runs/latest")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListLatestProbeRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+  )
   @Middlewares(validateBody(relayChannelProbeLatestRunsBodySchema))
   public listLatestRuns(
     @Body() body: RelayChannelProbeLatestRunRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayChannelProbeLatestRunDto[]> {
-    return this.service.listLatestRuns(body, request.user!.userId);
+    return this.service.listLatestRuns(body, request.user!.userId, request);
   }
 
   @Post("runs/batch")

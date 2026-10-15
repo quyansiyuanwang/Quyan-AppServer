@@ -1,3 +1,6 @@
+import { RelayProbeLatestRunReadIamService } from "./relay-probe-latest-run-read-iam.service";
+import type { RelayProbeRunPublicRecord } from "@/store/relay/relay-probe-run-public-select";
+import type { TypedRequest } from "@/types/express";
 import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-config.service";
 import { AIResourceService, aiResourceContext } from "@/services/infrastructure/ai-resource.service";
@@ -1465,6 +1468,19 @@ export class RelayChannelProbeService {
   async listLatestRuns(
     body: RelayChannelProbeLatestRunRequest,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelProbeLatestRunDto[]> {
+    return RelayProbeLatestRunReadIamService.getInstance().latest(
+      actorUserId,
+      body,
+      request,
+      (run) => this.toRunDto(run),
+      () => this.listLatestRunsLegacy(body, actorUserId),
+    );
+  }
+  private async listLatestRunsLegacy(
+    body: RelayChannelProbeLatestRunRequest,
+    actorUserId: string,
   ): Promise<RelayChannelProbeLatestRunDto[]> {
     const targets = body.targets;
     const uniqueChannelIds = [...new Set(targets.map((target) => target.channelId))];
@@ -2440,7 +2456,7 @@ export class RelayChannelProbeService {
       updateTime: profile.updateTime,
     };
   }
-  private toRunDto(run: ProbeRunRecord): RelayChannelProbeRunDto {
+  private toRunDto(run: RelayProbeRunPublicRecord): RelayChannelProbeRunDto {
     const n = (value: Prisma.Decimal | null) => (value == null ? undefined : Number(value));
     return {
       id: run.id,

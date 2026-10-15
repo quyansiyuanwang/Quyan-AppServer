@@ -609,6 +609,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-token/{userId}/{resourceId}',
   },
   {
+    ...resource('platform', 'relay-probe-run', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-probe-run/{channelId}/{resourceId}',
+  },
+  {
     ...resource('platform', 'relay-probe-account-control'),
     accountScope: 'platform',
     arnTemplate:
@@ -1195,6 +1201,19 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+  },
+  {
+    action: 'quyan:relay:ListLatestProbeRuns',
+    service: 'relay',
+    operation: 'ListLatestProbeRuns',
+    accessLevel: 'List',
+    resourceTypes: ['platform/relay-channel', 'platform/relay-probe-run'],
+    apiRoutes: ['POST /v1/relay-channel-probes/runs/latest'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_PROBE_READ,
   },
   {
     action: 'quyan:relay:ListProbeAccounts',

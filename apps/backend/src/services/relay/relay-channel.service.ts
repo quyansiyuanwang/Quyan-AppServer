@@ -1374,6 +1374,14 @@ export class RelayChannelService {
     assumedRoleSessionId?: string,
   ): Promise<boolean> {
     if (channel.visibilityMode === "hidden") return false;
+    return this.canAccessChannelMetadata(channel, actorUserId, assumedRoleSessionId);
+  }
+  /** Share probe visibility checks without reading channel credentials. */
+  async canAccessChannelMetadata(
+    channel: Pick<RelayChannel, "visibilityMode" | "visibilityConfig">,
+    actorUserId: string,
+    assumedRoleSessionId?: string,
+  ): Promise<boolean> {
     if (!assumedRoleSessionId) return this.canUserAccessChannel(channel, actorUserId);
     const checks = await Promise.all(
       RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS.map((permission) =>

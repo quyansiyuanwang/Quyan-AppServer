@@ -34,6 +34,8 @@ Expanded member rows show the latest task status and suggested multiplier. Open 
 
 A member result never changes pricing automatically. An operator with multiplier-adjustment permission must select and confirm a result before its suggestion is applied to the parent logical pool's public multiplier. Large changes still need another stable result from the same account unless the operator explicitly forces the confirmation.
 
+When native IAM enforcement is enabled, latest-result polling checks `quyan:relay:ListLatestProbeRuns` on both channel ARNs (`acs:platform:*:platform:relay-channel/<channelId>`) and run ARNs (`acs:platform:*:platform:relay-probe-run/<channelId>/<runId>`). A pooled target also requires access to its current physical member. Denied channels are omitted; when the latest run is denied, that target has no visible result and an older run is never substituted. Channel visibility and the deployment-managed probe-read qualification still apply.
+
 ## Prerequisites and notes
 
 - Reading requires channel-probe read permission. Saving an ordinary profile, running, clearing or resetting requires execute permission, step-up verification and replay protection. Editing or deleting a profile bound to a shared account additionally requires the dedicated account-pool management permission, preventing unauthorized changes to requests carrying shared tokens.
