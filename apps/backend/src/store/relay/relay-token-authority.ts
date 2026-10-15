@@ -1,5 +1,6 @@
+import { captureIamOAuthRevision } from "../users/iam-oauth-authority";
 import type { Prisma } from "@prisma/client";
-import { Permission, getOAuthScopeAliases, type IamPrincipal } from "@quyan/shared";
+import { Permission, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { isRelayTokenResourceId } from "@/iam/resources/relay-token-resources";
 import { assertIamAccountPrincipal, iamAccountDenied } from "../users/iam-account-principal";
@@ -61,40 +62,13 @@ export async function captureRelayTokenAuthority(
   const group = managed
     ? await platformManagementGroupSnapshot(principal, requirements.managementPermission, tx)
     : undefined;
-  let oauthRevision: string | undefined;
-  if (oauth) {
-    const token = await tx.oAuthAccessToken.findUnique({
-      where: { id: oauth.id },
-      select: {
-        userId: true,
-        oauthClientId: true,
-        status: true,
-        revokedAt: true,
-        expiresAt: true,
-        scopes: true,
-        oauthClient: { select: { status: true, reviewStatus: true, scopes: true } },
-      },
-    });
-    const required = [requirements.operationPermission, ...(managed ? [requirements.managementPermission] : [])];
-    const scoped = (scopes: unknown) =>
-      Array.isArray(scopes) &&
-      required.every((scope) => getOAuthScopeAliases(scope).some((alias) => scopes.includes(alias)));
-    if (
-      !token ||
-      token.userId !== principal.subjectUserId ||
-      token.oauthClientId !== oauth.clientId ||
-      token.status !== 1 ||
-      token.revokedAt ||
-      token.expiresAt <= new Date() ||
-      !scoped(token.scopes) ||
-      token.oauthClient.status !== 1 ||
-      token.oauthClient.reviewStatus !== "approved" ||
-      !scoped(token.oauthClient.scopes)
-    )
-      throw iamAccountDenied();
-    // Usage counters/lastUsedAt do not change authority and must not revoke concurrent requests.
-    oauthRevision = JSON.stringify({ tokenId: oauth.id, clientId: oauth.clientId, ...token });
-  }
+  const oauthRevision = await captureIamOAuthRevision(
+    principal,
+    oauth,
+    [requirements.operationPermission, ...(managed ? [requirements.managementPermission] : [])],
+    tx,
+  );
+
   return {
     users,
     ...(group ? { group } : {}),
