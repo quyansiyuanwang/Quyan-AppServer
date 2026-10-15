@@ -31,6 +31,14 @@ Export requires `quyan:relay:ExportTokens` and `RevealToken` on every selected t
 
 These disclosure rules cover list, single-token read, export, and the single-token status and refresh operations described below. Duplication and other modifications remain separate operations with their own authorization requirements; do not treat metadata-only access as a guarantee that other granted operations cannot return credentials. In legacy or shadow mode, the existing permission checks remain authoritative; shadow comparison does not enable IAM enforcement.
 
+### Resource boundaries for composition candidates
+
+In IAM enforce mode, the composition candidate list checks `quyan:relay:ListTokenCompositionCandidates` on each token ARN without additionally requiring `GetToken` or `RevealToken`. A candidate's entire referenced subtree must be authorized, including disabled member references. If any descendant is denied, deleted, outside the selected user, cyclic, or beyond graph limits, its parent candidate is omitted from both results and totals. The service does not disclose reduced member counts or incomplete references that could reveal hidden tokens.
+
+Name searches, pagination, and pinned selections operate only within completely visible candidates. Any unauthorized or incomplete candidate explicitly named in `selectedIds` causes the entire query to fail; an unauthorized editing target also fails. Nonempty `selectedIds` must contain at most 200 distinct comma-separated IDs without empty segments. Self and fully authorized ancestors that would introduce a cycle are marked unselectable. Disabled or expired but undeleted tokens remain inspectable for configuration purposes, without regaining invocation eligibility.
+
+Inspecting another user's candidates still requires platform management-read qualification, personal endpoint admission, and `ListManagedTokenCompositionCandidates` on the target platform user and each token. Same-account peers do not bypass this boundary. The reference graph, tokens, identity, and authorization are rechecked before release. The query reads no token credentials, upstream configuration, or physical channels. These rules cover candidate selection only, not the independent authorization of composition previews, writes, or invocation. Legacy / shadow retain the original behavior, and shadow does not additionally load candidate topology.
+
 ### Model catalog discovery permission
 
 In IAM enforce mode, model-name discovery uses `quyan:relay:ListAvailableModels` on each `acs:relay:*:<accountId>:model-catalog-entry/<modelRecordId>`. The optional response map `modelResourceArns` provides exact ARNs keyed by visible model name. Denied entries are absent from names, model IDs, alias maps, and resource maps. Unique and one-to-many mappings for a shared upstream ID are computed only from authorized entries. No authorized entries means an empty catalog.

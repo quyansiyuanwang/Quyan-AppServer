@@ -1,3 +1,4 @@
+import { RelayTokenCompositionReadService } from "./relay-token-composition-read.service";
 import { RelayModelCatalogReadIamService } from "./relay-model-catalog-read-iam.service";
 import { relayModelCatalogArn } from "@/iam/resources/relay-model-catalog-resources";
 import { PlatformRelayRequestReadIamService } from "./platform-relay-request-read-iam.service";
@@ -227,6 +228,32 @@ export class RelayTokenService {
   }
 
   async compositionCandidates(
+    actorUserId: string,
+    page = 1,
+    pageSize = 20,
+    search = "",
+    editingTokenId?: string,
+    selectedIds = "",
+    targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayCompositionCandidatesDto> {
+    return RelayTokenCompositionReadService.getInstance().candidates(
+      actorUserId,
+      { page, pageSize, search, editingTokenId, selectedIds, targetUserId },
+      request,
+      () =>
+        this.compositionCandidatesLegacy(
+          actorUserId,
+          page,
+          pageSize,
+          search,
+          editingTokenId,
+          selectedIds,
+          targetUserId,
+        ),
+    );
+  }
+  private async compositionCandidatesLegacy(
     actorUserId: string,
     page = 1,
     pageSize = 20,

@@ -1399,6 +1399,31 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       legacyPermission: Permission.RELAY_TOKEN_READ,
     }),
   ),
+  ...[false, true].map(
+    (managed): IamActionDefinition => ({
+      action: managed
+        ? 'quyan:relay:ListManagedTokenCompositionCandidates'
+        : 'quyan:relay:ListTokenCompositionCandidates',
+      service: 'relay',
+      operation: managed
+        ? 'ListManagedTokenCompositionCandidates'
+        : 'ListTokenCompositionCandidates',
+      accessLevel: 'List',
+      resourceTypes: managed
+        ? ['platform/user', 'platform/relay-token']
+        : ['quyan/user', 'relay/token'],
+      apiRoutes: ['GET /v1/relay/tokens/composition-candidates'],
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      ...(managed
+        ? { authorizationBoundary: 'platform' as const }
+        : { conditionalActions: ['quyan:relay:ListManagedTokenCompositionCandidates'] }),
+      legacyPermission: managed
+        ? Permission.RELAY_TOKEN_MANAGE_OTHERS_READ
+        : Permission.RELAY_TOKEN_READ,
+    }),
+  ),
   {
     action: 'quyan:relay:ListAvailableModels',
     service: 'relay',

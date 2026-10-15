@@ -168,7 +168,16 @@ export class RelayController extends Controller {
 
   @Get("tokens/composition-candidates")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListTokenCompositionCandidates",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateQuery(relayCompositionCandidatesQuerySchema))
   async compositionCandidates(
     @Request() request: TypedRequest,
@@ -187,6 +196,7 @@ export class RelayController extends Controller {
       editingTokenId,
       selectedIds,
       targetUserId,
+      request,
     );
   }
 

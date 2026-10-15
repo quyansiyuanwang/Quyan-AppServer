@@ -290,3 +290,43 @@ describe("batch usage and switch inspection admission", () => {
     expect(legacy).toHaveBeenCalledOnce();
   });
 });
+
+describe("candidate collection admission through the common inspection guard", () => {
+  it("evaluates a fixed candidate Action without borrowing usage or Reveal permissions", async () => {
+    repository.list.mockImplementation(async (_owner, _ids, decide) => {
+      await decide(["token"]);
+      return [];
+    });
+    await service.candidates("actor", undefined, request(), async () => [], legacy);
+    expect(new Set(iam.authorizeMany.mock.calls.map(([input]) => input.action))).toEqual(
+      new Set(["quyan:relay:ListTokenCompositionCandidates"]),
+    );
+  });
+  it("uses personal admission plus managed user and token boundaries for peers", async () => {
+    repository.list.mockImplementation(async (_owner, _ids, decide) => {
+      await decide(["token"]);
+      return [];
+    });
+    await service.candidates("actor", "peer", request(), async () => [], legacy);
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "quyan:relay:ListManagedTokenCompositionCandidates",
+        resources: [platformUserArn("peer")],
+      }),
+    );
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "quyan:relay:ListManagedTokenCompositionCandidates",
+        resources: [platformRelayTokenArn("peer", "token")],
+      }),
+    );
+  });
+  it("shadow never invokes graph or candidate projection", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    repository.list.mockResolvedValue([]);
+    const graph = vi.fn();
+    await service.candidates("actor", undefined, request(), graph, legacy);
+    expect(graph).not.toHaveBeenCalled();
+    expect(legacy).toHaveBeenCalledTimes(1);
+  });
+});

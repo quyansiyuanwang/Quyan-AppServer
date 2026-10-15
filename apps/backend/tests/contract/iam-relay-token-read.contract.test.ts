@@ -157,3 +157,18 @@ describe("generated public model discovery contract", () => {
     expect(schema.properties).not.toHaveProperty("inputPrice");
   });
 });
+
+describe("generated composition candidate authorization contract", () => {
+  it("retains Token READ OAuth scope and explicit denial responses", () => {
+    const operation = document.paths["/v1/relay/tokens/composition-candidates"].get;
+    expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_READ] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+  });
+  it("does not add credential or physical-channel fields to candidates", () => {
+    const schema = document.components.schemas.RelayCompositionCandidateDto;
+    expect(schema.required).toEqual(expect.arrayContaining(["id", "memberCount", "selectable"]));
+    for (const field of ["token", "upstreamApiKey", "channelId", "userId"])
+      expect(schema.properties).not.toHaveProperty(field);
+  });
+});
