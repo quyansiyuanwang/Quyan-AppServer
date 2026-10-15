@@ -18,6 +18,14 @@ vi.mock("@/services/relay/platform-relay-probe-account-read-iam.service", () => 
     getInstance: () => ({ list: (_request: unknown, _map: unknown, legacy: () => Promise<unknown>) => legacy() }),
   },
 }));
+vi.mock("@/services/relay/platform-relay-probe-account-update-iam.service", () => ({
+  PlatformRelayProbeAccountUpdateIamService: {
+    getInstance: () => ({
+      update: (_id: string, _input: unknown, _encrypt: unknown, _request: unknown, legacy: () => Promise<unknown>) =>
+        legacy(),
+    }),
+  },
+}));
 vi.mock("@/services/relay/platform-relay-probe-account-delete-iam.service", () => ({
   PlatformRelayProbeAccountDeleteIamService: {
     getInstance: () => ({ remove: (_id: string, _request: unknown, legacy: () => Promise<void>) => legacy() }),

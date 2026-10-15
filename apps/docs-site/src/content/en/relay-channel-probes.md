@@ -22,6 +22,8 @@ With IAM enforcement enabled, the account pool list requires `quyan:relay:ListPr
 
 Deleting an account requires `quyan:relay:DeleteProbeAccount` for its account ARN, as well as platform probe-account management qualification, step-up verification and replay protection. Accounts still bound to channel profiles cannot be deleted. Authorization is checked before deletion and again at commit; a revoked grant preserves the account and its cached session.
 
+Updating an account requires `quyan:relay:UpdateProbeAccount` for its account ARN. Omitted credentials retain their existing values; supplied credentials replace the full credential map. Login requests remain encrypted, and responses include neither credentials nor login workflows. If authorization changes at commit, the configuration update is rolled back and the existing cached session is preserved.
+
 ## Reviewing and applying results
 
 Expanded member rows show the latest task status and suggested multiplier. Open a member to inspect that account's own history, balance delta, usage, and failure reasons. Standalone channels keep the existing single-channel workflow.

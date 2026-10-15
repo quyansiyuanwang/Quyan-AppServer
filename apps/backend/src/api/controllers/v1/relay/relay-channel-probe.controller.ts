@@ -317,7 +317,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Put("accounts/{accountId}")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:UpdateProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -329,8 +333,9 @@ export class RelayChannelProbeController extends Controller {
   public updateAccount(
     @Path() accountId: string,
     @Body() body: SaveRelayChannelProbeAccountRequest,
+    @Request() request: TypedRequest,
   ): Promise<RelayChannelProbeAccountDto> {
-    return this.accountService.save(body, accountId);
+    return this.accountService.save(body, accountId, request);
   }
 
   @Delete("accounts/{accountId}")

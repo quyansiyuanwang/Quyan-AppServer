@@ -1,3 +1,5 @@
+import { PlatformRelayProbeAccountUpdateIamService } from "./platform-relay-probe-account-update-iam.service";
+import type { ProbeAccountEncryptedConfiguration } from "@/store/relay/platform-relay-probe-account-update.repository";
 import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
 import axios from "axios";
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "crypto";
@@ -98,27 +100,52 @@ export class RelayChannelProbeAccountService {
       ),
     );
   }
-  async save(body: SaveRelayChannelProbeAccountRequest, id?: string) {
+  async save(body: SaveRelayChannelProbeAccountRequest, id?: string, request?: TypedRequest) {
+    if (id !== undefined)
+      return PlatformRelayProbeAccountUpdateIamService.getInstance().update(
+        id,
+        body,
+        (input, previous) => this.encryptConfiguration(input, previous),
+        request,
+        () => this.saveLegacy(body, id),
+        async () => {
+          await this.redis.delete(this.cacheKey(id));
+        },
+      );
+    return this.saveLegacy(body);
+  }
+  private encryptConfiguration(
+    body: SaveRelayChannelProbeAccountRequest,
+    previous?: ProbeAccountEncryptedConfiguration,
+  ) {
+    if (body.credentials && Object.hasOwn(body.credentials, "accountToken")) throw bad("accountReservedVariable");
+    const variables =
+      body.credentials ??
+      (previous
+        ? (
+            this.decrypt({
+              ciphertext: previous.encryptedCredentials,
+              iv: previous.credentialIv,
+              authTag: previous.credentialAuthTag,
+            }) as { variables: Record<string, string> }
+          ).variables
+        : {});
+    const encrypted = this.encrypt({ variables, workflow: body.loginWorkflow });
+    return {
+      encryptedCredentials: encrypted.ciphertext,
+      credentialIv: encrypted.iv,
+      credentialAuthTag: encrypted.authTag,
+    };
+  }
+  private async saveLegacy(body: SaveRelayChannelProbeAccountRequest, id?: string) {
     const existing = id ? await this.repository.find(id) : null;
     if (id && !existing)
       throw new NotFoundError("Probe account not found", undefined, {
         messageKey: "relayChannelProbe.accountNotFound",
       });
     if (!existing && !body.credentials) throw bad("accountCredentialsRequired");
-    if (body.credentials && Object.hasOwn(body.credentials, "accountToken")) throw bad("accountReservedVariable");
-    // Encrypt the entire login request, not just credential variables. Some upstreams
-    // require sensitive static headers or body fields; neither belongs in a JSON column.
-    const previous = existing
-      ? (this.decrypt({
-          ciphertext: existing.encryptedCredentials,
-          iv: existing.credentialIv,
-          authTag: existing.credentialAuthTag,
-        }) as { variables: Record<string, string> })
-      : undefined;
-    const encrypted = this.encrypt({
-      variables: body.credentials ?? previous?.variables ?? {},
-      workflow: body.loginWorkflow,
-    });
+    // The entire login request can contain secrets, so it is always encrypted.
+    const encrypted = this.encryptConfiguration(body, existing ?? undefined);
     const config = {
       name: body.name,
       tokenPath: body.tokenPath,
@@ -130,15 +157,11 @@ export class RelayChannelProbeAccountService {
     const account = existing
       ? await this.repository.update(existing.id, {
           ...config,
-          encryptedCredentials: encrypted.ciphertext,
-          credentialIv: encrypted.iv,
-          credentialAuthTag: encrypted.authTag,
+          ...encrypted,
         })
       : await this.repository.create({
           ...config,
-          encryptedCredentials: encrypted.ciphertext,
-          credentialIv: encrypted.iv,
-          credentialAuthTag: encrypted.authTag,
+          ...encrypted,
         });
     if (existing) await this.redis.delete(this.cacheKey(account.id));
     return this.dto(account, false);

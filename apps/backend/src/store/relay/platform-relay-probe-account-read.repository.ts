@@ -4,7 +4,7 @@ import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { platformRelayProbeAccountArn } from "@/iam/resources/platform-relay-probe-resources";
 import { readIamPersonalCollection } from "../users/iam-personal-collection-read";
 import { iamAccountDenied } from "../users/iam-account-principal";
-const publicSelect = {
+export const relayProbeAccountPublicSelect = {
   id: true,
   name: true,
   tokenPath: true,
@@ -16,7 +16,7 @@ const publicSelect = {
   updateTime: true,
 } as const satisfies Prisma.RelayChannelProbeAccountSelect;
 export type RelayProbeAccountPublicRecord = Prisma.RelayChannelProbeAccountGetPayload<{
-  select: typeof publicSelect;
+  select: typeof relayProbeAccountPublicSelect;
 }> & { hasCredentials: boolean };
 export interface PlatformRelayProbeAccountReadStore {
   list<T>(
@@ -61,7 +61,7 @@ export class PlatformRelayProbeAccountReadRepository implements PlatformRelayPro
         rows = await tx.relayChannelProbeAccount.findMany({
           where: { id: { in: [...revisions.keys()] } },
           orderBy: { name: "asc" },
-          select: publicSelect,
+          select: relayProbeAccountPublicSelect,
         });
       if (
         rows.length !== admitted.length ||
