@@ -1,3 +1,4 @@
+import { PlatformRelayProbeAccountCreateIamService } from "./platform-relay-probe-account-create-iam.service";
 import { PlatformRelayProbeAccountUpdateIamService } from "./platform-relay-probe-account-update-iam.service";
 import type { ProbeAccountEncryptedConfiguration } from "@/store/relay/platform-relay-probe-account-update.repository";
 import { configureAIOutboundAgents } from "@/services/infrastructure/ai-http-agent-pool";
@@ -112,7 +113,12 @@ export class RelayChannelProbeAccountService {
           await this.redis.delete(this.cacheKey(id));
         },
       );
-    return this.saveLegacy(body);
+    return PlatformRelayProbeAccountCreateIamService.getInstance().create(
+      body,
+      (input) => this.encryptConfiguration(input),
+      request,
+      (reservedId) => this.saveLegacy(body, undefined, reservedId),
+    );
   }
   private encryptConfiguration(
     body: SaveRelayChannelProbeAccountRequest,
@@ -137,7 +143,7 @@ export class RelayChannelProbeAccountService {
       credentialAuthTag: encrypted.authTag,
     };
   }
-  private async saveLegacy(body: SaveRelayChannelProbeAccountRequest, id?: string) {
+  private async saveLegacy(body: SaveRelayChannelProbeAccountRequest, id?: string, reservedId?: string) {
     const existing = id ? await this.repository.find(id) : null;
     if (id && !existing)
       throw new NotFoundError("Probe account not found", undefined, {
@@ -160,6 +166,7 @@ export class RelayChannelProbeAccountService {
           ...encrypted,
         })
       : await this.repository.create({
+          ...(reservedId ? { id: reservedId } : {}),
           ...config,
           ...encrypted,
         });

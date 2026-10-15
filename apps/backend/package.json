@@ -121,6 +121,7 @@
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@paralleldrive/cuid2": "2.3.1",
     "@prisma/client": "^6.19.2",
     "@quyan/shared": "workspace:*",
     "@simplewebauthn/server": "^13.2.3",

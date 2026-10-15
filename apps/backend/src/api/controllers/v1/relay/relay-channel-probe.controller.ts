@@ -1,4 +1,7 @@
-import { platformRelayProbeAccountResourceResolver } from "@/iam/request/relay-probe-resource-resolvers";
+import {
+  platformRelayProbeAccountResourceResolver,
+  platformRelayProbeAccountCreateResourceResolver,
+} from "@/iam/request/relay-probe-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
@@ -303,7 +306,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("accounts")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:CreateProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountCreateResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -311,8 +318,11 @@ export class RelayChannelProbeController extends Controller {
     replayProtectionMiddleware,
     validateBody(saveRelayChannelProbeAccountBodySchema),
   )
-  public createAccount(@Body() body: SaveRelayChannelProbeAccountRequest): Promise<RelayChannelProbeAccountDto> {
-    return this.accountService.save(body);
+  public createAccount(
+    @Body() body: SaveRelayChannelProbeAccountRequest,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelProbeAccountDto> {
+    return this.accountService.save(body, undefined, request);
   }
 
   @Put("accounts/{accountId}")

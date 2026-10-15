@@ -18,6 +18,13 @@ vi.mock("@/services/relay/platform-relay-probe-account-read-iam.service", () => 
     getInstance: () => ({ list: (_request: unknown, _map: unknown, legacy: () => Promise<unknown>) => legacy() }),
   },
 }));
+vi.mock("@/services/relay/platform-relay-probe-account-create-iam.service", () => ({
+  PlatformRelayProbeAccountCreateIamService: {
+    getInstance: () => ({
+      create: (_input: unknown, _encrypt: unknown, _request: unknown, legacy: () => Promise<unknown>) => legacy(),
+    }),
+  },
+}));
 vi.mock("@/services/relay/platform-relay-probe-account-update-iam.service", () => ({
   PlatformRelayProbeAccountUpdateIamService: {
     getInstance: () => ({

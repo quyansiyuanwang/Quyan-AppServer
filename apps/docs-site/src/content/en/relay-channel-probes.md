@@ -24,6 +24,8 @@ Deleting an account requires `quyan:relay:DeleteProbeAccount` for its account AR
 
 Updating an account requires `quyan:relay:UpdateProbeAccount` for its account ARN. Omitted credentials retain their existing values; supplied credentials replace the full credential map. Login requests remain encrypted, and responses include neither credentials nor login workflows. If authorization changes at commit, the configuration update is rolled back and the existing cached session is preserved.
 
+Creating an account requires `quyan:relay:CreateProbeAccount` on both the creation control `acs:platform:*:platform:relay-probe-account-control/default` and the future account ARN, normally granted with `acs:platform:*:platform:relay-probe-account/*`. The server reserves a resource ID and checks both grants before encrypting and saving credentials. Shadow evaluation uses the same ARN as the account that is ultimately created. Credentials are required on creation.
+
 ## Reviewing and applying results
 
 Expanded member rows show the latest task status and suggested multiplier. Open a member to inspect that account's own history, balance delta, usage, and failure reasons. Standalone channels keep the existing single-channel workflow.

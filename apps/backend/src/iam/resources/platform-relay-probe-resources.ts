@@ -9,3 +9,11 @@ export function platformRelayProbeAccountArn(id: string) {
     path: "relay-probe-account/" + id,
   });
 }
+export function platformRelayProbeAccountControlArn() {
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "relay-probe-account-control/default",
+  });
+}

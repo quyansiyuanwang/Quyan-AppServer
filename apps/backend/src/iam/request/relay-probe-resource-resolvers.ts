@@ -1,4 +1,7 @@
-import { platformRelayProbeAccountArn } from "../resources/platform-relay-probe-resources";
+import {
+  platformRelayProbeAccountArn,
+  platformRelayProbeAccountControlArn,
+} from "../resources/platform-relay-probe-resources";
 import type { ResourceResolver } from "./resource-resolvers";
 export const platformRelayProbeAccountResourceResolver: ResourceResolver = ({ request }) => {
   const id = request.params.accountId;
@@ -9,3 +12,5 @@ export const platformRelayProbeAccountResourceResolver: ResourceResolver = ({ re
     return undefined;
   }
 };
+export const platformRelayProbeAccountCreateResourceResolver: ResourceResolver = () =>
+  platformRelayProbeAccountControlArn();

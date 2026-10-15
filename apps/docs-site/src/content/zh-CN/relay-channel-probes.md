@@ -24,6 +24,8 @@
 
 修改号池需要 `quyan:relay:UpdateProbeAccount` 对目标号池 ARN 的授权。省略凭据时保留原凭据，填写新凭据时整体替换；登录请求仍加密保存，响应不返回凭据或登录工作流。提交时授权发生变化会回滚配置修改，并保留原缓存会话。
 
+创建号池需要 `quyan:relay:CreateProbeAccount` 同时允许创建入口 `acs:platform:*:platform:relay-probe-account-control/default` 和即将创建的号池 ARN（通常通过 `acs:platform:*:platform:relay-probe-account/*` 授权）。服务端预先分配资源 ID，先检查两项授权再加密和保存凭据；shadow 模式检查的 ARN 与最终创建的资源一致。创建必须提供凭据。
+
 ## 查看和应用结果
 
 展开的成员行显示其最新任务状态和建议倍率。打开成员详情可查看该账号自己的历史记录、余额差值、用量和失败原因。独立渠道保持原有的单渠道探针流程。

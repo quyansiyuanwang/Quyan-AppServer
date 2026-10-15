@@ -609,6 +609,12 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-token/{userId}/{resourceId}',
   },
   {
+    ...resource('platform', 'relay-probe-account-control'),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-probe-account-control/{resourceId}',
+  },
+  {
     ...resource('platform', 'relay-probe-account'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-probe-account/{resourceId}',
@@ -1137,6 +1143,19 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     sensitive: true,
     authorizationStage: 'declared',
     legacyPermission: Permission.RELAY_CHANNEL_PROVIDER_READ,
+  },
+  {
+    action: 'quyan:relay:CreateProbeAccount',
+    service: 'relay',
+    operation: 'CreateProbeAccount',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/relay-probe-account-control', 'platform/relay-probe-account'],
+    apiRoutes: ['POST /v1/relay-channel-probes/accounts'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
   },
   {
     action: 'quyan:relay:DeleteProbeAccount',
