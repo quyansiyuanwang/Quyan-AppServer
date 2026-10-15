@@ -592,7 +592,7 @@ export const importRelayTokensBodySchema = z.object({
 
 export const batchSetRelayTokenStatusBodySchema = z.object({
   ids: relayTokenIdsSchema,
-  enabled: z.coerce.boolean(),
+  enabled: z.boolean(),
   targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 

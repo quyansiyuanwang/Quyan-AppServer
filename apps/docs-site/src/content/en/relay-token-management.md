@@ -39,6 +39,14 @@ A batch accepts at most 200 distinct token IDs. If any target is missing, alread
 
 Deletion makes a token unavailable without removing existing composite-member references or historical usage. A composite branch referencing it becomes unavailable; edit the composition separately to remove that reference. The endpoints retain replay protection and step-up verification. Legacy and shadow modes continue to execute the existing deletion behavior; the resource-level and all-or-nothing guarantees above apply to enforce mode.
 
+### Batch status and content-safety configuration
+
+With IAM enforcement enabled, batch status changes check `quyan:relay:SetTokenStatus` on each token, and batch content-safety changes check `quyan:relay:SetTokenContentSafety`. Neither operation additionally requires read or disclosure permission, and neither returns token credentials. Managing other users still requires platform-management write eligibility, the current user's endpoint admission, and the corresponding `SetManagedTokenStatus` / `SetManagedTokenContentSafety` on the target platform user and every token. Management-read eligibility cannot replace write eligibility.
+
+Each batch accepts at most 200 distinct IDs, all belonging to the selected user and not deleted. A missing or denied resource, or a relevant authorization or resource change during execution, prevents the entire batch from taking effect. Status changes only enable or disable tokens: they do not rotate credentials, reset quotas or restore deleted tokens. The API's `enabled` must be a JSON boolean, `true` or `false`, not the string `"false"`.
+
+Content-safety **Snapshot** saves the target user's effective settings at that time as the selected tokens' override; managing another user does not copy the operator's settings. **Clear** removes token overrides so subsequent requests inherit user and system settings again. Neither operation changes user or system policies, and runtime system safety constraints still apply. The endpoints retain replay protection and step-up verification. These resource-level and all-or-nothing guarantees apply to enforce mode; legacy and shadow continue to execute the existing business behavior.
+
 ### Quota windows
 
 Each token can have one or more rolling time-window rate limits (e.g. per-minute, per-hour, per-day):

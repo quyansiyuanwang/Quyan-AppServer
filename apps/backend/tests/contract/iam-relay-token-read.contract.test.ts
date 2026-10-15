@@ -44,3 +44,25 @@ describe("generated resource-authorized relay token deletion contract", () => {
     expect(operation.responses).toHaveProperty("403");
   });
 });
+
+describe("generated resource-authorized token batch metadata contract", () => {
+  it.each([
+    ["/v1/relay/tokens/batch/status", "patch"],
+    ["/v1/relay/tokens/batch/content-safety", "post"],
+  ])("retains UPDATE scope, replay and step-up protection for %s %s", (path, method) => {
+    const operation = document.paths[path!][method!];
+    expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_UPDATE] });
+    expect(operation["X-Replay-Protected"]).toBe(true);
+    expect(operation["X-Two-Factor-Challenge"]).toMatchObject({ required: true, purpose: "stepup", method: "code" });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+  });
+  it("requires a real JSON boolean and retains the bounded batch result contract", () => {
+    expect(document.components.schemas.BatchSetRelayTokenStatusRequest.properties.enabled).toEqual({ type: "boolean" });
+    expect(document.components.schemas.BatchSetRelayTokenStatusRequest.required).toContain("enabled");
+    expect(document.components.schemas.BatchRelayTokensResultDto.required).toEqual(
+      expect.arrayContaining(["total", "affected"]),
+    );
+    expect(document.components.schemas.BatchRelayTokensResultDto.properties).not.toHaveProperty("token");
+  });
+});

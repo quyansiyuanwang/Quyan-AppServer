@@ -28,7 +28,10 @@ export class RelayTokenDeleteIamService {
       IamAuthorizationService,
       "loadPolicies" | "authorizeMany"
     > = IamAuthorizationService.getInstance(),
-    private readonly repository = RelayTokenDeleteRepository.getInstance(),
+    private readonly repository: Pick<
+      RelayTokenDeleteRepository,
+      "snapshot" | "tokenOwner" | "candidates" | "remove"
+    > = RelayTokenDeleteRepository.getInstance(),
     private readonly permissions: Pick<PermissionService, "checkUserPermissions"> = PermissionService.getInstance(),
   ) {}
   async remove(
@@ -81,7 +84,7 @@ export class RelayTokenDeleteIamService {
         fingerprint = fingerprintIamPolicies(await this.iam.loadPolicies(principal));
       const keyId = request.accessKey?.id,
         keyRevision = await captureIamAccessKeyRevision(principal, keyId);
-      const recheck = async (tx?: Prisma.TransactionClient) => {
+      const assertRequest = () => {
         if (
           JSON.stringify(getIamPrincipal(request)) !== JSON.stringify(principal) ||
           request.accessKey?.id !== keyId ||
@@ -92,12 +95,17 @@ export class RelayTokenDeleteIamService {
             : Boolean(request.oauthAccessToken))
         )
           throw iamAccountDenied();
+      };
+      const recheck = async (tx?: Prisma.TransactionClient) => {
+        assertRequest();
         if (
           JSON.stringify(await this.repository.snapshot(identity, tx)) !== JSON.stringify(snapshot) ||
           fingerprintIamPolicies(await this.iam.loadPolicies(principal)) !== fingerprint ||
           (await captureIamAccessKeyRevision(principal, keyId, tx)) !== keyRevision
         )
           throw iamAccountDenied();
+        // Async proof reads must not allow the request binding to change underneath them.
+        assertRequest();
       };
       const resources = parsed.data.ids.map((id) =>
         identity.managed ? platformRelayTokenArn(userId, id) : relayTokenArn(principal.accountOwnerId, userId, id),

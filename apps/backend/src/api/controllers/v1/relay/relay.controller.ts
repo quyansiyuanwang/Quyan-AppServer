@@ -384,8 +384,17 @@ export class RelayController extends Controller {
   }
 
   @Patch("tokens/batch/status")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SetTokenStatus",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -400,8 +409,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/batch/content-safety")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:update"])
-  @RequirePermission(Permission.RELAY_TOKEN_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:SetTokenContentSafety",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_UPDATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

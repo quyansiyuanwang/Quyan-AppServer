@@ -23,6 +23,10 @@ export const RELAY_TOKEN_AUTHORITY_REQUIREMENTS = Object.freeze({
     operationPermission: Permission.RELAY_TOKEN_READ,
     managementPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,
   }),
+  update: Object.freeze({
+    operationPermission: Permission.RELAY_TOKEN_UPDATE,
+    managementPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+  }),
   delete: Object.freeze({
     operationPermission: Permission.RELAY_TOKEN_DELETE,
     managementPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,

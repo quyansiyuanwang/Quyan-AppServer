@@ -1,3 +1,4 @@
+import { RelayTokenBatchUpdateIamService } from "./relay-token-batch-update-iam.service";
 import { RelayTokenDeleteIamService } from "./relay-token-delete-iam.service";
 import { env } from "@/config/env";
 import type { RelayTokenReadRecord } from "@/store/relay/relay-token-read.repository";
@@ -1272,6 +1273,29 @@ export class RelayTokenService {
   async batchSetTokenStatus(
     body: BatchSetRelayTokenStatusRequest,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayTokensResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenBatchUpdateIamService.getInstance().setStatus(actorUserId, body, request, () =>
+      this.batchSetTokenStatusLegacy(body, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_BATCH_STATUS_CHANGE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceType: "RELAY_TOKEN",
+        description: "批量更新了 " + result.affected + " 个中转令牌",
+        metadata: { ids: body.ids, enabled: body.enabled, total: result.affected },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { total: result.total, affected: result.affected };
+  }
+  private async batchSetTokenStatusLegacy(
+    body: BatchSetRelayTokenStatusRequest,
+    actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayTokensResultDto> {
     const userId = await this.resolveManagedUserId(
@@ -1305,6 +1329,32 @@ export class RelayTokenService {
   }
 
   async batchContentSafety(
+    body: BatchRelayTokenContentSafetyRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayTokensResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenBatchUpdateIamService.getInstance().setContentSafety(
+      actorUserId,
+      body,
+      request,
+      () => this.batchContentSafetyLegacy(body, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_UPDATE,
+        operationCategory: OperationCategory.SECURITY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceType: "RELAY_TOKEN",
+        description: "批量更新了 " + result.affected + " 个中转令牌",
+        metadata: { ids: body.ids, mode: body.mode, total: result.affected },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { total: result.total, affected: result.affected };
+  }
+  private async batchContentSafetyLegacy(
     body: BatchRelayTokenContentSafetyRequest,
     actorUserId: string,
     request?: Request,
