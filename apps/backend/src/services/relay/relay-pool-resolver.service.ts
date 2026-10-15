@@ -184,6 +184,28 @@ export class RelayPoolResolverService {
     );
   }
 
+  /** Resolve caller-supplied credential-free snapshots without loading the routing repository.
+   * Keep each path intact: merging by leaf/model would combine incompatible mappings and exclusions.
+   */
+  async resolveCapabilityLeafCandidates<TChannel extends RelayCapabilityGraphNode>(
+    roots: readonly string[],
+    graph: ReadonlyMap<string, TChannel>,
+  ): Promise<Array<{ resolvedChannel: TChannel; routingChannelIds: string[] }>> {
+    const candidates: Array<{ resolvedChannel: TChannel; routingChannelIds: string[] }> = [];
+    for (const id of new Set(roots)) {
+      const root = graph.get(id);
+      if (!root || root.status !== RELAY_CHANNEL_STATUS.ENABLED || root.providerServiceEnabled === false) continue;
+      const paths = await this.resolveLeafPaths(root, graph, this.initialConstraints(), undefined, new Set());
+      for (const path of paths) {
+        candidates.push({
+          resolvedChannel: this.applyConstraints(path.channel, path.constraints),
+          routingChannelIds: [...path.ancestorChannelIds, path.channel.id],
+        });
+      }
+    }
+    return candidates;
+  }
+
   async resolveActiveLeaves(
     roots: Array<Pick<RelayChannel, "id"> | null | undefined>,
     orderMembers?: RelayPoolMemberOrderer,
@@ -387,7 +409,10 @@ export class RelayPoolResolverService {
     return left.filter((name) => rightSet.has(name));
   }
 
-  private applyConstraints(channel: RelayChannel, constraints: EffectiveChannelConstraints): RelayChannel {
+  private applyConstraints<TChannel extends RelayCapabilityChannel>(
+    channel: TChannel,
+    constraints: EffectiveChannelConstraints,
+  ): TChannel {
     const routingConfig = (channel.routingConfig as Record<string, unknown> | null) ?? {};
     return {
       ...channel,
