@@ -7,6 +7,9 @@ import {
 } from "@/store/relay/relay-channel-provider-revenue.repository";
 import { applyBalanceAccountMutation } from "@/store/billing/balance-account-mutation";
 
+import type { TypedRequest } from "@/types/express";
+import { RelayProviderEarningsReadIamService } from "./relay-provider-earnings-read-iam.service";
+
 const round4 = (value: number) => Math.round(value * 10000) / 10000;
 
 type TransactionClient = RelayChannelProviderRevenueTransactionClient;
@@ -69,7 +72,17 @@ export class RelayChannelProviderRevenueService {
       await this.settleEarningsInTransaction(tx, earning.providerId, [earning.id], "realtime");
   }
 
-  async listOwnEarnings(userId: string, page = 1, pageSize = 20) {
+  async listOwnEarnings(userId: string, page = 1, pageSize = 20, request?: TypedRequest) {
+    const pagination = {
+      page: Math.max(1, Math.floor(page)),
+      pageSize: Math.min(100, Math.max(1, Math.floor(pageSize))),
+    };
+    return RelayProviderEarningsReadIamService.getInstance().list(userId, request, pagination, () =>
+      this.listOwnEarningsLegacy(userId, pagination.page, pagination.pageSize),
+    );
+  }
+
+  private async listOwnEarningsLegacy(userId: string, page: number, pageSize: number) {
     const normalizedPage = Math.max(1, Math.floor(page));
     const normalizedPageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
     const { total, records, pendingAmount, settledAmount } = await this.revenueRepository.listOwnEarnings(

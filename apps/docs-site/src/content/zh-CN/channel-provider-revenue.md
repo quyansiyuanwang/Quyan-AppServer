@@ -26,6 +26,8 @@
 
 同一渠道可以有多位提供者。单个人的比例范围是 0% 到 100%，但总比例可以超过 100%；超出的部分由平台补贴，管理员会在渠道编辑器中明确看到总比例和平台剩余或补贴。
 
+启用资源级 IAM 强制授权时，收益明细需要 `quyan:relay:ListMyProviderEarnings` 同时允许本人的提供者资源（`acs:relay:*:<accountId>:provider/<userId>/<providerId>`）和收益资源（`acs:relay:*:<accountId>:provider-earning/<userId>/<earningId>`）。被拒绝的收益不会计入明细、总数及待结算／已结算汇总。宽泛策略也不能读取他人的收益。提供者配置停用后，历史收益仍可查询，但同样受资源授权约束。
+
 ## 相关页面
 
 - `relay-settings`

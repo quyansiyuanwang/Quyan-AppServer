@@ -562,14 +562,21 @@ export class RelayChannelController extends Controller {
 
   @Get("provider/earnings")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROVIDER_READ)
-  @Middlewares(validateQuery(providerEarningsQuerySchema))
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListMyProviderEarnings",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROVIDER_READ],
+    }),
+    validateQuery(providerEarningsQuerySchema),
+  )
   public async getMyProviderEarnings(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<RelayChannelProviderEarningsResponse> {
-    return this.providerRevenueService.listOwnEarnings(request.user!.userId, page, pageSize);
+    return this.providerRevenueService.listOwnEarnings(request.user!.userId, page, pageSize, request);
   }
 
   @Post("provider/earnings/claim")

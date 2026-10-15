@@ -26,6 +26,8 @@ Providers can use real-time, every-N-days, daily-at-a-fixed-time, or manual sett
 
 A channel can have several providers. Each provider can receive 0% through 100%, while the total is allowed to exceed 100%. The platform subsidizes the excess, and the channel editor shows the total plus the platform remainder or subsidy.
 
+When resource-level IAM enforcement is enabled, earnings details require both `quyan:relay:ListMyProviderEarnings` on your provider resource (`acs:relay:*:<accountId>:provider/<userId>/<providerId>`) and on the earning resource (`acs:relay:*:<accountId>:provider-earning/<userId>/<earningId>`). Denied earnings are excluded from records, total count, and pending/settled summaries. A broad policy never exposes another user’s earnings. Historical earnings remain available after a provider configuration is disabled, subject to the same authorization.
+
 ## Related pages
 
 - `relay-settings`
