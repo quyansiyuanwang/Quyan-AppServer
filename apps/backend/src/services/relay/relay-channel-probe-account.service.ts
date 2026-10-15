@@ -1,3 +1,8 @@
+import {
+  PlatformRelayProbeAccountRefreshIamService,
+  type ProbeAccountRefreshGuard,
+} from "./platform-relay-probe-account-refresh-iam.service";
+import { RELAY_PROBE_ACCOUNT_POLICY } from "./relay-probe-account-policy";
 import { PlatformRelayProbeAccountCreateIamService } from "./platform-relay-probe-account-create-iam.service";
 import { PlatformRelayProbeAccountUpdateIamService } from "./platform-relay-probe-account-update-iam.service";
 import type { ProbeAccountEncryptedConfiguration } from "@/store/relay/platform-relay-probe-account-update.repository";
@@ -22,9 +27,9 @@ import { PlatformRelayProbeAccountReadIamService } from "./platform-relay-probe-
 import { PlatformRelayProbeAccountDeleteIamService } from "./platform-relay-probe-account-delete-iam.service";
 import { projectRelayProbeAccount } from "./relay-probe-account-projection";
 
-const PREFIX = "relay:probe-account:v1";
-const LOCK_MS = 35_000;
-const TOKEN_SAFETY_MS = 30_000;
+const PREFIX = RELAY_PROBE_ACCOUNT_POLICY.cachePrefix;
+const LOCK_MS = RELAY_PROBE_ACCOUNT_POLICY.loginLockTtlMs;
+const TOKEN_SAFETY_MS = RELAY_PROBE_ACCOUNT_POLICY.tokenSafetyMs;
 type AccountError =
   | "accountBackendUnavailable"
   | "accountCredentialsRequired"
@@ -204,7 +209,71 @@ export class RelayChannelProbeAccountService {
       });
     return account;
   }
-  async refresh(id: string) {
+  async refresh(id: string, request?: TypedRequest) {
+    return PlatformRelayProbeAccountRefreshIamService.getInstance().execute(
+      id,
+      request,
+      () => this.refreshLegacy(id),
+      (guard) => this.refreshNative(id, guard),
+    );
+  }
+  private async refreshNative(id: string, guard: ProbeAccountRefreshGuard) {
+    await guard.recheck();
+    if (!this.redis.isRedisAvailable()) throw bad("accountBackendUnavailable");
+    const previous = await this.redis.get(this.cacheKey(id));
+    let published: string | undefined;
+    try {
+      await this.getToken(id, {
+        recheck: guard.recheck,
+        recordAttempt: guard.recordAttempt,
+        publish: async (value, expiresAt) => {
+          await guard.publish(async () => {
+            published = value;
+            await this.redis.set(
+              this.cacheKey(id),
+              value,
+              Math.min(RELAY_PROBE_ACCOUNT_POLICY.cacheMaxTtlSeconds, Math.floor((expiresAt - Date.now()) / 1000)),
+            );
+            if ((await this.redis.get(this.cacheKey(id))) !== value) throw bad("accountBackendUnavailable");
+          });
+        },
+      });
+      const account = await this.repository.findPublic(id);
+      if (!account)
+        throw new NotFoundError("Probe account not found", undefined, {
+          messageKey: "relayChannelProbe.accountNotFound",
+        });
+      await guard.recheck();
+      return projectRelayProbeAccount({ ...account, hasCredentials: true }, true);
+    } catch (error) {
+      if (published !== undefined) await this.restoreRefreshSession(id, published, previous);
+      throw error;
+    }
+  }
+  private async restoreRefreshSession(id: string, published: string, previous: string | null) {
+    try {
+      if (previous) {
+        const old = this.decrypt(JSON.parse(previous) as Encrypted) as Session;
+        if (
+          typeof old.token === "string" &&
+          Number.isFinite(old.expiresAt) &&
+          old.expiresAt > Date.now() + TOKEN_SAFETY_MS
+        ) {
+          const restored = await this.redis.replaceIfValueMatches(
+            this.cacheKey(id),
+            published,
+            previous,
+            Math.min(RELAY_PROBE_ACCOUNT_POLICY.cacheMaxTtlSeconds * 1000, old.expiresAt - Date.now()),
+          );
+          if (restored) return;
+        }
+      }
+    } catch {
+      /* Only an owned publication may be removed; never overwrite a newer session. */
+    }
+    await this.redis.deleteIfValueMatches(this.cacheKey(id), published).catch(() => null);
+  }
+  private async refreshLegacy(id: string) {
     // A manual refresh must not replace a token while any probe on this account
     // is measuring the same balance; use the exact lock key as executeRun.
     return RelayChannelProbeLockService.getInstance().withWrite(
@@ -221,7 +290,7 @@ export class RelayChannelProbeAccountService {
         await this.getToken(id);
         return this.dto(await this.assertExists(id), true);
       },
-      5 * 60_000,
+      RELAY_PROBE_ACCOUNT_POLICY.refreshLockWaitMs,
     );
   }
   async invalidateSession(id: string, observedToken: string): Promise<void> {
@@ -238,14 +307,25 @@ export class RelayChannelProbeAccountService {
     if (session.token === observedToken) await this.redis.deleteIfValueMatches(this.cacheKey(id), raw);
   }
 
-  async getToken(id: string): Promise<string> {
+  async getToken(
+    id: string,
+    refresh?: {
+      recheck: () => Promise<void>;
+      recordAttempt: () => Promise<void>;
+      publish: (value: string, expiresAt: number) => Promise<void>;
+    },
+  ): Promise<string> {
+    await refresh?.recheck();
     await this.assertExists(id);
-    const cached = await this.readSession(id);
-    if (cached) return cached.token;
+    if (!refresh) {
+      const cached = await this.readSession(id);
+      if (cached) return cached.token;
+    }
     const lockId = randomUUID();
     const acquired = await this.redis.setIfNotExists(this.lockKey(id), lockId, LOCK_MS);
     if (acquired === null) throw bad("accountBackendUnavailable");
     if (!acquired) {
+      if (refresh) throw bad("accountLoginInProgress");
       for (let attempt = 0; attempt < 110; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 300));
         const renewed = await this.readSession(id);
@@ -254,15 +334,20 @@ export class RelayChannelProbeAccountService {
       throw bad("accountLoginInProgress");
     }
     try {
-      const renewed = await this.readSession(id);
-      if (renewed) return renewed.token;
+      if (!refresh) {
+        const renewed = await this.readSession(id);
+        if (renewed) return renewed.token;
+      }
+      await refresh?.recheck();
       const latest = await this.assertExists(id);
       if (
         latest.lastLoginAttemptAt &&
         Date.now() < latest.lastLoginAttemptAt.getTime() + latest.minLoginIntervalSeconds * 1000
       )
         throw bad("accountLoginCooldown");
-      await this.repository.update(id, { lastLoginAttemptAt: new Date() });
+      if (refresh) await refresh.recordAttempt();
+      else await this.repository.update(id, { lastLoginAttemptAt: new Date() });
+      await refresh?.recheck();
       const stored = this.decrypt({
         ciphertext: latest.encryptedCredentials,
         iv: latest.credentialIv,
@@ -284,30 +369,34 @@ export class RelayChannelProbeAccountService {
       }
       let data: unknown;
       try {
-        const response = await axios.request({
-          method: workflow.method,
-          url: safe.url.toString(),
-          headers: interpolateRequiredProbeVariables(workflow.headers ?? {}, credentials) as Record<string, string>,
-          params: interpolateRequiredProbeVariables(workflow.query ?? {}, credentials),
-          data:
-            workflow.method === "POST"
-              ? interpolateRequiredProbeVariables(workflow.body ?? {}, credentials)
-              : undefined,
-          httpAgent: safe.httpAgent,
-          httpsAgent: safe.httpsAgent,
-          proxy: false,
-          maxRedirects: 0,
-          timeout: 15_000,
-          maxContentLength: 1024 * 1024,
-          validateStatus: (status) => status >= 200 && status < 300,
-        });
-        data = response.data;
-      } catch {
-        throw bad("accountLoginFailed");
+        await refresh?.recheck();
+        try {
+          const response = await axios.request({
+            method: workflow.method,
+            url: safe.url.toString(),
+            headers: interpolateRequiredProbeVariables(workflow.headers ?? {}, credentials) as Record<string, string>,
+            params: interpolateRequiredProbeVariables(workflow.query ?? {}, credentials),
+            data:
+              workflow.method === "POST"
+                ? interpolateRequiredProbeVariables(workflow.body ?? {}, credentials)
+                : undefined,
+            httpAgent: safe.httpAgent,
+            httpsAgent: safe.httpsAgent,
+            proxy: false,
+            maxRedirects: 0,
+            timeout: 15_000,
+            maxContentLength: 1024 * 1024,
+            validateStatus: (status) => status >= 200 && status < 300,
+          });
+          data = response.data;
+        } catch {
+          throw bad("accountLoginFailed");
+        }
       } finally {
         safe.httpAgent.destroy();
         safe.httpsAgent.destroy();
       }
+      await refresh?.recheck();
       const raw = readProbeJsonPath(data, latest.tokenPath);
       if (typeof raw !== "string" || !raw.trim()) throw bad("accountLoginFailed");
       const rawExpiry = latest.expiresPath ? readProbeJsonPath(data, latest.expiresPath) : undefined;
@@ -320,11 +409,15 @@ export class RelayChannelProbeAccountService {
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + TOKEN_SAFETY_MS) throw bad("accountLoginFailed");
       const session = { token: raw, expiresAt };
       const encrypted = this.encrypt(session);
-      await this.redis.set(
-        this.cacheKey(id),
-        JSON.stringify(encrypted),
-        Math.min(86_400, Math.floor((expiresAt - Date.now()) / 1000)),
-      );
+      if (refresh) {
+        if ((await this.redis.get(this.lockKey(id))) !== lockId) throw bad("accountLoginInProgress");
+        await refresh.publish(JSON.stringify(encrypted), expiresAt);
+      } else
+        await this.redis.set(
+          this.cacheKey(id),
+          JSON.stringify(encrypted),
+          Math.min(RELAY_PROBE_ACCOUNT_POLICY.cacheMaxTtlSeconds, Math.floor((expiresAt - Date.now()) / 1000)),
+        );
       if (!(await this.readSession(id))) throw bad("accountBackendUnavailable");
       return raw;
     } finally {

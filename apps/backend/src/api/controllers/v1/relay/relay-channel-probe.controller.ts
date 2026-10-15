@@ -369,7 +369,11 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("accounts/{accountId}/refresh")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
+  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:RefreshProbeAccount",
+    resourceKind: "single-resource",
+    resource: platformRelayProbeAccountResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -377,8 +381,11 @@ export class RelayChannelProbeController extends Controller {
     validateParams(relayChannelProbeAccountParamsSchema),
     replayProtectionMiddleware,
   )
-  public refreshAccount(@Path() accountId: string): Promise<RelayChannelProbeAccountDto> {
-    return this.accountService.refresh(accountId);
+  public refreshAccount(
+    @Path() accountId: string,
+    @Request() request: TypedRequest,
+  ): Promise<RelayChannelProbeAccountDto> {
+    return this.accountService.refresh(accountId, request);
   }
 
   @Post("targets/configure")

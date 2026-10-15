@@ -26,6 +26,8 @@ Updating an account requires `quyan:relay:UpdateProbeAccount` for its account AR
 
 Creating an account requires `quyan:relay:CreateProbeAccount` on both the creation control `acs:platform:*:platform:relay-probe-account-control/default` and the future account ARN, normally granted with `acs:platform:*:platform:relay-probe-account/*`. The server reserves a resource ID and checks both grants before encrypting and saving credentials. Shadow evaluation uses the same ARN as the account that is ultimately created. Credentials are required on creation.
 
+Manual refresh requires `quyan:relay:RefreshProbeAccount` for the account ARN, plus step-up verification and replay protection. Native refresh rechecks authorization after waiting for active probes, before sending the login request and when publishing the session. Failure or revocation does not replace a valid existing session with the new session. Login attempts still count toward cooldown. Shadow mode previews metadata authorization, then executes the original refresh flow once.
+
 ## Reviewing and applying results
 
 Expanded member rows show the latest task status and suggested multiplier. Open a member to inspect that account's own history, balance delta, usage, and failure reasons. Standalone channels keep the existing single-channel workflow.

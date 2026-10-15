@@ -26,6 +26,8 @@
 
 创建号池需要 `quyan:relay:CreateProbeAccount` 同时允许创建入口 `acs:platform:*:platform:relay-probe-account-control/default` 和即将创建的号池 ARN（通常通过 `acs:platform:*:platform:relay-probe-account/*` 授权）。服务端预先分配资源 ID，先检查两项授权再加密和保存凭据；shadow 模式检查的 ARN 与最终创建的资源一致。创建必须提供凭据。
 
+手动刷新需要 `quyan:relay:RefreshProbeAccount` 对目标号池 ARN 的授权，仍需二次验证和重放保护。原生刷新在等待探针结束后、发送登录请求前和发布会话时重新检查授权；失败或撤权不会用新会话覆盖旧的有效会话。登录尝试仍计入冷却时间。shadow 仅预览元数据授权，再执行一次原有刷新流程。
+
 ## 查看和应用结果
 
 展开的成员行显示其最新任务状态和建议倍率。打开成员详情可查看该账号自己的历史记录、余额差值、用量和失败原因。独立渠道保持原有的单渠道探针流程。
