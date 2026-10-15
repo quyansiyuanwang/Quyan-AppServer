@@ -71,7 +71,7 @@
     <div class="field-row">
       <el-button
         data-test="account-scope"
-        :disabled="disabled || !accountOwnerId"
+        :disabled="disabled || !accountOwnerId || !accountTargetAvailable"
         @click="setAccountScope"
         >{{ i18ns.t('RamManagement.visualAccountScope') }}</el-button
       >
@@ -85,24 +85,13 @@
     <div class="field-row">
       <el-select
         v-model="resourceTypeId"
+        data-test="resource-type"
         filterable
         :disabled="disabled"
         :placeholder="i18ns.t('RamManagement.visualResourceType')"
       >
         <el-option v-for="type in resourceTypes" :key="type.id" :label="type.id" :value="type.id" />
       </el-select>
-      <el-input
-        v-if="selectedType?.identifierSegments === 2"
-        v-model="parentId"
-        :disabled="disabled"
-        :placeholder="i18ns.t('RamManagement.visualParentId')"
-      />
-      <el-input
-        v-if="selectedType?.identifierSegments"
-        v-model="resourceId"
-        :disabled="disabled"
-        :placeholder="i18ns.t('RamManagement.visualResourceId')"
-      />
       <el-button
         data-test="add-resource"
         :disabled="disabled || !resourceTemplate"
@@ -110,7 +99,32 @@
         >{{ i18ns.t('RamManagement.visualAddResource') }}</el-button
       >
     </div>
-    <code v-if="resourceTemplate">{{ resourceTemplate }}</code>
+    <div v-if="selectedType" class="resource-builder">
+      <label class="resource-field">
+        <span>{{ i18ns.t('RamManagement.visualTrustedAccount') }}</span>
+        <el-input data-test="resource-account" :model-value="resourceAccountId ?? ''" readonly />
+      </label>
+      <div v-for="field in resourceFields" :key="field" class="resource-field">
+        <label :for="resourceInputId(field)">
+          {{ i18ns.t('RamManagement.visualResourceIdentifier', { field }) }}
+        </label>
+        <el-input
+          :id="resourceInputId(field)"
+          v-model="identifierValues[field]"
+          :data-test="'resource-identifier-' + field"
+          :disabled="disabled || identifierWildcards[field]"
+          :placeholder="'{' + field + '}'"
+        />
+        <el-checkbox
+          v-model="identifierWildcards[field]"
+          :data-test="'resource-wildcard-' + field"
+          :disabled="disabled"
+          :aria-label="i18ns.t('RamManagement.visualIdentifierWildcard', { field })"
+          >{{ i18ns.t('RamManagement.visualIdentifierWildcard', { field }) }}</el-checkbox
+        >
+      </div>
+    </div>
+    <code v-if="resourceTemplate" data-test="resource-preview">{{ resourceTemplate }}</code>
     <el-input
       v-model="statement.resourcesText"
       type="textarea"
@@ -172,12 +186,14 @@
   </div>
 </template>
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, useId } from 'vue'
 import { IAM_ACTION_DEFINITIONS, getIamConditionKey, iamServiceDefinitions } from '@quyan/shared'
 import type { VisualCondition, VisualStatement } from '../iam-visual-policy'
 import {
   visualConditionKeys,
   visualResourceTemplate,
+  visualResourceAccountId,
+  visualResourceIdentifierFields,
   visualResourceTypes,
 } from '../iam-visual-policy'
 import { i18ns } from '@/locales'
@@ -200,19 +216,45 @@ const filteredActions = computed(() =>
 )
 const resourceTypes = computed(() => visualResourceTypes(statement.value.actions))
 const conditionKeys = computed(() => visualConditionKeys(statement.value.actions))
-const resourceTypeId = ref(''),
-  resourceId = ref(''),
-  parentId = ref('')
+const resourceTypeId = ref('')
+const identifierValues = ref<Record<string, string>>({})
+const identifierWildcards = ref<Record<string, boolean>>({})
+const fieldIdPrefix = useId()
+const resourceInputId = (field: string) => fieldIdPrefix + '-resource-' + field
 const selectedType = computed(() =>
   resourceTypes.value.find((type) => type.id === resourceTypeId.value),
 )
+const resourceFields = computed(() =>
+  selectedType.value ? visualResourceIdentifierFields(selectedType.value.id) : [],
+)
+const resourceAccountId = computed(() =>
+  selectedType.value
+    ? visualResourceAccountId(selectedType.value.id, props.accountOwnerId)
+    : undefined,
+)
+const accountTargetAvailable = computed(() =>
+  resourceTypes.value.some((type) => type.id === 'quyan/account'),
+)
+watch(resourceTypeId, () => {
+  identifierValues.value = Object.fromEntries(resourceFields.value.map((field) => [field, '']))
+  identifierWildcards.value = Object.fromEntries(
+    resourceFields.value.map((field) => [field, false]),
+  )
+})
+watch(resourceTypes, (types) => {
+  if (!types.some((type) => type.id === resourceTypeId.value)) resourceTypeId.value = ''
+})
 const resourceTemplate = computed(() =>
   selectedType.value
     ? visualResourceTemplate(
         selectedType.value.id,
         props.accountOwnerId,
-        resourceId.value,
-        parentId.value,
+        Object.fromEntries(
+          resourceFields.value.map((field) => [
+            field,
+            identifierWildcards.value[field] ? '*' : (identifierValues.value[field] ?? ''),
+          ]),
+        ),
       )
     : undefined,
 )
@@ -220,7 +262,8 @@ const hasWildcard = computed(() =>
   [...statement.value.actions, statement.value.resourcesText].some((value) => value.includes('*')),
 )
 const setAccountScope = () => {
-  const resource = visualResourceTemplate('quyan/account', props.accountOwnerId, '')
+  if (!accountTargetAvailable.value) return
+  const resource = visualResourceTemplate('quyan/account', props.accountOwnerId, {})
   if (resource) statement.value.resourcesText = resource
 }
 const addResource = () => {
@@ -244,6 +287,16 @@ const addCondition = () => {
 }
 </script>
 <style scoped>
+.resource-builder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.resource-field {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
 .statement-form {
   display: grid;
   gap: 12px;

@@ -5,8 +5,11 @@ import {
   newVisualStatement,
   visualConditionKeys,
   visualResourceTemplate,
+  visualResourceIdentifierFields,
+  visualResourceAccountId,
   visualResourceTypes,
 } from '@/views/management/ram-management/iam-visual-policy'
+import { IAM_RESOURCE_TYPE_CATALOG } from '@quyan/shared'
 import type { IamPolicyDocument } from '@quyan/shared'
 const document: IamPolicyDocument = {
   Version: '1',
@@ -111,31 +114,122 @@ describe('IAM visual policy round trip', () => {
     expect(visualConditionKeys(['quyan:ram:ReadUser']).map((key) => key.key)).toContain(
       'acs:SourceIp',
     )
-    expect(visualConditionKeys(['quyan:ram:ReadUser']).map((key) => key.key)).not.toContain(
+    expect(visualConditionKeys(['quyan:ram:ReadUser']).map((key) => key.key)).toContain(
       'quyan:ResourceGroupId',
+    )
+    expect(visualConditionKeys(['quyan:ram:ReadUser']).map((key) => key.key)).not.toContain(
+      'acs:MFAPresent',
     )
     expect(visualConditionKeys(['unknown:Action'])).toEqual([])
     const row = importVisualPolicy(document)[0]!
     row.conditions = [
       { key: 'quyan:ResourceGroupId', operator: 'StringEquals', valuesText: '"group"' },
     ]
+    expect(exportVisualPolicy([row]).Statement).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          Condition: { StringEquals: { 'quyan:ResourceGroupId': 'group' } },
+        }),
+      ]),
+    )
+    row.conditions = [{ key: 'acs:MFAPresent', operator: 'Bool', valuesText: 'true' }]
     expect(() => exportVisualPolicy([row])).toThrow()
     row.actions = ['alidns:AddDomainRecord']
     expect(() => exportVisualPolicy([row])).toThrow()
   })
   it('builds registered templates using the explicit account context and blocks path/account injection', () => {
-    expect(visualResourceTemplate('quyan/user', 'owner', 'first')).toBe(
+    expect(visualResourceTemplate('quyan/user', 'owner', { resourceId: 'first' })).toBe(
       'acs:quyan:*:owner:user/first',
     )
-    expect(visualResourceTemplate('quyan/policy-version', 'owner', 'version', 'policy')).toBe(
-      'acs:quyan:*:owner:policy-version/policy/version',
+    expect(
+      visualResourceTemplate('quyan/policy-version', 'owner', {
+        resourceId: 'version',
+        parentId: 'policy',
+      }),
+    ).toBe('acs:quyan:*:owner:policy-version/policy/version')
+    expect(visualResourceTemplate('quyan/user', 'owner', { resourceId: '*' })).toBe(
+      'acs:quyan:*:owner:user/*',
     )
-    expect(visualResourceTemplate('quyan/user', 'owner', '*')).toBe('acs:quyan:*:owner:user/*')
-    expect(visualResourceTemplate('quyan/account', 'owner', '')).toBe('acs:quyan:*:owner:account')
+    expect(visualResourceTemplate('quyan/account', 'owner', {})).toBe('acs:quyan:*:owner:account')
     for (const account of ['', '*', 'foreign:account'])
-      expect(visualResourceTemplate('quyan/user', account, 'user')).toBeUndefined()
+      expect(visualResourceTemplate('quyan/user', account, { resourceId: 'user' })).toBeUndefined()
     for (const id of ['', '../user', 'user/account', 'user:foreign'])
-      expect(visualResourceTemplate('quyan/user', 'owner', id)).toBeUndefined()
-    expect(visualResourceTemplate('alidns/domain', 'owner', 'example.test')).toBeUndefined()
+      expect(visualResourceTemplate('quyan/user', 'owner', { resourceId: id })).toBeUndefined()
+    expect(
+      visualResourceTemplate('alidns/domain', 'owner', { resourceId: 'example.test' }),
+    ).toBeUndefined()
+  })
+})
+
+describe('registered resource builders', () => {
+  it('derives and resolves every production ARN template without a parallel identifier map', () => {
+    for (const type of IAM_RESOURCE_TYPE_CATALOG) {
+      const fields = visualResourceIdentifierFields(type.id)
+      const identifiers = Object.fromEntries(fields.map((field) => [field, 'id']))
+      const result = visualResourceTemplate(type.id, 'owner', identifiers)
+      expect(result, type.id).toBeDefined()
+      expect(result, type.id).not.toContain('{')
+      expect(result?.split(':')[3], type.id).toBe(
+        type.accountScope === 'platform' ? 'platform' : 'owner',
+      )
+    }
+  })
+  it('supports explicit user/pass identifiers and all three ancestor levels', () => {
+    expect(visualResourceIdentifierFields('platform/relay-token')).toEqual(['userId', 'resourceId'])
+    expect(
+      visualResourceTemplate('platform/relay-token', 'owner', { userId: 'user', resourceId: '*' }),
+    ).toBe('acs:platform:*:platform:relay-token/user/*')
+    expect(visualResourceIdentifierFields('monthly-pass/usage')).toEqual([
+      'ancestorId',
+      'parentId',
+      'resourceId',
+    ])
+    expect(
+      visualResourceTemplate('monthly-pass/usage', 'owner', {
+        ancestorId: 'user',
+        parentId: 'pass',
+        resourceId: 'usage',
+      }),
+    ).toBe('acs:monthly-pass:*:owner:usage/user/pass/usage')
+  })
+  it('rejects missing fields account/path injection and unknown overrides', () => {
+    expect(
+      visualResourceTemplate('monthly-pass/usage', 'owner', {
+        parentId: 'pass',
+        resourceId: 'usage',
+      }),
+    ).toBeUndefined()
+    expect(
+      visualResourceTemplate('platform/relay-token', 'owner', {
+        userId: '*',
+        resourceId: 'token',
+        accountId: 'foreign',
+      }),
+    ).toBeUndefined()
+    for (const value of ['', '../user', 'foreign:user', 'user/id', '?', '\n', 'a'.repeat(129)])
+      expect(
+        visualResourceTemplate('platform/relay-token', 'owner', {
+          userId: value,
+          resourceId: 'token',
+        }),
+      ).toBeUndefined()
+    expect(
+      visualResourceTemplate('quyan/user', 'owner', Object.create({ resourceId: 'inherited' })),
+    ).toBeUndefined()
+    expect(visualResourceAccountId('platform/relay-token', '')).toBeUndefined()
+    expect(visualResourceAccountId('platform/relay-token', 'owner')).toBe('platform')
+    expect(visualResourceAccountId('relay/provider', 'owner')).toBe('owner')
+  })
+  it('preserves multiple wildcard segments and never supplies an implicit wildcard', () => {
+    expect(
+      visualResourceTemplate('monthly-pass/usage', 'owner', {
+        ancestorId: '*',
+        parentId: 'pass*',
+        resourceId: '*id*',
+      }),
+    ).toBe('acs:monthly-pass:*:owner:usage/*/pass*/*id*')
+    expect(
+      visualResourceTemplate('relay/provider', 'owner', { parentId: 'user', resourceId: '' }),
+    ).toBeUndefined()
   })
 })

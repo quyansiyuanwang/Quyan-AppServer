@@ -140,21 +140,43 @@ export function exportVisualPolicy(statements: VisualStatement[]): IamPolicyDocu
   })
   return { Version: '1', Statement: result }
 }
-export function visualResourceTemplate(
+/** Identifier fields come from the registered ARN path, including user/pass/subject and ancestor segments. */
+export function visualResourceIdentifierFields(typeId: string): string[] {
+  const type = IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === typeId)
+  if (!type) return []
+  const path = type.arnTemplate.split(':')[4] ?? ''
+  return [...new Set([...path.matchAll(/\{([A-Za-z][A-Za-z0-9]*)\}/g)].map((match) => match[1]!))]
+}
+export function visualResourceAccountId(
   typeId: string,
   accountOwnerId: string,
-  resourceId: string,
-  parentId = '',
 ): string | undefined {
   const type = IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === typeId)
   if (!type || !/^[A-Za-z0-9_-]{1,128}$/.test(accountOwnerId)) return undefined
-  if (type.identifierSegments && !/^[A-Za-z0-9_.*@+-]{1,128}$/.test(resourceId)) return undefined
-  if (type.identifierSegments === 2 && !/^[A-Za-z0-9_.*@+-]{1,128}$/.test(parentId))
+  return type.arnTemplate.split(':')[3]?.replace('{accountId}', accountOwnerId)
+}
+export function visualResourceTemplate(
+  typeId: string,
+  accountOwnerId: string,
+  identifiers: Readonly<Record<string, string>>,
+): string | undefined {
+  const type = IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === typeId)
+  if (!type || !visualResourceAccountId(typeId, accountOwnerId)) return undefined
+  const fields = visualResourceIdentifierFields(typeId)
+  if (
+    Object.keys(identifiers).some((key) => !fields.includes(key)) ||
+    fields.some(
+      (field) =>
+        !Object.prototype.hasOwnProperty.call(identifiers, field) ||
+        typeof identifiers[field] !== 'string' ||
+        !/^[A-Za-z0-9_.*@+-]{1,128}$/.test(identifiers[field]!) ||
+        identifiers[field]!.includes('..'),
+    )
+  )
     return undefined
   const resource = type.arnTemplate
     .replace('{accountId}', accountOwnerId)
-    .replace('{resourceId}', resourceId)
-    .replace('{parentId}', parentId)
+    .replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (_placeholder, key: string) => identifiers[key] ?? '')
   return getIamResourcePatternTypes(resource).some((definition) => definition.id === typeId)
     ? resource
     : undefined
