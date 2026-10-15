@@ -1368,6 +1368,12 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       route: 'GET /v1/relay/tokens/{id}',
       managed: 'GetManagedToken',
     },
+    {
+      operation: 'ExportTokens',
+      accessLevel: 'Read',
+      route: 'POST /v1/relay/tokens/export',
+      managed: 'ExportManagedTokens',
+    },
   ].map(
     (definition): IamActionDefinition => ({
       action: 'quyan:relay:' + definition.operation,
@@ -1393,7 +1399,11 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     operation: 'RevealToken',
     accessLevel: 'Read',
     resourceTypes: ['relay/token'],
-    apiRoutes: ['GET /v1/relay/tokens', 'GET /v1/relay/tokens/{id}'],
+    apiRoutes: [
+      'GET /v1/relay/tokens',
+      'GET /v1/relay/tokens/{id}',
+      'POST /v1/relay/tokens/export',
+    ],
     conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,
     authorizationStage: 'declared',
@@ -1403,6 +1413,11 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     { operation: 'ListManagedTokens', accessLevel: 'List', route: 'GET /v1/relay/tokens' },
     { operation: 'GetManagedToken', accessLevel: 'Read', route: 'GET /v1/relay/tokens/{id}' },
     { operation: 'RevealManagedToken', accessLevel: 'Read' },
+    {
+      operation: 'ExportManagedTokens',
+      accessLevel: 'Read',
+      route: 'POST /v1/relay/tokens/export',
+    },
   ].map(
     (definition): IamActionDefinition => ({
       action: 'quyan:relay:' + definition.operation,
@@ -1415,7 +1430,7 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
           : ['platform/user', 'platform/relay-token'],
       apiRoutes: definition.route
         ? [definition.route]
-        : ['GET /v1/relay/tokens', 'GET /v1/relay/tokens/{id}'],
+        : ['GET /v1/relay/tokens', 'GET /v1/relay/tokens/{id}', 'POST /v1/relay/tokens/export'],
       conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
       sensitive: true,
       authorizationStage: 'declared',

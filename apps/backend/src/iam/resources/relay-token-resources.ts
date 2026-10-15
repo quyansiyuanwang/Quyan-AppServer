@@ -20,3 +20,14 @@ export function platformRelayTokenArn(userId: string, tokenId: string) {
     path: "relay-token/" + userId + "/" + tokenId,
   });
 }
+
+export type RelayTokenReadOperation = "ListTokens" | "GetToken" | "ExportTokens";
+/** Operations are server-declared; never derive the requested operation from headers/body. */
+export function relayTokenReadAction(operation: RelayTokenReadOperation, managed: boolean): string {
+  const managedOperations = {
+    ListTokens: "ListManagedTokens",
+    GetToken: "GetManagedToken",
+    ExportTokens: "ExportManagedTokens",
+  } as const;
+  return "quyan:relay:" + (managed ? managedOperations[operation] : operation);
+}

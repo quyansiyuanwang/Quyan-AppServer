@@ -14,8 +14,12 @@ import {
 import { captureIamAccessKeyRevision } from "@/store/users/iam-access-key-authority";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PermissionService } from "@/services/users/permission.service";
-import { relayTokenListQuerySchema } from "@/api/schema/relay/relay.schema";
-import { isRelayTokenResourceId } from "@/iam/resources/relay-token-resources";
+import { exportRelayTokensBodySchema, relayTokenListQuerySchema } from "@/api/schema/relay/relay.schema";
+import {
+  isRelayTokenResourceId,
+  relayTokenReadAction,
+  type RelayTokenReadOperation,
+} from "@/iam/resources/relay-token-resources";
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
@@ -33,18 +37,43 @@ export class RelayTokenReadIamService {
     private readonly permissions: Pick<PermissionService, "checkUserPermissions"> = PermissionService.getInstance(),
   ) {}
   async read<T>(
-    operation: "ListTokens" | "GetToken",
+    operation: RelayTokenReadOperation,
     actorUserId: string,
-    input: { page?: number; pageSize?: number; targetUserId?: string; id?: string },
+    input: {
+      page?: number;
+      pageSize?: number;
+      targetUserId?: string;
+      id?: string;
+      ids?: string[];
+      includeDisabled?: boolean;
+    },
     request: TypedRequest | undefined,
     project: (records: RelayTokenReadRecord[]) => Promise<T[]>,
     legacy: () => Promise<{ items: T[]; total: number; page: number; pageSize: number }>,
   ) {
     const { id, ...filters } = input,
-      parsed = relayTokenListQuerySchema.strict().safeParse(filters);
+      parsed =
+        operation === "ExportTokens"
+          ? exportRelayTokensBodySchema.strict().safeParse(filters)
+          : relayTokenListQuerySchema.strict().safeParse(filters);
     if (!parsed.success || (operation === "GetToken" && !isRelayTokenResourceId(id)))
       throw new BadRequestError("Invalid relay token query", undefined, { messageKey: "errors.badRequest" });
-    const query = { page: parsed.data.page ?? 1, pageSize: parsed.data.pageSize ?? 20, id },
+    if (
+      operation === "ExportTokens" &&
+      (id !== undefined || ("ids" in parsed.data && parsed.data.ids?.some((value) => !isRelayTokenResourceId(value))))
+    )
+      throw new BadRequestError("Invalid relay token export", undefined, { messageKey: "errors.badRequest" });
+    const query = {
+        page: "page" in parsed.data ? (parsed.data.page ?? 1) : 1,
+        pageSize: "pageSize" in parsed.data ? (parsed.data.pageSize ?? 20) : 20,
+        id,
+        ...(operation === "ExportTokens"
+          ? {
+              ids: "ids" in parsed.data ? parsed.data.ids : undefined,
+              includeDisabled: "includeDisabled" in parsed.data && parsed.data.includeDisabled === true,
+            }
+          : {}),
+      },
       mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {
@@ -113,11 +142,7 @@ export class RelayTokenReadIamService {
         });
         if (
           (await decide("quyan:relay:" + operation, [userArn]))[0] !== "Allow" ||
-          (
-            await decide("quyan:relay:" + (operation === "ListTokens" ? "ListManagedTokens" : "GetManagedToken"), [
-              platformUserArn(userId),
-            ])
-          )[0] !== "Allow"
+          (await decide(relayTokenReadAction(operation, true), [platformUserArn(userId)]))[0] !== "Allow"
         )
           throw iamAccountDenied();
       };

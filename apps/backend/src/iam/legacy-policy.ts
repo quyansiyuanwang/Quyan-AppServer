@@ -132,7 +132,12 @@ export function legacyPermissionsToPrincipalPolicy(
         ],
       });
     const personalRelayRead = statement.Action.filter((action) =>
-      ["quyan:relay:ListTokens", "quyan:relay:GetToken", "quyan:relay:RevealToken"].includes(action),
+      [
+        "quyan:relay:ListTokens",
+        "quyan:relay:GetToken",
+        "quyan:relay:RevealToken",
+        "quyan:relay:ExportTokens",
+      ].includes(action),
     );
     if (personalRelayRead.length)
       statements.push({

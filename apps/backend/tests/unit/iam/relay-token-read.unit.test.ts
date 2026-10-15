@@ -33,7 +33,7 @@ const request = () =>
   }) as unknown as TypedRequest;
 const read = (
   req: TypedRequest | undefined = request(),
-  operation: "ListTokens" | "GetToken" = "ListTokens",
+  operation: "ListTokens" | "GetToken" | "ExportTokens" = "ListTokens",
   input = {},
 ) => service.read(operation, "actor", input, req, project, legacy);
 beforeEach(() => {
@@ -73,6 +73,7 @@ describe("resource-scoped token read contract", () => {
     for (const [key, action] of [
       ["GET /v1/relay/tokens", "ListTokens"],
       ["GET /v1/relay/tokens/{id}", "GetToken"],
+      ["POST /v1/relay/tokens/export", "ExportTokens"],
     ]) {
       expect(routes.find((row) => row.key === key)).toMatchObject({
         coverage: "explicit",
@@ -91,15 +92,18 @@ describe("resource-scoped token read contract", () => {
     expect(isIamActionResourceCompatible("quyan:relay:RevealToken", "acs:quyan:*:owner:user/actor")).toBe(false);
     expect(isIamActionResourceCompatible("quyan:relay:RevealManagedToken", platformUserArn("peer"))).toBe(false);
   });
-  it.each(["ListTokens", "GetToken", "RevealToken"])("legacy %s does not grant peer or foreign access", (operation) => {
-    const document = legacyPermissionsToPrincipalPolicy([Permission.RELAY_TOKEN_READ], "owner", "actor")!;
-    const decision = (target: string) =>
-      evaluatePolicies([{ policyId: "fixture", document }], { action: "quyan:relay:" + operation, resource: target })
-        .decision;
-    expect(decision(resource)).toBe("Allow");
-    expect(decision(relayTokenArn("owner", "peer", "token"))).toBe("ImplicitDeny");
-    expect(decision(relayTokenArn("foreign", "actor", "token"))).toBe("ImplicitDeny");
-  });
+  it.each(["ListTokens", "GetToken", "RevealToken", "ExportTokens"])(
+    "legacy %s does not grant peer or foreign access",
+    (operation) => {
+      const document = legacyPermissionsToPrincipalPolicy([Permission.RELAY_TOKEN_READ], "owner", "actor")!;
+      const decision = (target: string) =>
+        evaluatePolicies([{ policyId: "fixture", document }], { action: "quyan:relay:" + operation, resource: target })
+          .decision;
+      expect(decision(resource)).toBe("Allow");
+      expect(decision(relayTokenArn("owner", "peer", "token"))).toBe("ImplicitDeny");
+      expect(decision(relayTokenArn("foreign", "actor", "token"))).toBe("ImplicitDeny");
+    },
+  );
   it("does not select credential-rich user/channel relations", () => {
     expect(relayTokenReadSelect).not.toHaveProperty("token");
     const serialized = JSON.stringify(relayTokenReadSelect);
@@ -215,4 +219,19 @@ describe("resource-scoped token read contract", () => {
     await expect(read(request(), "ListTokens", { pageSize: 10001 })).rejects.toMatchObject({ statusCode: 400 });
     expect(repository.read).not.toHaveBeenCalled();
   });
+  it("applies the same trusted admission, proof and revocation protocol to export", async () => {
+    await read(request(), "ExportTokens", { ids: ["token"] });
+    expect(iam.authorizeMany).toHaveBeenCalledWith(expect.objectContaining({ action: "quyan:relay:ExportTokens" }));
+    await read(request(), "ExportTokens", { targetUserId: "peer", ids: ["token"] });
+    expect(iam.authorizeMany).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "quyan:relay:ExportManagedTokens", resources: [platformUserArn("peer")] }),
+    );
+  });
+  it.each([{ ids: [] }, { ids: ["token", "token"] }, { ids: ["../token"] }, { page: 1 }, { id: "token" }])(
+    "refuses malformed export selection %j before policy reads",
+    async (input) => {
+      await expect(read(request(), "ExportTokens", input)).rejects.toMatchObject({ statusCode: 400 });
+      expect(iam.loadPolicies).not.toHaveBeenCalled();
+    },
+  );
 });

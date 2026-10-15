@@ -2,7 +2,13 @@ import { Prisma } from "@prisma/client";
 import { Permission, getOAuthScopeAliases, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
-import { isRelayTokenResourceId, relayTokenArn, platformRelayTokenArn } from "@/iam/resources/relay-token-resources";
+import {
+  isRelayTokenResourceId,
+  relayTokenArn,
+  platformRelayTokenArn,
+  relayTokenReadAction,
+  type RelayTokenReadOperation,
+} from "@/iam/resources/relay-token-resources";
 import { assertIamAccountPrincipal, iamAccountDenied } from "../users/iam-account-principal";
 import { platformManagementGroupSnapshot } from "../users/platform-management-principal";
 import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
@@ -189,16 +195,16 @@ export class RelayTokenReadRepository {
   async read(
     identity: RelayTokenReadIdentity,
     expected: RelayTokenReadSnapshot,
-    operation: "ListTokens" | "GetToken",
-    query: { page: number; pageSize: number; id?: string },
+    operation: RelayTokenReadOperation,
+    query: { page: number; pageSize: number; id?: string; ids?: string[]; includeDisabled?: boolean },
     decide: RelayTokenReadDecision,
     recheck: () => Promise<void>,
     hydrate: boolean,
   ) {
     const { principal, userId, managed } = identity,
       limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
-    const action =
-      "quyan:relay:" + (managed ? (operation === "ListTokens" ? "ListManagedTokens" : "GetManagedToken") : operation);
+    const action = relayTokenReadAction(operation, managed),
+      exporting = operation === "ExportTokens";
     const revealAction = "quyan:relay:" + (managed ? "RevealManagedToken" : "RevealToken");
     const arn = (row: { id: string; userId: string }) =>
       managed ? platformRelayTokenArn(row.userId, row.id) : relayTokenArn(principal.accountOwnerId, row.userId, row.id);
@@ -224,9 +230,29 @@ export class RelayTokenReadRepository {
           });
           return outcomes;
         };
-        const where = { userId, status: { in: [0, 1] } } satisfies Prisma.RelayTokenWhereInput;
+        const where = {
+          userId,
+          status: { in: exporting && !query.includeDisabled ? [1] : [0, 1] },
+        } satisfies Prisma.RelayTokenWhereInput;
         const admitted: Target[] = [];
-        if (operation === "GetToken") {
+        if (exporting && query.ids) {
+          if (
+            !query.ids.length ||
+            query.ids.length > limit ||
+            new Set(query.ids).size !== query.ids.length ||
+            query.ids.some((id) => !isRelayTokenResourceId(id))
+          )
+            throw iamAccountDenied();
+          const rows = await tx.relayToken.findMany({
+            where: { ...where, id: { in: query.ids } },
+            select: metadataSelect,
+          });
+          if (rows.length !== query.ids.length || rows.some((row) => !query.ids!.includes(row.id)))
+            throw iamAccountDenied();
+          const outcomes = await checked(action, rows.map(arn));
+          if (outcomes.some((value) => value !== "Allow")) throw iamAccountDenied();
+          admitted.push(...query.ids.map((id) => rows.find((row) => row.id === id)!));
+        } else if (operation === "GetToken") {
           if (!query.id || !isRelayTokenResourceId(query.id)) throw iamAccountDenied();
           if ((await checked(action, [arn({ id: query.id, userId })]))[0] !== "Allow") throw iamAccountDenied();
           const row = await tx.relayToken.findFirst({ where: { ...where, id: query.id }, select: metadataSelect });
@@ -253,6 +279,7 @@ export class RelayTokenReadRepository {
             )
               throw iamAccountDenied();
             const outcomes = await checked(action, rows.map(arn));
+            if (exporting && outcomes.some((value) => value !== "Allow")) throw iamAccountDenied();
             rows.forEach((row, index) => {
               if (outcomes[index] === "Allow") admitted.push(row);
             });
@@ -260,17 +287,21 @@ export class RelayTokenReadRepository {
             if (rows.length < limit) break;
           }
         }
-        admitted.sort((a, b) => b.createTime.getTime() - a.createTime.getTime() || b.id.localeCompare(a.id));
+        if (!exporting || !query.ids)
+          admitted.sort((a, b) => b.createTime.getTime() - a.createTime.getTime() || b.id.localeCompare(a.id));
         const total = admitted.length,
           totalPages = Math.max(1, Math.ceil(total / query.pageSize)),
           page = Math.min(query.page, totalPages);
         const selected =
-          operation === "GetToken" ? admitted : admitted.slice((page - 1) * query.pageSize, page * query.pageSize);
+          operation !== "ListTokens" ? admitted : admitted.slice((page - 1) * query.pageSize, page * query.pageSize);
         const records: RelayTokenReadRecord[] = [];
         const contributingTargets: Target[] = [...selected];
-        const reveals = selected.length ? await checked(revealAction, selected.map(arn)) : [];
-        if (hydrate)
-          for (const [index, target] of selected.entries()) {
+        const reveals: string[] = [];
+        for (let offset = 0; offset < selected.length; offset += limit)
+          reveals.push(...(await checked(revealAction, selected.slice(offset, offset + limit).map(arn))));
+        if (exporting && reveals.some((value) => value !== "Allow")) throw iamAccountDenied();
+        if (hydrate || exporting)
+          for (const target of selected) {
             await recheck();
             const row = await tx.relayToken.findFirst({
               where: { ...where, id: target.id, updateTime: target.updateTime },
@@ -286,13 +317,15 @@ export class RelayTokenReadRepository {
                   members.map((member) => arn({ id: member.tokenId, userId })),
                 )
               : [];
+            if (exporting && memberOutcomes.some((value) => value !== "Allow")) throw iamAccountDenied();
             const memberIds = members.filter((_, i) => memberOutcomes[i] === "Allow").map((member) => member.tokenId);
             const details = memberIds.length
               ? await tx.relayToken.findMany({
-                  where: { ...where, id: { in: memberIds } },
+                  where: { userId, status: { in: [0, 1] }, id: { in: memberIds } },
                   select: { ...metadataSelect, name: true, routingMode: true, expiresAt: true },
                 })
               : [];
+            if (exporting && details.length !== memberIds.length) throw iamAccountDenied();
             contributingTargets.push(...details);
             const record = {
               ...row,
@@ -300,14 +333,24 @@ export class RelayTokenReadRepository {
                 .filter((member) => details.some((detail) => detail.id === member.tokenId))
                 .map((member) => ({ ...member, memberToken: details.find((detail) => detail.id === member.tokenId)! })),
             };
-            if (reveals[index] === "Allow") {
-              const credential = await tx.relayToken.findFirst({
-                where: { ...where, id: target.id, updateTime: target.updateTime },
-                select: { id: true, token: true },
-              });
-              if (!credential || credential.id !== target.id) throw iamAccountDenied();
-              records.push({ ...record, token: credential.token });
-            } else records.push(record);
+            if (hydrate) records.push(record);
+          }
+        // Finish metadata/member authorization for the entire selection before loading any credential.
+        if (hydrate)
+          for (const [index, record] of records.entries()) {
+            if (reveals[index] !== "Allow") continue;
+            await recheck();
+            if (
+              (await checked(action, [arn(record)]))[0] !== "Allow" ||
+              (await checked(revealAction, [arn(record)]))[0] !== "Allow"
+            )
+              throw iamAccountDenied();
+            const credential = await tx.relayToken.findFirst({
+              where: { ...where, id: record.id, updateTime: record.updateTime },
+              select: { id: true, token: true },
+            });
+            if (!credential || credential.id !== record.id) throw iamAccountDenied();
+            records[index] = { ...record, token: credential.token };
           }
         for (const operationAction of new Set([...evaluations.values()].map((value) => value.action))) {
           const entries = [...evaluations.values()].filter((value) => value.action === operationAction);

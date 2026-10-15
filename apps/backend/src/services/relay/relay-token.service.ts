@@ -1,3 +1,5 @@
+import { env } from "@/config/env";
+import type { RelayTokenReadRecord } from "@/store/relay/relay-token-read.repository";
 import { RelayTokenReadIamService } from "./relay-token-read-iam.service";
 import type { TypedRequest } from "@/types/express";
 import type { RelayCompositionPreviewDto, RelayCompositionPreviewRequest } from "@/api/dto/relay/relay.dto";
@@ -508,6 +510,44 @@ export class RelayTokenService {
   }
 
   async exportTokens(
+    body: ExportRelayTokensRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenExportResponse> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayTokenReadIamService.getInstance().read(
+      "ExportTokens",
+      actorUserId,
+      body,
+      request,
+      async (records) =>
+        records.map((row) => {
+          if (typeof row.token !== "string" || !row.token)
+            throw new ForbiddenError("Token export requires credential disclosure", undefined, {
+              messageKey: "permission.insufficientPermission",
+            });
+          return this.toExportItemDto({ ...row, token: row.token });
+        }),
+      async () => {
+        const result = await this.exportTokensLegacy(body, actorUserId, request);
+        return { items: result.tokens, total: result.tokens.length, page: 1, pageSize: result.tokens.length };
+      },
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_EXPORT,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: body.targetUserId ?? actorUserId,
+        targetResourceType: "RELAY_TOKEN",
+        description: `导出了 ${result.items.length} 个中转令牌`,
+        metadata: { ids: body.ids, includeDisabled: body.includeDisabled === true, total: result.items.length },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { tokens: result.items };
+  }
+  private async exportTokensLegacy(
     body: ExportRelayTokensRequest,
     actorUserId: string,
     request?: Request,
@@ -1742,7 +1782,9 @@ export class RelayTokenService {
     };
   }
 
-  private toImportItemDto(token: RelayTokenWithRelations): RelayTokenImportItemDto {
+  private toImportItemDto(
+    token: RelayTokenWithRelations | (RelayTokenReadRecord & { token: string }),
+  ): RelayTokenImportItemDto {
     return {
       name: token.name || undefined,
       token: toCanonicalCredential(token.token, "relayToken"),
@@ -1806,7 +1848,9 @@ export class RelayTokenService {
     };
   }
 
-  private toExportItemDto(token: RelayTokenWithRelations): RelayTokenExportItemDto {
+  private toExportItemDto(
+    token: RelayTokenWithRelations | (RelayTokenReadRecord & { token: string }),
+  ): RelayTokenExportItemDto {
     return {
       ...this.toImportItemDto(token),
       id: token.id,

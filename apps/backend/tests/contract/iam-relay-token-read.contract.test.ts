@@ -13,6 +13,12 @@ describe("generated resource-authorized relay token read contract", () => {
       expect(operation.responses).toHaveProperty("403");
     },
   );
+  it("keeps export credentials required under its separate authenticated operation", () => {
+    const operation = document.paths["/v1/relay/tokens/export"].post;
+    expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_READ] });
+    expect(operation.responses).toHaveProperty("403");
+    expect(document.components.schemas.RelayTokenExportItemDto.required).toContain("token");
+  });
   it("permits metadata-only DTOs without replacing the credential with another required field", () => {
     const schema = document.components.schemas.RelayTokenDto;
     expect(schema.properties.token).toMatchObject({ type: "string" });

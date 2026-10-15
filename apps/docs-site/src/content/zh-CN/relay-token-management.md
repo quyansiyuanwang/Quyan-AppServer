@@ -27,7 +27,9 @@
 
 读取其他用户的 Token（包括同账户内其他用户）还需要平台管理资格，以及目标用户和 Token 资源上的 `ListManagedTokens` / `GetManagedToken` 授权；披露凭据另需 `RevealManagedToken`。账户策略中的 `"*"` 不能自行赋予平台管理资格。OAuth 访问还受应用和访问令牌当前的 scope、有效期与撤销状态限制。
 
-以上披露规则针对列表与单个 Token 读取接口。导出、刷新、复制和修改属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
+导出要求每个选中 Token 同时获准执行 `quyan:relay:ExportTokens` 和 `RevealToken`。管理其他用户的导出，还需平台管理资格、当前用户的接口准入，以及目标平台资源上的 `ExportManagedTokens` / `RevealManagedToken`。显式选中 ID 时按提交顺序导出；未指定时导出已启用的 Token，`includeDisabled: true` 可同时包含停用项，但不会包含已删除项。任一指定 Token 不存在或未获准，或组合 Token 引用的成员无法导出，整个请求都会失败，不会静默生成不完整的备份。导出的组合配置保留获准的成员引用，但只有成员本身也被选中且获准披露时才导出其凭据。
+
+以上披露规则覆盖列表、单个 Token 读取和导出。刷新、复制和修改仍属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
 
 ### 额度窗口（Quota Windows）
 

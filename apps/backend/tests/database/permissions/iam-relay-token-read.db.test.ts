@@ -13,6 +13,7 @@ import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { relayTokenArn, platformRelayTokenArn } from "@/iam/resources/relay-token-resources";
 import { platformUserArn } from "@/iam/resources/platform-user-resources";
+import type { ExportRelayTokensRequest } from "@/api/dto/relay/relay.dto";
 import type { TypedRequest } from "@/types/express";
 const mode = env.security.iamAuthorizationMode;
 let owner: string,
@@ -32,12 +33,31 @@ const request = () =>
     user: { userId: actor },
     authContext: { principalUserId: actor, accountOwnerId: owner },
     headers: {},
+    ip: "127.0.0.1",
     secure: true,
   }) as unknown as TypedRequest;
 const service = () => new RelayTokenService();
 const list = (targetUserId?: string, page = 1, pageSize = 20, req = request()) =>
   service().listTokens(actor, page, pageSize, targetUserId, req);
 const get = (id = tokenId, targetUserId?: string, req = request()) => service().getToken(id, actor, targetUserId, req);
+const exportTokens = (body: ExportRelayTokensRequest = {}, req = request()) => service().exportTokens(body, actor, req);
+function traceCredentialReads() {
+  const tx = prisma.$transaction.bind(prisma),
+    secretIds: string[] = [];
+  vi.spyOn(prisma, "$transaction").mockImplementation(((
+    cb: (tx: Prisma.TransactionClient) => Promise<unknown>,
+    options?: { isolationLevel?: Prisma.TransactionIsolationLevel },
+  ) =>
+    tx(async (client) => {
+      const original = client.relayToken.findFirst.bind(client.relayToken);
+      vi.spyOn(client.relayToken, "findFirst").mockImplementation((args) => {
+        if ((args?.select as { token?: boolean })?.token) secretIds.push(String(args?.where?.id));
+        return original(args);
+      });
+      return cb(client);
+    }, options)) as typeof prisma.$transaction);
+  return secretIds;
+}
 async function policy(
   action: string,
   resource: string,
@@ -487,5 +507,141 @@ describe("resource scoped relay token reads", () => {
     await expect(service().listTokens(actor)).rejects.toMatchObject({ statusCode: 403 });
     await expect(list(undefined, 0)).rejects.toMatchObject({ statusCode: 400 });
     await expect(list(undefined, 1, 101)).rejects.toMatchObject({ statusCode: 400 });
+  });
+  it("exports selected own tokens in caller order using credential-free configuration relations", async () => {
+    const rich = vi.spyOn(RelayTokenRepository.getInstance(), "findByUserIdWithRelations");
+    const result = await exportTokens({ ids: [tokenId, secondId] });
+    expect(result.tokens.map((row) => row.id)).toEqual([tokenId, secondId]);
+    expect(result.tokens.every((row) => row.token.startsWith("sk-rlt-"))).toBe(true);
+    expect(JSON.stringify(result)).not.toMatch(/fixture-private|fixture-legacy|password/);
+    expect(rich).not.toHaveBeenCalled();
+  });
+  it.each(["ExportTokens", "RevealToken"])(
+    "refuses an entire selected export before credential reads when %s is denied",
+    async (operation) => {
+      await policy("quyan:relay:" + operation, relayTokenArn(owner, actor, secondId));
+      const secretIds = traceCredentialReads();
+      await expect(exportTokens({ ids: [tokenId, secondId] })).rejects.toMatchObject({ statusCode: 403 });
+      expect(secretIds).toEqual([]);
+    },
+  );
+  it("does not treat a list/get grant as credential-bearing export permission", async () => {
+    await prisma.group.update({ where: { id: groupId }, data: { permissions: [] } });
+    await policy("quyan:relay:GetToken", relayTokenArn(owner, actor, tokenId), "Allow");
+    await policy("quyan:relay:RevealToken", relayTokenArn(owner, actor, tokenId), "Allow");
+    await expect(exportTokens({ ids: [tokenId] })).rejects.toMatchObject({ statusCode: 403 });
+    await policy("quyan:relay:ExportTokens", relayTokenArn(owner, actor, tokenId), "Allow");
+    expect((await exportTokens({ ids: [tokenId] })).tokens[0].id).toBe(tokenId);
+  });
+  it("all-token export is all-or-nothing rather than a silently filtered backup", async () => {
+    await policy("quyan:relay:ExportTokens", relayTokenArn(owner, actor, secondId));
+    const secrets = traceCredentialReads();
+    await expect(exportTokens()).rejects.toMatchObject({ statusCode: 403 });
+    expect(secrets).toEqual([]);
+  });
+  it("exports enabled tokens by default and includes disabled ones only on explicit request", async () => {
+    await prisma.relayToken.update({ where: { id: secondId }, data: { status: 0 } });
+    expect((await exportTokens()).tokens.map((row) => row.id)).toEqual([tokenId]);
+    expect((await exportTokens({ includeDisabled: true })).tokens.map((row) => row.id)).toEqual([secondId, tokenId]);
+    await expect(exportTokens({ ids: [secondId] })).rejects.toMatchObject({ statusCode: 403 });
+    await prisma.relayToken.update({ where: { id: secondId }, data: { status: -1 } });
+    await expect(exportTokens({ ids: [secondId], includeDisabled: true })).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it.each(["missing-token", "case-alias", "peer-token"])("never silently omits a requested %s", async (kind) => {
+    const id = kind === "missing-token" ? "fixture-missing" : kind === "case-alias" ? tokenId.toUpperCase() : peerToken;
+    await expect(exportTokens({ ids: [tokenId, id] })).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("requires export authorization on every referenced composite member before reading any credential", async () => {
+    await prisma.relayToken.update({ where: { id: tokenId }, data: { routingMode: "composite" } });
+    await prisma.relayTokenMemberConfig.create({ data: { parentTokenId: tokenId, tokenId: secondId, priority: 0 } });
+    await policy("quyan:relay:ExportTokens", relayTokenArn(owner, actor, secondId));
+    const secrets = traceCredentialReads();
+    await expect(exportTokens({ ids: [tokenId] })).rejects.toMatchObject({ statusCode: 403 });
+    expect(secrets).toEqual([]);
+  });
+  it("preserves authorized disabled composite member references without exporting their credentials", async () => {
+    await prisma.relayToken.update({ where: { id: tokenId }, data: { routingMode: "composite" } });
+    await prisma.relayToken.update({ where: { id: secondId }, data: { status: 0 } });
+    await prisma.relayTokenMemberConfig.create({
+      data: { parentTokenId: tokenId, tokenId: secondId, priority: 0, enabled: false },
+    });
+    await policy("quyan:relay:RevealToken", relayTokenArn(owner, actor, secondId));
+    const secrets = traceCredentialReads(),
+      result = await exportTokens({ ids: [tokenId] });
+    expect(result.tokens[0].memberTokenConfigs).toEqual([{ tokenId: secondId, priority: 0, enabled: false }]);
+    expect(secrets).toEqual([tokenId]);
+  });
+  it("does not invent platform management eligibility for a wildcard account policy", async () => {
+    await policy("quyan:relay:*", "*", "Allow");
+    await expect(exportTokens({ targetUserId: foreign, ids: [foreignToken] })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+  it.each(["ExportManagedTokens", "RevealManagedToken"])(
+    "keeps managed export behind %s on each exact token",
+    async (operation) => {
+      await manager();
+      expect((await exportTokens({ targetUserId: foreign, ids: [foreignToken] })).tokens.map((row) => row.id)).toEqual([
+        foreignToken,
+      ]);
+      await policy("quyan:relay:" + operation, platformRelayTokenArn(foreign, foreignToken));
+      await expect(exportTokens({ targetUserId: foreign, ids: [foreignToken] })).rejects.toMatchObject({
+        statusCode: 403,
+      });
+    },
+  );
+  it("suppresses all exported credentials if owner identity changes after hydration", async () => {
+    const repository = RelayTokenReadRepository.getInstance(),
+      original = repository.read.bind(repository);
+    vi.spyOn(repository, "read").mockImplementation(async (...args) => {
+      const result = await original(...args);
+      await prisma.relayToken.update({ where: { id: tokenId }, data: { userId: peer } });
+      return result;
+    });
+    await expect(exportTokens({ ids: [tokenId, secondId] })).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("shadow checks export members without native credential hydration then calls legacy once", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    const read = vi.spyOn(RelayTokenReadRepository.getInstance(), "read"),
+      legacy = vi.spyOn(RelayTokenRepository.getInstance(), "findByUserIdWithRelations");
+    const secrets = traceCredentialReads();
+    expect((await exportTokens()).tokens).toHaveLength(2);
+    expect(read.mock.calls[0]![6]).toBe(false);
+    expect(secrets).toEqual([]);
+    expect(legacy).toHaveBeenCalledOnce();
+  });
+  it("rechecks export disclosure decisions after DTO construction, not just at the initial scan", async () => {
+    const repository = RelayTokenReadRepository.getInstance(),
+      original = repository.read.bind(repository);
+    const iam = IamAuthorizationService.getInstance(),
+      authorize = iam.authorizeMany.bind(iam);
+    let revoked = false;
+    vi.spyOn(repository, "read").mockImplementation(async (...args) => {
+      const result = await original(...args);
+      revoked = true;
+      return result;
+    });
+    vi.spyOn(iam, "authorizeMany").mockImplementation(async (input) => {
+      const result = await authorize(input);
+      return revoked && input.action === "quyan:relay:RevealToken"
+        ? result.map((row) => ({ ...row, decision: "ExplicitDeny" as const }))
+        : result;
+    });
+    await expect(exportTokens({ ids: [tokenId, secondId] })).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("managed export still requires personal endpoint admission and the target-user grant", async () => {
+    await manager();
+    await policy("quyan:relay:ExportManagedTokens", platformUserArn(foreign));
+    await expect(exportTokens({ targetUserId: foreign, ids: [foreignToken] })).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await policy("quyan:relay:ExportTokens", "*");
+    await expect(exportTokens({ targetUserId: peer, ids: [peerToken] })).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("OAuth export rechecks application and token scopes rather than trusting request assertions", async () => {
+    const req = await oauthRequest();
+    expect((await exportTokens({ ids: [tokenId] }, req)).tokens[0].id).toBe(tokenId);
+    await prisma.oAuthAccessToken.update({ where: { id: req.oauthAccessToken!.id }, data: { scopes: [] } });
+    await expect(exportTokens({ ids: [tokenId] }, req)).rejects.toMatchObject({ statusCode: 403 });
   });
 });

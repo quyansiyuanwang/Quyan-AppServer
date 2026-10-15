@@ -98,8 +98,17 @@ export class RelayController extends Controller {
   }
 
   @Post("tokens/export")
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
   @Security("jwt", ["relay:token:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ExportTokens",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
   @Middlewares(validateBody(exportRelayTokensBodySchema))
   async exportTokens(
     @Body() body: ExportRelayTokensRequest,
