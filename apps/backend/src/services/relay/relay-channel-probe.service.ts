@@ -1,3 +1,6 @@
+import { RELAY_PROBE_BATCH_POLICY } from "@/constant/relay-probe";
+import { RelayProbeBatchTargetRepository } from "@/store/relay/relay-probe-batch-target.repository";
+import { translateMessage, DEFAULT_BACKEND_LOCALE } from "@/locales";
 import { captureIamAccessKeyRevision } from "@/store/users/iam-access-key-authority";
 import { PlatformManagementReadRepository } from "@/store/system/platform-management-read.repository";
 import { assertProbeRunExecution, withProbeRunExecution } from "./relay-probe-execution-context";
@@ -6,7 +9,10 @@ import { RelayProbeRunExecutionIamService } from "./relay-probe-run-execution-ia
 import { RelayProbeRunCreateRepository } from "@/store/relay/relay-probe-run-create.repository";
 import { requestTransportConditionContext } from "@/iam/request/condition-context";
 import { getIamPrincipal } from "@/iam/request/principal-context";
-import { createRelayChannelProbeRunBodySchema } from "@/api/schema/relay/relay-channel-probe.schema";
+import {
+  createRelayChannelProbeRunBodySchema,
+  createRelayChannelProbeRunsBodySchema,
+} from "@/api/schema/relay/relay-channel-probe.schema";
 import { RELAY_PROBE_QUEUE_POLICY, relayProbeQueueSlotKey } from "./relay-channel-probe-queue-policy";
 import {
   RelayProbeRunResetRepository,
@@ -1633,31 +1639,84 @@ export class RelayChannelProbeService {
   }
 
   async createRuns(
-    body: CreateRelayChannelProbeRunsRequest,
+    input: CreateRelayChannelProbeRunsRequest,
     actorUserId: string,
+    request?: TypedRequest,
   ): Promise<CreateRelayChannelProbeRunsResponse> {
+    const parsed = createRelayChannelProbeRunsBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe batch", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data;
+    const targets: RelayChannelProbeTargetDto[] = [...(body.targets ?? [])],
+      rejected: CreateRelayChannelProbeRunsResponse["rejected"] = [];
+    const deduplicate = (entries: readonly RelayChannelProbeTargetDto[]) => [
+      ...new Map(
+        entries.map((target) => [JSON.stringify([target.channelId, target.memberChannelId ?? null]), target]),
+      ).values(),
+    ];
+    const reason = (error: unknown) =>
+      translateMessage(
+        error instanceof ConflictError
+          ? "relayChannelProbe.probeAlreadyQueued"
+          : error instanceof LockBackendUnavailableError
+            ? "relayChannelProbe.queueBackendUnavailable"
+            : error instanceof BadRequestError
+              ? "errors.badRequest"
+              : "permission.insufficientPermission",
+        request?.locale ?? DEFAULT_BACKEND_LOCALE,
+      );
+    await RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:CreateProbeRun",
+      actorUserId,
+      request,
+      async (guard) => {
+        const discovered: RelayChannelProbeTargetDto[] = [],
+          failures: typeof rejected = [];
+        for (const channelId of body.channelIds ?? []) {
+          try {
+            discovered.push(...(await RelayProbeBatchTargetRepository.getInstance().expand(channelId, guard)));
+          } catch (error) {
+            failures.push({ channelId, reason: reason(error) });
+          }
+          if (deduplicate([...discovered, ...targets]).length > RELAY_PROBE_BATCH_POLICY.targets)
+            throw new BadRequestError("Probe expansion exceeds batch limit", undefined, {
+              messageKey: "errors.badRequest",
+            });
+        }
+        if (guard.persist) {
+          targets.push(...discovered);
+          rejected.push(...failures);
+        }
+        return undefined;
+      },
+      async () => {
+        for (const channelId of body.channelIds ?? []) {
+          try {
+            const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
+            if (channel.channelType === "pooled") {
+              const members = await this.resolvePoolMembers(channelId);
+              targets.push(
+                ...members
+                  .filter((member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel))
+                  .map((member) => ({ channelId, memberChannelId: member.channel.id })),
+              );
+            } else targets.push({ channelId });
+          } catch (error) {
+            rejected.push({ channelId, reason: reason(error) });
+          }
+          if (deduplicate(targets).length > RELAY_PROBE_BATCH_POLICY.targets)
+            throw new BadRequestError("Probe expansion exceeds batch limit", undefined, {
+              messageKey: "errors.badRequest",
+            });
+        }
+      },
+    );
+    // Deduplicate explicit + expanded entries before independent per-resource scheduling.
+    const unique = deduplicate(targets);
+    if (unique.length > RELAY_PROBE_BATCH_POLICY.targets)
+      throw new BadRequestError("Probe expansion exceeds batch limit", undefined, { messageKey: "errors.badRequest" });
     const queued: RelayChannelProbeRunDto[] = [];
-    const rejected: Array<{ channelId: string; memberChannelId?: string; reason: string }> = [];
-    const targets: RelayChannelProbeTargetDto[] = [...(body.targets ?? [])];
-    for (const channelId of body.channelIds ?? []) {
-      try {
-        const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-        if (channel.channelType === "pooled") {
-          const members = await this.resolvePoolMembers(channelId);
-          targets.push(
-            ...members
-              .filter((member) => member.membershipEnabled && this.isEnabledProbeMember(member.channel))
-              .map((member) => ({ channelId, memberChannelId: member.channel.id })),
-          );
-        } else targets.push({ channelId });
-      } catch (error) {
-        rejected.push({ channelId, reason: error instanceof Error ? error.message : "探针任务创建失败" });
-      }
-    }
-
-    // Queue one record at a time so a blocked or already-running channel never prevents
-    // independent channels from being scheduled.
-    for (const target of targets) {
+    for (const target of unique) {
       try {
         queued.push(
           await this.createRun(
@@ -1668,14 +1727,11 @@ export class RelayChannelProbeService {
               forceWithoutCacheBuster: body.forceWithoutCacheBuster,
             },
             actorUserId,
+            request,
           ),
         );
       } catch (error) {
-        rejected.push({
-          channelId: target.channelId,
-          ...(target.memberChannelId ? { memberChannelId: target.memberChannelId } : {}),
-          reason: error instanceof Error ? error.message : "探针任务创建失败",
-        });
+        rejected.push({ ...target, reason: reason(error) });
       }
     }
     return { queued, rejected };

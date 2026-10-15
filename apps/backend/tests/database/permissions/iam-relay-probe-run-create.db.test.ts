@@ -462,4 +462,99 @@ describe("probe creation and worker admission authorization", () => {
     });
     expect(await redis().get(slot())).toBeNull();
   });
+  it("batch explicit targets propagate authenticated worker admissions and deduplicate against expanded channels", async () => {
+    const result = await RelayChannelProbeService.getInstance().createRuns(
+      {
+        channelIds: [standalone, pool],
+        targets: [{ channelId: standalone }, { channelId: pool, memberChannelId: member }],
+      },
+      actor,
+      request(),
+    );
+    expect(result.rejected).toEqual([]);
+    expect(result.queued).toHaveLength(2);
+    for (const row of result.queued)
+      expect(await RelayProbeRunAdmissionStore.getInstance().read(row.id)).toMatchObject({
+        runId: row.id,
+        principal: { subjectUserId: actor },
+      });
+    expect(await prisma.relayChannelProbeRun.count({ where: { relayChannelId: { in: [standalone, pool] } } })).toBe(2);
+  });
+  it("batch independently refuses denied targets without blocking authorized resources or leaking policy details", async () => {
+    await policy("Deny", platformRelayChannelArn(member));
+    const result = await RelayChannelProbeService.getInstance().createRuns(
+      { targets: [{ channelId: pool, memberChannelId: member }, { channelId: standalone }] },
+      actor,
+      request(),
+    );
+    expect(result.queued).toHaveLength(1);
+    expect(result.queued[0]!.relayChannelId).toBe(standalone);
+    expect(result.rejected).toHaveLength(1);
+    expect(result.rejected[0]).toMatchObject({ channelId: pool, memberChannelId: member });
+    expect(JSON.stringify(result.rejected)).not.toContain("Deny");
+    expect(JSON.stringify(result.rejected)).not.toContain("policy");
+  });
+  it("batch native discovery never loads full channel configuration", async () => {
+    const full = vi.spyOn(
+      (await import("@/services/relay/relay-channel.service")).RelayChannelService.getInstance(),
+      "getChannel",
+    );
+    const profileRead = vi.spyOn(RelayChannelProbeRepository.getInstance(), "findProfileWithChannel");
+    const result = await RelayChannelProbeService.getInstance().createRuns({ channelIds: [pool] }, actor, request());
+    expect(result.queued).toHaveLength(1);
+    expect(full).not.toHaveBeenCalled();
+    expect(profileRead).not.toHaveBeenCalled();
+    expect(result.queued[0]!.probeMemberChannelId).toBe(member);
+  });
+  it("batch discovery excludes denied strict members and never exposes a fallback legacy member", async () => {
+    await prisma.relayChannelMember.create({ data: { relayChannelId: pool, memberChannelId: outsider, priority: 0 } });
+    await policy("Deny", platformRelayChannelArn(member));
+    const result = await RelayChannelProbeService.getInstance().createRuns({ channelIds: [pool] }, actor, request());
+    expect(result.queued).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
+    expect(JSON.stringify(result)).not.toContain(outsider);
+    expect(admissionIds).toHaveLength(0);
+  });
+  it("batch discovery does not fall back when strict topology contains only disabled members", async () => {
+    await prisma.relayChannel.update({ where: { id: member }, data: { pooledMemberEnabled: false } });
+    await prisma.relayChannelMember.create({ data: { relayChannelId: pool, memberChannelId: outsider, priority: 0 } });
+    const result = await RelayChannelProbeService.getInstance().createRuns({ channelIds: [pool] }, actor, request());
+    expect(result.queued).toEqual([]);
+    expect(result.rejected).toHaveLength(1);
+    expect(admissionIds).toHaveLength(0);
+  });
+  it("batch discovery supports enabled legacy members only when no strict topology exists", async () => {
+    await prisma.relayChannel.update({ where: { id: member }, data: { pooledParentId: null } });
+    await prisma.relayChannelMember.create({ data: { relayChannelId: pool, memberChannelId: member, priority: 0 } });
+    const result = await RelayChannelProbeService.getInstance().createRuns({ channelIds: [pool] }, actor, request());
+    expect(result.queued).toHaveLength(1);
+    expect(result.queued[0]!.probeMemberChannelId).toBe(member);
+  });
+  it("batch rejects missing context and invalid input before discovering channels", async () => {
+    const service = RelayChannelProbeService.getInstance();
+    await expect(service.createRuns({ channelIds: [pool] }, actor)).rejects.toMatchObject({ statusCode: 403 });
+    await expect(service.createRuns({ targets: [] }, actor, request())).rejects.toMatchObject({ statusCode: 400 });
+    expect(admissionIds).toHaveLength(0);
+  });
+  it("batch shadow discovery does not create duplicate admissions or duplicate rows", async () => {
+    env.security.iamAuthorizationMode = "shadow";
+    const legacy = vi.spyOn(RelayChannelProbeRepository.getInstance(), "createRun");
+    const result = await RelayChannelProbeService.getInstance().createRuns(
+      { channelIds: [standalone], targets: [{ channelId: standalone }] },
+      actor,
+      request(),
+    );
+    expect(result.queued).toHaveLength(1);
+    expect(result.rejected).toEqual([]);
+    expect(legacy).toHaveBeenCalledTimes(1);
+    expect(admissionIds).toEqual([result.queued[0]!.id]);
+  });
+  it("batch overflow is detected before reserving any queue slot", async () => {
+    const targets = Array.from({ length: 200 }, (_, index) => ({ channelId: `fixture-target-${index}` }));
+    await expect(
+      RelayChannelProbeService.getInstance().createRuns({ channelIds: [standalone], targets }, actor, request()),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    expect(admissionIds).toHaveLength(0);
+    expect(await redis().get(slot())).toBeNull();
+  });
 });

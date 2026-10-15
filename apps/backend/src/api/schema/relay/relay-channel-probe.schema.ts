@@ -1,3 +1,4 @@
+import { RELAY_PROBE_BATCH_POLICY } from "@/constant/relay-probe";
 import { z } from "zod";
 import { RELAY_PROBE_FORMATS } from "@quyan/shared";
 
@@ -142,13 +143,13 @@ export const createRelayChannelProbeRunsBodySchema = z
     channelIds: z
       .array(z.string().trim().min(1))
       .min(1)
-      .max(100)
+      .max(RELAY_PROBE_BATCH_POLICY.channels)
       .refine((ids) => new Set(ids).size === ids.length)
       .optional(),
     targets: z
       .array(probeTargetSchema)
       .min(1)
-      .max(200)
+      .max(RELAY_PROBE_BATCH_POLICY.targets)
       .refine(
         (targets) =>
           new Set(targets.map((target) => `${target.channelId}:${target.memberChannelId || ""}`)).size ===

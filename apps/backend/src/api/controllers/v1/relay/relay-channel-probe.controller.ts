@@ -226,7 +226,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("runs/batch")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:CreateProbeRun",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -239,7 +246,7 @@ export class RelayChannelProbeController extends Controller {
     @Request() request: TypedRequest,
   ): Promise<CreateRelayChannelProbeRunsResponse> {
     this.setStatus(202);
-    return this.service.createRuns(body, request.user!.userId);
+    return this.service.createRuns(body, request.user!.userId, request);
   }
 
   @Post("profiles/batch-copy")

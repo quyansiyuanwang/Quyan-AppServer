@@ -1228,7 +1228,10 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       'platform/relay-probe-queue-slot',
       'platform/relay-probe-account',
     ],
-    apiRoutes: ['POST /v1/relay-channel-probes/{channelId}/runs'],
+    apiRoutes: [
+      'POST /v1/relay-channel-probes/{channelId}/runs',
+      'POST /v1/relay-channel-probes/runs/batch',
+    ],
     conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,
     authorizationStage: 'declared',
