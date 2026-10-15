@@ -240,11 +240,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Get("{channelId}/runs")
   @Security("jwt")
-  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_READ, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:probe:Read",
-    resourceKind: "single-resource",
-    resource: relayChannelProbeResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_READ],
+    }),
+  )
   @Middlewares(validateParams(relayChannelProbeChannelParamsSchema), validateQuery(relayChannelProbeRunsQuerySchema))
   public listRuns(
     @Path() channelId: string,
@@ -253,7 +256,7 @@ export class RelayChannelProbeController extends Controller {
     @Query() pageSize?: number,
     @Query() memberChannelId?: string,
   ): Promise<RelayChannelProbeRunPageDto> {
-    return this.service.listRuns(channelId, request.user!.userId, page, pageSize, memberChannelId);
+    return this.service.listRuns(channelId, request.user!.userId, page, pageSize, memberChannelId, request);
   }
 
   @Delete("{channelId}/runs")

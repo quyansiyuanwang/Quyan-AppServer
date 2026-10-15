@@ -36,6 +36,8 @@ A member result never changes pricing automatically. An operator with multiplier
 
 When native IAM enforcement is enabled, latest-result polling checks `quyan:relay:ListLatestProbeRuns` on both channel ARNs (`acs:platform:*:platform:relay-channel/<channelId>`) and run ARNs (`acs:platform:*:platform:relay-probe-run/<channelId>/<runId>`). A pooled target also requires access to its current physical member. Denied channels are omitted; when the latest run is denied, that target has no visible result and an older run is never substituted. Channel visibility and the deployment-managed probe-read qualification still apply.
 
+History uses `quyan:relay:ListProbeRuns` for the parent channel, any selected physical member, and every returned run. Pagination and totals include only authorized records. Results for members that no longer belong to the pool are excluded; an explicitly requested member must still belong to that pool.
+
 ## Prerequisites and notes
 
 - Reading requires channel-probe read permission. Saving an ordinary profile, running, clearing or resetting requires execute permission, step-up verification and replay protection. Editing or deleting a profile bound to a shared account additionally requires the dedicated account-pool management permission, preventing unauthorized changes to requests carrying shared tokens.

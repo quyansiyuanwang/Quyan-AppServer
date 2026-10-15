@@ -1,3 +1,8 @@
+import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { RelayProbeReadIamService } from "./relay-probe-read-iam.service";
+import { RelayProbeRunHistoryReadRepository } from "@/store/relay/relay-probe-run-history-read.repository";
+import { relayChannelProbeRunsQuerySchema } from "@/api/schema/relay/relay-channel-probe.schema";
 import { RelayProbeLatestRunReadIamService } from "./relay-probe-latest-run-read-iam.service";
 import type { RelayProbeRunPublicRecord } from "@/store/relay/relay-probe-run-public-select";
 import type { TypedRequest } from "@/types/express";
@@ -1453,7 +1458,47 @@ export class RelayChannelProbeService {
     return { configured, rejected };
   }
 
-  async listRuns(channelId: string, actorUserId: string, page = 1, pageSize = 20, memberChannelId?: string) {
+  async listRuns(
+    channelId: string,
+    actorUserId: string,
+    page = 1,
+    pageSize = 20,
+    memberChannelId?: string,
+    request?: TypedRequest,
+  ) {
+    const parsed = relayChannelProbeRunsQuerySchema.safeParse({ page, pageSize, memberChannelId });
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe history pagination", undefined, { messageKey: "errors.badRequest" });
+    return RelayProbeReadIamService.getInstance().read(
+      "quyan:relay:ListProbeRuns",
+      actorUserId,
+      request,
+      async ({ principal, decide, recheck, visible }) => {
+        try {
+          platformRelayChannelArn(channelId);
+          if (parsed.data.memberChannelId) platformRelayChannelArn(parsed.data.memberChannelId);
+        } catch {
+          throw iamAccountDenied();
+        }
+        return RelayProbeRunHistoryReadRepository.getInstance().list(
+          principal,
+          { channelId, memberChannelId: parsed.data.memberChannelId, page, pageSize },
+          decide,
+          recheck,
+          visible,
+          (run) => this.toRunDto(run),
+        );
+      },
+      () => this.listRunsLegacy(channelId, actorUserId, page, pageSize, memberChannelId),
+    );
+  }
+  private async listRunsLegacy(
+    channelId: string,
+    actorUserId: string,
+    page: number,
+    pageSize: number,
+    memberChannelId?: string,
+  ) {
     await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
     if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
     const result = await this.repository.listRuns(channelId, page, pageSize, memberChannelId);

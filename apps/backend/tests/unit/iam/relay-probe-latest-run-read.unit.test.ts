@@ -8,6 +8,7 @@ vi.mock("@/store/system/platform-management-read.repository", () => ({
 vi.mock("@/services/users/permission.service", () => ({ PermissionService: { getInstance: vi.fn() } }));
 vi.mock("@/iam/audit/iam-audit.service", () => ({ auditIamDecision: vi.fn() }));
 import { env } from "@/config/env";
+import { RelayProbeReadIamService } from "@/services/relay/relay-probe-read-iam.service";
 import { RelayProbeLatestRunReadIamService } from "@/services/relay/relay-probe-latest-run-read-iam.service";
 import { platformRelayProbeRunArn } from "@/iam/resources/platform-relay-probe-resources";
 import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
@@ -127,5 +128,42 @@ describe("probe latest-run polling authorization", () => {
     expect(await latest()).toEqual([{ channelId: "channel", latestRun: "legacy" }]);
     permissions.checkUserPermissions.mockResolvedValue({ hasPermission: false });
     await expect(latest()).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("shared probe history read guard", () => {
+  const guard = new RelayProbeReadIamService(iam, snapshots, permissions, channels);
+  it("declares the exact history action and resources on the JWT route", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel-probe.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "GET /v1/relay-channel-probes/{channelId}/runs",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: ["quyan:relay:ListProbeRuns"], issues: [] });
+    expect(getIamActionDefinition("quyan:relay:ListProbeRuns")).toMatchObject({
+      resourceTypes: ["platform/relay-channel", "platform/relay-probe-run"],
+    });
+  });
+  it("uses a fixed server action for history despite a forged header", async () => {
+    await guard.read(
+      "quyan:relay:ListProbeRuns",
+      "actor",
+      request(),
+      async ({ decide }) => {
+        await decide([platformRelayChannelArn("channel")]);
+        return "page";
+      },
+      legacy,
+    );
+    expect(iam.authorizeMany).toHaveBeenCalledWith(expect.objectContaining({ action: "quyan:relay:ListProbeRuns" }));
+    expect(legacy).not.toHaveBeenCalled();
+  });
+  it("rejects policy changes between reading and returning", async () => {
+    const native = vi.fn().mockImplementation(async () => {
+      snapshots.recheck.mockRejectedValue(new Error("fixture revoked"));
+      return "page";
+    });
+    await expect(guard.read("quyan:relay:ListProbeRuns", "actor", request(), native, legacy)).rejects.toThrow();
   });
 });
