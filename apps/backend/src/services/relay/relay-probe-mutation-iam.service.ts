@@ -32,7 +32,11 @@ export class RelayProbeMutationIamService {
     > = RelayChannelService.getInstance(),
   ) {}
   async mutate<T>(
-    action: "quyan:relay:ClearProbeHistory" | "quyan:relay:DeleteProbeProfile" | "quyan:relay:SaveProbeProfile",
+    action:
+      | "quyan:relay:ClearProbeHistory"
+      | "quyan:relay:DeleteProbeProfile"
+      | "quyan:relay:SaveProbeProfile"
+      | "quyan:relay:ResetProbeRuns",
     actorUserId: string,
     request: TypedRequest | undefined,
     mutate: (context: RelayProbeMutationContext) => Promise<T>,

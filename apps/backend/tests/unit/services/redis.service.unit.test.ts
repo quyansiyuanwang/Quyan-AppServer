@@ -23,6 +23,22 @@ describe("RedisService circuit breaker", () => {
     vi.useRealTimers();
   });
 
+  it("distinguishes a confirmed missing queue key from a read failure without retry", async () => {
+    const client = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce("reservation")
+        .mockRejectedValueOnce(new Error("fixture outage")),
+      quit: vi.fn(),
+    };
+    createRedisClientMock.mockReturnValue(client as any);
+    const service = RedisService.getInstance();
+    expect(await service.getWithResult("fixture:key")).toEqual({ value: null });
+    expect(await service.getWithResult("fixture:key")).toEqual({ value: "reservation" });
+    expect(await service.getWithResult("fixture:key")).toBeNull();
+    expect(client.get).toHaveBeenCalledTimes(3);
+  });
   it("confirms exactly one SCAN page and retains its cursor, including empty intermediate pages", async () => {
     const client = {
       scan: vi

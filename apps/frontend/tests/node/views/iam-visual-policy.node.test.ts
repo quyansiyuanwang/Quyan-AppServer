@@ -170,7 +170,11 @@ describe('IAM visual policy round trip', () => {
 
 describe('registered resource builders', () => {
   it('builds platform probe resources from their channel and resource identifiers', () => {
-    for (const type of ['platform/relay-probe-profile', 'platform/relay-probe-run']) {
+    for (const type of [
+      'platform/relay-probe-profile',
+      'platform/relay-probe-run',
+      'platform/relay-probe-queue-slot',
+    ]) {
       expect(visualResourceIdentifierFields(type)).toEqual(['channelId', 'resourceId'])
       expect(
         visualResourceTemplate(type, 'owner', { channelId: 'channel', resourceId: 'record' }),

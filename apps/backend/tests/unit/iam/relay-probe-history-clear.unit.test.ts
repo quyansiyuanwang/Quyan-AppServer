@@ -10,6 +10,7 @@ vi.mock("@/iam/audit/iam-audit.service", () => ({ auditIamDecision: vi.fn() }));
 import { env } from "@/config/env";
 import { RelayProbeMutationIamService } from "@/services/relay/relay-probe-mutation-iam.service";
 import {
+  platformRelayProbeQueueSlotArn,
   platformRelayProbeRunArn,
   platformRelayProbeProfileArn,
   platformRelayProbeAccountArn,
@@ -249,5 +250,53 @@ describe("probe profile save authorization contract", () => {
         legacy,
       ),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});
+
+describe("probe reset action and queue resource contract", () => {
+  it("declares reset separately and retains step-up and replay middleware", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    const file = project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel-probe.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "POST /v1/relay-channel-probes/{channelId}/runs/reset",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: ["quyan:relay:ResetProbeRuns"], issues: [] });
+    const method = file.getClassOrThrow("RelayChannelProbeController").getMethodOrThrow("resetRunState").getText();
+    expect(method).toContain("@ReplayProtected()");
+    expect(method).toContain("@TwoFactorChallengeProtected");
+    expect(getIamActionDefinition("quyan:relay:ResetProbeRuns")).toMatchObject({
+      legacyPermission: Permission.RELAY_CHANNEL_PROBE_EXECUTE,
+      resourceTypes: ["platform/relay-channel", "platform/relay-probe-run", "platform/relay-probe-queue-slot"],
+    });
+  });
+  it("registers distinct parent/member queue-slot ARNs", () => {
+    expect(platformRelayProbeQueueSlotArn("channel")).toBe(
+      "acs:platform:*:platform:relay-probe-queue-slot/channel/channel",
+    );
+    expect(platformRelayProbeQueueSlotArn("channel", "member")).toBe(
+      "acs:platform:*:platform:relay-probe-queue-slot/channel/member",
+    );
+    expect(
+      isIamActionResourceCompatible("quyan:relay:ResetProbeRuns", platformRelayProbeQueueSlotArn("channel", "member")),
+    ).toBe(true);
+    expect(
+      isIamActionResourceCompatible("quyan:relay:ClearProbeHistory", platformRelayProbeQueueSlotArn("channel")),
+    ).toBe(false);
+  });
+  it.each(["../foreign", "wrong/member", "other:member", "*"])("rejects unsafe queue resource identifiers %s", (id) => {
+    expect(() => platformRelayProbeQueueSlotArn(id)).toThrow();
+    expect(() => platformRelayProbeQueueSlotArn("channel", id)).toThrow();
+  });
+  it("uses the fixed reset action despite a client action header", async () => {
+    await service.mutate(
+      "quyan:relay:ResetProbeRuns",
+      "actor",
+      request(),
+      (guard) => guard.authorize([platformRelayProbeQueueSlotArn("channel")]),
+      legacy,
+    );
+    expect(iam.authorizeMany).toHaveBeenCalledWith(expect.objectContaining({ action: "quyan:relay:ResetProbeRuns" }));
+    expect(legacy).not.toHaveBeenCalled();
   });
 });

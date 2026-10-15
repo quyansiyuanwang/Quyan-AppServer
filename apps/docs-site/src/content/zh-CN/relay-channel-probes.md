@@ -40,6 +40,8 @@
 
 历史记录使用 `quyan:relay:ListProbeRuns` 检查父渠道、指定的物理成员及每条返回的运行记录。分页和总数仅计算获准的记录；已经离开混池的成员记录不会展示，显式指定的成员必须仍属于当前混池。
 
+原生 IAM 强制模式下，重置排队或运行任务要求 `quyan:relay:ResetProbeRuns` 对渠道、选中或受影响成员、每条活动任务及每个队列槽均获准。队列槽 ARN 为 `acs:platform:*:platform:relay-probe-queue-slot/<channelId>/<memberId>`，父渠道槽使用 `channel`。整池重置包含当前成员槽和仍有活动任务的历史成员槽；尚无任务记录的孤立预留也由队列槽权限控制。任一资源拒绝会阻止整批取消。提交前重新检查授权；队列清理仅比较删除取消前观察到的值，不会强制删除新的预留。若取消已提交而队列清理不可用，接口报错并保留槽值，供后续获准重试。
+
 在 IAM 原生强制授权下清理历史，需要对渠道、涉及的物理成员及每条选中的终态记录具有 `quyan:relay:ClearProbeHistory`。任一选中资源被拒绝，整次清理均不执行。提交时会再次检查授权，撤权会回滚删除。排队和运行中的任务保留，“仅失败”范围也会保留成功结果。
 
 在 IAM 原生强制授权下读取探针档案，需要对渠道及 `acs:platform:*:platform:relay-probe-profile/<channelId>/<profileId>` 具有 `quyan:relay:GetProbeProfile`。通过检查后才读取工作流配置和凭据名称，响应不包含凭据值。混池档案的凭据名称仅包含当前仍属于该池、且通过同一 Action 检查的成员；被拒绝或已经移出的成员名称不会返回。

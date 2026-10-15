@@ -615,6 +615,14 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
       'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-probe-profile/{channelId}/{resourceId}',
   },
   {
+    ...resource('platform', 'relay-probe-queue-slot', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' +
+      IAM_PLATFORM_ACCOUNT_ID +
+      ':relay-probe-queue-slot/{channelId}/{resourceId}',
+  },
+  {
     ...resource('platform', 'relay-probe-run', 2),
     accountScope: 'platform',
     arnTemplate:
@@ -1207,6 +1215,23 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+  },
+  {
+    action: 'quyan:relay:ResetProbeRuns',
+    service: 'relay',
+    operation: 'ResetProbeRuns',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'platform/relay-channel',
+      'platform/relay-probe-run',
+      'platform/relay-probe-queue-slot',
+    ],
+    apiRoutes: ['POST /v1/relay-channel-probes/{channelId}/runs/reset'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_PROBE_EXECUTE,
   },
   {
     action: 'quyan:relay:ClearProbeHistory',

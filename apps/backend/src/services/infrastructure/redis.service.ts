@@ -229,6 +229,11 @@ export class RedisService {
     return this.executeWithCircuit("get", null, async () => this.client!.get(key));
   }
 
+  /** Distinguish a confirmed missing key from a failed read for authorization-sensitive queue recovery. */
+  public async getWithResult(key: string): Promise<{ value: string | null } | null> {
+    return this.executeWithCircuit("getWithResult", null, async () => ({ value: await this.client!.get(key) }));
+  }
+
   /**
    * Delete a key from Redis
    * @param key Redis key

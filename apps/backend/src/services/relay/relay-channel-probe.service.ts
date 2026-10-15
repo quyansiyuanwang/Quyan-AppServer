@@ -1,3 +1,8 @@
+import { RELAY_PROBE_QUEUE_POLICY, relayProbeQueueSlotKey } from "./relay-channel-probe-queue-policy";
+import {
+  RelayProbeRunResetRepository,
+  type RelayProbeQueueSnapshot,
+} from "@/store/relay/relay-probe-run-reset.repository";
 import { createId } from "@paralleldrive/cuid2";
 import {
   RelayProbeProfileSaveRepository,
@@ -121,8 +126,6 @@ const PROBE_LOCK_ACQUIRE_TIMEOUT_MS = 5 * 60 * 1000;
 const RUN_LEASE_MS = 6 * 60 * 1000;
 const SUGGESTION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const RUN_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-const RUN_QUEUE_SLOT_TTL_MS = 2 * 60 * 60 * 1000;
-const RUN_QUEUE_SLOT_PREFIX = "relay:channel-probe-run:v1";
 const GROUP_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 // Upstream billing ledgers are commonly eventually consistent. Keep both
@@ -1303,22 +1306,100 @@ export class RelayChannelProbeService {
   }
 
   /** Cancels stuck queued/running work and releases its queue slot without changing the probe profile. */
-  async resetRunState(channelId: string, actorUserId: string, memberChannelId?: string): Promise<void> {
-    await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
-    if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
-    const runIds = await this.repository.cancelActiveRuns(channelId, "探针任务已由操作人员重置", memberChannelId);
-    await Promise.all(
-      runIds.map((runId) =>
-        this.redis.deleteIfValueMatches(this.getRunQueueSlotKey(channelId, memberChannelId), runId),
-      ),
+  async resetRunState(
+    channelId: string,
+    actorUserId: string,
+    memberChannelId?: string,
+    request?: TypedRequest,
+  ): Promise<void> {
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:ResetProbeRuns",
+      actorUserId,
+      request,
+      (guard) =>
+        this.channelLockService.withQueueWrite(channelId, async () => {
+          try {
+            platformRelayChannelArn(channelId);
+            if (memberChannelId) platformRelayChannelArn(memberChannelId);
+          } catch {
+            throw iamAccountDenied();
+          }
+          const observed = await RelayProbeRunResetRepository.getInstance().reset(
+            channelId,
+            memberChannelId,
+            "Probe task reset by operator",
+            guard,
+            (ids) => this.readProbeQueueSlots(channelId, ids),
+          );
+          if (guard.persist) {
+            await guard.recheck();
+            await this.releaseObservedProbeQueueSlots(channelId, observed);
+          }
+        }),
+      () =>
+        this.channelLockService.withQueueWrite(channelId, () =>
+          this.resetRunStateLegacy(channelId, actorUserId, memberChannelId),
+        ),
     );
-    // A process restart can leave only the Redis reservation behind. At this point
-    // all persisted active runs have been cancelled, so force-release the exact
-    // channel slot even when there was no matching database row.
-    await this.redis.delete(this.getRunQueueSlotKey(channelId, memberChannelId));
+  }
+  private async readProbeQueueSlots(
+    channelId: string,
+    memberIds: readonly (string | undefined)[],
+  ): Promise<RelayProbeQueueSnapshot[]> {
+    const observed: RelayProbeQueueSnapshot[] = [];
+    for (const memberChannelId of memberIds) {
+      const result = await this.redis.getWithResult(relayProbeQueueSlotKey(channelId, memberChannelId));
+      if (!result)
+        throw new LockBackendUnavailableError("Probe queue unavailable", undefined, {
+          messageKey: "relayChannelProbe.queueBackendUnavailable",
+        });
+      const { value } = result;
+      observed.push({ memberChannelId, value });
+    }
+    return observed;
+  }
+  private async releaseObservedProbeQueueSlots(channelId: string, observed: RelayProbeQueueSnapshot[]): Promise<void> {
+    for (const slot of observed) {
+      if (!slot.value) continue;
+      if (
+        (await this.redis.deleteIfValueMatches(relayProbeQueueSlotKey(channelId, slot.memberChannelId), slot.value)) ===
+        null
+      )
+        throw new LockBackendUnavailableError("Probe queue cleanup unavailable after task cancellation", undefined, {
+          messageKey: "relayChannelProbe.queueBackendUnavailable",
+        });
+    }
+  }
+  private async resetRunStateLegacy(channelId: string, actorUserId: string, memberChannelId?: string): Promise<void> {
+    const channel = await RelayChannelService.getInstance().getChannel(channelId, actorUserId);
+    if (memberChannelId) await this.assertPoolMember(channelId, memberChannelId);
+    const activeMembers = await this.repository.listActiveRunMembers(channelId, memberChannelId);
+    const current =
+      !memberChannelId && channel.channelType === "pooled"
+        ? (await this.resolvePoolMembers(channelId)).map((member) => member.channel.id)
+        : [];
+    const slots = memberChannelId
+      ? [memberChannelId]
+      : [
+          undefined,
+          ...new Set([
+            ...current,
+            ...activeMembers.flatMap((row) => (row.probeMemberChannelId ? [row.probeMemberChannelId] : [])),
+          ]),
+        ];
+    const observed = await this.readProbeQueueSlots(channelId, slots);
+    await this.repository.cancelActiveRuns(channelId, "Probe task reset by operator", memberChannelId);
+    await this.releaseObservedProbeQueueSlots(channelId, observed);
   }
 
   async createRun(
+    channelId: string,
+    body: CreateRelayChannelProbeRunRequest,
+    actorUserId: string,
+  ): Promise<RelayChannelProbeRunDto> {
+    return this.channelLockService.withQueueWrite(channelId, () => this.createRunLegacy(channelId, body, actorUserId));
+  }
+  private async createRunLegacy(
     channelId: string,
     body: CreateRelayChannelProbeRunRequest,
     actorUserId: string,
@@ -1358,8 +1439,8 @@ export class RelayChannelProbeService {
         messageKey: "relayChannelProbe.queueBackendUnavailable",
       });
     const reservationId = randomUUID();
-    const queueKey = this.getRunQueueSlotKey(channelId, memberChannelId || undefined);
-    const reserved = await this.redis.setIfNotExists(queueKey, reservationId, RUN_QUEUE_SLOT_TTL_MS);
+    const queueKey = relayProbeQueueSlotKey(channelId, memberChannelId || undefined);
+    const reserved = await this.redis.setIfNotExists(queueKey, reservationId, RELAY_PROBE_QUEUE_POLICY.slotTtlMs);
     if (reserved === null)
       throw new LockBackendUnavailableError("Relay channel probe queue backend unavailable", undefined, {
         messageKey: "relayChannelProbe.queueBackendUnavailable",
@@ -1387,7 +1468,12 @@ export class RelayChannelProbeService {
         balanceSettlementReads: profile.balanceSettlementReads,
         forceWithoutCacheBuster: body.forceWithoutCacheBuster === true,
       });
-      const attached = await this.redis.replaceIfValueMatches(queueKey, reservationId, run.id, RUN_QUEUE_SLOT_TTL_MS);
+      const attached = await this.redis.replaceIfValueMatches(
+        queueKey,
+        reservationId,
+        run.id,
+        RELAY_PROBE_QUEUE_POLICY.slotTtlMs,
+      );
       // The persistent run remains authoritative if Redis recovers between the
       // reservation and attachment. The database active-run check still keeps
       // later submissions from creating a second task.
@@ -2062,7 +2148,7 @@ export class RelayChannelProbeService {
       clearInterval(leaseHeartbeat);
       await this.redis
         .deleteIfValueMatches(
-          this.getRunQueueSlotKey(run.profile.relayChannelId, run.probeMemberChannelId || undefined),
+          relayProbeQueueSlotKey(run.profile.relayChannelId, run.probeMemberChannelId || undefined),
           runId,
         )
         .catch(() => null);
@@ -2861,9 +2947,5 @@ export class RelayChannelProbeService {
     if (Date.now() - this.lastCleanupAt < 60 * 60 * 1000) return;
     this.lastCleanupAt = Date.now();
     await this.repository.deleteRunsBefore(new Date(Date.now() - RUN_RETENTION_MS));
-  }
-
-  private getRunQueueSlotKey(channelId: string, memberChannelId?: string): string {
-    return `${RUN_QUEUE_SLOT_PREFIX}:${channelId}:${memberChannelId || "channel"}`;
   }
 }

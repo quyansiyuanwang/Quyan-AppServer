@@ -38,3 +38,17 @@ export function platformRelayProbeProfileArn(channelId: string, profileId: strin
     path: "relay-probe-profile/" + channelId + "/" + profileId,
   });
 }
+
+export function platformRelayProbeQueueSlotArn(channelId: string, memberChannelId?: string) {
+  if (
+    !isPlatformLogResourceId(channelId) ||
+    (memberChannelId !== undefined && !isPlatformLogResourceId(memberChannelId))
+  )
+    throw new Error("Invalid platform probe queue slot identifier");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "relay-probe-queue-slot/" + channelId + "/" + (memberChannelId ?? "channel"),
+  });
+}

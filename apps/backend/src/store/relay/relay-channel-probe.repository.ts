@@ -247,6 +247,17 @@ export class RelayChannelProbeRepository {
     });
   }
 
+  public listActiveRunMembers(channelId: string, memberChannelId?: string) {
+    return prisma.relayChannelProbeRun.findMany({
+      where: {
+        relayChannelId: channelId,
+        status: { in: ["queued", "running"] },
+        ...(memberChannelId ? { probeMemberChannelId: memberChannelId } : {}),
+      },
+      select: { probeMemberChannelId: true },
+    });
+  }
+
   public async cancelActiveRuns(channelId: string, message: string, memberChannelId?: string): Promise<string[]> {
     return prisma.$transaction(async (tx) => {
       const active = await tx.relayChannelProbeRun.findMany({

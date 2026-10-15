@@ -179,11 +179,14 @@ export class RelayChannelProbeController extends Controller {
 
   @Post("{channelId}/runs/reset")
   @Security("jwt")
-  @CheckPermission(Permission.RELAY_CHANNEL_PROBE_EXECUTE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:probe:Execute",
-    resourceKind: "single-resource",
-    resource: relayChannelProbeResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ResetProbeRuns",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_EXECUTE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @ReplayProtected()
   @Middlewares(
@@ -197,7 +200,7 @@ export class RelayChannelProbeController extends Controller {
     @Body() body: RelayChannelProbeMemberTargetDto,
     @Request() request: TypedRequest,
   ): Promise<void> {
-    await this.service.resetRunState(channelId, request.user!.userId, body.memberChannelId);
+    await this.service.resetRunState(channelId, request.user!.userId, body.memberChannelId, request);
     this.setStatus(204);
   }
 
