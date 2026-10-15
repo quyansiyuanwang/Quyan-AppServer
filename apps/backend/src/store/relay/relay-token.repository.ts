@@ -1,3 +1,4 @@
+import { RelayTokenUpdateRepository, buildRelayTokenFailoverCreateData } from "./relay-token-update.repository";
 import { RelayCompositionRepository } from "./relay-composition.repository";
 import { RELAY_COMPOSITION_POLICY, compositionError } from "@/util/relay/relay-composition.util";
 import { RelayToken, Prisma } from "@prisma/client";
@@ -78,43 +79,6 @@ const relayTokenUsageSummarySelect = {
   lastUsedAt: true,
 } satisfies Prisma.RelayTokenSelect;
 
-const buildNestedFailoverConfigCreateData = (failoverConfig: RelayFailoverConfigInput) => {
-  return {
-    enabled: failoverConfig.enabled ?? false,
-    maxRetries: failoverConfig.maxRetries ?? 2,
-    retryStatusCodes: failoverConfig.retryStatusCodes ?? [],
-    failoverThreshold: failoverConfig.failoverThreshold ?? 0,
-    failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes ?? 0,
-    maxAcceptedChannelMultiplier: failoverConfig.maxAcceptedChannelMultiplier ?? null,
-    minCacheHitRate: failoverConfig.minCacheHitRate ?? null,
-  } satisfies Prisma.RelayTokenFailoverConfigCreateWithoutRelayTokenInput;
-};
-
-const buildFailoverConfigCreateData = (relayTokenId: string, failoverConfig: RelayFailoverConfigInput) => {
-  return {
-    relayTokenId,
-    enabled: failoverConfig.enabled ?? false,
-    maxRetries: failoverConfig.maxRetries ?? 2,
-    retryStatusCodes: failoverConfig.retryStatusCodes ?? [],
-    failoverThreshold: failoverConfig.failoverThreshold ?? 0,
-    failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes ?? 0,
-    maxAcceptedChannelMultiplier: failoverConfig.maxAcceptedChannelMultiplier ?? null,
-    minCacheHitRate: failoverConfig.minCacheHitRate ?? null,
-  } satisfies Prisma.RelayTokenFailoverConfigUncheckedCreateInput;
-};
-
-const buildFailoverConfigUpdateData = (failoverConfig: RelayFailoverConfigInput) => {
-  return {
-    enabled: failoverConfig.enabled,
-    maxRetries: failoverConfig.maxRetries,
-    retryStatusCodes: failoverConfig.retryStatusCodes,
-    failoverThreshold: failoverConfig.failoverThreshold,
-    failbackCooldownMinutes: failoverConfig.failbackCooldownMinutes,
-    maxAcceptedChannelMultiplier: failoverConfig.maxAcceptedChannelMultiplier,
-    minCacheHitRate: failoverConfig.minCacheHitRate,
-  } satisfies Prisma.RelayTokenFailoverConfigUncheckedUpdateInput;
-};
-
 const buildChannelConfigCreateManyData = (configs: RelayTokenChannelConfigInput[]) =>
   configs.map((config) => ({
     channelId: config.channelId,
@@ -161,7 +125,7 @@ export class RelayTokenRepository implements RelayTokenStore {
       });
     } else if (data.memberTokenConfigs?.length) throw compositionError("mode");
     const failoverConfigCreateData = data.failoverConfig
-      ? buildNestedFailoverConfigCreateData(data.failoverConfig)
+      ? buildRelayTokenFailoverCreateData(data.failoverConfig)
       : undefined;
 
     const client = tx ?? prisma;
@@ -400,96 +364,9 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async update(id: string, data: RelayTokenUpdateInput): Promise<RelayToken> {
-    const {
-      memberTokenConfigs,
-      streamConfig,
-      failoverConfig,
-      channelConfigs,
-      quotaWindows,
-      channelId,
-      modelMapping,
-      requestFormatTransforms,
-      normalizerConfig,
-      contentSafetyConfig,
-      automaticProxyPoolChannelId,
-      blockedAutomaticProxyPoolChannelIds,
-      ...tokenData
-    } = data;
-
     return prisma.$transaction(async (tx) => {
-      if (data.routingMode !== undefined || memberTokenConfigs !== undefined) {
-        const current = await tx.relayToken.findUniqueOrThrow({ where: { id }, select: { userId: true } });
-        await tx.$queryRaw`SELECT id FROM users WHERE id = ${current.userId} FOR UPDATE`;
-        const node = await tx.relayToken.findUniqueOrThrow({
-          where: { id },
-          select: { id: true, userId: true, status: true, routingMode: true, memberTokenConfigs: true },
-        });
-        const mode = data.routingMode ?? node.routingMode;
-        if (mode !== "composite" && memberTokenConfigs?.length) throw compositionError("mode");
-        if (mode === "composite" && (channelId || channelConfigs?.length || automaticProxyPoolChannelId))
-          throw compositionError("mode");
-        await RelayCompositionRepository.getInstance().validateWrite(tx, {
-          ...node,
-          routingMode: mode,
-          memberTokenConfigs: mode === "composite" ? (memberTokenConfigs ?? node.memberTokenConfigs) : [],
-        });
-        if (memberTokenConfigs !== undefined || mode !== "composite") {
-          await tx.relayTokenMemberConfig.deleteMany({ where: { parentTokenId: id } });
-          if (mode === "composite" && memberTokenConfigs?.length)
-            await tx.relayTokenMemberConfig.createMany({
-              data: memberTokenConfigs.map((member) => ({ ...member, parentTokenId: id })),
-            });
-        }
-      }
-      const updatedToken = await tx.relayToken.update({
-        where: { id },
-        data: {
-          ...tokenData,
-          ...(streamConfig !== undefined
-            ? { streamConfig: streamConfig === null ? Prisma.DbNull : (streamConfig as Prisma.InputJsonValue) }
-            : {}),
-          ...(channelId !== undefined ? { channelId } : {}),
-          ...(automaticProxyPoolChannelId !== undefined ? { automaticProxyPoolChannelId } : {}),
-          ...(blockedAutomaticProxyPoolChannelIds !== undefined ? { blockedAutomaticProxyPoolChannelIds } : {}),
-          ...(modelMapping !== undefined ? { modelMapping: modelMapping as Prisma.InputJsonValue } : {}),
-          ...(requestFormatTransforms !== undefined
-            ? {
-                requestFormatTransforms:
-                  requestFormatTransforms === null
-                    ? Prisma.DbNull
-                    : (requestFormatTransforms as unknown as Prisma.InputJsonValue),
-              }
-            : {}),
-          ...(normalizerConfig !== undefined
-            ? {
-                normalizerConfig:
-                  normalizerConfig === null ? Prisma.DbNull : (normalizerConfig as unknown as Prisma.InputJsonValue),
-              }
-            : {}),
-          ...(contentSafetyConfig !== undefined
-            ? {
-                contentSafetyConfig:
-                  contentSafetyConfig === null
-                    ? Prisma.DbNull
-                    : (contentSafetyConfig as unknown as Prisma.InputJsonValue),
-              }
-            : {}),
-        },
-      });
-
-      if (failoverConfig)
-        await tx.relayTokenFailoverConfig.upsert({
-          where: { relayTokenId: id },
-          create: buildFailoverConfigCreateData(id, failoverConfig),
-          update: buildFailoverConfigUpdateData(failoverConfig),
-        });
-
-      if (channelConfigs)
-        await this.replaceChannelConfigsInternal(tx, id, channelId ?? updatedToken.channelId, channelConfigs);
-
-      if (quotaWindows !== undefined) await this.replaceQuotaWindowsInternal(tx, id, quotaWindows);
-
-      return updatedToken;
+      await RelayTokenUpdateRepository.getInstance().apply(tx, id, data);
+      return tx.relayToken.findUniqueOrThrow({ where: { id } });
     });
   }
 
@@ -539,27 +416,23 @@ export class RelayTokenRepository implements RelayTokenStore {
     tx?: RelayTokenTransactionClient,
   ): Promise<void> {
     if (tx) {
-      await this.replaceChannelConfigsInternal(tx, relayTokenId, channelId, configs);
+      await RelayTokenUpdateRepository.getInstance().channels(tx, relayTokenId, channelId, configs);
       return;
     }
 
     await prisma.$transaction(async (tx) => {
-      await this.replaceChannelConfigsInternal(tx, relayTokenId, channelId, configs);
+      await RelayTokenUpdateRepository.getInstance().channels(tx, relayTokenId, channelId, configs);
     });
   }
 
   async replaceQuotaWindows(relayTokenId: string, quotaWindows: RelayTokenQuotaWindowInput[]): Promise<void> {
     await prisma.$transaction(async (tx) => {
-      await this.replaceQuotaWindowsInternal(tx, relayTokenId, quotaWindows);
+      await RelayTokenUpdateRepository.getInstance().quotaWindows(tx, relayTokenId, quotaWindows);
     });
   }
 
   async updateFailoverConfig(relayTokenId: string, failoverConfig: RelayFailoverConfigInput) {
-    return prisma.relayTokenFailoverConfig.upsert({
-      where: { relayTokenId },
-      create: buildFailoverConfigCreateData(relayTokenId, failoverConfig),
-      update: buildFailoverConfigUpdateData(failoverConfig),
-    });
+    return RelayTokenUpdateRepository.getInstance().failover(prisma, relayTokenId, failoverConfig);
   }
 
   async updateChannelConfigUsage(data: RelayChannelConfigUsageUpdateInput) {
@@ -633,44 +506,5 @@ export class RelayTokenRepository implements RelayTokenStore {
       data: { status: MANAGED_STATUS.DELETED },
     });
     return result.count;
-  }
-
-  private async replaceChannelConfigsInternal(
-    tx: Prisma.TransactionClient,
-    relayTokenId: string,
-    channelId: string | null,
-    configs: RelayTokenChannelConfigInput[],
-  ): Promise<void> {
-    await tx.relayToken.update({ where: { id: relayTokenId }, data: { channelId } });
-    await tx.relayTokenChannelConfig.deleteMany({ where: { relayTokenId } });
-    if (configs.length === 0) return;
-    await tx.relayTokenChannelConfig.createMany({
-      data: configs.map((config) => ({
-        relayTokenId,
-        channelId: config.channelId,
-        priority: config.priority,
-      })),
-    });
-  }
-
-  private async replaceQuotaWindowsInternal(
-    tx: Prisma.TransactionClient,
-    relayTokenId: string,
-    quotaWindows: RelayTokenQuotaWindowInput[],
-  ): Promise<void> {
-    await tx.relayTokenQuotaWindow.deleteMany({
-      where: { relayTokenId },
-    });
-
-    if (quotaWindows.length === 0) return;
-
-    await tx.relayTokenQuotaWindow.createMany({
-      data: quotaWindows.map((quotaWindow) => ({
-        relayTokenId,
-        quotaLimit: quotaWindow.quotaLimit,
-        quotaUnit: quotaWindow.quotaUnit,
-        quotaWindowHours: quotaWindow.quotaWindowHours,
-      })),
-    });
   }
 }
