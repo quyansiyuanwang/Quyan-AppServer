@@ -28,6 +28,14 @@ Creating an account requires `quyan:relay:CreateProbeAccount` on both the creati
 
 Manual refresh requires `quyan:relay:RefreshProbeAccount` for the account ARN, plus step-up verification and replay protection. Native refresh rechecks authorization after waiting for active probes, before sending the login request and when publishing the session. Failure or revocation does not replace a valid existing session with the new session. Login attempts still count toward cooldown. Shadow mode previews metadata authorization, then executes the original refresh flow once.
 
+## Binding and unbinding shared accounts
+
+Under IAM enforcement, binding requires the dedicated deployment-managed account-pool qualification and `quyan:relay:BindProbeAccount` on the channel, profile, selected physical member and new account ARN. Ordinary probe-executor qualification or an account-owned wildcard policy cannot replace platform account-pool qualification.
+
+Replacing an account, or unbinding with `accountId: null`, additionally requires `quyan:relay:UnbindProbeAccount` on the old account. Permission to bind a new account cannot remove an unauthorized old binding. Rebinding the same account does not require an unrelated unbind grant. Checks never load login ciphertext or tokens, and responses return only the selected target and newly bound account ID.
+
+Queued or running work blocks binding changes. Authorization is checked after the channel-lock wait and again at commit; revocation rolls back that target without undoing independently successful targets. Existing target format, model, payload and serialization group survive binding changes.
+
 ## Reviewing and applying results
 
 Expanded member rows show the latest task status and suggested multiplier. Open a member to inspect that account's own history, balance delta, usage, and failure reasons. Standalone channels keep the existing single-channel workflow.

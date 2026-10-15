@@ -13,7 +13,6 @@ import { RelayChannelService } from "./relay-channel.service";
 import type { RelayProbeMutationContext } from "@/store/relay/platform-relay-probe-mutation";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
-const permission = Permission.RELAY_CHANNEL_PROBE_EXECUTE;
 export class RelayProbeMutationIamService {
   private static instance: RelayProbeMutationIamService;
   static getInstance() {
@@ -38,12 +37,17 @@ export class RelayProbeMutationIamService {
       | "quyan:relay:SaveProbeProfile"
       | "quyan:relay:ResetProbeRuns"
       | "quyan:relay:CreateProbeRun"
-      | "quyan:relay:CopyProbeProfile",
+      | "quyan:relay:CopyProbeProfile"
+      | "quyan:relay:BindProbeAccount",
     actorUserId: string,
     request: TypedRequest | undefined,
     mutate: (context: RelayProbeMutationContext) => Promise<T>,
     legacy: () => Promise<T>,
   ): Promise<T> {
+    const permission =
+      action === "quyan:relay:BindProbeAccount"
+        ? Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE
+        : Permission.RELAY_CHANNEL_PROBE_EXECUTE;
     const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {
@@ -106,7 +110,8 @@ export class RelayProbeMutationIamService {
           await authorizeAction("quyan:relay:ModifyBoundProbeProfile", batch);
         },
         authorizeAccountUnbind: async (batch) => {
-          if (action !== "quyan:relay:DeleteProbeProfile") throw iamAccountDenied();
+          if (!["quyan:relay:DeleteProbeProfile", "quyan:relay:BindProbeAccount"].includes(action))
+            throw iamAccountDenied();
           await authorizeAction("quyan:relay:UnbindProbeAccount", batch);
         },
         recheck,

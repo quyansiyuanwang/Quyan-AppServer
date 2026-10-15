@@ -1,3 +1,5 @@
+import { platformRelayProbeAccountArn } from "@/iam/resources/platform-relay-probe-resources";
+import { RelayProbeAccountBindingRepository } from "@/store/relay/relay-probe-account-binding.repository";
 import { RelayProbeProfileCopyRepository } from "@/store/relay/relay-probe-profile-copy.repository";
 import { RELAY_PROBE_BATCH_POLICY } from "@/constant/relay-probe";
 import { RelayProbeBatchTargetRepository } from "@/store/relay/relay-probe-batch-target.repository";
@@ -14,6 +16,7 @@ import {
   createRelayChannelProbeRunBodySchema,
   createRelayChannelProbeRunsBodySchema,
   copyRelayChannelProbeProfileBodySchema,
+  bindRelayChannelProbeAccountsBodySchema,
 } from "@/api/schema/relay/relay-channel-probe.schema";
 import { RELAY_PROBE_QUEUE_POLICY, relayProbeQueueSlotKey } from "./relay-channel-probe-queue-policy";
 import {
@@ -1977,6 +1980,45 @@ export class RelayChannelProbeService {
   }
 
   async bindAccounts(
+    input: BindRelayChannelProbeAccountsRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<ConfigureRelayChannelProbeTargetsResponse> {
+    const parsed = bindRelayChannelProbeAccountsBodySchema.safeParse(input);
+    if (!parsed.success)
+      throw new BadRequestError("Invalid probe bindings", undefined, { messageKey: "errors.badRequest" });
+    const body = parsed.data;
+    return RelayProbeMutationIamService.getInstance().mutate(
+      "quyan:relay:BindProbeAccount",
+      actorUserId,
+      request,
+      async (guard) => {
+        const configured: RelayChannelProbeTargetConfigDto[] = [],
+          rejected: ConfigureRelayChannelProbeTargetsResponse["rejected"] = [];
+        for (const target of body.targets) {
+          try {
+            platformRelayChannelArn(target.channelId);
+            if (target.memberChannelId) platformRelayChannelArn(target.memberChannelId);
+            if (target.accountId) platformRelayProbeAccountArn(target.accountId);
+            const record = await this.channelLockService.withWrite(target.channelId, () =>
+              RelayProbeAccountBindingRepository.getInstance().bind(target, guard),
+            );
+            if (record) configured.push(record);
+          } catch {
+            rejected.push({
+              channelId: target.channelId,
+              ...(target.memberChannelId ? { memberChannelId: target.memberChannelId } : {}),
+              reason: translateMessage("permission.insufficientPermission", request?.locale ?? DEFAULT_BACKEND_LOCALE),
+            });
+          }
+        }
+        return { configured, rejected };
+      },
+      () => this.bindAccountsLegacy(body, actorUserId),
+    );
+  }
+
+  private async bindAccountsLegacy(
     body: BindRelayChannelProbeAccountsRequest,
     actorUserId: string,
   ): Promise<ConfigureRelayChannelProbeTargetsResponse> {

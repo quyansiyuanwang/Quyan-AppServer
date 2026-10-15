@@ -238,12 +238,19 @@ export const configureRelayChannelProbeTargetsBodySchema = z
       value.targets.length,
     "Duplicate probe targets are not allowed",
   );
-export const bindRelayChannelProbeAccountsBodySchema = z.object({
-  targets: z
-    .array(probeTargetSchema.extend({ accountId: z.string().trim().min(1).nullable() }))
-    .min(1)
-    .max(100),
-});
+export const bindRelayChannelProbeAccountsBodySchema = z
+  .object({
+    targets: z
+      .array(probeTargetSchema.extend({ accountId: z.string().trim().min(1).nullable() }))
+      .min(1)
+      .max(100),
+  })
+  .refine(
+    (value) =>
+      new Set(value.targets.map((target) => JSON.stringify([target.channelId, target.memberChannelId ?? null])))
+        .size === value.targets.length,
+    "Duplicate binding targets are not allowed",
+  );
 export const saveRelayChannelProbeAccountBodySchema = z
   .object({
     name: z.string().trim().min(1).max(100),
