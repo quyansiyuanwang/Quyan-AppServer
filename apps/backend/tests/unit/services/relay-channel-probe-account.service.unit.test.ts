@@ -13,6 +13,11 @@ const { repository, redis, login } = vi.hoisted(() => ({
   },
   login: vi.fn(),
 }));
+vi.mock("@/services/relay/platform-relay-probe-account-read-iam.service", () => ({
+  PlatformRelayProbeAccountReadIamService: {
+    getInstance: () => ({ list: (_request: unknown, _map: unknown, legacy: () => Promise<unknown>) => legacy() }),
+  },
+}));
 vi.mock("@/store/system/server-config.repository", () => ({
   ServerConfigRepository: { getInstance: () => ({ findByKey: vi.fn(async () => null) }) },
 }));

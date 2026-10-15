@@ -14,6 +14,10 @@ import type {
   SaveRelayChannelProbeAccountRequest,
 } from "@/api/dto/relay/relay-channel-probe.dto";
 
+import type { TypedRequest } from "@/types/express";
+import { PlatformRelayProbeAccountReadIamService } from "./platform-relay-probe-account-read-iam.service";
+import { projectRelayProbeAccount } from "./relay-probe-account-projection";
+
 const PREFIX = "relay:probe-account:v1";
 const LOCK_MS = 35_000;
 const TOKEN_SAFETY_MS = 30_000;
@@ -75,23 +79,17 @@ export class RelayChannelProbeAccountService {
     return undefined;
   }
   private dto(account: RelayChannelProbeAccount, cached: boolean) {
-    return {
-      id: account.id,
-      name: account.name,
-      tokenPath: account.tokenPath,
-      expiresPath: account.expiresPath ?? undefined,
-      expiresMode: (account.expiresMode as "seconds" | "iso" | null) ?? undefined,
-      fallbackTtlSeconds: account.fallbackTtlSeconds,
-      minLoginIntervalSeconds: account.minLoginIntervalSeconds,
-      lastLoginAttemptAt: account.lastLoginAttemptAt ?? undefined,
-      nextLoginAt: account.lastLoginAttemptAt
-        ? new Date(account.lastLoginAttemptAt.getTime() + account.minLoginIntervalSeconds * 1000)
-        : undefined,
-      cached,
-      hasCredentials: Boolean(account.encryptedCredentials),
-    };
+    return projectRelayProbeAccount({ ...account, hasCredentials: Boolean(account.encryptedCredentials) }, cached);
   }
-  async list() {
+  async list(request?: TypedRequest) {
+    return PlatformRelayProbeAccountReadIamService.getInstance().list(
+      request,
+      async (account) =>
+        projectRelayProbeAccount(account, Boolean(await this.readSession(account.id).catch(() => undefined))),
+      () => this.listLegacy(),
+    );
+  }
+  private async listLegacy() {
     const accounts = await this.repository.list();
     return Promise.all(
       accounts.map(async (account) =>

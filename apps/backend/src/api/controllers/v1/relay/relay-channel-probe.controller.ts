@@ -1,3 +1,5 @@
+import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
+import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
 import {
   Body,
   Controller,
@@ -286,9 +288,16 @@ export class RelayChannelProbeController extends Controller {
 
   @Get("accounts")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE)
-  public listAccounts(): Promise<RelayChannelProbeAccountDto[]> {
-    return this.accountService.list();
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListProbeAccounts",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE],
+    }),
+  )
+  public listAccounts(@Request() request: TypedRequest): Promise<RelayChannelProbeAccountDto[]> {
+    return this.accountService.list(request);
   }
 
   @Post("accounts")

@@ -18,6 +18,8 @@ Binding an account **does not remove existing login steps**. Remove old login st
 
 Batch configuration copies a shared template while letting each standalone channel or physical member choose a supported format, model, payload and serial group, and optionally bind an account. Each target is validated independently; failures do not prevent other targets from saving. Neither source credentials nor account bindings are copied. The page can filter by serial group; probes bound to the same account serialize even without matching manual groups.
 
+With IAM enforcement enabled, the account pool list requires `quyan:relay:ListProbeAccounts` on each `acs:platform:*:platform:relay-probe-account/<accountId>` resource. Platform account-pool management qualification remains a prerequisite; attaching an account policy alone cannot grant it. Denied accounts expose no configuration, cooldown or session status. The list shows only whether credentials are configured and does not load or return stored login requests or encrypted credentials.
+
 ## Reviewing and applying results
 
 Expanded member rows show the latest task status and suggested multiplier. Open a member to inspect that account's own history, balance delta, usage, and failure reasons. Standalone channels keep the existing single-channel workflow.
