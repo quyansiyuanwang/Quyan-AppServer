@@ -4,12 +4,19 @@ import {
   importVisualPolicy,
   newVisualStatement,
   visualConditionKeys,
+  visualActionGroups,
+  visualServiceActionPattern,
   visualResourceTemplate,
   visualResourceIdentifierFields,
   visualResourceAccountId,
   visualResourceTypes,
 } from '@/views/management/ram-management/iam-visual-policy'
-import { IAM_RESOURCE_TYPE_CATALOG } from '@quyan/shared'
+import {
+  IAM_RESOURCE_TYPE_CATALOG,
+  IAM_ACTION_DEFINITIONS,
+  iamServiceDefinitions,
+  matchIamPattern,
+} from '@quyan/shared'
 import type { IamPolicyDocument } from '@quyan/shared'
 const document: IamPolicyDocument = {
   Version: '1',
@@ -231,5 +238,44 @@ describe('registered resource builders', () => {
     expect(
       visualResourceTemplate('relay/provider', 'owner', { parentId: 'user', resourceId: '' }),
     ).toBeUndefined()
+  })
+})
+
+describe('catalog-driven operation selection', () => {
+  it('groups by declared Read Write and List levels with exact per-service membership', () => {
+    for (const service of iamServiceDefinitions()) {
+      const groups = visualActionGroups(service.code),
+        actions = groups.flatMap((group) => group.actions)
+      expect(new Set(actions.map((action) => action.action))).toEqual(
+        new Set(service.actions.map((action) => action.action)),
+      )
+      for (const group of groups)
+        expect(
+          group.actions.every(
+            (action) => action.service === service.code && action.accessLevel === group.level,
+          ),
+        ).toBe(true)
+    }
+  })
+  it('filters categories without turning Read into a Write grant', () => {
+    const groups = visualActionGroups('relay', 'Read')
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.level).toBe('Read')
+    expect(groups[0]?.actions.every((action) => action.accessLevel === 'Read')).toBe(true)
+    expect(visualActionGroups('alidns')).toEqual([])
+  })
+  it('offers only catalog-proven service wildcard scopes', () => {
+    expect(visualServiceActionPattern('relay')).toBe('quyan:relay:*')
+    expect(visualServiceActionPattern('')).toBeUndefined()
+    expect(visualServiceActionPattern('alidns')).toBeUndefined()
+    for (const service of iamServiceDefinitions()) {
+      const pattern = visualServiceActionPattern(service.code)
+      if (!pattern) continue
+      const matched = IAM_ACTION_DEFINITIONS.filter((action) =>
+        matchIamPattern(pattern, action.action),
+      )
+      expect(matched.length).toBe(service.actions.length)
+      expect(matched.every((action) => action.service === service.code)).toBe(true)
+    }
   })
 })

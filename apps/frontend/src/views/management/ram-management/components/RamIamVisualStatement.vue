@@ -18,6 +18,7 @@
     <div class="field-row">
       <el-select
         v-model="statement.serviceFilter"
+        data-test="action-service"
         filterable
         clearable
         :disabled="disabled"
@@ -32,6 +33,7 @@
       </el-select>
       <el-select
         v-model="statement.accessFilter"
+        data-test="action-access-level"
         :disabled="disabled"
         :aria-label="i18ns.t('RamManagement.visualAccessLevel')"
       >
@@ -46,6 +48,7 @@
     </div>
     <el-select
       v-model="statement.actions"
+      data-test="action-selection"
       multiple
       filterable
       allow-create
@@ -55,12 +58,46 @@
       :aria-label="i18ns.t('RamManagement.visualActions')"
     >
       <el-option
-        v-for="action in filteredActions"
-        :key="action.action"
-        :value="action.action"
-        :label="action.action"
+        v-if="serviceActionPattern && statement.accessFilter === 'all'"
+        :value="serviceActionPattern"
+        :label="
+          i18ns.t('RamManagement.visualAllServiceActions', { service: statement.serviceFilter })
+        "
+        data-test="service-action-wildcard"
       />
+      <el-option-group
+        v-for="group in actionGroups"
+        :key="group.level"
+        :label="i18ns.t(accessLevelLabels[group.level]) + ' (' + group.actions.length + ')'"
+        :data-test="'action-options-' + group.level"
+      >
+        <el-option
+          v-for="action in group.actions"
+          :key="action.action"
+          :value="action.action"
+          :label="action.action"
+        />
+      </el-option-group>
     </el-select>
+    <div class="action-categories">
+      <el-button
+        v-for="group in actionGroups"
+        :key="group.level"
+        :data-test="'action-category-' + group.level"
+        :disabled="disabled || !statement.serviceFilter"
+        @click="selectActionCategory(group.level)"
+      >
+        {{
+          i18ns.t('RamManagement.visualSelectOperationCategory', {
+            level: i18ns.t(accessLevelLabels[group.level]),
+            count: group.actions.length,
+          })
+        }}
+      </el-button>
+    </div>
+    <p data-test="selected-action-count">
+      {{ i18ns.t('RamManagement.visualSelectedOperations', { count: statement.actions.length }) }}
+    </p>
     <el-alert
       v-if="statement.effect === 'Deny'"
       :title="i18ns.t('RamManagement.iamDenyWarning')"
@@ -187,10 +224,13 @@
 </template>
 <script setup lang="ts">
 import { computed, ref, watch, useId } from 'vue'
-import { IAM_ACTION_DEFINITIONS, getIamConditionKey, iamServiceDefinitions } from '@quyan/shared'
+import { getIamConditionKey, iamServiceDefinitions } from '@quyan/shared'
 import type { VisualCondition, VisualStatement } from '../iam-visual-policy'
 import {
   visualConditionKeys,
+  visualActionGroups,
+  visualServiceActionPattern,
+  VISUAL_ACCESS_LEVELS,
   visualResourceTemplate,
   visualResourceAccountId,
   visualResourceIdentifierFields,
@@ -200,20 +240,26 @@ import { i18ns } from '@/locales'
 const props = defineProps<{ accountOwnerId: string; disabled: boolean }>()
 const statement = defineModel<VisualStatement>('statement', { required: true })
 const services = iamServiceDefinitions()
-const accessLevels = ['Read', 'Write', 'List'] as const
+const accessLevels = VISUAL_ACCESS_LEVELS
 const accessLevelLabels = {
   Read: 'RamManagement.visualRead',
   Write: 'RamManagement.visualWrite',
   List: 'RamManagement.visualList',
 } as const
-const filteredActions = computed(() =>
-  IAM_ACTION_DEFINITIONS.filter(
-    (action) =>
-      (!statement.value.serviceFilter || action.service === statement.value.serviceFilter) &&
-      (statement.value.accessFilter === 'all' ||
-        action.accessLevel === statement.value.accessFilter),
-  ),
+const actionGroups = computed(() =>
+  visualActionGroups(statement.value.serviceFilter, statement.value.accessFilter),
 )
+const serviceActionPattern = computed(() =>
+  visualServiceActionPattern(statement.value.serviceFilter),
+)
+const selectActionCategory = (level: (typeof VISUAL_ACCESS_LEVELS)[number]) => {
+  if (props.disabled || !statement.value.serviceFilter) return
+  const group = actionGroups.value.find((group) => group.level === level)
+  if (group)
+    statement.value.actions = [
+      ...new Set([...statement.value.actions, ...group.actions.map((action) => action.action)]),
+    ]
+}
 const resourceTypes = computed(() => visualResourceTypes(statement.value.actions))
 const conditionKeys = computed(() => visualConditionKeys(statement.value.actions))
 const resourceTypeId = ref('')
@@ -287,6 +333,11 @@ const addCondition = () => {
 }
 </script>
 <style scoped>
+.action-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .resource-builder {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

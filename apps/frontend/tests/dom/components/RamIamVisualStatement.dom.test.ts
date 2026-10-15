@@ -11,6 +11,7 @@ vi.mock('@/locales', () => ({
 import View from '@/views/management/ram-management/components/RamIamVisualStatement.vue'
 import {
   newVisualStatement,
+  visualActionGroups,
   type VisualStatement,
 } from '@/views/management/ram-management/iam-visual-policy'
 const Input = defineComponent({
@@ -28,6 +29,10 @@ const Select = defineComponent({
 const Option = defineComponent({
   props: ['value', 'label'],
   template: '<option :value="value">{{ label }}</option>',
+})
+const OptionGroup = defineComponent({
+  props: ['label'],
+  template: '<optgroup :label="label"><slot /></optgroup>',
 })
 const Checkbox = defineComponent({
   props: ['modelValue', 'disabled'],
@@ -52,6 +57,7 @@ const mountView = (
         'el-input': Input,
         'el-select': Select,
         'el-option': Option,
+        'el-option-group': OptionGroup,
         'el-checkbox': Checkbox,
         'el-button': Button,
       },
@@ -150,5 +156,55 @@ describe('IAM catalog-driven resource builder', () => {
       view!.get('[data-test="resource-wildcard-parentId"]').attributes('disabled'),
     ).toBeDefined()
     expect(view!.get('[data-test="add-resource"]').attributes('disabled')).toBeDefined()
+  })
+})
+
+describe('IAM service and operation categories', () => {
+  it('shows category counts and adds only exact operations in the selected category', async () => {
+    const row = {
+      ...newVisualStatement(),
+      actions: ['quyan:ram:ReadUser'],
+      effect: 'Deny' as const,
+    }
+    mountView(row)
+    await view!.get('[data-test="action-service"]').setValue('relay')
+    const groups = visualActionGroups('relay')
+    expect(view!.findAll('[data-test^="action-options-"]')).toHaveLength(groups.length)
+    const read = groups.find((group) => group.level === 'Read')!
+    expect(view!.get('[data-test="action-options-Read"]').attributes('label')).toContain(
+      '(' + read.actions.length + ')',
+    )
+    await view!.get('[data-test="action-category-Read"]').trigger('click')
+    expect(row.actions).toEqual([
+      'quyan:ram:ReadUser',
+      ...read.actions.map((action) => action.action),
+    ])
+    expect(row.effect).toBe('Deny')
+    await view!.get('[data-test="action-category-Read"]').trigger('click')
+    expect(new Set(row.actions).size).toBe(row.actions.length)
+    expect(row.actions.some((action) => action.endsWith('*'))).toBe(false)
+  })
+  it('offers a service wildcard explicitly only when all operation levels are visible', async () => {
+    const row = newVisualStatement()
+    mountView(row)
+    await view!.get('[data-test="action-service"]').setValue('relay')
+    expect(view!.get('[data-test="service-action-wildcard"]').attributes('value')).toBe(
+      'quyan:relay:*',
+    )
+    expect(row.actions).toEqual([])
+    await view!.get('[data-test="action-access-level"]').setValue('Read')
+    expect(view!.find('[data-test="service-action-wildcard"]').exists()).toBe(false)
+    expect(view!.find('[data-test="action-category-Write"]').exists()).toBe(false)
+    expect(view!.find('[data-test="action-category-List"]').exists()).toBe(false)
+  })
+  it('keeps existing actions when service filters change and disables category selection without a service', async () => {
+    const row = { ...newVisualStatement(), actions: ['quyan:ram:ReadUser'] }
+    mountView(row)
+    expect(view!.get('[data-test="action-category-Read"]').attributes('disabled')).toBeDefined()
+    await view!.get('[data-test="action-service"]').setValue('relay')
+    await view!.get('[data-test="action-service"]').setValue('ram')
+    expect(row.actions).toEqual(['quyan:ram:ReadUser'])
+    await view!.setProps({ disabled: true })
+    expect(view!.get('[data-test="action-category-Read"]').attributes('disabled')).toBeDefined()
   })
 })

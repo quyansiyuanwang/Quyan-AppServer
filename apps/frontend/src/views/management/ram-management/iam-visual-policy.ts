@@ -41,6 +41,42 @@ const matchedActions = (actions: string[]) =>
   IAM_ACTION_DEFINITIONS.filter((definition) =>
     actions.some((pattern) => matchIamPattern(pattern, definition.action)),
   )
+export const VISUAL_ACCESS_LEVELS = ['Read', 'Write', 'List'] as const
+/** Category membership comes from the production catalog, not an operation-name heuristic. */
+export function visualActionGroups(
+  service: string,
+  access: VisualStatement['accessFilter'] = 'all',
+) {
+  const available = IAM_ACTION_DEFINITIONS.filter(
+    (action) => !service || action.service === service,
+  )
+  return VISUAL_ACCESS_LEVELS.filter((level) => access === 'all' || access === level)
+    .map((level) => ({
+      level,
+      actions: available
+        .filter((action) => action.accessLevel === level)
+        .sort((a, b) => a.action.localeCompare(b.action)),
+    }))
+    .filter((group) => group.actions.length > 0)
+}
+/** Offer a service wildcard only when its current catalog matches exactly that service. */
+export function visualServiceActionPattern(service: string): string | undefined {
+  if (!service) return undefined
+  const selected = IAM_ACTION_DEFINITIONS.filter((action) => action.service === service)
+  if (!selected.length) return undefined
+  const prefix = selected[0]!.action.split(':').slice(0, -1)
+  while (
+    prefix.length > 1 &&
+    !selected.every((action) => action.action.startsWith(prefix.join(':') + ':'))
+  )
+    prefix.pop()
+  if (prefix.length < 2) return undefined
+  const pattern = prefix.join(':') + ':*',
+    matched = matchedActions([pattern])
+  return matched.length === selected.length && matched.every((action) => action.service === service)
+    ? pattern
+    : undefined
+}
 export function visualResourceTypes(actions: string[]) {
   const types = new Set(matchedActions(actions).flatMap((action) => action.resourceTypes))
   return IAM_RESOURCE_TYPE_CATALOG.filter((type) => types.has(type.id))
