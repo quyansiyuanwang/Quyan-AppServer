@@ -19239,6 +19239,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -19328,6 +19348,26 @@
 							"application/json": {
 								"schema": {
 									"$ref": "#/components/schemas/RelayRequestRouteTraceDto"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
 								}
 							}
 						}
@@ -53677,6 +53717,10 @@
 			},
 			"RelayRequestDiagnosticDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string",
+						"description": "Native IAM identity, independent of the externally visible request label."
+					},
 					"requestId": {
 						"type": "string"
 					},
@@ -53795,6 +53839,10 @@
 			},
 			"RelayRequestRouteTraceDto": {
 				"properties": {
+					"resourceArn": {
+						"type": "string",
+						"description": "Native IAM identity of the logical request."
+					},
 					"requestId": {
 						"type": "string"
 					},

@@ -51,7 +51,7 @@ import type {
   RelayRequestDiagnosticsPageDto,
   RelayRequestRouteTraceDto,
 } from "@/api/dto/relay/relay.dto";
-import { RequireAllPermissions, RequirePermission } from "@/util/permission/permission-decorator";
+import { RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -555,7 +555,16 @@ export class RelayController extends Controller {
 
   @Get("request-diagnostics")
   @Security("jwt", ["relay:usage:read"])
-  @RequirePermission(Permission.RELAY_REQUEST_DIAGNOSTICS_READ)
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListRequestDiagnostics",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_REQUEST_DIAGNOSTICS_READ],
+    }),
+  )
   @Middlewares(validateQuery(relayRequestDiagnosticsQuerySchema))
   async getRequestDiagnostics(
     @Request() request: TypedRequest,
@@ -567,29 +576,42 @@ export class RelayController extends Controller {
     @Query() startDate?: string,
     @Query() endDate?: string,
   ): Promise<RelayRequestDiagnosticsPageDto> {
-    return this.relayTokenService.getRequestDiagnostics(request.user!.userId, {
-      page,
-      pageSize,
-      requestId,
-      keyword,
-      outcome,
-      startDate,
-      endDate,
-    });
+    return this.relayTokenService.getRequestDiagnostics(
+      request.user!.userId,
+      {
+        page,
+        pageSize,
+        requestId,
+        keyword,
+        outcome,
+        startDate,
+        endDate,
+      },
+      request,
+    );
   }
 
   @Get("request-diagnostics/{requestId}/route-trace")
   @Security("jwt", ["relay:usage:read"])
-  @RequireAllPermissions([
-    Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
-    Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
-    Permission.RELAY_CHANNEL_POOL_METADATA_READ,
-  ])
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetRequestRouteTrace",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [
+        Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
+        Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
+        Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+      ],
+    }),
+  )
   async getRequestRouteTrace(
     @Path() requestId: string,
     @Request() request: TypedRequest,
   ): Promise<RelayRequestRouteTraceDto> {
-    return this.relayTokenService.getRequestRouteTrace(request.user!.userId, requestId);
+    return this.relayTokenService.getRequestRouteTrace(request.user!.userId, requestId, request);
   }
 
   @Get("available-models")

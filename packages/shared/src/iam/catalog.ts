@@ -419,6 +419,11 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':error-group/{resourceId}',
   },
   {
+    ...resource('platform', 'relay-request'),
+    accountScope: 'platform',
+    arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-request/{resourceId}',
+  },
+  {
     ...resource('platform', 'relay-ai-request-log'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-ai-request-log/{resourceId}',
@@ -3683,6 +3688,53 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       legacyPermission: Permission.SYSTEM_ERROR_REPORT_READ,
     }),
   ),
+  ...[
+    {
+      operation: 'ListRequestDiagnostics',
+      accessLevel: 'List',
+      route: 'GET /v1/relay/request-diagnostics',
+      permission: Permission.RELAY_REQUEST_DIAGNOSTICS_READ,
+    },
+    {
+      operation: 'GetRequestRouteTrace',
+      accessLevel: 'Read',
+      route: 'GET /v1/relay/request-diagnostics/{requestId}/route-trace',
+      permission: Permission.RELAY_REQUEST_ROUTE_TRACE_READ,
+    },
+  ].map(
+    (definition): IamActionDefinition => ({
+      action: 'quyan:relay:' + definition.operation,
+      service: 'relay',
+      operation: definition.operation,
+      accessLevel: definition.accessLevel as IamActionDefinition['accessLevel'],
+      resourceTypes: ['platform/relay-request'],
+      apiRoutes: [definition.route],
+      ...(definition.operation === 'GetRequestRouteTrace'
+        ? {
+            requiredActions: ['quyan:relay:ListRequestDiagnostics'],
+            conditionalActions: ['quyan:relay:ReadChannelPoolMetadata'],
+          }
+        : {}),
+      conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+      sensitive: true,
+      authorizationStage: 'declared',
+      authorizationBoundary: 'platform',
+      legacyPermission: definition.permission,
+    }),
+  ),
+  {
+    action: 'quyan:relay:ReadChannelPoolMetadata',
+    service: 'relay',
+    operation: 'ReadChannelPoolMetadata',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/relay-channel'],
+    apiRoutes: ['GET /v1/relay/request-diagnostics/{requestId}/route-trace'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+  },
   {
     action: 'quyan:relay:ai_request_log:ListLogs',
     service: 'relay',

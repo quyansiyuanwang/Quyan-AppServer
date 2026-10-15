@@ -47,7 +47,7 @@ With IAM enforcement enabled, single-token usage statistics and usage details us
 
 Inspecting another user's usage, including a same-account peer's, also requires platform-management read eligibility, the current user's endpoint admission, and `GetManagedTokenUsage` on the target platform user and token. Management-write eligibility alone does not grant usage access. Identity, authorization and the target resource are checked again after aggregation; revoking access during the query prevents the computed result from being returned.
 
-Usage attributed to a composite call remains visible under the selected token without granting access to other member tokens; detail rows identify the authorized queried token. These rules cover single-token usage and details; batch usage and switch logs are described below and do not imply equivalent authorization for diagnostics or route traces.
+Usage attributed to a composite call remains visible under the selected token without granting access to other member tokens; detail rows identify the authorized queried token. These rules cover single-token usage and details; batch usage and switch logs are described below and platform diagnostics and route traces have the separate requirements below.
 
 ### Batch usage summaries and switch logs
 
@@ -72,6 +72,20 @@ With IAM enforcement enabled, batch status changes check `quyan:relay:SetTokenSt
 Each batch accepts at most 200 distinct IDs, all belonging to the selected user and not deleted. A missing or denied resource, or a relevant authorization or resource change during execution, prevents the entire batch from taking effect. Status changes only enable or disable tokens: they do not rotate credentials, reset quotas or restore deleted tokens. The API's `enabled` must be a JSON boolean, `true` or `false`, not the string `"false"`.
 
 Content-safety **Snapshot** saves the target user's effective settings at that time as the selected tokens' override; managing another user does not copy the operator's settings. **Clear** removes token overrides so subsequent requests inherit user and system settings again. Neither operation changes user or system policies, and runtime system safety constraints still apply. The endpoints retain replay protection and step-up verification. These resource-level and all-or-nothing guarantees apply to enforce mode; legacy and shadow continue to execute the existing business behavior.
+
+### Platform request diagnostics and route traces
+
+In IAM enforce mode, request diagnostics are a platform operations capability, not personal token usage inspection. The operator must retain diagnostic qualification in a deployment-managed global group; wildcard policies in an ordinary account or account-owned group cannot establish that qualification. OAuth retains the original `relay:usage:read` admission scope, with current application and access-token scope, status, expiry, and revocation checks.
+
+The diagnostic list checks `quyan:relay:ListRequestDiagnostics` for each `acs:platform:*:platform:relay-request/<logicalRequestId>`. The optional response field `resourceArn` provides the exact identity; do not substitute the external request label or token ID for the logical request ID. Unauthorized records are excluded before detail loading, pagination, and totals. Date, outcome, request-label, and keyword filters remain available. Historical diagnostics can include disabled or deleted tokens; visibility does not grant permission to restore or use them.
+
+Route traces additionally require:
+
+- Global-group qualification for route tracing and pool metadata reads, in addition to diagnostics; all three qualifications are mandatory.
+- Both `ListRequestDiagnostics` and `quyan:relay:GetRequestRouteTrace` on the same logical request resource.
+- `quyan:relay:ReadChannelPoolMetadata` on every actual execution channel, identified by `acs:platform:*:platform:relay-channel/<channelId>`, before its physical ID and name are disclosed.
+
+Diagnostic lists contain no physical execution channels, client IP addresses, upstream configuration, or credentials. Traces add only authorized execution-channel IDs and names, not keys or upstream connection configuration. When an authoritative root exists for a request label, selecting a child cannot bypass a denial on that root. Ambiguous records, any unauthorized channel, or an authorization, identity, or source-data change before release cause the entire request to fail without a partial trace. These resource-level guarantees apply to enforce; legacy / shadow retain the existing operations checks, and shadow does not additionally read trace details.
 
 ### Quota windows
 

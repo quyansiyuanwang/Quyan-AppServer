@@ -119,3 +119,24 @@ describe("generated resource-filtered summary and switch-log contracts", () => {
     expect(schema.properties).not.toHaveProperty("toChannelId");
   });
 });
+
+describe("generated resource-authorized platform diagnostic contracts", () => {
+  it.each(["/v1/relay/request-diagnostics", "/v1/relay/request-diagnostics/{requestId}/route-trace"])(
+    "retains the original OAuth scope and failure responses for %s",
+    (path) => {
+      const operation = document.paths[path].get;
+      expect(operation.security).toContainEqual({ jwt: ["relay:usage:read"] });
+      expect(operation.responses).toHaveProperty("401");
+      expect(operation.responses).toHaveProperty("403");
+    },
+  );
+  it.each(["RelayRequestDiagnosticDto", "RelayRequestRouteTraceDto"])(
+    "adds discoverable resource identity without breaking old responses for %s",
+    (name) => {
+      const schema = document.components.schemas[name];
+      expect(schema.properties.resourceArn).toEqual({ type: "string", description: expect.any(String) });
+      expect(schema.required).not.toContain("resourceArn");
+      expect(schema.properties).not.toHaveProperty("upstreamApiKey");
+    },
+  );
+});

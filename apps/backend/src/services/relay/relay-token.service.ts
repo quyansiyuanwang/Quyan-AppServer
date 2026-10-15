@@ -1,3 +1,5 @@
+import { PlatformRelayRequestReadIamService } from "./platform-relay-request-read-iam.service";
+import type { RelayRequestReadQuery } from "@/store/relay/platform-relay-request-read.repository";
 import { relayTokenSwitchLogsQuerySchema } from "@/api/schema/relay/relay.schema";
 import { RelayTokenInspectionRepository } from "@/store/relay/relay-token-inspection.repository";
 import { RelayTokenLifecycleIamService } from "./relay-token-lifecycle-iam.service";
@@ -1574,6 +1576,15 @@ export class RelayTokenService {
 
   async getRequestDiagnostics(
     actorUserId: string,
+    query: Omit<RelayRequestReadQuery, "page" | "pageSize"> & { page?: number; pageSize?: number },
+    request?: TypedRequest,
+  ): Promise<RelayRequestDiagnosticsPageDto> {
+    return PlatformRelayRequestReadIamService.getInstance().list(actorUserId, query, request, () =>
+      this.getRequestDiagnosticsLegacy(actorUserId, query),
+    );
+  }
+  private async getRequestDiagnosticsLegacy(
+    actorUserId: string,
     query: {
       page?: number;
       pageSize?: number;
@@ -1619,7 +1630,16 @@ export class RelayTokenService {
     };
   }
 
-  async getRequestRouteTrace(actorUserId: string, requestId: string): Promise<RelayRequestRouteTraceDto> {
+  async getRequestRouteTrace(
+    actorUserId: string,
+    requestId: string,
+    request?: TypedRequest,
+  ): Promise<RelayRequestRouteTraceDto> {
+    return PlatformRelayRequestReadIamService.getInstance().trace(actorUserId, requestId, request, () =>
+      this.getRequestRouteTraceLegacy(actorUserId, requestId),
+    );
+  }
+  private async getRequestRouteTraceLegacy(actorUserId: string, requestId: string): Promise<RelayRequestRouteTraceDto> {
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_DIAGNOSTICS_READ);
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_REQUEST_ROUTE_TRACE_READ);
     await this.assertGlobalRelayOperatorPermission(actorUserId, Permission.RELAY_CHANNEL_POOL_METADATA_READ);

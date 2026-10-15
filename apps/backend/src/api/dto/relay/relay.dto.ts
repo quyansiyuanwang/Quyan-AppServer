@@ -342,11 +342,15 @@ export interface RelayRequestRouteTraceAttemptDto extends RelayRequestDiagnostic
 }
 
 export interface RelayRequestRouteTraceDto {
+  /** Native IAM identity of the logical request. */
+  resourceArn?: string;
   requestId: string;
   attempts: RelayRequestRouteTraceAttemptDto[];
 }
 
 export interface RelayRequestDiagnosticDto {
+  /** Native IAM identity, independent of the externally visible request label. */
+  resourceArn?: string;
   requestId: string;
   relayTokenId: string;
   relayTokenName?: string;
