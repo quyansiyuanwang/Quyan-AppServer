@@ -31,6 +31,12 @@
 
 以上披露规则覆盖列表、单个 Token 读取、导出，以及下文说明的单个启停和刷新。复制和其他修改仍属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
 
+### 模型目录发现权限
+
+在 IAM 强制模式下，模型名称目录使用 `quyan:relay:ListAvailableModels`，逐个评估 `acs:relay:*:<accountId>:model-catalog-entry/<modelRecordId>`。响应的可选 `modelResourceArns` 按可见模型名称提供准确 ARN。被拒绝的条目不出现在名称列表、模型 ID、别名映射或资源映射中；同一上游 ID 对应多个名称时，唯一／一对多映射仅根据获准条目计算。没有获准条目时返回空目录。
+
+这是当前账户对公共模型目录的发现权限，不是平台模型价格管理权，不要求全局价格管理资格，也不返回成本、计价规则或渠道配置。它不修改 Token 的允许模型列表、不赋予模型调用权，也不代替单个 Token 的可用模型查询。OAuth 沿用此接口原有的 `relay:channel:read` scope，而不是改为 Token 读取 scope。返回前会复核身份、策略、发布状态和模型别名；若发生变化，拒绝返回过期结果。legacy / shadow 保留原有目录行为，shadow 不额外读取模型名称。
+
 ### 单个启停与凭据刷新
 
 在 IAM 强制模式下，单个启停使用 `quyan:relay:SetTokenStatus`，刷新使用 `quyan:relay:RefreshToken`，均在目标 Token ARN 上授权。这两个接口返回 Token 配置，因此还必须有相同资源的 `GetToken` 元数据读取权限；没有读取权限时，在写入前拒绝，不会先修改再返回读取错误。仅需写入、不需读取配置时，可使用批量启停接口。

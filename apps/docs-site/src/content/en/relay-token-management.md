@@ -31,6 +31,12 @@ Export requires `quyan:relay:ExportTokens` and `RevealToken` on every selected t
 
 These disclosure rules cover list, single-token read, export, and the single-token status and refresh operations described below. Duplication and other modifications remain separate operations with their own authorization requirements; do not treat metadata-only access as a guarantee that other granted operations cannot return credentials. In legacy or shadow mode, the existing permission checks remain authoritative; shadow comparison does not enable IAM enforcement.
 
+### Model catalog discovery permission
+
+In IAM enforce mode, model-name discovery uses `quyan:relay:ListAvailableModels` on each `acs:relay:*:<accountId>:model-catalog-entry/<modelRecordId>`. The optional response map `modelResourceArns` provides exact ARNs keyed by visible model name. Denied entries are absent from names, model IDs, alias maps, and resource maps. Unique and one-to-many mappings for a shared upstream ID are computed only from authorized entries. No authorized entries means an empty catalog.
+
+This permission controls the current account's discovery of public model entries, not platform pricing administration. It requires no global pricing-management qualification and exposes no costs, pricing rules, or channel configuration. It does not change token model allow-lists, grant model invocation, or replace a single token's available-model query. OAuth retains this endpoint's original `relay:channel:read` scope rather than substituting token READ. Identity, policies, publication state, and aliases are rechecked before release; changes cause stale results to be rejected. Legacy / shadow retain the original catalog behavior, and shadow does not additionally read model names.
+
 ### Single-token status changes and credential refresh
 
 With IAM enforcement enabled, single-token status toggles use `quyan:relay:SetTokenStatus` and credential refresh uses `quyan:relay:RefreshToken`, both on the target token ARN. Because both endpoints return token configuration, they also require `GetToken` metadata access on the same resource. Missing read access rejects the request before any write; the server does not modify a token and then return a read error. Use batch status changes when only write access is needed without reading configuration.

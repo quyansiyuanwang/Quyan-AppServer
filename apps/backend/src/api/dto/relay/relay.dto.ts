@@ -429,6 +429,8 @@ export interface RelayTokenCurrentQuotaQueryDto {
 }
 
 export interface RelayAvailableModelsMapDto {
+  /** Native IAM discovery-resource ARN keyed by visible model name. */
+  modelResourceArns?: Record<string, string>;
   /** 去重后的模型名称列表 */
   modelNames: string[];
   /** 仅包含可唯一映射的 modelId -> modelName */

@@ -418,6 +418,7 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':error-group/{resourceId}',
   },
+  resource('relay', 'model-catalog-entry'),
   {
     ...resource('platform', 'relay-request'),
     accountScope: 'platform',
@@ -1398,6 +1399,18 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       legacyPermission: Permission.RELAY_TOKEN_READ,
     }),
   ),
+  {
+    action: 'quyan:relay:ListAvailableModels',
+    service: 'relay',
+    operation: 'ListAvailableModels',
+    accessLevel: 'List',
+    resourceTypes: ['relay/model-catalog-entry'],
+    apiRoutes: ['GET /v1/relay/available-models'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: false,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.RELAY_TOKEN_READ,
+  },
   {
     action: 'quyan:relay:GetTokenSwitchLogs',
     service: 'relay',

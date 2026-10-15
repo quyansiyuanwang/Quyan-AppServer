@@ -19408,6 +19408,26 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Permission denied",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/ErrorResponse"
+								}
+							}
+						}
 					}
 				},
 				"tags": [
@@ -53862,6 +53882,10 @@
 			},
 			"RelayAvailableModelsMapDto": {
 				"properties": {
+					"modelResourceArns": {
+						"$ref": "#/components/schemas/Record_string.string_",
+						"description": "Native IAM discovery-resource ARN keyed by visible model name."
+					},
 					"modelNames": {
 						"items": {
 							"type": "string"

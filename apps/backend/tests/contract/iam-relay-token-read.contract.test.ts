@@ -140,3 +140,20 @@ describe("generated resource-authorized platform diagnostic contracts", () => {
     },
   );
 });
+
+describe("generated public model discovery contract", () => {
+  it("retains channel READ OAuth admission and explicit error responses", () => {
+    const operation = document.paths["/v1/relay/available-models"].get;
+    expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_CHANNEL_READ] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+  });
+  it("adds optional discovery-resource identities without exposing pricing", () => {
+    const schema = document.components.schemas.RelayAvailableModelsMapDto;
+    const reference = schema.properties.modelResourceArns;
+    const map = reference.$ref ? document.components.schemas[reference.$ref.split("/").at(-1)] : reference;
+    expect(map).toMatchObject({ type: "object", additionalProperties: { type: "string" } });
+    expect(schema.required).not.toContain("modelResourceArns");
+    expect(schema.properties).not.toHaveProperty("inputPrice");
+  });
+});

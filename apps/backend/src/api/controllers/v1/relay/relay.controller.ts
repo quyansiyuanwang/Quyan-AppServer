@@ -616,9 +616,18 @@ export class RelayController extends Controller {
 
   @Get("available-models")
   @Security("jwt", ["relay:channel:read"])
-  @RequirePermission(Permission.RELAY_TOKEN_READ)
-  async getAvailableModels(): Promise<RelayAvailableModelsMapDto> {
-    return this.relayTokenService.getAvailableModels();
+  @Response<ErrorResponse>(HttpStatusCode.Unauthorized, "Authentication required")
+  @Response<ErrorResponse>(HttpStatusCode.Forbidden, "Permission denied")
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListAvailableModels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_TOKEN_READ],
+    }),
+  )
+  async getAvailableModels(@Request() request: TypedRequest): Promise<RelayAvailableModelsMapDto> {
+    return this.relayTokenService.getAvailableModels(request.user!.userId, request);
   }
 
   @Get("tokens/{id}/switch-logs")

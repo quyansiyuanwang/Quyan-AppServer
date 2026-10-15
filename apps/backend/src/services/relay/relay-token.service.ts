@@ -1,3 +1,5 @@
+import { RelayModelCatalogReadIamService } from "./relay-model-catalog-read-iam.service";
+import { relayModelCatalogArn } from "@/iam/resources/relay-model-catalog-resources";
 import { PlatformRelayRequestReadIamService } from "./platform-relay-request-read-iam.service";
 import type { RelayRequestReadQuery } from "@/store/relay/platform-relay-request-read.repository";
 import { relayTokenSwitchLogsQuerySchema } from "@/api/schema/relay/relay.schema";
@@ -1858,9 +1860,24 @@ export class RelayTokenService {
     };
   }
 
-  async getAvailableModels(): Promise<RelayAvailableModelsMapDto> {
-    const modelConfigs = await this.modelPricingRepo.listActiveOrderedByModel();
-
+  async getAvailableModels(actorUserId?: string, request?: TypedRequest): Promise<RelayAvailableModelsMapDto> {
+    return RelayModelCatalogReadIamService.getInstance().read(
+      actorUserId,
+      request,
+      async (rows, principal) => ({
+        ...this.buildAvailableModels(rows),
+        modelResourceArns: Object.fromEntries(
+          rows
+            .filter((row) => row.model.trim())
+            .map((row) => [row.model.trim(), relayModelCatalogArn(principal.accountOwnerId, row.id)]),
+        ),
+      }),
+      async () => this.buildAvailableModels(await this.modelPricingRepo.listActiveOrderedByModel()),
+    );
+  }
+  private buildAvailableModels(
+    modelConfigs: readonly { model: string; provider: string | null }[],
+  ): RelayAvailableModelsMapDto {
     const modelNames: string[] = [];
     const seenModelNames = new Set<string>();
     const uniqueModelIdToName = new Map<string, string>();
