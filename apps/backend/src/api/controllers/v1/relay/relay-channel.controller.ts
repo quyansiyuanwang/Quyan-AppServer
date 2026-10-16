@@ -348,11 +348,16 @@ export class RelayChannelController extends Controller {
 
   @Delete("{id}/health")
   @Security("jwt")
-  @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Update",
-    resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
-  })
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ClearChannelHealth",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_UPDATE],
+    }),
+  )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
@@ -366,7 +371,16 @@ export class RelayChannelController extends Controller {
 
   @Post("health/batch-clear")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ClearChannelHealth",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_UPDATE],
+    }),
+  )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

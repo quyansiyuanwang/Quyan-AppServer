@@ -49,6 +49,10 @@ A denied, missing, deleted or invalid target rejects the entire batch without pa
 
 ### Clearing collected health statistics
 
+In IAM enforce mode, single and batch clearing require `quyan:relay:ClearChannelHealth` on **every** target `acs:platform:*:platform:relay-channel/<channelId>`, plus deployment-managed `RELAY_CHANNEL_UPDATE` eligibility. Clear authority is distinct from changing health settings or reading health. Existing visibility rules, two-factor verification and replay protection still apply. Only non-deleted standalone channels are accepted, including disabled channels; these unscoped endpoints reject OAuth tokens. A missing, deleted, denied or pool target prevents the entire batch from reaching Redis.
+
+Authorization is checked immediately before the irreversible operation and again before accepting the response. A final authorization failure can reject the response **after** statistics have been cleared. The audit distinguishes confirmed clearing from an uncertain storage outcome, and records whether the request was ultimately accepted; it does not claim the old data was restored. Legacy/shadow retain the existing business clear, with no extra clearing during shadow observation.
+
 Clearing statistics does not change the configured tracking mode or manual overrides. A batch clears retained time buckets for all selected channels with one Redis operation, rather than independent per-channel deletions. Unrelated channels and request-sample deduplication records are not cleared; later traffic can immediately create new statistics.
 
 Redis clearing is irreversible and is not rolled back by a database transaction. If the storage connection fails before confirmation, the request reports an error but the operation may already have completed. Refresh the health view to verify the current state; do not assume an error restored the previous statistics.

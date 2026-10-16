@@ -86,3 +86,34 @@ describe("resource-scoped health configuration write declarations", () => {
     expect(isIamActionResourceCompatible(action, "acs:relay:*:owner:channel/channel")).toBe(false);
   });
 });
+
+describe("resource-scoped health clear declarations", () => {
+  it("registers distinct clear authority, platform channel resources and both protected routes", () => {
+    const action = "quyan:relay:ClearChannelHealth";
+    expect(getIamActionDefinition(action)).toMatchObject({
+      resourceTypes: ["platform/relay-channel"],
+      legacyPermission: Permission.RELAY_CHANNEL_UPDATE,
+      authorizationBoundary: "platform",
+      accessLevel: "Write",
+      sensitive: true,
+    });
+    expect(isIamActionResourceCompatible(action, resource)).toBe(true);
+    expect(isIamActionResourceCompatible(action, "acs:relay:*:owner:channel/channel")).toBe(false);
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    const source = project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel.controller.ts");
+    const rows = collectIamRoutes(project.getSourceFiles(), process.cwd());
+    for (const key of ["DELETE /v1/relay-channels/{id}/health", "POST /v1/relay-channels/health/batch-clear"])
+      expect(rows.find((row) => row.key === key)).toMatchObject({
+        coverage: "explicit",
+        actions: [action],
+        issues: [],
+      });
+    for (const name of ["clearChannelHealth", "batchClearChannelHealth"]) {
+      const method = source.getClassOrThrow("RelayChannelController").getMethodOrThrow(name).getText();
+      expect(method).toContain('@Security("jwt")');
+      expect(method).toContain("@TwoFactorChallengeProtected");
+      expect(method).toContain("replayProtectionMiddleware");
+      expect(method).toMatch(/validate(Params|Body)/);
+    }
+  });
+});

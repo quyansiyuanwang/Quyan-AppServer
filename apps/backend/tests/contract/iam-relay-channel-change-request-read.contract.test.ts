@@ -87,3 +87,16 @@ describe("generated native channel health configuration writes", () => {
     },
   );
 });
+
+describe("generated native channel health clear contracts", () => {
+  it.each([
+    { path: "/v1/relay-channels/{id}/health", verb: "delete" },
+    { path: "/v1/relay-channels/health/batch-clear", verb: "post" },
+  ])("retains unscoped JWT and safe errors for $verb $path", ({ path, verb }) => {
+    const operation = document.paths[path][verb];
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+    if (verb === "post") expect(operation.requestBody.required).toBe(true);
+  });
+});

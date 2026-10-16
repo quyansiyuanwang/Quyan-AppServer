@@ -1,3 +1,4 @@
+import { RelayChannelHealthClearIamService } from "./relay-channel-health-clear-iam.service";
 import { RelayChannelHealthConfigIamService } from "./relay-channel-health-config-iam.service";
 import { RelayChannelHealthReadIamService } from "./relay-channel-health-read-iam.service";
 import {
@@ -1154,7 +1155,24 @@ export class RelayChannelService {
     return { total: data.ids.length, affected: updated.length };
   }
 
-  async clearChannelHealth(id: string, actorUserId: string, request?: Request): Promise<void> {
+  async clearChannelHealth(id: string, actorUserId: string, request?: TypedRequest): Promise<void> {
+    await RelayChannelHealthClearIamService.getInstance().execute({ ids: [id] }, actorUserId, request, async () => {
+      await this.clearChannelHealthLegacy(id, actorUserId, request);
+      return { total: 1, affected: 1 };
+    });
+  }
+
+  async batchClearChannelHealth(
+    ids: string[],
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    return RelayChannelHealthClearIamService.getInstance().execute({ ids }, actorUserId, request, () =>
+      this.batchClearChannelHealthLegacy(ids, actorUserId, request),
+    );
+  }
+
+  private async clearChannelHealthLegacy(id: string, actorUserId: string, request?: Request): Promise<void> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
     if (channel.channelType !== "standalone")
       throw new BadRequestError("Health statistics only exist for standalone channels", undefined, {
@@ -1177,7 +1195,7 @@ export class RelayChannelService {
     });
   }
 
-  async batchClearChannelHealth(
+  private async batchClearChannelHealthLegacy(
     ids: string[],
     actorUserId: string,
     request?: Request,
