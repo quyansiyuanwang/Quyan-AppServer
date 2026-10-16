@@ -2138,6 +2138,22 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     legacyPermission: Permission.RELAY_CHANNEL_SUBMIT,
   },
   {
+    action: 'quyan:relay:CreateMyChannelChangeRequest',
+    service: 'relay',
+    operation: 'CreateMyChannelChangeRequest',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'relay/channel-submission',
+      'relay/channel-change-request',
+      'relay/submission-provider',
+    ],
+    apiRoutes: ['POST /v1/relay-channels/{id}/change-requests'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.RELAY_CHANNEL_SUBMIT,
+  },
+  {
     action: 'quyan:relay:CreateMyChannelSubmission',
     service: 'relay',
     operation: 'CreateMyChannelSubmission',

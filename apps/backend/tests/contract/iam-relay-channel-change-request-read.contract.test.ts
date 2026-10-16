@@ -191,3 +191,25 @@ describe("generated native channel availability toggle contract", () => {
       expect(document.components.schemas.RelayChannelDto.properties).not.toHaveProperty(field);
   });
 });
+
+describe("generated native owned change proposal creation contract", () => {
+  it("keeps the path-owned JWT request and a server-assigned proposal identity", () => {
+    const operation = document.paths["/v1/relay-channels/{id}/change-requests"].post;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.requestBody.required).toBe(true);
+    for (const status of ["401", "403"]) expect(operation.responses).toHaveProperty(status);
+    const fields = document.components.schemas.CreateRelayChannelChangeRequest.properties;
+    for (const field of [
+      "id",
+      "accountOwnerId",
+      "submittedByUserId",
+      "reviewStatus",
+      "providerBindings",
+      "hasOpenaiUpstreamApiKey",
+    ])
+      expect(fields).not.toHaveProperty(field);
+    const output = document.components.schemas.RelayChannelChangeRequestDto.properties;
+    for (const field of ["encryptedCredentials", "credentialIv", "credentialAuthTag", "providerBindings"])
+      expect(output).not.toHaveProperty(field);
+  });
+});

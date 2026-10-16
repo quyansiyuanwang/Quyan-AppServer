@@ -1,3 +1,5 @@
+import { assertRelayChannelChangeProviderBindings } from "@/store/relay/relay-channel-change-provider-bindings";
+import { RelayChannelChangeRequestCreateIamService } from "./relay-channel-change-request-create-iam.service";
 import { RelayChannelProviderConfigIamService } from "./relay-channel-provider-config-iam.service";
 import { RelayChannelSubmissionReviewIamService } from "./relay-channel-submission-review-iam.service";
 import { PlatformRelayChannelDeleteIamService } from "./platform-relay-channel-delete-iam.service";
@@ -15,7 +17,10 @@ import {
   projectRelayAutomaticPoolHealth,
 } from "./relay-channel-health-projection";
 import { RelayChannelConfigurationReadIamService } from "./relay-channel-configuration-read-iam.service";
-import { projectRelayChannelConfiguration } from "./relay-channel-configuration-projection";
+import {
+  projectRelayChannelConfiguration,
+  type RelayChannelCredentialPresence,
+} from "./relay-channel-configuration-projection";
 import { RelayChannelTopologyAuditIamService } from "./relay-channel-topology-audit-iam.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { RelayChannelChangeRequestReadIamService } from "./relay-channel-change-request-read-iam.service";
@@ -182,6 +187,34 @@ interface ValidatedRelayChannelData {
   contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
   providers?: RelayChannelProviderConfigRequest[];
 }
+
+type RelayChannelValidationSource = Pick<
+  RelayChannel,
+  | "id"
+  | "name"
+  | "channelType"
+  | "routingStrategy"
+  | "routingConfig"
+  | "visibilityMode"
+  | "visibilityConfig"
+  | "pooledParentId"
+  | "pooledPriority"
+  | "pooledWeight"
+  | "pooledMemberEnabled"
+  | "openaiUpstreamUrl"
+  | "anthropicUpstreamUrl"
+  | "geminiUpstreamUrl"
+  | "useProxy"
+  | "multiplier"
+  | "allowedFormats"
+  | "allowedModels"
+  | "addUserIdentifier"
+  | "inputTokensIncludeCacheRead"
+  | "modelMapping"
+  | "timePeriodMultipliers"
+  | "contextLengthMultipliers"
+> &
+  Partial<Pick<RelayChannel, "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey">>;
 
 type ResolvedRelayChannelProviderConfig = Omit<RelayChannelProviderConfigRequest, "username"> & {
   userId: string;
@@ -1875,8 +1908,9 @@ export class RelayChannelService {
 
   private async buildValidatedChannelData(
     data: CreateRelayChannelRequest | UpdateRelayChannelRequest,
-    existing?: RelayChannel,
+    existing?: RelayChannelValidationSource,
     standaloneCatalog?: readonly RelayModelCatalogEntry[],
+    credentialPresence?: RelayChannelCredentialPresence,
   ): Promise<ValidatedRelayChannelData> {
     const name = (data.name !== undefined ? data.name : existing?.name)?.trim();
     if (!name)
@@ -1996,7 +2030,8 @@ export class RelayChannelService {
       data.contextLengthMultipliers !== undefined
         ? data.contextLengthMultipliers
         : (existing?.contextLengthMultipliers as ContextLengthMultiplierRule[] | undefined);
-    if (standaloneCatalog && (existing || channelType !== "standalone")) throw iamAccountDenied();
+    if (standaloneCatalog && (channelType !== "standalone" || (existing && existing.channelType !== "standalone")))
+      throw iamAccountDenied();
     const topology = standaloneCatalog ? undefined : await this.relayConfigService.getRelayConfig();
 
     if (allowedModels !== undefined && allowedModels !== null) {
@@ -2031,7 +2066,11 @@ export class RelayChannelService {
             undefined,
             { messageKey: "relayChannel.openaiUpstreamUrlRequired" },
           );
-        if (!openaiUpstreamApiKey)
+        if (
+          !(data.openaiUpstreamApiKey !== undefined
+            ? Boolean(openaiUpstreamApiKey)
+            : Boolean(openaiUpstreamApiKey) || credentialPresence?.hasOpenaiUpstreamApiKey)
+        )
           throw new BadRequestError(
             "OpenAI API key is required when allowedFormats includes an OpenAI format",
             undefined,
@@ -2045,7 +2084,11 @@ export class RelayChannelService {
             undefined,
             { messageKey: "relayChannel.anthropicUpstreamUrlRequired" },
           );
-        if (!anthropicUpstreamApiKey)
+        if (
+          !(data.anthropicUpstreamApiKey !== undefined
+            ? Boolean(anthropicUpstreamApiKey)
+            : Boolean(anthropicUpstreamApiKey) || credentialPresence?.hasAnthropicUpstreamApiKey)
+        )
           throw new BadRequestError(
             "Anthropic API key is required when allowedFormats includes 'anthropic'",
             undefined,
@@ -2059,7 +2102,11 @@ export class RelayChannelService {
             undefined,
             { messageKey: "relayChannel.geminiUpstreamUrlRequired" },
           );
-        if (!geminiUpstreamApiKey)
+        if (
+          !(data.geminiUpstreamApiKey !== undefined
+            ? Boolean(geminiUpstreamApiKey)
+            : Boolean(geminiUpstreamApiKey) || credentialPresence?.hasGeminiUpstreamApiKey)
+        )
           throw new BadRequestError("Gemini API key is required when allowedFormats includes 'gemini'", undefined, {
             messageKey: "relayChannel.geminiApiKeyRequired",
           });
@@ -2864,6 +2911,66 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelChangeRequestDto> {
+    return RelayChannelChangeRequestCreateIamService.getInstance().execute(
+      id,
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async (input, source, presence, catalog) => {
+        const normalizedInput = {
+          ...input,
+          openaiUpstreamApiKey: input.openaiUpstreamApiKey?.trim() || undefined,
+          anthropicUpstreamApiKey: input.anthropicUpstreamApiKey?.trim() || undefined,
+          geminiUpstreamApiKey: input.geminiUpstreamApiKey?.trim() || undefined,
+        };
+        const validated = await this.buildValidatedChannelData(
+          { ...normalizedInput, channelType: "standalone" },
+          source,
+          catalog,
+          presence,
+        );
+        const credentials: Record<string, string> = {};
+        if (input.openaiUpstreamApiKey?.trim()) credentials.openaiUpstreamApiKey = input.openaiUpstreamApiKey.trim();
+        if (input.anthropicUpstreamApiKey?.trim())
+          credentials.anthropicUpstreamApiKey = input.anthropicUpstreamApiKey.trim();
+        if (input.geminiUpstreamApiKey?.trim()) credentials.geminiUpstreamApiKey = input.geminiUpstreamApiKey.trim();
+        const encrypted = Object.keys(credentials).length ? this.encryptChangeCredentials(credentials) : undefined;
+        return {
+          snapshot: JSON.parse(
+            JSON.stringify({
+              name: validated.name,
+              openaiUpstreamUrl: validated.openaiUpstreamUrl,
+              anthropicUpstreamUrl: validated.anthropicUpstreamUrl,
+              geminiUpstreamUrl: validated.geminiUpstreamUrl,
+              multiplier: validated.multiplier,
+              allowedFormats: validated.allowedFormats,
+              allowedModels: validated.allowedModels,
+              inputTokensIncludeCacheRead: validated.inputTokensIncludeCacheRead,
+              modelMapping: validated.modelMapping,
+              timePeriodMultipliers: validated.timePeriodMultipliers,
+              contextLengthMultipliers: validated.contextLengthMultipliers,
+              providers: validated.providers,
+              hasOpenaiUpstreamApiKey: Boolean(credentials.openaiUpstreamApiKey) || presence.hasOpenaiUpstreamApiKey,
+              hasAnthropicUpstreamApiKey:
+                Boolean(credentials.anthropicUpstreamApiKey) || presence.hasAnthropicUpstreamApiKey,
+              hasGeminiUpstreamApiKey: Boolean(credentials.geminiUpstreamApiKey) || presence.hasGeminiUpstreamApiKey,
+              previousSubmissionStatus: source.submissionStatus,
+              previousChannelStatus: source.status,
+              previousProviderServiceEnabled: source.providerServiceEnabled,
+            }),
+          ) as Prisma.InputJsonObject,
+          encrypted,
+        };
+      },
+      () => this.createChangeRequestLegacy(id, data, actorUserId, request),
+    );
+  }
+  private async createChangeRequestLegacy(
+    id: string,
+    data: CreateRelayChannelChangeRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelChangeRequestDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -3021,6 +3128,7 @@ export class RelayChannelService {
     );
     const updated = await this.relayChannelRepository.withTransaction(async (tx) => {
       if (body.action === "approve") {
+        await assertRelayChannelChangeProviderBindings(tx, row.configSnapshot, validated.providers);
         await this.relayChannelRepository.updateById(
           row.relayChannelId,
           {

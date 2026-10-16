@@ -45,6 +45,38 @@ Deleting an owned submission requires `quyan:relay:DeleteMyChannelSubmission`; p
 
 Deletion is limited to your pending, rejected, or offboarded standalone submissions. Deletion and related token-channel reference cleanup commit or roll back together. Service availability can only be changed for approved standalone submissions; providers cannot resume an administrator-disabled channel. Requests retain two-factor verification and replay protection and do not accept OAuth tokens. Changes to identity, role sessions, AccessKeys, policies, or target state during the write cancel the entire database mutation, with no partial update. Service-status responses still return only credential-presence flags, never credential values.
 
+### Creating and replacing a change request
+
+With IAM enforcement enabled, the original submitter uses `quyan:relay:CreateMyChannelChangeRequest` for all of the following:
+
+- The existing owned channel: `acs:relay:*:<accountId>:channel-submission/<submitterUserId>/<channelId>`;
+- The new server-assigned request: `acs:relay:*:<accountId>:channel-change-request/<submitterUserId>/*`;
+- Every old pending request being superseded, using its own change-request ARN;
+- Every explicitly proposed provider relation: `acs:relay:*:<accountId>:submission-provider/<submitterUserId>/<channelId>/<providerUserId>`.
+
+A proposal does not change live provider assignments or automatically add the submitter. Omitting the provider list preserves the existing configuration for review; an explicit empty list proposes removing all providers. Recipients may belong to other accounts, but a proposal grants no authority to manage their accounts. The server pins the resolved recipient identity; a renamed, disabled or reassigned username cannot silently redirect an approved proposal to another user. Resubmit the proposal if the recipient identity is no longer valid.
+
+New key values are encrypted separately and never included in the configuration snapshot, public response or audit payload. Leaving a key blank keeps the current key; the returned flags indicate presence only. The approved channel continues to serve with its current settings while a change is pending. A rejected channel returns to pending and remains disabled. Authorization, identity, recipient, catalog or response-data changes cancel the new request, old-request replacement and rejected-channel recovery together.
+
+For example, the following grants proposal access to one owned channel and a specific provider; replace every placeholder with your real identifiers:
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:relay:CreateMyChannelChangeRequest",
+    "Resource": [
+      "acs:relay:*:<accountId>:channel-submission/<submitterUserId>/<channelId>",
+      "acs:relay:*:<accountId>:channel-change-request/<submitterUserId>/*",
+      "acs:relay:*:<accountId>:submission-provider/<submitterUserId>/<channelId>/<providerUserId>"
+    ]
+  }
+}
+```
+
+The request wildcard also permits superseding that submitter's pending requests; it does not grant read, review, delete or platform administration Actions. Explicit Deny still takes precedence. Step-up verification and replay protection remain required; OAuth tokens are not accepted. Existing `RELAY_CHANNEL_SUBMIT` grants are mapped automatically. JSON policies using the old account-owned `quyan:relay:channel:Submit` alias must adopt the new Action and resource types. Legacy/shadow modes perform the original creation once without a second native write.
+
 ## Earnings and settlement
 
 Earnings are created only from an amount actually debited from a consumer balance. Failed requests, zero charges, and fully covered monthly-pass usage create no earnings. When a pass covers only part of a request, only the remaining debit is shared. Each earning preserves the channel, provider, and percentage snapshot from when the debit occurred, so later edits never rewrite history.

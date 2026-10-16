@@ -542,9 +542,9 @@ export class RelayChannelController extends Controller {
   @Post("{id}/change-requests")
   @Security("jwt")
   @CheckPermission(Permission.RELAY_CHANNEL_SUBMIT, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Submit",
+    action: "quyan:relay:CreateMyChannelChangeRequest",
     resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
+    resource: relayChannelSubmissionResourceResolver,
   })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -553,6 +553,8 @@ export class RelayChannelController extends Controller {
     validateParams(relayChannelIdParamsSchema),
     validateBody(createRelayChannelChangeRequestBodySchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async createChangeRequest(
     @Path() id: string,
     @Body() body: CreateRelayChannelChangeRequest,

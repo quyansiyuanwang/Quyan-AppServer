@@ -45,6 +45,38 @@
 
 删除仅适用于待审核、已拒绝或已下架的本人独立渠道；删除与相关令牌渠道引用清理一同提交或取消。服务开关仅适用于已审核通过的独立渠道；管理员停用后，供应者不能自行恢复。请求保留二次验证和重放保护，不接受 OAuth 令牌。写入期间身份、角色会话、AccessKey、策略或目标状态发生变化时，整次数据库修改取消，不产生部分更新。服务开关响应仍只返回密钥存在标记，不返回密钥原文。
 
+### 创建和替换修改申请
+
+启用 IAM 强制授权后，原始提交者需要对以下全部资源拥有 `quyan:relay:CreateMyChannelChangeRequest`：
+
+- 现有自有渠道：`acs:relay:*:<accountId>:channel-submission/<submitterUserId>/<channelId>`；
+- 服务端分配的新申请：`acs:relay:*:<accountId>:channel-change-request/<submitterUserId>/*`；
+- 每条将被替换的旧待审核申请，使用其各自的修改申请 ARN；
+- 每条显式提议的提供者关联：`acs:relay:*:<accountId>:submission-provider/<submitterUserId>/<channelId>/<providerUserId>`。
+
+提案不会修改线上提供者，也不会自动加入提交者。省略提供者列表表示保留现有配置供审核；显式空列表表示提议移除全部提供者。接收者可以属于其他账号，但提案不授予管理其账号的权限。服务端固定解析后的接收者身份；用户名被改名、停用或转给其他用户后，不能静默将已授权的提案转向另一用户。接收者身份失效时，请重新提交申请。
+
+新密钥单独加密保存，不放入配置快照、公开响应或审计载荷。密钥留空表示保留现有密钥，返回标记仅表示是否存在。已上架渠道在申请待审核期间继续使用当前配置；被拒渠道重新进入待审核并保持禁用。授权、身份、接收者、模型目录或响应数据发生变化时，新申请、旧申请替换及被拒渠道恢复会一起取消。
+
+例如，以下策略允许对一个自有渠道和指定提供者提交修改提案；请将所有占位符替换为真实标识：
+
+```json
+{
+  "Version": "1",
+  "Statement": {
+    "Effect": "Allow",
+    "Action": "quyan:relay:CreateMyChannelChangeRequest",
+    "Resource": [
+      "acs:relay:*:<accountId>:channel-submission/<submitterUserId>/<channelId>",
+      "acs:relay:*:<accountId>:channel-change-request/<submitterUserId>/*",
+      "acs:relay:*:<accountId>:submission-provider/<submitterUserId>/<channelId>/<providerUserId>"
+    ]
+  }
+}
+```
+
+申请通配符也允许替换该提交者的待审核申请，但不授予读取、审核、删除或平台管理 Action。显式 Deny 仍优先。二次验证和重放保护仍然必需，不接受 OAuth Token。现有 `RELAY_CHANNEL_SUBMIT` 权限自动映射到新 Action；仅使用旧账号级 `quyan:relay:channel:Submit` 别名的 JSON 策略，需要采用新 Action 和资源类型。legacy/shadow 模式仅执行一次原创建操作，不会额外进行原生写入。
+
 ## 收益与结算
 
 收益只来自实际从消费者余额扣除的金额：失败请求、零扣费和月卡完全覆盖的请求不会产生收益；月卡只覆盖一部分时，只按剩余的实际扣费计算。每笔收益保存发生时的渠道、提供者和比例快照，后续调整不会修改历史记录。
