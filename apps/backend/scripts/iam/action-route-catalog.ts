@@ -5,9 +5,20 @@ export function actionRouteCatalog(routes: readonly IamRouteEntry[]): Record<str
   const result = new Map<string, Set<string>>();
   for (const route of routes) {
     if (route.issues.length || !["explicit", "legacy"].includes(route.coverage)) continue;
-    for (const action of new Set(
-      route.actions.flatMap((action) => [action, ...(getIamActionDefinition(action)?.conditionalActions ?? [])]),
-    )) {
+    // Traverse dependencies for discovery only. Cycles (source <-> destination) never add runtime grants.
+    const actions = new Set<string>(),
+      pending = [...route.actions];
+    while (pending.length) {
+      const action = pending.pop()!;
+      if (actions.has(action)) continue;
+      actions.add(action);
+      const definition = getIamActionDefinition(action);
+      pending.push(
+        ...(definition?.conditionalActions ?? []),
+        ...(definition?.resourceDependencies?.map((dependency) => dependency.action) ?? []),
+      );
+    }
+    for (const action of actions) {
       const paths = result.get(action) ?? new Set<string>();
       paths.add(route.key);
       result.set(action, paths);

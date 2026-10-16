@@ -21,6 +21,17 @@ describe("IAM service and resource catalog", () => {
     for (const permission of ALL_PERMISSIONS)
       expect(getIamActionDefinition(actionForPermission(permission))).toBeDefined();
     for (const action of IAM_ACTION_DEFINITIONS) {
+      for (const dependency of action.resourceDependencies ?? []) {
+        const target = getIamActionDefinition(dependency.action);
+        expect(target).toBeDefined();
+        expect(dependency.action).not.toBe(action.action);
+        expect(dependency.resourceTypes.length).toBeGreaterThan(0);
+        for (const type of dependency.resourceTypes) {
+          expect(resources.has(type)).toBe(true);
+          expect(target!.resourceTypes).toContain(type);
+        }
+      }
+
       expect(action.resourceTypes.length).toBeGreaterThan(0);
       expect(action.resourceTypes.every((resource) => resources.has(resource))).toBe(true);
       expect(action.action.startsWith("quyan:")).toBe(true);

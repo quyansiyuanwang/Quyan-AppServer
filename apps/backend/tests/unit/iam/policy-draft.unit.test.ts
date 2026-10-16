@@ -131,6 +131,19 @@ describe("AI policy drafting admission", () => {
     expect(
       catalog.actions.find((row: { action: string }) => row.action === "quyan:remote_terminal:UpdateEntitlement"),
     ).toMatchObject({ conditionalActions: ["quyan:remote_terminal:DeleteEntitlement"] });
+    expect(
+      catalog.actions.find((row: { action: string }) => row.action === "quyan:relay:DuplicateChannels"),
+    ).toMatchObject({
+      resourceDependencies: [
+        {
+          action: "quyan:relay:CreateChannelCopy",
+          resourceTypes: ["platform/relay-channel"],
+          resourceRole: "destination",
+          selection: "server-reserved",
+        },
+      ],
+    });
+    expect(prompt).toContain("Never reuse a destination wildcard to widen source access");
     expect(prompt).toContain("Do not grant every variant automatically");
     expect(prompt).toContain("Never substitute one identity for another");
     expect(result.document?.Statement).toEqual([

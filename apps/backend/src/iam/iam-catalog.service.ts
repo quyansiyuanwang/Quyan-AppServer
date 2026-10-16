@@ -27,6 +27,14 @@ export class IamCatalogService {
         conditionKeys: [...action.conditionKeys],
         ...(action.platformPermissions ? { platformPermissions: [...action.platformPermissions] } : {}),
         ...(action.legacyPermissions ? { legacyPermissions: [...action.legacyPermissions] } : {}),
+        ...(action.resourceDependencies
+          ? {
+              resourceDependencies: action.resourceDependencies.map((dependency) => ({
+                ...dependency,
+                resourceTypes: [...dependency.resourceTypes],
+              })),
+            }
+          : {}),
         ...(action.requiredActions ? { requiredActions: [...action.requiredActions] } : {}),
         ...(action.conditionalActions ? { conditionalActions: [...action.conditionalActions] } : {}),
         apiRoutes: [

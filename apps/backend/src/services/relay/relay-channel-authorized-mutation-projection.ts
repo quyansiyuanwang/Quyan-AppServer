@@ -1,3 +1,4 @@
+import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
 import type { Prisma } from "@prisma/client";
 import { formatRelayRequestFormats, type IamPrincipal } from "@quyan/shared";
 import type { TypedRequest } from "@/types/express";
@@ -13,6 +14,8 @@ export async function projectAuthorizedRelayChannelMutation(
   input: {
     principal: IamPrincipal;
     action: string;
+    /** Copying uses a distinct source capability; destination creation must not grant arbitrary source access. */
+    relatedAction?: string;
     request: TypedRequest;
     id: string;
     recheck: (tx: Prisma.TransactionClient) => Promise<void>;
@@ -22,8 +25,30 @@ export async function projectAuthorizedRelayChannelMutation(
   const result = await RelayChannelConfigurationReadRepository.getInstance().read(
     principal,
     { id, includeDisabled: true },
-    (resources) =>
-      platformCollectionDecisions(IamAuthorizationService.getInstance(), { principal, action, request, resources }),
+    async (resources) => {
+      const iam = IamAuthorizationService.getInstance();
+      if (!input.relatedAction || input.relatedAction === action)
+        return platformCollectionDecisions(iam, { principal, action, request, resources });
+      const decisions = new Array<string>(resources.length),
+        root = platformRelayChannelArn(id);
+      for (const currentAction of [action, input.relatedAction]) {
+        const indices = resources
+          .map((resource, index) => ((resource === root ? action : input.relatedAction) === currentAction ? index : -1))
+          .filter((index) => index >= 0);
+        if (!indices.length) continue;
+        const outcomes = await platformCollectionDecisions(iam, {
+          principal,
+          action: currentAction,
+          request,
+          resources: indices.map((index) => resources[index]!),
+        });
+        if (outcomes.length !== indices.length) throw iamAccountDenied();
+        indices.forEach((index, offset) => {
+          decisions[index] = outcomes[offset]!;
+        });
+      }
+      return decisions;
+    },
     () => recheck(tx),
     async ({ records, context, verify }) => {
       if (records.length !== 1 || records[0]!.source.id !== id || !verify) throw iamAccountDenied();

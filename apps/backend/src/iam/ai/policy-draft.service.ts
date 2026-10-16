@@ -39,6 +39,14 @@ const compactCatalog = (policyKind: IamPolicyDraftKind) => ({
     accessLevel: definition.accessLevel,
     resourceTypes: definition.resourceTypes,
     conditionKeys: definition.conditionKeys,
+    ...(definition.resourceDependencies
+      ? {
+          resourceDependencies: definition.resourceDependencies.map((dependency) => ({
+            ...dependency,
+            resourceTypes: [...dependency.resourceTypes],
+          })),
+        }
+      : {}),
     ...(definition.requiredActions ? { requiredActions: definition.requiredActions } : {}),
     ...(definition.conditionalActions ? { conditionalActions: definition.conditionalActions } : {}),
   })),
@@ -148,6 +156,7 @@ export class IamPolicyDraftService {
       "Do not invent actions, resource ARNs, account IDs, or condition keys. If a required detail is missing, keep the document narrow and list the missing detail.",
       "Never publish, attach, update, or delete anything. This response is only a draft.",
       "Catalog requiredActions are additional checks on the same resource, not automatic grants. Explain dependencies; include them only within the requested scope. They may come from other policies. If a dependency is outside the request, list it in missingInformation instead of broadening the draft.",
+      "Catalog resourceDependencies require separate checks on the named source/destination/reference resources. These are not same-resource grants. Keep source permissions separate from server-reserved destination creation patterns. Never reuse a destination wildcard to widen source access; if the required creation scope is unclear, list it in missingInformation rather than adding grants.",
       "Catalog conditionalActions are additional checks for documented variants only. Do not grant every variant automatically. If the requested variant is unclear, list the missing detail instead of adding grants.",
       "ARN template placeholders name distinct identities: submitterUserId is the original submitter, channelId identifies the channel (not a user or change-request ID), providerUserId is the proposed recipient, and requestId identifies the change request. Never substitute one identity for another or invent a server-reserved creation ID. Explicitly scoped creation patterns may be needed for future IDs; do not add a wildcard without explaining its exact scope and risk.",
       "Output shape: { document: policy document or null, explanation: string[], missingInformation: string[] }. Version is exactly 1 as a string. Identity statements contain Sid, Effect, exactly one of Action/NotAction, Resource and supported Condition only. Prefer explicit Action. Identity NotAction is compiled to the current resource-compatible catalog snapshot and cannot select future actions. Trust statements additionally require Principal.RAM with exact acs:quyan::<accountId>:user/<userId> values from the same account. Trust requires explicit Action and rejects NotAction; all other fields are unsupported.",

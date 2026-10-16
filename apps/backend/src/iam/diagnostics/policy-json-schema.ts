@@ -19,7 +19,7 @@ export function getIamPolicyJsonSchema(policyKind: "identity" | "trust" = "ident
     description:
       policyKind === "trust"
         ? "Role trust requires exact RAM Principal, AssumeRole Action, role Resource and supported Condition. Server validation and delegation checks are mandatory."
-        : "Effect, exactly one of Action/NotAction, Resource and supported Condition clauses. NotAction is compiled to a finite resource-compatible catalog snapshot. Catalog requiredActions describe additional server checks, not automatic grants; conditionalActions apply only to documented variants. Server diagnosis and delegation checks are required before publishing.",
+        : "Effect, exactly one of Action/NotAction, Resource and supported Condition clauses. NotAction is compiled to a finite resource-compatible catalog snapshot. Catalog requiredActions describe additional server checks, not automatic grants; conditionalActions apply only to documented variants. resourceDependencies require separate checks on the indicated source/destination/reference resources, never automatic grants. Server diagnosis and delegation checks are required before publishing.",
     "x-quyan-policy-kind": policyKind,
     "x-quyan-server-validation-required": true,
     "x-quyan-limits": IAM_POLICY_LIMITS,
@@ -30,6 +30,14 @@ export function getIamPolicyJsonSchema(policyKind: "identity" | "trust" = "ident
       resourceTypes: [...action.resourceTypes],
       ...(action.authorizationBoundary ? { authorizationBoundary: action.authorizationBoundary } : {}),
       ...(action.platformPermissions ? { platformPermissions: [...action.platformPermissions] } : {}),
+      ...(action.resourceDependencies
+        ? {
+            resourceDependencies: action.resourceDependencies.map((dependency) => ({
+              ...dependency,
+              resourceTypes: [...dependency.resourceTypes],
+            })),
+          }
+        : {}),
       ...(action.requiredActions ? { requiredActions: [...action.requiredActions] } : {}),
       ...(action.conditionalActions ? { conditionalActions: [...action.conditionalActions] } : {}),
     })),

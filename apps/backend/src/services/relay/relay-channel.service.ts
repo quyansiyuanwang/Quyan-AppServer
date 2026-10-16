@@ -1,3 +1,6 @@
+import { relayChannelExportConfigurationSchema } from "@/api/schema/relay/relay-channel.schema";
+import { RelayChannelDuplicateIamService } from "./relay-channel-duplicate-iam.service";
+import type { ChannelDuplicatePreparation } from "@/store/relay/relay-channel-duplicate.repository";
 import { RelayChannelBatchUpdateIamService } from "./relay-channel-batch-update-iam.service";
 import type { BatchChannelPatch } from "@/store/relay/relay-channel-batch-update.repository";
 import { batchUpdateRelayChannelPatchSchema } from "@/api/schema/relay/relay-channel.schema";
@@ -2267,7 +2270,9 @@ export class RelayChannelService {
     };
   }
 
-  private toCreateRequest(channel: RelayChannel): RelayChannelImportItemDto {
+  private toCreateRequest(
+    channel: RelayChannelValidationSource & Pick<RelayChannel, "status">,
+  ): RelayChannelImportItemDto {
     return {
       name: channel.name,
       channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
@@ -3678,6 +3683,62 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelDto> {
+    const result = await RelayChannelDuplicateIamService.getInstance().execute(
+      "single",
+      [id],
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async () => [await this.duplicateChannelLegacy(id, data, actorUserId, request)],
+      this.prepareChannelDuplicate(),
+      (name, reserved) => this.buildCopyName(name, reserved),
+    );
+    if (result.length !== 1) throw iamAccountDenied();
+    return result[0]!;
+  }
+
+  private prepareChannelDuplicate(): ChannelDuplicatePreparation {
+    return async (source, name, catalog, presence, topologyMode) => {
+      const parsed = relayChannelExportConfigurationSchema.safeParse({ ...this.toCreateRequest(source), name });
+      if (!parsed.success)
+        throw new BadRequestError("Invalid source channel configuration", undefined, {
+          messageKey: "errors.badRequest",
+        });
+      const validated = await this.buildValidatedChannelData(
+        {
+          ...parsed.data,
+          openaiUpstreamUrl: source.openaiUpstreamUrl ?? undefined,
+          anthropicUpstreamUrl: source.anthropicUpstreamUrl ?? undefined,
+          geminiUpstreamUrl: source.geminiUpstreamUrl ?? undefined,
+        },
+        undefined,
+        catalog,
+        presence,
+        topologyMode,
+      );
+      const data = this.toPersistenceInput(validated);
+      // These values are copied by SQL only after source/destination/reference authorization.
+      delete data.openaiUpstreamApiKey;
+      delete data.anthropicUpstreamApiKey;
+      delete data.geminiUpstreamApiKey;
+      for (const key of [
+        "routingConfig",
+        "visibilityConfig",
+        "modelMapping",
+        "timePeriodMultipliers",
+        "contextLengthMultipliers",
+      ] as const)
+        if (data[key] === null) data[key] = Prisma.JsonNull;
+      return data;
+    };
+  }
+
+  private async duplicateChannelLegacy(
+    id: string,
+    data: DuplicateRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -3721,6 +3782,23 @@ export class RelayChannelService {
   }
 
   async batchDuplicateChannels(ids: string[], actorUserId: string, request?: Request): Promise<RelayChannelDto[]> {
+    return RelayChannelDuplicateIamService.getInstance().execute(
+      "batch",
+      ids,
+      {},
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.batchDuplicateChannelsLegacy(ids, actorUserId, request),
+      this.prepareChannelDuplicate(),
+      (name, reserved) => this.buildCopyName(name, reserved),
+    );
+  }
+
+  private async batchDuplicateChannelsLegacy(
+    ids: string[],
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto[]> {
     const sourceChannels = await this.getOrderedChannelsByIds(ids, true);
     const duplicatedChannels = await this.relayChannelRepository.withTransaction(async (tx) => {
       const reservedNames = await this.getVisibleNameSet();

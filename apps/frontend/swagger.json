@@ -62130,6 +62130,43 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"IamActionResourceDependency": {
+				"description": "Additional runtime checks against different resources; never an implicit grant.",
+				"properties": {
+					"action": {
+						"type": "string"
+					},
+					"resourceTypes": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array"
+					},
+					"resourceRole": {
+						"type": "string",
+						"enum": [
+							"source",
+							"destination",
+							"reference"
+						]
+					},
+					"selection": {
+						"type": "string",
+						"enum": [
+							"server-reserved",
+							"server-resolved"
+						]
+					}
+				},
+				"required": [
+					"action",
+					"resourceTypes",
+					"resourceRole",
+					"selection"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"IamActionDefinition": {
 				"properties": {
 					"action": {
@@ -62168,12 +62205,19 @@
 						"type": "array",
 						"description": "Extra server Actions needed only for documented operation variants, not automatic grants."
 					},
+					"resourceDependencies": {
+						"items": {
+							"$ref": "#/components/schemas/IamActionResourceDependency"
+						},
+						"type": "array",
+						"description": "Additional checks on other resources, distinct from same-resource requiredActions."
+					},
 					"requiredActions": {
 						"items": {
 							"type": "string"
 						},
 						"type": "array",
-						"description": "Additional server-checked Actions required by every variant; this metadata grants nothing."
+						"description": "Additional server-checked Actions on the same resource required by every variant; this metadata grants nothing."
 					},
 					"conditionKeys": {
 						"items": {

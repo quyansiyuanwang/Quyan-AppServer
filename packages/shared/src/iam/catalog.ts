@@ -3,6 +3,13 @@ import { IAM_PLATFORM_ACCOUNT_ID } from './platform'
 import { ALL_PERMISSIONS, Permission } from '../permission'
 import { actionForPermission } from './legacy-permission-map'
 
+/** Additional runtime checks against different resources; never an implicit grant. */
+export interface IamActionResourceDependency {
+  action: string
+  resourceTypes: string[]
+  resourceRole: 'source' | 'destination' | 'reference'
+  selection: 'server-reserved' | 'server-resolved'
+}
 export interface IamActionDefinition {
   action: string
   service: string
@@ -12,7 +19,9 @@ export interface IamActionDefinition {
   apiRoutes: string[]
   /** Extra server Actions needed only for documented operation variants, not automatic grants. */
   conditionalActions?: string[]
-  /** Additional server-checked Actions required by every variant; this metadata grants nothing. */
+  /** Additional checks on other resources, distinct from same-resource requiredActions. */
+  resourceDependencies?: IamActionResourceDependency[]
+  /** Additional server-checked Actions on the same resource required by every variant; this metadata grants nothing. */
   requiredActions?: string[]
   conditionKeys: string[]
   sensitive: boolean
@@ -2467,6 +2476,54 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_CHANNEL_UPDATE,
+  },
+  {
+    action: 'quyan:relay:DuplicateChannels',
+    resourceDependencies: [
+      {
+        action: 'quyan:relay:CreateChannelCopy',
+        resourceTypes: ['platform/relay-channel'],
+        resourceRole: 'destination',
+        selection: 'server-reserved',
+      },
+    ],
+    service: 'relay',
+    operation: 'DuplicateChannels',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/relay-channel'],
+    apiRoutes: [
+      'POST /v1/relay-channels/{id}/duplicate',
+      'POST /v1/relay-channels/batch/duplicate',
+    ],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_CREATE,
+  },
+  {
+    action: 'quyan:relay:CreateChannelCopy',
+    resourceDependencies: [
+      {
+        action: 'quyan:relay:DuplicateChannels',
+        resourceTypes: ['platform/relay-channel'],
+        resourceRole: 'source',
+        selection: 'server-resolved',
+      },
+    ],
+    service: 'relay',
+    operation: 'CreateChannelCopy',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/relay-channel'],
+    apiRoutes: [
+      'POST /v1/relay-channels/{id}/duplicate',
+      'POST /v1/relay-channels/batch/duplicate',
+    ],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_CREATE,
   },
   {
     action: 'quyan:relay:BatchUpdateChannels',

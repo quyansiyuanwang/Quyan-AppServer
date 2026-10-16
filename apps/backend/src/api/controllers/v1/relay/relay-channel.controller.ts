@@ -3,6 +3,7 @@ import {
   platformRelayChannelUpstreamModelResources,
   platformRelayChannelModelRestrictionResources,
   platformRelayChannelBatchUpdateResources,
+  platformRelayChannelDuplicateResources,
   platformRelayChannelResourceResolver,
 } from "@/iam/resources/platform-relay-channel-resources";
 import { platformRelayChannelChangeRequestReviewResourceResolver } from "@/iam/request/platform-relay-channel-change-request-resource-resolver";
@@ -838,9 +839,9 @@ export class RelayChannelController extends Controller {
   @Post("{id}/duplicate")
   @Security("jwt")
   @CheckPermission(Permission.RELAY_CHANNEL_CREATE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Create",
+    action: "quyan:relay:DuplicateChannels",
     resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
+    resource: platformRelayChannelResourceResolver,
   })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -859,7 +860,11 @@ export class RelayChannelController extends Controller {
 
   @Post("batch/duplicate")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_CREATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_CREATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:DuplicateChannels",
+    resourceKind: "batch",
+    resource: platformRelayChannelDuplicateResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

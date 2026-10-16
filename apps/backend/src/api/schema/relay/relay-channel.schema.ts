@@ -289,9 +289,11 @@ export const batchUpdateRelayChannelHealthConfigBodySchema = z
     }
   });
 
-export const duplicateRelayChannelBodySchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-});
+export const duplicateRelayChannelBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict();
 
 export const batchSetRelayChannelStatusBodySchema = z.object({
   ids: relayChannelIdsSchema,
@@ -302,9 +304,11 @@ export const batchDeleteRelayChannelsBodySchema = z.object({
   ids: relayChannelIdsSchema,
 });
 
-export const batchDuplicateRelayChannelsBodySchema = z.object({
-  ids: relayChannelIdsSchema,
-});
+export const batchDuplicateRelayChannelsBodySchema = z
+  .object({
+    ids: relayChannelIdsSchema,
+  })
+  .strict();
 
 export const batchUpdateRelayChannelPatchSchema = z
   .object({

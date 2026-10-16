@@ -1,4 +1,5 @@
 import {
+  batchDuplicateRelayChannelsBodySchema,
   batchUpdateRelayChannelsBodySchema,
   batchRelayChannelUpstreamModelsBodySchema,
   applyRelayChannelModelRestrictionsBodySchema,
@@ -60,3 +61,12 @@ export const platformRelayChannelBatchUpdateResources: import("../request/resour
     if (!parsed.success || parsed.data.ids.some((id) => !isPlatformLogResourceId(id))) return undefined;
     return parsed.data.ids.map(platformRelayChannelArn);
   };
+
+/** The source batch only; server-reserved destinations and referenced topology are admitted in the service. */
+export const platformRelayChannelDuplicateResources: import("../request/resource-resolvers").BatchResourceResolver = ({
+  request,
+}) => {
+  const parsed = batchDuplicateRelayChannelsBodySchema.safeParse(request.body);
+  if (!parsed.success || parsed.data.ids.some((id) => !isPlatformLogResourceId(id))) return undefined;
+  return parsed.data.ids.map(platformRelayChannelArn);
+};
