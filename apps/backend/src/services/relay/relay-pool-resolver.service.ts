@@ -139,6 +139,8 @@ export class RelayPoolResolverService {
       undefined,
       new Set(),
       context.includeDisabled === true,
+      false,
+      { remaining: RELAY_CAPABILITY_RESOLUTION_LIMITS.traversalVisits },
     );
     const capabilities = new Map<string, RelayChannelModelCapability>();
 

@@ -1,3 +1,4 @@
+import { RELAY_CAPABILITY_RESOLUTION_LIMITS } from "../../../src/constant/relay-capability";
 import { filterBlockedAutomaticPoolCandidates } from "../../../src/services/relay/relay-candidate-exclusions";
 import { describe, expect, it, vi } from "vitest";
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
@@ -577,5 +578,24 @@ describe("RelayPoolResolverService", () => {
     await resolver.resolveChannelCapabilities(second.id, context);
 
     expect(relayChannelRepository.listActive).toHaveBeenCalledTimes(1);
+  });
+  it("bounds deeply nested capability graphs even when no cycle exists", async () => {
+    const nodes = Array.from({ length: RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth + 3 }, (_, i) =>
+      createChannel("deep-" + i, {
+        channelType: "pooled",
+        providerServiceEnabled: true,
+        poolMembers:
+          i < RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth + 2
+            ? [{ memberChannelId: "deep-" + (i + 1), priority: 0, weight: 1, enabled: true }]
+            : [],
+      }),
+    );
+    const { resolver } = createResolver([]);
+    await expect(
+      resolver.resolveChannelCapabilities(nodes[0].id, {
+        graph: new Map(nodes.map((node) => [node.id, node])),
+        modelCatalog: [],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestError);
   });
 });

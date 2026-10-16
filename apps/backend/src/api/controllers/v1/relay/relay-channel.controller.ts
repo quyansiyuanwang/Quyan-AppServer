@@ -239,18 +239,15 @@ export class RelayChannelController extends Controller {
    */
   @Get("catalog")
   @Security("jwt", ["relay:channel:read"])
-  @RequireAnyPermission([
-    Permission.RELAY_CHANNEL_SUBMIT,
-    Permission.RELAY_TOKEN_CREATE,
-    Permission.RELAY_TOKEN_READ,
-    Permission.MONTHLY_PASS_TEMPLATE_READ,
-    Permission.MONTHLY_PASS_TEMPLATE_WRITE,
-    Permission.OJ_APIKEY_CREATE,
-    Permission.OJ_APIKEY_READ,
-    Permission.OJ_APIKEY_UPDATE,
-  ])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListChannelCatalog",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listCatalogOptions(@Request() request: TypedRequest): Promise<RelayCatalogOptionDto[]> {
-    return this.channelService.listCatalogOptions(request.user!.userId);
+    return this.channelService.listCatalogOptions(request.user!.userId, request);
   }
 
   @Get("health/overview")

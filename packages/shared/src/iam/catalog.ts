@@ -1796,6 +1796,27 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
   }),
 
   {
+    action: 'quyan:relay:ListChannelCatalog',
+    service: 'relay',
+    operation: 'ListChannelCatalog',
+    sensitive: false,
+    accessLevel: 'List',
+    resourceTypes: ['relay/channel-selection'],
+    apiRoutes: ['GET /v1/relay-channels/catalog'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    authorizationStage: 'declared',
+    legacyPermissions: [
+      Permission.RELAY_CHANNEL_SUBMIT,
+      Permission.RELAY_TOKEN_CREATE,
+      Permission.RELAY_TOKEN_READ,
+      Permission.MONTHLY_PASS_TEMPLATE_READ,
+      Permission.MONTHLY_PASS_TEMPLATE_WRITE,
+      Permission.OJ_APIKEY_CREATE,
+      Permission.OJ_APIKEY_READ,
+      Permission.OJ_APIKEY_UPDATE,
+    ],
+  },
+  {
     action: 'quyan:relay:SelectTokenChannel',
     service: 'relay',
     operation: 'SelectTokenChannel',

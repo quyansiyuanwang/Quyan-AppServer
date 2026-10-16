@@ -1,3 +1,5 @@
+import { catalogModelCapabilities, catalogModelPriceRanges } from "./relay-channel-catalog-projection";
+import { RelayChannelCatalogIamService } from "./relay-channel-catalog-iam.service";
 import { RelayChannelUpstreamModelIamService } from "./relay-channel-upstream-model-iam.service";
 import {
   parseUpstreamModels,
@@ -75,7 +77,6 @@ import type {
   RelayChannelDto,
   RelayCatalogOptionDto,
   RelayRoutingCatalogOptionDto,
-  RelayCatalogModelPriceRangeDto,
   RelayChannelOptionDto,
   RelayChannelExportItemDto,
   RelayChannelExportResponse,
@@ -628,7 +629,13 @@ export class RelayChannelService {
    * API documentation projection. Variable-priced logical channels are published without their
    * pool identity, members, or routing details; consumers only receive per-model price ranges.
    */
-  async listCatalogOptions(actorUserId: string): Promise<RelayCatalogOptionDto[]> {
+  async listCatalogOptions(actorUserId: string, request?: TypedRequest): Promise<RelayCatalogOptionDto[]> {
+    return RelayChannelCatalogIamService.getInstance().read(actorUserId, request, () =>
+      this.listLegacyCatalogOptions(actorUserId),
+    );
+  }
+
+  private async listLegacyCatalogOptions(actorUserId: string): Promise<RelayCatalogOptionDto[]> {
     const [relayConfig, activeChannels, modelCatalog] = await Promise.all([
       this.relayConfigService.getRelayConfig(),
       this.relayChannelRepository.listActive(),
@@ -681,7 +688,7 @@ export class RelayChannelService {
           channel.id,
           resolverContext,
         );
-        const modelCapabilities = this.toCatalogModelCapabilities(resolvedCapabilities);
+        const modelCapabilities = catalogModelCapabilities(resolvedCapabilities);
 
         if (channelType === "automatic-proxy-pool") {
           return {
@@ -694,7 +701,7 @@ export class RelayChannelService {
             ]),
             modelCapabilities,
             pricingMode: "range" as const,
-            modelPriceRanges: this.toCatalogModelPriceRanges(resolvedCapabilities, activeChannelsById, now),
+            modelPriceRanges: catalogModelPriceRanges(resolvedCapabilities, activeChannelsById, now),
             pricingEffectiveAt: now,
             priceMayVary: true,
           } satisfies RelayCatalogOptionDto;
@@ -729,83 +736,6 @@ export class RelayChannelService {
     );
 
     return options.sort((left, right) => left.name.localeCompare(right.name));
-  }
-
-  private toCatalogModelCapabilities(
-    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
-  ): RelayCatalogOptionDto["modelCapabilities"] {
-    const capabilities = new Map<string, RelayCatalogOptionDto["modelCapabilities"][number]>();
-    for (const capability of resolvedCapabilities) {
-      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
-      const existing = capabilities.get(key);
-      if (existing) {
-        existing.supportedRequestFormats = [
-          ...new Set([...existing.supportedRequestFormats, ...capability.supportedRequestFormats]),
-        ];
-      } else {
-        capabilities.set(key, {
-          catalogModelName: capability.catalogModelName,
-          requestModelId: capability.requestModelId,
-          supportedRequestFormats: [...capability.supportedRequestFormats],
-        });
-      }
-    }
-    return [...capabilities.values()].sort(
-      (left, right) =>
-        left.catalogModelName.localeCompare(right.catalogModelName) ||
-        left.requestModelId.localeCompare(right.requestModelId),
-    );
-  }
-
-  private toCatalogModelPriceRanges(
-    resolvedCapabilities: Awaited<ReturnType<RelayPoolResolverService["resolveChannelCapabilities"]>>,
-    activeChannelsById: ReadonlyMap<string, RelayChannel>,
-    now: Date,
-  ): RelayCatalogModelPriceRangeDto[] {
-    const ranges = new Map<string, RelayCatalogModelPriceRangeDto>();
-
-    for (const capability of resolvedCapabilities) {
-      const leaf = activeChannelsById.get(capability.leafChannelId);
-      if (!leaf || !isChannelServiceEnabled(leaf)) continue;
-
-      const key = `${capability.catalogModelName}\u0000${capability.requestModelId}`;
-      const multipliers = this.getCatalogContextMultipliers(leaf, now);
-      if (multipliers.length === 0) continue;
-
-      const minMultiplier = Math.min(...multipliers);
-      const maxMultiplier = Math.max(...multipliers);
-      const existing = ranges.get(key);
-      if (existing) {
-        existing.minMultiplier = Math.min(existing.minMultiplier, minMultiplier);
-        existing.maxMultiplier = Math.max(existing.maxMultiplier, maxMultiplier);
-      } else {
-        ranges.set(key, {
-          catalogModelName: capability.catalogModelName,
-          requestModelId: capability.requestModelId,
-          minMultiplier,
-          maxMultiplier,
-        });
-      }
-    }
-
-    return [...ranges.values()].sort(
-      (left, right) =>
-        left.catalogModelName.localeCompare(right.catalogModelName) ||
-        left.requestModelId.localeCompare(right.requestModelId),
-    );
-  }
-
-  private getCatalogContextMultipliers(channel: RelayChannel, now: Date): number[] {
-    const baseMultiplier =
-      Number(channel.multiplier) *
-      computeMultiplierForTime(
-        (channel.timePeriodMultipliers as TimePeriodMultiplierRule[] | null | undefined) ?? [],
-        now,
-      );
-    const rules = (channel.contextLengthMultipliers as ContextLengthMultiplierRule[] | null | undefined) ?? [];
-    const contextMultipliers = rules.filter((rule) => rule.enabled).map((rule) => Number(rule.multiplier));
-    if (!contextMultipliers.includes(1)) contextMultipliers.push(1);
-    return contextMultipliers.filter(Number.isFinite).map((multiplier) => baseMultiplier * multiplier);
   }
 
   private toAutomaticProxyPoolOption(

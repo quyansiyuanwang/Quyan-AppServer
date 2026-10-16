@@ -501,3 +501,11 @@ Before reading saved keys, before sending and before disclosing results, the ser
 Server Configuration includes an advanced AI Resource Protection panel for live admission, queues, RSS, uploads, responses, audit and connection-pool budgets. Saving applies locally at once; other processes refresh within five seconds. Running requests retain their starting content budgets. Per-user and image-scope concurrency protections still apply.
 
 Legacy resource environment values are used only before management settings are saved. Audit bodies remain sanitized and available; backlog may omit bodies or drop records with warnings. Audit logs do not replace billing records.
+
+### Consumer channel catalog permissions
+
+In IAM enforce mode, `GET /v1/relay-channels/catalog` uses `quyan:relay:ListChannelCatalog` on each `acs:relay:*:<yourAccountId>:channel-selection/<channelId>` resource. This is a consumer view of a deployment channel, not permission to administer that channel or read its upstream configuration. An account-level resource does not replace the concrete channel-view grant. The server derives your account from authenticated identity; client Action headers do not change the operation.
+
+For a pool, grant access to the root and to each contributing member whose capabilities and price range should appear. A denied, hidden, disabled, provider-disabled, or otherwise invisible member contributes neither models nor prices. An allowed pool never bypasses a member Deny. Model identity, protocol support, and price remain correlated with the same authorized path. The catalog does not return member identities, routing settings, credentials, upstream URLs, or provider identities. Existing catalog display settings still apply.
+
+Reading the catalog does not grant token-channel selection or platform management. Those operations require their own Actions. OAuth callers still need the channel-read scope in addition to IAM authorization. Revoked policies, role sessions, AccessKeys or OAuth scopes invalidate the result; authorization or data-read failures do not fall back to unrestricted reads. Legacy/shadow modes retain the existing catalog permission gate, and shadow does not perform a second full catalog read.
