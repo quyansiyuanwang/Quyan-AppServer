@@ -100,3 +100,15 @@ describe("generated native channel health clear contracts", () => {
     if (verb === "post") expect(operation.requestBody.required).toBe(true);
   });
 });
+
+describe("generated resource-scoped own channel submission listing", () => {
+  it("retains pagination, channel DTOs, unscoped JWT and safe errors", () => {
+    const operation = document.paths["/v1/relay-channels/submissions/mine"].get;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+    expect(operation.parameters.map((value: { name: string }) => value.name)).toEqual(
+      expect.arrayContaining(["page", "pageSize"]),
+    );
+  });
+});

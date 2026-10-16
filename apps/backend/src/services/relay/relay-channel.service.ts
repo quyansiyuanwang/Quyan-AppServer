@@ -1,3 +1,4 @@
+import { RelayChannelSubmissionReadIamService } from "./relay-channel-submission-read-iam.service";
 import { RelayChannelHealthClearIamService } from "./relay-channel-health-clear-iam.service";
 import { RelayChannelHealthConfigIamService } from "./relay-channel-health-config-iam.service";
 import { RelayChannelHealthReadIamService } from "./relay-channel-health-read-iam.service";
@@ -2340,7 +2341,16 @@ export class RelayChannelService {
     return this.toDto(refreshed ?? channel, undefined, true);
   }
 
-  async listMySubmittedChannels(actorUserId: string, page = 1, pageSize = 20) {
+  async listMySubmittedChannels(actorUserId: string, page = 1, pageSize = 20, request?: TypedRequest) {
+    return RelayChannelSubmissionReadIamService.getInstance().list(
+      request,
+      { page, pageSize },
+      () => this.listMySubmittedChannelsLegacy(actorUserId, page, pageSize),
+      actorUserId,
+    );
+  }
+
+  private async listMySubmittedChannelsLegacy(actorUserId: string, page = 1, pageSize = 20) {
     const result = await this.relayChannelRepository.listSubmittedByUser(actorUserId, page, pageSize);
     return {
       items: await Promise.all(result.records.map((channel) => this.toDto(channel, undefined, true))),

@@ -217,6 +217,21 @@ export function legacyPermissionsToPrincipalPolicy(
             .replace("{resourceId}", "*"),
         ],
       });
+    const ownSubmissions: string[] = statement.Action.filter(
+      (action) => action === "quyan:relay:ListMyChannelSubmissions",
+    );
+    if (ownSubmissions.length)
+      statements.push({
+        Effect: "Allow",
+        Sid: "LegacyRelayOwnSubmissions",
+        Action: ownSubmissions,
+        Resource: [
+          IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/channel-submission")!
+            .arnTemplate.replace("{accountId}", accountOwnerId)
+            .replace("{parentId}", principalUserId)
+            .replace("{resourceId}", "*"),
+        ],
+      });
     const other = statement.Action.filter(
       (action) =>
         !authorOnly.has(action) &&
@@ -225,7 +240,8 @@ export function legacyPermissionsToPrincipalPolicy(
         !jsonCreate.includes(action) &&
         !ojAccess.includes(action) &&
         !personalRelayAccess.includes(action) &&
-        !ownChangeRequests.includes(action),
+        !ownChangeRequests.includes(action) &&
+        !ownSubmissions.includes(action),
     );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>

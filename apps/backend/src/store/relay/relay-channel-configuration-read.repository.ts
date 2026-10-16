@@ -1,3 +1,4 @@
+import { readRelayChannelCredentialPresence } from "./relay-channel-credential-presence";
 import { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -101,12 +102,6 @@ export interface RelayChannelConfigurationReadStore {
 }
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const enabled = (row: Metadata) => row.status === RELAY_CHANNEL_STATUS.ENABLED && row.providerServiceEnabled;
-/** Convert only verified SQL booleans; malformed/raw credential values must never be accepted. */
-function sqlBoolean(value: unknown): boolean {
-  if (value === true || value === 1 || value === 1n) return true;
-  if (value === false || value === 0 || value === 0n) return false;
-  throw iamAccountDenied();
-}
 export class RelayChannelConfigurationReadRepository implements RelayChannelConfigurationReadStore {
   private static instance: RelayChannelConfigurationReadRepository;
   static getInstance() {
@@ -260,33 +255,11 @@ export class RelayChannelConfigurationReadRepository implements RelayChannelConf
         }
         return rows;
       };
-      const readPresence = async () => {
-        const result = new Map<string, RelayChannelCredentialPresence>();
-        for (let offset = 0; offset < targets.length; offset += limit) {
-          const ids = targets.slice(offset, offset + limit).map((row) => row.id);
-          // The database returns presence only. No encrypted credential crosses the application boundary.
-          const rows = await tx.$queryRaw<
-            { id: string; openai: unknown; anthropic: unknown; gemini: unknown }[]
-          >(Prisma.sql`
-            SELECT id, (openaiUpstreamApiKey IS NOT NULL AND OCTET_LENGTH(openaiUpstreamApiKey) > 0) AS openai,
-              (anthropicUpstreamApiKey IS NOT NULL AND OCTET_LENGTH(anthropicUpstreamApiKey) > 0) AS anthropic,
-              (geminiUpstreamApiKey IS NOT NULL AND OCTET_LENGTH(geminiUpstreamApiKey) > 0) AS gemini
-            FROM relay_channels WHERE id IN (${Prisma.join(ids)}) ORDER BY id ASC`);
-          if (
-            rows.length !== ids.length ||
-            new Set(rows.map((row) => row.id)).size !== ids.length ||
-            rows.some((row) => !ids.includes(row.id))
-          )
-            throw iamAccountDenied();
-          for (const row of rows)
-            result.set(row.id, {
-              hasOpenaiUpstreamApiKey: sqlBoolean(row.openai),
-              hasAnthropicUpstreamApiKey: sqlBoolean(row.anthropic),
-              hasGeminiUpstreamApiKey: sqlBoolean(row.gemini),
-            });
-        }
-        return result;
-      };
+      const readPresence = () =>
+        readRelayChannelCredentialPresence(
+          tx,
+          targets.map((row) => row.id),
+        );
       const payload = await readPayload(),
         presence = await readPresence(),
         catalog = targets.length ? await readCatalog() : [];

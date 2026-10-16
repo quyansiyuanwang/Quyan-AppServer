@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { Project } from "ts-morph";
 import { Permission, getIamActionDefinition, isIamActionResourceCompatible } from "@quyan/shared";
 import { collectIamRoutes } from "../../../scripts/iam/route-inventory";
-import { legacyPermissionsToPolicy } from "@/iam/legacy-policy";
+import { relayChannelSubmissionArn } from "@/iam/resources/relay-channel-submission-resources";
+import { legacyPermissionsToPrincipalPolicy, legacyPermissionsToPolicy } from "@/iam/legacy-policy";
 import { evaluatePolicies } from "@/iam/evaluator/policy-evaluator";
 const metadata = "quyan:relay:ReadChannelPoolHealthMetadata",
   resource = "acs:platform:*:platform:relay-channel/channel";
@@ -115,5 +116,36 @@ describe("resource-scoped health clear declarations", () => {
       expect(method).toContain("replayProtectionMiddleware");
       expect(method).toMatch(/validate(Params|Body)/);
     }
+  });
+});
+
+describe("own channel submission authorization", () => {
+  it("registers an account-owned submitter-parented read, not platform channel management", () => {
+    const action = "quyan:relay:ListMyChannelSubmissions",
+      own = relayChannelSubmissionArn("owner", "actor", "channel");
+    expect(own).toBe("acs:relay:*:owner:channel-submission/actor/channel");
+    expect(getIamActionDefinition(action)).toMatchObject({
+      resourceTypes: ["relay/channel-submission"],
+      legacyPermission: Permission.RELAY_CHANNEL_SUBMIT,
+      accessLevel: "List",
+    });
+    expect(getIamActionDefinition(action)?.authorizationBoundary).toBeUndefined();
+    expect(isIamActionResourceCompatible(action, own)).toBe(true);
+    expect(isIamActionResourceCompatible(action, resource)).toBe(false);
+    const document = legacyPermissionsToPrincipalPolicy([Permission.RELAY_CHANNEL_SUBMIT], "owner", "actor")!;
+    expect(evaluatePolicies([{ policyId: "legacy", document }], { action, resource: own }).decision).toBe("Allow");
+    expect(
+      evaluatePolicies([{ policyId: "legacy", document }], {
+        action,
+        resource: relayChannelSubmissionArn("owner", "other", "channel"),
+      }).decision,
+    ).toBe("ImplicitDeny");
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "GET /v1/relay-channels/submissions/mine",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: [action], issues: [] });
   });
 });

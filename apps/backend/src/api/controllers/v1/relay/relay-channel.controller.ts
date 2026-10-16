@@ -407,13 +407,22 @@ export class RelayChannelController extends Controller {
 
   @Get("submissions/mine")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListMyChannelSubmissions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_SUBMIT],
+    }),
+  )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async listMySubmittedChannels(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ): Promise<PaginatedResponse<RelayChannelDto>> {
-    return this.channelService.listMySubmittedChannels(request.user!.userId, page, pageSize);
+    return this.channelService.listMySubmittedChannels(request.user!.userId, page, pageSize, request);
   }
 
   @Delete("submissions/{id}")

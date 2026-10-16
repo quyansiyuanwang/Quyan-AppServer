@@ -18,6 +18,14 @@ The format and model section can probe the corresponding upstream `/v1/models` e
 
 Administrators with `RELAY_CHANNEL_REVIEW` use the separate Channel Supply Review page for initial submissions and change requests. Multiplier, provider shares, and settlement modes are saved through a separate configuration action.
 
+## IAM access to my submissions
+
+In IAM enforce mode, My submitted channels uses `quyan:relay:ListMyChannelSubmissions` on `acs:relay:*:<accountId>:channel-submission/<submitterUserId>/<channelId>`. The submitter segment and account come from the authenticated identity. This is personal submission access, not platform channel management; deployment-global management membership is not required. A JSON-only grant can allow selected own submissions without granting channel creation, review, deletion or health access.
+
+The list always remains limited to the authenticated user's own non-deleted standalone submissions, including pending, rejected, disabled and provider-paused records. Even wildcard policies cannot list another submitter's channels. Authorization filtering happens before pagination and total calculation; totals describe only allowed submissions. Private visibility does not hide a submission from its original submitter. An assumed role uses its own policy grants, not the user's grants. These unscoped endpoints do not accept OAuth tokens.
+
+The response preserves review information, effective models and upstream key-presence booleans, but never returns key values. A submitted standalone channel does not expose a pool parent or unrelated members. If identity, authorization or relevant resource data changes during loading, the result is rejected. Legacy/shadow retain the existing payload read once, without a second configuration read for shadow comparison.
+
 ## Earnings and settlement
 
 Earnings are created only from an amount actually debited from a consumer balance. Failed requests, zero charges, and fully covered monthly-pass usage create no earnings. When a pass covers only part of a request, only the remaining debit is shared. Each earning preserves the channel, provider, and percentage snapshot from when the debit occurred, so later edits never rewrite history.
