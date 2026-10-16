@@ -1,3 +1,4 @@
+import { PlatformRelayChannelDeleteIamService } from "./platform-relay-channel-delete-iam.service";
 import { RelayChannelSubmissionCreateIamService } from "./relay-channel-submission-create-iam.service";
 import { RelayChannelSubmissionMutationIamService } from "./relay-channel-submission-mutation-iam.service";
 import { RelayChannelSubmissionReadIamService } from "./relay-channel-submission-read-iam.service";
@@ -3468,6 +3469,19 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchRelayChannelsResultDto> {
+    return PlatformRelayChannelDeleteIamService.getInstance().execute(
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.batchDeleteChannelsLegacy(body, actorUserId, request),
+    );
+  }
+
+  private async batchDeleteChannelsLegacy(
+    body: BatchDeleteRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchRelayChannelsResultDto> {
     await this.getOrderedChannelsByIds(body.ids, true);
     const affected = await this.relayChannelRepository.softDeleteAndUnassignTokensByIds(body.ids);
 
@@ -3630,6 +3644,19 @@ export class RelayChannelService {
   }
 
   async deleteChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
+    await PlatformRelayChannelDeleteIamService.getInstance().execute(
+      { ids: [id] },
+      actorUserId,
+      request as TypedRequest | undefined,
+      async () => {
+        await this.deleteChannelLegacy(id, actorUserId, request);
+        return { total: 1, affected: 1 };
+      },
+      true,
+    );
+  }
+
+  private async deleteChannelLegacy(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });

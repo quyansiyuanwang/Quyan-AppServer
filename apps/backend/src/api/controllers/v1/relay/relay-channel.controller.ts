@@ -1,3 +1,4 @@
+import { platformRelayChannelResourceResolver } from "@/iam/resources/platform-relay-channel-resources";
 import { relayChannelSubmissionResourceResolver } from "@/iam/resources/relay-channel-submission-resources";
 import { relayProviderClaimBalanceResourceResolver } from "@/iam/request/relay-provider-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -870,9 +871,9 @@ export class RelayChannelController extends Controller {
   @Delete("{id}")
   @Security("jwt")
   @CheckPermission(Permission.RELAY_CHANNEL_DELETE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Delete",
+    action: "quyan:relay:DeleteChannel",
     resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
+    resource: platformRelayChannelResourceResolver,
   })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -880,6 +881,8 @@ export class RelayChannelController extends Controller {
     replayProtectionMiddleware,
     validateParams(relayChannelIdParamsSchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async deleteChannel(@Path() id: string, @Request() request: TypedRequest): Promise<{ message: string }> {
     await this.channelService.deleteChannel(id, request.user!.userId, request);
     setResponseMessageKey(request, "relay.channelDeleted");
@@ -888,13 +891,22 @@ export class RelayChannelController extends Controller {
 
   @Post("batch/delete")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_DELETE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:DeleteChannel",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_DELETE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(batchDeleteRelayChannelsBodySchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async batchDeleteChannels(
     @Body() body: BatchDeleteRelayChannelsRequest,
     @Request() request: TypedRequest,

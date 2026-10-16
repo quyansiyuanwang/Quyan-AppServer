@@ -447,6 +447,14 @@ Administrators can review channel status, add multiple providers in the channel 
 4. Before publishing pricing changes, check global multiplier, channel multiplier, and time-based multipliers together to avoid unintended stacking.
 5. After changing pooled routing, review switch logs and status views to confirm failover behaves as intended.
 
+## Resource-scoped channel deletion
+
+With IAM enforcement enabled, both single and batch channel deletion require `quyan:relay:DeleteChannel` for each target, using `acs:platform:*:platform:relay-channel/<channelId>`. These channels are shared deployment resources, not resources under the caller's account ARN. The caller must also retain deployment-managed channel-deletion eligibility; an account policy cannot create that eligibility. Step-up verification and replay protection still apply.
+
+Policies using the older `quyan:relay:channel:Delete` alias with an account-owned channel ARN must be updated to the Action and platform ARN above before using the native operation. Legacy `RELAY_CHANNEL_DELETE` permissions are mapped automatically; a JSON policy does not gain new platform authority merely because its resource ID matches.
+
+All requested channels must be authorized and still exist. A denied, missing, already deleted or changed target cancels the entire request. Deletion and its mandatory routing-reference cleanup commit together: direct and automatic-pool token references are cleared, selected-channel and pool memberships are removed, and active change requests for the deleted channels are retired. Unrelated channels and historical provider/earnings records are not deleted. Deletion does not grant access to token values, upstream keys or other channel configurations. During migration, legacy/shadow modes retain the existing business deletion; shadow evaluation does not delete a second time.
+
 ## Related pages
 
 - `relay-token-management`

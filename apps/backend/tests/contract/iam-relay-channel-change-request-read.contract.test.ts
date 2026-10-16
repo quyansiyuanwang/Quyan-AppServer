@@ -138,3 +138,16 @@ describe("generated native channel submission creation contract", () => {
       expect(body.properties).not.toHaveProperty(field);
   });
 });
+
+describe("generated native platform channel deletion contracts", () => {
+  it.each([
+    { path: "/v1/relay-channels/{id}", verb: "delete" },
+    { path: "/v1/relay-channels/batch/delete", verb: "post" },
+  ])("retains unscoped JWT, stepup metadata and safe errors for $verb $path", ({ path, verb }) => {
+    const operation = document.paths[path][verb];
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+    if (verb === "post") expect(operation.requestBody.required).toBe(true);
+  });
+});

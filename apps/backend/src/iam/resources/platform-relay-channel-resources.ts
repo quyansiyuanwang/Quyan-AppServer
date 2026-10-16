@@ -10,3 +10,11 @@ export function platformRelayChannelArn(id: string) {
     path: "relay-channel/" + id,
   });
 }
+
+/** Global channel IDs never inherit an account supplied by the caller. */
+export const platformRelayChannelResourceResolver: import("../request/resource-resolvers").ResourceResolver = ({
+  request,
+}) => {
+  const id = request.params.id;
+  return isPlatformLogResourceId(id) ? platformRelayChannelArn(id) : undefined;
+};
