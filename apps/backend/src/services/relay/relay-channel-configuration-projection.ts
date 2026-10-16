@@ -75,7 +75,7 @@ export type RelayChannelConfigurationSource = Pick<
     id: string;
     userId: string;
     commissionPercent: Prisma.Decimal | number;
-    settlementMode: RelayChannelProviderDto["settlementMode"];
+    settlementMode: string;
     settlementIntervalDays: number | null;
     settlementTime: string | null;
     nextSettlementAt: Date | null;
@@ -151,7 +151,7 @@ export function projectRelayChannelConfiguration(
         userId: provider.userId,
         username: provider.user?.username || provider.userId,
         commissionPercent: Number(provider.commissionPercent),
-        settlementMode: provider.settlementMode,
+        settlementMode: provider.settlementMode as RelayChannelProviderDto["settlementMode"],
         settlementIntervalDays: provider.settlementIntervalDays ?? undefined,
         settlementTime: provider.settlementTime ?? undefined,
         nextSettlementAt: provider.nextSettlementAt ?? undefined,
