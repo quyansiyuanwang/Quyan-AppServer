@@ -4,7 +4,7 @@ import { DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG } from "@/util/anthropic-token-no
 import type { RelayTokenUpdatePreparation } from "./relay-token-update-preparation";
 
 export type RelayTokenCreatePreparation = RelayTokenUpdatePreparation & {
-  generatedCredential: () => string;
+  generatedCredential: () => string | Promise<string>;
 };
 
 /** Build the existing create semantics; admission, locks, persistence and projection belong to the caller. */
@@ -21,7 +21,7 @@ export async function prepareRelayTokenCreate(
     data.routingMode === "composite" || automaticPoolId
       ? { defaultChannelId: undefined, channelConfigs: [] }
       : await prepare.orderedChannels(data.channelId, data.channelConfigs);
-  const token = data.token ? await prepare.customCredential(data.token) : prepare.generatedCredential();
+  const token = data.token ? await prepare.customCredential(data.token) : await prepare.generatedCredential();
   return {
     requiresGraphLock: data.routingMode === "composite",
     create: {

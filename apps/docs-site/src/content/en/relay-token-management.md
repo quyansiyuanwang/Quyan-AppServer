@@ -41,6 +41,16 @@ A caller-provided credential additionally requires `SetTokenCredential` and `Rev
 
 Creation, related configuration, response permissions and final authority checks share one rollback boundary: a late denial leaves no newly created token. Legacy and shadow modes retain the legacy creation result; shadow preview neither inserts another token nor consumes another custom-credential attempt.
 
+### Importing resource-scoped tokens
+
+With IAM enforcement enabled, `POST /v1/relay/tokens/import` accepts 1–200 items. Both your user creation scope and every new token require `quyan:relay:ImportTokens` and `CreateToken`; each new resource also requires `GetToken`. Creation permission alone does not grant import. The server assigns every ID. Item-level IDs, action names and target users cannot override authorization; the top-level `targetUserId` sets the batch target. Only items allowed `RevealToken` return credentials; other items return metadata.
+
+Import preserves stream and content-safety settings and all channel, composite-reference and custom-credential requirements described for creation. Custom-credential count limits include planned additions from this batch, rather than evaluating each item as if other additions did not exist. Ordinary and independently limit-exempt credentials may be mixed, but each item must qualify separately. Importing for another user additionally requires platform qualification and `ImportManagedTokens`, `CreateManagedToken` and `GetManagedToken` on that target user and every new token; sensitive operations use the corresponding managed capabilities.
+
+Existing tokens are never overwritten. Names are trimmed. Collisions with that owner's enabled or disabled tokens or preceding items receive the “（副本）”, “（副本2）”, and subsequent suffixes; differently cased names remain distinct. `enabled: false` creates a disabled token; omission enables it. Legacy-format credentials are canonicalized. If a credential or legacy alias is occupied, including by an earlier batch item, the server generates a different credential without adopting the occupied alias. Use the successful response rather than assuming an imported credential was retained.
+
+In enforce mode, all items' configuration, quotas, references and response permissions share one rollback boundary. Any validation failure, denial or mid-operation revocation leaves no newly created token from the batch. Failed custom-credential setting attempts may still count toward rate limits. Legacy and shadow modes still execute the original import once; shadow preview neither inserts extra items nor consumes additional setting attempts.
+
 ### Updating a complete token configuration
 
 In IAM enforce mode, editing a token requires `quyan:relay:UpdateToken` and independent `GetToken` permission on that token. The response includes its credential only when `RevealToken` is also allowed. Name, expiry, overall quota, quota windows, model rules, protocol conversion, normalization, content safety and streaming settings are updated together: a failed resource, identity, or authorization check rolls back the complete change.

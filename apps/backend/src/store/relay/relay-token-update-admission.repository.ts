@@ -195,7 +195,7 @@ export class RelayTokenUpdateAdmissionRepository {
     const required = free ? Permission.RELAY_TOKEN_CUSTOM_KEY_FREE : Permission.RELAY_TOKEN_CUSTOM_KEY;
     return { free, revision: await captureIamOAuthRevision(identity.principal, identity.oauth, [required], tx) };
   }
-  async credential(tx: Prisma.TransactionClient, preferred: string) {
+  async credential(tx: Prisma.TransactionClient, preferred: string, reserved: ReadonlySet<string> = new Set()) {
     const normalized = preferred.trim(),
       canonical = toCanonicalCredential(normalized, "relayToken");
     const values = [...new Set([normalized, canonical])];
@@ -203,12 +203,13 @@ export class RelayTokenUpdateAdmissionRepository {
       where: { OR: [{ token: { in: values } }, { legacyToken: { in: values } }] },
       select: { id: true },
     });
-    if (!occupied) return { token: canonical, retainAlias: true };
+    if (!occupied && !values.some((value) => reserved.has(value))) return { token: canonical, retainAlias: true };
     let token: string;
     do {
       token = generateRelayTokenValue();
     } while (
-      await tx.relayToken.findFirst({ where: { OR: [{ token }, { legacyToken: token }] }, select: { id: true } })
+      reserved.has(token) ||
+      (await tx.relayToken.findFirst({ where: { OR: [{ token }, { legacyToken: token }] }, select: { id: true } }))
     );
     // Never retain an alias belonging to another credential when falling back to a generated value.
     return { token, retainAlias: false };

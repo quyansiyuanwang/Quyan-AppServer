@@ -1,6 +1,7 @@
+import { isRelayTokenResourceId } from "@/iam/resources/relay-token-resources";
+import { RELAY_TOKEN_CREATION_LIMITS, RELAY_TOKEN_MUTATION_POLICY } from "@/constant/relay-token";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
-import { RELAY_TOKEN_MUTATION_POLICY } from "@/constant/relay-token";
 import { RelayTokenCreateRepository } from "./relay-token-create.repository";
 import type { RelayTokenCreateInput } from "./relay-token.store";
 import {
@@ -20,7 +21,7 @@ export class RelayTokenCreateMutationRepository {
     return (this.instance ??= new RelayTokenCreateMutationRepository());
   }
   async apply<T>(input: {
-    id: string;
+    ids: readonly string[];
     identity: RelayTokenAuthorityIdentity;
     snapshot: RelayTokenAuthoritySnapshot;
     persist: boolean;
@@ -28,10 +29,17 @@ export class RelayTokenCreateMutationRepository {
     authorize: () => Promise<void>;
     prepare: (
       tx: Prisma.TransactionClient,
-    ) => Promise<{ data: RelayTokenCreateInput; verify: (persisted: boolean) => Promise<void> }>;
+    ) => Promise<{ entries: readonly RelayTokenCreateInput[]; verify: (persisted: boolean) => Promise<void> }>;
     response: (tx: Prisma.TransactionClient) => Promise<T>;
   }): Promise<{ response?: T }> {
     const { identity, snapshot } = input;
+    if (
+      !input.ids.length ||
+      input.ids.length > RELAY_TOKEN_CREATION_LIMITS.batch ||
+      new Set(input.ids).size !== input.ids.length ||
+      input.ids.some((id) => !isRelayTokenResourceId(id))
+    )
+      throw iamAccountDenied();
     const users = [
       ...new Set([identity.principal.subjectUserId, identity.principal.accountOwnerId, identity.userId]),
     ].sort();
@@ -61,15 +69,20 @@ export class RelayTokenCreateMutationRepository {
           const revision = await readIamAuthorizationRevision(tx, identity.principal.accountOwnerId);
           await input.authorize();
           const plan = await input.prepare(tx);
-          if (plan.data.userId !== identity.userId) throw iamAccountDenied();
+          if (
+            plan.entries.length !== input.ids.length ||
+            plan.entries.some((entry) => entry.userId !== identity.userId)
+          )
+            throw iamAccountDenied();
           await plan.verify(false);
           await check();
           await input.authorize();
-          if (
-            input.persist &&
-            (await RelayTokenCreateRepository.getInstance().apply(tx, plan.data, input.id)) !== input.id
-          )
-            throw iamAccountDenied();
+          if (input.persist)
+            for (const [index, entry] of plan.entries.entries()) {
+              const id = input.ids[index]!;
+              if ((await RelayTokenCreateRepository.getInstance().apply(tx, entry, id)) !== id)
+                throw iamAccountDenied();
+            }
           await plan.verify(input.persist);
           const response = input.persist ? await input.response(tx) : undefined;
           await check();

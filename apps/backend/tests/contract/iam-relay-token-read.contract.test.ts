@@ -188,3 +188,22 @@ describe("generated composition candidate authorization contract", () => {
       expect(schema.properties).not.toHaveProperty(field);
   });
 });
+
+describe("generated native token import contract", () => {
+  it("retains CREATE OAuth scope, replay, step-up and bounded batch response", () => {
+    const operation = document.paths["/v1/relay/tokens/import"].post;
+    expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_CREATE] });
+    expect(operation["X-Replay-Protected"]).toBe(true);
+    expect(operation["X-Two-Factor-Challenge"]).toMatchObject({ required: true, purpose: "stepup", method: "code" });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+    expect(operation.responses["200"].content["application/json"].schema).toEqual({
+      $ref: "#/components/schemas/ImportRelayTokensResponse",
+    });
+    expect(document.components.schemas.ImportRelayTokensResponse.required).toEqual(
+      expect.arrayContaining(["code", "message", "total", "created", "data"]),
+    );
+    expect(document.components.schemas.RelayTokenImportItemDto.properties).toHaveProperty("streamConfig");
+    expect(document.components.schemas.RelayTokenImportItemDto.properties).toHaveProperty("contentSafetyConfig");
+  });
+});

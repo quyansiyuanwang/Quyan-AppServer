@@ -1,3 +1,4 @@
+import { relayTokenCopyNames } from "@/util/relay/relay-token-name.util";
 import { RelayTokenCreateIamService } from "./relay-token-create-iam.service";
 import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
 import { prepareRelayTokenUpdate } from "./relay-token-update-preparation";
@@ -114,8 +115,6 @@ import {
 const round4 = (value: number): number => Math.round(value * 10000) / 10000;
 const trimTrailingZeros = (value: number): string => String(value).replace(/\.0+$|(\.\d*?[1-9])0+$/, "$1");
 const RELAY_TOKEN_QUOTA_COMPARE_EPSILON = 1e-8;
-const COPY_SUFFIX = "（副本）";
-const MAX_TOKEN_NAME_LENGTH = 100;
 const DEFAULT_DAILY_RESET_TIMEZONE_OFFSET_MINUTES = 0;
 
 const normalizeRequestFormatTransforms = (value: unknown): RelayRequestFormatTransform[] | null => {
@@ -644,6 +643,49 @@ export class RelayTokenService {
   }
 
   async importTokens(
+    body: ImportRelayTokensRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<ImportRelayTokensResponse> {
+    const mode = env.security.iamAuthorizationMode,
+      data = structuredClone(body);
+    const tokens = await RelayTokenCreateIamService.getInstance().importTokens(
+      actorUserId,
+      request,
+      {
+        data,
+        normalizers: {
+          expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+          quotaWindows: (value) => this.normalizeQuotaWindows(value),
+          ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+          requestFormatTransforms: normalizeRequestFormatTransforms,
+          normalizerConfig: normalizeRelayTokenNormalizerConfig,
+          compositeFailover: (count) => this.compositeFailover(count),
+        },
+        generatedCredential: () => this.generateRelayTokenValue(),
+        customKeyConfig: () => this.configService.getRelayCustomKeyConfig(),
+        recordCustomKeyAttempt: (userId) => this.assertCustomKeySetRateLimit(userId),
+        withGraphLock: (userId, write) => this.withGraphWrite(userId, true, write),
+      },
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      async () => (await this.importTokensLegacy(data, actorUserId, request)).data,
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_IMPORT,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: data.targetUserId ?? actorUserId,
+        targetResourceType: "RELAY_TOKEN",
+        description: `导入了 ${tokens.length} 个中转令牌`,
+        metadata: { total: data.tokens.length, created: tokens.length },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { code: 0, message: "success", total: data.tokens.length, created: tokens.length, data: tokens };
+  }
+
+  private async importTokensLegacy(
     body: ImportRelayTokensRequest,
     actorUserId: string,
     request?: Request,
@@ -2450,17 +2492,13 @@ export class RelayTokenService {
   }
 
   private buildCopyName(baseName: string, reservedNames: Set<string>): string {
-    for (let index = 1; index < 10000; index += 1) {
-      const suffix = index === 1 ? COPY_SUFFIX : `（副本${index}）`;
-      const trimmedBaseName = baseName.slice(0, Math.max(1, MAX_TOKEN_NAME_LENGTH - suffix.length)).trim();
-      const candidate = `${trimmedBaseName}${suffix}`;
-
+    for (const candidate of relayTokenCopyNames(baseName)) {
       if (!reservedNames.has(candidate)) {
         reservedNames.add(candidate);
         return candidate;
       }
     }
-
+    // The shared generator throws when no bounded candidate remains.
     throw new BadRequestError("Unable to generate a unique relay token name", undefined, {
       messageKey: "relayToken.nameGenerationFailed",
     });

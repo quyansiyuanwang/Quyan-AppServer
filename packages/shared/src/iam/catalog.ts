@@ -1560,12 +1560,41 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     const resourceTypes = managed ? ['platform/relay-token'] : ['relay/token']
     return [
       {
+        action: managed ? 'quyan:relay:ImportManagedTokens' : 'quyan:relay:ImportTokens',
+        service: 'relay',
+        operation: managed ? 'ImportManagedTokens' : 'ImportTokens',
+        accessLevel: 'Write',
+        resourceTypes: [managed ? 'platform/user' : 'quyan/user', ...resourceTypes],
+        apiRoutes: ['POST /v1/relay/tokens/import'],
+        conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+        sensitive: true,
+        authorizationStage: 'declared',
+        ...(managed ? { authorizationBoundary: 'platform' as const } : {}),
+        requiredActions: [
+          managed ? 'quyan:relay:CreateManagedToken' : 'quyan:relay:CreateToken',
+          managed ? 'quyan:relay:GetManagedToken' : 'quyan:relay:GetToken',
+        ],
+        conditionalActions: [
+          managed ? 'quyan:relay:RevealManagedToken' : 'quyan:relay:RevealToken',
+          'quyan:relay:SelectTokenChannel',
+          managed ? 'quyan:relay:SetManagedTokenCredential' : 'quyan:relay:SetTokenCredential',
+          managed
+            ? 'quyan:relay:BypassManagedTokenCredentialLimits'
+            : 'quyan:relay:BypassTokenCredentialLimits',
+          managed ? 'quyan:relay:ReferenceManagedToken' : 'quyan:relay:ReferenceToken',
+          ...(!managed ? ['quyan:relay:ImportManagedTokens'] : []),
+        ],
+        legacyPermission: managed
+          ? Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE
+          : Permission.RELAY_TOKEN_CREATE,
+      },
+      {
         action: managed ? 'quyan:relay:CreateManagedToken' : 'quyan:relay:CreateToken',
         service: 'relay',
         operation: managed ? 'CreateManagedToken' : 'CreateToken',
         accessLevel: 'Write',
         resourceTypes: [managed ? 'platform/user' : 'quyan/user', ...resourceTypes],
-        apiRoutes: ['POST /v1/relay/tokens'],
+        apiRoutes: ['POST /v1/relay/tokens', 'POST /v1/relay/tokens/import'],
         conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
         sensitive: true,
         authorizationStage: 'declared',
@@ -1680,6 +1709,7 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       'PUT /v1/relay/tokens/{id}/channel',
       'PUT /v1/relay/tokens/{id}',
       'POST /v1/relay/tokens',
+      'POST /v1/relay/tokens/import',
     ],
     conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,

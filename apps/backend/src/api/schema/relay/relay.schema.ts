@@ -1,4 +1,4 @@
-import { RELAY_TOKEN_ROUTING_LIMITS } from "@/constant/relay-token";
+import { RELAY_TOKEN_CREATION_LIMITS, RELAY_TOKEN_ROUTING_LIMITS } from "@/constant/relay-token";
 import { RELAY_COMPOSITION_POLICY } from "@/util/relay/relay-composition.util";
 import { z } from "zod";
 import {
@@ -490,6 +490,8 @@ const relayTokenImportItemSchema = z
     allowedModels: z.string().max(2000).nullish(),
     requestFormatTransforms: relayRequestFormatTransformsSchema.optional(),
     normalizerConfig: relayTokenNormalizerConfigSchema.optional(),
+    contentSafetyConfig: contentSafetyPolicyOverrideSchema.nullable().optional(),
+    streamConfig: relayTokenStreamConfigSchema.optional(),
     ipWhitelist: z.union([relayTokenIpWhitelistSchema, z.null()]).optional(),
     modelMapping: z.record(z.string(), z.string()).optional(),
     enabled: z.coerce.boolean().optional(),
@@ -587,7 +589,7 @@ const relayTokenImportItemSchema = z
   });
 
 export const importRelayTokensBodySchema = z.object({
-  tokens: z.array(relayTokenImportItemSchema).min(1).max(200),
+  tokens: z.array(relayTokenImportItemSchema).min(1).max(RELAY_TOKEN_CREATION_LIMITS.batch),
   targetUserId: z.string().trim().min(1).max(50).optional(),
 });
 

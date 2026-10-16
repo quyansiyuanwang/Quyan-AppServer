@@ -172,6 +172,7 @@ export function legacyPermissionsToPrincipalPolicy(
         "quyan:relay:UpdateTokenChannel",
         "quyan:relay:UpdateToken",
         "quyan:relay:CreateToken",
+        "quyan:relay:ImportTokens",
         "quyan:relay:SetTokenCredential",
         "quyan:relay:ReferenceToken",
         "quyan:relay:BypassTokenCredentialLimits",

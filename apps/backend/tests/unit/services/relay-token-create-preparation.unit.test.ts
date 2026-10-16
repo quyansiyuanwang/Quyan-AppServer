@@ -226,6 +226,14 @@ describe("relay token creation preparation", () => {
     });
     expect(prepare.expiresAt).toHaveBeenCalledWith(data.expiresAt);
   });
+  it("awaits an asynchronous generated-credential occupancy check instead of persisting a promise", async () => {
+    const prepare = callbacks();
+    prepare.generatedCredential.mockResolvedValue("fixture-reserved-value");
+    const { create } = await prepareRelayTokenCreate("owner", {}, prepare);
+    expect(create.token).toBe("fixture-reserved-value");
+    expect(create.isCustomKey).toBe(false);
+    expect(prepare.customCredential).not.toHaveBeenCalled();
+  });
   it("forwards domain normalization to the existing server callbacks", async () => {
     const prepare = callbacks();
     const data: CreateRelayTokenDto = {

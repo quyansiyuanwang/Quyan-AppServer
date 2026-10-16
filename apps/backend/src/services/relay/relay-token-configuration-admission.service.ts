@@ -1,3 +1,4 @@
+import type { RelayTokenCreationReservation } from "@/store/relay/relay-token-creation-reservation";
 import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import type { Prisma } from "@prisma/client";
 import type { RelayCustomKeyConfig } from "@/services/system/config.service";
@@ -40,6 +41,7 @@ export class RelayTokenConfigurationAdmissionService {
     invocation: RelayTokenConfigurationInvocation,
     requireAllow: (action: string, resources: readonly string[]) => Promise<void>,
     decide: (action: string, resources: readonly string[]) => Promise<readonly string[]>,
+    reservation?: RelayTokenCreationReservation,
   ) {
     const { principal, userId, managed } = identity;
     const resource = (tokenId: string) =>
@@ -105,7 +107,7 @@ export class RelayTokenConfigurationAdmissionService {
                 messageKey: "relay.customKeyDisabled",
               });
             const count = await this.repository.customCount(tx, userId);
-            if (!wasCustom && count >= config.maxTokensPerUser)
+            if (!wasCustom && count + (reservation?.customAdds ?? 0) >= config.maxTokensPerUser)
               throw new BadRequestError("Custom relay credential limit reached", undefined, {
                 messageKey: "relay.customKeyLimitReached",
                 messageParams: { limit: config.maxTokensPerUser },
@@ -113,13 +115,19 @@ export class RelayTokenConfigurationAdmissionService {
             verifiers.push(async (tx, persisted) => {
               if (
                 JSON.stringify(await invocation.customKeyConfig()) !== JSON.stringify(config) ||
-                (await this.repository.customCount(tx, userId)) !== count + (persisted && !wasCustom ? 1 : 0)
+                (await this.repository.customCount(tx, userId)) !==
+                  count + (persisted ? (reservation?.customAdds ?? (!wasCustom ? 1 : 0)) : 0)
               )
                 throw iamAccountDenied();
             });
             if (persist) await invocation.recordCustomKeyAttempt(userId);
           }
-          const credential = await this.repository.credential(tx, preferred);
+          const credential = await this.repository.credential(tx, preferred, reservation?.credentials);
+          if (reservation) {
+            if (!wasCustom) reservation.customAdds++;
+            reservation.credentials.add(credential.token);
+            if (credential.retainAlias) reservation.credentials.add(preferred.trim());
+          }
           retainAlias = credential.retainAlias;
           return credential.token;
         },

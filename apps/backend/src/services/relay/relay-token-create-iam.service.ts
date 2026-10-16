@@ -1,7 +1,10 @@
+import { RelayTokenCreationReservation } from "@/store/relay/relay-token-creation-reservation";
+import type { RelayTokenCreateInput } from "@/store/relay/relay-token.store";
 import { createId } from "@paralleldrive/cuid2";
 import type { Prisma } from "@prisma/client";
 import { Permission, buildAcsResource, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { getIamPrincipal } from "@/iam/request/principal-context";
 import { fingerprintIamPolicies } from "@/iam/evaluator/policy-set-fingerprint";
@@ -23,8 +26,8 @@ import { PermissionService } from "@/services/users/permission.service";
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
-import type { CreateRelayTokenDto } from "@/api/dto/relay/relay.dto";
-import { createRelayTokenBodySchema } from "@/api/schema/relay/relay.schema";
+import type { CreateRelayTokenDto, ImportRelayTokensRequest, RelayTokenImportItemDto } from "@/api/dto/relay/relay.dto";
+import { createRelayTokenBodySchema, importRelayTokensBodySchema } from "@/api/schema/relay/relay.schema";
 import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
 import {
   RelayTokenConfigurationAdmissionService,
@@ -32,6 +35,15 @@ import {
 } from "./relay-token-configuration-admission.service";
 export interface RelayTokenCreateInvocation extends RelayTokenConfigurationInvocation {
   data: CreateRelayTokenDto;
+  generatedCredential: () => string;
+}
+export interface RelayTokenImportInvocation extends RelayTokenConfigurationInvocation {
+  data: ImportRelayTokensRequest;
+  generatedCredential: () => string;
+}
+interface RelayTokenBatchCreateInvocation extends RelayTokenConfigurationInvocation {
+  items: RelayTokenImportItemDto[];
+  targetUserId?: string;
   generatedCredential: () => string;
 }
 const action = "quyan:relay:CreateToken",
@@ -66,6 +78,50 @@ export class RelayTokenCreateIamService {
       (data.targetUserId !== undefined && !isRelayTokenResourceId(data.targetUserId))
     )
       throw new BadRequestError("Invalid token creation request", undefined, { messageKey: "errors.badRequest" });
+    const result = await this.execute(
+      "create",
+      actorUserId,
+      request,
+      { ...invocation, items: [data], targetUserId: data.targetUserId },
+      project,
+      async () => [await legacy()],
+    );
+    return result[0]!;
+  }
+  async importTokens<T>(
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    invocation: RelayTokenImportInvocation,
+    project: (record: RelayTokenReadRecord) => Promise<T>,
+    legacy: () => Promise<T[]>,
+  ): Promise<T[]> {
+    const data = structuredClone(invocation.data);
+    if (
+      !importRelayTokensBodySchema.safeParse(data).success ||
+      (data.targetUserId !== undefined && !isRelayTokenResourceId(data.targetUserId))
+    )
+      throw new BadRequestError("Invalid token import request", undefined, { messageKey: "errors.badRequest" });
+    return this.execute(
+      "import",
+      actorUserId,
+      request,
+      { ...invocation, items: data.tokens, targetUserId: data.targetUserId },
+      project,
+      legacy,
+    );
+  }
+  private async execute<T>(
+    operation: "create" | "import",
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    invocation: RelayTokenBatchCreateInvocation,
+    project: (record: RelayTokenReadRecord) => Promise<T>,
+    legacy: () => Promise<T[]>,
+  ): Promise<T[]> {
+    const items = structuredClone(invocation.items),
+      targetUserId = invocation.targetUserId;
+    const endpointAction = operation === "import" ? "quyan:relay:ImportTokens" : action;
+    const endpointManagedAction = operation === "import" ? "quyan:relay:ImportManagedTokens" : managedAction;
     const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {
@@ -86,11 +142,11 @@ export class RelayTokenCreateIamService {
     )
       throw iamAccountDenied();
     if (mode === "legacy") return legacy();
-    const id = this.allocateId();
-    if (!isRelayTokenResourceId(id)) throw iamAccountDenied();
+    const ids = items.map(() => this.allocateId());
+    if (ids.some((id) => !isRelayTokenResourceId(id)) || new Set(ids).size !== ids.length) throw iamAccountDenied();
     const native = async (persist: boolean) => {
       await this.iam.loadPolicies(principal);
-      const userId = data.targetUserId ?? actorUserId,
+      const userId = targetUserId ?? actorUserId,
         oauth = request.oauthAccessToken;
       if (oauth && oauth.userId !== actorUserId) throw iamAccountDenied();
       const identity: RelayTokenAuthorityIdentity = {
@@ -116,7 +172,7 @@ export class RelayTokenCreateIamService {
         )
           throw iamAccountDenied();
       };
-      let verifyResponse: ((tx: Prisma.TransactionClient) => Promise<void>) | undefined;
+      const verifyResponses: ((tx: Prisma.TransactionClient) => Promise<void>)[] = [];
       const recheck = async (tx?: Prisma.TransactionClient) => {
         assertRequest();
         if (
@@ -128,12 +184,12 @@ export class RelayTokenCreateIamService {
           (await captureIamAccessKeyRevision(principal, keyId, tx)) !== keyRevision
         )
           throw iamAccountDenied();
-        if (tx && verifyResponse) await verifyResponse(tx);
+        if (tx) for (const verifyResponse of verifyResponses) await verifyResponse(tx);
         assertRequest();
       };
-      const resource = identity.managed
-        ? platformRelayTokenArn(userId, id)
-        : relayTokenArn(principal.accountOwnerId, userId, id);
+      const resources = ids.map((id) =>
+        identity.managed ? platformRelayTokenArn(userId, id) : relayTokenArn(principal.accountOwnerId, userId, id),
+      );
       const control = buildAcsResource({
         service: "quyan",
         region: "*",
@@ -142,10 +198,7 @@ export class RelayTokenCreateIamService {
       });
       const readAction = identity.managed ? "quyan:relay:GetManagedToken" : "quyan:relay:GetToken";
       const revealAction = identity.managed ? "quyan:relay:RevealManagedToken" : "quyan:relay:RevealToken";
-      const evaluations = new Map<
-        string,
-        { action: string; resources: readonly string[]; decisions: readonly string[] }
-      >();
+      const evaluations = new Map<string, Map<string, string>>();
       const decide = async (operation: string, resources: readonly string[]) => {
         const decisions = await platformCollectionDecisions(this.iam, {
           principal,
@@ -153,79 +206,147 @@ export class RelayTokenCreateIamService {
           request,
           resources,
         });
-        const key = JSON.stringify([operation, resources]),
-          previous = evaluations.get(key);
-        if (previous && decisions.some((value, i) => value !== previous.decisions[i])) throw iamAccountDenied();
-        evaluations.set(key, { action: operation, resources, decisions });
+        const previous = evaluations.get(operation) ?? new Map<string, string>();
+        for (const [index, resource] of resources.entries()) {
+          const decision = decisions[index]!;
+          if (previous.has(resource) && previous.get(resource) !== decision) throw iamAccountDenied();
+          previous.set(resource, decision);
+        }
+        evaluations.set(operation, previous);
         return decisions;
       };
       const requireAllow = async (operation: string, resources: readonly string[]) => {
         if ((await decide(operation, resources)).some((decision) => decision !== "Allow")) throw iamAccountDenied();
       };
       const authorize = async () => {
-        await requireAllow(action, [control]);
+        await requireAllow(endpointAction, [control]);
+        if (operation === "import") await requireAllow(action, [control]);
         if (identity.managed) {
-          await requireAllow(managedAction, [platformUserArn(userId)]);
+          await requireAllow(endpointManagedAction, [platformUserArn(userId)]);
+          if (operation === "import") await requireAllow(managedAction, [platformUserArn(userId)]);
           await requireAllow("quyan:relay:GetToken", [control]);
           await requireAllow(readAction, [platformUserArn(userId)]);
         }
-        await requireAllow(identity.managed ? managedAction : action, [resource]);
-        await requireAllow(readAction, [resource]);
-        for (const entry of [...evaluations.values()]) await decide(entry.action, entry.resources);
+        await requireAllow(identity.managed ? endpointManagedAction : endpointAction, resources);
+        if (operation === "import") await requireAllow(identity.managed ? managedAction : action, resources);
+        await requireAllow(readAction, resources);
+        // Re-evaluate every observed decision, grouping by action rather than replaying each
+        // one-item response query. Bound each call by the shared evaluator request limit.
+        for (const [operation, decisions] of [...evaluations.entries()]) {
+          const targets = [...decisions.keys()];
+          for (let offset = 0; offset < targets.length; offset += IAM_AUTHORIZATION_LIMITS.resourcesPerRequest)
+            await decide(operation, targets.slice(offset, offset + IAM_AUTHORIZATION_LIMITS.resourcesPerRequest));
+        }
       };
       await recheck();
       await authorize();
-      const canReveal = (await decide(revealAction, [resource]))[0] === "Allow";
-      const admission = this.admissions.plan(identity, id, false, invocation, requireAllow, decide);
+      const canReveal = await decide(revealAction, resources);
+      const reservation = new RelayTokenCreationReservation();
+      const admissions = ids.map((id) =>
+        this.admissions.plan(identity, id, false, invocation, requireAllow, decide, reservation),
+      );
       const apply = () =>
         this.repository.apply({
-          id,
+          ids,
           identity,
           snapshot,
           persist,
           recheck,
           authorize,
           prepare: async (tx) => {
-            const created = (
-              await prepareRelayTokenCreate(userId, data, {
-                ...invocation.normalizers,
-                ...admission.preparation(tx, persist),
-                generatedCredential: invocation.generatedCredential,
-              })
-            ).create;
-            const expected = {
-              id,
-              userId,
-              status: created.status ?? 1,
-              routingMode: created.routingMode ?? "ordered",
-              channelId: created.channelId ?? null,
-              isCustomKey: created.isCustomKey ?? false,
-              automaticProxyPoolChannelId: created.automaticProxyPoolChannelId ?? null,
-              blockedAutomaticProxyPoolChannelIds: created.blockedAutomaticProxyPoolChannelIds ?? null,
-              channelConfigs: [...(created.channelConfigs ?? [])].sort((a, b) => a.priority - b.priority),
-              memberTokenConfigs: [...(created.memberTokenConfigs ?? [])].sort((a, b) => a.priority - b.priority),
-            };
-            await admission.routing(tx, expected, {});
-            return {
-              data: created,
-              verify: async (persisted) => {
+            const entries: RelayTokenCreateInput[] = [];
+            const verifyEntries: ((persisted: boolean) => Promise<void>)[] = [];
+            for (const [index, item] of items.entries()) {
+              const id = ids[index]!,
+                admission = admissions[index]!;
+              const name = operation === "import" ? await reservation.name(tx, userId, item.name) : item.name;
+              const created = (
+                await prepareRelayTokenCreate(
+                  userId,
+                  { ...item, name },
+                  {
+                    ...invocation.normalizers,
+                    ...admission.preparation(tx, persist),
+                    generatedCredential: async () => {
+                      const value = await RelayTokenUpdateAdmissionRepository.getInstance().credential(
+                        tx,
+                        invocation.generatedCredential(),
+                        reservation.credentials,
+                      );
+                      reservation.credentials.add(value.token);
+                      return value.token;
+                    },
+                  },
+                )
+              ).create;
+              if (operation === "import") {
+                created.status = item.enabled === false ? 0 : 1;
+                const preferred = item.token?.trim();
+                created.legacyToken =
+                  preferred && admission.retainAlias() && preferred !== created.token ? preferred : null;
+              }
+              const expected = {
+                id,
+                userId,
+                status: created.status ?? 1,
+                routingMode: created.routingMode ?? "ordered",
+                channelId: created.channelId ?? null,
+                isCustomKey: created.isCustomKey ?? false,
+                automaticProxyPoolChannelId: created.automaticProxyPoolChannelId ?? null,
+                blockedAutomaticProxyPoolChannelIds: created.blockedAutomaticProxyPoolChannelIds ?? null,
+                channelConfigs: [...(created.channelConfigs ?? [])].sort((a, b) => a.priority - b.priority),
+                memberTokenConfigs: [...(created.memberTokenConfigs ?? [])].sort((a, b) => a.priority - b.priority),
+              };
+              await admission.routing(tx, expected, {});
+              entries.push(created);
+              verifyEntries.push(async (persisted) => {
                 if (persisted) await RelayTokenUpdateAdmissionRepository.getInstance().verifyCreated(tx, expected);
                 await admission.verify(tx, persisted);
+              });
+            }
+            return {
+              entries,
+              verify: async (persisted) => {
+                for (const verify of verifyEntries) await verify(persisted);
               },
             };
           },
           response: async (tx) => {
+            // Capture response admission together; these transaction-local proofs are re-evaluated
+            // by authorize() after ALL projections and again at the final commit boundary.
+            // Never memoize unrelated member reads or carry these proofs across transactions.
+            const readDecisions = await decide(readAction, resources);
+            const revealDecisions = await decide(revealAction, resources);
+            const responseProofs = new Map([
+              [readAction, new Map(resources.map((resource, index) => [resource, readDecisions[index]!]))],
+              [revealAction, new Map(resources.map((resource, index) => [resource, revealDecisions[index]!]))],
+            ]);
+            const responseDecision = async (operation: string, targets: readonly string[]) => {
+              const proof = responseProofs.get(operation);
+              return proof && targets.every((target) => proof.has(target))
+                ? targets.map((target) => proof.get(target)!)
+                : decide(operation, targets);
+            };
+            const results: T[] = [];
+            for (const [index, id] of ids.entries()) {
+              const response = await this.responses.read(
+                tx,
+                identity,
+                id,
+                responseDecision,
+                canReveal[index] === "Allow",
+              );
+              verifyResponses.push((tx) => this.responses.verify(tx, identity, response.targets));
+              results.push(await project(response.record));
+            }
+            // Recheck the complete batch after projection, including every earlier response target.
+            // Per-item full-batch checks would make the supported 200-item import quadratic.
             await recheck(tx);
             await authorize();
-            const response = await this.responses.read(tx, identity, id, decide, canReveal);
-            verifyResponse = (tx) => this.responses.verify(tx, identity, response.targets);
-            const result = await project(response.record);
-            await recheck(tx);
-            await authorize();
-            return result;
+            return results;
           },
         });
-      return data.routingMode === "composite" ? invocation.withGraphLock(userId, apply) : apply();
+      return items.some((item) => item.routingMode === "composite") ? invocation.withGraphLock(userId, apply) : apply();
     };
     if (mode === "enforce") {
       const result = await native(true);
@@ -236,7 +357,7 @@ export class RelayTokenCreateIamService {
       await native(false);
     } catch {
       getLogger("RelayTokenCreateIam", LogCategory.SECURITY).warn("Token creation shadow evaluation failed", {
-        action,
+        action: endpointAction,
         reason: "iam-evaluation-denied-or-unavailable",
       });
     }
