@@ -66,7 +66,7 @@ export class RelayTokenCapabilityRepository {
     }
     return rows.sort((a, b) => a.id.localeCompare(b.id));
   }
-  async channels(rootIds: readonly string[]) {
+  async channels(rootIds: readonly string[], tx: Prisma.TransactionClient = prisma) {
     const rows = new Map<string, Prisma.RelayChannelGetPayload<{ select: typeof channelSelect }>>();
     const seen = new Set<string>();
     let frontier = [...new Set(rootIds)].sort();
@@ -76,7 +76,7 @@ export class RelayTokenCapabilityRepository {
       for (let offset = 0; offset < frontier.length; offset += IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) {
         const ids = frontier.slice(offset, offset + IAM_AUTHORIZATION_LIMITS.resourcesPerRequest);
         ids.forEach((id) => seen.add(id));
-        const found = await prisma.relayChannel.findMany({
+        const found = await tx.relayChannel.findMany({
           where: { id: { in: ids } },
           select: channelSelect,
           orderBy: { id: "asc" },

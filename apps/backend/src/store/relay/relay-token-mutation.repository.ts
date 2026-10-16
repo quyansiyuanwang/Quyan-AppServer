@@ -1,3 +1,5 @@
+import { RelayTokenUpdateRepository } from "./relay-token-update.repository";
+import type { RelayTokenUpdateInput } from "./relay-token.store";
 import {
   RelayTokenChannelChangeRepository,
   type RelayTokenChannelChange,
@@ -18,7 +20,7 @@ import {
   type RelayTokenAuthorityIdentity,
   type RelayTokenAuthoritySnapshot,
 } from "./relay-token-authority";
-/** Metadata mutations never hydrate credentials, routing, usage or relation payloads. */
+/** Initial admission reads metadata only; operation-specific reads require independent proofs. */
 const targetSelect = {
   id: true,
   userId: true,
@@ -32,15 +34,23 @@ export interface RelayTokenMutationGuard {
   recheck: (tx?: Prisma.TransactionClient) => Promise<void>;
   authorize: () => Promise<void>;
 }
-export type RelayTokenMetadataMutation =
+export interface RelayTokenFullUpdateChange {
+  kind: "update";
+  prepare: (tx: Prisma.TransactionClient, persist: boolean) => Promise<RelayTokenUpdateInput>;
+  verify: (tx: Prisma.TransactionClient, persisted: boolean) => Promise<void>;
+}
+export type RelayTokenMutation =
   | RelayTokenChannelChange
+  | RelayTokenFullUpdateChange
   | { kind: "delete" }
   | { kind: "toggle" }
   | { kind: "refresh" }
   | { kind: "status"; enabled: boolean }
   | { kind: "content-safety"; config: ContentSafetyPolicyOverride | null };
-function mutationData(change: RelayTokenMetadataMutation): Prisma.RelayTokenUncheckedUpdateManyInput {
+function mutationData(change: RelayTokenMutation): Prisma.RelayTokenUncheckedUpdateManyInput {
   switch (change.kind) {
+    case "update":
+      return {}; // Prepared only after admission and source locks in the same transaction.
     case "channel":
       return { channelId: change.channelId };
     case "toggle":
@@ -73,7 +83,7 @@ export class RelayTokenMutationRepository {
   }
   snapshot(
     identity: RelayTokenAuthorityIdentity,
-    kind: RelayTokenMetadataMutation["kind"],
+    kind: RelayTokenMutation["kind"],
     tx: Prisma.TransactionClient = prisma,
   ) {
     return captureRelayTokenAuthority(
@@ -103,7 +113,7 @@ export class RelayTokenMutationRepository {
   async apply<T = never>(
     targets: readonly RelayTokenMutationTarget[],
     guard: RelayTokenMutationGuard,
-    change: RelayTokenMetadataMutation,
+    change: RelayTokenMutation,
     persist: boolean,
     response?: (tx: Prisma.TransactionClient) => Promise<T>,
   ) {
@@ -115,7 +125,11 @@ export class RelayTokenMutationRepository {
     const ids = targets.map((target) => target.id).sort();
     if (
       !targets.length ||
-      ((change.kind === "toggle" || change.kind === "refresh" || change.kind === "channel") && targets.length !== 1) ||
+      ((change.kind === "toggle" ||
+        change.kind === "refresh" ||
+        change.kind === "channel" ||
+        change.kind === "update") &&
+        targets.length !== 1) ||
       targets.some((row) => row.userId !== identity.userId) ||
       (change.kind === "channel" && (change.source.id !== ids[0] || change.source.userId !== identity.userId)) ||
       new Set(ids).size !== ids.length ||
@@ -171,8 +185,18 @@ export class RelayTokenMutationRepository {
             await check();
             await guard.authorize();
           }
+          const fullUpdate = change.kind === "update" ? await change.prepare(tx, persist) : undefined;
+          if (change.kind === "update") {
+            await change.verify(tx, false);
+            await check();
+            await guard.authorize();
+          }
           let affected = 0;
-          if (persist) {
+          if (persist && change.kind === "update") {
+            if (!fullUpdate) throw iamAccountDenied();
+            await RelayTokenUpdateRepository.getInstance().apply(tx, ids[0]!, fullUpdate);
+            affected = 1;
+          } else if (persist) {
             const result = await tx.relayToken.updateMany({
               where: {
                 userId: identity.userId,
@@ -196,6 +220,7 @@ export class RelayTokenMutationRepository {
           }
           if (change.kind === "channel")
             await RelayTokenChannelChangeRepository.getInstance().verify(change, persist, tx);
+          if (change.kind === "update") await change.verify(tx, persist);
           const projected = persist && response ? await response(tx) : undefined;
           // Response projection and all proof reads remain inside the rollback boundary.
           // Denial here throws out the executed UPDATE too, not merely the HTTP response.
@@ -205,6 +230,7 @@ export class RelayTokenMutationRepository {
             throw iamAccountDenied();
           if (change.kind === "channel")
             await RelayTokenChannelChangeRepository.getInstance().verify(change, persist, tx);
+          if (change.kind === "update") await change.verify(tx, persist);
           await guard.recheck(tx);
           return { total: targets.length, affected, ...(response && persist ? { response: projected } : {}) };
         },

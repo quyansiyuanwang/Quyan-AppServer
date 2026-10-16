@@ -89,6 +89,7 @@ describe("generated atomic token lifecycle contract", () => {
   it.each([
     ["/v1/relay/tokens/{id}/toggle", "patch"],
     ["/v1/relay/tokens/{id}/refresh", "post"],
+    ["/v1/relay/tokens/{id}", "put"],
   ])("retains UPDATE OAuth scope, replay, step-up and denial responses for %s %s", (path, method) => {
     const operation = document.paths[path!][method!];
     expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_UPDATE] });

@@ -29,7 +29,18 @@
 
 导出要求每个选中 Token 同时获准执行 `quyan:relay:ExportTokens` 和 `RevealToken`。管理其他用户的导出，还需平台管理资格、当前用户的接口准入，以及目标平台资源上的 `ExportManagedTokens` / `RevealManagedToken`。显式选中 ID 时按提交顺序导出；未指定时导出已启用的 Token，`includeDisabled: true` 可同时包含停用项，但不会包含已删除项。任一指定 Token 不存在或未获准，或组合 Token 引用的成员无法导出，整个请求都会失败，不会静默生成不完整的备份。导出的组合配置保留获准的成员引用，但只有成员本身也被选中且获准披露时才导出其凭据。
 
-以上披露规则覆盖列表、单个 Token 读取、导出，以及下文说明的单个启停、刷新和主渠道更新。复制和其他修改仍属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
+以上披露规则覆盖列表、单个 Token 读取、导出，以及下文说明的单个启停、刷新、主渠道更新和完整配置更新。复制和其他修改仍属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
+
+### 更新完整 Token 配置
+
+启用 IAM 强制模式后，编辑 Token 需要该 Token 上的 `quyan:relay:UpdateToken` 和独立的 `GetToken` 权限；只有同时允许 `RevealToken`，响应才返回凭据。名称、有效期、总额度、额度窗口、模型规则、协议转换、整流、内容安全和流式配置一起保存，任一资源、身份或授权检查失败都会回滚整个变更。
+
+- 更新后的完整有序渠道列表，包括未改变的备用渠道，都需要各自 `acs:relay:*:<accountId>:channel-selection/<channelId>` 上的 `quyan:relay:SelectTokenChannel`。自动池模式检查所选池的同一权限及业务可见性。屏蔽支持可达的直接和嵌套成员，以有效池关系为准，并且必须留下至少一条可用路由。被拒绝、隐藏、停用或提供方已停服的渠道不能借 Token 更新恢复可选状态。
+- 将普通 Token 转为组合时，需要同一归属用户下每个被引用后代上的 `quyan:relay:ReferenceToken` 和 `GetToken`，包括停用的引用。能够查看候选或预览模型不等于可以保存引用，深度、规模和环路限制仍然生效。此编辑接口不修改已经是组合模式的 Token。
+- 修改凭据还需要 `SetTokenCredential` **和** `RevealToken`；把密钥改成已知值也不能绕过显式披露拒绝。除非独立获准 `BypassTokenCredentialLimits`，仍受自定义密钥开关、用户数量和尝试频率限制。OAuth 的当前令牌和应用必须同时委派相应的普通或不限额自定义密钥 scope。指定其他管理对象不构成自动豁免，即使数据库变更回滚，失败尝试也可能计入频率限制。
+- 旧格式凭据会转换为规范前缀，但保留原密钥后缀。若首选凭据或其别名已被使用，服务端生成不同的凭据，不会占用已有别名；请使用成功响应实际返回的凭据。
+
+管理其他用户 Token 时，还需要平台写入和读取资格、当前用户的接口准入，以及目标平台用户和 Token 上的 `UpdateManagedToken` / `GetManagedToken`。修改凭据和组合引用分别使用 `SetManagedTokenCredential`、`RevealManagedToken`、`ReferenceManagedToken`，限额豁免使用 `BypassManagedTokenCredentialLimits`。设置其他用户的凭据还需要部署管理组的自定义密钥资格，管理限额豁免另需该组的不限额自定义密钥资格；账号策略不能制造这些资格。Token 配置、额度规则、引用变更和获准返回的响应处于同一提交边界，接口仍要求重放保护和二次验证。上述资源级保证适用于 enforce；legacy / shadow 仍只执行一次原业务修改，shadow 比较不会额外消耗自定义密钥尝试次数。
 
 ### 组合候选的资源边界
 

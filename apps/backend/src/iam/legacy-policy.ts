@@ -170,6 +170,10 @@ export function legacyPermissionsToPrincipalPolicy(
         "quyan:relay:SetTokenStatus",
         "quyan:relay:RefreshToken",
         "quyan:relay:UpdateTokenChannel",
+        "quyan:relay:UpdateToken",
+        "quyan:relay:SetTokenCredential",
+        "quyan:relay:ReferenceToken",
+        "quyan:relay:BypassTokenCredentialLimits",
         "quyan:relay:SetTokenContentSafety",
       ].includes(action),
     );
@@ -189,7 +193,11 @@ export function legacyPermissionsToPrincipalPolicy(
             .arnTemplate.replace("{accountId}", accountOwnerId)
             .replace("{parentId}", principalUserId)
             .replace("{resourceId}", "*"),
-        ],
+        ].filter((resource) =>
+          getIamResourcePatternTypes(resource).some((type) =>
+            personalRelayAccess.some((action) => getIamActionDefinition(action)!.resourceTypes.includes(type.id)),
+          ),
+        ),
       });
     const other = statement.Action.filter(
       (action) =>

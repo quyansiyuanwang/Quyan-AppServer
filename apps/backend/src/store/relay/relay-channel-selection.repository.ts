@@ -23,9 +23,15 @@ export class RelayChannelSelectionRepository {
   static getInstance() {
     return (this.instance ??= new RelayChannelSelectionRepository());
   }
-  async snapshot(principal: IamPrincipal, ids: readonly string[], tx: Prisma.TransactionClient = prisma) {
+  async snapshot(
+    principal: IamPrincipal,
+    ids: readonly string[],
+    tx: Prisma.TransactionClient = prisma,
+    mode: "ordered" | "automatic" = "ordered",
+  ) {
     if (
       !ids.length ||
+      (mode === "automatic" && ids.length !== 1) ||
       ids.length > RELAY_TOKEN_ROUTING_LIMITS.channels ||
       new Set(ids).size !== ids.length ||
       ids.some((id) => !isRelayTokenResourceId(id))
@@ -102,7 +108,9 @@ export class RelayChannelSelectionRepository {
           !ids.includes(channel.id) ||
           channel.status !== RELAY_CHANNEL_STATUS.ENABLED ||
           channel.providerServiceEnabled === false ||
-          ["automatic-proxy-pool"].includes(channel.channelType) ||
+          (mode === "automatic"
+            ? channel.channelType !== "automatic-proxy-pool"
+            : channel.channelType === "automatic-proxy-pool") ||
           channel.visibilityMode === "hidden" ||
           (!managementBypass && !isRelayChannelVisible(channel, { id: user.id, groupId: user.groupId, roleIds })),
       )

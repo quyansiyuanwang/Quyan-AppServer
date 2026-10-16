@@ -1016,6 +1016,52 @@ export class RelayTokenService {
     tokenId: string,
     actorUserId: string,
     data: UpdateRelayTokenDto,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const updateData = structuredClone(data);
+    const result = await RelayTokenLifecycleIamService.getInstance().execute(
+      "update",
+      actorUserId,
+      tokenId,
+      targetUserId,
+      request,
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.updateTokenLegacy(tokenId, actorUserId, updateData, request, targetUserId),
+      {
+        data: updateData,
+        normalizers: {
+          expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+          quotaWindows: (value) => this.normalizeQuotaWindows(value),
+          ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+          requestFormatTransforms: normalizeRequestFormatTransforms,
+          normalizerConfig: normalizeRelayTokenNormalizerConfig,
+          compositeFailover: (count) => this.compositeFailover(count),
+        },
+        customKeyConfig: () => this.configService.getRelayCustomKeyConfig(),
+        recordCustomKeyAttempt: (userId) => this.assertCustomKeySetRateLimit(userId),
+        withGraphLock: (userId, write) => this.withGraphWrite(userId, true, write),
+      },
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "更新了中转令牌配置",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+  private async updateTokenLegacy(
+    tokenId: string,
+    actorUserId: string,
+    data: UpdateRelayTokenDto,
     request?: Request,
     targetUserId?: string,
   ): Promise<RelayTokenDto> {

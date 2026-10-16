@@ -1,3 +1,5 @@
+import { RelayTokenUpdatePlanService, type RelayTokenUpdateInvocation } from "./relay-token-update-plan.service";
+import { updateRelayTokenBodySchema } from "@/api/schema/relay/relay.schema";
 import { RelayChannelSelectionRepository } from "@/store/relay/relay-channel-selection.repository";
 import {
   RelayTokenChannelChangeRepository,
@@ -25,6 +27,7 @@ import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 const operations = Object.freeze({
+  update: { action: "quyan:relay:UpdateToken", managedAction: "quyan:relay:UpdateManagedToken" },
   channel: { action: "quyan:relay:UpdateTokenChannel", managedAction: "quyan:relay:UpdateManagedTokenChannel" },
   toggle: { action: "quyan:relay:SetTokenStatus", managedAction: "quyan:relay:SetManagedTokenStatus" },
   refresh: { action: "quyan:relay:RefreshToken", managedAction: "quyan:relay:RefreshManagedToken" },
@@ -44,6 +47,7 @@ export class RelayTokenLifecycleIamService {
     private readonly responses = RelayTokenMutationResponseRepository.getInstance(),
     private readonly channelChanges = RelayTokenChannelChangeRepository.getInstance(),
     private readonly channelSelections = RelayChannelSelectionRepository.getInstance(),
+    private readonly updatePlans = RelayTokenUpdatePlanService.getInstance(),
   ) {}
   async execute<T>(
     operation: keyof typeof operations,
@@ -53,10 +57,19 @@ export class RelayTokenLifecycleIamService {
     request: TypedRequest | undefined,
     project: (record: RelayTokenReadRecord) => Promise<T>,
     legacy: () => Promise<T>,
-    channelId?: string,
+    input?: string | RelayTokenUpdateInvocation,
   ): Promise<T> {
     if (!isRelayTokenResourceId(tokenId) || (targetUserId !== undefined && !isRelayTokenResourceId(targetUserId)))
       throw new BadRequestError("Invalid token lifecycle target", undefined, { messageKey: "errors.badRequest" });
+    const channelId = typeof input === "string" ? input : undefined;
+    const invocation = typeof input === "object" ? input : undefined;
+    if (
+      operation === "update" &&
+      (!invocation ||
+        !updateRelayTokenBodySchema.safeParse(invocation.data).success ||
+        (invocation.data.targetUserId !== undefined && invocation.data.targetUserId !== targetUserId))
+    )
+      throw new BadRequestError("Invalid complete token update", undefined, { messageKey: "errors.badRequest" });
     if (operation === "channel" && !isRelayTokenResourceId(channelId)) throw iamAccountDenied();
     const { action, managedAction } = operations[operation];
     const mode = env.security.iamAuthorizationMode;
@@ -197,14 +210,15 @@ export class RelayTokenLifecycleIamService {
       await authorize();
       const canReveal = (await decide(revealAction, [resource]))[0] === "Allow";
       const candidates = await this.repository.candidates(userId, [tokenId]);
-      const change = operation === "channel" ? channelChange : { kind: operation };
+      const change =
+        operation === "channel"
+          ? channelChange
+          : operation === "update"
+            ? this.updatePlans.change(identity, tokenId, invocation!, requireAllow, decide)
+            : { kind: operation };
       if (!change) throw iamAccountDenied();
-      const result = await this.repository.apply(
-        candidates,
-        { identity, snapshot, recheck, authorize },
-        change,
-        persist,
-        async (tx) => {
+      const apply = () =>
+        this.repository.apply(candidates, { identity, snapshot, recheck, authorize }, change, persist, async (tx) => {
           await recheck(tx);
           await authorize();
           const response = await this.responses.read(tx, identity, tokenId, decide, canReveal);
@@ -213,9 +227,10 @@ export class RelayTokenLifecycleIamService {
           await recheck(tx);
           await authorize();
           return projected;
-        },
-      );
-      return result;
+        });
+      return operation === "update" && invocation!.data.routingMode === "composite"
+        ? invocation!.withGraphLock(userId, apply)
+        : apply();
     };
     if (mode === "enforce") {
       const result = await native(true);
