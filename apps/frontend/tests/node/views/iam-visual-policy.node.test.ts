@@ -302,3 +302,52 @@ describe('catalog-driven operation selection', () => {
     }
   })
 })
+
+describe('semantic submission resource identifiers', () => {
+  it.each([
+    [
+      'relay/channel-change-request',
+      { submitterUserId: 'submitter', requestId: 'request' },
+      'channel-change-request/submitter/request',
+    ],
+    [
+      'relay/channel-submission',
+      { submitterUserId: 'submitter', channelId: 'channel' },
+      'channel-submission/submitter/channel',
+    ],
+    [
+      'relay/submission-provider',
+      { submitterUserId: 'submitter', channelId: 'channel', providerUserId: 'recipient' },
+      'submission-provider/submitter/channel/recipient',
+    ],
+  ] as const)('keeps identity roles distinct for %s', (type, identifiers, path) => {
+    expect(visualResourceIdentifierFields(type)).toEqual(Object.keys(identifiers))
+    expect(visualResourceTemplate(type, 'owner', identifiers)).toBe('acs:relay:*:owner:' + path)
+    expect(
+      visualResourceTemplate(type, 'owner', { parentId: 'submitter', resourceId: 'channel' }),
+    ).toBeUndefined()
+  })
+  it('requires every explicit value and preserves only a deliberately chosen wildcard', () => {
+    expect(
+      visualResourceTemplate('relay/submission-provider', 'owner', {
+        submitterUserId: 'submitter',
+        channelId: '*',
+        providerUserId: 'recipient',
+      }),
+    ).toBe('acs:relay:*:owner:submission-provider/submitter/*/recipient')
+    expect(
+      visualResourceTemplate('relay/submission-provider', 'owner', {
+        submitterUserId: 'submitter',
+        channelId: 'channel',
+      }),
+    ).toBeUndefined()
+    expect(
+      visualResourceTemplate('relay/submission-provider', 'owner', {
+        submitterUserId: 'submitter',
+        channelId: 'channel',
+        providerUserId: 'recipient',
+        accountId: 'foreign',
+      }),
+    ).toBeUndefined()
+  })
+})

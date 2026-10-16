@@ -115,6 +115,28 @@ describe("AI policy drafting admission", () => {
       Action: [writeOnly.Statement.Action],
     });
   });
+  it("gives AI exact resource slot names and conditional dependencies without widening its draft", async () => {
+    generateTextForUser.mockResolvedValue(JSON.stringify({ document }));
+    const result = await service.generate("child", "owner", input, delegationCheck);
+    const prompt = generateTextForUser.mock.calls[0]![1] as string;
+    const catalog = JSON.parse(
+      prompt
+        .split("\n")
+        .find((line) => line.startsWith("Catalog: "))!
+        .slice(9),
+    );
+    expect(catalog.resources.find((row: { id: string }) => row.id === "relay/submission-provider").arnTemplate).toBe(
+      "acs:relay:*:{accountId}:submission-provider/{submitterUserId}/{channelId}/{providerUserId}",
+    );
+    expect(
+      catalog.actions.find((row: { action: string }) => row.action === "quyan:remote_terminal:UpdateEntitlement"),
+    ).toMatchObject({ conditionalActions: ["quyan:remote_terminal:DeleteEntitlement"] });
+    expect(prompt).toContain("Do not grant every variant automatically");
+    expect(prompt).toContain("Never substitute one identity for another");
+    expect(result.document?.Statement).toEqual([
+      expect.objectContaining({ Action: [document.Statement.Action], Resource: [document.Statement.Resource] }),
+    ]);
+  });
   it.each([
     '{"document":{"Version":"1","Statement":{"Effect":"Allow","Effect":"Deny","Action":"quyan:ram:ReadUser","Resource":"*"}}}',
     '{"document":{"Version":"1","Statement":{"Effect":"Allow","Action":"quyan:ram:ReadUser","Resource":"*"}},"document":{}}',

@@ -646,9 +646,19 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-probe-account/{resourceId}',
   },
-  resource('relay', 'channel-change-request', 2),
-  resource('relay', 'channel-submission', 2),
-  resource('relay', 'submission-provider', 3),
+  {
+    ...resource('relay', 'channel-change-request', 2),
+    arnTemplate: 'acs:relay:*:{accountId}:channel-change-request/{submitterUserId}/{requestId}',
+  },
+  {
+    ...resource('relay', 'channel-submission', 2),
+    arnTemplate: 'acs:relay:*:{accountId}:channel-submission/{submitterUserId}/{channelId}',
+  },
+  {
+    ...resource('relay', 'submission-provider', 3),
+    arnTemplate:
+      'acs:relay:*:{accountId}:submission-provider/{submitterUserId}/{channelId}/{providerUserId}',
+  },
   {
     ...resource('platform', 'relay-channel-change-request', 2),
     accountScope: 'platform',

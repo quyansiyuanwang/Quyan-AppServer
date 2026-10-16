@@ -3,7 +3,7 @@ import { diagnoseIamPolicy } from "@/iam/diagnostics/policy-diagnostics";
 import { getIamPolicyJsonSchema } from "@/iam/diagnostics/policy-json-schema";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { IAM_POLICY_LIMITS } from "@/iam/parser/policy-schema";
-import { IAM_ACTION_CATALOG, IAM_CONDITION_OPERATORS } from "@quyan/shared";
+import { IAM_ACTION_CATALOG, IAM_ACTION_DEFINITIONS, IAM_CONDITION_OPERATORS } from "@quyan/shared";
 const policy = {
   Version: "1",
   Statement: { Effect: "Allow", Action: "quyan:ram:ReadUser", Resource: "acs:quyan:*:owner:user/target" },
@@ -112,5 +112,29 @@ describe("published policy JSON Schema", () => {
     for (const operator of IAM_CONDITION_OPERATORS) expect(serialized).toContain(operator);
     expect(schema["x-quyan-actions"]).toHaveLength(IAM_ACTION_CATALOG.length);
     expect(schema["x-quyan-server-validation-required"]).toBe(true);
+  });
+});
+
+describe("Schema authorization hints", () => {
+  it("derives dependency metadata from the production catalog without silently granting it", () => {
+    const schema = getIamPolicyJsonSchema();
+    const actions = schema["x-quyan-actions"] as {
+      action: string;
+      requiredActions?: string[];
+      conditionalActions?: string[];
+    }[];
+    for (const action of IAM_ACTION_DEFINITIONS) {
+      const exported = actions.find((row) => row.action === action.action)!;
+      expect(exported.requiredActions).toEqual(action.requiredActions);
+      expect(exported.conditionalActions).toEqual(action.conditionalActions);
+    }
+    expect(schema.description).toContain("not automatic grants");
+    expect(schema.description).toContain("documented variants");
+  });
+  it("includes semantic submitter, channel and recipient slots for AI and JSON clients", () => {
+    const resources = getIamPolicyJsonSchema()["x-quyan-resource-types"] as { id: string; arnTemplate: string }[];
+    expect(resources.find((row) => row.id === "relay/submission-provider")?.arnTemplate).toBe(
+      "acs:relay:*:{accountId}:submission-provider/{submitterUserId}/{channelId}/{providerUserId}",
+    );
   });
 });

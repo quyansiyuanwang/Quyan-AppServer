@@ -213,8 +213,8 @@ export function legacyPermissionsToPrincipalPolicy(
         Resource: [
           IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/channel-change-request")!
             .arnTemplate.replace("{accountId}", accountOwnerId)
-            .replace("{parentId}", principalUserId)
-            .replace("{resourceId}", "*"),
+            .replace("{submitterUserId}", principalUserId)
+            .replace("{requestId}", "*"),
         ],
       });
     const ownSubmissions: string[] = statement.Action.filter((action) =>
@@ -233,8 +233,8 @@ export function legacyPermissionsToPrincipalPolicy(
         Resource: [
           IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/channel-submission")!
             .arnTemplate.replace("{accountId}", accountOwnerId)
-            .replace("{parentId}", principalUserId)
-            .replace("{resourceId}", "*"),
+            .replace("{submitterUserId}", principalUserId)
+            .replace("{channelId}", "*"),
         ],
       });
     if (ownSubmissions.includes("quyan:relay:CreateMyChannelSubmission"))
@@ -245,9 +245,9 @@ export function legacyPermissionsToPrincipalPolicy(
         Resource: [
           IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/submission-provider")!
             .arnTemplate.replace("{accountId}", accountOwnerId)
-            .replace("{ancestorId}", principalUserId)
-            .replace("{parentId}", "*")
-            .replace("{resourceId}", "*"),
+            .replace("{submitterUserId}", principalUserId)
+            .replace("{channelId}", "*")
+            .replace("{providerUserId}", "*"),
         ],
       });
     const other = statement.Action.filter(

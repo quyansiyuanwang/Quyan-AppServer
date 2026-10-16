@@ -37,6 +37,8 @@ The `*` in a relation ARN represents the server-allocated channel ID. Even when 
 
 A new submission is always a disabled standalone channel pending review. Requests cannot choose its ID, impersonate another submitter, or mark it approved. Creation, provider relations and response projection are validated in one transaction. Validation failure following an authorization, identity or related-data change leaves no partial submission. Responses expose only upstream credential-presence flags, never credential contents. During migration, legacy `RELAY_CHANNEL_SUBMIT` maps only to the authenticated submitter's scope; legacy/shadow still execute the original business creation once.
 
+The visual resource builder, catalog and downloadable JSON Schema name these fields explicitly: `submitterUserId` is the original submitter, `channelId` is the submitted channel, and `providerUserId` is the proposed revenue recipient. Personal change-request resources use `submitterUserId` and `requestId`. These template labels do not change any stored ARN. Schema and AI assistance also expose required Actions and variant-specific Actions; these are explanations of additional checks, not automatic grants. Missing identities or unclear variants must be clarified instead of replaced with broader grants.
+
 ### Deletion and service availability
 
 Deleting an owned submission requires `quyan:relay:DeleteMyChannelSubmission`; pausing or resuming service requires `quyan:relay:SetMyChannelSubmissionServiceStatus`. Both Actions use the submission ARN above and can be limited to specific channels. They do not grant list, review, or platform-management authority. Wildcards cannot bypass original-submitter ownership.

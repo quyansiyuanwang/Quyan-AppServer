@@ -183,3 +183,20 @@ describe("IAM service and resource catalog", () => {
     );
   });
 });
+
+describe("semantic submitter-owned resource templates", () => {
+  it.each([
+    ["channel-change-request", ["submitterUserId", "requestId"]],
+    ["channel-submission", ["submitterUserId", "channelId"]],
+    ["submission-provider", ["submitterUserId", "channelId", "providerUserId"]],
+  ] as const)("exposes the same named slots in shared and API catalogs for %s", (type, fields) => {
+    const expected = `acs:relay:*:{accountId}:${type}/` + fields.map((field) => `{${field}}`).join("/");
+    const shared = IAM_RESOURCE_TYPE_CATALOG.find((row) => row.id === "relay/" + type);
+    expect(shared).toMatchObject({ arnTemplate: expected, identifierSegments: fields.length });
+    expect(
+      IamCatalogService.getInstance()
+        .listResources()
+        .find((row) => row.id === shared?.id),
+    ).toEqual(shared);
+  });
+});

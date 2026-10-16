@@ -37,6 +37,8 @@
 
 新提交固定为待审核、停用的独立渠道，请求不能指定资源 ID、冒充其他提交者或自行设为审核通过。创建、提供者关联和响应投影在同一事务内校验；授权、身份或关联数据变化导致校验失败时，不保留部分提交。响应只包含上游密钥是否存在的标记，不返回密钥内容。原有 `RELAY_CHANNEL_SUBMIT` 在迁移期间仅映射为当前提交者范围，legacy/shadow 仍只执行一次原业务创建。
 
+可视化资源构造器、目录与可下载 JSON Schema 使用明确的字段名：`submitterUserId` 为原始提交者，`channelId` 为提交的渠道，`providerUserId` 为拟议收益接收者。个人变更申请资源使用 `submitterUserId` 与 `requestId`。这些模板标签不改变已保存的 ARN。Schema 与 AI 辅助还会提供必需 Action 和特定操作变体所需的 Action；它们说明额外检查，不自动授予权限。身份信息缺失或操作变体不明确时，应先补充信息，而不是扩大授权。
+
 ### 删除与服务开关
 
 删除本人提交需要 `quyan:relay:DeleteMyChannelSubmission`，暂停或恢复服务需要 `quyan:relay:SetMyChannelSubmissionServiceStatus`。两个 Action 均使用上述提交资源 ARN，可只授予指定渠道的操作权限；列表读取、审核及平台管理权限不会被一并授予。通配符也不能绕过原提交者归属检查。

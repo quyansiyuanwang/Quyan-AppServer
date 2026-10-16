@@ -208,3 +208,30 @@ describe('IAM service and operation categories', () => {
     expect(view!.get('[data-test="action-category-Read"]').attributes('disabled')).toBeDefined()
   })
 })
+
+describe('submission provider resource slots', () => {
+  it('distinguishes submitter, channel and recipient with no implicit wildcard', async () => {
+    const row = { ...newVisualStatement(), actions: ['quyan:relay:CreateMyChannelSubmission'] }
+    mountView(row)
+    await choose('relay/submission-provider')
+    expect(view!.findAll('[data-test^="resource-identifier-"]')).toHaveLength(3)
+    for (const field of ['submitterUserId', 'channelId', 'providerUserId']) {
+      expect((input(field).element as HTMLInputElement).value).toBe('')
+      expect(
+        (view!.get('[data-test="resource-wildcard-' + field + '"]').element as HTMLInputElement)
+          .checked,
+      ).toBe(false)
+    }
+    await input('submitterUserId').setValue('submitter')
+    await input('channelId').setValue('channel')
+    expect(view!.get('[data-test="add-resource"]').attributes('disabled')).toBeDefined()
+    await input('providerUserId').setValue('recipient')
+    expect(view!.get('[data-test="resource-preview"]').text()).toBe(
+      'acs:relay:*:owner:submission-provider/submitter/channel/recipient',
+    )
+    await view!.get('[data-test="add-resource"]').trigger('click')
+    expect(row.resourcesText).toBe(
+      'acs:relay:*:owner:submission-provider/submitter/channel/recipient',
+    )
+  })
+})
