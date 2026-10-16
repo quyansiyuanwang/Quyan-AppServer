@@ -1,3 +1,4 @@
+import { assertRelayChannelGraph } from "@/util/relay-channel-graph";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -156,21 +157,17 @@ export class RelayChannelDuplicateRepository {
             Prisma.sql`SELECT id FROM relay_channels WHERE id IN (${Prisma.join(graphIds)}) ORDER BY id FOR UPDATE`,
           );
           if (!same(graph, await readNodes(graphIds))) throw iamAccountDenied();
-          const visiting = new Set<string>(),
-            visited = new Set<string>();
-          const visit = (id: string, depth: number) => {
-            if (visiting.has(id) || depth > RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth)
-              throw new BadRequestError("Invalid source pool graph", undefined, { messageKey: "relay.poolCycle" });
-            if (visited.has(id)) return;
-            visiting.add(id);
-            const row = nodes.get(id)!;
-            for (const edge of row.poolMembers) visit(edge.memberChannelId, depth + 1);
-            if (traversal.get(id) === 2 && row.channelType === "pooled")
-              for (const child of row.pooledChildren) visit(child.id, depth + 1);
-            visiting.delete(id);
-            visited.add(id);
-          };
-          for (const id of sourceIds) visit(id, 0);
+          assertRelayChannelGraph(sourceIds, (id) => {
+            const row = nodes.get(id);
+            if (!row) throw iamAccountDenied();
+            if (traversal.get(id) === 0) return [];
+            return [
+              ...row.poolMembers.map((edge) => edge.memberChannelId),
+              ...(traversal.get(id) === 2 && row.channelType === "pooled"
+                ? row.pooledChildren.map((child) => child.id)
+                : []),
+            ];
+          });
           const readSources = () =>
               tx.relayChannel.findMany({
                 where: { id: { in: sourceIds } },

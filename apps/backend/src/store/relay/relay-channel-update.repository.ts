@@ -1,3 +1,4 @@
+import { assertRelayChannelGraph } from "@/util/relay-channel-graph";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -357,25 +358,7 @@ export class RelayChannelUpdateRepository {
                 ]),
               ];
             };
-            const heights = new Map<string, number>(),
-              visiting = new Set<string>();
-            const visit = (key: string, depth: number): number => {
-              if (visiting.has(key) || depth > RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth)
-                throw new BadRequestError("Invalid channel graph", undefined, { messageKey: "relay.poolCycle" });
-              const known = heights.get(key);
-              if (known !== undefined) {
-                if (depth + known > RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth)
-                  throw new BadRequestError("Channel graph is too deep", undefined, { messageKey: "relay.poolCycle" });
-                return known;
-              }
-              visiting.add(key);
-              let height = 0;
-              for (const child of edges(key)) height = Math.max(height, 1 + visit(child, depth + 1));
-              visiting.delete(key);
-              heights.set(key, height);
-              return height;
-            };
-            visit(id, 0);
+            assertRelayChannelGraph([id], edges);
           }
           const expectedFlags = { ...flags };
           if (input.openaiUpstreamApiKey !== undefined)

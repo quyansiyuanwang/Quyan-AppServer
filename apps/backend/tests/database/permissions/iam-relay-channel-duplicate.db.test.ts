@@ -1,3 +1,4 @@
+import { RELAY_CAPABILITY_RESOLUTION_LIMITS } from "@/constant/relay-capability";
 import { OperationType } from "@/constant/operation-type";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
@@ -578,5 +579,56 @@ describe("native single and batch channel duplication", () => {
     const create = vi.spyOn(RelayChannelRepository.getInstance(), "create");
     expect(await apply()).toHaveLength(2);
     expect(create).toHaveBeenCalledTimes(2);
+  });
+  it("rejects a longer alternate DAG path before configuration/catalog hydration", async () => {
+    await prisma.relayConfig.updateMany({ where: { status: 1 }, data: { channelTopologyMode: "legacy" } });
+    await prisma.relayChannel.update({ where: { id: channel }, data: { channelType: "pooled" } });
+    const depth = RELAY_CAPABILITY_RESOLUTION_LIMITS.poolDepth / 2,
+      tail = Array.from({ length: depth + 1 }, () => "a" + randomUUID()),
+      lead = Array.from({ length: depth }, () => "z" + randomUUID());
+    await prisma.relayChannel.createMany({
+      data: [...tail, ...lead].map((id) => ({
+        id,
+        name: prefix + id,
+        channelType: "pooled",
+        visibilityMode: "hidden",
+      })),
+    });
+    await prisma.relayChannelMember.createMany({
+      data: [
+        ...tail
+          .slice(0, -1)
+          .map((id, index) => ({ relayChannelId: id, memberChannelId: tail[index + 1]!, priority: 0 })),
+        ...lead.map((id, index) => ({ relayChannelId: id, memberChannelId: lead[index + 1] ?? tail[0]!, priority: 0 })),
+        { relayChannelId: channel, memberChannelId: tail[0]!, priority: 0 },
+        { relayChannelId: channel, memberChannelId: lead[0]!, priority: 1 },
+      ],
+    });
+    let pricingRead = false;
+    transactionHook((tx) => {
+      const original = tx.modelPricing.findMany.bind(tx.modelPricing);
+      vi.spyOn(tx.modelPricing, "findMany").mockImplementation((async (args: Prisma.ModelPricingFindManyArgs) => {
+        pricingRead = true;
+        return original(args);
+      }) as never);
+    });
+    await unchanged(() => single(), 400);
+    expect(pricingRead).toBe(false);
+  }, 30000);
+  it("does not traverse an unrelated legacy edge of a physical member's parent proof", async () => {
+    await prisma.relayConfig.updateMany({ where: { status: 1 }, data: { channelTopologyMode: "legacy" } });
+    await prisma.relayChannel.update({ where: { id: other }, data: { channelType: "pooled" } });
+    await prisma.relayChannel.update({
+      where: { id: channel },
+      data: { channelType: "pooled-member", pooledParentId: other },
+    });
+    const unrelated = await prisma.relayChannel.create({ data: { name: prefix + "unrelated" } });
+    await prisma.relayChannelMember.create({
+      data: { relayChannelId: other, memberChannelId: unrelated.id, priority: 0 },
+    });
+    await grant(platformRelayChannelArn(unrelated.id));
+    const result = await single();
+    expect(result.channelType).toBe("pooled-member");
+    expect(await prisma.relayChannel.findUnique({ where: { id: result.id } })).toMatchObject({ pooledParentId: other });
   });
 });
