@@ -1,3 +1,5 @@
+import { BadRequestError, ForbiddenError } from "@/util/errors";
+import { renderDescriptorSafely } from "@/locales";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
@@ -484,6 +486,85 @@ describe("native resource-scoped general channel batch updates", () => {
     });
     await unchanged(() => apply());
     expect(written).toBe(true);
+  });
+  describe.each(["legacy", "shadow"] as const)("%s batch response safety", (variant) => {
+    it.each(["configuration", "restrictions"] as const)(
+      "redacts unexpected %s mutation failures",
+      async (operation) => {
+        env.security.iamAuthorizationMode = variant;
+        const before = await channels(),
+          rows = await providers(),
+          req = request();
+        req.locale = "zh-CN";
+        const update = vi
+          .spyOn(RelayChannelRepository.getInstance(), "updateById")
+          .mockRejectedValueOnce(new Error("fixture-secret SQL UPDATE openaiUpstreamApiKey=password"));
+        const result =
+          operation === "configuration"
+            ? await apply({ ids: [channel], patch: { multiplier: 1.5 } }, req)
+            : await RelayChannelService.getInstance().applyModelRestrictions(
+                { targets: [{ channelId: channel, addModels: [prefix + "model"] }] },
+                actor,
+                req,
+              );
+        expect(update).toHaveBeenCalledOnce();
+        expect(result.updated).toEqual([]);
+        expect(result.rejected).toEqual([
+          { id: channel, reason: renderDescriptorSafely({ key: "errors.internalServerError" }, "zh-CN").message },
+        ]);
+        expect(JSON.stringify(result)).not.toContain("fixture-secret");
+        expect(JSON.stringify(vi.mocked(BusinessLogService.getInstance().logOperation).mock.calls)).not.toContain(
+          "fixture-secret",
+        );
+        expect(await channels()).toEqual(before);
+        expect(await providers()).toEqual(rows);
+      },
+    );
+    it.each(["configuration", "restrictions"] as const)(
+      "renders safe descriptors for known %s business errors",
+      async (operation) => {
+        env.security.iamAuthorizationMode = variant;
+        const req = request();
+        req.locale = "en";
+        vi.spyOn(RelayChannelRepository.getInstance(), "updateById").mockRejectedValueOnce(
+          new BadRequestError("fixture-secret raw diagnostic", undefined, { messageKey: "relayChannel.nameExists" }),
+        );
+        const result =
+          operation === "configuration"
+            ? await apply({ ids: [channel], patch: { multiplier: 1.5 } }, req)
+            : await RelayChannelService.getInstance().applyModelRestrictions(
+                { targets: [{ channelId: channel, addModels: [prefix + "model"] }] },
+                actor,
+                req,
+              );
+        expect(result.rejected).toEqual([
+          { id: channel, reason: renderDescriptorSafely({ key: "relayChannel.nameExists" }, "en").message },
+        ]);
+        expect(JSON.stringify(result)).not.toContain("fixture-secret");
+      },
+    );
+    it.each(["configuration", "restrictions"] as const)(
+      "does not downgrade %s authorization failure into a partial response",
+      async (operation) => {
+        env.security.iamAuthorizationMode = variant;
+        const before = await channels(),
+          rows = await providers();
+        vi.spyOn(RelayChannelRepository.getInstance(), "updateById").mockRejectedValueOnce(
+          new ForbiddenError("fixture-secret denied"),
+        );
+        const result =
+          operation === "configuration"
+            ? apply({ ids: [channel], patch: { multiplier: 1.5 } })
+            : RelayChannelService.getInstance().applyModelRestrictions(
+                { targets: [{ channelId: channel, addModels: [prefix + "model"] }] },
+                actor,
+                request(),
+              );
+        await expect(result).rejects.toMatchObject({ statusCode: 403 });
+        expect(await channels()).toEqual(before);
+        expect(await providers()).toEqual(rows);
+      },
+    );
   });
   it.each(["legacy", "shadow"] as const)("%s writes only through original implementation", async (variant) => {
     env.security.iamAuthorizationMode = variant;

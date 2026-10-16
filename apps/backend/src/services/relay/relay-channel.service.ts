@@ -146,7 +146,7 @@ import type { RamRoleStore } from "@/store/users/ram-role.store";
 import { PermissionService } from "@/services/users/permission.service";
 import { Permission } from "@/constant/permission";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
+import { ApiError, BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "@/util/errors";
 import { maskSensitiveData } from "@/util/mask-sensitive-data";
 import { resolveModelId } from "@/util/model-resolution.util";
 import { assertSafeOutboundUrl, type SafeOutboundUrl } from "@/util/developer-outbound-url";
@@ -3434,10 +3434,7 @@ export class RelayChannelService {
           // Only known business validation is partial success. Never expose raw exceptions or downgrade denial.
           if (!(error instanceof BadRequestError)) throw error;
           return {
-            reason: renderDescriptorSafely(
-              { key: error.messageKey ?? "errors.badRequest", params: error.messageParams },
-              request?.locale ?? DEFAULT_BACKEND_LOCALE,
-            ).message,
+            reason: this.batchChannelRejectionReason(error, request),
           };
         }
       },
@@ -3445,6 +3442,20 @@ export class RelayChannelService {
       request as TypedRequest | undefined,
       () => this.batchUpdateChannelsLegacy(body, actorUserId, request),
     );
+  }
+
+  /** Batch partial-success responses must never expose exception text, SQL or upstream credentials. */
+  private batchChannelRejectionReason(error: unknown, request?: Request): string {
+    if (error instanceof ApiError && [401, 403].includes(error.statusCode)) throw error;
+    const business =
+      error instanceof BadRequestError || error instanceof ConflictError || error instanceof NotFoundError;
+    return renderDescriptorSafely(
+      {
+        key: business ? (error.messageKey ?? "errors.badRequest") : "errors.internalServerError",
+        params: business ? error.messageParams : undefined,
+      },
+      request?.locale ?? DEFAULT_BACKEND_LOCALE,
+    ).message;
   }
 
   private async batchUpdateChannelsLegacy(
@@ -3464,27 +3475,14 @@ export class RelayChannelService {
     const rejected: BatchUpdateRelayChannelsResponse["rejected"] = [];
     const updated: RelayChannelDto[] = [];
 
-    if (migration && !targetModel) {
-      await this.logBatchChannelUpdate(body, actorUserId, request, 0, channels.length);
-      return {
-        updated,
-        rejected: channels.map((channel) => ({
-          id: channel.id,
-          reason: `Pricing model '${targetPricingModel}' was not found`,
-        })),
-      };
-    }
-
     const targetModelId = targetModel?.modelId?.trim() || targetModel?.model.trim();
-    if (migration && targetModelId !== sourceModelId) {
+    if (migration && (!targetModel || targetModelId !== sourceModelId)) {
       await this.logBatchChannelUpdate(body, actorUserId, request, 0, channels.length);
-      return {
-        updated,
-        rejected: channels.map((channel) => ({
-          id: channel.id,
-          reason: `Pricing model '${targetPricingModel}' has upstream modelId '${targetModelId}', expected '${sourceModelId}'`,
-        })),
-      };
+      const reason = renderDescriptorSafely(
+        { key: "relayChannel.modelMigrationTargetInvalid" },
+        request?.locale ?? DEFAULT_BACKEND_LOCALE,
+      ).message;
+      return { updated, rejected: channels.map((channel) => ({ id: channel.id, reason })) };
     }
 
     const sourceModelNames = new Set(
@@ -3531,7 +3529,7 @@ export class RelayChannelService {
       } catch (error) {
         rejected.push({
           id: channel.id,
-          reason: error instanceof Error ? error.message : "Channel update failed",
+          reason: this.batchChannelRejectionReason(error, request),
         });
       }
     }
@@ -3608,7 +3606,7 @@ export class RelayChannelService {
       } catch (error) {
         rejected.push({
           id: channel.id,
-          reason: error instanceof Error ? error.message : "Channel model restriction update failed",
+          reason: this.batchChannelRejectionReason(error, request),
         });
       }
     }

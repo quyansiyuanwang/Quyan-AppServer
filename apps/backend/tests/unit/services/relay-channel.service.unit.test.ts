@@ -15,7 +15,8 @@ import { RelayTokenRepository } from "../../../src/store/relay/relay-token.repos
 import { RELAY_CHANNEL_STATUS } from "../../../src/constant/relay-channel";
 import { OperationType } from "../../../src/constant/operation-type";
 import { Permission } from "../../../src/constant/permission";
-import { NotFoundError } from "../../../src/util/errors";
+import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "../../../src/util/errors";
+import { renderDescriptorSafely, DEFAULT_BACKEND_LOCALE } from "../../../src/locales";
 
 describe("RelayChannelService", () => {
   const transactionClient = {} as any;
@@ -394,7 +395,10 @@ describe("RelayChannelService", () => {
 
     expect(result.updated).toEqual([]);
     expect(result.rejected).toEqual([
-      expect.objectContaining({ id: channel.id, reason: "pricing catalog unavailable" }),
+      expect.objectContaining({
+        id: channel.id,
+        reason: renderDescriptorSafely({ key: "errors.internalServerError" }, DEFAULT_BACKEND_LOCALE).message,
+      }),
     ]);
   });
 
@@ -417,8 +421,96 @@ describe("RelayChannelService", () => {
 
     expect(result.updated).toEqual([]);
     expect(result.rejected).toEqual([
-      expect.objectContaining({ id: sampleChannel.id, reason: expect.stringContaining("expected 'gpt-5.6-luna'") }),
+      expect.objectContaining({
+        id: sampleChannel.id,
+        reason: renderDescriptorSafely({ key: "relayChannel.modelMigrationTargetInvalid" }, DEFAULT_BACKEND_LOCALE)
+          .message,
+      }),
     ]);
+    expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it.each(["configuration", "restrictions"] as const)(
+    "does not expose raw exceptions in %s batch rejections",
+    async (operation) => {
+      relayChannelRepository.updateById.mockRejectedValueOnce(
+        new Error("fixture-secret: SQL UPDATE channel SET key=credential"),
+      );
+      modelPricingService.getModelPricing.mockResolvedValue([
+        { model: "model", modelId: "model", supportedFormats: "openai-chat-completions" },
+      ]);
+      const result =
+        operation === "configuration"
+          ? await service.batchUpdateChannels({ ids: [sampleChannel.id], patch: { multiplier: 1 } }, "actor-user")
+          : await service.applyModelRestrictions(
+              { targets: [{ channelId: sampleChannel.id, addModels: ["model"] }] },
+              "actor-user",
+            );
+      expect(result.updated).toEqual([]);
+      expect(result.rejected).toEqual([{ id: sampleChannel.id, reason: "Internal server error" }]);
+      expect(JSON.stringify(result)).not.toContain("fixture-secret");
+      expect(JSON.stringify(businessLogService.logOperation.mock.calls)).not.toContain("fixture-secret");
+    },
+  );
+  it.each([
+    ["configuration", 401],
+    ["configuration", 403],
+    ["restrictions", 401],
+    ["restrictions", 403],
+  ] as const)(
+    "never downgrades %s authentication/authorization failure (%s) into partial success",
+    async (operation, status) => {
+      const denied =
+        status === 401 ? new UnauthorizedError("fixture-secret-auth") : new ForbiddenError("fixture-secret-auth");
+      relayChannelRepository.updateById.mockRejectedValueOnce(denied);
+      modelPricingService.getModelPricing.mockResolvedValue([
+        { model: "model", modelId: "model", supportedFormats: "openai-chat-completions" },
+      ]);
+      const result =
+        operation === "configuration"
+          ? service.batchUpdateChannels({ ids: [sampleChannel.id], patch: { multiplier: 1 } }, "actor-user")
+          : service.applyModelRestrictions(
+              { targets: [{ channelId: sampleChannel.id, addModels: ["model"] }] },
+              "actor-user",
+            );
+      await expect(result).rejects.toBe(denied);
+      expect(businessLogService.logOperation).not.toHaveBeenCalled();
+    },
+  );
+  it("renders known batch business errors from descriptors instead of exception messages", async () => {
+    relayChannelRepository.updateById.mockRejectedValueOnce(
+      new BadRequestError("fixture-secret internal diagnosis", undefined, { messageKey: "relayChannel.nameExists" }),
+    );
+    const result = await service.batchUpdateChannels(
+      { ids: [sampleChannel.id], patch: { multiplier: 1 } },
+      "actor-user",
+    );
+    expect(result.rejected).toEqual([
+      {
+        id: sampleChannel.id,
+        reason: renderDescriptorSafely({ key: "relayChannel.nameExists" }, DEFAULT_BACKEND_LOCALE).message,
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("fixture-secret");
+  });
+  it("does not echo arbitrary migration model names in early batch rejection", async () => {
+    relayConfigService.getRelayConfig.mockResolvedValue({ modelRates: [] });
+    const result = await service.batchUpdateChannels(
+      {
+        ids: [sampleChannel.id],
+        patch: {},
+        modelPricingMigration: { sourceModelId: "fixture-secret-source", targetPricingModel: "fixture-secret-target" },
+      },
+      "actor-user",
+    );
+    expect(result.rejected).toEqual([
+      {
+        id: sampleChannel.id,
+        reason: renderDescriptorSafely({ key: "relayChannel.modelMigrationTargetInvalid" }, DEFAULT_BACKEND_LOCALE)
+          .message,
+      },
+    ]);
+    expect(JSON.stringify(result)).not.toContain("fixture-secret");
     expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
   });
 

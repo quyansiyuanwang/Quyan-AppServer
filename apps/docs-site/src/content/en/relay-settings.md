@@ -546,6 +546,8 @@ The existing bulk fields and pricing-model migration remain available. A migrati
 
 Responses contain no upstream credential values. Pool capability output requires permission on the related channels under the same Action. Only requested batch fields are changed; credentials, providers, topology assignments and submission ownership are preserved. JSON policies using the old account-local update alias must grant this platform Action explicitly. Legacy/shadow modes continue to use the existing write path once.
 
+Batch configuration and model-restriction rejections use localized business messages. Unexpected storage or validation failures return a generic error rather than raw exception text, SQL or credentials, including in legacy/shadow modes. Authentication and authorization failures reject the request rather than being reported as successful partial processing.
+
 ## Resource-scoped channel copying
 
 Single and batch copying require `quyan:relay:DuplicateChannels` on each source and the existing channel references needed by its copied configuration, plus the separate `quyan:relay:CreateChannelCopy` capability on each server-generated destination. Resources use `acs:platform:*:platform:relay-channel/<channelId>`. A destination ARN pattern can cover new IDs without granting wildcard source access. Neither a source-only grant nor destination creation alone is sufficient; the destination capability does not grant general channel creation or arbitrary source copying. The operator must also retain deployment-managed channel-create eligibility. Account policies cannot create this deployment eligibility, and step-up verification and replay protection still apply.
