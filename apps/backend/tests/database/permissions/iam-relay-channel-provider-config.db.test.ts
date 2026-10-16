@@ -463,11 +463,22 @@ describe("native scoped provider configuration", () => {
   it("returns only authorized pooled contributions", async () => {
     await prisma.relayChannel.update({
       where: { id: channel },
-      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "upstream" } },
+      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "all" } },
     });
     await prisma.relayChannelMember.create({ data: { relayChannelId: channel, memberChannelId: other, priority: 0 } });
     await grant(platformRelayChannelArn(other));
     expect(await change()).toMatchObject({ poolMembers: [], allowedModels: [] });
+  });
+  it("rolls back a provider update when a registered stored routing value is invalid", async () => {
+    await prisma.relayChannel.update({
+      where: { id: channel },
+      data: { routingConfig: { allowedModelsMode: "upstream" } },
+    });
+    const before = await source(),
+      rows = await providers();
+    await expect(change()).rejects.toMatchObject({ statusCode: 403, messageKey: "permission.insufficientPermission" });
+    expect(await source()).toEqual(before);
+    expect(await providers()).toEqual(rows);
   });
   it("rejects provider terms changed before acquiring locks even with unchanged updateTime", async () => {
     const repo = RelayChannelProviderConfigRepository.getInstance(),

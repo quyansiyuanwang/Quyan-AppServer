@@ -404,7 +404,7 @@ describe("native platform submission review", () => {
   it("projects only admitted pool members and capabilities", async () => {
     await prisma.relayChannel.update({
       where: { id: channel },
-      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "upstream" } },
+      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "all" } },
     });
     await prisma.relayChannelMember.create({ data: { relayChannelId: channel, memberChannelId: other, priority: 0 } });
     await grant(platformRelayChannelArn(other));
@@ -416,7 +416,7 @@ describe("native platform submission review", () => {
   it("preserves admitted pooled model capabilities", async () => {
     await prisma.relayChannel.update({
       where: { id: channel },
-      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "upstream" } },
+      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "all" } },
     });
     await prisma.relayChannelMember.create({ data: { relayChannelId: channel, memberChannelId: other, priority: 0 } });
     expect(await review()).toMatchObject({
@@ -570,7 +570,7 @@ describe("native platform submission review", () => {
   it("rechecks pooled contribution decisions after the final authorization phase", async () => {
     await prisma.relayChannel.update({
       where: { id: channel },
-      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "upstream" } },
+      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "all" } },
     });
     await prisma.relayChannelMember.create({ data: { relayChannelId: channel, memberChannelId: other, priority: 0 } });
     const before = await source();

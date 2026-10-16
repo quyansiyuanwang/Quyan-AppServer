@@ -1,12 +1,10 @@
+import { relayChannelExportConfigurationSchema } from "@/api/schema/relay/relay-channel.schema";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import type { RelayChannel, Prisma } from "@prisma/client";
 import type {
   RelayChannelDto,
   RelayChannelMemberDto,
   RelayChannelProviderDto,
-  RelayChannelRoutingConfigDto,
-  RelayChannelVisibilityConfigDto,
-  TimePeriodMultiplierRule,
-  ContextLengthMultiplierRule,
 } from "@/api/dto/relay/relay-channel.dto";
 import { RELAY_CHANNEL_STATUS } from "@/constant/relay-channel";
 import { resolveEffectiveRelayPoolMembers } from "./utils/relay-pool-members.util";
@@ -86,6 +84,14 @@ export type RelayChannelCredentialPresence = Pick<
   RelayChannelDto,
   "hasOpenaiUpstreamApiKey" | "hasAnthropicUpstreamApiKey" | "hasGeminiUpstreamApiKey"
 >;
+// Reuse the canonical field definitions, not a second hand-maintained DTO allowlist.
+const nestedConfigurationSchema = relayChannelExportConfigurationSchema.pick({
+  modelMapping: true,
+  timePeriodMultipliers: true,
+  contextLengthMultipliers: true,
+  routingConfig: true,
+  visibilityConfig: true,
+});
 /** Payload projection requires no credentials, rich user record, catalog or hidden graph traversal.
  * Related configuration must already be admitted by the caller; capability resolution is a separate boundary.
  */
@@ -93,6 +99,16 @@ export function projectRelayChannelConfiguration(
   channel: RelayChannelConfigurationSource,
   presence: RelayChannelCredentialPresence,
 ): RelayChannelDto {
+  // Stored legacy JSON is untrusted. Unknown object fields are stripped recursively;
+  // invalid registered fields fail closed without echoing their values or parser issues.
+  const nested = nestedConfigurationSchema.safeParse({
+    modelMapping: channel.modelMapping,
+    timePeriodMultipliers: channel.timePeriodMultipliers,
+    contextLengthMultipliers: channel.contextLengthMultipliers,
+    routingConfig: channel.routingConfig,
+    visibilityConfig: channel.visibilityConfig,
+  });
+  if (!nested.success) throw iamAccountDenied();
   const poolMembers = resolveEffectiveRelayPoolMembers<RelayChannelConfigurationMember>(channel).map(
     (member): RelayChannelMemberDto => ({
       memberChannelId: member.memberChannelId,
@@ -124,16 +140,16 @@ export function projectRelayChannelConfiguration(
     configuredAllowedModels: channel.allowedModels || undefined,
     addUserIdentifier: channel.addUserIdentifier !== false, // Default to true
     inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
-    modelMapping: channel.modelMapping as Record<string, string> | undefined,
-    timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
-    contextLengthMultipliers: channel.contextLengthMultipliers as unknown as ContextLengthMultiplierRule[] | undefined,
+    modelMapping: nested.data.modelMapping ?? undefined,
+    timePeriodMultipliers: nested.data.timePeriodMultipliers ?? undefined,
+    contextLengthMultipliers: nested.data.contextLengthMultipliers ?? undefined,
     channelType: (channel.channelType as RelayChannelDto["channelType"] | undefined) ?? DEFAULT_CHANNEL_TYPE,
     routingStrategy:
       (channel.routingStrategy as RelayChannelDto["routingStrategy"] | undefined) ?? DEFAULT_ROUTING_STRATEGY,
-    routingConfig: channel.routingConfig as RelayChannelRoutingConfigDto | undefined,
+    routingConfig: nested.data.routingConfig ?? undefined,
     visibilityMode:
       (channel.visibilityMode as RelayChannelDto["visibilityMode"] | undefined) ?? DEFAULT_VISIBILITY_MODE,
-    visibilityConfig: channel.visibilityConfig as RelayChannelVisibilityConfigDto | undefined,
+    visibilityConfig: nested.data.visibilityConfig ?? undefined,
     poolMembers,
     pooledParentId: channel.pooledParentId || undefined,
     pooledParentName: channel.pooledParent?.name,

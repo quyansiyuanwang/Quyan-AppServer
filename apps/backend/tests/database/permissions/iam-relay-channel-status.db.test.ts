@@ -430,7 +430,7 @@ describe("atomic single channel availability toggles", () => {
     });
     await prisma.relayChannel.update({
       where: { id: channels[0] },
-      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "upstream" } },
+      data: { channelType: "pooled", allowedModels: null, routingConfig: { allowedModelsMode: "all" } },
     });
     await prisma.relayChannel.update({
       where: { id: channels[2] },

@@ -179,6 +179,54 @@ describe("resource-admitted credential-free channel configurations", () => {
       ).not.toContain("fixture-secret");
     }
   });
+  it("strips unknown stored configuration fields on actual authorized reads", async () => {
+    await prisma.relayChannel.update({
+      where: { id: root },
+      data: {
+        routingConfig: {
+          maxRetries: 2,
+          retryStatusCodes: [429, "/^50[234]$/"],
+          legacySecret: "fixture-secret-routing",
+        },
+        visibilityConfig: { userIds: [actor], token: "fixture-secret-visibility" },
+        timePeriodMultipliers: [
+          {
+            name: "night",
+            enabled: true,
+            dayOfWeek: "1",
+            startTime: "01:00",
+            endTime: "02:00",
+            multiplier: 2,
+            credential: "fixture-secret-time",
+          },
+        ],
+        contextLengthMultipliers: [
+          { name: "large", enabled: true, minTokens: 1000, multiplier: 2, password: "fixture-secret-context" },
+        ],
+      },
+    });
+    const result = (await read({ id: root }))![0]!;
+    expect(result.routingConfig).toEqual({ maxRetries: 2, retryStatusCodes: [429, "/^50[234]$/"] });
+    expect(result.visibilityConfig).toEqual({ userIds: [actor] });
+    expect(result.timePeriodMultipliers?.[0]).not.toHaveProperty("credential");
+    expect(result.contextLengthMultipliers?.[0]).not.toHaveProperty("password");
+    expect(JSON.stringify(result)).not.toContain("fixture-secret");
+    // Projection must not mutate persisted configuration as an incidental read.
+    expect(
+      (await prisma.relayChannel.findUniqueOrThrow({ where: { id: root }, select: { routingConfig: true } }))
+        .routingConfig,
+    ).toHaveProperty("legacySecret", "fixture-secret-routing");
+  });
+  it("rejects malformed registered stored fields without echoing their values", async () => {
+    await prisma.relayChannel.update({
+      where: { id: root },
+      data: { routingConfig: { maxRetries: -1, legacySecret: "fixture-secret-invalid" } },
+    });
+    await expect(read({ id: root })).rejects.toMatchObject({
+      statusCode: 403,
+      messageKey: "permission.insufficientPermission",
+    });
+  });
   it("matches nonempty credential presence without MySQL whitespace collation ambiguities", async () => {
     await prisma.relayChannel.update({
       where: { id: root },
