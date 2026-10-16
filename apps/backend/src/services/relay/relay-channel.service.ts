@@ -1,3 +1,9 @@
+import { RelayChannelUpstreamModelIamService } from "./relay-channel-upstream-model-iam.service";
+import {
+  parseUpstreamModels,
+  relayUpstreamModelsPolicy,
+  type UpstreamModelExecutionGuard,
+} from "./relay-upstream-models";
 import { RelayChannelModelRestrictionIamService } from "./relay-channel-model-restriction-iam.service";
 import { RelayChannelChangeRequestReviewIamService } from "./relay-channel-change-request-review-iam.service";
 import { createRelayChannelChangeRequestBodySchema } from "@/api/schema/relay/relay-channel.schema";
@@ -235,10 +241,6 @@ type RelayChannelChangeRequestSnapshot = CreateRelayChannelChangeRequest & {
   previousChannelStatus?: RelayChannelStatus;
   previousProviderServiceEnabled?: boolean;
 };
-
-const UPSTREAM_MODELS_TIMEOUT_MS = 15_000;
-const UPSTREAM_MODELS_MAX_BYTES = 2 * 1024 * 1024;
-const UPSTREAM_MODELS_BATCH_CONCURRENCY = 4;
 
 const nextDailyProviderSettlementAt = (settlementTime: string | undefined, now: Date): Date => {
   const [hours, minutes] = (settlementTime || "00:00").split(":").map(Number);
@@ -2695,6 +2697,24 @@ export class RelayChannelService {
 
   async batchListUpstreamModels(
     data: BatchRelayChannelUpstreamModelsRequest,
+    actorUserId?: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayChannelUpstreamModelsResponse> {
+    return RelayChannelUpstreamModelIamService.getInstance().batch(
+      data,
+      actorUserId,
+      request,
+      () => this.batchListUpstreamModelsLegacy(data),
+      async (format, config, guard) =>
+        this.executeUpstreamModelsRequest(
+          await this.prepareUpstreamModelsRequest(format, config.upstreamUrl!, config.apiKey!, config.useProxy),
+          guard,
+        ),
+    );
+  }
+
+  private async batchListUpstreamModelsLegacy(
+    data: BatchRelayChannelUpstreamModelsRequest,
   ): Promise<BatchRelayChannelUpstreamModelsResponse> {
     const channels = await this.getOrderedChannelsByIds(data.ids, true);
     const items = new Array<BatchRelayChannelUpstreamModelsItemDto>(channels.length);
@@ -2744,7 +2764,9 @@ export class RelayChannelService {
     };
 
     await Promise.all(
-      Array.from({ length: Math.min(UPSTREAM_MODELS_BATCH_CONCURRENCY, Math.max(channels.length, 1)) }, () => worker()),
+      Array.from({ length: Math.min(relayUpstreamModelsPolicy.concurrency, Math.max(channels.length, 1)) }, () =>
+        worker(),
+      ),
     );
 
     return { format: data.format, items };
@@ -2782,71 +2804,61 @@ export class RelayChannelService {
     channelUseProxy: boolean,
   ): Promise<PreparedUpstreamModelsRequest> {
     const safe = configureAIOutboundAgents(await assertSafeOutboundUrl(upstreamUrl));
-    const relayProxyConfig = await this.configService.getRelayProxyConfig();
-    const probeAgent =
-      channelUseProxy && relayProxyConfig.enabled && relayProxyConfig.url
-        ? new ProxyAgent({ ...getAIResourceConfig().aiResources.http, getProxyForUrl: () => relayProxyConfig.url })
-        : undefined;
-    const endpoint = new URL(safe.url.toString());
-    const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
-    endpoint.pathname = normalizedPath.endsWith("/v1") ? `${normalizedPath}/models` : `${normalizedPath}/v1/models`;
-    const headers: Record<string, string> =
-      format === "anthropic"
-        ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
-        : format === "gemini"
-          ? { "x-goog-api-key": apiKey }
-          : { Authorization: `Bearer ${apiKey}` };
-
-    return {
-      format,
-      endpointUrl: endpoint.toString(),
-      headers,
-      httpAgent: probeAgent || safe.httpAgent,
-      httpsAgent: probeAgent || safe.httpsAgent,
-    };
+    let probeAgent: ProxyAgent | undefined;
+    try {
+      const relayProxyConfig = await this.configService.getRelayProxyConfig();
+      if (channelUseProxy && relayProxyConfig.enabled && relayProxyConfig.url) {
+        probeAgent = new ProxyAgent({
+          ...getAIResourceConfig().aiResources.http,
+          getProxyForUrl: () => relayProxyConfig.url,
+        });
+      }
+      const endpoint = new URL(safe.url.toString());
+      const normalizedPath = endpoint.pathname.replace(/\/+$/, "");
+      endpoint.pathname = normalizedPath.endsWith("/v1") ? `${normalizedPath}/models` : `${normalizedPath}/v1/models`;
+      const headers: Record<string, string> =
+        format === "anthropic"
+          ? { "x-api-key": apiKey, "anthropic-version": "2023-06-01" }
+          : format === "gemini"
+            ? { "x-goog-api-key": apiKey }
+            : { Authorization: `Bearer ${apiKey}` };
+      if (probeAgent) {
+        safe.httpAgent.destroy();
+        if (safe.httpsAgent !== safe.httpAgent) safe.httpsAgent.destroy();
+      }
+      return {
+        format,
+        endpointUrl: endpoint.toString(),
+        headers,
+        httpAgent: probeAgent || safe.httpAgent,
+        httpsAgent: probeAgent || safe.httpsAgent,
+      };
+    } catch (error) {
+      probeAgent?.destroy();
+      safe.httpAgent.destroy();
+      if (safe.httpsAgent !== safe.httpAgent) safe.httpsAgent.destroy();
+      throw error;
+    }
   }
 
   private async executeUpstreamModelsRequest(
     prepared: PreparedUpstreamModelsRequest,
+    guard?: UpstreamModelExecutionGuard,
   ): Promise<RelayChannelUpstreamModelsResponse> {
     try {
+      await guard?.beforeSend();
       const response = await axios.get(prepared.endpointUrl, {
         headers: prepared.headers,
         httpAgent: prepared.httpAgent,
         httpsAgent: prepared.httpsAgent,
         proxy: false,
-        timeout: UPSTREAM_MODELS_TIMEOUT_MS,
+        timeout: relayUpstreamModelsPolicy.timeoutMs,
         maxRedirects: 0,
-        maxContentLength: UPSTREAM_MODELS_MAX_BYTES,
+        maxContentLength: relayUpstreamModelsPolicy.maxBytes,
         validateStatus: (status) => status >= 200 && status < 300,
       });
-      const payload = response.data as Record<string, unknown>;
-      const source = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.models) ? payload.models : [];
-      const ids = source
-        .map((item) => {
-          if (typeof item === "string") return item;
-          if (!item || typeof item !== "object") return "";
-          const record = item as Record<string, unknown>;
-          return String(record.id || record.name || record.model || "");
-        })
-        .map((id) => id.trim())
-        .filter(Boolean);
-      const catalog = await this.modelPricingService.getModelPricing();
-      const seen = new Set<string>();
-      return {
-        format: prepared.format,
-        models: ids
-          .filter((id) => !seen.has(id) && seen.add(id))
-          .map((id) => {
-            const matched = catalog.find((model) => resolveModelId(model).trim() === id);
-            return {
-              id,
-              matched: Boolean(matched),
-              pricingModel: matched?.model,
-              pricingModelId: matched ? resolveModelId(matched) : undefined,
-            };
-          }),
-      };
+      const catalog = guard?.catalog ?? (await this.modelPricingService.getModelPricing());
+      return { format: prepared.format, models: parseUpstreamModels(response.data, catalog) };
     } finally {
       prepared.httpAgent.destroy();
       if (prepared.httpsAgent !== prepared.httpAgent) prepared.httpsAgent.destroy();

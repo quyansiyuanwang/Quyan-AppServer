@@ -469,6 +469,15 @@ The server admits the complete batch before merging locally priced model names p
 
 A denied target, identity or permission change, model-catalog change, or response-data change cancels the entire batch instead of merely skipping one target. The operation does not change channel enablement, provider pauses, visibility, credentials, revenue configuration or token assignments. Responses never contain key values; related pool capabilities appear only when their resources are separately authorized. Existing `RELAY_CHANNEL_UPDATE` permissions map to the new Action; legacy/shadow modes perform the original business write only once.
 
+## Resource-scoped batch upstream model discovery
+
+With IAM enforcement enabled, querying upstream models in bulk requires `quyan:relay:BatchListUpstreamModels` on **every** requested `acs:platform:*:platform:relay-channel/<channelId>` resource. Deployment-managed channel-update eligibility is also required; an account policy alone cannot grant platform administration. The operation does not grant permission to read or export upstream credentials or other channel configuration.
+
+- All targets must be admitted before any saved credential is read or any upstream request is sent. Missing, deleted, denied or non-canonical targets reject the entire batch.
+- Only the selected OpenAI, Anthropic or Gemini configuration is used. An incomplete configuration is reported as skipped, never replaced with another protocol's key. Upstream failures are reported per channel without exposing private response bodies or credential values. Results retain the requested channel order.
+- Identity, role-session and AccessKey validity, policies, request conditions, channel configuration and model catalog are checked again immediately before each send and before returning the batch. A revocation or relevant change cancels all results rather than turning into a per-channel network error. Already-sent requests cannot be recalled; queued sends stop when the change is detected. No database transaction remains open while awaiting an upstream response.
+- Legacy/shadow migration modes retain the original operation. Shadow authorization does not read a second set of saved keys or issue duplicate upstream requests.
+
 ## Related pages
 
 - `relay-token-management`

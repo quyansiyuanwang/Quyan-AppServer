@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
+import { assertSafeOutboundUrl } from "../../../src/util/developer-outbound-url";
 vi.mock("../../../src/util/developer-outbound-url", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../src/util/developer-outbound-url")>()),
   assertSafeOutboundUrl: vi.fn(async (rawUrl: string) => ({
@@ -419,6 +420,18 @@ describe("RelayChannelService", () => {
       expect.objectContaining({ id: sampleChannel.id, reason: expect.stringContaining("expected 'gpt-5.6-luna'") }),
     ]);
     expect(relayChannelRepository.updateById).not.toHaveBeenCalled();
+  });
+
+  it("releases DNS-pinned agents when upstream preparation fails before HTTP", async () => {
+    configService.getRelayProxyConfig.mockRejectedValueOnce(new Error("fixture-only-proxy-configuration"));
+    const get = vi.spyOn(axios, "get");
+    await expect(
+      service.listUpstreamModels({ format: "openai", upstreamUrl: "https://1.1.1.1", apiKey: "fixture-only" }, "actor"),
+    ).rejects.toThrow("fixture-only-proxy-configuration");
+    const safe = await vi.mocked(assertSafeOutboundUrl).mock.results.at(-1)!.value;
+    expect(safe.httpAgent.destroy).toHaveBeenCalledTimes(1);
+    expect(safe.httpsAgent.destroy).toHaveBeenCalledTimes(1);
+    expect(get).not.toHaveBeenCalled();
   });
 
   it("batch probes upstream models while preserving per-channel failures and skipping missing credentials", async () => {

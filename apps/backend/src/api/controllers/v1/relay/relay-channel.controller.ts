@@ -1,6 +1,9 @@
-import { platformRelayChannelModelRestrictionResources } from "@/iam/resources/platform-relay-channel-resources";
+import {
+  platformRelayChannelUpstreamModelResources,
+  platformRelayChannelModelRestrictionResources,
+  platformRelayChannelResourceResolver,
+} from "@/iam/resources/platform-relay-channel-resources";
 import { platformRelayChannelChangeRequestReviewResourceResolver } from "@/iam/request/platform-relay-channel-change-request-resource-resolver";
-import { platformRelayChannelResourceResolver } from "@/iam/resources/platform-relay-channel-resources";
 import { relayChannelSubmissionResourceResolver } from "@/iam/resources/relay-channel-submission-resources";
 import { relayProviderClaimBalanceResourceResolver } from "@/iam/request/relay-provider-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
@@ -645,12 +648,17 @@ export class RelayChannelController extends Controller {
 
   @Post("batch/upstream-models")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:BatchListUpstreamModels",
+    resourceKind: "batch",
+    resource: platformRelayChannelUpstreamModelResources,
+  })
   @Middlewares(validateBody(batchRelayChannelUpstreamModelsBodySchema))
   public async batchListUpstreamModels(
     @Body() body: BatchRelayChannelUpstreamModelsRequest,
+    @Request() request: TypedRequest,
   ): Promise<BatchRelayChannelUpstreamModelsResponse> {
-    return this.channelService.batchListUpstreamModels(body);
+    return this.channelService.batchListUpstreamModels(body, request.user!.userId, request);
   }
 
   @Post("batch/model-restrictions")
