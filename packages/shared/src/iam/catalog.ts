@@ -646,6 +646,15 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-probe-account/{resourceId}',
   },
+  resource('relay', 'channel-change-request', 2),
+  {
+    ...resource('platform', 'relay-channel-change-request', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' +
+      IAM_PLATFORM_ACCOUNT_ID +
+      ':relay-channel-change-request/{channelId}/{resourceId}',
+  },
   resource('relay', 'channel'),
   resource('relay', 'provider', 2),
   resource('relay', 'provider-earning', 2),
@@ -2063,6 +2072,31 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_CHANNEL_PROBE_ACCOUNT_MANAGE,
+  },
+  {
+    action: 'quyan:relay:ListMyChannelChangeRequests',
+    service: 'relay',
+    operation: 'ListMyChannelChangeRequests',
+    accessLevel: 'List',
+    resourceTypes: ['relay/channel-change-request'],
+    apiRoutes: ['GET /v1/relay-channels/change-requests/mine'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    legacyPermission: Permission.RELAY_CHANNEL_SUBMIT,
+  },
+  {
+    action: 'quyan:relay:ListChannelChangeRequests',
+    service: 'relay',
+    operation: 'ListChannelChangeRequests',
+    accessLevel: 'List',
+    resourceTypes: ['platform/relay-channel-change-request'],
+    apiRoutes: ['GET /v1/relay-channels/change-requests'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_REVIEW,
   },
   {
     action: 'quyan:relay:ListManagementChannels',

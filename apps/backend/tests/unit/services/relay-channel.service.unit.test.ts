@@ -142,17 +142,18 @@ describe("RelayChannelService", () => {
     relayConfigService.getRelayConfig.mockResolvedValue({ apiCatalogPoolVisibility: "anonymous-range" });
     configService.getRelayProxyConfig.mockResolvedValue({ enabled: false, url: "" });
     changeRequestRepository.findPendingByChannelId.mockResolvedValue(null);
-    changeRequestRepository.create.mockResolvedValue({
+    changeRequestRepository.create.mockImplementation(async (data: Record<string, unknown>) => ({
+      ...data,
       id: "change-1",
       status: 1,
-      relayChannelId: "channel-1",
-      submittedByUserId: "actor-user",
       reviewStatus: "pending",
-      configSnapshot: {},
+      reviewedAt: null,
+      reviewReason: null,
       createTime: now,
       updateTime: now,
-      channelName: "Main",
-    });
+      relayChannel: { id: "channel-1", name: "Main" },
+      submittedBy: { username: "supplier" },
+    }));
     relayChannelRepository.updateById.mockImplementation(async (id: string, data: Record<string, unknown>) => ({
       ...sampleChannel,
       id,

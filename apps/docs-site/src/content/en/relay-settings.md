@@ -15,6 +15,14 @@ If you need to answer questions like “who can see this channel?”, “which u
 - Create standalone channels, pooled channels, or automatic proxy pools.
 - Set visibility, routing, upstream credentials, and pricing multipliers per channel.
 
+## IAM channel change request lists
+
+In IAM enforce mode, “My change requests” uses `quyan:relay:ListMyChannelChangeRequests` on `acs:relay:*:<accountId>:channel-change-request/<submitterId>/<requestId>`. Only the current submitter's requests are included. Wildcard grants do not expose another user's personal requests, whether in the same account or a different account.
+
+The review list uses `quyan:relay:ListChannelChangeRequests` on `acs:platform:*:platform:relay-channel-change-request/<channelId>/<requestId>`. Reviewers still require `RELAY_CHANNEL_REVIEW` eligibility from a deployment-managed global group; an account-owned group or policy cannot create that eligibility. Qualified reviewers may review different submitters' requests, but each request must be individually allowed.
+
+Both lists authorize each request before computing pagination and totals, excluding deleted requests or channels. Configuration includes only documented public fields and credential-presence flags, never plaintext or encrypted credentials. Role sessions use only role policies. Refresh and retry if identity, eligibility, policy, or session authority changes during the read.
+
 ## IAM channel management list
 
 With IAM enforcement enabled, the management table uses `quyan:relay:ListManagementChannels` against each `acs:platform:*:platform:relay-channel/<channelId>`. Records, pagination and totals include only allowed channels within the existing visibility and filter rules. Denied parent names and member references are hidden. Model filters use only admitted paths through the channel pool, preserving strict child settings over duplicate legacy membership; a denied leaf cannot contribute models. This Action grants list access, while channel changes and delivery require their own Actions. Deployment management qualification is still required. Refresh and retry if authority changes while loading.

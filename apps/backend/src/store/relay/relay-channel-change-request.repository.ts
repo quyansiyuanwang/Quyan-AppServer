@@ -1,3 +1,4 @@
+import { relayChannelChangeRequestPublicSelect } from "./relay-channel-change-request-read.repository";
 import { prisma } from "@/config/database";
 import { VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
 import type { Prisma } from "@prisma/client";
@@ -41,7 +42,7 @@ export class RelayChannelChangeRequestRepository {
     const [items, total] = await prisma.$transaction([
       prisma.relayChannelChangeRequest.findMany({
         where,
-        include: changeRequestInclude,
+        select: relayChannelChangeRequestPublicSelect,
         orderBy: { createTime: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -60,7 +61,7 @@ export class RelayChannelChangeRequestRepository {
     const [items, total] = await prisma.$transaction([
       prisma.relayChannelChangeRequest.findMany({
         where,
-        include: changeRequestInclude,
+        select: relayChannelChangeRequestPublicSelect,
         orderBy: { createTime: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,

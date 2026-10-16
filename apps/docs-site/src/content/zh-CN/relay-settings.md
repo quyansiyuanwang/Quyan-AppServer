@@ -7,6 +7,14 @@
 
 如果你要解决“某个用户能否看到某个渠道”“某个模型走哪个上游”“多个上游如何故障转移”这一类问题，核心都在这里完成。
 
+## IAM 渠道修改申请列表
+
+IAM 强制模式下，“我的修改申请”使用 `quyan:relay:ListMyChannelChangeRequests`，资源为 `acs:relay:*:<账户ID>:channel-change-request/<提交者ID>/<申请ID>`。结果仅包含当前提交者自己的申请；即使授权策略包含通配符，也不能读取同账户其他用户或其他账户的个人申请。
+
+审核列表使用 `quyan:relay:ListChannelChangeRequests`，资源为 `acs:platform:*:platform:relay-channel-change-request/<渠道ID>/<申请ID>`。审核员仍须具有部署管理员设置的全局组 `RELAY_CHANNEL_REVIEW` 资格，账户自建组或策略不能自行赋予审核员资格。合格审核员可处理不同提交者的申请，但每条申请仍须获准访问。
+
+两种列表都先按申请逐资源授权，再计算分页和总数；删除的申请或渠道不出现在结果中。配置只返回约定的公开字段和“是否已设置凭据”标志，不返回原始或加密凭据。角色会话只使用角色策略。读取期间身份、资格、策略或会话变化时，请刷新重试。
+
 ## IAM 渠道管理列表
 
 启用 IAM 强制授权后，管理表格使用 `quyan:relay:ListManagementChannels` 检查每个 `acs:platform:*:platform:relay-channel/<channelId>`。记录、分页和总数只包含既有可见性与筛选规则下获准查看的渠道；被拒绝的父渠道名称和成员引用会被隐藏。模型筛选只使用获准的渠道池路径，并保留严格子渠道设置覆盖重复旧成员关系的规则；被拒绝的叶渠道不能贡献模型能力。此 Action 授予列表访问权限，渠道修改和交付需要各自的 Action；仍需部署管理员设置的管理资格。加载过程中权限变化时需要刷新重试。

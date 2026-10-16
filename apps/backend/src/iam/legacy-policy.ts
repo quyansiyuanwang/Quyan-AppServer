@@ -202,6 +202,21 @@ export function legacyPermissionsToPrincipalPolicy(
           ),
         ),
       });
+    const ownChangeRequests: string[] = statement.Action.filter(
+      (action) => action === "quyan:relay:ListMyChannelChangeRequests",
+    );
+    if (ownChangeRequests.length)
+      statements.push({
+        Effect: "Allow",
+        Sid: "LegacyRelayOwnChangeRequests",
+        Action: ownChangeRequests,
+        Resource: [
+          IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/channel-change-request")!
+            .arnTemplate.replace("{accountId}", accountOwnerId)
+            .replace("{parentId}", principalUserId)
+            .replace("{resourceId}", "*"),
+        ],
+      });
     const other = statement.Action.filter(
       (action) =>
         !authorOnly.has(action) &&
@@ -209,7 +224,8 @@ export function legacyPermissionsToPrincipalPolicy(
         !jsonAccess.includes(action) &&
         !jsonCreate.includes(action) &&
         !ojAccess.includes(action) &&
-        !personalRelayAccess.includes(action),
+        !personalRelayAccess.includes(action) &&
+        !ownChangeRequests.includes(action),
     );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>

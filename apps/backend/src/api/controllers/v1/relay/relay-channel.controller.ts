@@ -13,6 +13,7 @@ import {
   Put,
   Query,
   Request,
+  Response,
   Route,
   Security,
   Tags,
@@ -483,24 +484,41 @@ export class RelayChannelController extends Controller {
 
   @Get("change-requests/mine")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListMyChannelChangeRequests",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  @Response(401, "Authentication required")
+  @Response(403, "IAM authorization denied")
   public async listMyChangeRequests(
     @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
   ) {
-    return this.channelService.listMyChangeRequests(request.user!.userId, page, pageSize);
+    return this.channelService.listMyChangeRequests(request.user!.userId, page, pageSize, request);
   }
 
   @Get("change-requests")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_REVIEW)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListChannelChangeRequests",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  @Response(401, "Authentication required")
+  @Response(403, "IAM authorization denied")
   public async listChangeRequests(
+    @Request() request: TypedRequest,
     @Query() page: number = 1,
     @Query() pageSize: number = 20,
     @Query() reviewStatus?: RelayChannelChangeRequestStatus,
   ) {
-    return this.channelService.listChangeRequests(page, pageSize, reviewStatus);
+    return this.channelService.listChangeRequests(page, pageSize, reviewStatus, request);
   }
 
   @Post("change-requests/{id}/review")

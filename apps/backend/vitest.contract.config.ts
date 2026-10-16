@@ -6,4 +6,5 @@ export default defineBackendTestProject("backend-contract", [
   "tests/contract/iam-ip-error-weight.contract.test.ts",
   "tests/contract/iam-ip-blacklist-update.contract.test.ts",
   "tests/contract/iam-relay-token-read.contract.test.ts",
+  "tests/contract/iam-relay-channel-change-request-read.contract.test.ts",
 ]);

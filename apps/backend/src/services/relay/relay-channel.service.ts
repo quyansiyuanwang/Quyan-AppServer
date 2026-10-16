@@ -1,3 +1,9 @@
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
+import { RelayChannelChangeRequestReadIamService } from "./relay-channel-change-request-read-iam.service";
+import {
+  projectRelayChannelChangeRequest,
+  type RelayChannelChangeRequestProjectionSource,
+} from "./relay-channel-change-request-projection";
 import { PlatformRelayChannelStatusIamService } from "./platform-relay-channel-status-iam.service";
 import { RELAY_CHANNEL_VISIBILITY_MANAGEMENT_PERMISSIONS } from "@/constant/relay-channel";
 import { normalizeRelayChannelVisibilityConfig } from "@/util/relay/relay-channel-visibility.util";
@@ -2719,34 +2725,8 @@ export class RelayChannelService {
     });
   }
 
-  private toChangeRequestDto(row: any): RelayChannelChangeRequestDto {
-    const snapshot = (row.configSnapshot || {}) as Record<string, unknown>;
-    const {
-      previousSubmissionStatus: _previousSubmissionStatus,
-      previousChannelStatus: _previousChannelStatus,
-      ...publicSnapshot
-    } = snapshot;
-    return {
-      id: row.id,
-      relayChannelId: row.relayChannelId,
-      channelName: row.relayChannel?.name || "",
-      submittedByUserId: row.submittedByUserId,
-      submittedByUsername: row.submittedBy?.username,
-      reviewStatus: row.reviewStatus as RelayChannelChangeRequestStatus,
-      reviewedAt: row.reviewedAt || undefined,
-      reviewReason: row.reviewReason || undefined,
-      config: {
-        ...(publicSnapshot as Omit<
-          CreateRelayChannelChangeRequest,
-          "openaiUpstreamApiKey" | "anthropicUpstreamApiKey" | "geminiUpstreamApiKey"
-        >),
-        hasOpenaiUpstreamApiKey: Boolean(snapshot.hasOpenaiUpstreamApiKey),
-        hasAnthropicUpstreamApiKey: Boolean(snapshot.hasAnthropicUpstreamApiKey),
-        hasGeminiUpstreamApiKey: Boolean(snapshot.hasGeminiUpstreamApiKey),
-      },
-      createTime: row.createTime,
-      updateTime: row.updateTime,
-    };
+  private toChangeRequestDto(row: RelayChannelChangeRequestProjectionSource): RelayChannelChangeRequestDto {
+    return projectRelayChannelChangeRequest(row);
   }
 
   async createChangeRequest(
@@ -2848,14 +2828,32 @@ export class RelayChannelService {
     return this.toChangeRequestDto(row);
   }
 
-  async listMyChangeRequests(actorUserId: string, page = 1, pageSize = 20) {
-    const result = await this.changeRequestRepository.listMine(actorUserId, page, pageSize);
-    return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+  async listMyChangeRequests(actorUserId: string, page = 1, pageSize = 20, request?: TypedRequest) {
+    if (request && request.user?.userId !== actorUserId) throw iamAccountDenied();
+    return RelayChannelChangeRequestReadIamService.getInstance().list(
+      request,
+      { mine: true, page, pageSize },
+      async () => {
+        const result = await this.changeRequestRepository.listMine(actorUserId, page, pageSize);
+        return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+      },
+    );
   }
 
-  async listChangeRequests(page = 1, pageSize = 20, reviewStatus?: RelayChannelChangeRequestStatus) {
-    const result = await this.changeRequestRepository.listAdmin(page, pageSize, reviewStatus);
-    return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+  async listChangeRequests(
+    page = 1,
+    pageSize = 20,
+    reviewStatus?: RelayChannelChangeRequestStatus,
+    request?: TypedRequest,
+  ) {
+    return RelayChannelChangeRequestReadIamService.getInstance().list(
+      request,
+      { mine: false, page, pageSize, reviewStatus },
+      async () => {
+        const result = await this.changeRequestRepository.listAdmin(page, pageSize, reviewStatus);
+        return { items: result.items.map((row) => this.toChangeRequestDto(row)), total: result.total, page, pageSize };
+      },
+    );
   }
 
   async reviewChangeRequest(
