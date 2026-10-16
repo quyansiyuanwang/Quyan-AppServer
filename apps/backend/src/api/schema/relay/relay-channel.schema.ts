@@ -362,17 +362,38 @@ export const exportRelayChannelsBodySchema = z.object({
   includeDisabled: z.coerce.boolean().optional(),
 });
 
-export const importRelayChannelsBodySchema = z.object({
-  channels: z
-    .array(
-      relayChannelBaseSchema.extend({
-        id: z.string().trim().min(1).optional(),
-        enabled: z.coerce.boolean().optional(),
-      }),
-    )
-    .min(1)
-    .max(200),
-});
+export const importRelayChannelsBodySchema = z
+  .object({
+    channels: z
+      .array(
+        relayChannelBaseSchema
+          .extend({
+            poolMembers: z
+              .array(
+                relayChannelMemberSchema
+                  .extend({
+                    memberChannelName: z.string().trim().min(1).max(100).optional(),
+                    memberChannelType: relayChannelTypeSchema.optional(),
+                    memberChannelEnabled: z.boolean().optional(),
+                  })
+                  .strict(),
+              )
+              .max(200)
+              .nullable()
+              .optional(),
+            id: z.string().trim().min(1).optional(),
+            enabled: z.coerce.boolean().optional(),
+            // Recognized export metadata is validated but never controls destination timestamps.
+            createTime: z.coerce.date().optional(),
+            updateTime: z.coerce.date().optional(),
+          })
+          .strict()
+          .transform(({ createTime: _created, updateTime: _updated, ...input }) => input),
+      )
+      .min(1)
+      .max(200),
+  })
+  .strict();
 
 export const submitRelayChannelBodySchema = relayChannelBaseSchema
   .pick({

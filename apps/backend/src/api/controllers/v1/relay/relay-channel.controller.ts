@@ -74,7 +74,7 @@ import type {
   RelayChannelSubmissionStatus,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
-import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -763,7 +763,14 @@ export class RelayChannelController extends Controller {
 
   @Post("import")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_CREATE)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ImportChannels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_CREATE],
+    }),
+  )
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

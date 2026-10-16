@@ -15,7 +15,7 @@ import { getIamPolicyJsonSchema } from "@/iam/diagnostics/policy-json-schema";
 vi.mock("@/build/iam-action-routes", () => ({
   IAM_ACTION_ROUTES: {
     "quyan:relay:CreateChannel": ["POST /v1/relay-channels"],
-    "quyan:relay:UseChannelCreationReference": ["POST /v1/relay-channels"],
+    "quyan:relay:UseChannelCreationReference": ["POST /v1/relay-channels", "POST /v1/relay-channels/import"],
   },
 }));
 const action = "quyan:relay:CreateChannel",

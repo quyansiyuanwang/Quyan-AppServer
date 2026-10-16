@@ -57478,6 +57478,16 @@
 						"type": "array",
 						"description": "Admin-configured providers for revenue sharing."
 					},
+					"createTime": {
+						"type": "string",
+						"format": "date-time",
+						"description": "Optional export metadata; validated but ignored when creating destination timestamps."
+					},
+					"updateTime": {
+						"type": "string",
+						"format": "date-time",
+						"description": "Optional export metadata; validated but ignored when creating destination timestamps."
+					},
 					"id": {
 						"type": "string",
 						"description": "Export source channel ID, used only to remap pooled members during import."

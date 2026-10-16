@@ -1,3 +1,4 @@
+import { RelayChannelImportIamService } from "./relay-channel-import-iam.service";
 import { RelayChannelCreateIamService } from "./relay-channel-create-iam.service";
 import { RelayChannelUpdateIamService } from "./relay-channel-update-iam.service";
 import { relayChannelExportConfigurationSchema } from "@/api/schema/relay/relay-channel.schema";
@@ -2344,29 +2345,35 @@ export class RelayChannelService {
       data,
       actorUserId,
       request as TypedRequest | undefined,
-      async (input, catalog, topologyMode) => {
-        const validated = await this.buildValidatedChannelData(input, undefined, catalog, undefined, topologyMode);
-        const registered = relayChannelExportConfigurationSchema.partial().safeParse(validated);
-        if (!registered.success)
-          throw new BadRequestError("Invalid registered channel configuration", undefined, {
-            messageKey: "errors.badRequest",
-          });
-        const values = this.toPersistenceInput(validated);
-        for (const key of [
-          "routingConfig",
-          "visibilityConfig",
-          "modelMapping",
-          "timePeriodMultipliers",
-          "contextLengthMultipliers",
-        ] as const) {
-          const value = registered.data[key];
-          values[key] = value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue | undefined);
-        }
-        return { data: values, members: validated.poolMembers };
-      },
+      (input, catalog, topologyMode) => this.prepareNativeChannelCreation(input, catalog, topologyMode),
       (provider, userId, now) => this.buildProviderRow(provider, userId, now),
       () => this.createChannelLegacy(data, actorUserId, request),
     );
+  }
+
+  private async prepareNativeChannelCreation(
+    input: CreateRelayChannelRequest,
+    catalog: readonly RelayModelCatalogEntry[],
+    topologyMode: "legacy" | "strict-two-tier",
+  ) {
+    const validated = await this.buildValidatedChannelData(input, undefined, catalog, undefined, topologyMode);
+    const registered = relayChannelExportConfigurationSchema.partial().safeParse(validated);
+    if (!registered.success)
+      throw new BadRequestError("Invalid registered channel configuration", undefined, {
+        messageKey: "errors.badRequest",
+      });
+    const values = this.toPersistenceInput(validated);
+    for (const key of [
+      "routingConfig",
+      "visibilityConfig",
+      "modelMapping",
+      "timePeriodMultipliers",
+      "contextLengthMultipliers",
+    ] as const) {
+      const value = registered.data[key];
+      values[key] = value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue | undefined);
+    }
+    return { data: values, members: validated.poolMembers };
   }
 
   private async createChannelLegacy(
@@ -4028,6 +4035,22 @@ export class RelayChannelService {
   }
 
   async importChannels(
+    body: ImportRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<ImportRelayChannelsResponse> {
+    return RelayChannelImportIamService.getInstance().execute(
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      (input, catalog, topologyMode) => this.prepareNativeChannelCreation(input, catalog, topologyMode),
+      (provider, userId, now) => this.buildProviderRow(provider, userId, now),
+      (name, reserved) => this.buildCopyName(name, reserved),
+      () => this.importChannelsLegacy(body, actorUserId, request),
+    );
+  }
+
+  private async importChannelsLegacy(
     body: ImportRelayChannelsRequest,
     actorUserId: string,
     request?: Request,

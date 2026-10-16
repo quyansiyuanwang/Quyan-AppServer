@@ -89,7 +89,7 @@ export const relayChannelConfigurationReadSelect = {
 } as const satisfies Prisma.RelayChannelSelect;
 type Metadata = Prisma.RelayChannelGetPayload<{ select: typeof metadataSelect }>;
 type GraphSource = Prisma.RelayChannelGetPayload<{ select: typeof graphSelect }>;
-export type RelayChannelConfigurationReadOptions = { id?: string; includeDisabled: boolean };
+export type RelayChannelConfigurationReadOptions = { id?: string; ids?: readonly string[]; includeDisabled: boolean };
 export type RelayChannelConfigurationReadSnapshot = {
   records: { source: RelayChannelConfigurationSource; presence: RelayChannelCredentialPresence }[];
   context: RelayPoolResolverContext;
@@ -122,7 +122,14 @@ export class RelayChannelConfigurationReadRepository implements RelayChannelConf
   ): Promise<T | undefined> {
     if (
       typeof options.includeDisabled !== "boolean" ||
-      (options.id !== undefined && !/^[A-Za-z0-9_-]{1,128}$/.test(options.id))
+      (options.id !== undefined && !/^[A-Za-z0-9_-]{1,128}$/.test(options.id)) ||
+      (options.ids !== undefined &&
+        (options.id !== undefined ||
+          !Array.isArray(options.ids) ||
+          !options.ids.length ||
+          options.ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+          new Set(options.ids).size !== options.ids.length ||
+          options.ids.some((id) => !/^[A-Za-z0-9_-]{1,128}$/.test(id))))
     )
       throw iamAccountDenied();
     const read = async (
@@ -157,6 +164,7 @@ export class RelayChannelConfigurationReadRepository implements RelayChannelConf
       };
       const initial = await scan(true);
       if (options.id && !initial.admitted.includes(options.id)) throw iamAccountDenied();
+      if (options.ids?.some((id) => !initial.admitted.includes(id))) throw iamAccountDenied();
       // Shadow mode performs metadata/decision observation only, never configuration or credential reads.
       if (!project) return undefined;
       const readVisibility = async () => {
@@ -186,8 +194,15 @@ export class RelayChannelConfigurationReadRepository implements RelayChannelConf
       const visibility = await readVisibility(),
         visible = new Set(visibility.visibleIds);
       if (options.id && !visible.has(options.id)) throw iamAccountDenied();
+      if (options.ids?.some((id) => !visible.has(id))) throw iamAccountDenied();
       const targets = initial.rows.filter(
-        (row) => visible.has(row.id) && (options.id ? row.id === options.id : options.includeDisabled || enabled(row)),
+        (row) =>
+          visible.has(row.id) &&
+          (options.id
+            ? row.id === options.id
+            : options.ids
+              ? options.ids.includes(row.id)
+              : options.includeDisabled || enabled(row)),
       );
       const readGraph = async () => {
         const rows: GraphSource[] = [];

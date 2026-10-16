@@ -423,6 +423,10 @@ export interface DuplicateRelayChannelRequest {
 }
 
 export interface RelayChannelImportItemDto extends CreateRelayChannelRequest {
+  /** Optional export metadata; validated but ignored when creating destination timestamps. */
+  createTime?: Date;
+  /** Optional export metadata; validated but ignored when creating destination timestamps. */
+  updateTime?: Date;
   /** Export source channel ID, used only to remap pooled members during import. */
   id?: string;
   /** 导入后是否启用，默认启用 */

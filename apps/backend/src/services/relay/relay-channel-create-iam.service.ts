@@ -1,3 +1,4 @@
+import { channelCreationAuthority } from "./relay-channel-creation-authority";
 import { createId } from "@paralleldrive/cuid2";
 import { projectAuthorizedRelayChannelMutation } from "./relay-channel-authorized-mutation-projection";
 import {
@@ -5,24 +6,12 @@ import {
   type ChannelCreatePreparation,
   type ChannelCreateProviderPreparation,
 } from "@/store/relay/relay-channel-create.repository";
-import { isDeepStrictEqual as same } from "node:util";
-import type { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
-import { IamAuthorizationService } from "@/iam/iam-authorization.service";
-import { fingerprintIamPolicies } from "@/iam/evaluator/policy-set-fingerprint";
 import { getIamPrincipal } from "@/iam/request/principal-context";
-import {
-  platformRelayChannelArn,
-  platformRelayChannelProviderArn,
-} from "@/iam/resources/platform-relay-channel-resources";
 import { isPlatformLogResourceId } from "@/iam/resources/platform-log-resources";
-import { PlatformManagementReadRepository } from "@/store/system/platform-management-read.repository";
-import { assertIamAccountPrincipal, iamAccountDenied } from "@/store/users/iam-account-principal";
-import { platformManagementGroupSnapshot } from "@/store/users/platform-management-principal";
-import { captureIamAccessKeyRevision } from "@/store/users/iam-access-key-authority";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PermissionService } from "../users/permission.service";
-import { platformCollectionDecisions } from "../system/platform-collection-decisions";
 import { createRelayChannelBodySchema } from "@/api/schema/relay/relay-channel.schema";
 import { RelayChannelProviderConfigRepository } from "@/store/relay/relay-channel-provider-config.repository";
 import { BadRequestError } from "@/util/errors";
@@ -73,69 +62,15 @@ export class RelayChannelCreateIamService {
     )
       throw iamAccountDenied();
     if (mode === "legacy") return legacy();
-    const id = createId(), parsed = createRelayChannelBodySchema.safeParse(input);
+    const id = createId(),
+      parsed = createRelayChannelBodySchema.safeParse(input);
     if (!parsed.success || !isPlatformLogResourceId(id))
       throw new BadRequestError("Invalid channel creation request", undefined, { messageKey: "errors.badRequest" });
     const data = parsed.data;
     const native = async (persist: boolean) => {
-      const iam = IamAuthorizationService.getInstance(),
-        snapshots = PlatformManagementReadRepository.getInstance(),
-        repository = RelayChannelCreateRepository.getInstance(),
-        snapshot = await snapshots.snapshot(principal, Permission.RELAY_CHANNEL_CREATE),
-        fingerprint = fingerprintIamPolicies(await iam.loadPolicies(principal)),
-        keyId = request.accessKey?.id,
-        keyRevision = await captureIamAccessKeyRevision(principal, keyId),
-        resources = new Set([platformRelayChannelArn(id)]),
-        references = new Set<string>();
-      const assertRequest = () => {
-        if (
-          env.security.iamAuthorizationMode !== mode ||
-          !same(getIamPrincipal(request), principal) ||
-          request.accessKey?.id !== keyId ||
-          request.oauthAccessToken
-        )
-          throw iamAccountDenied();
-      };
-      const recheck = async (tx?: Prisma.TransactionClient) => {
-        assertRequest();
-        if (tx) {
-          await assertIamAccountPrincipal(principal, tx);
-          const group = await platformManagementGroupSnapshot(principal, Permission.RELAY_CHANNEL_CREATE, tx),
-            users = await tx.user.findMany({
-              where: { id: { in: snapshot.users.map((row) => row.id) }, status: 1 },
-              select: { id: true, updateTime: true },
-              orderBy: { id: "asc" },
-            });
-          if (
-            !same(group, snapshot.group) ||
-            !same(
-              users,
-              [...snapshot.users].sort((a, b) => a.id.localeCompare(b.id)),
-            )
-          )
-            throw iamAccountDenied();
-        } else await snapshots.recheck(principal, Permission.RELAY_CHANNEL_CREATE, snapshot);
-        if (
-          fingerprintIamPolicies(await iam.loadPolicies(principal)) !== fingerprint ||
-          (await captureIamAccessKeyRevision(principal, keyId, tx)) !== keyRevision
-        )
-          throw iamAccountDenied();
-        for (const [currentAction, currentResources] of [
-          [action, resources],
-          [referenceAction, references],
-        ] as const) {
-          if (!currentResources.size) continue;
-          const decisions = await platformCollectionDecisions(iam, {
-            principal,
-            action: currentAction,
-            request,
-            resources: [...currentResources],
-          });
-          if (decisions.length !== currentResources.size || decisions.some((decision) => decision !== "Allow"))
-            throw iamAccountDenied();
-        }
-        assertRequest();
-      };
+      const authority = await channelCreationAuthority(principal, request, mode, action, referenceAction, [id]),
+        { snapshot, recheck } = authority,
+        repository = RelayChannelCreateRepository.getInstance();
       await recheck(); // Admit the target before resolving provider names or reading configuration.
       const providers =
         data.providers === undefined
@@ -150,12 +85,8 @@ export class RelayChannelCreateIamService {
           snapshot,
           recheck,
           admit: async (ids, providerIds = []) => {
-            for (const related of ids) {
-              if (!isPlatformLogResourceId(related)) throw iamAccountDenied();
-              references.add(platformRelayChannelArn(related));
-            }
-            for (const userId of providerIds) resources.add(platformRelayChannelProviderArn(id, userId));
-            await recheck();
+            await authority.admitReferences(ids);
+            await authority.admitProviders(id, providerIds);
           },
         },
         persist,
