@@ -33,6 +33,14 @@ Both lists authorize each request before computing pagination and totals, exclud
 
 With IAM enforcement enabled, the management table uses `quyan:relay:ListManagementChannels` against each `acs:platform:*:platform:relay-channel/<channelId>`. Records, pagination and totals include only allowed channels within the existing visibility and filter rules. Denied parent names and member references are hidden. Model filters use only admitted paths through the channel pool, preserving strict child settings over duplicate legacy membership; a denied leaf cannot contribute models. This Action grants list access, while channel changes and delivery require their own Actions. Deployment management qualification is still required. Refresh and retry if authority changes while loading.
 
+## IAM channel health access
+
+In IAM enforce mode, the standalone overview uses `quyan:relay:ListChannelHealth`, detail uses `quyan:relay:GetChannelHealth`, and the automatic-pool list uses `quyan:relay:ListAutomaticPoolHealth`. All target `acs:platform:*:platform:relay-channel/<channelId>`. Detail and automatic-pool reads additionally require `quyan:relay:ReadChannelPoolHealthMetadata` on each returned channel and participating member. Health access does not grant channel configuration or upstream credential access.
+
+The overview requires deployment-managed `RELAY_CHANNEL_HEALTH_READ` eligibility. Detail and automatic-pool reads also require `RELAY_CHANNEL_POOL_METADATA_READ` eligibility. Account-owned groups, user-added permissions and wildcard policies cannot create those platform qualifications. Existing visibility rules still apply; a policy grant cannot make a hidden member visible.
+
+Lists and automatic-pool members contain only individually allowed, visible resources. Member health, names, scores and displayed ranks are based on this authorized subset, not proof of the pool's complete global topology. Disabled and provider-paused non-deleted channels remain visible for diagnosis, with their existing disabled/eligibility indicators. Manual health overrides and ranking thresholds retain their configured behavior. Missing and denied detail both return 403; authority or relevant configuration changes during loading reject the result. These unscoped endpoints do not accept OAuth tokens. Legacy/shadow retain the existing business read, without a second health/configuration read during shadow observation.
+
 ## IAM channel configuration access
 
 In IAM enforce mode, `GET /v1/relay-channels` uses `quyan:relay:ListChannels`; `GET /v1/relay-channels/{id}` uses the separate `quyan:relay:GetChannel` Action. Both target `acs:platform:*:platform:relay-channel/<channelId>` and require READ or REVIEW eligibility from a deployment-managed global group. An account policy alone cannot grant that eligibility. Listing a channel does not grant detail access, mutation, export, or credential access.

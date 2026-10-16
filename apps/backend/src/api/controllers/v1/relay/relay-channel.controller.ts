@@ -67,7 +67,6 @@ import type { PaginatedResponse } from "@/api/dto/common/common.dto";
 import {
   CheckPermission,
   PermissionCheckMode,
-  RequireAllPermissions,
   RequireAnyPermission,
   RequirePermission,
 } from "@/util/permission/permission-decorator";
@@ -248,43 +247,51 @@ export class RelayChannelController extends Controller {
 
   @Get("health/overview")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_HEALTH_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListChannelHealth",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async getChannelHealthOverview(@Request() request: TypedRequest): Promise<RelayChannelHealthOverviewDto> {
-    return this.channelService.getChannelHealthOverview(request.user!.userId);
+    return this.channelService.getChannelHealthOverview(request.user!.userId, request);
   }
 
   @Get("{id}/health")
   @Security("jwt")
-  @CheckPermission(
-    [Permission.RELAY_CHANNEL_HEALTH_READ, Permission.RELAY_CHANNEL_POOL_METADATA_READ],
-    PermissionCheckMode.ALL,
-    "jwt",
-    [
-      {
-        action: "quyan:relay:channel:health:Read",
-        resourceKind: "single-resource",
-        resource: relayChannelResourceResolver,
-      },
-      {
-        action: "quyan:relay:channel:pool_metadata:Read",
-        resourceKind: "single-resource",
-        resource: relayChannelResourceResolver,
-      },
-    ],
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetChannelHealth",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   @Middlewares(validateParams(relayChannelIdParamsSchema))
   public async getChannelHealth(
     @Path() id: string,
     @Request() request: TypedRequest,
   ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
-    return this.channelService.getChannelHealth(id, request.user!.userId);
+    return this.channelService.getChannelHealth(id, request.user!.userId, request);
   }
 
   @Get("health/automatic-pools")
   @Security("jwt")
-  @RequireAllPermissions([Permission.RELAY_CHANNEL_HEALTH_READ, Permission.RELAY_CHANNEL_POOL_METADATA_READ])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListAutomaticPoolHealth",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async getAutomaticPoolHealths(@Request() request: TypedRequest): Promise<RelayAutomaticPoolHealthDto[]> {
-    return this.channelService.getAutomaticPoolHealths(request.user!.userId);
+    return this.channelService.getAutomaticPoolHealths(request.user!.userId, request);
   }
 
   @Patch("{id}/health-config")

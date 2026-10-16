@@ -53,3 +53,24 @@ describe("generated resource-scoped channel configuration reads", () => {
     }
   });
 });
+
+describe("generated native channel health read contracts", () => {
+  it.each([
+    "/v1/relay-channels/health/overview",
+    "/v1/relay-channels/{id}/health",
+    "/v1/relay-channels/health/automatic-pools",
+  ])("retains unscoped JWT and safe errors for %s", (path) => {
+    const operation = document.paths[path].get;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+  });
+  it("retains scalar health and automatic member projections without configuration secrets", () => {
+    for (const name of ["RelayChannelHealthDto", "RelayAutomaticPoolHealthMemberDto"]) {
+      const schema = document.components.schemas[name];
+      expect(schema.required).toEqual(expect.arrayContaining(["channelId", "source", "availability", "trackingMode"]));
+      expect(JSON.stringify(schema.properties)).not.toMatch(/Upstream|password|providers/);
+    }
+    expect(document.components.schemas.RelayAutomaticPoolHealthDto.required).toContain("members");
+  });
+});

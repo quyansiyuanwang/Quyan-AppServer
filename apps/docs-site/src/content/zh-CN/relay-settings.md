@@ -25,6 +25,14 @@ IAM 强制模式下，“我的修改申请”使用 `quyan:relay:ListMyChannelC
 
 启用 IAM 强制授权后，管理表格使用 `quyan:relay:ListManagementChannels` 检查每个 `acs:platform:*:platform:relay-channel/<channelId>`。记录、分页和总数只包含既有可见性与筛选规则下获准查看的渠道；被拒绝的父渠道名称和成员引用会被隐藏。模型筛选只使用获准的渠道池路径，并保留严格子渠道设置覆盖重复旧成员关系的规则；被拒绝的叶渠道不能贡献模型能力。此 Action 授予列表访问权限，渠道修改和交付需要各自的 Action；仍需部署管理员设置的管理资格。加载过程中权限变化时需要刷新重试。
 
+## IAM 渠道健康访问
+
+启用 IAM 强制授权后，独立渠道健康概览使用 `quyan:relay:ListChannelHealth`，详情使用 `quyan:relay:GetChannelHealth`，自动池健康列表使用 `quyan:relay:ListAutomaticPoolHealth`。资源均为 `acs:platform:*:platform:relay-channel/<channelId>`。详情和自动池读取还要求对返回渠道及参与展示的每个成员具有 `quyan:relay:ReadChannelPoolHealthMetadata`。健康访问权限不授予渠道配置或上游密钥访问权限。
+
+概览要求部署全局组中的 `RELAY_CHANNEL_HEALTH_READ` 资格；详情和自动池读取还要求 `RELAY_CHANNEL_POOL_METADATA_READ` 资格。账号所属组、用户附加权限及通配符策略不能自行创建这些平台资格。既有可见性规则仍然有效，策略授权不能让隐藏成员变得可见。
+
+列表和自动池成员只包含逐资源获准且可见的资源。成员健康、名称、分数和展示排名基于这个授权子集，不能作为自动池全局完整拓扑的证明。已停用或供应商暂停服务但尚未删除的渠道仍可用于诊断，并保留原有停用及可选性标记。手动健康覆盖值和排名阈值维持原有配置语义。详情不存在或被拒绝均返回 403；加载期间权限或相关配置变化时拒绝返回结果。这些无 scope 接口不接受 OAuth Token。legacy/shadow 保留原有业务读取，shadow 观察不会再次读取健康或配置内容。
+
 ## IAM 渠道配置访问
 
 启用 IAM 强制授权后，`GET /v1/relay-channels` 使用 `quyan:relay:ListChannels`；`GET /v1/relay-channels/{id}` 使用独立的 `quyan:relay:GetChannel`。两者均针对 `acs:platform:*:platform:relay-channel/<channelId>`，并要求操作者具有部署全局组中的 READ 或 REVIEW 资格。仅绑定账号策略不能获得该资格。列表授权不自动授予详情、修改、导出或密钥访问权限。

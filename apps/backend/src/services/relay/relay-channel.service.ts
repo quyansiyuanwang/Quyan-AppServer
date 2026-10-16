@@ -1,3 +1,4 @@
+import { RelayChannelHealthReadIamService } from "./relay-channel-health-read-iam.service";
 import {
   DEFAULT_AUTOMATIC_POOL_RANKING_MODE,
   getRelayChannelHealthTrackingConfig,
@@ -919,6 +920,19 @@ export class RelayChannelService {
   async getChannelHealth(
     id: string,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
+    return RelayChannelHealthReadIamService.getInstance().read<RelayChannelHealthDto | RelayAutomaticPoolHealthDto>(
+      { kind: "single", id },
+      actorUserId,
+      request,
+      () => this.getChannelHealthLegacy(id, actorUserId),
+    );
+  }
+
+  private async getChannelHealthLegacy(
+    id: string,
+    actorUserId: string,
   ): Promise<RelayChannelHealthDto | RelayAutomaticPoolHealthDto> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
     const channelType = (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE;
@@ -942,7 +956,16 @@ export class RelayChannelService {
     );
   }
 
-  async getChannelHealthOverview(actorUserId: string): Promise<RelayChannelHealthOverviewDto> {
+  async getChannelHealthOverview(actorUserId: string, request?: TypedRequest): Promise<RelayChannelHealthOverviewDto> {
+    return RelayChannelHealthReadIamService.getInstance().read<RelayChannelHealthOverviewDto>(
+      { kind: "overview" },
+      actorUserId,
+      request,
+      () => this.getChannelHealthOverviewLegacy(actorUserId),
+    );
+  }
+
+  private async getChannelHealthOverviewLegacy(actorUserId: string): Promise<RelayChannelHealthOverviewDto> {
     const channels = await this.filterAccessibleChannels(await this.relayChannelRepository.listVisible(), actorUserId);
     const standaloneChannels = channels.filter((channel) => channel.channelType === "standalone");
     const healthMap = await this.relayChannelHealthService.getHealthMap(
@@ -960,7 +983,16 @@ export class RelayChannelService {
     return { windowMinutes: RelayChannelHealthService.constants.windowMinutes, channels: items };
   }
 
-  async getAutomaticPoolHealths(actorUserId: string): Promise<RelayAutomaticPoolHealthDto[]> {
+  async getAutomaticPoolHealths(actorUserId: string, request?: TypedRequest): Promise<RelayAutomaticPoolHealthDto[]> {
+    return RelayChannelHealthReadIamService.getInstance().read<RelayAutomaticPoolHealthDto[]>(
+      { kind: "automatic-pools" },
+      actorUserId,
+      request,
+      () => this.getAutomaticPoolHealthsLegacy(actorUserId),
+    );
+  }
+
+  private async getAutomaticPoolHealthsLegacy(actorUserId: string): Promise<RelayAutomaticPoolHealthDto[]> {
     const canViewPoolMetadata = await this.permissionService.hasPermission(
       actorUserId,
       Permission.RELAY_CHANNEL_POOL_METADATA_READ,
@@ -975,7 +1007,7 @@ export class RelayChannelService {
       (channel) =>
         ((channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE) === "automatic-proxy-pool",
     );
-    const healths = await Promise.all(pools.map((channel) => this.getChannelHealth(channel.id, actorUserId)));
+    const healths = await Promise.all(pools.map((channel) => this.getChannelHealthLegacy(channel.id, actorUserId)));
     return healths.filter((health): health is RelayAutomaticPoolHealthDto => "members" in health);
   }
 
