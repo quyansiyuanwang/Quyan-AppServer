@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/config/database";
 import { env } from "@/config/env";
 import { RamService } from "@/services/users/ram.service";
+import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 import { RamController } from "@/api/controllers/v1/users/ram.controller";
 import { buildAcsResource, Permission } from "@quyan/shared";
 import { setRequestContext } from "@/util/request-context";
@@ -108,17 +109,68 @@ describe("RAM group choices share account and IAM boundaries", () => {
     expect(allowed.hasNext).toBe(false);
     expect((await service.listVisibleGroupPage(actor)).items.map((item) => item.id)).toEqual([second.id]);
   });
-  it("requires both collection and group read grants instead of borrowing user read permission", async () => {
-    const candidate = await group();
+  it("does not turn user-read or account-only group grants into individual group access", async () => {
+    await group();
     await grant(arn(), "Allow", "quyan:ram:ReadUser");
-    await expect(run((request) => controller.listVisibleGroupPage(request))).rejects.toMatchObject({ statusCode: 403 });
+    const userReadOnly = await run((request) => controller.listVisibleGroupPage(request));
+    expect(userReadOnly.items).toEqual([]);
+    expect(userReadOnly).not.toHaveProperty("total");
+    expect(await run((request) => controller.listVisibleGroups(request))).toEqual([]);
+
     await grant(arn());
-    expect((await run((request) => controller.listVisibleGroupPage(request))).items).toEqual([]);
-    await grant(arn(candidate.id));
-    expect((await run((request) => controller.listVisibleGroupPage(request))).items.map((item) => item.id)).toEqual([
-      candidate.id,
-    ]);
+    const accountOnly = await run((request) => controller.listVisibleGroupPage(request));
+    expect(accountOnly.items).toEqual([]);
+    expect(accountOnly).not.toHaveProperty("total");
+    expect(await run((request) => controller.listVisibleGroups(request))).toEqual([]);
   });
+  it("admits an exact group grant through both APIs without requiring account-level access", async () => {
+    const candidate = await group();
+    await group();
+    await group(foreign);
+    await grant(arn(candidate.id));
+    const accountDecision = await IamAuthorizationService.getInstance().authorize({
+      principal: {
+        subjectUserId: actor,
+        principalUserId: actor,
+        accountOwnerId: owner,
+        subjectType: "sub_user",
+      },
+      action: "quyan:group:Read",
+      resource: arn(),
+    });
+    expect(accountDecision.decision).toBe("ImplicitDeny");
+    const page = await run((request) => controller.listVisibleGroupPage(request));
+    expect(page.items.map((item) => item.id)).toEqual([candidate.id]);
+    expect(page).not.toHaveProperty("total");
+    // The shared request fixture spoofs both Action and account headers. Neither changes these rows.
+    expect(await run((request) => controller.listVisibleGroups(request))).toEqual(page.items);
+  });
+  it("applies a new exact Deny immediately to both filtered group APIs", async () => {
+    const candidate = await group();
+    const remaining = await group();
+    await grant([arn(candidate.id), arn(remaining.id)]);
+    expect((await run((request) => controller.listVisibleGroupPage(request))).items.map((item) => item.id)).toEqual(
+      expect.arrayContaining([candidate.id, remaining.id]),
+    );
+    await grant(arn(candidate.id), "Deny");
+    const page = await run((request) => controller.listVisibleGroupPage(request));
+    expect(page.items.map((item) => item.id)).toEqual([remaining.id]);
+    expect(page).not.toHaveProperty("total");
+    expect(await run((request) => controller.listVisibleGroups(request))).toEqual(page.items);
+  });
+  it.each(["subject", "account-owner"] as const)(
+    "rejects an unavailable %s instead of disguising it as an empty filtered collection",
+    async (identity) => {
+      const candidate = await group();
+      await grant(arn(candidate.id));
+      expect((await run((request) => controller.listVisibleGroupPage(request))).items).toHaveLength(1);
+      await prisma.user.update({ where: { id: identity === "subject" ? actor : owner }, data: { status: 0 } });
+      await expect(run((request) => controller.listVisibleGroupPage(request))).rejects.toMatchObject({
+        statusCode: 403,
+      });
+      await expect(run((request) => controller.listVisibleGroups(request))).rejects.toMatchObject({ statusCode: 403 });
+    },
+  );
   it("keeps keyword, active status and the historical group level rule inside the account scope", async () => {
     const membership = await group(owner, 20, "actor group");
     await prisma.user.update({ where: { id: actor }, data: { groupId: membership.id } });
