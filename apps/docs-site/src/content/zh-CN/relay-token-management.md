@@ -29,7 +29,17 @@
 
 导出要求每个选中 Token 同时获准执行 `quyan:relay:ExportTokens` 和 `RevealToken`。管理其他用户的导出，还需平台管理资格、当前用户的接口准入，以及目标平台资源上的 `ExportManagedTokens` / `RevealManagedToken`。显式选中 ID 时按提交顺序导出；未指定时导出已启用的 Token，`includeDisabled: true` 可同时包含停用项，但不会包含已删除项。任一指定 Token 不存在或未获准，或组合 Token 引用的成员无法导出，整个请求都会失败，不会静默生成不完整的备份。导出的组合配置保留获准的成员引用，但只有成员本身也被选中且获准披露时才导出其凭据。
 
-以上披露规则覆盖列表、单个 Token 读取、导出，以及下文说明的单个启停、刷新、主渠道更新和完整配置更新。复制和其他修改仍属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
+以上披露规则覆盖创建、列表、单个 Token 读取、导出，以及下文说明的单个启停、刷新、主渠道更新和完整配置更新。复制和其他修改仍属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
+
+### 创建资源级 Token
+
+启用 IAM 强制执行后，创建 Token 同时需要当前用户创建范围 `acs:quyan:*:<accountId>:user/<userId>` 和新 Token 资源 `acs:relay:*:<accountId>:token/<userId>/<tokenId>` 上的 `quyan:relay:CreateToken`。Token ID 由服务端分配，客户端不能指定；策略可用 `token/<userId>/*` 授予该用户未来 Token 的创建权限，而不扩展到其他用户。创建响应还需要新资源上的 `GetToken`；只有 `RevealToken` 也允许该资源时才返回凭据，否则创建成功但仅返回元数据，没有可复制的凭据。
+
+所有有序渠道（含备用渠道）都需要其 `acs:relay:*:<accountId>:channel-selection/<channelId>` 资源上的 `SelectTokenChannel`，且渠道必须持续启用并对你可见。自动代理池需要所选池根资源的同一权限、有效拓扑，以及屏蔽后至少一条可用路径。创建组合 Token 时，需要整个引用子树上的 `ReferenceToken` 和 `GetToken`，包括禁用的成员绑定；不能引用其他用户的 Token。
+
+传入自定义凭据还需要新 Token 上独立的 `SetTokenCredential` 和 `RevealToken`，普通创建权限不会自动授予这些能力。服务端当前的自定义凭据开关、用户数量限制与设置频率限制仍然适用，除非独立的 `BypassTokenCredentialLimits` 允许跳过。为其他用户创建还需要持久化的平台管理资格、目标用户及 Token 资源上的 `CreateManagedToken` 和 `GetManagedToken`，以及个人入口权限；托管凭据、引用与限额跳过使用对应的 `Managed` 操作，仅指定托管用户不会使自定义凭据变为无限制。OAuth 的创建和响应读取作用域必须在应用与访问令牌两侧持续有效。
+
+创建、关联配置、响应权限与最终授权复核处于同一回滚边界，后置拒绝不会留下新 Token。legacy 与 shadow 模式保留旧创建结果；shadow 预评估不会多插入一个 Token，也不会多消耗一次自定义凭据设置尝试。
 
 ### 更新完整 Token 配置
 

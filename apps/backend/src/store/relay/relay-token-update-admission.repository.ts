@@ -37,8 +37,24 @@ const selection = {
   },
 } as const satisfies Prisma.RelayTokenSelect;
 export type RelayTokenUpdateSource = Prisma.RelayTokenGetPayload<{ select: typeof selection }>;
+export type RelayTokenConfigurationSource = Omit<RelayTokenUpdateSource, "updateTime">;
+export type RelayTokenRoutingSource = Omit<RelayTokenConfigurationSource, "isCustomKey">;
 const ordered = <T extends { priority: number }>(rows: readonly T[]) =>
   [...rows].sort((a, b) => a.priority - b.priority);
+// Compare explicit fields, not caller object-key order or a synthetic creation timestamp.
+const configuration = (row: RelayTokenConfigurationSource) =>
+  JSON.stringify([
+    row.id,
+    row.userId,
+    row.status,
+    row.routingMode,
+    row.channelId,
+    row.isCustomKey,
+    row.automaticProxyPoolChannelId,
+    row.blockedAutomaticProxyPoolChannelIds,
+    ordered(row.channelConfigs).map(({ channelId, priority }) => [channelId, priority]),
+    ordered(row.memberTokenConfigs).map(({ tokenId, priority, enabled }) => [tokenId, priority, enabled]),
+  ]);
 /** Credential-free source, graph and quota proofs. All calls consume the caller's transaction. */
 export class RelayTokenUpdateAdmissionRepository {
   private static instance: RelayTokenUpdateAdmissionRepository;
@@ -83,8 +99,11 @@ export class RelayTokenUpdateAdmissionRepository {
       memberTokenConfigs:
         update.memberTokenConfigs === undefined ? source.memberTokenConfigs : ordered(update.memberTokenConfigs),
     };
-    const omitClock = ({ updateTime: _clock, ...value }: RelayTokenUpdateSource) => value;
-    if (JSON.stringify(omitClock(current)) !== JSON.stringify(omitClock(expected))) throw iamAccountDenied();
+    if (configuration(current) !== configuration(expected)) throw iamAccountDenied();
+  }
+  async verifyCreated(tx: Prisma.TransactionClient, expected: RelayTokenConfigurationSource) {
+    if (configuration(await this.source(tx, expected.userId, expected.id)) !== configuration(expected))
+      throw iamAccountDenied();
   }
   async pool(tx: Prisma.TransactionClient, id: string) {
     if (!isRelayTokenResourceId(id)) throw iamAccountDenied();
@@ -115,7 +134,7 @@ export class RelayTokenUpdateAdmissionRepository {
       });
     return normalized;
   }
-  async graph(tx: Prisma.TransactionClient, source: RelayTokenUpdateSource, update: RelayTokenUpdateInput) {
+  async graph(tx: Prisma.TransactionClient, source: RelayTokenRoutingSource, update: RelayTokenUpdateInput) {
     const nodes = await RelayCompositionRepository.getInstance().getGraph(source.userId, tx);
     const proposed: RelayCompositionNode = {
       id: source.id,

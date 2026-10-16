@@ -20,6 +20,10 @@ export interface RelayTokenAuthoritySnapshot {
 }
 /** Trusted operation profiles only. Request input must never choose these ceilings. */
 export const RELAY_TOKEN_AUTHORITY_REQUIREMENTS = Object.freeze({
+  create: Object.freeze({
+    operationPermission: Permission.RELAY_TOKEN_CREATE,
+    managementPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
+  }),
   read: Object.freeze({
     operationPermission: Permission.RELAY_TOKEN_READ,
     managementPermission: Permission.RELAY_TOKEN_MANAGE_OTHERS_READ,

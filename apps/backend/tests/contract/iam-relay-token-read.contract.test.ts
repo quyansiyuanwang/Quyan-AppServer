@@ -85,6 +85,21 @@ describe("generated resource-authorized token usage contract", () => {
   });
 });
 
+describe("generated native token creation contract", () => {
+  it("retains CREATE OAuth scope, replay and step-up with explicit denial responses", () => {
+    const operation = document.paths["/v1/relay/tokens"].post;
+    expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_CREATE] });
+    expect(operation["X-Replay-Protected"]).toBe(true);
+    expect(operation["X-Two-Factor-Challenge"]).toMatchObject({ required: true, purpose: "stepup", method: "code" });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+    expect(operation.responses["200"].content["application/json"].schema).toEqual({
+      $ref: "#/components/schemas/RelayTokenDto",
+    });
+    expect(document.components.schemas.CreateRelayTokenDto.properties).not.toHaveProperty("id");
+  });
+});
+
 describe("generated atomic token lifecycle contract", () => {
   it.each([
     ["/v1/relay/tokens/{id}/toggle", "patch"],

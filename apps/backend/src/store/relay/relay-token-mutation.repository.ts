@@ -1,3 +1,4 @@
+import { RELAY_TOKEN_MUTATION_POLICY } from "@/constant/relay-token";
 import { RelayTokenUpdateRepository } from "./relay-token-update.repository";
 import type { RelayTokenUpdateInput } from "./relay-token.store";
 import {
@@ -69,7 +70,7 @@ function mutationData(change: RelayTokenMutation): Prisma.RelayTokenUncheckedUpd
       throw iamAccountDenied();
   }
 }
-const mutationPolicy = Object.freeze({ timeoutMs: 30000 });
+
 export class RelayTokenMutationRepository {
   private static instance: RelayTokenMutationRepository;
   static getInstance() {
@@ -234,7 +235,10 @@ export class RelayTokenMutationRepository {
           await guard.recheck(tx);
           return { total: targets.length, affected, ...(response && persist ? { response: projected } : {}) };
         },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: mutationPolicy.timeoutMs },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout: RELAY_TOKEN_MUTATION_POLICY.timeoutMs,
+        },
       );
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2028"].includes(error.code))

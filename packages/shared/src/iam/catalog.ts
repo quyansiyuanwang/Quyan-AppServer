@@ -1560,6 +1560,35 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     const resourceTypes = managed ? ['platform/relay-token'] : ['relay/token']
     return [
       {
+        action: managed ? 'quyan:relay:CreateManagedToken' : 'quyan:relay:CreateToken',
+        service: 'relay',
+        operation: managed ? 'CreateManagedToken' : 'CreateToken',
+        accessLevel: 'Write',
+        resourceTypes: [managed ? 'platform/user' : 'quyan/user', ...resourceTypes],
+        apiRoutes: ['POST /v1/relay/tokens'],
+        conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+        sensitive: true,
+        authorizationStage: 'declared',
+        ...(managed ? { authorizationBoundary: 'platform' as const } : {}),
+        requiredActions: [managed ? 'quyan:relay:GetManagedToken' : 'quyan:relay:GetToken'],
+        conditionalActions: [
+          'quyan:relay:GetToken',
+          'quyan:relay:GetManagedToken',
+          'quyan:relay:RevealToken',
+          'quyan:relay:RevealManagedToken',
+          'quyan:relay:SelectTokenChannel',
+          managed
+            ? 'quyan:relay:BypassManagedTokenCredentialLimits'
+            : 'quyan:relay:BypassTokenCredentialLimits',
+          managed ? 'quyan:relay:SetManagedTokenCredential' : 'quyan:relay:SetTokenCredential',
+          managed ? 'quyan:relay:ReferenceManagedToken' : 'quyan:relay:ReferenceToken',
+          ...(!managed ? ['quyan:relay:CreateManagedToken'] : []),
+        ],
+        legacyPermission: managed
+          ? Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE
+          : Permission.RELAY_TOKEN_CREATE,
+      },
+      {
         action: managed ? 'quyan:relay:UpdateManagedToken' : 'quyan:relay:UpdateToken',
         service: 'relay',
         operation: managed ? 'UpdateManagedToken' : 'UpdateToken',
@@ -1647,11 +1676,16 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     operation: 'SelectTokenChannel',
     accessLevel: 'Write',
     resourceTypes: ['relay/channel-selection'],
-    apiRoutes: ['PUT /v1/relay/tokens/{id}/channel', 'PUT /v1/relay/tokens/{id}'],
+    apiRoutes: [
+      'PUT /v1/relay/tokens/{id}/channel',
+      'PUT /v1/relay/tokens/{id}',
+      'POST /v1/relay/tokens',
+    ],
     conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,
     authorizationStage: 'declared',
     legacyPermission: Permission.RELAY_TOKEN_UPDATE,
+    legacyPermissions: [Permission.RELAY_TOKEN_CREATE],
   },
   ...[false, true].map(
     (managed): IamActionDefinition => ({

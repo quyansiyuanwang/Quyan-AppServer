@@ -1,3 +1,4 @@
+import { RelayTokenCreateIamService } from "./relay-token-create-iam.service";
 import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
 import { prepareRelayTokenUpdate } from "./relay-token-update-preparation";
 import { RelayTokenCapabilityReadService } from "./relay-token-capability-read.service";
@@ -479,7 +480,50 @@ export class RelayTokenService {
     });
   }
 
-  async generateToken(actorUserId: string, data: CreateRelayTokenDto, request?: Request): Promise<RelayTokenDto> {
+  async generateToken(actorUserId: string, data: CreateRelayTokenDto, request?: TypedRequest): Promise<RelayTokenDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const createData = structuredClone(data);
+    const result = await RelayTokenCreateIamService.getInstance().create(
+      actorUserId,
+      request,
+      {
+        data: createData,
+        normalizers: {
+          expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+          quotaWindows: (value) => this.normalizeQuotaWindows(value),
+          ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+          requestFormatTransforms: normalizeRequestFormatTransforms,
+          normalizerConfig: normalizeRelayTokenNormalizerConfig,
+          compositeFailover: (count) => this.compositeFailover(count),
+        },
+        generatedCredential: () => this.generateRelayTokenValue(),
+        customKeyConfig: () => this.configService.getRelayCustomKeyConfig(),
+        recordCustomKeyAttempt: (userId) => this.assertCustomKeySetRateLimit(userId),
+        withGraphLock: (userId, write) => this.withGraphWrite(userId, true, write),
+      },
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      () => this.generateTokenLegacy(actorUserId, createData, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_TOKEN_CREATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: result.userId,
+        targetResourceId: result.id,
+        targetResourceType: "RELAY_TOKEN",
+        description: "创建了中转令牌",
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+
+  private async generateTokenLegacy(
+    actorUserId: string,
+    data: CreateRelayTokenDto,
+    request?: Request,
+  ): Promise<RelayTokenDto> {
     const userId = await this.resolveManagedUserId(
       actorUserId,
       data.targetUserId,
