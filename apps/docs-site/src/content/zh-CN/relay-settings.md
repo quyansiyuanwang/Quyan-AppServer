@@ -7,6 +7,12 @@
 
 如果你要解决“某个用户能否看到某个渠道”“某个模型走哪个上游”“多个上游如何故障转移”这一类问题，核心都在这里完成。
 
+## IAM 全局渠道拓扑审计
+
+启用严格双层拓扑前，审计需要 `quyan:relay:AuditChannelTopology` 同时允许 `acs:platform:*:platform:relay-configuration/default` 和每一个未删除渠道的 `acs:platform:*:platform:relay-channel/<渠道ID>`。操作者还须具有部署全局组中的 `RELAY_CHANNEL_READ` 资格，且原有渠道可见性规则继续生效。任一参与审计的渠道或配置无权访问时，整个请求返回 403；不会把部分可见渠道的结果当成全局 `canEnableStrict` 结论。
+
+审计包含停用但未删除的渠道，检查旧池成员、缺失或错误的父池、非成员渠道误设父池，以及自动池引用物理渠道等问题。只有完整拓扑无问题时才报告可以启用严格模式；读取期间授权、配置或拓扑变化会拒绝返回结果。此操作只读取拓扑字段，不读取上游凭据或模型价格，也不会创建默认配置。切换模式仍需另行具备全局设置修改权限。
+
 ## IAM 渠道修改申请列表
 
 IAM 强制模式下，“我的修改申请”使用 `quyan:relay:ListMyChannelChangeRequests`，资源为 `acs:relay:*:<账户ID>:channel-change-request/<提交者ID>/<申请ID>`。结果仅包含当前提交者自己的申请；即使授权策略包含通配符，也不能读取同账户其他用户或其他账户的个人申请。

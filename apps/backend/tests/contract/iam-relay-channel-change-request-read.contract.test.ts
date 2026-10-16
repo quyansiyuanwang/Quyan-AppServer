@@ -22,3 +22,15 @@ describe("generated channel change request read contract", () => {
       expect(schema.properties).not.toHaveProperty(field);
   });
 });
+
+describe("generated full-admission channel topology contract", () => {
+  it("retains READ OAuth admission, report shape and safe errors", () => {
+    const operation = document.paths["/v1/relay-channels/topology-audit"].get;
+    expect(operation.security).toContainEqual({ jwt: ["relay:channel:read"] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+    expect(document.components.schemas.RelayChannelTopologyAuditDto.required).toEqual(
+      expect.arrayContaining(["mode", "canEnableStrict", "issues"]),
+    );
+  });
+});

@@ -15,6 +15,12 @@ If you need to answer questions like “who can see this channel?”, “which u
 - Create standalone channels, pooled channels, or automatic proxy pools.
 - Set visibility, routing, upstream credentials, and pricing multipliers per channel.
 
+## IAM global channel topology audit
+
+Before enabling strict two-tier topology, the audit requires `quyan:relay:AuditChannelTopology` on both `acs:platform:*:platform:relay-configuration/default` and `acs:platform:*:platform:relay-channel/<channelId>` for every non-deleted channel. The caller also needs `RELAY_CHANNEL_READ` eligibility from a deployment-managed global group, and existing channel visibility rules continue to apply. If any participating channel or configuration is inaccessible, the entire request returns 403; a partially visible graph never produces a global `canEnableStrict` conclusion.
+
+The audit includes disabled, non-deleted channels and checks legacy pool membership, missing or invalid pooled parents, a non-member incorrectly assigned to a pooled parent, and automatic pools referencing physical channels. Readiness is reported only for a complete, valid graph. Authority, configuration, or topology changes during the read cause rejection. The operation reads only topology fields, not upstream credentials or model prices, and does not create default configuration. Switching modes still requires separate global-configuration write permission.
+
 ## IAM channel change request lists
 
 In IAM enforce mode, “My change requests” uses `quyan:relay:ListMyChannelChangeRequests` on `acs:relay:*:<accountId>:channel-change-request/<submitterId>/<requestId>`. Only the current submitter's requests are included. Wildcard grants do not expose another user's personal requests, whether in the same account or a different account.

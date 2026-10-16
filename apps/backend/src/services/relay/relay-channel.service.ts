@@ -1,3 +1,4 @@
+import { RelayChannelTopologyAuditIamService } from "./relay-channel-topology-audit-iam.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { RelayChannelChangeRequestReadIamService } from "./relay-channel-change-request-read-iam.service";
 import {
@@ -431,7 +432,12 @@ export class RelayChannelService {
     return options.sort((left, right) => left.name.localeCompare(right.name));
   }
 
-  async getTopologyAudit(actorUserId: string): Promise<RelayChannelTopologyAuditDto> {
+  async getTopologyAudit(actorUserId: string, request?: TypedRequest): Promise<RelayChannelTopologyAuditDto> {
+    return RelayChannelTopologyAuditIamService.getInstance().read(actorUserId, request, () =>
+      this.getTopologyAuditLegacy(actorUserId),
+    );
+  }
+  private async getTopologyAuditLegacy(actorUserId: string): Promise<RelayChannelTopologyAuditDto> {
     const [config, channels] = await Promise.all([
       this.relayConfigService.getRelayConfig(),
       this.relayChannelRepository.listVisible(),

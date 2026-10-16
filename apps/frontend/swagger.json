@@ -20170,6 +20170,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Authentication required"
+					},
+					"403": {
+						"description": "IAM authorization denied"
 					}
 				},
 				"tags": [

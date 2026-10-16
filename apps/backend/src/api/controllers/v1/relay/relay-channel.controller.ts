@@ -162,9 +162,17 @@ export class RelayChannelController extends Controller {
 
   @Get("topology-audit")
   @Security("jwt", ["relay:channel:read"])
-  @RequirePermission(Permission.RELAY_CHANNEL_READ)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:AuditChannelTopology",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  @Response(401, "Authentication required")
+  @Response(403, "IAM authorization denied")
   public async getTopologyAudit(@Request() request: TypedRequest): Promise<RelayChannelTopologyAuditDto> {
-    return this.channelService.getTopologyAudit(request.user!.userId);
+    return this.channelService.getTopologyAudit(request.user!.userId, request);
   }
 
   /**
