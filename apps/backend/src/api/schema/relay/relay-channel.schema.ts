@@ -306,7 +306,7 @@ export const batchDuplicateRelayChannelsBodySchema = z.object({
   ids: relayChannelIdsSchema,
 });
 
-const batchUpdateRelayChannelPatchSchema = z
+export const batchUpdateRelayChannelPatchSchema = z
   .object({
     multiplier: channelMultiplierSchema,
     allowedFormats: z.string().max(500).optional(),
@@ -342,6 +342,7 @@ export const batchUpdateRelayChannelsBodySchema = z
       })
       .optional(),
   })
+  .strict()
   .superRefine((value, context) => {
     if (Object.keys(value.patch).length > 0 || value.modelPricingMigration) return;
     context.addIssue({

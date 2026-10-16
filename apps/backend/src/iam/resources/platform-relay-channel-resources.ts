@@ -1,4 +1,5 @@
 import {
+  batchUpdateRelayChannelsBodySchema,
   batchRelayChannelUpstreamModelsBodySchema,
   applyRelayChannelModelRestrictionsBodySchema,
 } from "@/api/schema/relay/relay-channel.schema";
@@ -48,6 +49,14 @@ export const platformRelayChannelModelRestrictionResources: import("../request/r
 export const platformRelayChannelUpstreamModelResources: import("../request/resource-resolvers").BatchResourceResolver =
   ({ request }) => {
     const parsed = batchRelayChannelUpstreamModelsBodySchema.safeParse(request.body);
+    if (!parsed.success || parsed.data.ids.some((id) => !isPlatformLogResourceId(id))) return undefined;
+    return parsed.data.ids.map(platformRelayChannelArn);
+  };
+
+/** Batch update admission never reads configuration and rejects unsafe identifiers. */
+export const platformRelayChannelBatchUpdateResources: import("../request/resource-resolvers").BatchResourceResolver =
+  ({ request }) => {
+    const parsed = batchUpdateRelayChannelsBodySchema.safeParse(request.body);
     if (!parsed.success || parsed.data.ids.some((id) => !isPlatformLogResourceId(id))) return undefined;
     return parsed.data.ids.map(platformRelayChannelArn);
   };

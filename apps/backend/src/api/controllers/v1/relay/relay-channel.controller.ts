@@ -2,6 +2,7 @@ import { relayUpstreamModelResourceResolver } from "@/iam/request/relay-upstream
 import {
   platformRelayChannelUpstreamModelResources,
   platformRelayChannelModelRestrictionResources,
+  platformRelayChannelBatchUpdateResources,
   platformRelayChannelResourceResolver,
 } from "@/iam/resources/platform-relay-channel-resources";
 import { platformRelayChannelChangeRequestReviewResourceResolver } from "@/iam/request/platform-relay-channel-change-request-resource-resolver";
@@ -816,7 +817,11 @@ export class RelayChannelController extends Controller {
 
   @Patch("batch")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:BatchUpdateChannels",
+    resourceKind: "batch",
+    resource: platformRelayChannelBatchUpdateResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),

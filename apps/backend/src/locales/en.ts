@@ -660,6 +660,7 @@ const en = {
     changeRequestNotFound: "Relay channel change request not found",
     hideBlockedByAssignments:
       "Cannot hide a relay channel while it is directly assigned to relay tokens, OJ API keys, or monthly passes",
+    modelMigrationTargetInvalid: "The pricing migration target is missing or has a different request model identity",
     requestModelNotAllowed: "Channel does not allow the requested model",
     importSourceIdsConsistent: "Imported relay channels must either all include source IDs or all omit them",
     importSourceIdsUnique: "Imported relay channel source IDs must be unique",

@@ -1,3 +1,7 @@
+import { RelayChannelBatchUpdateIamService } from "./relay-channel-batch-update-iam.service";
+import type { BatchChannelPatch } from "@/store/relay/relay-channel-batch-update.repository";
+import { batchUpdateRelayChannelPatchSchema } from "@/api/schema/relay/relay-channel.schema";
+import { renderDescriptorSafely, DEFAULT_BACKEND_LOCALE } from "@/locales";
 import { RelayChannelExportIamService } from "./relay-channel-export-iam.service";
 import { projectRelayChannelExport } from "./relay-channel-export-projection";
 import { catalogModelCapabilities, catalogModelPriceRanges } from "./relay-channel-catalog-projection";
@@ -1902,6 +1906,7 @@ export class RelayChannelService {
     existing?: RelayChannelValidationSource,
     standaloneCatalog?: readonly RelayModelCatalogEntry[],
     credentialPresence?: RelayChannelCredentialPresence,
+    topologyMode?: "legacy" | "strict-two-tier",
   ): Promise<ValidatedRelayChannelData> {
     const name = (data.name !== undefined ? data.name : existing?.name)?.trim();
     if (!name)
@@ -2021,9 +2026,18 @@ export class RelayChannelService {
       data.contextLengthMultipliers !== undefined
         ? data.contextLengthMultipliers
         : (existing?.contextLengthMultipliers as ContextLengthMultiplierRule[] | undefined);
-    if (standaloneCatalog && (channelType !== "standalone" || (existing && existing.channelType !== "standalone")))
+    if (
+      standaloneCatalog &&
+      topologyMode === undefined &&
+      (channelType !== "standalone" || (existing && existing.channelType !== "standalone"))
+    )
       throw iamAccountDenied();
-    const topology = standaloneCatalog ? undefined : await this.relayConfigService.getRelayConfig();
+    const topology =
+      topologyMode !== undefined
+        ? { channelTopologyMode: topologyMode }
+        : standaloneCatalog
+          ? undefined
+          : await this.relayConfigService.getRelayConfig();
 
     if (allowedModels !== undefined && allowedModels !== null) {
       let parsedAllowedModels: unknown;
@@ -3348,6 +3362,91 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<BatchUpdateRelayChannelsResponse> {
+    return RelayChannelBatchUpdateIamService.getInstance().execute(
+      body,
+      (input) => async (source, catalog, presence, topologyMode, tx) => {
+        try {
+          const migration = input.modelPricingMigration;
+          const patch: UpdateRelayChannelRequest = { ...input.patch };
+          if (migration) {
+            const sourceModelId = migration.sourceModelId.trim(),
+              targetPricingModel = migration.targetPricingModel.trim(),
+              target = catalog.find((model) => model.model?.trim() === targetPricingModel);
+            if (!target || resolveModelId(target).trim() !== sourceModelId)
+              throw new BadRequestError("Pricing migration target is missing or incompatible", undefined, {
+                messageKey: "relayChannel.modelMigrationTargetInvalid",
+              });
+            const sourceNames = new Set(
+              catalog
+                .filter((model) => resolveModelId(model).trim() === sourceModelId)
+                .map((model) => model.model!.trim()),
+            );
+            if (!this.channelAllowsModelId(source, sourceModelId, sourceNames))
+              throw new BadRequestError("Channel does not allow migration source", undefined, {
+                messageKey: "relayChannel.requestModelNotAllowed",
+              });
+            patch.modelMapping = {
+              ...((source.modelMapping as Record<string, string> | null) ?? {}),
+              [sourceModelId]: targetPricingModel,
+            };
+          }
+          const validated = await this.buildValidatedChannelData(patch, source, catalog, presence, topologyMode);
+          if (
+            validated.visibilityMode === "hidden" &&
+            source.visibilityMode !== "hidden" &&
+            (await this.relayChannelRepository.countDirectBusinessReferences(source.id, tx)) > 0
+          )
+            throw new BadRequestError("Channel has direct business assignments", undefined, {
+              messageKey: "relayChannel.hideBlockedByAssignments",
+            });
+          // Persist only canonical batch fields, never a complete create input or credentials read from storage.
+          const values = this.toPersistenceInput(validated),
+            result: Record<string, unknown> = {};
+          const jsonFields = new Set([
+            "modelMapping",
+            "routingConfig",
+            "visibilityConfig",
+            "timePeriodMultipliers",
+            "contextLengthMultipliers",
+          ]);
+          for (const key of Object.keys(batchUpdateRelayChannelPatchSchema.shape)) {
+            if (!Object.prototype.hasOwnProperty.call(patch, key)) continue;
+            const value = values[key as keyof typeof values];
+            result[key] =
+              jsonFields.has(key) &&
+              (value === null || (value === undefined && patch[key as keyof typeof patch] === null))
+                ? Prisma.JsonNull
+                : value;
+          }
+          if (
+            validated.visibilityMode === "hidden" &&
+            (source.visibilityMode !== "hidden" || "visibilityConfig" in patch)
+          )
+            result.visibilityConfig = Prisma.JsonNull;
+          if (validated.visibilityMode !== source.visibilityMode) result.visibilityMode = validated.visibilityMode;
+          return { patch: result as BatchChannelPatch };
+        } catch (error) {
+          // Only known business validation is partial success. Never expose raw exceptions or downgrade denial.
+          if (!(error instanceof BadRequestError)) throw error;
+          return {
+            reason: renderDescriptorSafely(
+              { key: error.messageKey ?? "errors.badRequest", params: error.messageParams },
+              request?.locale ?? DEFAULT_BACKEND_LOCALE,
+            ).message,
+          };
+        }
+      },
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.batchUpdateChannelsLegacy(body, actorUserId, request),
+    );
+  }
+
+  private async batchUpdateChannelsLegacy(
+    body: BatchUpdateRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<BatchUpdateRelayChannelsResponse> {
     const channels = await this.getOrderedChannelsByIds(body.ids, true);
     const migration = body.modelPricingMigration;
     const relayConfig = migration ? await this.relayConfigService.getRelayConfig() : undefined;
@@ -3555,7 +3654,11 @@ export class RelayChannelService {
     });
   }
 
-  private channelAllowsModelId(channel: RelayChannel, sourceModelId: string, sourceModelNames: Set<string>): boolean {
+  private channelAllowsModelId(
+    channel: Pick<RelayChannel, "allowedModels">,
+    sourceModelId: string,
+    sourceModelNames: Set<string>,
+  ): boolean {
     if (!channel.allowedModels) return true;
     try {
       const allowedModels = JSON.parse(channel.allowedModels);

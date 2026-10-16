@@ -662,6 +662,7 @@ const zhCN = {
     changeRequestStateInvalid: "只有待审核、已通过或已拒绝的渠道可以受理修改申请",
     changeRequestNotFound: "中转渠道修改申请不存在",
     hideBlockedByAssignments: "当中转渠道被令牌、OJ API Key 或月卡直接引用时不能隐藏",
+    modelMigrationTargetInvalid: "计费模型迁移的目标不存在，或其请求模型标识与源模型不一致",
     requestModelNotAllowed: "渠道不允许使用所请求的模型",
     importSourceIdsConsistent: "导入的中转渠道必须全部包含来源 ID 或全部不包含",
     importSourceIdsUnique: "导入的中转渠道来源 ID 不能重复",
