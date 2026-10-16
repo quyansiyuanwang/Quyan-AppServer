@@ -57,6 +57,14 @@
 
 启用 IAM 强制授权时，“转入余额”需要 `quyan:relay:ClaimMyProviderEarnings` 同时允许本次涉及的所有手动结算提供者、待结算收益、本人的余额账户（`acs:balance:*:<accountId>:account/<userId>`）及新结算和流水资源（`acs:relay:*:<accountId>:provider-settlement/<userId>/*`、`acs:balance:*:<accountId>:transaction/<userId>/*`）。任何资源被拒绝或授权发生变化，整次转入都会取消，不会留下部分提供者已结算或余额已增加的结果。重复领取不会再次转入已结算收益。实时和定时结算继续遵循其配置的结算方式。
 
+## 资源级提交审核
+
+启用 IAM 强制授权后，上架、拒绝和下架已提交渠道，需要对 `acs:platform:*:platform:relay-channel/<channelId>` 拥有 `quyan:relay:ReviewChannelSubmission`。上架还会对每条拟议提供者关联 `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>` 检查同一 Action，包括提交者隐含的零比例关联。关联权限控制收益配置，不授予管理接收者账号的权限。审核者还必须保留部署管理组赋予的审核资格，账号策略不能自行创建该资格。二次验证和重放保护仍然生效。
+
+上架会启用渠道和提供者服务。拒绝必须填写原因；拒绝与下架会禁用渠道，不替换现有提供者。存在有效的待审核变更申请时，必须先审核该申请。审核、提供者变更与安全配置响应在同一事务内完成：最终权限、身份、接收者、待审核申请或响应数据发生变化时，审核回滚。响应不包含上游密钥值。混池响应只包含另行通过授权的关联渠道及其贡献的能力，不会因审核权限泄露无关渠道。
+
+旧 `RELAY_CHANNEL_REVIEW` 权限会自动映射到新 Action。使用旧 `quyan:relay:channel:Review` 和账号内渠道 ARN 的 JSON 策略，需要显式改为平台 Action 与资源范围。legacy/shadow 模式仍只执行一次原有审核；shadow 不会重复写入，也不会读取原生配置响应。
+
 ## 相关页面
 
 - `relay-settings`

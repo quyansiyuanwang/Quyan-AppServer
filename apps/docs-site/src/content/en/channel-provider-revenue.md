@@ -57,6 +57,14 @@ When resource-level IAM enforcement is enabled, earnings details require both `q
 
 With IAM enforcement enabled, Transfer to balance requires `quyan:relay:ClaimMyProviderEarnings` for every manual provider and pending earning included in the transfer, your balance account (`acs:balance:*:<accountId>:account/<userId>`), and the new settlement and transaction resources (`acs:relay:*:<accountId>:provider-settlement/<userId>/*` and `acs:balance:*:<accountId>:transaction/<userId>/*`). A denied resource or authorization change cancels the entire transfer without settling any provider or crediting your balance. Repeating a successful transfer does not credit already settled earnings again. Real-time and scheduled settlements continue to use their configured settlement mode.
 
+## Resource-scoped submission review
+
+With IAM enforcement enabled, approving, rejecting and offboarding a submitted channel require `quyan:relay:ReviewChannelSubmission` on `acs:platform:*:platform:relay-channel/<channelId>`. Approval additionally checks that same Action on each proposed provider relation, `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>`, including the submitter's implicit zero-share relation. A relation authorizes revenue configuration, not management of its recipient's account. The reviewer must retain deployment-managed review eligibility; account policies cannot create this eligibility. Step-up verification and replay protection still apply.
+
+Approval enables the channel and provider service. Rejection requires a reason; rejection and offboarding disable the channel without replacing the existing providers. An active pending change request must be reviewed first. Review, provider changes and the safe configuration response share one transaction: a final permission, identity, recipient, pending-change or response-data change rolls the review back. Responses never include upstream key values. Pool responses include only separately authorized related channels and their contributed capabilities; review does not disclose unrelated channels.
+
+Existing `RELAY_CHANNEL_REVIEW` permissions map to the new Action automatically. JSON policies using the old `quyan:relay:channel:Review` account-owned channel alias must explicitly adopt the platform Action and resource scope. Legacy/shadow modes continue the original review once; shadow does not perform a second write or hydrate native configuration responses.
+
 ## Related pages
 
 - `relay-settings`

@@ -11,7 +11,10 @@ import type {
   RelayChannelCredentialPresence,
 } from "@/services/relay/relay-channel-configuration-projection";
 import { resolveEffectiveRelayPoolMembers } from "@/services/relay/utils/relay-pool-members.util";
-import { readIamPersonalCollection } from "../users/iam-personal-collection-read";
+import {
+  readIamPersonalCollection,
+  readIamPersonalCollectionInTransaction,
+} from "../users/iam-personal-collection-read";
 import { iamAccountDenied } from "../users/iam-account-principal";
 import { relayChannelVisibilityPrincipal } from "./relay-channel-visibility-principal";
 
@@ -90,6 +93,8 @@ export type RelayChannelConfigurationReadOptions = { id?: string; includeDisable
 export type RelayChannelConfigurationReadSnapshot = {
   records: { source: RelayChannelConfigurationSource; presence: RelayChannelCredentialPresence }[];
   context: RelayPoolResolverContext;
+  /** Caller-owned write transactions revalidate the contributing snapshot after their final authorization check. */
+  verify?: () => Promise<void>;
 };
 export interface RelayChannelConfigurationReadStore {
   read<T>(
@@ -113,13 +118,17 @@ export class RelayChannelConfigurationReadRepository implements RelayChannelConf
     decide: (resources: readonly string[]) => Promise<readonly string[]>,
     recheck: () => Promise<void>,
     project?: (snapshot: RelayChannelConfigurationReadSnapshot) => Promise<T>,
+    transaction?: Prisma.TransactionClient,
   ): Promise<T | undefined> {
     if (
       typeof options.includeDisabled !== "boolean" ||
       (options.id !== undefined && !/^[A-Za-z0-9_-]{1,128}$/.test(options.id))
     )
       throw iamAccountDenied();
-    return readIamPersonalCollection(principal, decide, recheck, async (tx, checkedDecide) => {
+    const read = async (
+      tx: Prisma.TransactionClient,
+      checkedDecide: (resources: readonly string[]) => Promise<readonly string[]>,
+    ) => {
       const limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
       const scan = async (authorize: boolean) => {
         const rows: Metadata[] = [],
@@ -263,7 +272,22 @@ export class RelayChannelConfigurationReadRepository implements RelayChannelConf
       const payload = await readPayload(),
         presence = await readPresence(),
         catalog = targets.length ? await readCatalog() : [];
+      const verify = async (reauthorize = false) => {
+        const current = await scan(reauthorize);
+        const snapshotPresence = (value: Map<string, RelayChannelCredentialPresence>) => [...value];
+        if (
+          !same(initial.rows, current.rows) ||
+          (reauthorize && !same(initial.admitted, current.admitted)) ||
+          !same(visibility, await readVisibility()) ||
+          !same(sources, await readGraph()) ||
+          !same(payload, await readPayload()) ||
+          !same(snapshotPresence(presence), snapshotPresence(await readPresence())) ||
+          (targets.length && !same(catalog, await readCatalog()))
+        )
+          throw iamAccountDenied();
+      };
       const result = await project({
+        verify: () => verify(true),
         records: [...payload]
           .sort((a, b) => b.createTime.getTime() - a.createTime.getTime() || b.id.localeCompare(a.id))
           .map((row) => {
@@ -286,17 +310,11 @@ export class RelayChannelConfigurationReadRepository implements RelayChannelConf
           }),
         context: { graph, modelCatalog: catalog, includeDisabled: options.includeDisabled },
       });
-      const snapshotPresence = (value: Map<string, RelayChannelCredentialPresence>) => [...value];
-      if (
-        !same(initial.rows, (await scan(false)).rows) ||
-        !same(visibility, await readVisibility()) ||
-        !same(sources, await readGraph()) ||
-        !same(payload, await readPayload()) ||
-        !same(snapshotPresence(presence), snapshotPresence(await readPresence())) ||
-        (targets.length && !same(catalog, await readCatalog()))
-      )
-        throw iamAccountDenied();
+      await verify();
       return result;
-    });
+    };
+    return transaction
+      ? readIamPersonalCollectionInTransaction(transaction, principal, decide, recheck, read)
+      : readIamPersonalCollection(principal, decide, recheck, read);
   }
 }

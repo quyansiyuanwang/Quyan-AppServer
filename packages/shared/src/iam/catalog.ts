@@ -606,6 +606,14 @@ export const IAM_RESOURCE_TYPE_CATALOG: readonly IamResourceTypeDefinition[] = O
   },
   resource('json-endpoint', 'endpoint', 2),
   {
+    ...resource('platform', 'relay-channel-provider', 2),
+    accountScope: 'platform',
+    arnTemplate:
+      'acs:platform:*:' +
+      IAM_PLATFORM_ACCOUNT_ID +
+      ':relay-channel-provider/{channelId}/{providerUserId}',
+  },
+  {
     ...resource('platform', 'relay-channel'),
     accountScope: 'platform',
     arnTemplate: 'acs:platform:*:' + IAM_PLATFORM_ACCOUNT_ID + ':relay-channel/{resourceId}',
@@ -2259,6 +2267,19 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_CHANNEL_POOL_METADATA_READ,
+  },
+  {
+    action: 'quyan:relay:ReviewChannelSubmission',
+    service: 'relay',
+    operation: 'ReviewChannelSubmission',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/relay-channel', 'platform/relay-channel-provider'],
+    apiRoutes: ['POST /v1/relay-channels/{id}/review-submission'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_REVIEW,
   },
   {
     action: 'quyan:relay:DeleteChannel',

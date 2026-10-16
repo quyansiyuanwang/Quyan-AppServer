@@ -18,3 +18,15 @@ export const platformRelayChannelResourceResolver: import("../request/resource-r
   const id = request.params.id;
   return isPlatformLogResourceId(id) ? platformRelayChannelArn(id) : undefined;
 };
+
+/** A deployment-level revenue relation; never authority over the recipient's IAM identity. */
+export function platformRelayChannelProviderArn(channelId: string, providerUserId: string) {
+  if (![channelId, providerUserId].every(isPlatformLogResourceId))
+    throw new Error("Invalid platform channel provider identifier");
+  return buildAcsResource({
+    service: "platform",
+    region: "*",
+    accountId: IAM_PLATFORM_ACCOUNT_ID,
+    path: "relay-channel-provider/" + channelId + "/" + providerUserId,
+  });
+}

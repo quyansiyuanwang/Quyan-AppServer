@@ -151,3 +151,14 @@ describe("generated native platform channel deletion contracts", () => {
     if (verb === "post") expect(operation.requestBody.required).toBe(true);
   });
 });
+
+describe("generated native channel submission review contract", () => {
+  it("retains unscoped JWT, body, safe failures and credential-presence-only configuration", () => {
+    const operation = document.paths["/v1/relay-channels/{id}/review-submission"].post;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.requestBody.required).toBe(true);
+    for (const status of ["401", "403"]) expect(operation.responses).toHaveProperty(status);
+    for (const field of ["openaiUpstreamApiKey", "anthropicUpstreamApiKey", "geminiUpstreamApiKey"])
+      expect(document.components.schemas.RelayChannelDto.properties).not.toHaveProperty(field);
+  });
+});

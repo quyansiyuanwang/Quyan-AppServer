@@ -487,9 +487,9 @@ export class RelayChannelController extends Controller {
   @Post("{id}/review-submission")
   @Security("jwt")
   @CheckPermission(Permission.RELAY_CHANNEL_REVIEW, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Review",
+    action: "quyan:relay:ReviewChannelSubmission",
     resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
+    resource: platformRelayChannelResourceResolver,
   })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -498,6 +498,8 @@ export class RelayChannelController extends Controller {
     validateParams(relayChannelIdParamsSchema),
     validateBody(reviewRelayChannelSubmissionBodySchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async reviewChannelSubmission(
     @Path() id: string,
     @Body() body: ReviewRelayChannelSubmissionRequest,

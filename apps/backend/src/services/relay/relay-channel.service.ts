@@ -1,3 +1,4 @@
+import { RelayChannelSubmissionReviewIamService } from "./relay-channel-submission-review-iam.service";
 import { PlatformRelayChannelDeleteIamService } from "./platform-relay-channel-delete-iam.service";
 import { RelayChannelSubmissionCreateIamService } from "./relay-channel-submission-create-iam.service";
 import { RelayChannelSubmissionMutationIamService } from "./relay-channel-submission-mutation-iam.service";
@@ -2458,6 +2459,21 @@ export class RelayChannelService {
   }
 
   async reviewSubmittedChannel(
+    id: string,
+    body: ReviewRelayChannelSubmissionRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    return RelayChannelSubmissionReviewIamService.getInstance().execute(
+      id,
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.reviewSubmittedChannelLegacy(id, body, actorUserId, request),
+    );
+  }
+
+  private async reviewSubmittedChannelLegacy(
     id: string,
     body: ReviewRelayChannelSubmissionRequest,
     actorUserId: string,

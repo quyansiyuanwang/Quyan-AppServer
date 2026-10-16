@@ -15,41 +15,55 @@ export async function readIamPersonalCollection<T>(
     decide: (resources: readonly string[]) => Promise<readonly string[]>,
   ) => Promise<T>,
 ): Promise<T> {
-  return prisma.$transaction(
-    async (tx) => {
-      await assertIamAccountPrincipal(principal, tx);
-      await recheck();
-      const revision = await readIamAuthorizationRevision(tx, principal.accountOwnerId),
-        evaluations = new Map<string, string>();
-      const checkedDecide = async (resources: readonly string[]) => {
-        if (resources.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) throw iamAccountDenied();
-        const outcomes = await decide(resources);
-        if (
-          outcomes.length !== resources.length ||
-          outcomes.some((value) => !["Allow", "ExplicitDeny", "ImplicitDeny"].includes(value))
-        )
-          throw iamAccountDenied();
-        resources.forEach((resource, index) => {
-          const previous = evaluations.get(resource);
-          if (previous !== undefined && previous !== outcomes[index]) throw iamAccountDenied();
-          evaluations.set(resource, outcomes[index]!);
-        });
-        return outcomes;
-      };
-      const result = await read(tx, checkedDecide),
-        entries = [...evaluations],
-        limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
-      for (let offset = 0; offset < entries.length; offset += limit) {
-        const batch = entries.slice(offset, offset + limit),
-          current = await decide(batch.map(([resource]) => resource));
-        if (current.length !== batch.length || current.some((decision, index) => decision !== batch[index]![1]))
-          throw iamAccountDenied();
-      }
-      await recheck();
-      await assertIamAccountPrincipal(principal, tx);
-      if ((await readIamAuthorizationRevision(tx, principal.accountOwnerId)) !== revision) throw iamAccountDenied();
-      return result;
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: readPolicy.timeoutMs },
-  );
+  return prisma.$transaction((tx) => readIamPersonalCollectionInTransaction(tx, principal, decide, recheck, read), {
+    isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    timeout: readPolicy.timeoutMs,
+  });
+}
+
+/** Execute the same fail-closed read protocol inside a caller-owned Serializable transaction.
+ * The caller owns transaction settlement; authorization/projection failures must roll back its writes too.
+ */
+export async function readIamPersonalCollectionInTransaction<T>(
+  tx: Prisma.TransactionClient,
+  principal: IamPrincipal,
+  decide: (resources: readonly string[]) => Promise<readonly string[]>,
+  recheck: () => Promise<void>,
+  read: (
+    tx: Prisma.TransactionClient,
+    decide: (resources: readonly string[]) => Promise<readonly string[]>,
+  ) => Promise<T>,
+): Promise<T> {
+  await assertIamAccountPrincipal(principal, tx);
+  await recheck();
+  const revision = await readIamAuthorizationRevision(tx, principal.accountOwnerId),
+    evaluations = new Map<string, string>();
+  const checkedDecide = async (resources: readonly string[]) => {
+    if (resources.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest) throw iamAccountDenied();
+    const outcomes = await decide(resources);
+    if (
+      outcomes.length !== resources.length ||
+      outcomes.some((value) => !["Allow", "ExplicitDeny", "ImplicitDeny"].includes(value))
+    )
+      throw iamAccountDenied();
+    resources.forEach((resource, index) => {
+      const previous = evaluations.get(resource);
+      if (previous !== undefined && previous !== outcomes[index]) throw iamAccountDenied();
+      evaluations.set(resource, outcomes[index]!);
+    });
+    return outcomes;
+  };
+  const result = await read(tx, checkedDecide),
+    entries = [...evaluations],
+    limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
+  for (let offset = 0; offset < entries.length; offset += limit) {
+    const batch = entries.slice(offset, offset + limit),
+      current = await decide(batch.map(([resource]) => resource));
+    if (current.length !== batch.length || current.some((decision, index) => decision !== batch[index]![1]))
+      throw iamAccountDenied();
+  }
+  await recheck();
+  await assertIamAccountPrincipal(principal, tx);
+  if ((await readIamAuthorizationRevision(tx, principal.accountOwnerId)) !== revision) throw iamAccountDenied();
+  return result;
 }
