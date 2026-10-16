@@ -207,3 +207,22 @@ describe("generated native token import contract", () => {
     expect(document.components.schemas.RelayTokenImportItemDto.properties).toHaveProperty("contentSafetyConfig");
   });
 });
+
+describe("generated native token duplication contract", () => {
+  it.each(["/v1/relay/tokens/{id}/duplicate", "/v1/relay/tokens/batch/duplicate"])(
+    "retains CREATE OAuth, replay, step-up and explicit denial responses for %s",
+    (path) => {
+      const operation = document.paths[path].post;
+      expect(operation.security).toContainEqual({ jwt: [Permission.RELAY_TOKEN_CREATE] });
+      expect(operation["X-Replay-Protected"]).toBe(true);
+      expect(operation["X-Two-Factor-Challenge"]).toMatchObject({ required: true, purpose: "stepup", method: "code" });
+      expect(operation.responses).toHaveProperty("401");
+      expect(operation.responses).toHaveProperty("403");
+      const schema = operation.responses["200"].content["application/json"].schema;
+      if (path.includes("/batch/"))
+        expect(schema).toEqual({ type: "array", items: { $ref: "#/components/schemas/RelayTokenDto" } });
+      else expect(schema).toEqual({ $ref: "#/components/schemas/RelayTokenDto" });
+      expect(document.components.schemas.RelayTokenDto.required).not.toContain("token");
+    },
+  );
+});

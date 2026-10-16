@@ -5,7 +5,12 @@ export class RelayTokenCreationReservation {
   customAdds = 0;
   readonly credentials = new Set<string>();
   private readonly names = new Set<string>();
-  async name(tx: Prisma.TransactionClient, userId: string, preferred?: string | null): Promise<string | undefined> {
+  async name(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    preferred?: string | null,
+    copy = false,
+  ): Promise<string | undefined> {
     const base = preferred?.trim();
     if (!base) return undefined;
     const occupied = async (name: string) =>
@@ -15,7 +20,7 @@ export class RelayTokenCreationReservation {
           Prisma.sql`SELECT id FROM relay_tokens WHERE userId = ${userId} AND status IN (0, 1) AND BINARY TRIM(name) = BINARY ${name} LIMIT 1`,
         )
       ).length > 0;
-    if (!(await occupied(base))) {
+    if (!copy && !(await occupied(base))) {
       this.names.add(base);
       return base;
     }

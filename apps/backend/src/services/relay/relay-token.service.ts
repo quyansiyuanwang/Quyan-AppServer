@@ -1,4 +1,7 @@
-import { projectRelayTokenConfiguration } from "./relay-token-configuration-projection";
+import {
+  projectRelayTokenConfiguration,
+  type RelayTokenConfigurationProjectionSource,
+} from "./relay-token-configuration-projection";
 import { relayTokenCopyNames } from "@/util/relay/relay-token-name.util";
 import { RelayTokenCreateIamService } from "./relay-token-create-iam.service";
 import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
@@ -1260,6 +1263,24 @@ export class RelayTokenService {
     tokenId: string,
     data: DuplicateRelayTokenRequest,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayTokenDto> {
+    const body = structuredClone(data);
+    const [result] = await this.copyTokens(
+      [tokenId],
+      actorUserId,
+      request,
+      true,
+      body.targetUserId,
+      body.name,
+      async () => [await this.duplicateTokenLegacy(tokenId, body, actorUserId, request)],
+    );
+    return result!;
+  }
+  private async duplicateTokenLegacy(
+    tokenId: string,
+    data: DuplicateRelayTokenRequest,
+    actorUserId: string,
     request?: Request,
   ): Promise<RelayTokenDto> {
     const sourceToken = await this.getAccessibleToken(
@@ -1314,6 +1335,65 @@ export class RelayTokenService {
   }
 
   async batchDuplicateTokens(
+    ids: string[],
+    actorUserId: string,
+    request?: TypedRequest,
+    targetUserId?: string,
+  ): Promise<RelayTokenDto[]> {
+    const sourceIds = [...ids];
+    return this.copyTokens(sourceIds, actorUserId, request, false, targetUserId, undefined, () =>
+      this.batchDuplicateTokensLegacy(sourceIds, actorUserId, request, targetUserId),
+    );
+  }
+  private async copyTokens(
+    ids: string[],
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    single: boolean,
+    targetUserId: string | undefined,
+    name: string | null | undefined,
+    legacy: () => Promise<RelayTokenDto[]>,
+  ): Promise<RelayTokenDto[]> {
+    const mode = env.security.iamAuthorizationMode;
+    const tokens = await RelayTokenCreateIamService.getInstance().duplicateTokens(
+      actorUserId,
+      request,
+      {
+        data: { ids, targetUserId, name },
+        single,
+        configuration: (source) => this.toImportItemDto(source),
+        normalizers: {
+          expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+          quotaWindows: (value) => this.normalizeQuotaWindows(value),
+          ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+          requestFormatTransforms: normalizeRequestFormatTransforms,
+          normalizerConfig: normalizeRelayTokenNormalizerConfig,
+          compositeFailover: (count) => this.compositeFailover(count),
+        },
+        generatedCredential: () => this.generateRelayTokenValue(),
+        customKeyConfig: () => this.configService.getRelayCustomKeyConfig(),
+        recordCustomKeyAttempt: (userId) => this.assertCustomKeySetRateLimit(userId),
+        withGraphLock: (userId, write) => this.withGraphWrite(userId, true, write),
+      },
+      async (record) => this.toDto(record, await this.buildQuotaWindowUsageMap([record])),
+      legacy,
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: single ? OperationType.RELAY_TOKEN_DUPLICATE : OperationType.RELAY_TOKEN_BATCH_DUPLICATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetUserId: tokens[0]!.userId,
+        ...(single ? { targetResourceId: tokens[0]!.id } : {}),
+        targetResourceType: "RELAY_TOKEN",
+        description: `复制了 ${tokens.length} 个中转令牌`,
+        metadata: { total: tokens.length },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return tokens;
+  }
+  private async batchDuplicateTokensLegacy(
     ids: string[],
     actorUserId: string,
     request?: Request,
@@ -2195,7 +2275,7 @@ export class RelayTokenService {
     };
   }
 
-  private toImportItemDto(token: RelayTokenWithRelations | RelayTokenReadRecord): RelayTokenImportItemDto {
+  private toImportItemDto(token: RelayTokenConfigurationProjectionSource): RelayTokenImportItemDto {
     return projectRelayTokenConfiguration(token, {
       blockedChannelIds: (value) => this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(value),
       quotaUnit: normalizeQuotaUnit,

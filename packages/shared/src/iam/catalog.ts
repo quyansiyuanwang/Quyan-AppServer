@@ -1560,6 +1560,34 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     const resourceTypes = managed ? ['platform/relay-token'] : ['relay/token']
     return [
       {
+        action: managed ? 'quyan:relay:DuplicateManagedToken' : 'quyan:relay:DuplicateToken',
+        service: 'relay',
+        operation: managed ? 'DuplicateManagedToken' : 'DuplicateToken',
+        accessLevel: 'Write',
+        resourceTypes: [managed ? 'platform/user' : 'quyan/user', ...resourceTypes],
+        apiRoutes: [
+          'POST /v1/relay/tokens/{id}/duplicate',
+          'POST /v1/relay/tokens/batch/duplicate',
+        ],
+        conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+        sensitive: true,
+        authorizationStage: 'declared',
+        ...(managed ? { authorizationBoundary: 'platform' as const } : {}),
+        requiredActions: [
+          managed ? 'quyan:relay:CreateManagedToken' : 'quyan:relay:CreateToken',
+          managed ? 'quyan:relay:GetManagedToken' : 'quyan:relay:GetToken',
+        ],
+        conditionalActions: [
+          managed ? 'quyan:relay:RevealManagedToken' : 'quyan:relay:RevealToken',
+          'quyan:relay:SelectTokenChannel',
+          managed ? 'quyan:relay:ReferenceManagedToken' : 'quyan:relay:ReferenceToken',
+          ...(!managed ? ['quyan:relay:DuplicateManagedToken'] : []),
+        ],
+        legacyPermission: managed
+          ? Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE
+          : Permission.RELAY_TOKEN_CREATE,
+      },
+      {
         action: managed ? 'quyan:relay:ImportManagedTokens' : 'quyan:relay:ImportTokens',
         service: 'relay',
         operation: managed ? 'ImportManagedTokens' : 'ImportTokens',
@@ -1594,7 +1622,12 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
         operation: managed ? 'CreateManagedToken' : 'CreateToken',
         accessLevel: 'Write',
         resourceTypes: [managed ? 'platform/user' : 'quyan/user', ...resourceTypes],
-        apiRoutes: ['POST /v1/relay/tokens', 'POST /v1/relay/tokens/import'],
+        apiRoutes: [
+          'POST /v1/relay/tokens',
+          'POST /v1/relay/tokens/import',
+          'POST /v1/relay/tokens/{id}/duplicate',
+          'POST /v1/relay/tokens/batch/duplicate',
+        ],
         conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
         sensitive: true,
         authorizationStage: 'declared',
@@ -1710,6 +1743,8 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       'PUT /v1/relay/tokens/{id}',
       'POST /v1/relay/tokens',
       'POST /v1/relay/tokens/import',
+      'POST /v1/relay/tokens/{id}/duplicate',
+      'POST /v1/relay/tokens/batch/duplicate',
     ],
     conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,

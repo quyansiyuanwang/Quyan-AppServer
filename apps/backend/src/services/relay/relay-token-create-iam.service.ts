@@ -1,3 +1,4 @@
+import { RelayTokenCopyRepository, type RelayTokenCopySource } from "@/store/relay/relay-token-copy.repository";
 import { RelayTokenCreationReservation } from "@/store/relay/relay-token-creation-reservation";
 import type { RelayTokenCreateInput } from "@/store/relay/relay-token.store";
 import { createId } from "@paralleldrive/cuid2";
@@ -27,7 +28,12 @@ import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
 import type { CreateRelayTokenDto, ImportRelayTokensRequest, RelayTokenImportItemDto } from "@/api/dto/relay/relay.dto";
-import { createRelayTokenBodySchema, importRelayTokensBodySchema } from "@/api/schema/relay/relay.schema";
+import {
+  createRelayTokenBodySchema,
+  importRelayTokensBodySchema,
+  batchDuplicateRelayTokensBodySchema,
+  duplicateRelayTokenBodySchema,
+} from "@/api/schema/relay/relay.schema";
 import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
 import {
   RelayTokenConfigurationAdmissionService,
@@ -41,8 +47,20 @@ export interface RelayTokenImportInvocation extends RelayTokenConfigurationInvoc
   data: ImportRelayTokensRequest;
   generatedCredential: () => string;
 }
+export interface RelayTokenDuplicateInvocation extends RelayTokenConfigurationInvocation {
+  data: { ids: string[]; targetUserId?: string; name?: string | null };
+  single: boolean;
+  configuration: (source: RelayTokenCopySource) => RelayTokenImportItemDto;
+  generatedCredential: () => string;
+}
 interface RelayTokenBatchCreateInvocation extends RelayTokenConfigurationInvocation {
   items: RelayTokenImportItemDto[];
+  copy?: {
+    sourceIds: string[];
+    single: boolean;
+    name?: string | null;
+    configuration: (source: RelayTokenCopySource) => RelayTokenImportItemDto;
+  };
   targetUserId?: string;
   generatedCredential: () => string;
 }
@@ -110,8 +128,45 @@ export class RelayTokenCreateIamService {
       legacy,
     );
   }
+  async duplicateTokens<T>(
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    invocation: RelayTokenDuplicateInvocation,
+    project: (record: RelayTokenReadRecord) => Promise<T>,
+    legacy: () => Promise<T[]>,
+  ): Promise<T[]> {
+    const data = structuredClone(invocation.data);
+    if (
+      !batchDuplicateRelayTokensBodySchema.safeParse(data).success ||
+      data.ids.some((id) => !isRelayTokenResourceId(id)) ||
+      (data.targetUserId !== undefined && !isRelayTokenResourceId(data.targetUserId)) ||
+      (invocation.single &&
+        (data.ids.length !== 1 ||
+          !duplicateRelayTokenBodySchema.safeParse({ name: data.name, targetUserId: data.targetUserId }).success)) ||
+      (!invocation.single && data.name !== undefined)
+    )
+      throw new BadRequestError("Invalid token duplication request", undefined, { messageKey: "errors.badRequest" });
+    return this.execute(
+      "duplicate",
+      actorUserId,
+      request,
+      {
+        ...invocation,
+        items: data.ids.map(() => ({})),
+        targetUserId: data.targetUserId,
+        copy: {
+          sourceIds: data.ids,
+          single: invocation.single,
+          name: data.name,
+          configuration: invocation.configuration,
+        },
+      },
+      project,
+      legacy,
+    );
+  }
   private async execute<T>(
-    operation: "create" | "import",
+    operation: "create" | "import" | "duplicate",
     actorUserId: string,
     request: TypedRequest | undefined,
     invocation: RelayTokenBatchCreateInvocation,
@@ -119,9 +174,20 @@ export class RelayTokenCreateIamService {
     legacy: () => Promise<T[]>,
   ): Promise<T[]> {
     const items = structuredClone(invocation.items),
-      targetUserId = invocation.targetUserId;
-    const endpointAction = operation === "import" ? "quyan:relay:ImportTokens" : action;
-    const endpointManagedAction = operation === "import" ? "quyan:relay:ImportManagedTokens" : managedAction;
+      targetUserId = invocation.targetUserId,
+      copy = invocation.copy ? { ...invocation.copy, sourceIds: [...invocation.copy.sourceIds] } : undefined;
+    const endpointAction =
+      operation === "import"
+        ? "quyan:relay:ImportTokens"
+        : operation === "duplicate"
+          ? "quyan:relay:DuplicateToken"
+          : action;
+    const endpointManagedAction =
+      operation === "import"
+        ? "quyan:relay:ImportManagedTokens"
+        : operation === "duplicate"
+          ? "quyan:relay:DuplicateManagedToken"
+          : managedAction;
     const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {
@@ -146,7 +212,9 @@ export class RelayTokenCreateIamService {
     if (ids.some((id) => !isRelayTokenResourceId(id)) || new Set(ids).size !== ids.length) throw iamAccountDenied();
     const native = async (persist: boolean) => {
       await this.iam.loadPolicies(principal);
-      const userId = targetUserId ?? actorUserId,
+      const userId =
+          targetUserId ??
+          (copy?.single ? await RelayTokenCopyRepository.getInstance().owner(copy.sourceIds[0]!) : actorUserId),
         oauth = request.oauthAccessToken;
       if (oauth && oauth.userId !== actorUserId) throw iamAccountDenied();
       const identity: RelayTokenAuthorityIdentity = {
@@ -187,9 +255,10 @@ export class RelayTokenCreateIamService {
         if (tx) for (const verifyResponse of verifyResponses) await verifyResponse(tx);
         assertRequest();
       };
-      const resources = ids.map((id) =>
-        identity.managed ? platformRelayTokenArn(userId, id) : relayTokenArn(principal.accountOwnerId, userId, id),
-      );
+      const resource = (id: string) =>
+        identity.managed ? platformRelayTokenArn(userId, id) : relayTokenArn(principal.accountOwnerId, userId, id);
+      const resources = ids.map(resource),
+        sourceResources = copy?.sourceIds.map(resource) ?? [];
       const control = buildAcsResource({
         service: "quyan",
         region: "*",
@@ -220,14 +289,21 @@ export class RelayTokenCreateIamService {
       };
       const authorize = async () => {
         await requireAllow(endpointAction, [control]);
-        if (operation === "import") await requireAllow(action, [control]);
+        if (operation !== "create") await requireAllow(action, [control]);
         if (identity.managed) {
           await requireAllow(endpointManagedAction, [platformUserArn(userId)]);
-          if (operation === "import") await requireAllow(managedAction, [platformUserArn(userId)]);
+          if (operation !== "create") await requireAllow(managedAction, [platformUserArn(userId)]);
           await requireAllow("quyan:relay:GetToken", [control]);
           await requireAllow(readAction, [platformUserArn(userId)]);
         }
-        await requireAllow(identity.managed ? endpointManagedAction : endpointAction, resources);
+        if (copy) {
+          await requireAllow(identity.managed ? endpointManagedAction : endpointAction, sourceResources);
+          await requireAllow(readAction, sourceResources);
+        }
+        await requireAllow(
+          identity.managed ? (copy ? managedAction : endpointManagedAction) : copy ? action : endpointAction,
+          resources,
+        );
         if (operation === "import") await requireAllow(identity.managed ? managedAction : action, resources);
         await requireAllow(readAction, resources);
         // Re-evaluate every observed decision, grouping by action rather than replaying each
@@ -256,7 +332,31 @@ export class RelayTokenCreateIamService {
           prepare: async (tx) => {
             const entries: RelayTokenCreateInput[] = [];
             const verifyEntries: ((persisted: boolean) => Promise<void>)[] = [];
-            for (const [index, item] of items.entries()) {
+            let plannedItems = items;
+            if (copy) {
+              await requireAllow(identity.managed ? endpointManagedAction : endpointAction, sourceResources);
+              await requireAllow(readAction, sourceResources);
+              const copies = RelayTokenCopyRepository.getInstance();
+              await copies.lock(tx, userId, copy.sourceIds);
+              // Lock acquisition may wait; do not hydrate source configuration with pre-wait authority.
+              await recheck(tx);
+              await authorize();
+              const sources = await copies.sources(tx, userId, copy.sourceIds);
+              const expected = JSON.stringify(sources);
+              verifyEntries.push(async () => {
+                if (JSON.stringify(await copies.sources(tx, userId, copy.sourceIds)) !== expected)
+                  throw iamAccountDenied();
+              });
+              plannedItems = [];
+              for (const source of sources) {
+                const projected = copy.configuration(source);
+                const override = copy.single ? copy.name?.trim() : undefined;
+                const name = override || (await reservation.name(tx, userId, source.name, true));
+                // Copy is configuration-only: source credentials/custom status are never inputs.
+                plannedItems.push({ ...projected, name, targetUserId: undefined, token: undefined, enabled: true });
+              }
+            }
+            for (const [index, item] of plannedItems.entries()) {
               const id = ids[index]!,
                 admission = admissions[index]!;
               const name = operation === "import" ? await reservation.name(tx, userId, item.name) : item.name;
@@ -346,7 +446,9 @@ export class RelayTokenCreateIamService {
             return results;
           },
         });
-      return items.some((item) => item.routingMode === "composite") ? invocation.withGraphLock(userId, apply) : apply();
+      return copy || items.some((item) => item.routingMode === "composite")
+        ? invocation.withGraphLock(userId, apply)
+        : apply();
     };
     if (mode === "enforce") {
       const result = await native(true);
