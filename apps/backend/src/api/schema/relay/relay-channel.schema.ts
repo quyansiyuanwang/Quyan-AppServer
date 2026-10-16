@@ -232,7 +232,7 @@ export const relayChannelExportConfigurationSchema = relayChannelBaseSchema.omit
   providers: true,
 });
 
-export const createRelayChannelBodySchema = relayChannelBaseSchema;
+export const createRelayChannelBodySchema = relayChannelBaseSchema.strict();
 
 export const updateRelayChannelBodySchema = relayChannelBaseSchema.partial().strict();
 

@@ -538,6 +538,16 @@ IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_REA
 
 导出只包含已定义的可移植字段，未知嵌套字段会被移除。正则重试规则转换为等价 HTTP 状态码规则，不输出原始规则；较大集合使用仅由状态码生成的规范表达式，以保持规则数量上限。持久化配置无效、策略或管理资格变化、角色会话失效、AccessKey 撤销及请求条件变化都会阻止返回结果。操作仍要求二次验证和重放保护；此无 OAuth scope 的端点不接受 OAuth。shadow 只评估元数据授权，并执行一次兼容导出。旧导入文件仍可显式提供上游配置，但导出不会再输出这些字段。
 
+## 资源级管理员渠道创建
+
+启用 IAM 强制授权后，新建渠道使用 `quyan:relay:CreateChannel`。渠道 ID 由服务端生成，对应 `acs:platform:*:platform:relay-channel/<channelId>`；通常使用新建目标的匹配 ARN 授权。操作者还须具备部署管理的渠道创建资格，不能通过账号策略自行获得该资格。二次验证与防重放要求不变，不接受 OAuth Token。
+
+新目标与已有引用分开授权：指定父池、成员或所需的间接引用时，还需对这些已有渠道授予 `quyan:relay:UseChannelCreationReference`。只允许创建任意新渠道不会自动允许访问任意已有渠道；只允许使用引用也不能创建渠道。操作目录、JSON Schema 与策略编辑器会显示这项跨资源依赖提示，提示本身不授予权限。
+
+四种渠道类型均可创建，仍遵守严格双层模式、父子归属、自动池成员类型、循环及深度限制。父池仅用于确认物理成员归属时，不要求无关兄弟成员权限。配置服务商时，还须在 `quyan:relay:CreateChannel` 下授权 `acs:platform:*:platform:relay-channel-provider/<channelId>/<userId>`；不自动添加服务商，也不授予收款用户的身份管理权限。
+
+管理员新建渠道以启用、已批准、服务商服务开启的状态开始，不产生个人提交或审核身份，不复制结算历史。上游凭据由本次已验证输入提供，响应只返回是否已配置，不返回凭据值。名称冲突、引用未授权、配置无效、安全上下文变化或审计失败时，创建整体取消；成功日志与渠道同事务提交。legacy/shadow 模式只执行一次原创建写入，shadow 不额外保存新渠道。
+
 ## 资源级单渠道配置更新
 
 启用 IAM 强制授权后，单渠道编辑使用 `quyan:relay:UpdateChannel`，资源为 `acs:platform:*:platform:relay-channel/<channelId>`。操作者还须保留部署管理的渠道更新资格；账号内的策略和附加权限不能自行建立该部署资格。使用旧账号级 `quyan:relay:channel:Update` 别名的 JSON 策略需要显式授权新的平台 Action 与 ARN。二次验证与防重放要求不变，不接受 OAuth Token。

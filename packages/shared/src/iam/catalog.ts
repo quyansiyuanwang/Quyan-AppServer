@@ -2515,6 +2515,40 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     legacyPermission: Permission.RELAY_CHANNEL_CREATE,
   },
   {
+    action: 'quyan:relay:CreateChannel',
+    service: 'relay',
+    operation: 'CreateChannel',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/relay-channel', 'platform/relay-channel-provider'],
+    apiRoutes: ['POST /v1/relay-channels'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_CREATE,
+    resourceDependencies: [
+      {
+        action: 'quyan:relay:UseChannelCreationReference',
+        resourceTypes: ['platform/relay-channel'],
+        resourceRole: 'reference',
+        selection: 'server-resolved',
+      },
+    ],
+  },
+  {
+    action: 'quyan:relay:UseChannelCreationReference',
+    service: 'relay',
+    operation: 'UseChannelCreationReference',
+    accessLevel: 'Read',
+    resourceTypes: ['platform/relay-channel'],
+    apiRoutes: ['POST /v1/relay-channels'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_CREATE,
+  },
+  {
     action: 'quyan:relay:CreateChannelCopy',
     resourceDependencies: [
       {
