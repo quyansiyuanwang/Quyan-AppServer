@@ -217,8 +217,12 @@ export function legacyPermissionsToPrincipalPolicy(
             .replace("{resourceId}", "*"),
         ],
       });
-    const ownSubmissions: string[] = statement.Action.filter(
-      (action) => action === "quyan:relay:ListMyChannelSubmissions",
+    const ownSubmissions: string[] = statement.Action.filter((action) =>
+      [
+        "quyan:relay:ListMyChannelSubmissions",
+        "quyan:relay:DeleteMyChannelSubmission",
+        "quyan:relay:SetMyChannelSubmissionServiceStatus",
+      ].includes(action),
     );
     if (ownSubmissions.length)
       statements.push({

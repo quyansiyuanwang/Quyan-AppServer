@@ -1,3 +1,4 @@
+import { relayChannelSubmissionResourceResolver } from "@/iam/resources/relay-channel-submission-resources";
 import { relayProviderClaimBalanceResourceResolver } from "@/iam/request/relay-provider-resource-resolvers";
 import { iamCollectionAuthorizationMiddleware } from "@/iam/middleware/iam-authorization.middleware";
 import { ramAccountResourceResolver } from "@/iam/request/resource-resolvers";
@@ -428,9 +429,9 @@ export class RelayChannelController extends Controller {
   @Delete("submissions/{id}")
   @Security("jwt")
   @CheckPermission(Permission.RELAY_CHANNEL_SUBMIT, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Submit",
+    action: "quyan:relay:DeleteMyChannelSubmission",
     resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
+    resource: relayChannelSubmissionResourceResolver,
   })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -438,6 +439,8 @@ export class RelayChannelController extends Controller {
     replayProtectionMiddleware,
     validateParams(relayChannelIdParamsSchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async deleteSubmittedChannel(
     @Path() id: string,
     @Request() request: TypedRequest,
@@ -450,9 +453,9 @@ export class RelayChannelController extends Controller {
   @Patch("submissions/{id}/service-status")
   @Security("jwt")
   @CheckPermission(Permission.RELAY_CHANNEL_SUBMIT, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Submit",
+    action: "quyan:relay:SetMyChannelSubmissionServiceStatus",
     resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
+    resource: relayChannelSubmissionResourceResolver,
   })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -461,6 +464,8 @@ export class RelayChannelController extends Controller {
     validateParams(relayChannelIdParamsSchema),
     validateBody(updateRelayChannelServiceStatusBodySchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async updateSubmittedChannelServiceStatus(
     @Path() id: string,
     @Body() body: UpdateRelayChannelServiceStatusRequest,

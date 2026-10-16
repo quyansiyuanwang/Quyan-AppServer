@@ -26,6 +26,12 @@ The list always remains limited to the authenticated user's own non-deleted stan
 
 The response preserves review information, effective models and upstream key-presence booleans, but never returns key values. A submitted standalone channel does not expose a pool parent or unrelated members. If identity, authorization or relevant resource data changes during loading, the result is rejected. Legacy/shadow retain the existing payload read once, without a second configuration read for shadow comparison.
 
+### Deletion and service availability
+
+Deleting an owned submission requires `quyan:relay:DeleteMyChannelSubmission`; pausing or resuming service requires `quyan:relay:SetMyChannelSubmissionServiceStatus`. Both Actions use the submission ARN above and can be limited to specific channels. They do not grant list, review, or platform-management authority. Wildcards cannot bypass original-submitter ownership.
+
+Deletion is limited to your pending, rejected, or offboarded standalone submissions. Deletion and related token-channel reference cleanup commit or roll back together. Service availability can only be changed for approved standalone submissions; providers cannot resume an administrator-disabled channel. Requests retain two-factor verification and replay protection and do not accept OAuth tokens. Changes to identity, role sessions, AccessKeys, policies, or target state during the write cancel the entire database mutation, with no partial update. Service-status responses still return only credential-presence flags, never credential values.
+
 ## Earnings and settlement
 
 Earnings are created only from an amount actually debited from a consumer balance. Failed requests, zero charges, and fully covered monthly-pass usage create no earnings. When a pass covers only part of a request, only the remaining debit is shared. Each earning preserves the channel, provider, and percentage snapshot from when the debit occurred, so later edits never rewrite history.

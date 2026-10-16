@@ -11,3 +11,13 @@ export function relayChannelSubmissionArn(accountOwnerId: string, userId: string
     path: "channel-submission/" + userId + "/" + channelId,
   });
 }
+
+/** The account and submitter are trusted identity fields, never request body/query/header input. */
+export const relayChannelSubmissionResourceResolver: import("../request/resource-resolvers").ResourceResolver = ({
+  request,
+  principal,
+}) => {
+  const id = request.params.id;
+  if (!isRelayTokenResourceId(id)) return undefined;
+  return relayChannelSubmissionArn(principal.accountOwnerId, principal.subjectUserId, id);
+};

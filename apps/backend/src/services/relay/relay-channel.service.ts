@@ -1,3 +1,4 @@
+import { RelayChannelSubmissionMutationIamService } from "./relay-channel-submission-mutation-iam.service";
 import { RelayChannelSubmissionReadIamService } from "./relay-channel-submission-read-iam.service";
 import { RelayChannelHealthClearIamService } from "./relay-channel-health-clear-iam.service";
 import { RelayChannelHealthConfigIamService } from "./relay-channel-health-config-iam.service";
@@ -2366,6 +2367,23 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelDto> {
+    const result = await RelayChannelSubmissionMutationIamService.getInstance().execute(
+      { operation: "service-status", enabled: body.enabled },
+      id,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.updateSubmittedChannelServiceStatusLegacy(id, body, actorUserId, request),
+    );
+    if (!result) throw iamAccountDenied();
+    return result;
+  }
+
+  private async updateSubmittedChannelServiceStatusLegacy(
+    id: string,
+    body: UpdateRelayChannelServiceStatusRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });
@@ -3599,6 +3617,16 @@ export class RelayChannelService {
   }
 
   async deleteSubmittedChannel(id: string, actorUserId: string, request?: Request): Promise<void> {
+    await RelayChannelSubmissionMutationIamService.getInstance().execute(
+      { operation: "delete" },
+      id,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.deleteSubmittedChannelLegacy(id, actorUserId, request),
+    );
+  }
+
+  private async deleteSubmittedChannelLegacy(id: string, actorUserId: string, request?: Request): Promise<void> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });

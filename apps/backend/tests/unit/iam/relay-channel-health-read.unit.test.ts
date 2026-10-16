@@ -149,3 +149,43 @@ describe("own channel submission authorization", () => {
     ).toMatchObject({ coverage: "explicit", actions: [action], issues: [] });
   });
 });
+
+describe("own submission lifecycle declarations", () => {
+  it.each([
+    ["DeleteMyChannelSubmission", "DELETE /v1/relay-channels/submissions/{id}", "deleteSubmittedChannel"],
+    [
+      "SetMyChannelSubmissionServiceStatus",
+      "PATCH /v1/relay-channels/submissions/{id}/service-status",
+      "updateSubmittedChannelServiceStatus",
+    ],
+  ])("declares %s on a submitter-owned resource and keeps stepup/replay", (operation, route, method) => {
+    const action = "quyan:relay:" + operation,
+      own = relayChannelSubmissionArn("owner", "actor", "channel");
+    expect(getIamActionDefinition(action)).toMatchObject({
+      resourceTypes: ["relay/channel-submission"],
+      accessLevel: "Write",
+      sensitive: true,
+    });
+    expect(isIamActionResourceCompatible(action, own)).toBe(true);
+    expect(isIamActionResourceCompatible(action, resource)).toBe(false);
+    const document = legacyPermissionsToPrincipalPolicy([Permission.RELAY_CHANNEL_SUBMIT], "owner", "actor")!;
+    expect(evaluatePolicies([{ policyId: "legacy", document }], { action, resource: own }).decision).toBe("Allow");
+    expect(
+      evaluatePolicies([{ policyId: "legacy", document }], {
+        action,
+        resource: relayChannelSubmissionArn("owner", "other", "channel"),
+      }).decision,
+    ).toBe("ImplicitDeny");
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    const source = project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel.controller.ts");
+    expect(collectIamRoutes(project.getSourceFiles(), process.cwd()).find((row) => row.key === route)).toMatchObject({
+      coverage: "explicit",
+      actions: [action],
+      issues: [],
+    });
+    const text = source.getClassOrThrow("RelayChannelController").getMethodOrThrow(method).getText();
+    expect(text).toContain("@TwoFactorChallengeProtected");
+    expect(text).toContain("replayProtectionMiddleware");
+    expect(text).toContain("relayChannelSubmissionResourceResolver");
+  });
+});

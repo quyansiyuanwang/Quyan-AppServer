@@ -112,3 +112,15 @@ describe("generated resource-scoped own channel submission listing", () => {
     );
   });
 });
+
+describe("generated own submission lifecycle contracts", () => {
+  it.each([
+    ["/v1/relay-channels/submissions/{id}", "delete"],
+    ["/v1/relay-channels/submissions/{id}/service-status", "patch"],
+  ])("retains JWT and safe errors for %s", (path, verb) => {
+    const operation = document.paths[path][verb];
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+  });
+});
