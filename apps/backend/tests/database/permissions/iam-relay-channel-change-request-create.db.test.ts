@@ -641,6 +641,7 @@ describe("native owned channel change-request creation", () => {
   });
   it("keeps pinned recipients valid when a new native proposal is approved through the compatibility path", async () => {
     const result = await create(body({ providers: [provider()] }));
+    env.security.iamAuthorizationMode = "legacy"; // This explicitly exercises the retained, no-request compatibility path.
     const reviewed = await RelayChannelService.getInstance().reviewChangeRequest(
       result.id,
       { action: "approve" },
@@ -674,6 +675,7 @@ describe("native owned channel change-request creation", () => {
       const before = await source(),
         oldRequests = await requests(),
         providers = await prisma.relayChannelProvider.findMany({ where: { relayChannelId: channel } });
+      env.security.iamAuthorizationMode = "legacy"; // Keep the pinned-binding regression on its intended compatibility path.
       await expect(
         RelayChannelService.getInstance().reviewChangeRequest(result.id, { action: "approve" }, owner),
       ).rejects.toMatchObject({ statusCode: 403 });

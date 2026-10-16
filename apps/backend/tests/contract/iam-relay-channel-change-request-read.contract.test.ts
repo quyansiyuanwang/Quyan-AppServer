@@ -213,3 +213,25 @@ describe("generated native owned change proposal creation contract", () => {
       expect(output).not.toHaveProperty(field);
   });
 });
+
+describe("generated native channel change-request review contract", () => {
+  it("retains unscoped JWT, protected server path identity and safe errors", () => {
+    const operation = document.paths["/v1/relay-channels/change-requests/{id}/review"].post;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.requestBody.required).toBe(true);
+    for (const status of ["401", "403"]) expect(operation.responses).toHaveProperty(status);
+    expect(Object.keys(document.components.schemas.ReviewRelayChannelChangeRequest.properties).sort()).toEqual([
+      "action",
+      "reason",
+    ]);
+    const fields = document.components.schemas.RelayChannelChangeRequestDto.properties;
+    for (const field of [
+      "encryptedCredentials",
+      "credentialIv",
+      "credentialAuthTag",
+      "providerBindings",
+      "previousSubmissionStatus",
+    ])
+      expect(fields).not.toHaveProperty(field);
+  });
+});

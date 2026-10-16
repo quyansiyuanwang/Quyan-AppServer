@@ -1,3 +1,4 @@
+import { platformRelayChannelChangeRequestReviewResourceResolver } from "@/iam/request/platform-relay-channel-change-request-resource-resolver";
 import { platformRelayChannelResourceResolver } from "@/iam/resources/platform-relay-channel-resources";
 import { relayChannelSubmissionResourceResolver } from "@/iam/resources/relay-channel-submission-resources";
 import { relayProviderClaimBalanceResourceResolver } from "@/iam/request/relay-provider-resource-resolvers";
@@ -604,13 +605,20 @@ export class RelayChannelController extends Controller {
 
   @Post("change-requests/{id}/review")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_REVIEW)
+  @CheckPermission(Permission.RELAY_CHANNEL_REVIEW, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:ReviewChannelChangeRequest",
+    resourceKind: "single-resource",
+    resource: platformRelayChannelChangeRequestReviewResourceResolver,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
+    validateParams(relayChannelIdParamsSchema),
     validateBody(reviewRelayChannelChangeRequestBodySchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async reviewChangeRequest(
     @Path() id: string,
     @Body() body: ReviewRelayChannelChangeRequest,

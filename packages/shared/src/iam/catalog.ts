@@ -2298,6 +2298,23 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     legacyPermissions: [Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE],
   },
   {
+    action: 'quyan:relay:ReviewChannelChangeRequest',
+    service: 'relay',
+    operation: 'ReviewChannelChangeRequest',
+    accessLevel: 'Write',
+    resourceTypes: [
+      'platform/relay-channel-change-request',
+      'platform/relay-channel',
+      'platform/relay-channel-provider',
+    ],
+    apiRoutes: ['POST /v1/relay-channels/change-requests/{id}/review'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_REVIEW,
+  },
+  {
     action: 'quyan:relay:ReviewChannelSubmission',
     service: 'relay',
     operation: 'ReviewChannelSubmission',

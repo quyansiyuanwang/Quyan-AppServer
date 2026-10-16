@@ -1,3 +1,5 @@
+import { RelayChannelChangeRequestReviewIamService } from "./relay-channel-change-request-review-iam.service";
+import { createRelayChannelChangeRequestBodySchema } from "@/api/schema/relay/relay-channel.schema";
 import { assertRelayChannelChangeProviderBindings } from "@/store/relay/relay-channel-change-provider-bindings";
 import { RelayChannelChangeRequestCreateIamService } from "./relay-channel-change-request-create-iam.service";
 import { RelayChannelProviderConfigIamService } from "./relay-channel-provider-config-iam.service";
@@ -3093,6 +3095,81 @@ export class RelayChannelService {
   }
 
   async reviewChangeRequest(
+    changeRequestId: string,
+    body: ReviewRelayChannelChangeRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelChangeRequestDto> {
+    return RelayChannelChangeRequestReviewIamService.getInstance().execute(
+      changeRequestId,
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async (row, source, presence, catalog) => {
+        const config = projectRelayChannelChangeRequest(row).config;
+        const stored = [row.encryptedCredentials, row.credentialIv, row.credentialAuthTag];
+        if (stored.some((value) => value !== null) && stored.some((value) => !value))
+          throw new BadRequestError("Incomplete stored proposal credentials", undefined, {
+            messageKey: "relayChannel.changeRequestCredentialDecryptFailed",
+          });
+        const credentials = this.decryptChangeCredentials(row);
+        const credentialSchema = createRelayChannelChangeRequestBodySchema
+          .pick({
+            openaiUpstreamApiKey: true,
+            anthropicUpstreamApiKey: true,
+            geminiUpstreamApiKey: true,
+          })
+          .strict();
+        const parsed = credentialSchema.safeParse(
+          Object.fromEntries(
+            Object.entries(credentials).map(([key, value]) => [key, typeof value === "string" ? value.trim() : value]),
+          ),
+        );
+        if (!parsed.success || Object.values(parsed.data).some((value) => !value))
+          throw new BadRequestError("Invalid stored proposal credentials", undefined, {
+            messageKey: "errors.badRequest",
+          });
+        const validated = await this.buildValidatedChannelData(
+          { ...config, ...parsed.data, channelType: "standalone" },
+          source,
+          catalog,
+          presence,
+        );
+        // A proposal authorizes only these fields, not routing, visibility, proxy, token or settlement state.
+        const {
+          name,
+          openaiUpstreamUrl,
+          anthropicUpstreamUrl,
+          geminiUpstreamUrl,
+          multiplier,
+          allowedFormats,
+          allowedModels,
+          inputTokensIncludeCacheRead,
+          modelMapping,
+          timePeriodMultipliers,
+          contextLengthMultipliers,
+        } = this.toPersistenceInput(validated);
+        return {
+          name,
+          openaiUpstreamUrl,
+          anthropicUpstreamUrl,
+          geminiUpstreamUrl,
+          multiplier,
+          allowedFormats,
+          allowedModels,
+          inputTokensIncludeCacheRead,
+          modelMapping,
+          timePeriodMultipliers,
+          contextLengthMultipliers,
+          ...parsed.data,
+        };
+      },
+      (input, userId, now) => this.buildProviderRow(input, userId, now),
+      () => this.reviewChangeRequestLegacy(changeRequestId, body, actorUserId, request),
+    );
+  }
+
+  private async reviewChangeRequestLegacy(
     changeRequestId: string,
     body: ReviewRelayChannelChangeRequest,
     actorUserId: string,

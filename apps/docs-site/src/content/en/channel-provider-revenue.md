@@ -105,6 +105,16 @@ Provider usernames are resolved by the server to the real recipient IDs. A recip
 
 The operator must retain deployment-managed eligibility through either channel review or channel update permission. Existing `RELAY_CHANNEL_REVIEW` and `RELAY_CHANNEL_UPDATE` permissions map to the new Action. JSON-only policies using the old account-owned `quyan:relay:channel:Review` or `quyan:relay:channel:Update` alias must explicitly adopt the new Action and platform channel/provider-relation resources. Step-up verification and replay protection remain required; OAuth tokens are not accepted. Legacy/shadow modes perform the existing business operation once, without a second native write.
 
+## Resource-scoped change-request review
+
+With IAM enforcement enabled, reviewing a change request requires `quyan:relay:ReviewChannelChangeRequest` on both the request, `acs:platform:*:platform:relay-channel-change-request/<channelId>/<requestId>`, and the channel, `acs:platform:*:platform:relay-channel/<channelId>`. The reviewer must retain deployment-managed review eligibility; account policies cannot grant that eligibility. Step-up verification and replay protection remain required.
+
+Approval also requires that Action on every current and proposed provider relation, `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>`, including relations being removed. This does not authorize management of the recipient's account. An explicit empty provider list disables all relations; omitting the list preserves them and never implicitly adds the submitter. New proposals pin recipient identity, so renaming or reusing a username cannot redirect revenue to somebody else. Settled earnings history is retained.
+
+Approval applies only proposed channel settings and explicitly supplied new credentials, leaving routing, visibility and token assignments unchanged. For previously approved channels, a current administrator disable or provider pause remains in force; approving a change does not restart service. Rejection requires a reason and does not decrypt proposed credentials or validate stale upstream, model or provider settings; the stored proposal must still have a valid, safely displayable structure. Rejecting a recovery proposal restores its server-validated previous lifecycle state. Repeating a completed review still checks access again.
+
+Review state, configuration, provider changes and the safe response share one transaction. A permission, identity, recipient, proposal, model-catalog or response-data change cancels the entire operation. Responses never include keys or internal identity bindings. Existing `RELAY_CHANNEL_REVIEW` permissions map to this Action; policies using only legacy JSON Actions must explicitly adopt the platform resource scopes above. Legacy/shadow modes still perform the original business write only once.
+
 ## Related pages
 
 - `relay-settings`

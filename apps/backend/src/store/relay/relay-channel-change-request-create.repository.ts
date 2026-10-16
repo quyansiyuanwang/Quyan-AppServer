@@ -23,7 +23,7 @@ const metadataSelect = {
   submissionStatus: true,
   providerServiceEnabled: true,
 } as const;
-const sourceSelect = {
+export const relayChannelChangeValidationSourceSelect = {
   ...metadataSelect,
   name: true,
   routingStrategy: true,
@@ -61,7 +61,7 @@ const pendingSelect = {
   reviewedAt: true,
 } as const;
 type Metadata = Prisma.RelayChannelGetPayload<{ select: typeof metadataSelect }>;
-type Source = Prisma.RelayChannelGetPayload<{ select: typeof sourceSelect }>;
+type Source = Prisma.RelayChannelGetPayload<{ select: typeof relayChannelChangeValidationSourceSelect }>;
 type Pending = Prisma.RelayChannelChangeRequestGetPayload<{ select: typeof pendingSelect }>;
 type Providers = Awaited<ReturnType<RelayChannelProviderConfigRepository["providers"]>>;
 export type ChangeRequestPreparation = (
@@ -173,7 +173,10 @@ export class RelayChannelChangeRequestCreateRepository {
             return undefined;
           }
           const readSource = () =>
-            tx.relayChannel.findUnique({ where: { id: target.channel.id }, select: sourceSelect });
+            tx.relayChannel.findUnique({
+              where: { id: target.channel.id },
+              select: relayChannelChangeValidationSourceSelect,
+            });
           const source = await readSource(),
             flags = (await readRelayChannelCredentialPresence(tx, [target.channel.id])).get(target.channel.id);
           if (!source || !flags) throw iamAccountDenied();

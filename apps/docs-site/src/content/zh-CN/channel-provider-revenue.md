@@ -105,6 +105,16 @@
 
 操作者还必须保留部署管理组赋予的渠道审核或渠道更新资格。现有 `RELAY_CHANNEL_REVIEW` 和 `RELAY_CHANNEL_UPDATE` 权限会映射到新 Action；仅使用旧账号级 `quyan:relay:channel:Review` 或 `quyan:relay:channel:Update` 别名的 JSON 策略，需要显式改用新 Action 及平台渠道、提供者关联资源。二次验证和重放保护仍然必需，不接受 OAuth Token。legacy/shadow 模式只执行一次原业务操作，不会额外执行原生写入。
 
+## 资源级修改申请审核
+
+启用 IAM 强制授权后，审核修改申请使用 `quyan:relay:ReviewChannelChangeRequest`，必须同时允许申请资源 `acs:platform:*:platform:relay-channel-change-request/<channelId>/<requestId>` 和渠道资源 `acs:platform:*:platform:relay-channel/<channelId>`。审核者仍须具有部署管理的审核资格；账号策略不能自行授予该资格。二次验证和防重放要求保持不变。
+
+批准还需要逐一允许每个当前及拟议提供者关联 `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>`，包括被移除的关联。该授权不授予接收者的账号管理权限。明确的空提供者列表会停用全部关联；省略列表则保持现有关联，不会自动添加提交者。新的修改申请固定提供者身份，用户名改变或被他人重新使用后不能把分成转给其他人。既有已结算记录保留。
+
+批准只应用申请中的渠道配置及明确提供的新凭据，不改变路由、可见性或关联 Token。对已获批渠道，当前管理员停用及提供者暂停状态仍然有效，不会因批准修改而恢复服务。拒绝必须填写原因，不会解密待应用凭据或检查失效的上游、模型及提供者配置；申请本身仍须具有可安全展示的合法结构。恢复申请被拒绝时，按经服务端校验的原状态恢复。已完成的审核请求仍会重新检查访问权限。
+
+审核状态、配置、提供者变更及安全响应在同一事务内完成。期间权限、身份、接收者、申请、模型目录或响应数据发生变化会撤销整个操作，响应不会包含密钥或内部绑定信息。旧 `RELAY_CHANNEL_REVIEW` 自动映射为此 Action；仅使用旧 JSON Action 的策略须明确改用上述平台资源范围。legacy/shadow 模式仍只执行一次原有业务写入。
+
 ## 相关页面
 
 - `relay-settings`
