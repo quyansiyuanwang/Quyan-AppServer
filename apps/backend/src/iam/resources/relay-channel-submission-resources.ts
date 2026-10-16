@@ -21,3 +21,20 @@ export const relayChannelSubmissionResourceResolver: import("../request/resource
   if (!isRelayTokenResourceId(id)) return undefined;
   return relayChannelSubmissionArn(principal.accountOwnerId, principal.subjectUserId, id);
 };
+
+/** An account-local proposed provider relation, not authority over the referenced user's identity. */
+export function relayChannelSubmissionProviderArn(
+  accountOwnerId: string,
+  submitterUserId: string,
+  channelId: string,
+  providerUserId: string,
+) {
+  if (![accountOwnerId, submitterUserId, channelId, providerUserId].every(isRelayTokenResourceId))
+    throw new Error("Invalid submission provider identifier");
+  return buildAcsResource({
+    service: "relay",
+    region: "*",
+    accountId: accountOwnerId,
+    path: "submission-provider/" + submitterUserId + "/" + channelId + "/" + providerUserId,
+  });
+}

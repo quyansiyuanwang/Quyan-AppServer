@@ -26,6 +26,17 @@
 
 响应保留审核信息、有效模型及上游密钥是否存在的布尔标记，不返回密钥原文。独立渠道提交不暴露池父节点或无关成员。读取过程中身份、授权或相关资源数据发生变化时，拒绝返回结果。legacy/shadow 只执行一次原有内容读取，不为 shadow 比较重复读取配置。
 
+### 创建待审核提交
+
+启用 IAM 强制授权后，创建提交使用 `quyan:relay:CreateMyChannelSubmission`。服务端预分配渠道 ID，并要求此 Action 同时允许：
+
+- 新渠道提交：`acs:relay:*:<accountId>:channel-submission/<submitterUserId>/*`；
+- 每个提供者关联：`acs:relay:*:<accountId>:submission-provider/<submitterUserId>/*/<providerUserId>`。
+
+关联 ARN 中的 `*` 是服务端分配的渠道 ID。即使请求未显式配置提供者，也会添加原提交者的零比例、手动结算关联，因此策略需要允许本人的关联。要限制可配置的其他提供者，逐个填写其用户 ID，而不是放宽为任意提供者。关联仅代表本次提交中的收益配置，不授予目标用户的账号或 IAM 管理权限；提供者用户名由服务端解析为真实用户 ID 后再授权。
+
+新提交固定为待审核、停用的独立渠道，请求不能指定资源 ID、冒充其他提交者或自行设为审核通过。创建、提供者关联和响应投影在同一事务内校验；授权、身份或关联数据变化导致校验失败时，不保留部分提交。响应只包含上游密钥是否存在的标记，不返回密钥内容。原有 `RELAY_CHANNEL_SUBMIT` 在迁移期间仅映射为当前提交者范围，legacy/shadow 仍只执行一次原业务创建。
+
 ### 删除与服务开关
 
 删除本人提交需要 `quyan:relay:DeleteMyChannelSubmission`，暂停或恢复服务需要 `quyan:relay:SetMyChannelSubmissionServiceStatus`。两个 Action 均使用上述提交资源 ARN，可只授予指定渠道的操作权限；列表读取、审核及平台管理权限不会被一并授予。通配符也不能绕过原提交者归属检查。

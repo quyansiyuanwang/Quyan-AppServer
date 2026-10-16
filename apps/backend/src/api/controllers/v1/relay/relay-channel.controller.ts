@@ -397,8 +397,17 @@ export class RelayChannelController extends Controller {
 
   @Post("submissions")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_SUBMIT)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:CreateMyChannelSubmission",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+      legacyPermissions: [Permission.RELAY_CHANNEL_SUBMIT],
+    }),
+  )
   @Middlewares(replayProtectionMiddleware, validateBody(submitRelayChannelBodySchema))
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async submitChannel(
     @Body() body: SubmitRelayChannelRequest,
     @Request() request: TypedRequest,

@@ -219,6 +219,7 @@ export function legacyPermissionsToPrincipalPolicy(
       });
     const ownSubmissions: string[] = statement.Action.filter((action) =>
       [
+        "quyan:relay:CreateMyChannelSubmission",
         "quyan:relay:ListMyChannelSubmissions",
         "quyan:relay:DeleteMyChannelSubmission",
         "quyan:relay:SetMyChannelSubmissionServiceStatus",
@@ -233,6 +234,19 @@ export function legacyPermissionsToPrincipalPolicy(
           IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/channel-submission")!
             .arnTemplate.replace("{accountId}", accountOwnerId)
             .replace("{parentId}", principalUserId)
+            .replace("{resourceId}", "*"),
+        ],
+      });
+    if (ownSubmissions.includes("quyan:relay:CreateMyChannelSubmission"))
+      statements.push({
+        Effect: "Allow",
+        Sid: "LegacyRelayOwnSubmissionProviders",
+        Action: ["quyan:relay:CreateMyChannelSubmission"],
+        Resource: [
+          IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/submission-provider")!
+            .arnTemplate.replace("{accountId}", accountOwnerId)
+            .replace("{ancestorId}", principalUserId)
+            .replace("{parentId}", "*")
             .replace("{resourceId}", "*"),
         ],
       });

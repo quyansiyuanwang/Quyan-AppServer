@@ -1,3 +1,4 @@
+import { RelayChannelSubmissionCreateIamService } from "./relay-channel-submission-create-iam.service";
 import { RelayChannelSubmissionMutationIamService } from "./relay-channel-submission-mutation-iam.service";
 import { RelayChannelSubmissionReadIamService } from "./relay-channel-submission-read-iam.service";
 import { RelayChannelHealthClearIamService } from "./relay-channel-health-clear-iam.service";
@@ -126,7 +127,7 @@ import { Prisma, type RelayChannel } from "@prisma/client";
 import { formatRelayRequestFormats, parseAllowedModelsJson, RELAY_REQUEST_FORMATS } from "@quyan/shared";
 import type { Request } from "express";
 import { ModelPricingService } from "./model-pricing.service";
-import { RelayPoolResolverService } from "./relay-pool-resolver.service";
+import { RelayPoolResolverService, type RelayModelCatalogEntry } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelHealthService, type RelayChannelHealthSnapshot } from "./relay-channel-health.service";
 import { RelayConfigService } from "./relay-config.service";
@@ -1335,10 +1336,13 @@ export class RelayChannelService {
   /**
    * Validate that allowedModels array doesn't contain multiple models with the same model ID
    */
-  private async validateNoDuplicateModelIds(modelNames: readonly unknown[]): Promise<void> {
+  private async validateNoDuplicateModelIds(
+    modelNames: readonly unknown[],
+    catalog?: readonly RelayModelCatalogEntry[],
+  ): Promise<void> {
     if (!modelNames || modelNames.length === 0) return;
 
-    const allModels = await this.modelPricingService.getModelPricing();
+    const allModels = catalog ?? (await this.modelPricingService.getModelPricing());
 
     // Build a map of model name -> model ID
     const modelNameToId = new Map<string, string>();
@@ -1869,6 +1873,7 @@ export class RelayChannelService {
   private async buildValidatedChannelData(
     data: CreateRelayChannelRequest | UpdateRelayChannelRequest,
     existing?: RelayChannel,
+    standaloneCatalog?: readonly RelayModelCatalogEntry[],
   ): Promise<ValidatedRelayChannelData> {
     const name = (data.name !== undefined ? data.name : existing?.name)?.trim();
     if (!name)
@@ -1988,7 +1993,8 @@ export class RelayChannelService {
       data.contextLengthMultipliers !== undefined
         ? data.contextLengthMultipliers
         : (existing?.contextLengthMultipliers as ContextLengthMultiplierRule[] | undefined);
-    const topology = await this.relayConfigService.getRelayConfig();
+    if (standaloneCatalog && (existing || channelType !== "standalone")) throw iamAccountDenied();
+    const topology = standaloneCatalog ? undefined : await this.relayConfigService.getRelayConfig();
 
     if (allowedModels !== undefined && allowedModels !== null) {
       let parsedAllowedModels: unknown;
@@ -2004,7 +2010,7 @@ export class RelayChannelService {
         throw new BadRequestError("allowedModels must be a valid JSON array", undefined, {
           messageKey: "relayChannel.allowedModelsInvalidJson",
         });
-      await this.validateNoDuplicateModelIds(parsedAllowedModels);
+      await this.validateNoDuplicateModelIds(parsedAllowedModels, standaloneCatalog);
     }
 
     if (isUpstreamChannelType(channelType)) {
@@ -2072,7 +2078,7 @@ export class RelayChannelService {
 
     if (
       channelType === "pooled" &&
-      topology.channelTopologyMode === "strict-two-tier" &&
+      topology?.channelTopologyMode === "strict-two-tier" &&
       poolMembers != null &&
       poolMembers.length > 0
     )
@@ -2086,7 +2092,7 @@ export class RelayChannelService {
     if (
       existing &&
       channelType === "pooled" &&
-      topology.channelTopologyMode !== "strict-two-tier" &&
+      topology?.channelTopologyMode !== "strict-two-tier" &&
       poolMembers != null &&
       poolMembers.length === 0
     )
@@ -2150,14 +2156,7 @@ export class RelayChannelService {
           throw new BadRequestError("Channel provider username is unavailable", undefined, {
             messageKey: "relayChannel.providerUsernameUnavailable",
           });
-        const nextSettlementAt =
-          provider.settlementMode === "interval"
-            ? new Date(now.getTime() + Number(provider.settlementIntervalDays) * 24 * 60 * 60 * 1000)
-            : provider.settlementMode === "daily"
-              ? nextDailyProviderSettlementAt(provider.settlementTime, now)
-              : null;
-        const { username: _username, userId: _legacyUserId, ...config } = provider;
-        return { ...config, userId: user.id, nextSettlementAt };
+        return this.buildProviderRow(provider, user.id, now);
       }),
     );
     if (new Set(rows.map((provider) => provider.userId)).size !== rows.length)
@@ -2165,6 +2164,21 @@ export class RelayChannelService {
         messageKey: "relayChannel.providersUnique",
       });
     return rows;
+  }
+
+  private buildProviderRow(
+    provider: RelayChannelProviderConfigInput,
+    userId: string,
+    now: Date,
+  ): ResolvedRelayChannelProviderConfig {
+    const nextSettlementAt =
+      provider.settlementMode === "interval"
+        ? new Date(now.getTime() + Number(provider.settlementIntervalDays) * 24 * 60 * 60 * 1000)
+        : provider.settlementMode === "daily"
+          ? nextDailyProviderSettlementAt(provider.settlementTime, now)
+          : null;
+    const { username: _username, userId: _legacyUserId, ...config } = provider;
+    return { ...config, userId, nextSettlementAt };
   }
 
   private toPersistenceInput(data: ValidatedRelayChannelData): Prisma.RelayChannelUncheckedCreateInput {
@@ -2304,6 +2318,24 @@ export class RelayChannelService {
   }
 
   async submitChannel(
+    data: SubmitRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    return RelayChannelSubmissionCreateIamService.getInstance().execute(
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async (input, catalog) =>
+        this.toPersistenceInput(
+          await this.buildValidatedChannelData({ ...input, channelType: "standalone" }, undefined, catalog),
+        ),
+      (input, userId, now) => this.buildProviderRow(input, userId, now),
+      () => this.submitChannelLegacy(data, actorUserId, request),
+    );
+  }
+
+  private async submitChannelLegacy(
     data: SubmitRelayChannelRequest,
     actorUserId: string,
     request?: Request,

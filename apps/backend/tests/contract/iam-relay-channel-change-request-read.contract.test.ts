@@ -124,3 +124,17 @@ describe("generated own submission lifecycle contracts", () => {
     expect(operation.responses).toHaveProperty("403");
   });
 });
+
+describe("generated native channel submission creation contract", () => {
+  it("retains the submission DTO, unscoped JWT and safe errors", () => {
+    const operation = document.paths["/v1/relay-channels/submissions"].post;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.requestBody.required).toBe(true);
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+    const body = document.components.schemas.SubmitRelayChannelRequest;
+    expect(body.required).toContain("name");
+    for (const field of ["id", "accountOwnerId", "submittedByUserId", "submissionStatus", "status"])
+      expect(body.properties).not.toHaveProperty(field);
+  });
+});

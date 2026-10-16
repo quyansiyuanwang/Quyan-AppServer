@@ -26,6 +26,17 @@ The list always remains limited to the authenticated user's own non-deleted stan
 
 The response preserves review information, effective models and upstream key-presence booleans, but never returns key values. A submitted standalone channel does not expose a pool parent or unrelated members. If identity, authorization or relevant resource data changes during loading, the result is rejected. Legacy/shadow retain the existing payload read once, without a second configuration read for shadow comparison.
 
+### Creating a submission pending review
+
+With IAM enforcement enabled, submission creation uses `quyan:relay:CreateMyChannelSubmission`. The server reserves the channel ID and requires this Action to allow both:
+
+- The new submission: `acs:relay:*:<accountId>:channel-submission/<submitterUserId>/*`;
+- Every proposed provider relation: `acs:relay:*:<accountId>:submission-provider/<submitterUserId>/*/<providerUserId>`.
+
+The `*` in a relation ARN represents the server-allocated channel ID. Even when no providers are explicitly configured, the original submitter receives a zero-share, manual-settlement relation, so the policy must allow that relation too. To limit other configurable providers, list their user IDs instead of allowing arbitrary recipients. A relation only represents revenue configuration within this submission; it does not grant account or IAM administration over the referenced user. The server resolves provider usernames to real user IDs before authorization.
+
+A new submission is always a disabled standalone channel pending review. Requests cannot choose its ID, impersonate another submitter, or mark it approved. Creation, provider relations and response projection are validated in one transaction. Validation failure following an authorization, identity or related-data change leaves no partial submission. Responses expose only upstream credential-presence flags, never credential contents. During migration, legacy `RELAY_CHANNEL_SUBMIT` maps only to the authenticated submitter's scope; legacy/shadow still execute the original business creation once.
+
 ### Deletion and service availability
 
 Deleting an owned submission requires `quyan:relay:DeleteMyChannelSubmission`; pausing or resuming service requires `quyan:relay:SetMyChannelSubmissionServiceStatus`. Both Actions use the submission ARN above and can be limited to specific channels. They do not grant list, review, or platform-management authority. Wildcards cannot bypass original-submitter ownership.
