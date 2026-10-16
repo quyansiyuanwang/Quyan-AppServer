@@ -250,6 +250,32 @@ export function legacyPermissionsToPrincipalPolicy(
             .replace("{providerUserId}", "*"),
         ],
       });
+    const upstreamModels: string[] = statement.Action.filter((action) => action === "quyan:relay:ListUpstreamModels");
+    if (upstreamModels.length) {
+      // SUBMIT never conveys platform management; all legacy callers retain their own preview/submission access.
+      const platform = parseLegacyPermissions(input).some((permission) =>
+        [Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE].includes(permission),
+      );
+      statements.push({
+        Effect: "Allow",
+        Sid: "LegacyRelayUpstreamModels",
+        Action: upstreamModels,
+        Resource: [
+          buildAcsResource({ service: "quyan", region: "*", accountId: accountOwnerId, path: "account" }),
+          IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "relay/channel-submission")!
+            .arnTemplate.replace("{accountId}", accountOwnerId)
+            .replace("{submitterUserId}", principalUserId)
+            .replace("{channelId}", "*"),
+          ...(platform
+            ? [
+                IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === "platform/relay-channel")!
+                  .arnTemplate.replace("{accountId}", IAM_PLATFORM_ACCOUNT_ID)
+                  .replace(/\{[^}]+\}/g, "*"),
+              ]
+            : []),
+        ],
+      });
+    }
     const other = statement.Action.filter(
       (action) =>
         !authorOnly.has(action) &&
@@ -259,7 +285,8 @@ export function legacyPermissionsToPrincipalPolicy(
         !ojAccess.includes(action) &&
         !personalRelayAccess.includes(action) &&
         !ownChangeRequests.includes(action) &&
-        !ownSubmissions.includes(action),
+        !ownSubmissions.includes(action) &&
+        !upstreamModels.includes(action),
     );
     if (list.length) {
       const article = statement.Resource.filter((resource) =>

@@ -1,15 +1,19 @@
 import { createHash } from "node:crypto";
 import { isDeepStrictEqual as same } from "node:util";
 import { Prisma } from "@prisma/client";
-import { Permission, type IamPrincipal } from "@quyan/shared";
+import type { IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { VISIBLE_RELAY_CHANNEL_STATUSES } from "@/constant/relay-channel";
 import { ApiError, ConflictError, InternalServerError } from "@/util/errors";
-import { iamAccountDenied } from "../users/iam-account-principal";
+import { assertIamAccountPrincipal, iamAccountDenied } from "../users/iam-account-principal";
 import { assertIamAccountUserMutation } from "../users/iam-account-user-mutation";
-import { platformManagementGroupSnapshot } from "../users/platform-management-principal";
+import {
+  platformManagementGroupSnapshot,
+  type PlatformManagementPermissions,
+} from "../users/platform-management-principal";
 import { readIamAuthorizationRevision } from "../users/iam-authorization-revision";
-import type { PlatformManagementReadSnapshot } from "../system/platform-management-read.store";
+import { isPlatformLogResourceId } from "@/iam/resources/platform-log-resources";
+import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import type { RelayUpstreamFormat } from "@quyan/shared";
 import { relayUpstreamModelsPolicy } from "@/services/relay/relay-upstream-models";
 
@@ -35,9 +39,19 @@ const protocols = {
   anthropic: { url: "anthropicUpstreamUrl", key: "anthropicUpstreamApiKey" },
   gemini: { url: "geminiUpstreamUrl", key: "geminiUpstreamApiKey" },
 } as const;
+const linkSelect = { id: true, status: true, updateTime: true, channelType: true, submittedByUserId: true } as const;
+export type UpstreamModelChannelLink = Prisma.RelayChannelGetPayload<{ select: typeof linkSelect }>;
+export type UpstreamModelScopeInput =
+  | { kind: "platform"; permissions: PlatformManagementPermissions; link?: UpstreamModelChannelLink }
+  | { kind: "submission"; link: UpstreamModelChannelLink }
+  | { kind: "preview" };
+export type UpstreamModelReadScope =
+  | (Extract<UpstreamModelScopeInput, { kind: "platform" }> & { group: { id: string; updateTime: Date } })
+  | Exclude<UpstreamModelScopeInput, { kind: "platform" }>;
 export interface UpstreamModelReadGuard {
   principal: IamPrincipal;
-  snapshot: PlatformManagementReadSnapshot;
+  users: readonly { id: string; updateTime: Date }[];
+  scope: UpstreamModelReadScope;
   recheck: (tx: Prisma.TransactionClient) => Promise<void>;
 }
 type Metadata = Prisma.RelayChannelGetPayload<{ select: typeof metadataSelect }>;
@@ -53,6 +67,22 @@ export class RelayChannelUpstreamModelRepository {
   private static instance: RelayChannelUpstreamModelRepository;
   static getInstance() {
     return (this.instance ??= new RelayChannelUpstreamModelRepository());
+  }
+  /** Identity first; expose only the server-owned link needed to choose one immutable authorization branch. */
+  async link(principal: IamPrincipal, id: string, tx: Prisma.TransactionClient = prisma) {
+    if (!isPlatformLogResourceId(id)) throw iamAccountDenied();
+    await assertIamAccountPrincipal(principal, tx);
+    const row = await tx.relayChannel.findFirst({
+      where: { id, status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } },
+      select: linkSelect,
+    });
+    if (
+      !row ||
+      row.id !== id ||
+      !["standalone", "pooled-member", "pooled", "automatic-proxy-pool"].includes(row.channelType)
+    )
+      throw iamAccountDenied();
+    return row;
   }
   private catalog(tx: Prisma.TransactionClient) {
     return tx.modelPricing.findMany({ where: { status: 1 }, select: catalogSelect, orderBy: { id: "asc" } });
@@ -75,7 +105,17 @@ export class RelayChannelUpstreamModelRepository {
     guard: UpstreamModelReadGuard,
     operation: (tx: Prisma.TransactionClient) => Promise<T>,
   ) {
-    if (!ids.length || new Set(ids).size !== ids.length) throw iamAccountDenied();
+    const scope = guard.scope;
+    if (
+      new Set(ids).size !== ids.length ||
+      ids.length > IAM_AUTHORIZATION_LIMITS.resourcesPerRequest ||
+      ids.some((id) => !isPlatformLogResourceId(id)) ||
+      (scope.kind === "preview" ? ids.length !== 0 : ids.length === 0) ||
+      (scope.kind !== "preview" && scope.link && (ids.length !== 1 || ids[0] !== scope.link.id)) ||
+      (scope.kind === "submission" &&
+        (scope.link.submittedByUserId !== guard.principal.subjectUserId || scope.link.channelType !== "standalone"))
+    )
+      throw iamAccountDenied();
     try {
       return await prisma.$transaction(
         async (tx) => {
@@ -84,22 +124,26 @@ export class RelayChannelUpstreamModelRepository {
             {
               principal: guard.principal,
               targetUserId: guard.principal.subjectUserId,
-              users: guard.snapshot.users,
+              users: guard.users,
               recheck: () => guard.recheck(tx),
             },
             guard.principal.subjectUserId,
           );
-          await tx.$queryRaw(Prisma.sql`SELECT id FROM \`groups\` WHERE id=${guard.snapshot.group.id} FOR UPDATE`);
+          if (scope.kind === "platform") {
+            await tx.$queryRaw(Prisma.sql`SELECT id FROM \`groups\` WHERE id=${scope.group.id} FOR UPDATE`);
+            if (!same(await platformManagementGroupSnapshot(guard.principal, scope.permissions, tx), scope.group))
+              throw iamAccountDenied();
+          }
+          if (ids.length)
+            await tx.$queryRaw(
+              Prisma.sql`SELECT id FROM relay_channels WHERE id IN (${Prisma.join([...ids].sort())}) ORDER BY id FOR UPDATE`,
+            );
           if (
-            !same(
-              await platformManagementGroupSnapshot(guard.principal, Permission.RELAY_CHANNEL_UPDATE, tx),
-              guard.snapshot.group,
-            )
+            scope.kind !== "preview" &&
+            scope.link &&
+            !same(await this.link(guard.principal, scope.link.id, tx), scope.link)
           )
             throw iamAccountDenied();
-          await tx.$queryRaw(
-            Prisma.sql`SELECT id FROM relay_channels WHERE id IN (${Prisma.join([...ids].sort())}) ORDER BY id FOR UPDATE`,
-          );
           return operation(tx);
         },
         {
@@ -119,6 +163,7 @@ export class RelayChannelUpstreamModelRepository {
     }
   }
   async capture(ids: readonly string[], format: RelayUpstreamFormat, guard: UpstreamModelReadGuard) {
+    if (!Object.hasOwn(protocols, format)) throw iamAccountDenied();
     return this.boundary(ids, guard, async (tx) => {
       const revision = await readIamAuthorizationRevision(tx, guard.principal.accountOwnerId);
       await guard.recheck(tx); // Entire batch is admitted before the first credential read.
@@ -126,7 +171,7 @@ export class RelayChannelUpstreamModelRepository {
         where: { id: { in: [...ids] }, status: { in: VISIBLE_RELAY_CHANNEL_STATUSES } },
         orderBy: { id: "asc" as const },
       };
-      const metadata = await tx.relayChannel.findMany({ ...base, select: metadataSelect });
+      const metadata = ids.length ? await tx.relayChannel.findMany({ ...base, select: metadataSelect }) : [];
       if (
         metadata.length !== ids.length ||
         metadata.some(
@@ -137,8 +182,9 @@ export class RelayChannelUpstreamModelRepository {
       )
         throw iamAccountDenied();
       await guard.recheck(tx);
-      const rows =
-        format === "openai"
+      const rows = !ids.length
+        ? []
+        : format === "openai"
           ? (
               await tx.relayChannel.findMany({
                 ...base,
@@ -217,13 +263,21 @@ export class RelayChannelUpstreamModelRepository {
   ) {
     const targets = id ? expected.targets.filter((row) => row.id === id) : expected.targets;
     if (
-      !targets.length ||
+      guard.scope.kind !== "preview" &&
+      guard.scope.link &&
+      !same(await this.link(guard.principal, guard.scope.link.id, tx), guard.scope.link)
+    )
+      throw iamAccountDenied();
+    if (
+      (!targets.length && (guard.scope.kind !== "preview" || Boolean(id))) ||
       !same(
-        await this.stamps(
-          tx,
-          targets.map((row) => row.id),
-          format,
-        ),
+        targets.length
+          ? await this.stamps(
+              tx,
+              targets.map((row) => row.id),
+              format,
+            )
+          : [],
         targets,
       ) ||
       !same(await this.catalog(tx), expected.catalog) ||
@@ -237,6 +291,7 @@ export class RelayChannelUpstreamModelRepository {
     guard: UpstreamModelReadGuard,
     id?: string,
   ) {
+    if (!Object.hasOwn(protocols, format)) throw iamAccountDenied();
     return this.boundary(id ? [id] : expected.targets.map((row) => row.id), guard, async (tx) => {
       await this.verifyInside(tx, expected, format, guard, id);
       await guard.recheck(tx);

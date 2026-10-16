@@ -43,14 +43,19 @@ export function projectRuntimePoliciesForDelegation(
       const groups = new Map<string, Statement[]>();
       for (const definition of IAM_ACTION_DEFINITIONS) {
         if (!statement.Action.some((pattern) => matchIamPattern(pattern, definition.action))) continue;
-        const platform = definition.authorizationBoundary === "platform";
-        if (platform && !qualifiedPlatformActions.has(definition.action)) continue;
-        const boundaries = IAM_RESOURCE_TYPE_CATALOG.filter(
-          (type) => definition.resourceTypes.includes(type.id) && (type.accountScope === "platform") === platform,
-        ).map((type) =>
+        const boundaries = IAM_RESOURCE_TYPE_CATALOG.filter((type) => {
+          if (!definition.resourceTypes.includes(type.id)) return false;
+          const platform = type.accountScope === "platform";
+          if (definition.authorizationBoundary === "resource")
+            return !platform || qualifiedPlatformActions.has(definition.action);
+          return (
+            platform === (definition.authorizationBoundary === "platform") &&
+            (!platform || qualifiedPlatformActions.has(definition.action))
+          );
+        }).map((type) =>
           type.arnTemplate
-            .replace("{accountId}", platform ? IAM_PLATFORM_ACCOUNT_ID : accountOwnerId)
-            .replace(/\{(?:ancestorId|parentId|resourceId)\}/g, "*"),
+            .replace("{accountId}", type.accountScope === "platform" ? IAM_PLATFORM_ACCOUNT_ID : accountOwnerId)
+            .replace(/\{[^}]+\}/g, "*"),
         );
         const resources = [
           ...new Set(

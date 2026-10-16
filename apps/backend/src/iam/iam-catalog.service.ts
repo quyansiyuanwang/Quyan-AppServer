@@ -25,6 +25,10 @@ export class IamCatalogService {
         ...action,
         resourceTypes: [...action.resourceTypes],
         conditionKeys: [...action.conditionKeys],
+        ...(action.platformPermissions ? { platformPermissions: [...action.platformPermissions] } : {}),
+        ...(action.legacyPermissions ? { legacyPermissions: [...action.legacyPermissions] } : {}),
+        ...(action.requiredActions ? { requiredActions: [...action.requiredActions] } : {}),
+        ...(action.conditionalActions ? { conditionalActions: [...action.conditionalActions] } : {}),
         apiRoutes: [
           ...(action.authorizationTransport === "websocket" ? action.apiRoutes : IAM_ACTION_ROUTES[action.action]),
         ],

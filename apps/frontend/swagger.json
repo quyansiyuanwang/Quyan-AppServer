@@ -62247,10 +62247,17 @@
 					"authorizationBoundary": {
 						"type": "string",
 						"enum": [
-							"platform"
+							"platform",
+							"resource"
 						],
-						"nullable": false,
 						"description": "Platform operations additionally require a persisted global group's existing management ceiling."
+					},
+					"platformPermissions": {
+						"items": {
+							"$ref": "#/components/schemas/Permission"
+						},
+						"type": "array",
+						"description": "Resource-boundary Actions apply this ceiling only to their registered platform resource types."
 					},
 					"defaultAuthorizationScope": {
 						"type": "string",

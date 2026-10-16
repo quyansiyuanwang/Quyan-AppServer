@@ -1,21 +1,15 @@
-import { isDeepStrictEqual as same } from "node:util";
-import type { Prisma } from "@prisma/client";
+import { relayChannelUpstreamModelsBodySchema } from "@/api/schema/relay/relay-channel.schema";
+import { resolveUpstreamModelScope } from "@/iam/request/relay-upstream-model-resource-resolver";
+import { createUpstreamModelReadAuthority } from "./relay-upstream-model-authority";
 import axios from "axios";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
-import { IamAuthorizationService } from "@/iam/iam-authorization.service";
-import { fingerprintIamPolicies } from "@/iam/evaluator/policy-set-fingerprint";
 import { getIamPrincipal } from "@/iam/request/principal-context";
-import { requestTransportConditionContext } from "@/iam/request/condition-context";
 import { platformRelayChannelArn } from "@/iam/resources/platform-relay-channel-resources";
 import { isPlatformLogResourceId } from "@/iam/resources/platform-log-resources";
-import { PlatformManagementReadRepository } from "@/store/system/platform-management-read.repository";
 import { RelayChannelUpstreamModelRepository } from "@/store/relay/relay-channel-upstream-model.repository";
-import { assertIamAccountPrincipal, iamAccountDenied } from "@/store/users/iam-account-principal";
-import { platformManagementGroupSnapshot } from "@/store/users/platform-management-principal";
-import { captureIamAccessKeyRevision } from "@/store/users/iam-access-key-authority";
+import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { PermissionService } from "../users/permission.service";
-import { platformCollectionDecisions } from "../system/platform-collection-decisions";
 import { batchRelayChannelUpstreamModelsBodySchema } from "@/api/schema/relay/relay-channel.schema";
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
@@ -29,6 +23,7 @@ import type {
   BatchRelayChannelUpstreamModelsResponse,
   BatchRelayChannelUpstreamModelsRequest,
   RelayChannelUpstreamModelsResponse,
+  RelayChannelUpstreamModelsRequest,
 } from "@/api/dto/relay/relay-channel.dto";
 const action = "quyan:relay:BatchListUpstreamModels";
 /** Separate batch admission, guarded sends and final disclosure; never hold database locks over HTTP. */
@@ -36,6 +31,108 @@ export class RelayChannelUpstreamModelIamService {
   private static instance: RelayChannelUpstreamModelIamService;
   static getInstance() {
     return (this.instance ??= new RelayChannelUpstreamModelIamService());
+  }
+  async single(
+    input: RelayChannelUpstreamModelsRequest,
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    legacy: () => Promise<RelayChannelUpstreamModelsResponse>,
+    query: (
+      format: RelayChannelUpstreamModelsRequest["format"],
+      configuration: UpstreamModelConfiguration,
+      guard: UpstreamModelExecutionGuard,
+    ) => Promise<RelayChannelUpstreamModelsResponse>,
+  ): Promise<RelayChannelUpstreamModelsResponse> {
+    const parsed = relayChannelUpstreamModelsBodySchema.safeParse(input);
+    if (!parsed.success || (parsed.data.channelId && !isPlatformLogResourceId(parsed.data.channelId)))
+      throw new BadRequestError("Invalid upstream model request", undefined, { messageKey: "errors.badRequest" });
+    const data = parsed.data,
+      mode = env.security.iamAuthorizationMode;
+    if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
+    if (!request) {
+      if (mode !== "legacy") throw iamAccountDenied();
+      return legacy();
+    }
+    const identity = getIamPrincipal(request);
+    if (
+      !identity ||
+      identity.subjectUserId !== actorUserId ||
+      identity.principalUserId !== actorUserId ||
+      request.oauthAccessToken
+    )
+      throw iamAccountDenied();
+    const principal: IamPrincipal = { ...identity };
+    if (mode !== "enforce") {
+      const checked = await PermissionService.getInstance().checkUserPermissions(
+        actorUserId,
+        [Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE, Permission.RELAY_CHANNEL_SUBMIT],
+        { assumedRoleSessionId: principal.roleSessionId },
+      );
+      if (!checked.checkedPermissions.some((permission) => !checked.missingPermissions?.includes(permission)))
+        throw iamAccountDenied();
+    }
+    if (mode === "legacy") return legacy();
+    const singleAction = "quyan:relay:ListUpstreamModels";
+    const native = async (send: boolean) => {
+      const { resource, scope } = await resolveUpstreamModelScope(principal, data);
+      const { guard } = await createUpstreamModelReadAuthority({
+        principal,
+        request,
+        mode,
+        action: singleAction,
+        resources: [resource],
+        scope,
+      });
+      if (!send) return undefined;
+      const repository = RelayChannelUpstreamModelRepository.getInstance(),
+        captured = await repository.capture(data.channelId ? [data.channelId] : [], data.format, guard);
+      // Saved channels always ignore supplied raw URL/key. Preview never reads any saved channel.
+      const config = data.channelId
+        ? captured.configurations[0]!
+        : { upstreamUrl: data.upstreamUrl?.trim(), apiKey: data.apiKey?.trim(), useProxy: false };
+      const verify = () => repository.verify(captured.snapshot, data.format, guard);
+      if (!config.upstreamUrl || !config.apiKey) {
+        await verify();
+        throw new BadRequestError("Missing upstream model configuration", undefined, {
+          messageKey: "relayChannel.upstreamConfigMissingForFormat",
+        });
+      }
+      let authorizationFailed = false;
+      const beforeSend = async () => {
+        try {
+          await verify();
+        } catch {
+          authorizationFailed = true;
+          throw iamAccountDenied();
+        }
+      };
+      let response: RelayChannelUpstreamModelsResponse;
+      try {
+        response = await query(data.format, config, { catalog: captured.snapshot.catalog, beforeSend });
+      } catch {
+        if (authorizationFailed) throw iamAccountDenied();
+        await verify(); // A simultaneous revocation is never reported as an upstream business error.
+        throw new BadRequestError("Upstream model request failed", undefined, {
+          messageKey: "relayChannel.upstreamModelListFailed",
+        });
+      }
+      await verify();
+      return response;
+    };
+    if (mode === "enforce") {
+      const result = await native(true);
+      if (!result) throw iamAccountDenied();
+      return result;
+    }
+    try {
+      await native(false);
+    } catch {
+      getLogger("RelayChannelUpstreamModelIam", LogCategory.SECURITY).warn(
+        "Single upstream model shadow evaluation failed",
+        { action: singleAction, reason: "iam-evaluation-denied-or-unavailable" },
+      );
+    }
+    return legacy();
   }
   async batch(
     input: BatchRelayChannelUpstreamModelsRequest,
@@ -78,62 +175,17 @@ export class RelayChannelUpstreamModelIamService {
       throw iamAccountDenied();
     if (mode === "legacy") return legacy();
     const native = async (send: boolean): Promise<BatchRelayChannelUpstreamModelsResponse> => {
-      const iam = IamAuthorizationService.getInstance(),
-        repository = RelayChannelUpstreamModelRepository.getInstance(),
-        identities = PlatformManagementReadRepository.getInstance(),
-        snapshot = await identities.snapshot(principal, Permission.RELAY_CHANNEL_UPDATE),
-        fingerprint = fingerprintIamPolicies(await iam.loadPolicies(principal)),
-        keyId = request.accessKey?.id,
-        keyRevision = await captureIamAccessKeyRevision(principal, keyId),
-        transport = requestTransportConditionContext(request),
+      const repository = RelayChannelUpstreamModelRepository.getInstance(),
         resources = data.ids.map(platformRelayChannelArn);
-      const assertRequest = () => {
-        if (
-          env.security.iamAuthorizationMode !== mode ||
-          !same(getIamPrincipal(request), principal) ||
-          request.accessKey?.id !== keyId ||
-          request.oauthAccessToken ||
-          !same(requestTransportConditionContext(request), transport)
-        )
-          throw iamAccountDenied();
-      };
-      const recheck = async (tx?: Prisma.TransactionClient, admittedResources: readonly string[] = resources) => {
-        assertRequest();
-        if (tx) {
-          await assertIamAccountPrincipal(principal, tx);
-          const group = await platformManagementGroupSnapshot(principal, Permission.RELAY_CHANNEL_UPDATE, tx),
-            users = await tx.user.findMany({
-              where: { id: { in: snapshot.users.map((row) => row.id) }, status: 1 },
-              select: { id: true, updateTime: true },
-              orderBy: { id: "asc" },
-            });
-          if (
-            !same(group, snapshot.group) ||
-            !same(
-              users,
-              [...snapshot.users].sort((a, b) => a.id.localeCompare(b.id)),
-            )
-          )
-            throw iamAccountDenied();
-        } else await identities.recheck(principal, Permission.RELAY_CHANNEL_UPDATE, snapshot);
-        if (
-          fingerprintIamPolicies(await iam.loadPolicies(principal)) !== fingerprint ||
-          (await captureIamAccessKeyRevision(principal, keyId, tx)) !== keyRevision
-        )
-          throw iamAccountDenied();
-        const decisions = await platformCollectionDecisions(iam, {
-          principal,
-          action,
-          request,
-          resources: admittedResources,
-        });
-        if (decisions.length !== admittedResources.length || decisions.some((decision) => decision !== "Allow"))
-          throw iamAccountDenied();
-        assertRequest();
-      };
-      await recheck(); // No configuration, pricing catalog or credential read before full admission.
-      if (!send) return { format: data.format, items: [] }; // Shadow must not read keys or probe twice.
-      const guard = { principal, snapshot, recheck };
+      const { guard, recheck } = await createUpstreamModelReadAuthority({
+        principal,
+        request,
+        mode,
+        action,
+        resources,
+        scope: { kind: "platform", permissions: Permission.RELAY_CHANNEL_UPDATE },
+      });
+      if (!send) return { format: data.format, items: [] }; // Shadow never captures stored keys or probes twice.
       const captured = await repository.capture(data.ids, data.format, guard);
       let cancelled = false;
       const verify = async (id?: string) => {

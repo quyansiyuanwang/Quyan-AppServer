@@ -129,4 +129,18 @@ describe("delegation respects runtime boundaries", () => {
     expect(() => projectRuntimePoliciesForDelegation([input()], "owner:*", new Set())).toThrow();
     expect(() => projected([{ policyId: "bad", document: { Version: "2", Statement: [] } as never }])).toThrow();
   });
+  it("does not turn personal mixed-resource authority into delegatable platform authority", () => {
+    const mixed = "quyan:relay:ListUpstreamModels",
+      account = "acs:quyan:*:owner:account",
+      own = "acs:relay:*:owner:channel-submission/actor/channel",
+      platform = "acs:platform:*:platform:relay-channel/channel";
+    const personal = projected([input(mixed)]);
+    expect(canDelegate(mixed, account, personal)).toBe(true);
+    expect(canDelegate(mixed, own, personal)).toBe(true);
+    expect(canDelegate(mixed, platform, personal)).toBe(false);
+    const qualified = projected([input(mixed)], [mixed]);
+    expect(canDelegate(mixed, account, qualified)).toBe(true);
+    expect(canDelegate(mixed, platform, qualified)).toBe(true);
+    expect(canDelegate(mixed, "acs:quyan:*:foreign:account", qualified)).toBe(false);
+  });
 });

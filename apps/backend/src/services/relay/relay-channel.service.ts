@@ -2659,6 +2659,24 @@ export class RelayChannelService {
   async listUpstreamModels(
     data: RelayChannelUpstreamModelsRequest,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelUpstreamModelsResponse> {
+    return RelayChannelUpstreamModelIamService.getInstance().single(
+      data,
+      actorUserId,
+      request,
+      () => this.listUpstreamModelsLegacy(data, actorUserId),
+      async (format, config, guard) =>
+        this.executeUpstreamModelsRequest(
+          await this.prepareUpstreamModelsRequest(format, config.upstreamUrl!, config.apiKey!, config.useProxy),
+          guard,
+        ),
+    );
+  }
+
+  private async listUpstreamModelsLegacy(
+    data: RelayChannelUpstreamModelsRequest,
+    actorUserId: string,
   ): Promise<RelayChannelUpstreamModelsResponse> {
     let upstreamUrl = data.upstreamUrl?.trim();
     let apiKey = data.apiKey?.trim();

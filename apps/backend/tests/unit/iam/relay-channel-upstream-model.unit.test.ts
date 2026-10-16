@@ -119,4 +119,46 @@ describe("bounded upstream model parsing and batch authorization contract", () =
     expect(method).toContain("validateBody(batchRelayChannelUpstreamModelsBodySchema)");
     expect(method).toContain("body, request.user!.userId, request");
   });
+  it("keeps SUBMIT compatibility scoped to the caller's own submissions and preview, not platform channels", () => {
+    const single = "quyan:relay:ListUpstreamModels",
+      own = "acs:relay:*:owner:channel-submission/actor/channel",
+      peer = "acs:relay:*:owner:channel-submission/peer/channel",
+      platform = platformRelayChannelArn("channel"),
+      account = "acs:quyan:*:owner:account";
+    const document = legacyPermissionsToPrincipalPolicy([Permission.RELAY_CHANNEL_SUBMIT], "owner", "actor")!;
+    const decide = (resource: string) =>
+      evaluatePolicies([{ policyId: "legacy", document }], { action: single, resource }).decision;
+    expect(decide(own)).toBe("Allow");
+    expect(decide(account)).toBe("Allow");
+    expect(decide(peer)).toBe("ImplicitDeny");
+    expect(decide(platform)).toBe("ImplicitDeny");
+    for (const permission of [Permission.RELAY_CHANNEL_UPDATE, Permission.RELAY_CHANNEL_REVIEW]) {
+      const admin = legacyPermissionsToPrincipalPolicy([permission], "owner", "actor")!;
+      expect(
+        evaluatePolicies([{ policyId: "admin", document: admin }], { action: single, resource: platform }).decision,
+      ).toBe("Allow");
+    }
+    const deny = legacyPermissionsToPrincipalPolicy([Permission.RELAY_CHANNEL_SUBMIT], "owner", "actor", "Deny")!;
+    expect(
+      evaluatePolicies(
+        [
+          { policyId: "allow", document },
+          { policyId: "remove", document: deny },
+        ],
+        { action: single, resource: own },
+      ).decision,
+    ).toBe("ExplicitDeny");
+  });
+  it("declares single-query server metadata consistently for every legacy ANY alternative", () => {
+    const single = "quyan:relay:ListUpstreamModels",
+      project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel.controller.ts");
+    const row = collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+      (row) => row.key === "POST /v1/relay-channels/upstream-models",
+    );
+    expect(row).toMatchObject({ coverage: "explicit", actions: [single], resourceKind: "single-resource", issues: [] });
+    expect(getIamActionDefinition(single)).toMatchObject({
+      resourceTypes: ["platform/relay-channel", "relay/channel-submission", "quyan/account"],
+    });
+  });
 });

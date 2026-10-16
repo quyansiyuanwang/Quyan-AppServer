@@ -1,3 +1,4 @@
+import { relayUpstreamModelResourceResolver } from "@/iam/request/relay-upstream-model-resource-resolver";
 import {
   platformRelayChannelUpstreamModelResources,
   platformRelayChannelModelRestrictionResources,
@@ -633,17 +634,34 @@ export class RelayChannelController extends Controller {
 
   @Post("upstream-models")
   @Security("jwt")
-  @RequireAnyPermission([
-    Permission.RELAY_CHANNEL_REVIEW,
-    Permission.RELAY_CHANNEL_UPDATE,
-    Permission.RELAY_CHANNEL_SUBMIT,
-  ])
+  @CheckPermission(
+    [Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE, Permission.RELAY_CHANNEL_SUBMIT],
+    PermissionCheckMode.ANY,
+    "jwt",
+    [
+      {
+        action: "quyan:relay:ListUpstreamModels",
+        resourceKind: "single-resource",
+        resource: relayUpstreamModelResourceResolver,
+      },
+      {
+        action: "quyan:relay:ListUpstreamModels",
+        resourceKind: "single-resource",
+        resource: relayUpstreamModelResourceResolver,
+      },
+      {
+        action: "quyan:relay:ListUpstreamModels",
+        resourceKind: "single-resource",
+        resource: relayUpstreamModelResourceResolver,
+      },
+    ],
+  )
   @Middlewares(validateBody(relayChannelUpstreamModelsBodySchema))
   public async listUpstreamModels(
     @Body() body: RelayChannelUpstreamModelsRequest,
     @Request() request: TypedRequest,
   ): Promise<RelayChannelUpstreamModelsResponse> {
-    return this.channelService.listUpstreamModels(body, request.user!.userId);
+    return this.channelService.listUpstreamModels(body, request.user!.userId, request);
   }
 
   @Post("batch/upstream-models")

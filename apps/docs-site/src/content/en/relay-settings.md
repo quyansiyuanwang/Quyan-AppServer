@@ -478,6 +478,18 @@ With IAM enforcement enabled, querying upstream models in bulk requires `quyan:r
 - Identity, role-session and AccessKey validity, policies, request conditions, channel configuration and model catalog are checked again immediately before each send and before returning the batch. A revocation or relevant change cancels all results rather than turning into a per-channel network error. Already-sent requests cannot be recalled; queued sends stop when the change is detected. No database transaction remains open while awaiting an upstream response.
 - Legacy/shadow migration modes retain the original operation. Shadow authorization does not read a second set of saved keys or issue duplicate upstream requests.
 
+## Resource-scoped single upstream model discovery
+
+With IAM enforcement enabled, a single query uses `quyan:relay:ListUpstreamModels`. The server chooses exactly one resource scope:
+
+- **Your own standalone submission:** `acs:relay:*:<accountId>:channel-submission/<yourUserId>/<channelId>`. This branch also applies if you are a platform administrator. A Deny on it cannot be bypassed by retrying against the platform ARN.
+- **Another saved channel, or a non-standalone channel:** `acs:platform:*:platform:relay-channel/<channelId>`. Deployment-managed review or update eligibility is required in addition to the policy Allow; submission eligibility alone does not qualify.
+- **Preview with a supplied URL and credential, without a channel ID:** `acs:quyan:*:<accountId>:account`, using the authenticated account. This branch reads no saved channel credentials, does not save the supplied credential, and does not permit reading any saved channel. An explicit account-scoped grant can permit preview without platform administration.
+
+When a channel ID is supplied, saved credentials always take precedence; extra URL/key fields cannot override the target, and a missing or denied channel never falls back to preview. Missing configuration for the selected protocol fails instead of borrowing another protocol's key.
+
+Before reading saved keys, before sending and before disclosing results, the server checks current authority and the original resource branch. Revoking a role session or AccessKey, changing ownership, policy, selected configuration or model catalog cancels the result. Already-sent upstream requests cannot be recalled. Responses never include keys, private upstream error bodies or other channel configuration. Legacy/shadow modes run the original operation once; shadow does not send a second probe.
+
 ## Related pages
 
 - `relay-token-management`

@@ -29,6 +29,7 @@ export function getIamPolicyJsonSchema(policyKind: "identity" | "trust" = "ident
       action: action.action,
       resourceTypes: [...action.resourceTypes],
       ...(action.authorizationBoundary ? { authorizationBoundary: action.authorizationBoundary } : {}),
+      ...(action.platformPermissions ? { platformPermissions: [...action.platformPermissions] } : {}),
       ...(action.requiredActions ? { requiredActions: [...action.requiredActions] } : {}),
       ...(action.conditionalActions ? { conditionalActions: [...action.conditionalActions] } : {}),
     })),
@@ -38,6 +39,7 @@ export function getIamPolicyJsonSchema(policyKind: "identity" | "trust" = "ident
     "x-quyan-platform-authorization": {
       namespace: IAM_PLATFORM_ACCOUNT_ID,
       requiresPersistedGlobalManagementGroup: true,
+      resourceBoundaryAppliesCeilingOnlyToPlatformResources: true,
       accountPoliciesCannotGrantGroupMembership: true,
     },
     "x-quyan-condition-keys": IAM_CONDITION_KEY_CATALOG.filter((key) => key.supported),

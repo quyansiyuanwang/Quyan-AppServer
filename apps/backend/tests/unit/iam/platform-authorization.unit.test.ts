@@ -10,7 +10,13 @@ import type { GroupStore } from "@/store/users/group.store";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { assertIamPolicyAccount } from "@/iam/parser/policy-account";
 import { legacyPermissionsToPrincipalPolicy } from "@/iam/legacy-policy";
-import { getIamResourceType, isIamResourceInAccount, getIamActionDefinition, Permission } from "@quyan/shared";
+import {
+  IAM_ACTION_DEFINITIONS,
+  getIamResourceType,
+  isIamResourceInAccount,
+  getIamActionDefinition,
+  Permission,
+} from "@quyan/shared";
 import { diagnoseIamPolicy } from "@/iam/diagnostics/policy-diagnostics";
 import { getIamPolicyJsonSchema } from "@/iam/diagnostics/policy-json-schema";
 import { platformOAuthClientArn } from "@/iam/resources/platform-oauth-resources";
@@ -194,5 +200,89 @@ describe("live delegation qualification", () => {
     ).rejects.toMatchObject({ statusCode: 403 });
     users.findByIdWithGroup.mockRejectedValue(new Error("unavailable"));
     await expect(service.loadDelegatablePolicies(principal)).rejects.toThrow("unavailable");
+  });
+  it("applies mixed-resource ceilings only to platform targets and excludes SUBMIT from that ceiling", async () => {
+    const mixed = "quyan:relay:ListUpstreamModels",
+      account = "acs:quyan:*:actor:account",
+      submission = "acs:relay:*:actor:channel-submission/actor/channel",
+      platform = "acs:platform:*:platform:relay-channel/channel";
+    const policies = [
+      {
+        policyId: "json",
+        document: parseIamPolicy({ Version: "1", Statement: { Effect: "Allow", Action: mixed, Resource: "*" } })
+          .document,
+      },
+    ];
+    actor.group = null;
+    expect(
+      (
+        await service.evaluateLoadedPolicies({ principal, action: mixed, resources: [account, submission], policies })
+      ).map((row) => row.decision),
+    ).toEqual(["Allow", "Allow"]);
+    await expect(
+      service.evaluateLoadedPolicies({ principal, action: mixed, resources: [platform], policies }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    actor.group = { id: "global", status: 1, accountOwnerId: null, permissions: [Permission.RELAY_CHANNEL_SUBMIT] };
+    await expect(
+      service.evaluateLoadedPolicies({ principal, action: mixed, resources: [platform], policies }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    actor.group.permissions = [Permission.RELAY_CHANNEL_REVIEW];
+    expect(
+      (await service.evaluateLoadedPolicies({ principal, action: mixed, resources: [platform], policies }))[0]!
+        .decision,
+    ).toBe("Allow");
+    await expect(
+      service.evaluateLoadedPolicies({
+        principal,
+        action: mixed,
+        resources: ["acs:quyan:*:foreign:account"],
+        policies,
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    actor.group.accountOwnerId = "actor";
+    await expect(
+      service.evaluateLoadedPolicies({ principal, action: mixed, resources: [platform], policies }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+  it("publishes explicit platform eligibility metadata for mixed-boundary Actions in the AI Schema", () => {
+    const definitions = IAM_ACTION_DEFINITIONS.filter((definition) => definition.authorizationBoundary === "resource");
+    expect(definitions.length).toBeGreaterThan(0);
+    for (const definition of definitions) {
+      expect(definition.platformPermissions?.length).toBeGreaterThan(0);
+      expect(definition.resourceTypes.some((type) => type.startsWith("platform/"))).toBe(true);
+      expect(definition.resourceTypes.some((type) => !type.startsWith("platform/"))).toBe(true);
+    }
+    const schema = getIamPolicyJsonSchema();
+    expect(schema["x-quyan-actions"]).toContainEqual(
+      expect.objectContaining({
+        action: "quyan:relay:ListUpstreamModels",
+        authorizationBoundary: "resource",
+        platformPermissions: [Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE],
+      }),
+    );
+  });
+  it("does not classify SUBMIT as platform-qualified when projecting wildcard policies for delegation", async () => {
+    const mixed = "quyan:relay:ListUpstreamModels";
+    vi.spyOn(service, "loadPolicies").mockResolvedValue([
+      {
+        policyId: "wildcard",
+        document: parseIamPolicy({ Version: "1", Statement: { Effect: "Allow", Action: mixed, Resource: "*" } })
+          .document,
+      },
+    ]);
+    actor.group.permissions = [Permission.RELAY_CHANNEL_SUBMIT];
+    let grants = await service.loadDelegatablePolicies(principal);
+    expect(
+      grants
+        .flatMap((document) => document.Statement)
+        .flatMap((statement) => statement.Resource)
+        .some((resource) => resource.startsWith("acs:platform:")),
+    ).toBe(false);
+    expect(grants.length).toBeGreaterThan(0);
+    actor.group.permissions = [Permission.RELAY_CHANNEL_REVIEW];
+    grants = await service.loadDelegatablePolicies(principal);
+    expect(grants.flatMap((document) => document.Statement).flatMap((statement) => statement.Resource)).toContain(
+      "acs:platform:*:platform:relay-channel/*",
+    );
   });
 });

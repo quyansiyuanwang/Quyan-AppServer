@@ -160,8 +160,13 @@ export class IamAuthorizationService {
     const qualified = new Set(
       IAM_ACTION_DEFINITIONS.filter(
         (definition) =>
-          definition.authorizationBoundary === "platform" &&
-          permissions.some((permission) => iamLegacyPermissionsForAction(definition.action).includes(permission)),
+          (definition.authorizationBoundary === "platform" || definition.authorizationBoundary === "resource") &&
+          permissions.some((permission) =>
+            (
+              definition.platformPermissions ??
+              (definition.authorizationBoundary === "platform" ? iamLegacyPermissionsForAction(definition.action) : [])
+            ).includes(permission),
+          ),
       ).map((definition) => definition.action),
     );
     return projectRuntimePoliciesForDelegation(policies, principal.accountOwnerId, qualified);
@@ -327,8 +332,11 @@ export class IamAuthorizationService {
   }
   private requestResourceInBoundary(action: string, resource: string, owner: string) {
     const definition = getIamActionDefinition(action);
-    if (definition?.authorizationBoundary !== "platform") return isIamResourceInAccount(resource, owner);
+    if (definition?.authorizationBoundary !== "platform" && definition?.authorizationBoundary !== "resource")
+      return isIamResourceInAccount(resource, owner);
     const type = getIamResourceType(resource);
+    if (definition.authorizationBoundary === "resource" && type?.accountScope !== "platform")
+      return Boolean(type && definition.resourceTypes.includes(type.id) && isIamResourceInAccount(resource, owner));
     return Boolean(
       type?.accountScope === "platform" &&
         resource.split(":")[3] === IAM_PLATFORM_ACCOUNT_ID &&
@@ -336,9 +344,14 @@ export class IamAuthorizationService {
     );
   }
   /** Account policies cannot manufacture membership in a deployment-managed global group. */
-  private async assertPlatformCeiling(principal: IamPrincipal, action: string) {
+  private async assertPlatformCeiling(principal: IamPrincipal, action: string, resources: readonly string[]) {
     const definition = getIamActionDefinition(action);
-    if (definition?.authorizationBoundary !== "platform") return;
+    const resourceBoundary =
+      definition?.authorizationBoundary === "resource" &&
+      resources.some((resource) => getIamResourceType(resource)?.accountScope === "platform");
+    if (definition?.authorizationBoundary !== "platform" && !resourceBoundary) return;
+    const ceiling = definition.platformPermissions ?? (resourceBoundary ? [] : iamLegacyPermissionsForAction(action));
+    if (!ceiling.length) throw deny();
     const user = await this.users.findByIdWithGroup(principal.principalUserId),
       group = user?.group;
     if (
@@ -351,9 +364,7 @@ export class IamAuthorizationService {
       group.id !== user.groupId ||
       group.status !== 1 ||
       group.accountOwnerId !== null ||
-      !parseLegacyPermissions(group.permissions).some((permission) =>
-        iamLegacyPermissionsForAction(action).includes(permission),
-      )
+      !parseLegacyPermissions(group.permissions).some((permission) => ceiling.includes(permission))
     )
       throw deny();
     const owner =
@@ -416,7 +427,7 @@ export class IamAuthorizationService {
       )
     )
       throw deny();
-    await this.assertPlatformCeiling(input.principal, input.action);
+    await this.assertPlatformCeiling(input.principal, input.action, input.resources);
     const contexts = await this.resourceConditions.contexts(input);
     return input.resources.map((resource, index) =>
       contexts[index] === undefined

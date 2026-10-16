@@ -20,7 +20,9 @@ export interface IamActionDefinition {
   /** Native protocol authorization which is served outside TSOA HTTP routes. */
   authorizationTransport?: 'websocket'
   /** Platform operations additionally require a persisted global group's existing management ceiling. */
-  authorizationBoundary?: 'platform'
+  authorizationBoundary?: 'platform' | 'resource'
+  /** Resource-boundary Actions apply this ceiling only to their registered platform resource types. */
+  platformPermissions?: Permission[]
   /** Baseline grant restricted to registered authenticated self identity/child ARNs. */
   defaultAuthorizationScope?: 'self'
   /** Registered migration alias only; clients cannot choose the endpoint Action. */
@@ -2296,6 +2298,24 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationStage: 'declared',
     authorizationBoundary: 'platform',
     legacyPermissions: [Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE],
+  },
+  {
+    action: 'quyan:relay:ListUpstreamModels',
+    service: 'relay',
+    operation: 'ListUpstreamModels',
+    accessLevel: 'List',
+    resourceTypes: ['platform/relay-channel', 'relay/channel-submission', 'quyan/account'],
+    apiRoutes: ['POST /v1/relay-channels/upstream-models'],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'resource',
+    platformPermissions: [Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE],
+    legacyPermissions: [
+      Permission.RELAY_CHANNEL_REVIEW,
+      Permission.RELAY_CHANNEL_UPDATE,
+      Permission.RELAY_CHANNEL_SUBMIT,
+    ],
   },
   {
     action: 'quyan:relay:BatchListUpstreamModels',
