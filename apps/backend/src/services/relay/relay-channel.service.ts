@@ -1,3 +1,4 @@
+import { RelayChannelProviderConfigIamService } from "./relay-channel-provider-config-iam.service";
 import { RelayChannelSubmissionReviewIamService } from "./relay-channel-submission-review-iam.service";
 import { PlatformRelayChannelDeleteIamService } from "./platform-relay-channel-delete-iam.service";
 import { RelayChannelSubmissionCreateIamService } from "./relay-channel-submission-create-iam.service";
@@ -2551,6 +2552,21 @@ export class RelayChannelService {
   }
 
   async updateProviderConfig(
+    id: string,
+    data: UpdateRelayChannelProviderConfigRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    return RelayChannelProviderConfigIamService.getInstance().execute(
+      id,
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.updateProviderConfigLegacy(id, data, actorUserId, request),
+      (input, userId, now) => this.buildProviderRow(input, userId, now),
+    );
+  }
+  private async updateProviderConfigLegacy(
     id: string,
     data: UpdateRelayChannelProviderConfigRequest,
     actorUserId: string,

@@ -65,6 +65,14 @@ Approval enables the channel and provider service. Rejection requires a reason; 
 
 Existing `RELAY_CHANNEL_REVIEW` permissions map to the new Action automatically. JSON policies using the old `quyan:relay:channel:Review` account-owned channel alias must explicitly adopt the platform Action and resource scope. Legacy/shadow modes continue the original review once; shadow does not perform a second write or hydrate native configuration responses.
 
+## Resource-scoped provider configuration
+
+With IAM enforcement enabled, changing a channel's multiplier or provider list requires `quyan:relay:UpdateChannelProviderConfig` on `acs:platform:*:platform:relay-channel/<channelId>`. Replacing providers also requires that Action on every currently active and proposed relation, `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>`. Removing a provider is a protected change too. Changing only the multiplier does not require grants on unrelated provider relations.
+
+Provider usernames are resolved by the server to the real recipient IDs. A recipient may belong to another account; the relation grant does not authorize management of that account. An empty provider list disables all existing relations and does not automatically add the editor or submitter. Reconfiguration preserves settled earnings history and uses the selected settlement schedule. Identity, permission, recipient or response-data changes during the operation cancel the entire write, including the multiplier change. Responses expose credential presence only and omit unauthorized pool contributions.
+
+The operator must retain deployment-managed eligibility through either channel review or channel update permission. Existing `RELAY_CHANNEL_REVIEW` and `RELAY_CHANNEL_UPDATE` permissions map to the new Action. JSON-only policies using the old account-owned `quyan:relay:channel:Review` or `quyan:relay:channel:Update` alias must explicitly adopt the new Action and platform channel/provider-relation resources. Step-up verification and replay protection remain required; OAuth tokens are not accepted. Legacy/shadow modes perform the existing business operation once, without a second native write.
+
 ## Related pages
 
 - `relay-settings`

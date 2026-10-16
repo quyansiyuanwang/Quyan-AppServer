@@ -162,3 +162,18 @@ describe("generated native channel submission review contract", () => {
       expect(document.components.schemas.RelayChannelDto.properties).not.toHaveProperty(field);
   });
 });
+
+describe("generated native channel provider configuration contract", () => {
+  it("retains unscoped JWT, body, safe failures and no client-assigned resource identity", () => {
+    const operation = document.paths["/v1/relay-channels/{id}/provider-config"].put;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.requestBody.required).toBe(true);
+    for (const status of ["401", "403"]) expect(operation.responses).toHaveProperty(status);
+    const body = document.components.schemas.UpdateRelayChannelProviderConfigRequest;
+    expect(Object.keys(body.properties).sort()).toEqual(["multiplier", "providers"]);
+    const provider = document.components.schemas.RelayChannelProviderConfigRequest;
+    expect(provider.required).toEqual(expect.arrayContaining(["username", "commissionPercent"]));
+    for (const field of ["userId", "accountOwnerId", "status", "lastSettledAt"])
+      expect(provider.properties).not.toHaveProperty(field);
+  });
+});

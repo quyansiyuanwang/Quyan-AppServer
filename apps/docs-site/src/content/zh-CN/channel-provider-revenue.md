@@ -65,6 +65,14 @@
 
 旧 `RELAY_CHANNEL_REVIEW` 权限会自动映射到新 Action。使用旧 `quyan:relay:channel:Review` 和账号内渠道 ARN 的 JSON 策略，需要显式改为平台 Action 与资源范围。legacy/shadow 模式仍只执行一次原有审核；shadow 不会重复写入，也不会读取原生配置响应。
 
+## 资源级提供者配置
+
+启用 IAM 强制授权后，修改渠道倍率或提供者列表，需要对 `acs:platform:*:platform:relay-channel/<channelId>` 拥有 `quyan:relay:UpdateChannelProviderConfig`。替换提供者时，还需对每条当前有效和拟议关联 `acs:platform:*:platform:relay-channel-provider/<channelId>/<providerUserId>` 拥有同一 Action，移除提供者同样受授权控制。仅修改倍率时，不要求无关提供者关联的权限。
+
+提供者用户名由服务端解析为真实接收者 ID。接收者可以属于其他账号，但关联权限不授予管理该账号的权限。提交空提供者列表会停用全部现有关联，不会自动加入编辑者或提交者。重新配置保留已结算收益历史，并采用选定的结算计划。操作期间身份、权限、接收者或响应数据发生变化，整个写入（包括倍率修改）都会取消。响应仅暴露凭据是否存在，不返回未获授权的混池贡献。
+
+操作者还必须保留部署管理组赋予的渠道审核或渠道更新资格。现有 `RELAY_CHANNEL_REVIEW` 和 `RELAY_CHANNEL_UPDATE` 权限会映射到新 Action；仅使用旧账号级 `quyan:relay:channel:Review` 或 `quyan:relay:channel:Update` 别名的 JSON 策略，需要显式改用新 Action 及平台渠道、提供者关联资源。二次验证和重放保护仍然必需，不接受 OAuth Token。legacy/shadow 模式只执行一次原业务操作，不会额外执行原生写入。
+
 ## 相关页面
 
 - `relay-settings`

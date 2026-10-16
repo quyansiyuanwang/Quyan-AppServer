@@ -1,3 +1,4 @@
+import { projectAuthorizedRelayChannelMutation } from "./relay-channel-authorized-mutation-projection";
 import { isDeepStrictEqual as same } from "node:util";
 import type { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
@@ -25,10 +26,6 @@ import { OperationType, OperationCategory } from "@/constant/operation-type";
 import { buildBusinessLogRequestContext } from "@/util/business-log-context";
 import type { TypedRequest } from "@/types/express";
 import type { RelayChannelDto, ReviewRelayChannelSubmissionRequest } from "@/api/dto/relay/relay-channel.dto";
-import { RelayChannelConfigurationReadRepository } from "@/store/relay/relay-channel-configuration-read.repository";
-import { projectRelayChannelConfiguration } from "./relay-channel-configuration-projection";
-import { RelayPoolResolverService } from "./relay-pool-resolver.service";
-import { formatRelayRequestFormats } from "@quyan/shared";
 const action = "quyan:relay:ReviewChannelSubmission";
 /** Review and its safe configuration response share a final authorization/transaction boundary. */
 export class RelayChannelSubmissionReviewIamService {
@@ -133,29 +130,9 @@ export class RelayChannelSubmissionReviewIamService {
         resources.push(...recipients.map((userId) => platformRelayChannelProviderArn(id, userId)));
       }
       await recheck(); // Activating a revenue relation requires its explicit resource grant, including implicit self.
-      return repository.apply(target, data, { principal, snapshot, recheck }, persist, async (tx) => {
-        const result = await RelayChannelConfigurationReadRepository.getInstance().read(
-          principal,
-          { id, includeDisabled: true },
-          (targets) => platformCollectionDecisions(iam, { principal, action, request, resources: targets }),
-          () => recheck(tx),
-          async ({ records, context, verify }) => {
-            if (records.length !== 1 || records[0]!.source.id !== id || !verify) throw iamAccountDenied();
-            const { source, presence } = records[0]!,
-              value = projectRelayChannelConfiguration(source, presence),
-              capabilities = await RelayPoolResolverService.getInstance().resolveChannelCapabilities(id, context);
-            value.allowedModels = [...new Set(capabilities.map((row) => row.catalogModelName))].sort();
-            if (["pooled", "automatic-proxy-pool"].includes(value.channelType))
-              value.allowedFormats = formatRelayRequestFormats([
-                ...new Set(capabilities.flatMap((row) => row.supportedRequestFormats)),
-              ]);
-            return { value, verify };
-          },
-          tx,
-        );
-        if (!result) throw iamAccountDenied();
-        return result;
-      });
+      return repository.apply(target, data, { principal, snapshot, recheck }, persist, (tx) =>
+        projectAuthorizedRelayChannelMutation(tx, { principal, action, request, id, recheck }),
+      );
     };
     if (mode === "enforce") {
       const result = await native(true);

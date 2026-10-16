@@ -512,14 +512,14 @@ export class RelayChannelController extends Controller {
   @Security("jwt")
   @CheckPermission([Permission.RELAY_CHANNEL_REVIEW, Permission.RELAY_CHANNEL_UPDATE], PermissionCheckMode.ANY, "jwt", [
     {
-      action: "quyan:relay:channel:Review",
+      action: "quyan:relay:UpdateChannelProviderConfig",
       resourceKind: "single-resource",
-      resource: relayChannelResourceResolver,
+      resource: platformRelayChannelResourceResolver,
     },
     {
-      action: "quyan:relay:channel:Update",
+      action: "quyan:relay:UpdateChannelProviderConfig",
       resourceKind: "single-resource",
-      resource: relayChannelResourceResolver,
+      resource: platformRelayChannelResourceResolver,
     },
   ])
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
@@ -529,6 +529,8 @@ export class RelayChannelController extends Controller {
     validateParams(relayChannelIdParamsSchema),
     validateBody(updateRelayChannelProviderConfigBodySchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async updateProviderConfig(
     @Path() id: string,
     @Body() body: UpdateRelayChannelProviderConfigRequest,
