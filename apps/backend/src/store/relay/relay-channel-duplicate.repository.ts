@@ -69,7 +69,10 @@ export class RelayChannelDuplicateRepository {
     persist: boolean,
     prepare: ChannelDuplicatePreparation,
     copyName: (name: string, reserved: Set<string>) => string,
-    project: (tx: Prisma.TransactionClient, id: string) => Promise<{ value: T; verify: () => Promise<void> }>,
+    project: (
+      tx: Prisma.TransactionClient,
+      ids: readonly string[],
+    ) => Promise<{ value: T[]; verify: () => Promise<void> }>,
     audit: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
     const sourceIds = targets.map((row) => row.sourceId),
@@ -205,7 +208,7 @@ export class RelayChannelDuplicateRepository {
               select: { name: true },
             }),
             reserved = new Set(names.map((row) => row.name));
-          const responses: { value: T; verify: () => Promise<void> }[] = [],
+          const responses: { value: T[]; verify: () => Promise<void> }[] = [],
             created: ChannelDuplicateSource[] = [];
           await guard.recheck(tx);
           for (const target of targets) {
@@ -310,7 +313,14 @@ export class RelayChannelDuplicateRepository {
             }
             created.push(after);
           }
-          if (persist) for (const target of targets) responses.push(await project(tx, target.id));
+          if (persist) {
+            const response = await project(
+              tx,
+              targets.map((row) => row.id),
+            );
+            if (response.value.length !== targets.length) throw iamAccountDenied();
+            responses.push(response);
+          }
           const verify = async () => {
             for (const response of responses) await response.verify();
             const current = (await readNodes(graphIds)).map((row) => ({
@@ -363,7 +373,7 @@ export class RelayChannelDuplicateRepository {
           if (persist) await audit(tx);
           await guard.recheck(tx);
           await verify();
-          return responses.map((row) => row.value);
+          return responses.flatMap((row) => row.value);
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: copyPolicy.timeoutMs },
       );

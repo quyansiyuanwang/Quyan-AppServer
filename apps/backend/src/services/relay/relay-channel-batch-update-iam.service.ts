@@ -1,4 +1,4 @@
-import { projectAuthorizedRelayChannelMutation } from "./relay-channel-authorized-mutation-projection";
+import { projectAuthorizedRelayChannelMutations } from "./relay-channel-authorized-mutation-projection";
 import {
   RelayChannelBatchUpdateRepository,
   type BatchChannelPreparation,
@@ -136,7 +136,7 @@ export class RelayChannelBatchUpdateIamService {
         { principal, snapshot, recheck },
         persist,
         prepare(data),
-        (tx, id) => projectAuthorizedRelayChannelMutation(tx, { principal, action, request, id, recheck }),
+        (tx, ids) => projectAuthorizedRelayChannelMutations(tx, { principal, action, request, ids, recheck }),
         async (result, tx) => {
           await BusinessLogService.getInstance().logOperation(
             {

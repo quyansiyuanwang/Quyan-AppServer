@@ -195,7 +195,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   env.security.iamAuthorizationMode = mode;
   await prisma.relayToken.deleteMany({ where: { userId: actor } });
-  await prisma.relayChannel.deleteMany({ where: { id: { in: [channel, other] } } });
+  await prisma.relayChannel.deleteMany({ where: { name: { startsWith: prefix } } });
   await prisma.modelPricing.deleteMany({ where: { model: { startsWith: prefix } } });
   await prisma.ramAuthorization.deleteMany({ where: { accountOwnerId: owner } });
   await prisma.ramPolicy.deleteMany({ where: { accountOwnerId: owner } });
@@ -572,4 +572,39 @@ describe("native resource-scoped general channel batch updates", () => {
     expect((await apply()).updated).toHaveLength(2);
     expect(update).toHaveBeenCalledTimes(2);
   });
+  it("shares one authorized response graph for a supported 200-target batch", async () => {
+    const inputs = Array.from({ length: 200 }, (_, index) => ({
+      id: randomUUID(),
+      name: prefix + "batch-" + index,
+      visibilityMode: "hidden",
+      openaiUpstreamUrl: "https://fixture.invalid/batch",
+      openaiUpstreamApiKey: "fixture-batch-credential",
+      allowedFormats: "openai-chat-completions",
+      allowedModels: JSON.stringify([prefix + "model"]),
+    }));
+    await prisma.relayChannel.createMany({ data: inputs });
+    const ids = inputs.map((row) => row.id).reverse();
+    let scans = 0;
+    transactionHook((tx) => {
+      const original = tx.relayChannel.findMany.bind(tx.relayChannel);
+      vi.spyOn(tx.relayChannel, "findMany").mockImplementation(((input: {
+        select?: { id?: boolean; status?: boolean; createTime?: boolean; updateTime?: boolean; name?: boolean };
+      }) => {
+        if (
+          input.select?.id &&
+          input.select.status &&
+          input.select.createTime &&
+          input.select.updateTime &&
+          !input.select.name
+        )
+          scans++;
+        return original(input as never);
+      }) as never);
+    });
+    const result = await apply({ ids, patch: { multiplier: 1.25 } });
+    expect(result.updated.map((row) => row.id)).toEqual(ids);
+    expect(result.rejected).toEqual([]);
+    expect(scans).toBeGreaterThan(0);
+    expect(scans).toBeLessThan(12);
+  }, 60000);
 });

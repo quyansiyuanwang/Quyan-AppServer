@@ -42,7 +42,10 @@ export class RelayChannelBatchUpdateRepository {
     guard: Guard,
     persist: boolean,
     prepare: BatchChannelPreparation,
-    project: (tx: Prisma.TransactionClient, id: string) => Promise<{ value: T; verify: () => Promise<void> }>,
+    project: (
+      tx: Prisma.TransactionClient,
+      ids: readonly string[],
+    ) => Promise<{ value: T[]; verify: () => Promise<void> }>,
     audit: (
       result: { updated: T[]; rejected: { id: string; reason: string }[] },
       tx: Prisma.TransactionClient,
@@ -154,13 +157,13 @@ export class RelayChannelBatchUpdateRepository {
             if (!same({ ...after, updateTime: source.updateTime }, desired)) throw iamAccountDenied();
             expected[index] = after;
           }
-          if (persist)
-            for (const id of ids) {
-              if (rejected.some((row) => row.id === id)) continue;
-              const response = await project(tx, id);
-              projections.push(response);
-              updated.push(response.value);
-            }
+          const successfulIds = ids.filter((id) => !rejected.some((row) => row.id === id));
+          if (persist && successfulIds.length) {
+            const response = await project(tx, successfulIds);
+            if (response.value.length !== successfulIds.length) throw iamAccountDenied();
+            projections.push(response);
+            updated.push(...response.value);
+          }
           const verify = async () => {
             for (const response of projections) await response.verify();
             if (

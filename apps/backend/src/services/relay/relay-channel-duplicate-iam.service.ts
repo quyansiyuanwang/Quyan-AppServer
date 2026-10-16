@@ -1,5 +1,5 @@
 import { createId } from "@paralleldrive/cuid2";
-import { projectAuthorizedRelayChannelMutation } from "./relay-channel-authorized-mutation-projection";
+import { projectAuthorizedRelayChannelMutations } from "./relay-channel-authorized-mutation-projection";
 import {
   RelayChannelDuplicateRepository,
   type ChannelDuplicatePreparation,
@@ -167,13 +167,13 @@ export class RelayChannelDuplicateIamService {
         persist,
         prepare,
         copyName,
-        (tx, id) =>
-          projectAuthorizedRelayChannelMutation(tx, {
+        (tx, ids) =>
+          projectAuthorizedRelayChannelMutations(tx, {
             principal,
             action: destinationAction,
             relatedAction: action,
             request,
-            id,
+            ids,
             recheck,
           }),
         async (tx) => {
