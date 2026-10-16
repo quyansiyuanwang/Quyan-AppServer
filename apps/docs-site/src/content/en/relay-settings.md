@@ -47,6 +47,12 @@ In IAM enforce mode, both `PATCH /v1/relay-channels/{id}/health-config` and `PAT
 
 A denied, missing, deleted or invalid target rejects the entire batch without partial writes. Existing non-health routing settings and credentials are preserved. Manual mode requires availability and latency; automatic/disabled modes clear those manual overrides. The single-channel response contains health statistics, not channel configuration or credentials; it does not additionally require a health-read Action. Changes to authority or relevant configuration detected before commit roll back the write. Legacy/shadow keep the existing write behavior; shadow observation does not perform a second write.
 
+### Clearing collected health statistics
+
+Clearing statistics does not change the configured tracking mode or manual overrides. A batch clears retained time buckets for all selected channels with one Redis operation, rather than independent per-channel deletions. Unrelated channels and request-sample deduplication records are not cleared; later traffic can immediately create new statistics.
+
+Redis clearing is irreversible and is not rolled back by a database transaction. If the storage connection fails before confirmation, the request reports an error but the operation may already have completed. Refresh the health view to verify the current state; do not assume an error restored the previous statistics.
+
 ## IAM channel configuration access
 
 In IAM enforce mode, `GET /v1/relay-channels` uses `quyan:relay:ListChannels`; `GET /v1/relay-channels/{id}` uses the separate `quyan:relay:GetChannel` Action. Both target `acs:platform:*:platform:relay-channel/<channelId>` and require READ or REVIEW eligibility from a deployment-managed global group. An account policy alone cannot grant that eligibility. Listing a channel does not grant detail access, mutation, export, or credential access.

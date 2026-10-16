@@ -312,3 +312,58 @@ describe("RelayChannelHealthService", () => {
     expect(fallback.every((member) => member.exclusionReasons.length === 0)).toBe(true);
   });
 });
+
+describe("single-command health batch clearing", () => {
+  const now = new Date("2026-10-16T12:00:00Z");
+  it("clears all requested retained buckets once, preserving unrelated channels and sample dedupe", async () => {
+    const redis = createRedis(),
+      service = new HealthServiceCtor(redis);
+    for (const channelId of ["one", "two", "unrelated"])
+      await service.recordAttempt({ channelId, requestId: "sample", success: true, observedAt: now });
+    expect(await service.clearHealthMany([" one ", "two", "one"], now)).toBe(true);
+    expect(redis.deleteMany).toHaveBeenCalledOnce();
+    const keys = redis.deleteMany.mock.calls[0]![0];
+    const { retentionSeconds, bucketSeconds } = RelayChannelHealthService.constants;
+    expect(keys).toHaveLength(2 * Math.ceil(retentionSeconds / bucketSeconds));
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.every((key) => /^relay:channel-health:v1:(one|two):/.test(key))).toBe(true);
+    expect((await service.getHealth("one", now)).sampleCount).toBe(0);
+    expect((await service.getHealth("two", now)).sampleCount).toBe(0);
+    expect((await service.getHealth("unrelated", now)).sampleCount).toBe(1);
+    await service.recordAttempt({ channelId: "one", requestId: "sample", success: true, observedAt: now });
+    expect((await service.getHealth("one", now)).sampleCount).toBe(0);
+  });
+  it.each([{ ids: [] }, { ids: [""] }, { ids: ["one", "  "] }])(
+    "rejects invalid targets $ids before Redis",
+    async ({ ids }) => {
+      const redis = createRedis(),
+        service = new HealthServiceCtor(redis);
+      expect(await service.clearHealthMany(ids, now)).toBe(false);
+      expect(redis.deleteMany).not.toHaveBeenCalled();
+    },
+  );
+  it("rejects an invalid clock before Redis", async () => {
+    const redis = createRedis(),
+      service = new HealthServiceCtor(redis);
+    expect(await service.clearHealthMany(["one"], new Date(NaN))).toBe(false);
+    expect(redis.deleteMany).not.toHaveBeenCalled();
+  });
+  it.each([null, undefined, -1, NaN, "1", 0.5])(
+    "does not treat Redis result %j as confirmed success",
+    async (result) => {
+      const redis = createRedis();
+      redis.deleteMany.mockResolvedValue(result as never);
+      expect(await new HealthServiceCtor(redis).clearHealthMany(["one", "two"], now)).toBe(false);
+      expect(redis.deleteMany).toHaveBeenCalledOnce();
+    },
+  );
+  it("treats zero deleted buckets as successful and does not retry an uncertain transport failure", async () => {
+    const redis = createRedis();
+    redis.deleteMany.mockResolvedValueOnce(0);
+    const service = new HealthServiceCtor(redis);
+    expect(await service.clearHealthMany(["one"], now)).toBe(true);
+    redis.deleteMany.mockRejectedValueOnce(new Error("fixture-transport-failure"));
+    expect(await service.clearHealthMany(["one", "two"], now)).toBe(false);
+    expect(redis.deleteMany).toHaveBeenCalledTimes(2);
+  });
+});

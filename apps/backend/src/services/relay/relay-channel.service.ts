@@ -1187,10 +1187,8 @@ export class RelayChannelService {
       throw new BadRequestError("Health statistics only exist for standalone channels", undefined, {
         messageKey: "relayChannel.healthStatsStandaloneOnly",
       });
-    const results = await Promise.all(
-      channels.map((channel) => this.relayChannelHealthService.clearHealth(channel.id)),
-    );
-    if (results.some((cleared) => !cleared))
+    const cleared = await this.relayChannelHealthService.clearHealthMany(channels.map((channel) => channel.id));
+    if (!cleared)
       throw new BadRequestError("Channel health storage is temporarily unavailable", undefined, {
         messageKey: "relayChannel.healthStorageUnavailable",
       });
