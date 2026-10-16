@@ -1565,6 +1565,22 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     authorizationBoundary: 'platform',
     legacyPermission: Permission.RELAY_CHANNEL_UPDATE,
   },
+  {
+    action: 'quyan:relay:UpdateChannelHealthConfig',
+    service: 'relay',
+    operation: 'UpdateChannelHealthConfig',
+    accessLevel: 'Write',
+    resourceTypes: ['platform/relay-channel'],
+    apiRoutes: [
+      'PATCH /v1/relay-channels/{id}/health-config',
+      'PATCH /v1/relay-channels/health/batch-config',
+    ],
+    conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
+    sensitive: true,
+    authorizationStage: 'declared',
+    authorizationBoundary: 'platform',
+    legacyPermission: Permission.RELAY_CHANNEL_UPDATE,
+  },
   ...([false, true] as const).flatMap((managed): IamActionDefinition[] => {
     const resourceTypes = managed ? ['platform/relay-token'] : ['relay/token']
     return [

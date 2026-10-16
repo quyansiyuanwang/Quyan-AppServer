@@ -20215,7 +20215,7 @@
 						}
 					}
 				},
-				"description": "Lists caller-visible channel capabilities. Automatic proxy pools include limited member and routing data\nneeded to disclose variable pricing, while upstream credentials, URLs, mappings, and visibility rules remain hidden.",
+				"description": "Lists caller-visible channel capabilities. Automatic proxy pools include limited member and routing data\r\nneeded to disclose variable pricing, while upstream credentials, URLs, mappings, and visibility rules remain hidden.",
 				"tags": [
 					"Relay Channels"
 				],
@@ -20305,7 +20305,7 @@
 						}
 					}
 				},
-				"description": "Consumer-facing API documentation catalog. Variable-priced logical channels expose only a\nmodel-level multiplier range; pool topology, members, and routing are never included.",
+				"description": "Consumer-facing API documentation catalog. Variable-priced logical channels expose only a\r\nmodel-level multiplier range; pool topology, members, and routing are never included.",
 				"tags": [
 					"Relay Channels"
 				],
@@ -20498,6 +20498,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [
@@ -20549,6 +20555,12 @@
 								}
 							}
 						}
+					},
+					"401": {
+						"description": "Unauthorized"
+					},
+					"403": {
+						"description": "Forbidden"
 					}
 				},
 				"tags": [

@@ -41,6 +41,12 @@ The overview requires deployment-managed `RELAY_CHANNEL_HEALTH_READ` eligibility
 
 Lists and automatic-pool members contain only individually allowed, visible resources. Member health, names, scores and displayed ranks are based on this authorized subset, not proof of the pool's complete global topology. Disabled and provider-paused non-deleted channels remain visible for diagnosis, with their existing disabled/eligibility indicators. Manual health overrides and ranking thresholds retain their configured behavior. Missing and denied detail both return 403; authority or relevant configuration changes during loading reject the result. These unscoped endpoints do not accept OAuth tokens. Legacy/shadow retain the existing business read, without a second health/configuration read during shadow observation.
 
+### Updating health tracking settings
+
+In IAM enforce mode, both `PATCH /v1/relay-channels/{id}/health-config` and `PATCH /v1/relay-channels/health/batch-config` require `quyan:relay:UpdateChannelHealthConfig` on **every** target channel ARN. Deployment-managed `RELAY_CHANNEL_UPDATE` eligibility and existing visibility rules still apply. These endpoints accept standalone channels only, including disabled channels; they do not accept OAuth tokens. Two-factor verification and replay protection remain required.
+
+A denied, missing, deleted or invalid target rejects the entire batch without partial writes. Existing non-health routing settings and credentials are preserved. Manual mode requires availability and latency; automatic/disabled modes clear those manual overrides. The single-channel response contains health statistics, not channel configuration or credentials; it does not additionally require a health-read Action. Changes to authority or relevant configuration detected before commit roll back the write. Legacy/shadow keep the existing write behavior; shadow observation does not perform a second write.
+
 ## IAM channel configuration access
 
 In IAM enforce mode, `GET /v1/relay-channels` uses `quyan:relay:ListChannels`; `GET /v1/relay-channels/{id}` uses the separate `quyan:relay:GetChannel` Action. Both target `acs:platform:*:platform:relay-channel/<channelId>` and require READ or REVIEW eligibility from a deployment-managed global group. An account policy alone cannot grant that eligibility. Listing a channel does not grant detail access, mutation, export, or credential access.

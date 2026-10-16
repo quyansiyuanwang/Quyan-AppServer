@@ -62,3 +62,27 @@ describe("channel health resource authorization declarations", () => {
     );
   });
 });
+
+describe("resource-scoped health configuration write declarations", () => {
+  it("registers a distinct sensitive write Action and both server routes", () => {
+    const action = "quyan:relay:UpdateChannelHealthConfig";
+    expect(getIamActionDefinition(action)).toMatchObject({
+      resourceTypes: ["platform/relay-channel"],
+      legacyPermission: Permission.RELAY_CHANNEL_UPDATE,
+      authorizationBoundary: "platform",
+      accessLevel: "Write",
+      sensitive: true,
+    });
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel.controller.ts");
+    const rows = collectIamRoutes(project.getSourceFiles(), process.cwd());
+    for (const key of ["PATCH /v1/relay-channels/{id}/health-config", "PATCH /v1/relay-channels/health/batch-config"])
+      expect(rows.find((row) => row.key === key)).toMatchObject({
+        coverage: "explicit",
+        actions: [action],
+        issues: [],
+      });
+    expect(isIamActionResourceCompatible(action, resource)).toBe(true);
+    expect(isIamActionResourceCompatible(action, "acs:relay:*:owner:channel/channel")).toBe(false);
+  });
+});

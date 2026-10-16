@@ -74,3 +74,16 @@ describe("generated native channel health read contracts", () => {
     expect(document.components.schemas.RelayAutomaticPoolHealthDto.required).toContain("members");
   });
 });
+
+describe("generated native channel health configuration writes", () => {
+  it.each(["/v1/relay-channels/{id}/health-config", "/v1/relay-channels/health/batch-config"])(
+    "retains unscoped JWT and safe errors for %s",
+    (path) => {
+      const operation = document.paths[path].patch;
+      expect(operation.security).toContainEqual({ jwt: [] });
+      expect(operation.responses).toHaveProperty("401");
+      expect(operation.responses).toHaveProperty("403");
+      expect(operation.requestBody.required).toBe(true);
+    },
+  );
+});

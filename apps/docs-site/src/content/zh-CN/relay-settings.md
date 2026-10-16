@@ -33,6 +33,12 @@ IAM 强制模式下，“我的修改申请”使用 `quyan:relay:ListMyChannelC
 
 列表和自动池成员只包含逐资源获准且可见的资源。成员健康、名称、分数和展示排名基于这个授权子集，不能作为自动池全局完整拓扑的证明。已停用或供应商暂停服务但尚未删除的渠道仍可用于诊断，并保留原有停用及可选性标记。手动健康覆盖值和排名阈值维持原有配置语义。详情不存在或被拒绝均返回 403；加载期间权限或相关配置变化时拒绝返回结果。这些无 scope 接口不接受 OAuth Token。legacy/shadow 保留原有业务读取，shadow 观察不会再次读取健康或配置内容。
 
+### 修改健康追踪设置
+
+启用 IAM 强制授权后，`PATCH /v1/relay-channels/{id}/health-config` 与 `PATCH /v1/relay-channels/health/batch-config` 都要求对**每个**目标渠道 ARN 具有 `quyan:relay:UpdateChannelHealthConfig`。部署全局组中的 `RELAY_CHANNEL_UPDATE` 资格与既有可见性规则仍然有效。仅支持独立渠道，包括已停用的渠道；不接受 OAuth 令牌。二次验证与重放保护保持不变。
+
+任一目标被拒绝、不存在、已删除或不合法时，整批失败，不会部分写入。非健康相关的路由配置及凭据保留不变。手动模式必须提供可用率和延迟，自动或禁用模式会清除手动覆盖值。单项写入仅返回健康统计，不返回渠道配置或凭据，也不额外要求健康读取 Action。提交前检测到授权或相关配置变化时回滚写入。legacy/shadow 保持原有写入行为，shadow 观察不会重复写入。
+
 ## IAM 渠道配置访问
 
 启用 IAM 强制授权后，`GET /v1/relay-channels` 使用 `quyan:relay:ListChannels`；`GET /v1/relay-channels/{id}` 使用独立的 `quyan:relay:GetChannel`。两者均针对 `acs:platform:*:platform:relay-channel/<channelId>`，并要求操作者具有部署全局组中的 READ 或 REVIEW 资格。仅绑定账号策略不能获得该资格。列表授权不自动授予详情、修改、导出或密钥访问权限。

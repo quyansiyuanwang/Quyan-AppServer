@@ -1,3 +1,4 @@
+import { RelayChannelHealthConfigIamService } from "./relay-channel-health-config-iam.service";
 import { RelayChannelHealthReadIamService } from "./relay-channel-health-read-iam.service";
 import {
   DEFAULT_AUTOMATIC_POOL_RANKING_MODE,
@@ -1015,6 +1016,66 @@ export class RelayChannelService {
     id: string,
     data: UpdateRelayChannelHealthConfigRequest,
     actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<RelayChannelHealthDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayChannelHealthConfigIamService.getInstance().execute(
+      { ...data, ids: [id] },
+      actorUserId,
+      request,
+      async () => ({
+        total: 1,
+        affected: 1,
+        projection: await this.updateChannelHealthConfigLegacy(id, data, actorUserId, request),
+      }),
+      true,
+    );
+    if (!result.projection)
+      throw new ForbiddenError("Missing authorized health projection", undefined, {
+        messageKey: "permission.insufficientPermission",
+      });
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_CHANNEL_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceId: id,
+        targetResourceType: "RELAY_CHANNEL",
+        description: "更新了中转渠道的健康追踪设置",
+        metadata: { healthTrackingMode: data.healthTrackingMode },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result.projection;
+  }
+
+  async batchUpdateChannelHealthConfig(
+    data: BatchUpdateRelayChannelHealthConfigRequest,
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<BatchRelayChannelsResultDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await RelayChannelHealthConfigIamService.getInstance().execute(data, actorUserId, request, () =>
+      this.batchUpdateChannelHealthConfigLegacy(data, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_CHANNEL_UPDATE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceType: "RELAY_CHANNEL",
+        description: "批量更新了中转渠道的健康追踪设置",
+        metadata: { ids: data.ids, healthTrackingMode: data.healthTrackingMode },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return { total: result.total, affected: result.affected };
+  }
+
+  private async updateChannelHealthConfigLegacy(
+    id: string,
+    data: UpdateRelayChannelHealthConfigRequest,
+    actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelHealthDto> {
     const channel = await this.assertChannelAccessibleById(id, actorUserId);
@@ -1047,7 +1108,7 @@ export class RelayChannelService {
     return this.toHealthDto(updated, await this.relayChannelHealthService.getHealth(updated.id));
   }
 
-  async batchUpdateChannelHealthConfig(
+  private async batchUpdateChannelHealthConfigLegacy(
     data: BatchUpdateRelayChannelHealthConfigRequest,
     actorUserId: string,
     request?: Request,
