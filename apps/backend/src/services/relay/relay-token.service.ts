@@ -1,3 +1,4 @@
+import { projectRelayTokenConfiguration } from "./relay-token-configuration-projection";
 import { relayTokenCopyNames } from "@/util/relay/relay-token-name.util";
 import { RelayTokenCreateIamService } from "./relay-token-create-iam.service";
 import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
@@ -2194,70 +2195,13 @@ export class RelayTokenService {
     };
   }
 
-  private toImportItemDto(
-    token: RelayTokenWithRelations | (RelayTokenReadRecord & { token: string }),
-  ): RelayTokenImportItemDto {
-    return {
-      name: token.name || undefined,
-      token: toCanonicalCredential(token.token, "relayToken"),
-      expiresAt: token.expiresAt ? token.expiresAt.toISOString() : undefined,
-      routingMode:
-        token.routingMode === "composite"
-          ? "composite"
-          : token.routingMode === "automatic-pool"
-            ? "automatic-pool"
-            : "ordered",
-      memberTokenConfigs:
-        token.routingMode === "composite"
-          ? (token.memberTokenConfigs ?? []).map((member) => ({
-              tokenId: member.tokenId,
-              priority: member.priority,
-              enabled: member.enabled,
-            }))
-          : undefined,
-      automaticProxyPoolChannelId: token.automaticProxyPoolChannelId || undefined,
-      blockedAutomaticProxyPoolChannelIds: this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(
-        token.blockedAutomaticProxyPoolChannelIds,
-      ),
-      channelId: token.channelId || token.channelConfigs[0]?.channelId || undefined,
-      channelConfigs: token.channelConfigs.map((config) => ({
-        channelId: config.channelId,
-        priority: config.priority,
-      })),
-      failoverConfig: token.failoverConfig
-        ? {
-            enabled: Boolean(token.failoverConfig.enabled),
-            maxRetries: Number(token.failoverConfig.maxRetries || 2),
-            retryStatusCodes: normalizeRetryStatusRules(
-              Array.isArray(token.failoverConfig.retryStatusCodes) ? token.failoverConfig.retryStatusCodes : [],
-            ),
-            failoverThreshold: Math.max(0, Number(token.failoverConfig.failoverThreshold ?? 0)),
-            failbackCooldownMinutes: Math.max(0, Number(token.failoverConfig.failbackCooldownMinutes ?? 0)),
-            maxAcceptedChannelMultiplier:
-              token.failoverConfig.maxAcceptedChannelMultiplier == null
-                ? null
-                : Number(token.failoverConfig.maxAcceptedChannelMultiplier),
-            minCacheHitRate:
-              token.failoverConfig.minCacheHitRate == null ? null : Number(token.failoverConfig.minCacheHitRate),
-          }
-        : undefined,
-      quotaLimit: token.quotaLimit != null ? Number(token.quotaLimit) : undefined,
-      quotaWindows: Array.isArray(token.quotaWindows)
-        ? token.quotaWindows.map((quotaWindow) => ({
-            quotaLimit: Number(quotaWindow.quotaLimit),
-            quotaUnit: normalizeQuotaUnit(quotaWindow.quotaUnit),
-            quotaWindowHours: Number(quotaWindow.quotaWindowHours),
-          }))
-        : undefined,
-      allowedModels: token.allowedModels || undefined,
-      ipWhitelist: token.ipWhitelist || undefined,
-      modelMapping: token.modelMapping as Record<string, string> | undefined,
-      requestFormatTransforms: normalizeRequestFormatTransforms(token.requestFormatTransforms) ?? undefined,
-      normalizerConfig: normalizeRelayTokenNormalizerConfig(token.normalizerConfig),
-      streamConfig: token.streamConfig as CreateRelayTokenDto["streamConfig"],
-      contentSafetyConfig: (token.contentSafetyConfig as any) ?? null,
-      enabled: token.status === MANAGED_STATUS.ENABLED,
-    };
+  private toImportItemDto(token: RelayTokenWithRelations | RelayTokenReadRecord): RelayTokenImportItemDto {
+    return projectRelayTokenConfiguration(token, {
+      blockedChannelIds: (value) => this.normalizeStoredBlockedAutomaticProxyPoolChannelIds(value),
+      quotaUnit: normalizeQuotaUnit,
+      requestFormatTransforms: normalizeRequestFormatTransforms,
+      normalizerConfig: normalizeRelayTokenNormalizerConfig,
+    });
   }
 
   private toExportItemDto(

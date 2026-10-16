@@ -516,6 +516,67 @@ describe("resource scoped relay token reads", () => {
     expect(JSON.stringify(result)).not.toMatch(/fixture-private|fixture-legacy|password/);
     expect(rich).not.toHaveBeenCalled();
   });
+  it("preserves authorized export configuration while adding credentials only at the export boundary", async () => {
+    await prisma.relayToken.update({
+      where: { id: tokenId },
+      data: {
+        name: "configured export",
+        quotaLimit: 0,
+        allowedModels: "model-a",
+        modelMapping: { "model-a": "upstream-a" },
+        expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+        contentSafetyConfig: { requestEnabled: false },
+        streamConfig: { preflightBufferLimitBytes: 524288 },
+        ipWhitelist: "127.0.0.1",
+        quotaWindows: { create: { quotaLimit: 2.5, quotaUnit: "request", quotaWindowHours: 0.5 } },
+        channelConfigs: { create: { channelId, priority: 0 } },
+        failoverConfig: {
+          create: {
+            enabled: true,
+            maxRetries: 3,
+            retryStatusCodes: ["5xx"],
+            maxAcceptedChannelMultiplier: 1.25,
+            minCacheHitRate: 0.5,
+          },
+        },
+      },
+    });
+    const item = (await exportTokens({ ids: [tokenId] })).tokens[0]!;
+    expect(item).toMatchObject({
+      id: tokenId,
+      name: "configured export",
+      quotaLimit: 0,
+      allowedModels: "model-a",
+      modelMapping: { "model-a": "upstream-a" },
+      expiresAt: "2030-01-01T00:00:00.000Z",
+      contentSafetyConfig: { requestEnabled: false },
+      streamConfig: { preflightBufferLimitBytes: 524288 },
+      ipWhitelist: "127.0.0.1",
+      quotaWindows: [{ quotaLimit: 2.5, quotaUnit: "request", quotaWindowHours: 0.5 }],
+      channelConfigs: [{ channelId, priority: 0 }],
+      failoverConfig: {
+        enabled: true,
+        maxRetries: 3,
+        retryStatusCodes: ["5xx"],
+        maxAcceptedChannelMultiplier: 1.25,
+        minCacheHitRate: 0.5,
+      },
+      enabled: true,
+    });
+    expect(item.token).toMatch(/^sk-rlt-/);
+    for (const key of [
+      "userId",
+      "targetUserId",
+      "legacyToken",
+      "isCustomKey",
+      "usedQuota",
+      "requestCount",
+      "upstreamApiKey",
+      "upstreamUrl",
+    ])
+      expect(item).not.toHaveProperty(key);
+    expect(JSON.stringify(item)).not.toMatch(/fixture-private|fixture-legacy|password/);
+  });
   it.each(["ExportTokens", "RevealToken"])(
     "refuses an entire selected export before credential reads when %s is denied",
     async (operation) => {
