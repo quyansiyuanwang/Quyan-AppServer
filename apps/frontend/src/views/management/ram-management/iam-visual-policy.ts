@@ -41,6 +41,51 @@ const matchedActions = (actions: string[]) =>
   IAM_ACTION_DEFINITIONS.filter((definition) =>
     actions.some((pattern) => matchIamPattern(pattern, definition.action)),
   )
+export interface VisualActionDependency {
+  action: string
+  dependencyAction: string
+  scope: 'same-resource' | 'conditional' | 'cross-resource'
+  resourceTypes: string[]
+  resourceRole?: 'source' | 'destination' | 'reference'
+  selection?: 'server-reserved' | 'server-resolved'
+}
+/** Catalog guidance only: never expands selected actions, statements or Resource patterns. */
+export function visualActionDependencies(actions: string[]): VisualActionDependency[] {
+  return matchedActions(actions)
+    .flatMap((definition) => [
+      ...(definition.requiredActions ?? []).map(
+        (dependencyAction): VisualActionDependency => ({
+          action: definition.action,
+          dependencyAction,
+          scope: 'same-resource',
+          resourceTypes: [...definition.resourceTypes],
+        }),
+      ),
+      ...(definition.conditionalActions ?? []).map(
+        (dependencyAction): VisualActionDependency => ({
+          action: definition.action,
+          dependencyAction,
+          scope: 'conditional',
+          resourceTypes: [],
+        }),
+      ),
+      ...(definition.resourceDependencies ?? []).map(
+        (dependency): VisualActionDependency => ({
+          action: definition.action,
+          dependencyAction: dependency.action,
+          scope: 'cross-resource',
+          resourceTypes: [...dependency.resourceTypes],
+          resourceRole: dependency.resourceRole,
+          selection: dependency.selection,
+        }),
+      ),
+    ])
+    .sort((a, b) =>
+      [a.action, a.scope, a.dependencyAction]
+        .join(':')
+        .localeCompare([b.action, b.scope, b.dependencyAction].join(':')),
+    )
+}
 export const VISUAL_ACCESS_LEVELS = ['Read', 'Write', 'List'] as const
 /** Category membership comes from the production catalog, not an operation-name heuristic. */
 export function visualActionGroups(

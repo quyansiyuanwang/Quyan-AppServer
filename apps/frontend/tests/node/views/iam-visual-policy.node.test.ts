@@ -5,6 +5,7 @@ import {
   newVisualStatement,
   visualConditionKeys,
   visualActionGroups,
+  visualActionDependencies,
   visualServiceActionPattern,
   visualResourceTemplate,
   visualResourceIdentifierFields,
@@ -349,5 +350,72 @@ describe('semantic submission resource identifiers', () => {
         accountId: 'foreign',
       }),
     ).toBeUndefined()
+  })
+})
+
+describe('catalog authorization dependency guidance', () => {
+  it('keeps generated destinations separate from source scope without changing selected policy content', () => {
+    const row = {
+      ...newVisualStatement(),
+      actions: ['quyan:relay:DuplicateChannels'],
+      resourcesText: 'acs:platform:*:platform:relay-channel/exact-source',
+    }
+    const before = exportVisualPolicy([row])
+    const dependencies = visualActionDependencies(row.actions)
+    expect(dependencies).toEqual([
+      {
+        action: row.actions[0],
+        dependencyAction: 'quyan:relay:CreateChannelCopy',
+        scope: 'cross-resource',
+        resourceTypes: ['platform/relay-channel'],
+        resourceRole: 'destination',
+        selection: 'server-reserved',
+      },
+    ])
+    dependencies[0]!.resourceTypes.length = 0
+    expect(visualActionDependencies(row.actions)[0]!.resourceTypes).toEqual([
+      'platform/relay-channel',
+    ])
+    expect(exportVisualPolicy([row])).toEqual(before)
+    expect(row.actions).toEqual(['quyan:relay:DuplicateChannels'])
+    expect(row.resourcesText).toBe('acs:platform:*:platform:relay-channel/exact-source')
+  })
+  it('describes the reciprocal source check without recursively expanding grants', () => {
+    expect(visualActionDependencies(['quyan:relay:CreateChannelCopy'])).toEqual([
+      {
+        action: 'quyan:relay:CreateChannelCopy',
+        dependencyAction: 'quyan:relay:DuplicateChannels',
+        scope: 'cross-resource',
+        resourceTypes: ['platform/relay-channel'],
+        resourceRole: 'source',
+        selection: 'server-resolved',
+      },
+    ])
+  })
+  it('deduplicates overlapping action patterns and returns no dependencies for unknown actions', () => {
+    expect(
+      visualActionDependencies([
+        'quyan:relay:DuplicateChannels',
+        'quyan:relay:DuplicateChannel*',
+        'quyan:relay:DuplicateChannels',
+      ]),
+    ).toHaveLength(1)
+    expect(visualActionDependencies(['alidns:*', 'unknown:*'])).toEqual([])
+  })
+  it('distinguishes same-resource mandatory and variant-only dependencies', () => {
+    expect(
+      visualActionDependencies(['quyan:system:error_report:UpdateErrorGroupStatus']),
+    ).toContainEqual(
+      expect.objectContaining({
+        dependencyAction: 'quyan:system:error_report:GetErrorGroup',
+        scope: 'same-resource',
+      }),
+    )
+    expect(visualActionDependencies(['quyan:remote_terminal:UpdateEntitlement'])).toContainEqual(
+      expect.objectContaining({
+        dependencyAction: 'quyan:remote_terminal:DeleteEntitlement',
+        scope: 'conditional',
+      }),
+    )
   })
 })

@@ -75,6 +75,22 @@ afterEach(() => {
   view = undefined
 })
 describe('IAM catalog-driven resource builder', () => {
+  it('renders dependency guidance without editing scoped policy statements', async () => {
+    const row = {
+      ...newVisualStatement(),
+      actions: ['quyan:relay:DuplicateChannels'],
+      resourcesText: 'acs:platform:*:platform:relay-channel/exact-source',
+    }
+    mountView(row)
+    expect(view!.get('[data-test="action-dependencies"]').text()).toContain(
+      'quyan:relay:CreateChannelCopy',
+    )
+    expect(row.actions).toEqual(['quyan:relay:DuplicateChannels'])
+    expect(row.resourcesText).toBe('acs:platform:*:platform:relay-channel/exact-source')
+    await view!.setProps({ disabled: true })
+    expect(view!.find('[data-test="action-dependencies"]').exists()).toBe(true)
+  })
+
   it('renders all three identifiers and enables Add only after every field is supplied', async () => {
     const row = { ...newVisualStatement(), actions: ['*'] }
     mountView(row)

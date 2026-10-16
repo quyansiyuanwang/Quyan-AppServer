@@ -98,6 +98,7 @@
     <p data-test="selected-action-count">
       {{ i18ns.t('RamManagement.visualSelectedOperations', { count: statement.actions.length }) }}
     </p>
+    <RamIamActionDependencies :actions="statement.actions" />
     <el-alert
       v-if="statement.effect === 'Deny'"
       :title="i18ns.t('RamManagement.iamDenyWarning')"
@@ -223,6 +224,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import RamIamActionDependencies from './RamIamActionDependencies.vue'
 import { computed, ref, watch, useId } from 'vue'
 import { getIamConditionKey, iamServiceDefinitions } from '@quyan/shared'
 import type { VisualCondition, VisualStatement } from '../iam-visual-policy'
