@@ -1,3 +1,4 @@
+import { prepareRelayTokenCreate } from "./relay-token-create-preparation";
 import { prepareRelayTokenUpdate } from "./relay-token-update-preparation";
 import { RelayTokenCapabilityReadService } from "./relay-token-capability-read.service";
 import { RelayTokenCompositionReadService } from "./relay-token-composition-read.service";
@@ -484,61 +485,31 @@ export class RelayTokenService {
       data.targetUserId,
       Permission.RELAY_TOKEN_MANAGE_OTHERS_UPDATE,
     );
-    const automaticPoolId = data.routingMode === "automatic-pool" ? data.automaticProxyPoolChannelId : undefined;
-    const automaticPool = automaticPoolId
-      ? await this.assertAutomaticProxyPool(automaticPoolId, actorUserId)
-      : undefined;
-    const blockedAutomaticProxyPoolChannelIds = automaticPool
-      ? this.normalizeBlockedAutomaticProxyPoolChannelIds(automaticPool, data.blockedAutomaticProxyPoolChannelIds)
-      : [];
-    const normalizedConfig =
-      data.routingMode === "composite" || automaticPoolId
-        ? { defaultChannelId: undefined, channelConfigs: [] }
-        : await this.normalizeChannelConfiguration(actorUserId, data.channelId, data.channelConfigs);
-
-    let tokenValue: string;
-    let isCustomKey = false;
-
-    if (data.token) {
-      await this.checkCustomKeyPermission(actorUserId);
-      if (!(await this.canBypassCustomKeyLimits(actorUserId, userId))) {
-        await this.assertCustomKeyLimit(userId);
-        await this.assertCustomKeySetRateLimit(userId);
-      }
-      tokenValue = toCanonicalCredential(await this.resolveImportedTokenValue(data.token), "relayToken");
-      isCustomKey = true;
-    } else {
-      tokenValue = this.generateRelayTokenValue();
-    }
-
-    const relayToken = await this.withGraphWrite(userId, data.routingMode === "composite", () =>
-      this.relayTokenRepo.create({
-        userId,
-        name: data.name?.trim() || undefined,
-        token: tokenValue,
-        isCustomKey,
-        expiresAt: this.normalizeOptionalExpiresAt(data.expiresAt) ?? undefined,
-        channelId: normalizedConfig.defaultChannelId,
-        routingMode: data.routingMode === "composite" ? "composite" : automaticPoolId ? "automatic-pool" : "ordered",
-        memberTokenConfigs: data.memberTokenConfigs,
-        streamConfig: data.streamConfig,
-        automaticProxyPoolChannelId: automaticPoolId,
-        blockedAutomaticProxyPoolChannelIds,
-        channelConfigs: normalizedConfig.channelConfigs,
-        failoverConfig:
-          data.failoverConfig ??
-          (data.routingMode === "composite" ? this.compositeFailover(data.memberTokenConfigs?.length ?? 0) : undefined),
-        quotaLimit: data.quotaLimit ?? undefined,
-        quotaWindows: this.normalizeQuotaWindows(data.quotaWindows),
-        allowedModels: data.allowedModels?.trim() || undefined,
-        requestFormatTransforms: normalizeRequestFormatTransforms(data.requestFormatTransforms),
-        normalizerConfig: data.normalizerConfig
-          ? normalizeRelayTokenNormalizerConfig(data.normalizerConfig)
-          : DEFAULT_RELAY_TOKEN_NORMALIZER_CONFIG,
-        contentSafetyConfig: data.contentSafetyConfig ?? undefined,
-        ipWhitelist: this.normalizeOptionalIpWhitelist(data.ipWhitelist),
-        modelMapping: data.modelMapping ?? undefined,
-      }),
+    const prepared = await prepareRelayTokenCreate(userId, data, {
+      orderedChannels: (channelId, configs) => this.normalizeChannelConfiguration(actorUserId, channelId, configs),
+      automaticPool: async (poolId, blocked) =>
+        this.normalizeBlockedAutomaticProxyPoolChannelIds(
+          await this.assertAutomaticProxyPool(poolId, actorUserId),
+          blocked,
+        ),
+      customCredential: async (preferred) => {
+        await this.checkCustomKeyPermission(actorUserId);
+        if (!(await this.canBypassCustomKeyLimits(actorUserId, userId))) {
+          await this.assertCustomKeyLimit(userId);
+          await this.assertCustomKeySetRateLimit(userId);
+        }
+        return toCanonicalCredential(await this.resolveImportedTokenValue(preferred), "relayToken");
+      },
+      generatedCredential: () => this.generateRelayTokenValue(),
+      expiresAt: (value) => this.normalizeOptionalExpiresAt(value),
+      quotaWindows: (value) => this.normalizeQuotaWindows(value),
+      ipWhitelist: (value) => this.normalizeOptionalIpWhitelist(value),
+      requestFormatTransforms: normalizeRequestFormatTransforms,
+      normalizerConfig: normalizeRelayTokenNormalizerConfig,
+      compositeFailover: (count) => this.compositeFailover(count),
+    });
+    const relayToken = await this.withGraphWrite(userId, prepared.requiresGraphLock, () =>
+      this.relayTokenRepo.create(prepared.create),
     );
 
     await this.businessLogService.logOperation({

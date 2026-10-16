@@ -1,5 +1,5 @@
-import { RelayTokenUpdateRepository, buildRelayTokenFailoverCreateData } from "./relay-token-update.repository";
-import { RelayCompositionRepository } from "./relay-composition.repository";
+import { RelayTokenUpdateRepository } from "./relay-token-update.repository";
+import { RelayTokenCreateRepository } from "./relay-token-create.repository";
 import { RELAY_COMPOSITION_POLICY, compositionError } from "@/util/relay/relay-composition.util";
 import { RelayToken, Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
@@ -79,19 +79,6 @@ const relayTokenUsageSummarySelect = {
   lastUsedAt: true,
 } satisfies Prisma.RelayTokenSelect;
 
-const buildChannelConfigCreateManyData = (configs: RelayTokenChannelConfigInput[]) =>
-  configs.map((config) => ({
-    channelId: config.channelId,
-    priority: config.priority,
-  }));
-
-const buildQuotaWindowCreateManyData = (quotaWindows: RelayTokenQuotaWindowInput[]) =>
-  quotaWindows.map((quotaWindow) => ({
-    quotaLimit: quotaWindow.quotaLimit,
-    quotaUnit: quotaWindow.quotaUnit,
-    quotaWindowHours: quotaWindow.quotaWindowHours,
-  }));
-
 export class RelayTokenRepository implements RelayTokenStore {
   private static instance: RelayTokenRepository;
 
@@ -112,71 +99,11 @@ export class RelayTokenRepository implements RelayTokenStore {
   }
 
   async create(data: RelayTokenCreateInput, tx?: RelayTokenTransactionClient): Promise<RelayTokenWithRelations> {
-    if (data.routingMode === "composite") {
-      if (!tx) return this.withTransaction((client) => this.create(data, client));
-      if (data.channelId || data.channelConfigs?.length || data.automaticProxyPoolChannelId)
-        throw compositionError("mode");
-      await RelayCompositionRepository.getInstance().validateWrite(tx, {
-        id: "__new_composition__",
-        userId: data.userId,
-        routingMode: "composite",
-        status: data.status ?? 1,
-        memberTokenConfigs: data.memberTokenConfigs ?? [],
-      });
-    } else if (data.memberTokenConfigs?.length) throw compositionError("mode");
-    const failoverConfigCreateData = data.failoverConfig
-      ? buildRelayTokenFailoverCreateData(data.failoverConfig)
-      : undefined;
-
-    const client = tx ?? prisma;
-
-    return client.relayToken.create({
-      data: {
-        userId: data.userId,
-        status: data.status,
-        name: data.name,
-        token: data.token,
-        legacyToken: data.legacyToken,
-        isCustomKey: data.isCustomKey ?? false,
-        expiresAt: data.expiresAt,
-        channelId: data.channelId,
-        routingMode: data.routingMode ?? "ordered",
-        automaticProxyPoolChannelId: data.automaticProxyPoolChannelId,
-        blockedAutomaticProxyPoolChannelIds: data.blockedAutomaticProxyPoolChannelIds,
-        quotaLimit: data.quotaLimit,
-        allowedModels: data.allowedModels,
-        requestFormatTransforms: data.requestFormatTransforms as Prisma.InputJsonValue | undefined,
-        normalizerConfig: data.normalizerConfig as Prisma.InputJsonValue | undefined,
-        streamConfig: data.streamConfig as Prisma.InputJsonValue | undefined,
-        memberTokenConfigs:
-          data.routingMode === "composite" ? { createMany: { data: data.memberTokenConfigs ?? [] } } : undefined,
-        contentSafetyConfig: data.contentSafetyConfig as Prisma.InputJsonValue | undefined,
-        ipWhitelist: data.ipWhitelist,
-        modelMapping: data.modelMapping ?? undefined,
-        failoverConfig: failoverConfigCreateData
-          ? {
-              create: failoverConfigCreateData,
-            }
-          : undefined,
-        channelConfigs:
-          data.channelConfigs && data.channelConfigs.length > 0
-            ? {
-                createMany: {
-                  data: buildChannelConfigCreateManyData(data.channelConfigs),
-                },
-              }
-            : undefined,
-        quotaWindows:
-          data.quotaWindows && data.quotaWindows.length > 0
-            ? {
-                createMany: {
-                  data: buildQuotaWindowCreateManyData(data.quotaWindows),
-                },
-              }
-            : undefined,
-      },
-      include: relayTokenInclude,
-    });
+    if (!tx) return this.withTransaction((client) => this.create(data, client));
+    const id = await RelayTokenCreateRepository.getInstance().apply(tx, data);
+    // Preserve the legacy rich response inside the caller's rollback boundary.
+    // Native IAM callers use the writer directly and separately authorize their response projection.
+    return tx.relayToken.findUniqueOrThrow({ where: { id }, include: relayTokenInclude });
   }
 
   async loadCompositionSnapshot(rootId: string): Promise<Map<string, RelayTokenWithRelations>> {
