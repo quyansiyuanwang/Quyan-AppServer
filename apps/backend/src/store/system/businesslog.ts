@@ -37,9 +37,9 @@ export class BusinessLogRepository implements BusinessLogStore {
    * @param params 日志参数
    * @returns 创建的日志记录
    */
-  public async create(params: CreateBusinessLogParams): Promise<BusinessLog> {
+  public async create(params: CreateBusinessLogParams, tx?: Prisma.TransactionClient): Promise<BusinessLog> {
     try {
-      const log = await prisma.businessLog.create({
+      const log = await (tx ?? prisma).businessLog.create({
         data: {
           operationType: params.operationType,
           operationCategory: params.operationCategory,
@@ -59,6 +59,8 @@ export class BusinessLogRepository implements BusinessLogStore {
       });
       return log;
     } catch (error) {
+      // Transactional authorization mutations must roll back and must not log raw database arguments.
+      if (tx) throw error;
       logger.error("Failed to create business log", { error, params });
       throw error;
     }

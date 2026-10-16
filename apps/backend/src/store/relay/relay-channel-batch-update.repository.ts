@@ -43,7 +43,10 @@ export class RelayChannelBatchUpdateRepository {
     persist: boolean,
     prepare: BatchChannelPreparation,
     project: (tx: Prisma.TransactionClient, id: string) => Promise<{ value: T; verify: () => Promise<void> }>,
-    audit: (result: { updated: T[]; rejected: { id: string; reason: string }[] }) => Promise<void>,
+    audit: (
+      result: { updated: T[]; rejected: { id: string; reason: string }[] },
+      tx: Prisma.TransactionClient,
+    ) => Promise<void>,
   ) {
     if (
       !ids.length ||
@@ -172,7 +175,7 @@ export class RelayChannelBatchUpdateRepository {
           const result = { updated, rejected };
           await verify();
           await guard.recheck(tx);
-          if (persist) await audit(result);
+          if (persist) await audit(result, tx);
           // Awaited audit hooks and response projection cannot outlive the authorization snapshot.
           await guard.recheck(tx);
           await verify();

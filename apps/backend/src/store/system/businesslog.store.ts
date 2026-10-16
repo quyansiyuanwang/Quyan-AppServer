@@ -44,7 +44,7 @@ export interface QueryBusinessLogResult {
 }
 
 export interface BusinessLogStore {
-  create(params: CreateBusinessLogParams): Promise<BusinessLog>;
+  create(params: CreateBusinessLogParams, tx?: Prisma.TransactionClient): Promise<BusinessLog>;
   query(params: QueryBusinessLogParams): Promise<QueryBusinessLogResult>;
   listForStats(params: Omit<QueryBusinessLogParams, "page" | "pageSize">): Promise<BusinessLogStatsRow[]>;
   findById(id: string): Promise<BusinessLog | null>;

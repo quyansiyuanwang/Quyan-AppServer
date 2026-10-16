@@ -176,20 +176,23 @@ export class RelayChannelDuplicateIamService {
             id,
             recheck,
           }),
-        async () => {
-          await BusinessLogService.getInstance().logOperation({
-            operationType:
-              variant === "single"
-                ? OperationType.RELAY_CHANNEL_DUPLICATE
-                : OperationType.RELAY_CHANNEL_BATCH_DUPLICATE,
-            operationCategory: OperationCategory.RELAY,
-            actorUserId,
-            targetResourceType: "RELAY_CHANNEL",
-            description: "Duplicated authorized channel configurations",
-            metadata: { ids: data.ids, destinationIds: targets.map((row) => row.id), total: targets.length },
-            success: true,
-            ...buildBusinessLogRequestContext(request),
-          });
+        async (tx) => {
+          await BusinessLogService.getInstance().logOperation(
+            {
+              operationType:
+                variant === "single"
+                  ? OperationType.RELAY_CHANNEL_DUPLICATE
+                  : OperationType.RELAY_CHANNEL_BATCH_DUPLICATE,
+              operationCategory: OperationCategory.RELAY,
+              actorUserId,
+              targetResourceType: "RELAY_CHANNEL",
+              description: "Duplicated authorized channel configurations",
+              metadata: { ids: data.ids, destinationIds: targets.map((row) => row.id), total: targets.length },
+              success: true,
+              ...buildBusinessLogRequestContext(request),
+            },
+            tx,
+          );
         },
       );
     };

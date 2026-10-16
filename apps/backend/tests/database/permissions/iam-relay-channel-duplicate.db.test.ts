@@ -273,6 +273,7 @@ describe("native single and batch channel duplication", () => {
     expect(await apply([channel])).toHaveLength(1);
     expect(BusinessLogService.getInstance().logOperation).toHaveBeenCalledWith(
       expect.objectContaining({ operationType: OperationType.RELAY_CHANNEL_BATCH_DUPLICATE }),
+      expect.objectContaining({ businessLog: expect.objectContaining({ create: expect.any(Function) }) }),
     );
   });
   it("supports an explicitly named single copy", async () => {

@@ -154,18 +154,21 @@ export class RelayChannelUpdateIamService {
         prepare,
         prepareProvider,
         (tx) => projectAuthorizedRelayChannelMutation(tx, { principal, action, request, id, recheck }),
-        async () => {
-          await BusinessLogService.getInstance().logOperation({
-            operationType: OperationType.RELAY_CHANNEL_UPDATE,
-            operationCategory: OperationCategory.RELAY,
-            actorUserId,
-            targetResourceId: id,
-            targetResourceType: "RELAY_CHANNEL",
-            description: "Updated an authorized channel configuration",
-            metadata: { fields: Object.keys(data) },
-            success: true,
-            ...buildBusinessLogRequestContext(request),
-          });
+        async (tx) => {
+          await BusinessLogService.getInstance().logOperation(
+            {
+              operationType: OperationType.RELAY_CHANNEL_UPDATE,
+              operationCategory: OperationCategory.RELAY,
+              actorUserId,
+              targetResourceId: id,
+              targetResourceType: "RELAY_CHANNEL",
+              description: "Updated an authorized channel configuration",
+              metadata: { fields: Object.keys(data) },
+              success: true,
+              ...buildBusinessLogRequestContext(request),
+            },
+            tx,
+          );
         },
       );
     };

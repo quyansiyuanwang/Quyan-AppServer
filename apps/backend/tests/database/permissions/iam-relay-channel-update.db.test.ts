@@ -204,6 +204,7 @@ afterEach(async () => {
   await prisma.ramRoleSession.deleteMany({ where: { accountOwnerId: owner } });
   await prisma.ramRole.deleteMany({ where: { accountOwnerId: owner } });
   await prisma.accessKey.deleteMany({ where: { userId: actor } });
+  await prisma.businessLog.deleteMany({ where: { actorUserId: actor } });
   await prisma.user.deleteMany({ where: { id: { in: [owner, actor, submitter, peer] } } });
   await prisma.group.deleteMany({ where: { id: groupId } });
   if (createdConfig) await prisma.relayConfig.delete({ where: { id: createdConfig } });
@@ -598,7 +599,7 @@ describe("native resource-scoped administrative channel update", () => {
     await apply({ openaiUpstreamApiKey: "fixture-audit-secret" });
     const calls = vi.mocked(BusinessLogService.getInstance().logOperation).mock.calls;
     expect(calls).toHaveLength(1);
-    expect(JSON.stringify(calls)).not.toContain("fixture-audit-secret");
+    expect(JSON.stringify(calls.map(([payload]) => payload))).not.toContain("fixture-audit-secret");
     expect(calls[0]![0].metadata).toEqual({ fields: ["openaiUpstreamApiKey"] });
   });
   it("verifies weights using the database's decimal precision", async () => {
@@ -608,5 +609,57 @@ describe("native resource-scoped administrative channel update", () => {
     expect(Number(edge.weight)).toBe(2.123457);
     await apply({ pooledWeight: 3.12345678 });
     expect(Number((await source()).pooledWeight)).toBe(3.123457);
+  });
+  describe.each(["single", "batch", "copy"] as const)("transactional %s audit", (variant) => {
+    const operate = () =>
+      variant === "single"
+        ? apply()
+        : variant === "batch"
+          ? RelayChannelService.getInstance().batchUpdateChannels(
+              { ids: [channel], patch: { multiplier: 2 } },
+              actor,
+              request(),
+            )
+          : RelayChannelService.getInstance().duplicateChannel(channel, {}, actor, request());
+    const logs = () => prisma.businessLog.findMany({ where: { actorUserId: actor } });
+    beforeEach(async () => {
+      await prisma.group.update({
+        where: { id: groupId },
+        data: { permissions: [Permission.RELAY_CHANNEL_UPDATE, Permission.RELAY_CHANNEL_CREATE] },
+      });
+      vi.mocked(BusinessLogService.getInstance().logOperation).mockRestore();
+    });
+    it("commits the actual success log with the authorized mutation", async () => {
+      await operate();
+      expect(await logs()).toHaveLength(1);
+      expect((await logs())[0]!.success).toBe(true);
+      expect(JSON.stringify(await logs())).not.toMatch(/fixture-secret|fixture-replacement/);
+    });
+    it("rolls back a persisted audit record if final authorization changes", async () => {
+      const service = BusinessLogService.getInstance(),
+        original = service.logOperation.bind(service);
+      let persisted = false;
+      vi.spyOn(service, "logOperation").mockImplementation(async (params, tx) => {
+        expect(tx).toBeDefined();
+        await original(params, tx);
+        persisted = Boolean(await tx!.businessLog.findFirst({ where: { actorUserId: actor } }));
+        env.security.iamAuthorizationMode = "legacy";
+      });
+      await unchanged(operate);
+      expect(persisted).toBe(true);
+      expect(await logs()).toEqual([]);
+    });
+    it("fails closed and returns no raw storage error when transactional logging fails", async () => {
+      transactionHook((tx) => {
+        vi.spyOn(tx.businessLog, "create").mockRejectedValue(new Error("fixture-secret SQL credential arguments"));
+      });
+      const before = await channels();
+      await expect(operate()).rejects.toMatchObject({
+        statusCode: 500,
+        message: expect.not.stringMatching(/fixture-secret|SQL/),
+      });
+      expect(await channels()).toEqual(before);
+      expect(await logs()).toEqual([]);
+    });
   });
 });

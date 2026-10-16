@@ -69,7 +69,7 @@ export class RelayChannelDuplicateRepository {
     prepare: ChannelDuplicatePreparation,
     copyName: (name: string, reserved: Set<string>) => string,
     project: (tx: Prisma.TransactionClient, id: string) => Promise<{ value: T; verify: () => Promise<void> }>,
-    audit: () => Promise<void>,
+    audit: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
     const sourceIds = targets.map((row) => row.sourceId),
       destinations = new Set(targets.map((row) => row.id));
@@ -363,7 +363,7 @@ export class RelayChannelDuplicateRepository {
           };
           await verify();
           await guard.recheck(tx);
-          if (persist) await audit();
+          if (persist) await audit(tx);
           await guard.recheck(tx);
           await verify();
           return responses.map((row) => row.value);

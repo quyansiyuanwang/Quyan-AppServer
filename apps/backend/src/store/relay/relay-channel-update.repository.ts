@@ -134,7 +134,7 @@ export class RelayChannelUpdateRepository {
     prepare: ChannelUpdatePreparation,
     prepareProvider: ChannelUpdateProviderPreparation,
     project: (tx: Prisma.TransactionClient) => Promise<{ value: T; verify: () => Promise<void> }>,
-    audit: () => Promise<void>,
+    audit: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
     try {
       return await prisma.$transaction(
@@ -560,7 +560,7 @@ export class RelayChannelUpdateRepository {
           };
           await verify();
           await guard.recheck(tx);
-          await audit();
+          await audit(tx);
           await guard.recheck(tx);
           await verify();
           return projectResult.value;

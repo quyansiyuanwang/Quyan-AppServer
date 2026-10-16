@@ -9,7 +9,7 @@ import {
   OperationCategory,
 } from "@/constant/operation-type";
 import { getLogger, LogCategory } from "@/util/logger";
-import type { BusinessLog } from "@prisma/client";
+import type { BusinessLog, Prisma } from "@prisma/client";
 import { UserRepository } from "@/store/users/user.repository";
 import type { BusinessLogStore } from "@/store/system/businesslog.store";
 import type { UserStore } from "@/store/users/user.store";
@@ -60,10 +60,10 @@ class BusinessLogService {
 
   /**
    * 记录业务操作日志
-   * 使用 fire-and-forget 模式，日志失败不影响业务操作
+   * 普通调用为 best-effort；传入事务时日志必须与业务变更一起成功或回滚
    * @param params 操作参数
    */
-  public async logOperation(params: LogOperationParams): Promise<void> {
+  public async logOperation(params: LogOperationParams, tx?: Prisma.TransactionClient): Promise<void> {
     try {
       const logParams: CreateBusinessLogParams = {
         operationType: params.operationType,
@@ -82,9 +82,10 @@ class BusinessLogService {
         userAgent: params.userAgent,
       };
 
-      await this.repository.create(logParams);
+      await this.repository.create(logParams, tx);
     } catch (error) {
-      // 日志失败不应该影响业务操作，只记录错误
+      if (tx) throw error;
+      // 非事务日志失败不应该影响业务操作，只记录错误
       logger.error("Failed to create business log", { error, params });
     }
   }
