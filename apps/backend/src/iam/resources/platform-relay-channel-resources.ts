@@ -1,3 +1,4 @@
+import { applyRelayChannelModelRestrictionsBodySchema } from "@/api/schema/relay/relay-channel.schema";
 import { buildAcsResource, IAM_PLATFORM_ACCOUNT_ID } from "@quyan/shared";
 import { isPlatformLogResourceId } from "./platform-log-resources";
 /** Global relay channels are deployment resources, independent of an account's identity ARN. */
@@ -30,3 +31,12 @@ export function platformRelayChannelProviderArn(channelId: string, providerUserI
     path: "relay-channel-provider/" + channelId + "/" + providerUserId,
   });
 }
+
+/** Every target is validated from the canonical schema; account hints cannot change platform scope. */
+export const platformRelayChannelModelRestrictionResources: import("../request/resource-resolvers").BatchResourceResolver =
+  ({ request }) => {
+    const parsed = applyRelayChannelModelRestrictionsBodySchema.safeParse(request.body);
+    if (!parsed.success || parsed.data.targets.some((target) => !isPlatformLogResourceId(target.channelId)))
+      return undefined;
+    return parsed.data.targets.map((target) => platformRelayChannelArn(target.channelId));
+  };

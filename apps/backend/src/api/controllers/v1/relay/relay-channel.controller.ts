@@ -1,3 +1,4 @@
+import { platformRelayChannelModelRestrictionResources } from "@/iam/resources/platform-relay-channel-resources";
 import { platformRelayChannelChangeRequestReviewResourceResolver } from "@/iam/request/platform-relay-channel-change-request-resource-resolver";
 import { platformRelayChannelResourceResolver } from "@/iam/resources/platform-relay-channel-resources";
 import { relayChannelSubmissionResourceResolver } from "@/iam/resources/relay-channel-submission-resources";
@@ -654,13 +655,19 @@ export class RelayChannelController extends Controller {
 
   @Post("batch/model-restrictions")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_UPDATE)
+  @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
+    action: "quyan:relay:ApplyChannelModelRestrictions",
+    resourceKind: "batch",
+    resource: platformRelayChannelModelRestrictionResources,
+  })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
     twoFactorChallengeMiddleware({ purpose: "stepup", method: "code" }),
     replayProtectionMiddleware,
     validateBody(applyRelayChannelModelRestrictionsBodySchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async applyModelRestrictions(
     @Body() body: ApplyRelayChannelModelRestrictionsRequest,
     @Request() request: TypedRequest,

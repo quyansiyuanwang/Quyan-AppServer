@@ -1,3 +1,4 @@
+import { RelayChannelModelRestrictionIamService } from "./relay-channel-model-restriction-iam.service";
 import { RelayChannelChangeRequestReviewIamService } from "./relay-channel-change-request-review-iam.service";
 import { createRelayChannelChangeRequestBodySchema } from "@/api/schema/relay/relay-channel.schema";
 import { assertRelayChannelChangeProviderBindings } from "@/store/relay/relay-channel-change-provider-bindings";
@@ -3419,6 +3420,19 @@ export class RelayChannelService {
   }
 
   async applyModelRestrictions(
+    body: ApplyRelayChannelModelRestrictionsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<ApplyRelayChannelModelRestrictionsResponse> {
+    return RelayChannelModelRestrictionIamService.getInstance().execute(
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.applyModelRestrictionsLegacy(body, actorUserId, request),
+    );
+  }
+
+  private async applyModelRestrictionsLegacy(
     body: ApplyRelayChannelModelRestrictionsRequest,
     actorUserId: string,
     request?: Request,

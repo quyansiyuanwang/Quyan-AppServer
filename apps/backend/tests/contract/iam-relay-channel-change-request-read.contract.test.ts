@@ -235,3 +235,18 @@ describe("generated native channel change-request review contract", () => {
       expect(fields).not.toHaveProperty(field);
   });
 });
+
+describe("generated native channel model restriction batch contract", () => {
+  it("keeps JWT, safe errors and no client-assigned authority fields", () => {
+    const operation = document.paths["/v1/relay-channels/batch/model-restrictions"].post;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    expect(operation.requestBody.required).toBe(true);
+    for (const status of ["401", "403"]) expect(operation.responses).toHaveProperty(status);
+    expect(Object.keys(document.components.schemas.ApplyRelayChannelModelRestrictionsRequest.properties)).toEqual([
+      "targets",
+    ]);
+    expect(
+      Object.keys(document.components.schemas.ApplyRelayChannelModelRestrictionsTargetDto.properties).sort(),
+    ).toEqual(["addModels", "channelId"]);
+  });
+});

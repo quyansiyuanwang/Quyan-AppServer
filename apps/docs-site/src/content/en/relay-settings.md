@@ -461,6 +461,14 @@ Policies using the older `quyan:relay:channel:Delete` alias with an account-owne
 
 All requested channels must be authorized and still exist. A denied, missing, already deleted or changed target cancels the entire request. Deletion and its mandatory routing-reference cleanup commit together: direct and automatic-pool token references are cleared, selected-channel and pool memberships are removed, and active change requests for the deleted channels are retired. Unrelated channels and historical provider/earnings records are not deleted. Deletion does not grant access to token values, upstream keys or other channel configurations. During migration, legacy/shadow modes retain the existing business deletion; shadow evaluation does not delete a second time.
 
+## Resource-scoped batch model restrictions
+
+With IAM enforcement enabled, applying batch model restrictions requires `quyan:relay:ApplyChannelModelRestrictions` on every target channel, `acs:platform:*:platform:relay-channel/<channelId>`, including a target that ultimately fails model business validation. The operator must retain deployment-managed channel-update eligibility; account policies cannot create that eligibility. Step-up verification and replay protection remain required.
+
+The server admits the complete batch before merging locally priced model names per channel. Manual restrictions retain existing names; automatic pools switch to the selected manual scope while retaining other routing settings. Unknown pricing names, distinct pricing names sharing a request-model identity, or malformed historical restrictions produce safe per-channel rejections while valid peers may still update. Per-item reasons do not echo arbitrary user input or internal exceptions.
+
+A denied target, identity or permission change, model-catalog change, or response-data change cancels the entire batch instead of merely skipping one target. The operation does not change channel enablement, provider pauses, visibility, credentials, revenue configuration or token assignments. Responses never contain key values; related pool capabilities appear only when their resources are separately authorized. Existing `RELAY_CHANNEL_UPDATE` permissions map to the new Action; legacy/shadow modes perform the original business write only once.
+
 ## Related pages
 
 - `relay-token-management`
