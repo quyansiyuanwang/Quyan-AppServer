@@ -554,7 +554,20 @@ export class RelayChannelService {
    * while automatic-pool membership remains visible as logical pooled routes so
    * a token owner can make an informed blocking decision.
    */
-  async listRoutingCatalogOptions(actorUserId: string, targetUserId?: string): Promise<RelayRoutingCatalogOptionDto[]> {
+  async listRoutingCatalogOptions(
+    actorUserId: string,
+    targetUserId?: string,
+    request?: TypedRequest,
+  ): Promise<RelayRoutingCatalogOptionDto[]> {
+    return RelayChannelCatalogIamService.getInstance().readRouting(actorUserId, targetUserId, request, () =>
+      this.listLegacyRoutingCatalogOptions(actorUserId, targetUserId),
+    );
+  }
+
+  private async listLegacyRoutingCatalogOptions(
+    actorUserId: string,
+    targetUserId?: string,
+  ): Promise<RelayRoutingCatalogOptionDto[]> {
     const effectiveUserId = await this.resolveOptionsUserId(actorUserId, targetUserId);
     const [activeChannels, modelCatalog] = await Promise.all([
       this.relayChannelRepository.listActive(),

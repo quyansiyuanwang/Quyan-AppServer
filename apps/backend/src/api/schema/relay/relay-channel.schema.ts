@@ -53,7 +53,7 @@ const contextLengthRuleSchema = z.object({
 });
 
 const relayChannelTypeSchema = z.enum(["standalone", "pooled-member", "pooled", "automatic-proxy-pool"]);
-const routingStrategySchema = z.enum([
+export const routingStrategySchema = z.enum([
   "priority",
   "random",
   "weighted-random",

@@ -217,20 +217,18 @@ export class RelayChannelController extends Controller {
   /** Safe directory for token and other end-user routing selectors. */
   @Get("routing-catalog")
   @Security("jwt", ["relay:channel:read"])
-  @RequireAnyPermission([
-    Permission.RELAY_TOKEN_CREATE,
-    Permission.RELAY_TOKEN_READ,
-    Permission.MONTHLY_PASS_TEMPLATE_READ,
-    Permission.MONTHLY_PASS_TEMPLATE_WRITE,
-    Permission.OJ_APIKEY_CREATE,
-    Permission.OJ_APIKEY_READ,
-    Permission.OJ_APIKEY_UPDATE,
-  ])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListChannelRoutingCatalog",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listRoutingCatalogOptions(
     @Request() request: TypedRequest,
     @Query() targetUserId?: string,
   ): Promise<RelayRoutingCatalogOptionDto[]> {
-    return this.channelService.listRoutingCatalogOptions(request.user!.userId, targetUserId);
+    return this.channelService.listRoutingCatalogOptions(request.user!.userId, targetUserId, request);
   }
 
   /**

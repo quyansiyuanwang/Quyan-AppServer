@@ -1,3 +1,5 @@
+import { Script } from "node:vm";
+
 const EXACT_HTTP_STATUS_RULE_REGEX = /^[1-5]\d{2}$/;
 const WILDCARD_HTTP_STATUS_RULE_REGEX = /^[0-9x*]{3}$/i;
 const REGEX_FLAGS_REGEX = /^[imsu]*$/;
@@ -97,6 +99,41 @@ export const normalizeRetryStatusRules = (rules: unknown[] | null | undefined): 
   }
 
   return normalizedRules;
+};
+
+/** Bounded public projection: regex sources may contain private text and must never be echoed. */
+const PUBLIC_RETRY_RULE_LIMITS = { charactersPerRule: 1024, regexEvaluationTimeoutMs: 25 } as const;
+const publicRegexStatuses = new Script(
+  "codes.filter(code => { regex.lastIndex = 0; return regex.test(String(code)); })",
+);
+
+export const projectPublicRetryStatusRules = (rules: unknown): (number | string)[] | undefined => {
+  if (!Array.isArray(rules) || rules.length > MAX_RETRY_STATUS_RULES) return undefined;
+  const result = new Map<string, number | string>();
+  for (const input of rules) {
+    if (typeof input !== "string" && typeof input !== "number") return undefined;
+    if (typeof input === "string" && input.length > PUBLIC_RETRY_RULE_LIMITS.charactersPerRule) return undefined;
+    const normalized = normalizeSingleRetryStatusRule(input);
+    if (!normalized) return undefined;
+    const regex = parseRegexLiteral(normalized);
+    if (regex) {
+      try {
+        // Keep the canonical regex parser, but bound evaluation of persisted patterns on the finite HTTP domain.
+        const codes = publicRegexStatuses.runInNewContext(
+          { codes: HTTP_STATUS_CODES, regex },
+          { timeout: PUBLIC_RETRY_RULE_LIMITS.regexEvaluationTimeoutMs },
+        ) as number[];
+        if (!codes.length) return undefined;
+        for (const code of codes) result.set(String(code), code);
+      } catch {
+        return undefined;
+      }
+    } else {
+      if (!isValidRetryStatusRule(normalized)) return undefined;
+      result.set(normalized, typeof input === "number" ? input : normalized);
+    }
+  }
+  return [...result.values()];
 };
 
 const MODEL_CAPACITY_ERROR_PATTERN = /selected\s+model\s+is\s+at\s+capacity/i;

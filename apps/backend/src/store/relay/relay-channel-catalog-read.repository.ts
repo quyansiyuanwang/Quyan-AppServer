@@ -1,3 +1,4 @@
+import { prisma } from "@/config/database";
 import { isDeepStrictEqual as same } from "node:util";
 import type { Prisma } from "@prisma/client";
 import type { IamPrincipal } from "@quyan/shared";
@@ -10,14 +11,15 @@ import { isRelayChannelVisible } from "@/util/relay/relay-channel-visibility.uti
 import type { RelayPoolResolverContext, RelayCapabilityGraphNode } from "@/services/relay/relay-pool-resolver.service";
 import { resolveEffectiveRelayPoolMembers } from "@/services/relay/utils/relay-pool-members.util";
 import { readIamPersonalCollection } from "../users/iam-personal-collection-read";
-import { iamAccountDenied } from "../users/iam-account-principal";
-import { relayChannelVisibilityPrincipal } from "./relay-channel-visibility-principal";
+import { assertIamAccountPrincipal, iamAccountDenied } from "../users/iam-account-principal";
+import { relayChannelVisibilityPrincipal, relayChannelTargetVisibility } from "./relay-channel-visibility-principal";
 const metadataSelect = { id: true, status: true, providerServiceEnabled: true, updateTime: true } as const;
 /** Consumer projection only: never URLs, credentials, provider identities, or complete configuration. */
 export const relayCatalogSourceSelect = {
   ...metadataSelect,
   name: true,
   channelType: true,
+  routingStrategy: true,
   allowedFormats: true,
   allowedModels: true,
   modelMapping: true,
@@ -41,16 +43,36 @@ export type RelayCatalogSnapshot = {
   context: RelayPoolResolverContext;
   poolVisibility: "anonymous-range" | "hidden";
 };
+export type RelayCatalogVisibilityTarget = {
+  userId: string;
+  /** Re-prove the actor's managed-user Action and deployment ceiling before target identity reads. */
+  authorize: (tx: Prisma.TransactionClient) => Promise<void>;
+};
 export class RelayChannelCatalogReadRepository {
   private static instance: RelayChannelCatalogReadRepository;
   static getInstance() {
     return (this.instance ??= new RelayChannelCatalogReadRepository());
+  }
+  async targetMetadata(principal: IamPrincipal, userId: string) {
+    // Identifier/owner metadata selects the trusted authorization boundary; no label or credential is read.
+    await assertIamAccountPrincipal(principal);
+    const target = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true, accountOwnerId: true },
+    });
+    if (!target || target.id !== userId || target.status !== 1) throw iamAccountDenied();
+    return target;
+  }
+  async targetSnapshot(principal: IamPrincipal, userId: string, authorize: () => Promise<void>) {
+    await authorize();
+    return relayChannelTargetVisibility(principal, userId, prisma);
   }
   async read<T>(
     principal: IamPrincipal,
     decide: (resources: readonly string[]) => Promise<readonly string[]>,
     recheck: () => Promise<void>,
     project?: (snapshot: RelayCatalogSnapshot) => Promise<T>,
+    target?: RelayCatalogVisibilityTarget,
   ): Promise<T | undefined> {
     return readIamPersonalCollection(principal, decide, recheck, async (tx, checkedDecide) => {
       const limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
@@ -90,8 +112,10 @@ export class RelayChannelCatalogReadRepository {
       // Shadow observes admission only; it does not hydrate any labels, model graph, or prices.
       if (!project) return undefined;
       const readVisibility = async () => {
-        const identity = await relayChannelVisibilityPrincipal(principal, tx),
-          rows = [];
+        const identity = await relayChannelVisibilityPrincipal(principal, tx);
+        if (target) await target.authorize(tx);
+        const targetIdentity = target ? await relayChannelTargetVisibility(principal, target.userId, tx) : undefined,
+          rows: { id: string; visibilityMode: string; visibilityConfig: Prisma.JsonValue }[] = [];
         for (let offset = 0; offset < initial.admitted.length; offset += limit) {
           const ids = initial.admitted.slice(offset, offset + limit);
           const batch = await tx.relayChannel.findMany({
@@ -102,15 +126,19 @@ export class RelayChannelCatalogReadRepository {
           if (batch.length !== ids.length) throw iamAccountDenied();
           rows.push(...batch);
         }
-        const { user, roleIds, managementBypass } = identity;
+        const visibleTo = (row: (typeof rows)[number], subject: typeof identity) =>
+          subject.managementBypass ||
+          isRelayChannelVisible(row, { id: subject.user.id, groupId: subject.user.groupId, roleIds: subject.roleIds });
         return {
           identity,
+          targetIdentity,
           rows,
           ids: rows
             .filter(
               (row) =>
                 row.visibilityMode !== "hidden" &&
-                (managementBypass || isRelayChannelVisible(row, { id: user.id, groupId: user.groupId, roleIds })),
+                visibleTo(row, identity) &&
+                (!targetIdentity || visibleTo(row, targetIdentity.visibility)),
             )
             .map((row) => row.id),
         };
