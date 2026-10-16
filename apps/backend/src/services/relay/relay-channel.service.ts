@@ -1,3 +1,5 @@
+import { RelayChannelExportIamService } from "./relay-channel-export-iam.service";
+import { projectRelayChannelExport } from "./relay-channel-export-projection";
 import { catalogModelCapabilities, catalogModelPriceRanges } from "./relay-channel-catalog-projection";
 import { RelayChannelCatalogIamService } from "./relay-channel-catalog-iam.service";
 import { RelayChannelUpstreamModelIamService } from "./relay-channel-upstream-model-iam.service";
@@ -1269,6 +1271,31 @@ export class RelayChannelService {
     actorUserId: string,
     request?: Request,
   ): Promise<RelayChannelExportResponse> {
+    return RelayChannelExportIamService.getInstance().read(
+      body,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.exportChannelsLegacy(body, actorUserId, request),
+      async (result) => {
+        await this.businessLogService.logOperation({
+          operationType: OperationType.RELAY_CHANNEL_EXPORT,
+          operationCategory: OperationCategory.RELAY,
+          actorUserId,
+          targetResourceType: "RELAY_CHANNEL",
+          description: "Exported authorized portable channel configuration",
+          metadata: { total: result.channels.length, includeDisabled: body.includeDisabled === true },
+          success: true,
+          ...buildBusinessLogRequestContext(request),
+        });
+      },
+    );
+  }
+
+  private async exportChannelsLegacy(
+    body: ExportRelayChannelsRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelExportResponse> {
     let channels: RelayChannel[];
     if (body.ids?.length) {
       channels = await this.getOrderedChannelsByIds(body.ids, body.includeDisabled === true);
@@ -1284,6 +1311,7 @@ export class RelayChannelService {
     // Whether the user selected roots or exported the full list, make every pool export
     // self-contained. This also pulls disabled members referenced by an active pool.
     channels = await this.expandPoolExportDependencies(channels);
+    for (const channel of channels) await this.assertChannelAccessible(channel, actorUserId);
 
     await this.businessLogService.logOperation({
       operationType: OperationType.RELAY_CHANNEL_EXPORT,
@@ -2275,13 +2303,15 @@ export class RelayChannelService {
   }
 
   private toExportItemDto(channel: RelayChannel): RelayChannelExportItemDto {
-    return {
-      ...this.toCreateRequest(channel),
-      id: channel.id,
-      enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-      createTime: channel.createTime,
-      updateTime: channel.updateTime,
-    };
+    return projectRelayChannelExport(
+      channel,
+      ((channel as RelayChannelWithMembers).poolMembers ?? []).map((member) => ({
+        memberChannelId: member.memberChannelId,
+        priority: member.priority,
+        weight: Number(member.weight),
+        enabled: member.enabled,
+      })),
+    );
   }
 
   async createChannel(

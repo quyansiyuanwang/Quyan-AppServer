@@ -816,13 +816,15 @@ describe("RelayChannelService", () => {
     expect(result.hasGeminiUpstreamApiKey).toBe(false);
   });
 
-  it("includes upstream API keys only in channel exports", async () => {
+  it("never includes upstream credentials or transport settings in channel exports", async () => {
     relayChannelRepository.listVisibleByIds.mockResolvedValue([sampleChannel]);
 
     const result = await service.exportChannels({ ids: ["channel-1"], includeDisabled: true }, "actor-user");
 
-    expect(result.channels[0].openaiUpstreamApiKey).toBe("openai-key");
-    expect(result.channels[0].anthropicUpstreamApiKey).toBeUndefined();
+    expect(result.channels[0]).not.toHaveProperty("openaiUpstreamApiKey");
+    expect(result.channels[0]).not.toHaveProperty("anthropicUpstreamApiKey");
+    expect(result.channels[0]).not.toHaveProperty("openaiUpstreamUrl");
+    expect(JSON.stringify(result)).not.toContain("openai-key");
     expect(businessLogService.logOperation).toHaveBeenCalledWith(
       expect.objectContaining({
         operationType: OperationType.RELAY_CHANNEL_EXPORT,

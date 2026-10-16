@@ -739,7 +739,13 @@ export class RelayChannelController extends Controller {
 
   @Post("export")
   @Security("jwt")
-  @RequirePermission(Permission.RELAY_CHANNEL_EXPORT)
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ExportChannels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   @ReplayProtected()
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(

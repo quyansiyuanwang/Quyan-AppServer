@@ -57153,46 +57153,22 @@
 				"additionalProperties": false
 			},
 			"RelayChannelExportItemDto": {
+				"description": "Portable configuration only. Credentials and upstream URLs are never exported.",
 				"properties": {
+					"id": {
+						"type": "string"
+					},
 					"name": {
-						"type": "string",
-						"description": "渠道名称"
+						"type": "string"
 					},
-					"openaiUpstreamUrl": {
-						"type": "string",
-						"description": "OpenAI 上游 URL"
-					},
-					"openaiUpstreamApiKey": {
-						"type": "string",
-						"description": "OpenAI 上游 API Key"
-					},
-					"useProxy": {
-						"type": "boolean",
-						"description": "Whether requests through this channel use the configured upstream proxy."
-					},
-					"anthropicUpstreamUrl": {
-						"type": "string",
-						"description": "Anthropic 上游 URL"
-					},
-					"anthropicUpstreamApiKey": {
-						"type": "string",
-						"description": "Anthropic 上游 API Key"
-					},
-					"geminiUpstreamUrl": {
-						"type": "string",
-						"description": "Gemini 上游 URL"
-					},
-					"geminiUpstreamApiKey": {
-						"type": "string",
-						"description": "Gemini 上游 API Key"
+					"enabled": {
+						"type": "boolean"
 					},
 					"channelType": {
-						"$ref": "#/components/schemas/RelayChannelType",
-						"description": "渠道类型"
+						"$ref": "#/components/schemas/RelayChannelType"
 					},
 					"routingStrategy": {
-						"$ref": "#/components/schemas/RelayChannelRoutingStrategy",
-						"description": "混池路由策略"
+						"$ref": "#/components/schemas/RelayChannelRoutingStrategy"
 					},
 					"routingConfig": {
 						"allOf": [
@@ -57200,12 +57176,10 @@
 								"$ref": "#/components/schemas/RelayChannelRoutingConfigDto"
 							}
 						],
-						"nullable": true,
-						"description": "路由策略配置"
+						"nullable": true
 					},
 					"visibilityMode": {
-						"$ref": "#/components/schemas/RelayChannelVisibilityMode",
-						"description": "可见性模式"
+						"$ref": "#/components/schemas/RelayChannelVisibilityMode"
 					},
 					"visibilityConfig": {
 						"allOf": [
@@ -57213,21 +57187,18 @@
 								"$ref": "#/components/schemas/RelayChannelVisibilityConfigDto"
 							}
 						],
-						"nullable": true,
-						"description": "可见性白名单"
+						"nullable": true
 					},
 					"poolMembers": {
 						"items": {
 							"$ref": "#/components/schemas/RelayChannelMemberDto"
 						},
 						"type": "array",
-						"nullable": true,
-						"description": "混池成员"
+						"nullable": true
 					},
 					"pooledParentId": {
 						"type": "string",
-						"nullable": true,
-						"description": "Required for pooled-member channels in strict two-tier topology mode."
+						"nullable": true
 					},
 					"pooledPriority": {
 						"type": "number",
@@ -57240,20 +57211,20 @@
 					"pooledMemberEnabled": {
 						"type": "boolean"
 					},
+					"useProxy": {
+						"type": "boolean"
+					},
 					"multiplier": {
 						"type": "number",
-						"format": "double",
-						"description": "价格倍率"
+						"format": "double"
 					},
 					"allowedFormats": {
 						"type": "string",
-						"nullable": true,
-						"description": "允许的格式"
+						"nullable": true
 					},
 					"allowedModels": {
 						"type": "string",
-						"nullable": true,
-						"description": "允许的模型"
+						"nullable": true
 					},
 					"addUserIdentifier": {
 						"type": "boolean"
@@ -57267,37 +57238,21 @@
 								"$ref": "#/components/schemas/Record_string.string_"
 							}
 						],
-						"nullable": true,
-						"description": "模型映射：请求模型 → 扣费模型"
+						"nullable": true
 					},
 					"timePeriodMultipliers": {
 						"items": {
 							"$ref": "#/components/schemas/TimePeriodMultiplierRule"
 						},
 						"type": "array",
-						"nullable": true,
-						"description": "时段倍率规则"
+						"nullable": true
 					},
 					"contextLengthMultipliers": {
 						"items": {
 							"$ref": "#/components/schemas/ContextLengthMultiplierRule"
 						},
 						"type": "array",
-						"nullable": true,
-						"description": "Input-context threshold multiplier rules."
-					},
-					"providers": {
-						"items": {
-							"$ref": "#/components/schemas/RelayChannelProviderConfigRequest"
-						},
-						"type": "array",
-						"description": "Admin-configured providers for revenue sharing."
-					},
-					"id": {
-						"type": "string"
-					},
-					"enabled": {
-						"type": "boolean"
+						"nullable": true
 					},
 					"createTime": {
 						"type": "string",
@@ -57309,8 +57264,8 @@
 					}
 				},
 				"required": [
-					"name",
 					"id",
+					"name",
 					"enabled",
 					"createTime",
 					"updateTime"

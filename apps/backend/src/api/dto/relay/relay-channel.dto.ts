@@ -380,9 +380,30 @@ export interface RelayAutomaticProxyPoolMemberOptionDto {
   modelCapabilities: RelayChannelModelCapabilityDto[];
 }
 
-export interface RelayChannelExportItemDto extends CreateRelayChannelRequest {
+/** Portable configuration only. Credentials and upstream URLs are never exported. */
+export interface RelayChannelExportItemDto {
   id: string;
+  name: string;
   enabled: boolean;
+  channelType?: RelayChannelType;
+  routingStrategy?: RelayChannelRoutingStrategy;
+  routingConfig?: RelayChannelRoutingConfigDto | null;
+  visibilityMode?: RelayChannelVisibilityMode;
+  visibilityConfig?: RelayChannelVisibilityConfigDto | null;
+  poolMembers?: RelayChannelMemberDto[] | null;
+  pooledParentId?: string | null;
+  pooledPriority?: number;
+  pooledWeight?: number;
+  pooledMemberEnabled?: boolean;
+  useProxy?: boolean;
+  multiplier?: number;
+  allowedFormats?: string | null;
+  allowedModels?: string | null;
+  addUserIdentifier?: boolean;
+  inputTokensIncludeCacheRead?: boolean;
+  modelMapping?: Record<string, string> | null;
+  timePeriodMultipliers?: TimePeriodMultiplierRule[] | null;
+  contextLengthMultipliers?: ContextLengthMultiplierRule[] | null;
   createTime: Date;
   updateTime: Date;
 }

@@ -221,6 +221,17 @@ export const relayChannelManagementQuerySchema = z
     path: ["channelTypes"],
   });
 
+/** Same registered field validators, with secret-bearing transport settings excluded from portable output. */
+export const relayChannelExportConfigurationSchema = relayChannelBaseSchema.omit({
+  openaiUpstreamUrl: true,
+  openaiUpstreamApiKey: true,
+  anthropicUpstreamUrl: true,
+  anthropicUpstreamApiKey: true,
+  geminiUpstreamUrl: true,
+  geminiUpstreamApiKey: true,
+  providers: true,
+});
+
 export const createRelayChannelBodySchema = relayChannelBaseSchema;
 
 export const updateRelayChannelBodySchema = relayChannelBaseSchema.partial();
