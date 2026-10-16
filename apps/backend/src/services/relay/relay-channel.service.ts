@@ -1,3 +1,4 @@
+import { projectRelayChannelConfiguration } from "./relay-channel-configuration-projection";
 import { RelayChannelTopologyAuditIamService } from "./relay-channel-topology-audit-iam.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
 import { RelayChannelChangeRequestReadIamService } from "./relay-channel-change-request-read-iam.service";
@@ -71,7 +72,6 @@ import type {
   RelayChannelVisibilityConfigDto,
   RelayChannelVisibilityMode,
   RelayChannelProviderConfigRequest,
-  RelayChannelProviderDto,
   RelayChannelSubmissionStatus,
   SubmitRelayChannelRequest,
   ReviewRelayChannelSubmissionRequest,
@@ -119,7 +119,6 @@ import { RelayPoolResolverService } from "./relay-pool-resolver.service";
 import { computeMultiplierForTime } from "./time-period-multiplier.service";
 import { RelayChannelHealthService, type RelayChannelHealthSnapshot } from "./relay-channel-health.service";
 import { RelayConfigService } from "./relay-config.service";
-import { resolveEffectiveRelayPoolMembers } from "./utils/relay-pool-members.util";
 import { RelayChannelChangeRequestRepository } from "@/store/relay/relay-channel-change-request.repository";
 import { env } from "@/config/env";
 import { ConfigService } from "@/services/system/config.service";
@@ -3592,86 +3591,11 @@ export class RelayChannelService {
     modelCatalog?: ModelPricingDto[],
     includeDisabled = false,
   ): Promise<RelayChannelDto> {
-    const poolMembers = resolveEffectiveRelayPoolMembers(channel).map(
-      (member): RelayChannelMemberDto => ({
-        memberChannelId: member.memberChannelId,
-        priority: member.priority,
-        weight: Number(member.weight),
-        enabled: member.enabled,
-        memberChannelName: member.memberChannel?.name,
-        memberChannelType: member.memberChannel?.channelType as RelayChannelType | undefined,
-        memberChannelEnabled: member.memberChannel ? isChannelServiceEnabled(member.memberChannel) : false,
-      }),
-    );
-
-    const dto: RelayChannelDto = {
-      id: channel.id,
-      name: channel.name,
-      enabled: channel.status === RELAY_CHANNEL_STATUS.ENABLED,
-      providerServiceEnabled: channel.providerServiceEnabled !== false,
-      serviceEnabled: isChannelServiceEnabled(channel),
-      openaiUpstreamUrl: channel.openaiUpstreamUrl || undefined,
+    const dto = projectRelayChannelConfiguration(channel, {
       hasOpenaiUpstreamApiKey: Boolean(channel.openaiUpstreamApiKey),
-      anthropicUpstreamUrl: channel.anthropicUpstreamUrl || undefined,
       hasAnthropicUpstreamApiKey: Boolean(channel.anthropicUpstreamApiKey),
-      geminiUpstreamUrl: channel.geminiUpstreamUrl || undefined,
       hasGeminiUpstreamApiKey: Boolean(channel.geminiUpstreamApiKey),
-      useProxy: channel.useProxy === true,
-      multiplier: Number(channel.multiplier),
-      allowedFormats: channel.allowedFormats || "openai-chat-completions,anthropic,gemini",
-      allowedModels: [],
-      configuredAllowedModels: channel.allowedModels || undefined,
-      addUserIdentifier: channel.addUserIdentifier !== false, // Default to true
-      inputTokensIncludeCacheRead: channel.inputTokensIncludeCacheRead === true, // Default to false
-      modelMapping: channel.modelMapping as Record<string, string> | undefined,
-      timePeriodMultipliers: channel.timePeriodMultipliers as unknown as TimePeriodMultiplierRule[] | undefined,
-      contextLengthMultipliers: channel.contextLengthMultipliers as unknown as
-        | ContextLengthMultiplierRule[]
-        | undefined,
-      channelType: (channel.channelType as RelayChannelType | undefined) ?? DEFAULT_CHANNEL_TYPE,
-      routingStrategy: (channel.routingStrategy as RelayChannelRoutingStrategy | undefined) ?? DEFAULT_ROUTING_STRATEGY,
-      routingConfig: channel.routingConfig as RelayChannelRoutingConfigDto | undefined,
-      visibilityMode: (channel.visibilityMode as RelayChannelVisibilityMode | undefined) ?? DEFAULT_VISIBILITY_MODE,
-      visibilityConfig: channel.visibilityConfig as RelayChannelVisibilityConfigDto | undefined,
-      poolMembers,
-      pooledParentId: channel.pooledParentId || undefined,
-      pooledParentName: (channel as RelayChannel & { pooledParent?: RelayChannel | null }).pooledParent?.name,
-      pooledPriority: channel.pooledPriority,
-      pooledWeight: Number(channel.pooledWeight),
-      pooledMemberEnabled: channel.pooledMemberEnabled,
-      submissionStatus: (channel.submissionStatus as RelayChannelSubmissionStatus) || "approved",
-      submittedByUserId: channel.submittedByUserId || undefined,
-      submittedByUsername: (channel as RelayChannel & { submittedBy?: { username?: string } | null }).submittedBy
-        ?.username,
-      reviewedAt: channel.reviewedAt || undefined,
-      reviewReason: channel.reviewReason || undefined,
-      providers:
-        (
-          channel as RelayChannel & {
-            providers?: Array<{
-              id: string;
-              userId: string;
-              commissionPercent: Prisma.Decimal | number;
-              settlementMode: RelayChannelProviderDto["settlementMode"];
-              settlementIntervalDays: number | null;
-              settlementTime: string | null;
-              nextSettlementAt: Date | null;
-              user?: { username: string } | null;
-            }>;
-          }
-        ).providers?.map((provider) => ({
-          id: provider.id,
-          userId: provider.userId,
-          username: provider.user?.username || provider.userId,
-          commissionPercent: Number(provider.commissionPercent),
-          settlementMode: provider.settlementMode,
-          settlementIntervalDays: provider.settlementIntervalDays ?? undefined,
-          settlementTime: provider.settlementTime ?? undefined,
-          nextSettlementAt: provider.nextSettlementAt ?? undefined,
-        })) ?? [],
-      createTime: channel.createTime,
-      updateTime: channel.updateTime,
-    };
+    });
 
     const resolvedModelCatalog = modelCatalog ?? (await this.modelPricingService.getModelPricing());
     if (isPoolType(dto.channelType)) {
