@@ -234,7 +234,7 @@ export const relayChannelExportConfigurationSchema = relayChannelBaseSchema.omit
 
 export const createRelayChannelBodySchema = relayChannelBaseSchema;
 
-export const updateRelayChannelBodySchema = relayChannelBaseSchema.partial();
+export const updateRelayChannelBodySchema = relayChannelBaseSchema.partial().strict();
 
 export const updateRelayChannelHealthConfigBodySchema = z
   .object({

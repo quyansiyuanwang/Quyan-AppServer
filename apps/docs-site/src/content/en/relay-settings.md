@@ -538,6 +538,16 @@ With IAM enforcement enabled, exporting requires deployment-maintained `RELAY_CH
 
 Only documented portable fields are included; unknown nested fields are removed. Regex retry rules are converted to equivalent HTTP-code rules without publishing their source; large sets use a canonical code-only pattern that stays within the rule-count limit. Invalid persisted configuration, changed policies/eligibility, expired role sessions, revoked AccessKeys or changed request Conditions withhold the result. Two-factor verification and replay protection remain required; this unscoped endpoint does not accept OAuth. Shadow evaluates metadata admission only and performs one compatibility export. Imported legacy files can still include explicitly supplied upstream settings, but exports will never emit them.
 
+## Resource-scoped single-channel configuration updates
+
+With IAM enforcement enabled, editing a channel requires `quyan:relay:UpdateChannel` on `acs:platform:*:platform:relay-channel/<channelId>`. The operator must also retain deployment-managed channel-update eligibility; account policies or additional permissions cannot establish that deployment eligibility. JSON policies using the old account-scoped `quyan:relay:channel:Update` alias must explicitly grant the new platform Action and ARN. Step-up verification and replay protection remain required. OAuth tokens are not accepted.
+
+Standalone channels, logical pools, physical members, and automatic proxy pools are supported. Topology changes require the necessary old references, new references, and parents under the same Action. Changing a physical member's weight does not require unrelated sibling grants. A logical pool with physical children cannot change to another type. Automatic-pool member types, cycle checks, and strict two-tier restrictions still apply. Channels directly assigned to relay tokens, OJ API keys, or monthly passes cannot be hidden.
+
+Replacing provider configuration also requires `quyan:relay:UpdateChannel` on removed, retained, and new recipient relations: `acs:platform:*:platform:relay-channel-provider/<channelId>/<userId>`. Disabling and reactivating a provider preserves its relation ID and settlement history. This does not grant IAM identity management for the recipient user.
+
+Credentials and relations omitted from the request remain unchanged. Responses never include credential values, and related capabilities include only separately authorized channels. Unknown update fields are rejected. Client Action or account hints cannot change the authorization scope. Changes to authorization, identity, sessions, AccessKeys, conditions, security configuration, or final validation cancel the entire update without partial configuration or relation changes. In legacy/shadow mode the original business write runs once; shadow evaluation does not persist changes from the new path.
+
 ## Resource-scoped batch configuration updates
 
 With IAM enforcement enabled, batch updates require `quyan:relay:BatchUpdateChannels` on every requested `acs:platform:*:platform:relay-channel/<channelId>`, including channels that will fail business validation. The operator must retain deployment-managed channel-update eligibility. Client-provided Action or account hints cannot change the authorization boundary; step-up verification and replay protection still apply.

@@ -107,7 +107,6 @@ import { replayProtectionMiddleware } from "@/middleware/auth/replay-protection.
 import { ReplayProtected } from "@/util/replay-protected-decorator";
 import { TwoFactorChallengeProtected, twoFactorChallengeMiddleware } from "@/util/two-factor-challenge-decorator";
 import { setResponseMessageKey } from "@/util/response-wrapper";
-import { relayChannelResourceResolver } from "@/iam/request/resource-resolvers";
 
 @Route("v1/relay-channels")
 @Tags("Relay Channels")
@@ -797,9 +796,9 @@ export class RelayChannelController extends Controller {
   @Put("{id}")
   @Security("jwt")
   @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Update",
+    action: "quyan:relay:UpdateChannel",
     resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
+    resource: platformRelayChannelResourceResolver,
   })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(

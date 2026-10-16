@@ -1,3 +1,4 @@
+import { RelayChannelUpdateIamService } from "./relay-channel-update-iam.service";
 import { relayChannelExportConfigurationSchema } from "@/api/schema/relay/relay-channel.schema";
 import { RelayChannelDuplicateIamService } from "./relay-channel-duplicate-iam.service";
 import type { ChannelDuplicatePreparation } from "@/store/relay/relay-channel-duplicate.repository";
@@ -3305,6 +3306,65 @@ export class RelayChannelService {
   }
 
   async updateChannel(
+    id: string,
+    data: UpdateRelayChannelRequest,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
+    return RelayChannelUpdateIamService.getInstance().execute(
+      id,
+      data,
+      actorUserId,
+      request as TypedRequest | undefined,
+      async (input, source, catalog, presence, topologyMode) => {
+        const validated = await this.buildValidatedChannelData(input, source, catalog, presence, topologyMode);
+        const registered = relayChannelExportConfigurationSchema.partial().safeParse(validated);
+        if (!registered.success)
+          throw new BadRequestError("Invalid registered channel configuration", undefined, {
+            messageKey: "errors.badRequest",
+          });
+        const values = this.toPersistenceInput(validated),
+          patch: Record<string, unknown> = { name: validated.name, channelType: validated.channelType };
+        const fields = new Set(Object.keys(input).filter((key) => !["poolMembers", "providers"].includes(key)));
+        if (
+          [
+            "channelType",
+            "poolMembers",
+            "pooledParentId",
+            "pooledPriority",
+            "pooledWeight",
+            "pooledMemberEnabled",
+          ].some((key) => Object.hasOwn(input, key))
+        )
+          fields.add("pooledParentId");
+        if (validated.channelType !== source.channelType)
+          for (const key of ["routingConfig", "visibilityMode", "visibilityConfig", "allowedFormats", "pooledParentId"])
+            fields.add(key);
+        if (validated.visibilityMode !== source.visibilityMode) {
+          fields.add("visibilityMode");
+          fields.add("visibilityConfig");
+        }
+        const jsonFields = new Set([
+          "routingConfig",
+          "visibilityConfig",
+          "modelMapping",
+          "timePeriodMultipliers",
+          "contextLengthMultipliers",
+        ]);
+        for (const key of fields) {
+          const value = jsonFields.has(key)
+            ? registered.data[key as keyof typeof registered.data]
+            : values[key as keyof typeof values];
+          if (value !== undefined) patch[key] = jsonFields.has(key) && value === null ? Prisma.JsonNull : value;
+        }
+        return { patch, channelType: validated.channelType, members: validated.poolMembers };
+      },
+      (provider, userId, now) => this.buildProviderRow(provider, userId, now),
+      () => this.updateChannelLegacy(id, data, actorUserId, request),
+    );
+  }
+
+  private async updateChannelLegacy(
     id: string,
     data: UpdateRelayChannelRequest,
     actorUserId: string,
