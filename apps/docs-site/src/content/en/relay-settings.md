@@ -33,6 +33,14 @@ Both lists authorize each request before computing pagination and totals, exclud
 
 With IAM enforcement enabled, the management table uses `quyan:relay:ListManagementChannels` against each `acs:platform:*:platform:relay-channel/<channelId>`. Records, pagination and totals include only allowed channels within the existing visibility and filter rules. Denied parent names and member references are hidden. Model filters use only admitted paths through the channel pool, preserving strict child settings over duplicate legacy membership; a denied leaf cannot contribute models. This Action grants list access, while channel changes and delivery require their own Actions. Deployment management qualification is still required. Refresh and retry if authority changes while loading.
 
+## IAM channel configuration access
+
+In IAM enforce mode, `GET /v1/relay-channels` uses `quyan:relay:ListChannels`; `GET /v1/relay-channels/{id}` uses the separate `quyan:relay:GetChannel` Action. Both target `acs:platform:*:platform:relay-channel/<channelId>` and require READ or REVIEW eligibility from a deployment-managed global group. An account policy alone cannot grant that eligibility. Listing a channel does not grant detail access, mutation, export, or credential access.
+
+Only individually allowed, business-visible channels appear. Denied parents and members are omitted, and denied or invisible leaves cannot contribute model capabilities to a pool. Disabled or provider-paused channels are excluded from the default list; `includeDisabled=true` includes their configuration. A detail read may show disabled metadata without advertising active capabilities. Credential fields are presence booleans only, never secret values.
+
+OAuth retains the channel-read scope for the list; the unscoped detail endpoint does not accept OAuth tokens. AccessKeys and role sessions use their existing authority, rechecked before return. A missing or denied detail returns the same 403. Refresh and retry if identity, policy, visibility, membership, or session authority changes during loading. Legacy/shadow retain the original business read; shadow does not fetch a second configuration payload.
+
 ## Batch channel enable/disable
 
 In IAM enforce mode, batch enable/disable uses `quyan:relay:SetChannelStatus` on every selected `acs:platform:*:platform:relay-channel/<channelId>`. It requires `RELAY_CHANNEL_UPDATE` eligibility from an active deployment-managed global group; an account-owned group, extra user permission, or wildcard policy cannot create that eligibility. A role session uses only its role grants, within the same management ceiling.

@@ -34,3 +34,22 @@ describe("generated full-admission channel topology contract", () => {
     );
   });
 });
+
+describe("generated resource-scoped channel configuration reads", () => {
+  it.each([
+    ["/v1/relay-channels", ["relay:channel:read"]],
+    ["/v1/relay-channels/{id}", []],
+  ])("preserves OAuth admission and errors for %s", (path, scopes) => {
+    const operation = document.paths[path as string].get;
+    expect(operation.security).toContainEqual({ jwt: scopes });
+    expect(operation.responses).toHaveProperty("401");
+    expect(operation.responses).toHaveProperty("403");
+  });
+  it("exposes only credential-presence booleans, never credential values", () => {
+    const fields = document.components.schemas.RelayChannelDto.properties;
+    for (const provider of ["Openai", "Anthropic", "Gemini"]) {
+      expect(fields["has" + provider + "UpstreamApiKey"]).toMatchObject({ type: "boolean" });
+      expect(fields).not.toHaveProperty(provider[0].toLowerCase() + provider.slice(1) + "UpstreamApiKey");
+    }
+  });
+});

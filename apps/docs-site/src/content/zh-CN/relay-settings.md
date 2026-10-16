@@ -25,6 +25,14 @@ IAM 强制模式下，“我的修改申请”使用 `quyan:relay:ListMyChannelC
 
 启用 IAM 强制授权后，管理表格使用 `quyan:relay:ListManagementChannels` 检查每个 `acs:platform:*:platform:relay-channel/<channelId>`。记录、分页和总数只包含既有可见性与筛选规则下获准查看的渠道；被拒绝的父渠道名称和成员引用会被隐藏。模型筛选只使用获准的渠道池路径，并保留严格子渠道设置覆盖重复旧成员关系的规则；被拒绝的叶渠道不能贡献模型能力。此 Action 授予列表访问权限，渠道修改和交付需要各自的 Action；仍需部署管理员设置的管理资格。加载过程中权限变化时需要刷新重试。
 
+## IAM 渠道配置访问
+
+启用 IAM 强制授权后，`GET /v1/relay-channels` 使用 `quyan:relay:ListChannels`；`GET /v1/relay-channels/{id}` 使用独立的 `quyan:relay:GetChannel`。两者均针对 `acs:platform:*:platform:relay-channel/<channelId>`，并要求操作者具有部署全局组中的 READ 或 REVIEW 资格。仅绑定账号策略不能获得该资格。列表授权不自动授予详情、修改、导出或密钥访问权限。
+
+列表只返回逐项获准且符合业务可见性规则的渠道。被拒绝的父渠道和成员引用会被隐藏；被拒绝或不可见的叶渠道不能贡献池的模型能力。默认列表排除已停用渠道和供应商暂停服务的渠道；`includeDisabled=true` 可包含其配置。详情可显示停用渠道的元数据，但不会宣称其具有活跃能力。密钥字段只返回是否已配置的布尔值，不返回密钥内容。
+
+列表保留 OAuth 渠道读取 scope 要求；无 scope 的详情接口不接受 OAuth Token。AccessKey 和角色会话使用其原有授权，并在返回前复核。详情不存在或无权访问均返回相同的 403。加载期间身份、策略、可见性、成员关系或会话权限变化时，需要刷新重试。legacy/shadow 保留原有业务读取；shadow 不会额外读取第二份配置内容。
+
 ## 页面用途
 
 - 调整全局转发策略和基础限流行为。

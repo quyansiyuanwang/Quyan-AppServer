@@ -1,3 +1,4 @@
+import { RelayChannelConfigurationReadIamService } from "./relay-channel-configuration-read-iam.service";
 import { projectRelayChannelConfiguration } from "./relay-channel-configuration-projection";
 import { RelayChannelTopologyAuditIamService } from "./relay-channel-topology-audit-iam.service";
 import { iamAccountDenied } from "@/store/users/iam-account-principal";
@@ -240,7 +241,23 @@ export class RelayChannelService {
     return this.instance;
   }
 
+  async listChannelConfigurations(
+    actorUserId: string,
+    includeDisabled = false,
+    request?: TypedRequest,
+  ): Promise<RelayChannelDto[]> {
+    return RelayChannelConfigurationReadIamService.getInstance().read(
+      "ListChannels",
+      { includeDisabled },
+      actorUserId,
+      request,
+      () => this.listChannels(actorUserId, includeDisabled),
+    );
+  }
+
+  /** Legacy probe/business callbacks only. Native endpoints must use listChannelConfigurations. */
   async listChannels(actorUserId: string, includeDisabled = false): Promise<RelayChannelDto[]> {
+    if (!["legacy", "shadow"].includes(env.security.iamAuthorizationMode)) throw iamAccountDenied();
     const channels = includeDisabled
       ? await this.relayChannelRepository.listVisible()
       : await this.relayChannelRepository.listActive();
@@ -873,7 +890,21 @@ export class RelayChannelService {
     return normalizedTargetUserId;
   }
 
+  async getChannelConfiguration(id: string, actorUserId: string, request?: TypedRequest): Promise<RelayChannelDto> {
+    const records = await RelayChannelConfigurationReadIamService.getInstance().read(
+      "GetChannel",
+      { id, includeDisabled: false },
+      actorUserId,
+      request,
+      async () => [await this.getChannel(id, actorUserId)],
+    );
+    if (!records[0]) throw iamAccountDenied();
+    return records[0];
+  }
+
+  /** Legacy probe/business callbacks only; never a fallback for an enforced resource read. */
   async getChannel(id: string, actorUserId: string): Promise<RelayChannelDto> {
+    if (!["legacy", "shadow"].includes(env.security.iamAuthorizationMode)) throw iamAccountDenied();
     const channel = await this.relayChannelRepository.findVisibleById(id);
     if (!channel)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });

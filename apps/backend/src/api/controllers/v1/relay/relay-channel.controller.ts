@@ -113,12 +113,20 @@ export class RelayChannelController extends Controller {
 
   @Get()
   @Security("jwt", ["relay:channel:read"])
-  @RequireAnyPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListChannels",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async listChannels(
     @Request() request: TypedRequest,
     @Query() includeDisabled?: boolean,
   ): Promise<RelayChannelDto[]> {
-    return this.channelService.listChannels(request.user!.userId, includeDisabled === true);
+    return this.channelService.listChannelConfigurations(request.user!.userId, includeDisabled === true, request);
   }
 
   @Get("management")
@@ -622,21 +630,18 @@ export class RelayChannelController extends Controller {
 
   @Get("{id}")
   @Security("jwt")
-  @CheckPermission([Permission.RELAY_CHANNEL_READ, Permission.RELAY_CHANNEL_REVIEW], PermissionCheckMode.ANY, "jwt", [
-    {
-      action: "quyan:relay:channel:Read",
-      resourceKind: "single-resource",
-      resource: relayChannelResourceResolver,
-    },
-    {
-      action: "quyan:relay:channel:Review",
-      resourceKind: "single-resource",
-      resource: relayChannelResourceResolver,
-    },
-  ])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:GetChannel",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   @Middlewares(validateParams(relayChannelIdParamsSchema))
   public async getChannel(@Path() id: string, @Request() request: TypedRequest): Promise<RelayChannelDto> {
-    return this.channelService.getChannel(id, request.user!.userId);
+    return this.channelService.getChannelConfiguration(id, request.user!.userId, request);
   }
 
   @Post("export")
