@@ -67,7 +67,7 @@ OAuth retains the channel-read scope for the list; the unscoped detail endpoint 
 
 ## Batch channel enable/disable
 
-In IAM enforce mode, batch enable/disable uses `quyan:relay:SetChannelStatus` on every selected `acs:platform:*:platform:relay-channel/<channelId>`. It requires `RELAY_CHANNEL_UPDATE` eligibility from an active deployment-managed global group; an account-owned group, extra user permission, or wildcard policy cannot create that eligibility. A role session uses only its role grants, within the same management ceiling.
+In IAM enforce mode, single channel toggles and batch enable/disable use `quyan:relay:SetChannelStatus` on every selected `acs:platform:*:platform:relay-channel/<channelId>`. It requires `RELAY_CHANNEL_UPDATE` eligibility from an active deployment-managed global group; an account-owned group, extra user permission, or wildcard policy cannot create that eligibility. A role session uses only its role grants, within the same management ceiling.
 
 Submit 1–200 distinct, existing, undeleted channel IDs and a JSON boolean `enabled` (`true` or `false`, not the string `"false"`). Every selected resource must be allowed. A denied or missing channel, or a change to resource, identity, policy, AccessKey, OAuth, or role-session authority before commit, prevents the whole batch from taking effect. OAuth clients and access tokens must retain the channel-update scope. The endpoint returns only counts: it does not read credentials, require channel-read permission, detach tokens, change pool membership, or change provider-service eligibility. Replay protection and step-up verification remain required. Legacy/shadow keep their original authorization behavior; shadow does not issue a second status write.
 
@@ -446,6 +446,12 @@ Administrators can review channel status, add multiple providers in the channel 
 3. When upstream compatibility differs, reduce risk with format restrictions and model allowlists.
 4. Before publishing pricing changes, check global multiplier, channel multiplier, and time-based multipliers together to avoid unintended stacking.
 5. After changing pooled routing, review switch logs and status views to confirm failover behaves as intended.
+
+## Resource-scoped channel availability
+
+Single toggles and batch enable/disable share `quyan:relay:SetChannelStatus` on the platform channel ARN. A single toggle reads the current status and flips it in one authorized transaction; it does not accept a client-supplied status or Action. The resulting safe configuration is checked within the same transaction. It never returns upstream credential values, and pooled capabilities only include separately authorized related channels. Counts-only batches do not need permission to disclose channel configurations.
+
+Identity, policy, role session, AccessKey, authorization-mode or final target changes cancel the entire mutation. Single toggles retain step-up verification and replay protection, and do not accept OAuth tokens. Existing `RELAY_CHANNEL_UPDATE` permissions map to the Action automatically. JSON policies using the old account-owned `quyan:relay:channel:Update` alias must explicitly grant the platform Action and ARN. Legacy/shadow modes invoke the existing write once; shadow does not generate a second native configuration response.
 
 ## Resource-scoped channel deletion
 

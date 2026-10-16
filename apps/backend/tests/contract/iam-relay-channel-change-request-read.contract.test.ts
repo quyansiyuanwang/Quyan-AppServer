@@ -177,3 +177,17 @@ describe("generated native channel provider configuration contract", () => {
       expect(provider.properties).not.toHaveProperty(field);
   });
 });
+
+describe("generated native channel availability toggle contract", () => {
+  it("retains unscoped JWT, server path identity and safe errors", () => {
+    const operation = document.paths["/v1/relay-channels/{id}/toggle"].patch;
+    expect(operation.security).toContainEqual({ jwt: [] });
+    for (const status of ["401", "403"]) expect(operation.responses).toHaveProperty(status);
+    expect(operation.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: "id", in: "path", required: true })]),
+    );
+    expect(operation.requestBody).toBeUndefined();
+    for (const field of ["openaiUpstreamApiKey", "anthropicUpstreamApiKey", "geminiUpstreamApiKey"])
+      expect(document.components.schemas.RelayChannelDto.properties).not.toHaveProperty(field);
+  });
+});

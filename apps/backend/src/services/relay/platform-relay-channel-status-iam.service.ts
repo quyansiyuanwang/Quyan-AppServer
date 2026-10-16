@@ -1,3 +1,5 @@
+import { isDeepStrictEqual as same } from "node:util";
+import { projectAuthorizedRelayChannelMutation } from "./relay-channel-authorized-mutation-projection";
 import type { Prisma } from "@prisma/client";
 import { Permission, type IamPrincipal } from "@quyan/shared";
 import { env } from "@/config/env";
@@ -18,7 +20,11 @@ import { batchSetRelayChannelStatusBodySchema } from "@/api/schema/relay/relay-c
 import { BadRequestError } from "@/util/errors";
 import { getLogger, LogCategory } from "@/util/logger";
 import type { TypedRequest } from "@/types/express";
-import type { BatchSetRelayChannelStatusRequest, BatchRelayChannelsResultDto } from "@/api/dto/relay/relay-channel.dto";
+import type {
+  BatchSetRelayChannelStatusRequest,
+  BatchRelayChannelsResultDto,
+  RelayChannelDto,
+} from "@/api/dto/relay/relay-channel.dto";
 const action = "quyan:relay:SetChannelStatus";
 export class PlatformRelayChannelStatusIamService {
   private static instance: PlatformRelayChannelStatusIamService;
@@ -43,8 +49,50 @@ export class PlatformRelayChannelStatusIamService {
     const parsed = batchSetRelayChannelStatusBodySchema.safeParse(input);
     if (!parsed.success || parsed.data.ids.some((id) => !isPlatformLogResourceId(id)))
       throw new BadRequestError("Invalid channel status request", undefined, { messageKey: "errors.badRequest" });
-    const { ids, enabled } = parsed.data,
-      mode = env.security.iamAuthorizationMode;
+    const { ids, enabled } = parsed.data;
+    return this.executeAuthorized(ids, enabled, actorUserId, request, legacy, ({ total, affected }) => ({
+      total,
+      affected,
+    }));
+  }
+  async toggle(
+    id: string,
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    legacy: () => Promise<RelayChannelDto>,
+  ): Promise<RelayChannelDto> {
+    if (!isPlatformLogResourceId(id))
+      throw new BadRequestError("Invalid channel status target", undefined, { messageKey: "errors.badRequest" });
+    if (request?.oauthAccessToken) throw iamAccountDenied(); // Unscoped JWT route does not admit OAuth.
+    return this.executeAuthorized<RelayChannelDto>(
+      [id],
+      "toggle",
+      actorUserId,
+      request,
+      legacy,
+      (result) => {
+        if (!result.value) throw iamAccountDenied();
+        return result.value;
+      },
+      (tx, principal, request, recheck) =>
+        projectAuthorizedRelayChannelMutation(tx, { principal, action, request, id, recheck }),
+    );
+  }
+  private async executeAuthorized<T>(
+    ids: string[],
+    enabled: boolean | "toggle",
+    actorUserId: string,
+    request: TypedRequest | undefined,
+    legacy: () => Promise<T>,
+    complete: (result: { total: number; affected: number; value?: T }) => T,
+    project?: (
+      tx: Prisma.TransactionClient,
+      principal: IamPrincipal,
+      request: TypedRequest,
+      recheck: (tx?: Prisma.TransactionClient) => Promise<void>,
+    ) => Promise<{ value: T; verify: () => Promise<void> }>,
+  ): Promise<T> {
+    const mode = env.security.iamAuthorizationMode;
     if (!["legacy", "shadow", "enforce"].includes(mode)) throw iamAccountDenied();
     if (!request) {
       if (mode !== "legacy") throw iamAccountDenied();
@@ -75,7 +123,8 @@ export class PlatformRelayChannelStatusIamService {
         oauthRevision = await captureIamOAuthRevision(principal, binding, [Permission.RELAY_CHANNEL_UPDATE]);
       const assertRequest = () => {
         if (
-          JSON.stringify(getIamPrincipal(request)) !== JSON.stringify(principal) ||
+          env.security.iamAuthorizationMode !== mode ||
+          !same(getIamPrincipal(request), principal) ||
           request.accessKey?.id !== keyId ||
           (binding
             ? request.oauthAccessToken?.id !== binding.id ||
@@ -95,7 +144,7 @@ export class PlatformRelayChannelStatusIamService {
             select: { id: true, updateTime: true },
           });
           if (
-            JSON.stringify(group) !== JSON.stringify(snapshot.group) ||
+            !same(group, snapshot.group) ||
             users.length !== snapshot.users.length ||
             users.some(
               (row) =>
@@ -118,15 +167,22 @@ export class PlatformRelayChannelStatusIamService {
           request,
           resources: ids.map(platformRelayChannelArn),
         });
-        if (decisions.some((decision) => decision !== "Allow")) throw iamAccountDenied();
+        if (decisions.length !== ids.length || decisions.some((decision) => decision !== "Allow"))
+          throw iamAccountDenied();
         assertRequest();
       };
       await recheck();
       const targets = await this.repository.candidates(ids);
       await recheck();
-      return this.repository.apply(targets, enabled, { principal, snapshot, recheck }, persist);
+      return this.repository.apply<T>(
+        targets,
+        enabled,
+        { principal, snapshot, recheck },
+        persist,
+        project ? (tx) => project(tx, principal, request, recheck) : undefined,
+      );
     };
-    if (mode === "enforce") return native(true);
+    if (mode === "enforce") return complete(await native(true));
     try {
       await native(false);
     } catch {

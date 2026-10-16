@@ -72,6 +72,51 @@ describe("resource-level channel status admission", () => {
     });
     expect(isIamActionResourceCompatible("quyan:relay:SetChannelStatus", platformRelayChannelArn("first"))).toBe(true);
   });
+  it("declares the same server Action on a step-up protected single toggle", () => {
+    const project = new Project({ skipAddingFilesFromTsConfig: true }),
+      source = project.addSourceFileAtPath("src/api/controllers/v1/relay/relay-channel.controller.ts");
+    expect(
+      collectIamRoutes(project.getSourceFiles(), process.cwd()).find(
+        (row) => row.key === "PATCH /v1/relay-channels/{id}/toggle",
+      ),
+    ).toMatchObject({ coverage: "explicit", actions: ["quyan:relay:SetChannelStatus"], issues: [] });
+    const method = source.getClassOrThrow("RelayChannelController").getMethodOrThrow("toggleChannelStatus").getText();
+    for (const required of [
+      '@Security("jwt")',
+      "platformRelayChannelResourceResolver",
+      "@TwoFactorChallengeProtected",
+      "replayProtectionMiddleware",
+      "validateParams(relayChannelIdParamsSchema)",
+    ])
+      expect(method).toContain(required);
+    expect(getIamActionDefinition("quyan:relay:SetChannelStatus")!.apiRoutes).toContain(
+      "PATCH /v1/relay-channels/{id}/toggle",
+    );
+  });
+  it.each([{ decisions: [] }, { decisions: [{ decision: "Allow" }] }])(
+    "rejects incomplete batch decisions %#",
+    async ({ decisions }) => {
+      iam.authorizeMany.mockResolvedValue(decisions);
+      await expect(execute()).rejects.toMatchObject({ statusCode: 403 });
+      expect(repository.apply).not.toHaveBeenCalled();
+    },
+  );
+  it("refuses a mode change during authorization rather than writing under a stale mode", async () => {
+    snapshots.snapshot.mockImplementation(async () => {
+      env.security.iamAuthorizationMode = "legacy";
+      return {};
+    });
+    await expect(execute()).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.apply).not.toHaveBeenCalled();
+    expect(legacy).not.toHaveBeenCalled();
+  });
+  it("single toggle requires an admitted safe projection, not counts or a second read", async () => {
+    repository.candidates.mockResolvedValue([{ id: "first", status: 1, updateTime: new Date(0) }]);
+    await expect(service.toggle("first", "actor", request(), legacy)).rejects.toMatchObject({ statusCode: 403 });
+    expect(repository.apply.mock.calls[0]![1]).toBe("toggle");
+    expect(repository.apply.mock.calls[0]![4]).toBeTypeOf("function");
+    expect(legacy).not.toHaveBeenCalled();
+  });
   it("checks every platform resource and does not trust client Action headers", async () => {
     expect(await execute()).toEqual({ total: 2, affected: 2 });
     for (const [input] of iam.authorizeMany.mock.calls)

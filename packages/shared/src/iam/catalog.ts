@@ -1578,7 +1578,7 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
     operation: 'SetChannelStatus',
     accessLevel: 'Write',
     resourceTypes: ['platform/relay-channel'],
-    apiRoutes: ['PATCH /v1/relay-channels/batch/status'],
+    apiRoutes: ['PATCH /v1/relay-channels/batch/status', 'PATCH /v1/relay-channels/{id}/toggle'],
     conditionKeys: [...IAM_GLOBAL_CONDITION_KEYS],
     sensitive: true,
     authorizationStage: 'declared',

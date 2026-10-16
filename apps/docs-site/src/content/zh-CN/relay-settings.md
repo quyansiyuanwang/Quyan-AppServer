@@ -67,7 +67,7 @@ Redis 清除不可撤回，数据库事务不能将其回滚。存储连接在�
 
 ## 批量启用与停用渠道
 
-在 IAM enforce 模式下，批量启停对每个选中的 `acs:platform:*:platform:relay-channel/<渠道ID>` 检查 `quyan:relay:SetChannelStatus`。操作者必须通过启用中的部署级全局组具备 `RELAY_CHANNEL_UPDATE` 管理资格；账户自建组、用户附加权限或通配符策略不能自行赋予此资格。角色会话仅使用角色自身授权，并受相同管理资格上限约束。
+在 IAM enforce 模式下，单渠道切换和批量启停对每个选中的 `acs:platform:*:platform:relay-channel/<渠道ID>` 检查 `quyan:relay:SetChannelStatus`。操作者必须通过启用中的部署级全局组具备 `RELAY_CHANNEL_UPDATE` 管理资格；账户自建组、用户附加权限或通配符策略不能自行赋予此资格。角色会话仅使用角色自身授权，并受相同管理资格上限约束。
 
 请求需包含 1–200 个互不重复、存在且未删除的渠道 ID，以及 JSON 布尔值 `enabled`（`true` 或 `false`，不能使用字符串 `"false"`）。全部选中资源都必须获准；任一渠道被拒绝或不存在，或提交前资源、身份、策略、AccessKey、OAuth、角色会话权限发生变化时，整个批次不生效。OAuth 应用与访问令牌必须保留渠道更新 scope。此接口只返回数量，不读取凭据，也不要求渠道读取权限；不会解绑 Token、改变混池成员或服务提供资格。重放保护和二次验证继续有效。legacy/shadow 保留原有授权行为，shadow 不会额外执行第二次状态写入。
 
@@ -446,6 +446,12 @@ IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_REA
 3. 当上游兼容性不完全一致时，优先用模型白名单和格式限制缩小风险面。
 4. 先确定计费策略，再同时检查全局倍率、渠道倍率和分时倍率，避免叠加过高。
 5. 每次修改混池路由后，都应观察切换日志和状态页，确认故障切换符合预期。
+
+## 资源级渠道启停
+
+单渠道切换和批量启停使用相同的 `quyan:relay:SetChannelStatus` 及平台渠道 ARN。单渠道切换在一个已授权事务内读取当前状态并反转，不接受客户端指定状态或 Action；返回的安全配置也在同一事务内复核。响应不包含上游凭据值，混池能力仅包含另行获准的关联渠道。只返回数量的批量操作不要求披露渠道配置的权限。
+
+身份、策略、角色会话、AccessKey、授权模式或最终目标发生变化时，整个修改都会取消。单渠道切换保留二次验证和重放保护，不接受 OAuth Token。现有 `RELAY_CHANNEL_UPDATE` 权限自动映射到该 Action；仅使用旧账号级 `quyan:relay:channel:Update` 别名的 JSON 策略，需要显式授权平台 Action 和 ARN。legacy/shadow 模式仅执行一次原业务写入，shadow 不会额外生成原生配置响应。
 
 ## 资源级渠道删除
 

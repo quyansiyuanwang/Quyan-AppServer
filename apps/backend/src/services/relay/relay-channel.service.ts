@@ -3643,6 +3643,32 @@ export class RelayChannelService {
   }
 
   async toggleChannelStatus(id: string, actorUserId: string, request?: Request): Promise<RelayChannelDto> {
+    const mode = env.security.iamAuthorizationMode;
+    const result = await PlatformRelayChannelStatusIamService.getInstance().toggle(
+      id,
+      actorUserId,
+      request as TypedRequest | undefined,
+      () => this.toggleChannelStatusLegacy(id, actorUserId, request),
+    );
+    if (mode === "enforce")
+      await this.businessLogService.logOperation({
+        operationType: OperationType.RELAY_CHANNEL_STATUS_CHANGE,
+        operationCategory: OperationCategory.RELAY,
+        actorUserId,
+        targetResourceId: id,
+        targetResourceType: "RELAY_CHANNEL",
+        description: "Toggled authorized channel availability",
+        changes: { enabled: result.enabled },
+        success: true,
+        ...buildBusinessLogRequestContext(request),
+      });
+    return result;
+  }
+  private async toggleChannelStatusLegacy(
+    id: string,
+    actorUserId: string,
+    request?: Request,
+  ): Promise<RelayChannelDto> {
     const existing = await this.relayChannelRepository.findVisibleById(id);
     if (!existing)
       throw new NotFoundError("Relay channel not found", undefined, { messageKey: "relayChannel.notFound" });

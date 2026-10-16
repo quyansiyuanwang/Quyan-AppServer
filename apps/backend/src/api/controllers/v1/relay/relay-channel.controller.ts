@@ -835,9 +835,9 @@ export class RelayChannelController extends Controller {
   @Patch("{id}/toggle")
   @Security("jwt")
   @CheckPermission(Permission.RELAY_CHANNEL_UPDATE, PermissionCheckMode.ALL, "jwt", {
-    action: "quyan:relay:channel:Update",
+    action: "quyan:relay:SetChannelStatus",
     resourceKind: "single-resource",
-    resource: relayChannelResourceResolver,
+    resource: platformRelayChannelResourceResolver,
   })
   @TwoFactorChallengeProtected({ purpose: "stepup", method: "code" })
   @Middlewares(
@@ -845,6 +845,8 @@ export class RelayChannelController extends Controller {
     replayProtectionMiddleware,
     validateParams(relayChannelIdParamsSchema),
   )
+  @Response(401, "Unauthorized")
+  @Response(403, "Forbidden")
   public async toggleChannelStatus(@Path() id: string, @Request() request: TypedRequest): Promise<RelayChannelDto> {
     return this.channelService.toggleChannelStatus(id, request.user!.userId, request);
   }
