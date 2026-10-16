@@ -519,3 +519,13 @@ IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_REA
 省略 `targetUserId`、留空或填写自己的 ID 时，使用自己的正常视图。预览同账号内其他正常用户，还需要在 `acs:quyan:*:<当前账号ID>:user/<目标用户ID>` 上允许 `quyan:relay:PreviewChannelRoutingCatalog`。预览其他账号的用户，使用 `acs:platform:*:platform:user/<目标用户ID>` 上的 `quyan:relay:PreviewManagedChannelRoutingCatalog`，并且操作者必须具备部署管理的“读取他人 Relay 令牌”资格。个人策略或账号自建用户组不能自行取得这种平台资格。服务端依据已保存的账号归属选择唯一预览边界，同账号预览被拒绝后不会退回平台预览。
 
 无论预览谁，操作者始终需要自己的渠道视图授权，渠道还必须对操作者和目标用户**双方可见**；隐藏、禁用或已关闭提供服务的节点仍不可用。目标用户的策略不会成为操作者的授权来源，预览也不会创建令牌或委派权限。返回前复查目标身份、账号归属、可见性相关用户组和角色、操作者策略及认证状态，发生变更或撤权时安全失败。OAuth 仍需原渠道读取 Scope；legacy/shadow 模式保留原权限门槛，业务读取只执行一次。
+
+### 渠道选项与可选池详情
+
+启用 IAM 强制授权后，`GET /v1/relay-channels/options` 对每个账户内的 `acs:relay:*:<yourAccountId>:channel-selection/<channelId>` 使用 `quyan:relay:ListChannelOptions`。展示的渠道以及参与能力计算的节点均需分别获得授权并保持业务可见。此选项接口可以包含物理成员；需要排除物理成员的终端用户选择器应使用路由目录。`excludePooled=true` 仅隐藏逻辑混池条目，不会删除自动池中已经授权的能力计算路径。
+
+基础选项不提供渠道类型、成员身份、路由设置和逐成员价格。需要这些可选字段时，还需对相关渠道选择资源授予 `quyan:relay:ReadChannelOptionPoolMetadata`。这是受限的消费者能力，与平台拓扑审计或诊断权限分离。对成员的可选详情 Deny 会移除其拓扑和价格贡献，但不会代替或撤销独立授权的基础模型能力。不能绕过被拒绝的中间节点，披露共享执行叶节点。公开路由设置仅包含支持的字段；正则重试规则展示为等价 HTTP 状态码，而非原始规则文本。接口不返回凭据和上游地址。
+
+预览其他用户还需对所选账户内用户授予 `quyan:relay:PreviewChannelOptions`；跨账户时，对平台用户使用 `quyan:relay:PreviewManagedChannelOptions`，并同时具备部署侧维护的其他用户令牌读取资格。操作者自身授权以及双方的业务可见范围始终生效；路由目录的预览授权不等于选项接口的预览授权。预览不授予令牌修改或平台管理能力。OAuth 仍需渠道读取 scope。
+
+月卡模板指定渠道时，创建、编辑和发布会使用真实登录操作者的已授权渠道选项进行范围校验。模板写入 Action 不能替代渠道选项授权；不可用、被拒绝或没有有效模型能力的渠道不能作为有效范围保存。legacy/shadow 模式保留原有权限检查和兼容读取；enforce 不会退回到缺少请求上下文或不受限的读取路径。

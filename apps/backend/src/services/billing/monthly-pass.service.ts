@@ -780,6 +780,7 @@ export class MonthlyPassService {
     allowedModels: string[] | null | undefined,
     allowedChannels: string[] | null | undefined,
     actorUserId: string,
+    request?: TypedRequest,
   ): Promise<void> {
     const modelNames = [...new Set((allowedModels ?? []).map((item) => item.trim()).filter(Boolean))];
     const channelIds = [...new Set((allowedChannels ?? []).map((item) => item.trim()).filter(Boolean))];
@@ -787,7 +788,9 @@ export class MonthlyPassService {
 
     const [modelRecords, channelOptions] = await Promise.all([
       this.modelPricingRepository.listActiveOrderedByModel(),
-      channelIds.length > 0 ? this.relayChannelService.listChannelOptions(actorUserId) : Promise.resolve([]),
+      channelIds.length > 0
+        ? this.relayChannelService.listChannelOptions(actorUserId, undefined, {}, request)
+        : Promise.resolve([]),
     ]);
     const activeModelNames = new Set(modelRecords.map((item) => item.model.trim()).filter(Boolean));
     const unknownModels = modelNames.filter((modelName) => !activeModelNames.has(modelName));
@@ -850,7 +853,7 @@ export class MonthlyPassService {
     return MonthlyPassFilterOptionsIamService.getInstance().read(
       actorUserId,
       request,
-      () => this.getFilterOptionsLegacy(actorUserId),
+      () => this.getFilterOptionsLegacy(actorUserId, request),
       {
         templateStatusOptions: DEFAULT_NUMBER_STATUS_OPTIONS,
         assignmentStatusOptions: DEFAULT_NUMBER_STATUS_OPTIONS,
@@ -860,11 +863,14 @@ export class MonthlyPassService {
       },
     );
   }
-  private async getFilterOptionsLegacy(actorUserId: string): Promise<MonthlyPassFilterOptionsDto> {
+  private async getFilterOptionsLegacy(
+    actorUserId: string,
+    request?: TypedRequest,
+  ): Promise<MonthlyPassFilterOptionsDto> {
     const [templateResult, modelRecords, relayChannels, groups] = await Promise.all([
       this.listTemplatesLegacy(1, MONTHLY_PASS_MAX_PAGE_SIZE),
       this.modelPricingRepository.listActiveOrderedByModel(),
-      this.relayChannelService.listChannelOptions(actorUserId),
+      this.relayChannelService.listChannelOptions(actorUserId, undefined, {}, request),
       this.getVisibleGroupOptions(actorUserId),
     ]);
 
@@ -925,7 +931,12 @@ export class MonthlyPassService {
         messageKey: "monthlyPass.templateNameExists",
       });
 
-    await this.validateTemplateScope(data.allowedModels, data.allowedChannels, actorUserId);
+    await this.validateTemplateScope(
+      data.allowedModels,
+      data.allowedChannels,
+      actorUserId,
+      request as TypedRequest | undefined,
+    );
 
     const hasPricingInput = data.originalPrice !== undefined || data.discountPercent !== undefined;
     const quotaWindowHours = normalizeQuotaWindowHours(data.quotaWindowHours, true);
@@ -1081,6 +1092,7 @@ export class MonthlyPassService {
       parseAllowedModels(existing.allowedModels),
       parseAllowedChannels(existing.allowedChannels),
       actorUserId,
+      request as TypedRequest | undefined,
     );
 
     const record = await this.monthlyPassRepository.updateTemplate(
@@ -1182,6 +1194,7 @@ export class MonthlyPassService {
       data.allowedModels === undefined ? parseAllowedModels(existing.allowedModels) : data.allowedModels,
       data.allowedChannels === undefined ? parseAllowedChannels(existing.allowedChannels) : data.allowedChannels,
       actorUserId,
+      request as TypedRequest | undefined,
     );
 
     const hasPricingUpdate = data.originalPrice !== undefined || data.discountPercent !== undefined;

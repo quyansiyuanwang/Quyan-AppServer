@@ -1,3 +1,5 @@
+import { relayChannelSelectionArn } from "@/iam/resources/relay-channel-selection-resources";
+import { projectRelayChannelOptions } from "./relay-channel-options-projection";
 import type { Prisma } from "@prisma/client";
 import { platformManagementGroupSnapshot } from "@/store/users/platform-management-principal";
 import { platformUserArn } from "@/iam/resources/platform-user-resources";
@@ -5,7 +7,7 @@ import { isRelayTokenResourceId } from "@/iam/resources/relay-token-resources";
 import { projectRelayChannelRoutingCatalog } from "./relay-channel-routing-catalog-projection";
 import type { RelayCatalogSnapshot } from "@/store/relay/relay-channel-catalog-read.repository";
 import { isDeepStrictEqual as same } from "node:util";
-import { Permission, iamLegacyPermissionsForAction, buildAcsResource } from "@quyan/shared";
+import { Permission, iamLegacyPermissionsForAction, buildAcsResource, type IamPrincipal } from "@quyan/shared";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
 import { env } from "@/config/env";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
@@ -28,12 +30,8 @@ export class RelayChannelCatalogIamService {
     return (this.instance ??= new RelayChannelCatalogIamService());
   }
   async read(actorUserId: string, request: TypedRequest | undefined, legacy: () => Promise<RelayCatalogOptionDto[]>) {
-    return this.readProjection(
-      actorUserId,
-      request,
-      legacy,
-      "quyan:relay:ListChannelCatalog",
-      projectRelayChannelCatalog,
+    return this.readProjection(actorUserId, request, legacy, "quyan:relay:ListChannelCatalog", (snapshot) =>
+      projectRelayChannelCatalog(snapshot),
     );
   }
   async readRouting(
@@ -47,7 +45,37 @@ export class RelayChannelCatalogIamService {
       request,
       legacy,
       "quyan:relay:ListChannelRoutingCatalog",
-      projectRelayChannelRoutingCatalog,
+      (snapshot) => projectRelayChannelRoutingCatalog(snapshot),
+      targetUserId,
+    );
+  }
+  async readOptions(
+    actorUserId: string,
+    targetUserId: string | undefined,
+    excludePooled: boolean,
+    request: TypedRequest | undefined,
+    legacy: () => Promise<import("@/api/dto/relay/relay-channel.dto").RelayChannelOptionDto[]>,
+  ) {
+    return this.readProjection(
+      actorUserId,
+      request,
+      legacy,
+      "quyan:relay:ListChannelOptions",
+      async (snapshot, decide, principal) => {
+        const metadataIds = new Set<string>(),
+          limit = IAM_AUTHORIZATION_LIMITS.resourcesPerRequest;
+        for (let offset = 0; offset < snapshot.sources.length; offset += limit) {
+          const batch = snapshot.sources.slice(offset, offset + limit);
+          const results = await decide(
+            "quyan:relay:ReadChannelOptionPoolMetadata",
+            batch.map((source) => relayChannelSelectionArn(principal.accountOwnerId, source.id)),
+          );
+          batch.forEach((source, index) => {
+            if (results[index] === "Allow") metadataIds.add(source.id);
+          });
+        }
+        return projectRelayChannelOptions(snapshot, metadataIds, excludePooled);
+      },
       targetUserId,
     );
   }
@@ -55,8 +83,15 @@ export class RelayChannelCatalogIamService {
     actorUserId: string,
     request: TypedRequest | undefined,
     legacy: () => Promise<T[]>,
-    action: "quyan:relay:ListChannelCatalog" | "quyan:relay:ListChannelRoutingCatalog",
-    project: (snapshot: RelayCatalogSnapshot) => Promise<T[]>,
+    action:
+      | "quyan:relay:ListChannelCatalog"
+      | "quyan:relay:ListChannelRoutingCatalog"
+      | "quyan:relay:ListChannelOptions",
+    project: (
+      snapshot: RelayCatalogSnapshot,
+      decide: (action: string, resources: readonly string[]) => Promise<readonly string[]>,
+      principal: IamPrincipal,
+    ) => Promise<T[]>,
     targetUserId?: string,
   ) {
     const mode = env.security.iamAuthorizationMode;
@@ -117,9 +152,14 @@ export class RelayChannelCatalogIamService {
         });
         return outcomes;
       };
-      const previewAction = managed
-          ? "quyan:relay:PreviewManagedChannelRoutingCatalog"
-          : "quyan:relay:PreviewChannelRoutingCatalog",
+      const previewAction =
+          action === "quyan:relay:ListChannelOptions"
+            ? managed
+              ? "quyan:relay:PreviewManagedChannelOptions"
+              : "quyan:relay:PreviewChannelOptions"
+            : managed
+              ? "quyan:relay:PreviewManagedChannelRoutingCatalog"
+              : "quyan:relay:PreviewChannelRoutingCatalog",
         previewResource = managed
           ? platformUserArn(targetId)
           : buildAcsResource({
@@ -189,7 +229,7 @@ export class RelayChannelCatalogIamService {
         principal,
         (resources) => decide(action, resources),
         recheck,
-        hydrate ? project : undefined,
+        hydrate ? (snapshot) => project(snapshot, decide, principal) : undefined,
         otherTarget ? { userId: targetId, authorize: admitTarget } : undefined,
       );
       await recheck();

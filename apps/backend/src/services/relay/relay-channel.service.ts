@@ -418,6 +418,21 @@ export class RelayChannelService {
     actorUserId: string,
     targetUserId?: string,
     listOptions: { excludePooled?: boolean } = {},
+    request?: TypedRequest,
+  ): Promise<RelayChannelOptionDto[]> {
+    return RelayChannelCatalogIamService.getInstance().readOptions(
+      actorUserId,
+      targetUserId,
+      listOptions.excludePooled === true,
+      request,
+      () => this.listLegacyChannelOptions(actorUserId, targetUserId, listOptions),
+    );
+  }
+
+  private async listLegacyChannelOptions(
+    actorUserId: string,
+    targetUserId?: string,
+    listOptions: { excludePooled?: boolean } = {},
   ): Promise<RelayChannelOptionDto[]> {
     const effectiveUserId = await this.resolveOptionsUserId(actorUserId, targetUserId);
     const canViewPoolMetadata = await this.permissionService.hasPermission(

@@ -72,12 +72,7 @@ import type {
   RelayChannelSubmissionStatus,
 } from "@/api/dto/relay/relay-channel.dto";
 import type { PaginatedResponse } from "@/api/dto/common/common.dto";
-import {
-  CheckPermission,
-  PermissionCheckMode,
-  RequireAnyPermission,
-  RequirePermission,
-} from "@/util/permission/permission-decorator";
+import { CheckPermission, PermissionCheckMode, RequirePermission } from "@/util/permission/permission-decorator";
 import { Permission } from "@/constant/permission";
 import type { TypedRequest } from "@/types/express";
 import {
@@ -196,22 +191,19 @@ export class RelayChannelController extends Controller {
    */
   @Get("options")
   @Security("jwt", ["relay:channel:read"])
-  @RequireAnyPermission([
-    Permission.RELAY_CHANNEL_READ,
-    Permission.RELAY_TOKEN_CREATE,
-    Permission.RELAY_TOKEN_READ,
-    Permission.MONTHLY_PASS_TEMPLATE_READ,
-    Permission.MONTHLY_PASS_TEMPLATE_WRITE,
-    Permission.OJ_APIKEY_CREATE,
-    Permission.OJ_APIKEY_READ,
-    Permission.OJ_APIKEY_UPDATE,
-  ])
+  @Middlewares(
+    iamCollectionAuthorizationMiddleware({
+      action: "quyan:relay:ListChannelOptions",
+      resourceKind: "collection",
+      resource: ramAccountResourceResolver,
+    }),
+  )
   public async listChannelOptions(
     @Request() request: TypedRequest,
     @Query() targetUserId?: string,
     @Query() excludePooled?: boolean,
   ): Promise<RelayChannelOptionDto[]> {
-    return this.channelService.listChannelOptions(request.user!.userId, targetUserId, { excludePooled });
+    return this.channelService.listChannelOptions(request.user!.userId, targetUserId, { excludePooled }, request);
   }
 
   /** Safe directory for token and other end-user routing selectors. */
