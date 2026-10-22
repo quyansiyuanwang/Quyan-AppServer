@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { IamPolicyDocument } from "@quyan/shared";
 import { parseIamPolicy } from "../../../src/iam/parser/policy-parser";
-import { evaluatePolicies } from "../../../src/iam/evaluator/policy-evaluator";
+import { evaluatePolicies, evaluatePolicyRequests } from "../../../src/iam/evaluator/policy-evaluator";
 const input = (policyId: string, document: IamPolicyDocument) => ({
   policyId,
   document: parseIamPolicy(document).document,
@@ -60,5 +60,47 @@ describe("IAM policy decisions", () => {
         resource,
       }),
     ).toThrow();
+  });
+});
+
+describe("invocation-local policy validation reuse", () => {
+  it("matches individual decisions including invalid requests, scope, conditions and explicit Deny", () => {
+    const scoped = { ...sample, scope: { type: "resource" as const, arn: resource } };
+    const deny = input("batch-deny", {
+      Version: "1",
+      Statement: { Effect: "Deny", Action: "quyan:ram:DeleteUser", Resource: "*" },
+    });
+    const conditioned = input("batch-condition", {
+      Version: "1",
+      Statement: {
+        Effect: "Allow",
+        Action: "quyan:ram:CreateUser",
+        Resource: "*",
+        Condition: { Bool: { "acs:SecureTransport": true } },
+      },
+    });
+    const policies = [scoped, deny, conditioned];
+    const requests = [
+      { action: "quyan:ram:UpdateUser", resource },
+      { action: "quyan:ram:UpdateUser", resource: "acs:quyan:*:owner:user/other" },
+      { action: "quyan:ram:DeleteUser", resource },
+      { action: "quyan:ram:CreateUser", resource },
+      { action: "quyan:ram:CreateUser", resource, context: { "acs:SecureTransport": true } },
+      { action: "unknown:Action", resource },
+    ];
+    expect(evaluatePolicyRequests(policies, requests)).toEqual(
+      requests.map((request) => evaluatePolicies(policies, request)),
+    );
+  });
+  it("revalidates on every invocation and never retains a prior Allow after corruption", () => {
+    const policy = input("batch-mutation", {
+      Version: "1",
+      Statement: { Effect: "Allow", Action: "quyan:ram:UpdateUser", Resource: "*" },
+    });
+    const requests = [{ action: "quyan:ram:UpdateUser", resource }];
+    expect(evaluatePolicyRequests([policy], requests)[0].decision).toBe("Allow");
+    policy.document.Statement[0].Action = ["unknown:Action"];
+    expect(() => evaluatePolicyRequests([policy], requests)).toThrow();
+    expect(evaluatePolicyRequests([policy], [{ action: "unknown:Action", resource }])[0].decision).toBe("ImplicitDeny");
   });
 });

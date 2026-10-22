@@ -12,21 +12,25 @@ export function isGeneratedLegacyPolicyDocument(
   try {
     const source = parseLegacyPermissions(permissions);
     const generated = legacyPermissionsToPolicy(source, owner);
-    if (!generated || document.Statement.length !== 1) return false;
-    const statement = document.Statement[0],
-      expected = generated.Statement[0];
-    if (statement.Effect !== "Allow" || statement.Sid !== undefined || statement.Condition !== undefined) return false;
-    const actions = new Set(statement.Action),
-      allowed = new Set(expected.Action);
-    // Catalog-native aliases and new resource templates may not yet exist in an older immutable version.
-    if (
-      source.some((permission) => !actions.has(actionForPermission(permission))) ||
-      statement.Action.some((action) => !allowed.has(action))
-    )
-      return false;
-    const resources = new Set(expected.Resource);
-    const account = expected.Resource.find((resource) => resource.endsWith(":account"))!;
-    return statement.Resource.includes(account) && statement.Resource.every((resource) => resources.has(resource));
+    if (!generated || !document.Statement.length) return false;
+    // Large compatibility policies are split at the schema's per-statement pattern limit.
+    // Validate the complete source vocabulary, not just the first generated chunk.
+    const allowedActions = new Set(generated.Statement.flatMap((statement) => statement.Action));
+    const allowedResources = new Set(generated.Statement.flatMap((statement) => statement.Resource));
+    const actions = new Set(document.Statement.flatMap((statement) => statement.Action));
+    const account = [...allowedResources].find((resource) => resource.endsWith(":account"));
+    if (!account || source.some((permission) => !actions.has(actionForPermission(permission)))) return false;
+    return (
+      document.Statement.some((statement) => statement.Resource.includes(account)) &&
+      document.Statement.every(
+        (statement) =>
+          statement.Effect === "Allow" &&
+          statement.Sid === undefined &&
+          statement.Condition === undefined &&
+          statement.Action.every((action) => allowedActions.has(action)) &&
+          statement.Resource.every((resource) => allowedResources.has(resource)),
+      )
+    );
   } catch {
     return false;
   }

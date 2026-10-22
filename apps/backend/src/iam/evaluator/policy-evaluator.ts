@@ -22,6 +22,21 @@ export function evaluatePolicies(
   policies: readonly IamPolicyInput[],
   request: IamEvaluationRequest,
 ): IamEvaluationResult {
+  return evaluatePolicyRequest(policies, request, new Map());
+}
+/** Synchronous, invocation-local validation reuse; never caches grants across requests or calls. */
+export function evaluatePolicyRequests(
+  policies: readonly IamPolicyInput[],
+  requests: readonly IamEvaluationRequest[],
+): IamEvaluationResult[] {
+  const documents = new Map<IamPolicyInput, NormalizedIamPolicyDocument>();
+  return requests.map((request) => evaluatePolicyRequest(policies, request, documents));
+}
+function evaluatePolicyRequest(
+  policies: readonly IamPolicyInput[],
+  request: IamEvaluationRequest,
+  documents: Map<IamPolicyInput, NormalizedIamPolicyDocument>,
+): IamEvaluationResult {
   if (
     !isKnownIamAction(request.action) ||
     !isValidIamResource(request.resource) ||
@@ -32,7 +47,11 @@ export function evaluatePolicies(
   let missingConditionContext = false;
   for (const policy of policies) {
     // Fail closed even for malformed documents already persisted in storage.
-    const document = parseIamPolicy(policy.document).document;
+    let document = documents.get(policy);
+    if (!document) {
+      document = parseIamPolicy(policy.document).document;
+      documents.set(policy, document);
+    }
     if (policy.scope?.type === "resource" && !matchIamPattern(policy.scope.arn, request.resource)) continue;
     if (policy.scope?.type === "resource-group" && !policy.scope.resources.includes(request.resource)) continue;
     document.Statement.forEach((statement, index) => {

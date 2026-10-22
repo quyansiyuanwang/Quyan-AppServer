@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
-import { Permission } from "@quyan/shared";
+import { ALL_PERMISSIONS, Permission, actionForPermission } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { LegacyPolicyBackfillService } from "@/iam/migration/legacy-policy-backfill.service";
 import { IamPolicyMigrationRepository } from "@/store/users/iam-policy-migration.repository";
 import { planLegacyPolicy } from "@/iam/migration/legacy-policy-backfill";
+import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 const service = LegacyPolicyBackfillService.getInstance();
 const repository = IamPolicyMigrationRepository.getInstance();
 describe("account-scoped legacy policy migration", () => {
@@ -47,6 +48,54 @@ describe("account-scoped legacy policy migration", () => {
     expect((await service.run({ apply: true, accountOwnerId: ownerId })).scanned).toBe(0);
     expect(await prisma.ramPolicyVersion.count({ where: { policyId: policy.id } })).toBe(1);
   });
+  it("preserves live authorization after migrating a maximum-permission policy into multiple statements", async () => {
+    const child = await prisma.user.create({
+      data: {
+        username: "all-permissions-" + randomUUID(),
+        password: "fixture-only",
+        accountOwnerId: ownerId,
+        parentUserId: ownerId,
+        permissionAdds: [],
+        permissionRemoves: [],
+      },
+    });
+    const policy = await prisma.ramPolicy.create({
+      data: {
+        accountOwnerId: ownerId,
+        name: "all-permissions",
+        activeName: "all-permissions",
+        permissions: ALL_PERMISSIONS,
+      },
+    });
+    await prisma.ramPolicyAttachment.create({
+      data: { accountOwnerId: ownerId, policyId: policy.id, targetType: "user", targetId: child.id },
+    });
+    const request = {
+      principal: {
+        subjectUserId: child.id,
+        principalUserId: child.id,
+        accountOwnerId: ownerId,
+        subjectType: "sub_user" as const,
+      },
+      action: actionForPermission(Permission.RAM_USER_READ),
+      resource: "acs:quyan:*:" + ownerId + ":account",
+    };
+    const authorizer = IamAuthorizationService.getInstance();
+    expect((await authorizer.authorize(request)).decision).toBe("Allow");
+    expect(await service.run({ apply: true, accountOwnerId: ownerId })).toMatchObject({
+      migrated: 1,
+      invalid: 0,
+      changed: 0,
+    });
+    const migrated = await prisma.ramPolicy.findUniqueOrThrow({
+      where: { id: policy.id },
+      include: { defaultVersion: true },
+    });
+    expect((migrated.defaultVersion!.document as { Statement: unknown[] }).Statement.length).toBeGreaterThan(1);
+    expect((await authorizer.authorize(request)).decision).toBe("Allow");
+    expect(await service.run({ apply: true, accountOwnerId: ownerId })).toMatchObject({ migrated: 0, invalid: 0 });
+    expect((await authorizer.authorize(request)).decision).toBe("Allow");
+  }, 30000);
   it("does not touch other accounts, managed policies, empty policies or invalid permissions", async () => {
     await create();
     await prisma.ramPolicy.create({

@@ -6,6 +6,7 @@ import {
   IAM_BACKFILL_BATCH_SIZE,
   IAM_BACKFILL_CREATOR,
   planLegacyPolicy,
+  legacySnapshotHash,
 } from "@/iam/migration/legacy-policy-backfill";
 
 export class IamPolicyMigrationRepository implements IamPolicyMigrationStore {
@@ -34,20 +35,24 @@ export class IamPolicyMigrationRepository implements IamPolicyMigrationStore {
     sourceHash: string,
     documentHash: string,
   ): Promise<"migrated" | "source-changed"> {
+    // Equivalence checking is CPU-heavy for a full administrator policy. Run it before
+    // opening the transaction, then compare and lock the exact source snapshot inside.
+    const plan = planLegacyPolicy(candidate);
+    if (plan.kind !== "migrate" || plan.sourceHash !== sourceHash || plan.parsed.documentHash !== documentHash)
+      return "source-changed";
     return this.client.$transaction(async (tx) => {
       const current = await tx.ramPolicy.findUnique({ where: { id: candidate.id } });
       if (
         !current ||
         current.status !== 1 ||
+        current.type !== "custom" ||
         current.accountOwnerId !== candidate.accountOwnerId ||
         current.documentFormat !== "legacy" ||
         current.defaultVersionId ||
         current.policyKind !== "identity"
       )
         return "source-changed";
-      const plan = planLegacyPolicy(current);
-      if (plan.kind !== "migrate" || plan.sourceHash !== sourceHash || plan.parsed.documentHash !== documentHash)
-        return "source-changed";
+      if (legacySnapshotHash(current.permissions) !== sourceHash) return "source-changed";
       if (await tx.ramPolicyVersion.count({ where: { policyId: current.id } })) return "source-changed";
       // Lock the exact legacy snapshot before writing; concurrent edits/revocation cannot be overwritten.
       const locked = await tx.ramPolicy.updateMany({

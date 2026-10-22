@@ -10,7 +10,7 @@ import {
 } from "@quyan/shared";
 import type { ParsedIamPolicy } from "../parser/policy-parser";
 import { parseIamPolicy } from "../parser/policy-parser";
-import { evaluatePolicies } from "../evaluator/policy-evaluator";
+import { evaluatePolicyRequests } from "../evaluator/policy-evaluator";
 import { legacyPermissionsToPolicy, parseLegacyPermissions } from "../legacy-policy";
 
 export const IAM_BACKFILL_BATCH_SIZE = 100;
@@ -44,30 +44,27 @@ export function planLegacyPolicy(candidate: LegacyPolicyCandidate): LegacyPolicy
       path: "account",
     });
     const grants = new Set(permissions);
-    for (const permission of ALL_PERMISSIONS) {
-      const decision = evaluatePolicies([{ policyId: candidate.id, document: parsed.document }], {
-        action: actionForPermission(permission),
-        resource,
-      });
-      if ((decision.decision === "Allow") !== grants.has(permission))
-        return { kind: "invalid", reason: "authorization-difference" };
-    }
-    // New native capabilities must preserve the originating legacy permission on their concrete resource types too.
+    const checks = ALL_PERMISSIONS.map((permission) => ({
+      action: actionForPermission(permission),
+      resource,
+      expected: grants.has(permission),
+    }));
+    // Validate the document once for the entire equivalence matrix, including native resource actions.
     for (const permission of ALL_PERMISSIONS)
       for (const action of iamActionsForLegacyPermission(permission).slice(1)) {
         const definition = getIamActionDefinition(action)!;
-        for (const type of IAM_RESOURCE_TYPE_CATALOG.filter((type) => definition.resourceTypes.includes(type.id))) {
-          const target = type.arnTemplate
-            .replace("{accountId}", candidate.accountOwnerId)
-            .replace(/\{[^}]+\}/g, "migration-fixture");
-          const decision = evaluatePolicies([{ policyId: candidate.id, document: parsed.document }], {
+        for (const type of IAM_RESOURCE_TYPE_CATALOG.filter((type) => definition.resourceTypes.includes(type.id)))
+          checks.push({
             action,
-            resource: target,
+            resource: type.arnTemplate
+              .replace("{accountId}", candidate.accountOwnerId)
+              .replace(/\{[^}]+\}/g, "migration-fixture"),
+            expected: grants.has(permission),
           });
-          if ((decision.decision === "Allow") !== grants.has(permission))
-            return { kind: "invalid", reason: "authorization-difference" };
-        }
       }
+    const decisions = evaluatePolicyRequests([{ policyId: candidate.id, document: parsed.document }], checks);
+    if (decisions.some((decision, index) => (decision.decision === "Allow") !== checks[index].expected))
+      return { kind: "invalid", reason: "authorization-difference" };
     return { kind: "migrate", parsed, sourceHash: legacySnapshotHash(candidate.permissions) };
   } catch {
     return { kind: "invalid", reason: "invalid-legacy-permissions" };
