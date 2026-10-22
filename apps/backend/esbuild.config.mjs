@@ -40,6 +40,8 @@ await esbuild.build({
     // node-cron resolves its worker daemon relative to __filename. Bundling its
     // ESM entry into this CJS output makes import.meta.url undefined at runtime.
     "node-cron",
+    // Its UMD entry uses relative dynamic require, which must resolve inside the package.
+    "jsonc-parser",
     // 可选依赖
     "proxy-agent",
     "socks",
@@ -59,13 +61,30 @@ await esbuild.build({
         // docs 目录
         { from: ["./docs/**/**"], to: ["./dist/docs"] },
         { from: ["./src/build/swagger.json"], to: ["./dist/build"] },
-        { from: [path.join(swaggerUiDistDir, "**/*")], to: ["./dist/public/vendor/swagger-ui"] },
+        {
+          from: [path.join(swaggerUiDistDir, "**/*").replaceAll(path.sep, "/")],
+          to: ["./dist/public/vendor/swagger-ui"],
+        },
         { from: ["./public/**/*"], to: ["./dist/public"] },
       ],
       verbose: false, // 禁用复制文件的详细输出
     }),
   ],
   metafile: isProduction, // 生产环境生成元数据用于分析
+});
+
+// Ship a standalone administrative runner in the production bundle; no tsx/TypeScript tooling on servers.
+await esbuild.build({
+  entryPoints: ["./scripts/migrate-iam-deployment.ts"],
+  outfile: "./dist/iam-migrate.cjs",
+  bundle: true,
+  platform: "node",
+  target: "node20",
+  format: "cjs",
+  minify: isProduction,
+  sourcemap: !isProduction,
+  external: ["@prisma/client", ".prisma/client", "sharp", "bcrypt", "jsonc-parser"],
+  logLevel: "error",
 });
 
 // esbuild-plugin-copy resolves globs relative to its cwd. Prisma's generated
