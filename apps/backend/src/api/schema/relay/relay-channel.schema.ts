@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { RELAY_UPSTREAM_FORMATS } from "@quyan/shared";
+import { normalizeRelayForwardedHeaderNames, RELAY_UPSTREAM_FORMATS } from "@quyan/shared";
 
 const RELAY_CHANNEL_MULTIPLIER_SCALE = 6;
 // Floating-point tolerance for decimal precision checks.
@@ -105,6 +105,21 @@ const relayChannelMemberSchema = z.object({
 
 const routingConfigSchema = z
   .object({
+    forwardedRequestHeaders: z
+      .array(z.string())
+      .transform((value, ctx) => {
+        const normalized = normalizeRelayForwardedHeaderNames(value);
+        if (!normalized) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Invalid forwarded request-header names",
+            params: { messageKey: "relayChannel.forwardedRequestHeadersInvalid" },
+          });
+          return z.NEVER;
+        }
+        return normalized;
+      })
+      .optional(),
     maxRetries: z.coerce.number().int().min(0).max(100).optional(),
     failoverThreshold: z.coerce.number().int().min(0).max(100).optional(),
     retryStatusCodes: z

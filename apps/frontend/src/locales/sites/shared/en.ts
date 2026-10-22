@@ -2739,6 +2739,13 @@ const en = {
     channelSelectHelp: 'Tokens assigned to a channel use its specific upstream and multiplier',
     channelMultiplier: 'Channel Multiplier',
     channelMultiplierHelp: 'Price multiplier for this channel, stacked with global multiplier',
+    forwardedRequestHeaders: 'Extra forwarded request headers',
+    forwardedRequestHeadersPlaceholder:
+      'Enter a header name and press Enter, e.g. x-stainless-retry-count',
+    forwardedRequestHeadersHelp:
+      'Keep the default protocol headers and x-opencode-session, and forward these extra exact names on this physical channel. No wildcards or header values. Credentials, cookies, internal and connection headers cannot be allowed. Pools use the selected physical channel’s configuration.',
+    forwardedRequestHeadersInvalid:
+      'Enter up to 64 safe exact header names (128 characters each). Credentials, cookies, internal/connection headers and wildcards are prohibited.',
     channelSettings: 'Channel Settings',
     inputTokensIncludeCacheRead: 'input_tokens and Cache Read/Write Relationship',
     inputTokensContainsCacheRead:

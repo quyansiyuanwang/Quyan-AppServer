@@ -1,3 +1,4 @@
+import { normalizeRelayForwardedHeaderNames } from '@quyan/shared'
 import { useRelayGlobalConfiguration } from './useRelayGlobalConfiguration'
 import {
   resolveModelId,
@@ -97,6 +98,7 @@ const toSupportedFormatsArray = (formats: string[] | string | undefined): string
 }
 
 const recommendedRoutingConfigForm = () => ({
+  forwardedRequestHeaders: [] as string[],
   maxRetries: 2,
   failoverThreshold: 0,
   retryStatusCodes: ['4xx', '5xx'] as string[],
@@ -153,6 +155,8 @@ const normalizeOptionalThreshold = (value?: number | null): number | null => {
 }
 
 const normalizeRoutingConfigForm = (config?: RelayChannelRoutingConfigFormDto | null) => ({
+  forwardedRequestHeaders:
+    normalizeRelayForwardedHeaderNames(config?.forwardedRequestHeaders ?? []) ?? [],
   maxRetries:
     typeof config?.maxRetries === 'number' && Number.isFinite(config.maxRetries)
       ? config.maxRetries
@@ -2248,9 +2252,19 @@ export const useRelaySettingsManagement = () => {
 
     channelSaving.value = true
     try {
+      const forwardedRequestHeaders = normalizeRelayForwardedHeaderNames(
+        channelForm.value.routingConfig.forwardedRequestHeaders ?? [],
+      )
+      if (isUpstreamChannel && !forwardedRequestHeaders) {
+        ElMessage.error(i18ns.t('relay.forwardedRequestHeadersInvalid'))
+        return
+      }
       const routingConfig = isPooledChannel
         ? buildRoutingConfigPayload()
-        : buildStandaloneHealthTrackingPayload()
+        : {
+            ...buildStandaloneHealthTrackingPayload(),
+            forwardedRequestHeaders: forwardedRequestHeaders!,
+          }
       const visibilityConfig =
         channelForm.value.visibilityMode === 'hidden' ? null : buildVisibilityConfigPayload()
       const poolMembers =

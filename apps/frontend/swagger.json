@@ -54831,6 +54831,13 @@
 			},
 			"RelayChannelRoutingConfigDto": {
 				"properties": {
+					"forwardedRequestHeaders": {
+						"items": {
+							"type": "string"
+						},
+						"type": "array",
+						"description": "Extra exact request-header names forwarded by this physical channel; reserved names are rejected."
+					},
 					"maxRetries": {
 						"type": "number",
 						"format": "double"

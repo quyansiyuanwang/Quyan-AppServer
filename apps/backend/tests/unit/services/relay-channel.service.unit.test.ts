@@ -2468,4 +2468,14 @@ describe("RelayChannelService", () => {
       ),
     ).toBe(true);
   });
+  it("validates configured headers for service callers and ignores pool-level overrides", () => {
+    const normalize = (headers: unknown, type = "standalone") =>
+      (service as any).normalizeRoutingConfig({ forwardedRequestHeaders: headers }, type);
+    expect(normalize([" X-Sdk-Custom ", "x-sdk-custom"]).forwardedRequestHeaders).toEqual(["x-sdk-custom"]);
+    expect(normalize([]).forwardedRequestHeaders).toEqual([]);
+    expect(normalize(["x-sdk-custom"], "pooled-member").forwardedRequestHeaders).toEqual(["x-sdk-custom"]);
+    expect(normalize(["x-sdk-custom"], "pooled")).not.toHaveProperty("forwardedRequestHeaders");
+    expect(normalize(["x-sdk-custom"], "automatic-proxy-pool")).not.toHaveProperty("forwardedRequestHeaders");
+    expect(() => normalize(["Authorization"])).toThrow(BadRequestError);
+  });
 });

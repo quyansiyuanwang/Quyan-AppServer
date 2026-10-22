@@ -783,6 +783,29 @@
         </div>
       </el-form-item>
 
+      <el-form-item
+        v-if="
+          channelForm.channelType === 'standalone' || channelForm.channelType === 'pooled-member'
+        "
+        :label="i18ns.t('relay.forwardedRequestHeaders')"
+        data-testid="forwarded-request-headers"
+      >
+        <div class="w-full">
+          <el-select
+            v-model="channelForm.routingConfig.forwardedRequestHeaders"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            :multiple-limit="RELAY_FORWARDED_HEADER_LIMITS.maxNames"
+            :reserve-keyword="false"
+            :placeholder="i18ns.t('relay.forwardedRequestHeadersPlaceholder')"
+            class="w-full"
+          />
+          <div class="form-help">{{ i18ns.t('relay.forwardedRequestHeadersHelp') }}</div>
+        </div>
+      </el-form-item>
+
       <el-divider content-position="left">{{ i18ns.t('relay.providers') }}</el-divider>
       <el-alert
         type="warning"
@@ -1671,6 +1694,7 @@
 </template>
 
 <script setup lang="ts">
+import { RELAY_FORWARDED_HEADER_LIMITS } from '@quyan/shared'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Delete, Rank, Top } from '@element-plus/icons-vue'

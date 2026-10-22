@@ -3474,7 +3474,12 @@ export class RelayProxyService {
               fullUpstreamUrl += `${separator}key=${upstreamApiKey}`;
             }
 
-            const headers = buildRelayUpstreamHeaders(req.headers, requestFormat, upstreamApiKey);
+            const headers = buildRelayUpstreamHeaders(
+              req.headers,
+              requestFormat,
+              upstreamApiKey,
+              (channel.routingConfig as { forwardedRequestHeaders?: unknown } | null)?.forwardedRequestHeaders,
+            );
 
             let sourceForwardedBody = this.buildForwardBody(req.body, clientRequestFormat, selectedModelId);
             if (

@@ -611,6 +611,8 @@ const en = {
     targetSelectionRequired: "userIds or targetFilter is required",
   },
   relayChannel: {
+    forwardedRequestHeadersInvalid:
+      "Extra forwarded headers must be exact safe header names (up to 64 names, 128 characters each); credentials, cookies, internal and connection headers are prohibited.",
     timeRuleSameStartEnd: "Start and end times must differ for a non-all-day rule",
     channelTypeConflict: "channelType and channelTypes cannot be used together",
     optionsNotFound: "Relay channel options not found",

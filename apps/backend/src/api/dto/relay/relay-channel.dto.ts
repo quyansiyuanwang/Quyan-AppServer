@@ -115,6 +115,8 @@ export interface RelayChannelTopologyAuditDto {
 }
 
 export interface RelayChannelRoutingConfigDto {
+  /** Extra exact request-header names forwarded by this physical channel; reserved names are rejected. */
+  forwardedRequestHeaders?: string[];
   maxRetries?: number;
   failoverThreshold?: number;
   retryStatusCodes?: Array<number | string>;

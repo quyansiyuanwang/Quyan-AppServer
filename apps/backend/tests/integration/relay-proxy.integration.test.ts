@@ -175,6 +175,7 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
           name: `test_relay_openai_channel_${suffix}`,
           openaiUpstreamUrl: relayAIMockPlugin.baseUrl,
           openaiUpstreamApiKey: "test-openai-key",
+          routingConfig: { forwardedRequestHeaders: ["x-stainless-retry-count"] },
           allowedFormats: "openai-chat-completions,openai-responses",
           multiplier: 1,
         },
@@ -388,6 +389,9 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
       .set("X-Goog-Api-Key", "caller-header-fixture")
       .set("OpenAI-Beta", "responses=fixture")
       .set("OpenAI-Project", "proj-fixture")
+      .set("X-Opencode-Session", "session-fixture")
+      .set("X-Stainless-Retry-Count", "2")
+      .set("X-Unlisted-Custom", "must-not-leak")
       .set("X-Client-Request-Id", clientId)
       .set("Idempotency-Key", clientId)
       .set("Cookie", "session=fixture")
@@ -406,12 +410,47 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     expect(upstream?.headers).toMatchObject({
       "openai-beta": "responses=fixture",
       "openai-project": "proj-fixture",
+      "x-opencode-session": "session-fixture",
+      "x-stainless-retry-count": "2",
       "idempotency-key": clientId,
       authorization: "Bearer test-openai-key",
     });
-    for (const name of ["cookie", "x-api-key", "x-goog-api-key", "x-internal-control"])
+    for (const name of ["cookie", "x-api-key", "x-goog-api-key", "x-internal-control", "x-unlisted-custom"])
       expect(upstream?.headers).not.toHaveProperty(name);
     await getLatestUsage(openaiRelayTokenId, beforeUsageCount + 1);
+  });
+
+  it("applies updated request headers without restarting the relay", async () => {
+    try {
+      for (const names of [["x-sdk-live"], []]) {
+        await prisma.relayChannel.update({
+          where: { id: openaiRelayChannelId },
+          data: { routingConfig: { forwardedRequestHeaders: names } },
+        });
+        const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+        const clientId = `live-headers-${names.length}`;
+        const response = await request(app)
+          .post("/relay/proxy/v1/chat/completions")
+          .set("Authorization", `Bearer ${openaiRelayTokenValue}`)
+          .set("X-Client-Request-Id", clientId)
+          .set("X-Opencode-Session", "session-fixture")
+          .set("X-Sdk-Live", "live-fixture")
+          .send({ model: openaiRelayModelId, messages: [{ role: "user", content: "header fixture" }] });
+        expect(response.status).toBe(200);
+        const upstream = [...observedUpstreamRequests]
+          .reverse()
+          .find((ctx) => ctx.headers["x-client-request-id"] === clientId);
+        expect(upstream?.headers["x-opencode-session"]).toBe("session-fixture");
+        if (names.length) expect(upstream?.headers["x-sdk-live"]).toBe("live-fixture");
+        else expect(upstream?.headers).not.toHaveProperty("x-sdk-live");
+        await getLatestUsage(openaiRelayTokenId, beforeUsageCount + 1);
+      }
+    } finally {
+      await prisma.relayChannel.update({
+        where: { id: openaiRelayChannelId },
+        data: { routingConfig: { forwardedRequestHeaders: ["x-stainless-retry-count"] } },
+      });
+    }
   });
 
   it.each([false, true])("preserves Anthropic request headers at the physical upstream (stream=%s)", async (stream) => {

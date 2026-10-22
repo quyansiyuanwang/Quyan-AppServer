@@ -614,6 +614,8 @@ const zhCN = {
     targetSelectionRequired: "必须提供 userIds 或 targetFilter",
   },
   relayChannel: {
+    forwardedRequestHeadersInvalid:
+      "额外转发请求头必须是安全的精确头名（最多 64 个，每个最多 128 字符）；禁止凭据、Cookie、内部及连接级请求头。",
     timeRuleSameStartEnd: "非全天规则的开始和结束时间不能相同",
     channelTypeConflict: "channelType 与 channelTypes 不能同时使用",
     optionsNotFound: "中转渠道选项不存在",

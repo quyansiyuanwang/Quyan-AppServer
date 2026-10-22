@@ -1,4 +1,4 @@
-import type { RelayRequestFormat } from "@quyan/shared";
+import { normalizeRelayForwardedHeaderNames, type RelayRequestFormat } from "@quyan/shared";
 
 const COMMON_HEADERS = new Set([
   "content-type",
@@ -8,6 +8,7 @@ const COMMON_HEADERS = new Set([
   "x-request-id",
   "x-client-request-id",
   "idempotency-key",
+  "x-opencode-session",
 ]);
 const OPENAI_HEADERS = ["openai-organization", "openai-project", "openai-beta"] as const;
 const FORMAT_HEADERS: Record<RelayRequestFormat, readonly string[]> = {
@@ -31,20 +32,29 @@ export function relayConnectionHeaderNames(headers: Record<string, unknown>): Se
   return names;
 }
 
-/** Only forward documented protocol headers. Caller credentials never become provider credentials. */
+/** Only forward protocol and administrator-allowlisted headers. Caller credentials never become provider credentials. */
 export function buildRelayUpstreamHeaders(
   incoming: Record<string, unknown>,
   format: RelayRequestFormat,
   upstreamApiKey: string,
+  extraAllowedHeaders: unknown = [],
 ): Record<string, string | string[] | number> {
-  const allowed = new Set([...COMMON_HEADERS, ...FORMAT_HEADERS[format]]);
+  const allowed = new Set([
+    ...COMMON_HEADERS,
+    ...FORMAT_HEADERS[format],
+    ...(normalizeRelayForwardedHeaderNames(extraAllowedHeaders) ?? []),
+  ]);
   const connectionHeaders = relayConnectionHeaderNames(incoming);
   const headers: Record<string, string | string[] | number> = {};
   for (const [name, value] of Object.entries(incoming)) {
     const lowerName = name.toLowerCase();
     if (!allowed.has(lowerName) || connectionHeaders.has(lowerName)) continue;
-    if (typeof value === "string" && value.trim()) headers[lowerName] = value;
-    else if (Array.isArray(value) && value.length && value.every((entry) => typeof entry === "string" && entry.trim()))
+    if (typeof value === "string" && value.trim() && !/[\r\n\0]/.test(value)) headers[lowerName] = value;
+    else if (
+      Array.isArray(value) &&
+      value.length &&
+      value.every((entry) => typeof entry === "string" && entry.trim() && !/[\r\n\0]/.test(entry))
+    )
       headers[lowerName] = [...value];
   }
 

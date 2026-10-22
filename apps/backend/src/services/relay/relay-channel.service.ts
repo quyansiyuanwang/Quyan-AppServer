@@ -1,3 +1,4 @@
+import { normalizeRelayForwardedHeaderNames } from "@quyan/shared";
 import { RelayChannelImportIamService } from "./relay-channel-import-iam.service";
 import { RelayChannelCreateIamService } from "./relay-channel-create-iam.service";
 import { RelayChannelUpdateIamService } from "./relay-channel-update-iam.service";
@@ -1646,6 +1647,16 @@ export class RelayChannelService {
     if (routingConfig === null) return null;
 
     const normalized: RelayChannelRoutingConfigDto = { ...routingConfig };
+    if (normalized.forwardedRequestHeaders !== undefined) {
+      const names = normalizeRelayForwardedHeaderNames(normalized.forwardedRequestHeaders);
+      if (!names)
+        throw new BadRequestError("Invalid forwarded request-header names", undefined, {
+          messageKey: "relayChannel.forwardedRequestHeadersInvalid",
+        });
+      // Pools never override a physical provider's header policy.
+      if (isPoolType(channelType)) delete normalized.forwardedRequestHeaders;
+      else normalized.forwardedRequestHeaders = names;
+    }
 
     const hasHealthTrackingConfig =
       Object.prototype.hasOwnProperty.call(normalized, "healthTrackingMode") ||

@@ -36,6 +36,62 @@ const incoming = {
 };
 
 describe("relay upstream request headers", () => {
+  it.each<RelayRequestFormat>(["openai", "openai-chat-completions", "openai-responses", "anthropic", "gemini"])(
+    "preserves OpenCode sessions and configured SDK headers for %s",
+    (format) => {
+      const result = buildRelayUpstreamHeaders(
+        {
+          "X-Opencode-Session": "session-fixture",
+          "X-Stainless-Retry-Count": "2",
+          "X-Unlisted": "drop",
+        },
+        format,
+        "provider-fixture",
+        [" X-Stainless-Retry-Count ", "x-stainless-retry-count"],
+      );
+      expect(result).toMatchObject({ "x-opencode-session": "session-fixture", "x-stainless-retry-count": "2" });
+      expect(result).not.toHaveProperty("x-unlisted");
+    },
+  );
+
+  it("never forwards configured Connection options or newline-injected values", () => {
+    const result = buildRelayUpstreamHeaders(
+      {
+        Connection: "x-sdk-custom, x-opencode-session",
+        "X-Sdk-Custom": "drop",
+        "X-Opencode-Session": "drop",
+        "X-Sdk-Invalid": "bad\r\nInjected: yes",
+        "X-Sdk-Array": ["ok", "bad\nvalue"],
+      },
+      "openai",
+      "provider-fixture",
+      ["x-sdk-custom", "x-sdk-invalid", "x-sdk-array"],
+    );
+    expect(result).toEqual({ Authorization: "Bearer provider-fixture" });
+  });
+
+  it("fails closed for invalid stored allowlists without forwarding caller credentials", () => {
+    for (const config of [
+      ["authorization"],
+      ["cookie"],
+      ["x-internal-control"],
+      ["*"],
+      "x-sdk-custom",
+      ["x-sdk-custom", "host"],
+    ]) {
+      const result = buildRelayUpstreamHeaders(
+        { ...incoming, "X-Sdk-Custom": "drop" },
+        "openai",
+        "provider-fixture",
+        config,
+      );
+      expect(result).not.toHaveProperty("x-sdk-custom");
+      expect(result).not.toHaveProperty("cookie");
+      expect(result).not.toHaveProperty("authorization");
+      expect(result.Authorization).toBe("Bearer provider-fixture");
+    }
+  });
+
   it.each<RelayRequestFormat>(["openai", "openai-chat-completions", "openai-responses"])(
     "preserves OpenAI protocol and common headers for %s without caller secrets or routing headers",
     (format) => {

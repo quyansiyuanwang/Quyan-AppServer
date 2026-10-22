@@ -1337,6 +1337,8 @@ describe("RelayProxyService failover", () => {
 
   it("retries the next channel on configured upstream status codes", async () => {
     const relayToken = createRelayToken();
+    relayToken.channel.routingConfig = { forwardedRequestHeaders: ["x-sdk-primary"] };
+    relayToken.channelConfigs[1].channel.routingConfig = { forwardedRequestHeaders: ["x-sdk-secondary"] };
     const req = createRequest({
       headers: {
         "content-type": "application/json",
@@ -1345,6 +1347,9 @@ describe("RelayProxyService failover", () => {
         "idempotency-key": "retry-fixture",
         authorization: "Bearer caller-fixture",
         cookie: "session=fixture",
+        "x-opencode-session": "session-fixture",
+        "x-sdk-primary": "primary-fixture",
+        "x-sdk-secondary": "secondary-fixture",
       },
     });
     const { service, relayTokenRepo, usageChargeService, businessLogService } = createService();
@@ -1373,11 +1378,16 @@ describe("RelayProxyService failover", () => {
         "openai-beta": "responses=fixture",
         "openai-project": "proj-fixture",
         "idempotency-key": "retry-fixture",
+        "x-opencode-session": "session-fixture",
         Authorization: `Bearer ${key}`,
       });
       expect((axiosMock.mock.calls[index]?.[0] as any).headers).not.toHaveProperty("cookie");
       expect((axiosMock.mock.calls[index]?.[0] as any).headers).not.toHaveProperty("authorization");
     }
+    expect((axiosMock.mock.calls[0]?.[0] as any).headers).toHaveProperty("x-sdk-primary", "primary-fixture");
+    expect((axiosMock.mock.calls[0]?.[0] as any).headers).not.toHaveProperty("x-sdk-secondary");
+    expect((axiosMock.mock.calls[1]?.[0] as any).headers).toHaveProperty("x-sdk-secondary", "secondary-fixture");
+    expect((axiosMock.mock.calls[1]?.[0] as any).headers).not.toHaveProperty("x-sdk-primary");
     expect(axiosMock).toHaveBeenCalledTimes(2);
     expect(axiosMock.mock.calls[0]?.[0]).toEqual(
       expect.objectContaining({ url: "https://primary.example.com/v1/chat/completions" }),

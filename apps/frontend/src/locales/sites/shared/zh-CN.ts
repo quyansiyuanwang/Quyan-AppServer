@@ -2616,6 +2616,12 @@ const zhCN = {
     channelSelectHelp: '选择渠道后，该令牌将使用渠道专属的上游配置和倍率',
     channelMultiplier: '渠道倍率',
     channelMultiplierHelp: '该渠道的价格倍率，与全局倍率叠加',
+    forwardedRequestHeaders: '额外转发请求头',
+    forwardedRequestHeadersPlaceholder: '输入头名后按回车，例如 x-stainless-retry-count',
+    forwardedRequestHeadersHelp:
+      '保留默认协议头和 x-opencode-session，并在本物理渠道额外转发填写的精确头名。不支持通配符，不填写头值。凭据、Cookie、内部及连接级头禁止放行；混池使用最终物理渠道的配置。',
+    forwardedRequestHeadersInvalid:
+      '请填写最多 64 个安全精确头名（每个最多 128 字符），禁止凭据、Cookie、内部/连接级头和通配符。',
     channelSettings: '渠道参数',
     inputTokensIncludeCacheRead: 'input_tokens 与缓存读写的关系',
     inputTokensContainsCacheRead: 'input_tokens 已包含缓存读取和缓存创建 token',
