@@ -1,7 +1,6 @@
 import { createIamCatalogControllerApi } from '@/client/services/iam-catalog-controller.gen'
 import { createRamControllerApi } from '@/client/services/ram-controller.gen'
 import type {
-  GenerateIamPolicyDraftDto,
   CreateRamAuthorizationDto,
   CreateRamResourceGroupDto,
   AssumeRamRoleDto,
@@ -227,12 +226,6 @@ export class RamService {
 
   async simulatePolicy(data: SimulateIamPolicyDto) {
     const result = await ramApi.simulatePolicy({ body: data })
-    if (result?.code === CustomCode.OK && result.data) return result.data
-    throw toServiceError(result)
-  }
-
-  async generatePolicyDraft(data: GenerateIamPolicyDraftDto) {
-    const result = await ramApi.generatePolicyDraft({ body: data })
     if (result?.code === CustomCode.OK && result.data) return result.data
     throw toServiceError(result)
   }

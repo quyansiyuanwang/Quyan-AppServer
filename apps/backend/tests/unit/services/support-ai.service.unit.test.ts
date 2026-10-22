@@ -398,6 +398,43 @@ describe("SupportAiService conversation retention", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
+  it("makes late RAM catalog sections discoverable without widening authorized document reads", async () => {
+    const { service } = createService();
+    const document = {
+      id: "zh-CN:ram-management",
+      slug: "ram-management",
+      title: "RAM IAM",
+      locale: "zh-CN",
+      path: "/zh-CN/ram-management",
+    };
+    (service as any).knowledgeDocuments = new Map([[document.id, document]]);
+    const sections = Array.from({ length: 20 }, (_, i) => ({
+      id: `${document.id}:${i}`,
+      heading: `Introduction ${i}`,
+      summary: "overview",
+      content: "overview",
+    }));
+    sections.push({
+      id: `${document.id}:20`,
+      heading: "quyan:ram:UpdateUser",
+      summary: "Resource acs:quyan:*:account_id:user/user_id",
+      content: '"Action": "quyan:ram:UpdateUser"',
+    });
+    const load = vi.spyOn(service as any, "loadDocumentSections").mockResolvedValue(sections);
+    const outlines = await (service as any).outlineDocumentation(
+      [document],
+      [document.id, "en:unsearched"],
+      "UpdateUser",
+    );
+    expect(outlines).toHaveLength(12);
+    expect(outlines[0].id).toBe(`${document.id}:20`);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(load).toHaveBeenCalledWith(document);
+    expect(
+      await (service as any).readDocumentation([document], [`${document.id}:20`, "en:unsearched:0"], outlines),
+    ).toMatchObject([{ content: '"Action": "quyan:ram:UpdateUser"' }]);
+  });
+
   it("uses a current-user Relay Token only when both user-funded controls are enabled", async () => {
     const { service, relayTokenService } = createService();
     relayTokenService.validateToken.mockResolvedValue({ userId: "user-1" });

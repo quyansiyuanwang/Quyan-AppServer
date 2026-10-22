@@ -1,4 +1,3 @@
-import { IAM_POLICY_DRAFT_LIMITS } from "@/iam/ai/draft-limits";
 import { iamTrustPolicyDocumentSchema } from "@/iam/trust/trust-policy";
 import { iamManagementPaginationSchema, iamManagementKeywordSchema } from "@/iam/management-pagination";
 import { z } from "zod";
@@ -237,13 +236,3 @@ export const resourceGroupMemberParamsSchema = z.object({
 });
 
 export const authorizationIdParamsSchema = z.object({ authorizationId: z.string().trim().min(1).max(128) });
-
-export const generateIamPolicyDraftBodySchema = z
-  .object({
-    instruction: z.string().trim().min(1).max(IAM_POLICY_DRAFT_LIMITS.instructionCharacters),
-    model: z.string().trim().min(1).max(IAM_POLICY_DRAFT_LIMITS.modelCharacters),
-    relayTokenId: z.string().trim().min(1).max(IAM_POLICY_DRAFT_LIMITS.tokenIdCharacters),
-    policyKind: z.enum(["identity", "trust"]).optional(),
-    currentDocumentText: z.string().max(IAM_POLICY_DRAFT_LIMITS.inputCharacters).optional(),
-  })
-  .strict();

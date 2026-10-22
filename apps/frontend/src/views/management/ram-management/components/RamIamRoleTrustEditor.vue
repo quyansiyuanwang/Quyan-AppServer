@@ -10,12 +10,6 @@
         {{ role.name }} <code>{{ role.id }}</code>
       </p>
       <el-alert :title="i18ns.t('RamManagement.trustEditorHint')" type="info" :closable="false" />
-      <RamIamPolicyAiDraft
-        policy-kind="trust"
-        :document-text="text"
-        :disabled="saving"
-        @apply="text = $event"
-      />
       <el-input
         ref="input"
         v-model="text"
@@ -75,7 +69,6 @@ import { ElMessageBox } from '@/utils/elementPlusRuntime'
 import { showRequestErrorNotice } from '@/utils/requestErrorNotice'
 import { iamDiagnosticOffset } from '../useIamPolicyTools'
 import RamIamPolicyDiagnostics from './RamIamPolicyDiagnostics.vue'
-import RamIamPolicyAiDraft from './RamIamPolicyAiDraft.vue'
 const props = defineProps<{ role: RamRoleDto | null }>()
 const emit = defineEmits<{ close: []; saved: [role: RamRoleDto] }>()
 const text = ref('')

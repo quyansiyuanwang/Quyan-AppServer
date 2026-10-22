@@ -6,11 +6,6 @@
       :closable="false"
       show-icon
     />
-    <RamIamPolicyAiDraft
-      :document-text="policyDocumentText"
-      :disabled="submitting || (policyEditorMode === 'visual' && !visualPolicyValid)"
-      @apply="applyAiDraft"
-    />
     <div class="editor-mode-row">
       <el-button
         data-test="json-mode"
@@ -134,7 +129,6 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { InputInstance } from 'element-plus/es'
 import type { IamPolicyDocument, IamDiagnostic } from '@quyan/shared'
-import RamIamPolicyAiDraft from './RamIamPolicyAiDraft.vue'
 import RamIamVisualPolicyBuilder from './RamIamVisualPolicyBuilder.vue'
 import { importVisualPolicy } from '../iam-visual-policy'
 import RamIamPolicyDiagnostics from './RamIamPolicyDiagnostics.vue'
@@ -218,10 +212,6 @@ const openVisualEditor = async () => {
   } finally {
     if (sequence === switchSequence) switchingEditor.value = false
   }
-}
-const applyAiDraft = (text: string) => {
-  policyEditorMode.value = 'json'
-  policyDocumentText.value = text
 }
 const applyVisualDraft = (text: string) => {
   policyDocumentText.value = text

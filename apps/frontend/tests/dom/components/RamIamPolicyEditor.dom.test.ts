@@ -67,7 +67,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-alert': alertStub,
           'el-button': buttonStub,
@@ -75,6 +74,7 @@ describe('IAM policy editor controls and warnings', () => {
         },
       },
     })
+    expect(wrapper.findComponent({ name: 'RamIamPolicyAiDraft' }).exists()).toBe(false)
     const document = { Version: '1', Statement: { Effect: 'Deny', Action: '*', Resource: '*' } }
     diagnosePolicy.mockResolvedValue({
       valid: true,
@@ -117,7 +117,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-alert': alertStub,
           'el-button': buttonStub,
@@ -203,7 +202,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-button': buttonStub,
           'el-input': inputStub,
           RamIamVisualStatement: defineComponent({
@@ -248,7 +246,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-select': selectStub,
           'el-option': optionStub,
@@ -291,7 +288,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-alert': alertStub,
           'el-button': buttonStub,
@@ -335,7 +331,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-select': selectStub,
           'el-option': optionStub,
@@ -387,7 +382,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-button': buttonStub,
           'el-alert': alertStub,
@@ -419,7 +413,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-alert': alertStub,
           'el-button': buttonStub,
@@ -457,7 +450,6 @@ describe('IAM policy editor controls and warnings', () => {
     const wrapper = mount(RamIamPolicyEditor, {
       global: {
         stubs: {
-          RamIamPolicyAiDraft: true,
           'el-input': inputStub,
           'el-alert': alertStub,
           'el-button': buttonStub,

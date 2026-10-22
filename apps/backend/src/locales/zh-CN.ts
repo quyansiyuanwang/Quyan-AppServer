@@ -151,8 +151,6 @@ const zhCN = {
     hasUsers: "该组下仍有用户，无法删除",
   },
   iam: {
-    draftUnavailable: "策略草稿生成暂时不可用",
-    draftRateLimit: "策略草稿请求过于频繁，请稍后重试",
     unknownService: "未知 IAM 服务",
     resourceResolutionFailed: "无法安全解析请求的资源",
     invalidPolicy: "IAM 策略文档无效或包含不支持的语法",

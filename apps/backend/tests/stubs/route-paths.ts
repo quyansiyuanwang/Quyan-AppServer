@@ -3,7 +3,6 @@ export const UNIT_TEST_ROUTE_STUB = true;
 const routePaths: Record<string, string> = {
   V1ChatConversationsByConversationIdMessages: "/v1/chat/conversations/{conversationId}/messages",
   V1SupportMessages: "/v1/support/messages",
-  V1RamPoliciesAiDraft: "/v1/ram/policies/ai/draft",
   V1SystemLogs: "/v1/system/logs",
   V1SystemServerLogFiles: "/v1/system/server-log-files",
   V1BusinessLogs: "/v1/business-logs",

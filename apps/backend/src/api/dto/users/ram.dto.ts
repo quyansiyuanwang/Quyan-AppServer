@@ -7,8 +7,6 @@ import type {
   IamDelegationResult,
   IamAuthorizationContract,
   IamResourceGroupContract,
-  IamPolicyDraftRequest,
-  IamPolicyDraftResponse,
   IamResourceGroupMemberContract,
   IamResourceGroupSummary,
   IamManagementPageResult,
@@ -296,9 +294,6 @@ export interface CreateRamResourceGroupDto {
 export interface AddRamResourceGroupMemberDto {
   resourceArn: string;
 }
-
-export type GenerateIamPolicyDraftDto = IamPolicyDraftRequest;
-export type GenerateIamPolicyDraftResponseDto = IamPolicyDraftResponse;
 
 export type RamAuthorizationPageDto = IamManagementPageResult<IamAuthorizationContract>;
 export type RamResourceGroupPageDto = IamManagementPageResult<IamResourceGroupSummary>;

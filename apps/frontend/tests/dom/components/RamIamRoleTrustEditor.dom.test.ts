@@ -63,7 +63,6 @@ const create = () =>
         'el-button': button,
         'el-drawer': { template: '<div><slot /><slot name="footer" /></div>' },
         'el-alert': { props: ['title'], template: '<div>{{ title }}</div>' },
-        RamIamPolicyAiDraft: true,
         RamIamPolicyDiagnostics: true,
       },
     },
@@ -149,18 +148,15 @@ describe('role trust publication review', () => {
     expect(wrapper.emitted('close')).toBeUndefined()
     wrapper.unmount()
   })
-  it('uses the trust schema for downloads and AI application never saves automatically', async () => {
+  it('uses the trust schema for downloads without publishing or exposing AI drafting', async () => {
     const wrapper = create()
     getPolicySchema.mockRejectedValueOnce(new Error('fixture denied'))
     await wrapper.get('[data-test="trust-schema"]').trigger('click')
     await flushPromises()
     expect(getPolicySchema).toHaveBeenCalledWith('trust')
-    wrapper
-      .findComponent({ name: 'RamIamPolicyAiDraft' })
-      .vm.$emit('apply', JSON.stringify(document))
-    await flushPromises()
+    expect(wrapper.findComponent({ name: 'RamIamPolicyAiDraft' }).exists()).toBe(false)
     expect(setRoleTrustPolicy).not.toHaveBeenCalled()
-    expect(wrapper.get('[data-test="trust-text"]').element.value).toBe(JSON.stringify(document))
+    expect(JSON.parse(wrapper.get('[data-test="trust-text"]').element.value)).toEqual(document)
     wrapper.unmount()
   })
 })

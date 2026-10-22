@@ -1,3 +1,4 @@
+import { SUPPORT_KNOWLEDGE_SECTION_CHARACTERS } from "@quyan/shared";
 import { SupportConfigIamService } from "./support-config-iam.service";
 import type { SupportConfigAction } from "@/store/support/support-config.store";
 import { updateSupportConfigSchema } from "@/api/schema/support/support-config.schema";
@@ -145,7 +146,7 @@ const MIN_SESSION_RETENTION_DAYS = 1;
 const MAX_SESSION_RETENTION_DAYS = 7;
 const MAX_DOCUMENTATION_SEARCH_RESULTS = 6;
 const MAX_DOCUMENTATION_READ_RESULTS = 3;
-const MAX_DOCUMENTATION_READ_CHARACTERS = 1200;
+
 const MAX_DOCUMENTATION_OUTLINE_RESULTS = 12;
 const DEFAULT_AGENT_ROUNDS = 3;
 const MIN_AGENT_ROUNDS = 1;
@@ -744,7 +745,7 @@ export class SupportAiService {
               title: document.title,
               locale: document.locale,
               path: document.path,
-              content: section.content.slice(0, MAX_DOCUMENTATION_READ_CHARACTERS),
+              content: section.content.slice(0, SUPPORT_KNOWLEDGE_SECTION_CHARACTERS),
             });
         }
         return result;
@@ -760,13 +761,14 @@ export class SupportAiService {
     return (await this.loadKnowledge())
       .filter((chunk) => selectedIds.has(chunk.id))
       .slice(0, MAX_DOCUMENTATION_READ_RESULTS)
-      .map((chunk) => ({ ...chunk, content: chunk.content.slice(0, MAX_DOCUMENTATION_READ_CHARACTERS) }));
+      .map((chunk) => ({ ...chunk, content: chunk.content.slice(0, SUPPORT_KNOWLEDGE_SECTION_CHARACTERS) }));
   }
 
   /** Loads section metadata for only the documents that a preceding search authorized. */
   private async outlineDocumentation(
     candidates: readonly DocumentationSearchResult[],
     requestedIds?: readonly string[],
+    query = "",
   ): Promise<DocumentationOutlineResult[]> {
     if (!this.knowledgeDocuments.size) {
       return candidates.slice(0, MAX_DOCUMENTATION_OUTLINE_RESULTS).map((candidate) => ({
@@ -795,10 +797,20 @@ export class SupportAiService {
           heading: section.heading,
           summary: section.summary,
         });
-        if (result.length >= MAX_DOCUMENTATION_OUTLINE_RESULTS) return result;
       }
     }
-    return result;
+    // A long RAM reference must not hide later catalog/rule sections behind the first twelve headings.
+    // Rank within the same search-authorized documents; this grants no new tool or read capability.
+    const terms = this.searchTerms(query);
+    const score = (entry: DocumentationOutlineResult) => {
+      const heading = entry.heading.toLocaleLowerCase();
+      const summary = entry.summary.toLocaleLowerCase();
+      return terms.reduce(
+        (total, term) => total + (heading.includes(term) ? 8 : 0) + (summary.includes(term) ? 2 : 0),
+        0,
+      );
+    };
+    return result.sort((left, right) => score(right) - score(left)).slice(0, MAX_DOCUMENTATION_OUTLINE_RESULTS);
   }
 
   private toolMetadata(candidates: readonly DocumentationSearchResult[]) {
@@ -1154,6 +1166,7 @@ export class SupportAiService {
     await this.saveConversation(userId, history, config.sessionRetentionDays);
     let candidates: DocumentationSearchResult[] = [];
     let outlines: DocumentationOutlineResult[] = [];
+    let documentationQuery = content;
     const citations = new Map<string, { slug: string; title: string; url: string }>();
     let inputTokens = 0;
     let outputTokens = 0;
@@ -1176,6 +1189,7 @@ export class SupportAiService {
 
         if (action.tool === "documentation_search") {
           yield { type: "status", stage: "searching", round };
+          documentationQuery = `${content} ${action.query}`;
           candidates = await this.searchDocumentation(action.query, locale);
           messages.push({
             role: "user",
@@ -1186,7 +1200,7 @@ export class SupportAiService {
 
         if (action.tool === "documentation_outline") {
           yield { type: "status", stage: "reading", round };
-          outlines = await this.outlineDocumentation(candidates, action.ids);
+          outlines = await this.outlineDocumentation(candidates, action.ids, documentationQuery);
           messages.push({
             role: "user",
             content: `Tool result: documentation_outline\n${JSON.stringify(outlines)}`,

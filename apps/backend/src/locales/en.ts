@@ -145,8 +145,6 @@ const en = {
     hasUsers: "This group still has users and cannot be deleted",
   },
   iam: {
-    draftUnavailable: "Policy drafting is temporarily unavailable",
-    draftRateLimit: "Too many policy draft requests; try again later",
     unknownService: "Unknown IAM service",
     resourceResolutionFailed: "The requested resource cannot be resolved safely",
     invalidPolicy: "Invalid or unsupported IAM policy document",

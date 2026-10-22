@@ -3070,7 +3070,6 @@ const iamBaseActionDefinitions: readonly IamActionDefinition[] = Object.freeze([
       resourceTypes: ['quyan/account', 'quyan/resource-group'],
     },
     { operation: 'CreateResourceGroup', accessLevel: 'Write', resourceTypes: ['quyan/account'] },
-    { operation: 'GeneratePolicyDraft', accessLevel: 'Write', resourceTypes: ['quyan/account'] },
     {
       operation: 'UpdateRoleTrustPolicy',
       accessLevel: 'Write',

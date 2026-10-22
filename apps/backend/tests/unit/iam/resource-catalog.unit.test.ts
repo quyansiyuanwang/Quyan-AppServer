@@ -15,6 +15,10 @@ vi.mock("../../../src/build/iam-action-routes", () => ({
 }));
 import { IamCatalogService } from "../../../src/iam/iam-catalog.service";
 describe("IAM service and resource catalog", () => {
+  it("does not register removed AI draft generation or external cloud Actions", () => {
+    expect(getIamActionDefinition("quyan:ram:GeneratePolicyDraft")).toBeUndefined();
+    expect(IAM_ACTION_DEFINITIONS.some((entry) => entry.action.startsWith("alidns:"))).toBe(false);
+  });
   it("retains distinct compatibility Actions and references registered resource types", () => {
     const resources = new Set(IAM_RESOURCE_TYPE_CATALOG.map((resource) => resource.id));
     expect(new Set(IAM_ACTION_DEFINITIONS.map((action) => action.action)).size).toBe(IAM_ACTION_DEFINITIONS.length);

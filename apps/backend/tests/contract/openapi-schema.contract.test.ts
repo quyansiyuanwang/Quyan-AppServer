@@ -47,6 +47,10 @@ interface OperationDescriptor {
 const HTTP_METHODS: HttpMethod[] = ["get", "post", "put", "patch", "delete", "head", "options"];
 const SWAGGER_PATH = path.resolve(process.cwd(), "src/build/swagger.json");
 const openApi = fs.readJsonSync(SWAGGER_PATH) as OpenApiDocument;
+it("removes the standalone IAM AI drafting endpoint and DTOs", () => {
+  expect(openApi.paths).not.toHaveProperty("/v1/ram/policies/ai/draft");
+  expect(Object.keys(openApi.components?.schemas ?? {}).some((name) => name.includes("IamPolicyDraft"))).toBe(false);
+});
 
 function collectOperations(document: OpenApiDocument): OperationDescriptor[] {
   const operations: OperationDescriptor[] = [];
@@ -417,7 +421,7 @@ describe("IAM selector and diagnosis wire contracts", () => {
     expect(trust.required).toEqual(expect.arrayContaining(["Action", "Principal"]));
     expect(trust.properties).not.toHaveProperty("NotAction");
   });
-  it("publishes the original-selector diagnostics used by editors and AI drafts", () => {
+  it("publishes the original-selector diagnostics used by editors and support-assisted JSON", () => {
     expect(openApi.components!.schemas!.IamDiagnosticCode).toMatchObject({
       enum: expect.arrayContaining(["invalid-action-selector", "not-action-snapshot"]),
     });

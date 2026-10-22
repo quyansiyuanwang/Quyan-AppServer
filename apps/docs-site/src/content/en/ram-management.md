@@ -285,15 +285,40 @@ The visual and JSON editors share one identity-policy draft. Filter service acti
 
 Switching from JSON to visual editing first runs server diagnosis. Syntax errors, unknown fields and structures the visual editor cannot preserve block the switch. You can return to JSON even while the visual draft is incomplete: current statements, actions, resources and raw condition input are preserved. Missing fields are never expanded to `*`. Incomplete or invalid drafts still cannot be saved or reuse an earlier validation result. ARN templates are disabled without account information; refresh user information to restore them. Drafts still require server catalog, resource, condition and delegation checks before publication.
 
-## AI policy drafts
+## Ask existing AI customer support about IAM JSON
 
-Expand “AI policy draft” in the policy editor. Describe the required operations, resource IDs and conditions, and supply a model ID and a relay token ID that you own. The token ID is not its secret; the token and current channel must allow the selected model. Selecting “Send the current JSON draft to AI for revision” also sends that text to the model. Do not include passwords, keys or tokens in instructions or drafts.
+Use the existing AI customer-support conversation to ask about policy syntax, explain a policy or troubleshoot diagnostics. There is no separate AI policy-draft panel or generation endpoint. Support can suggest JSON from the published RAM reference, JSON Schema and the system's service/Action/Resource/Condition catalog. It cannot inspect or invent your account ID, resource IDs, group memberships or current permissions: supply the exact non-secret identifiers and intended scope. Never send passwords, JWTs, AccessKey secrets or relay credentials.
 
-Generation requires the separate account-scoped `quyan:ram:GeneratePolicyDraft` permission. It reuses existing model billing, safety checks and token validation, without creating a chat conversation. Current limits are 10 requests per user per 10 minutes, 4000 instruction characters and 16384 characters for an existing draft. Timeouts and incomplete responses do not yield partial policies.
+Copy suggested JSON into the identity-policy or role-trust editor yourself. Download the matching Schema, run server diagnosis, review each diagnostic and simulate an unpublished identity-policy draft where authorized. A successful parse or simulated Allow is not publication permission. Saving still enforces ownership, delegation, concurrency and any required two-factor checks. Customer support never fills the editor, saves, binds or publishes a policy for you.
 
-Results include risk, explanations, missing information, diagnostics and the current delegation proof. Unknown actions, invalid JSON, duplicate keys, cross-account ARNs and unsupported fields cannot become applicable policies. Changing requirements or the current draft invalidates old results. “Apply to editor” only replaces the editable JSON: validate it, review the scope and explicitly save. AI cannot create policies, publish versions or attach authorizations. Unproven delegation is high risk; even a returned draft cannot bypass publication checks.
+### Safe identity-policy example
 
-`POST /v1/ram/policies/ai/draft` requires JWT and replay protection. Submit instruction, model and relayTokenId, with optional policyKind (identity or trust) and currentDocumentText. Identity drafts undergo current-account catalog, resource, condition and delegation checks. Trust drafts receive structural and account diagnostics only, and return a not-evaluated status; publication still requires a role target, real principals and trust delegation checks. The API does not save generated content or expose raw upstream responses.
+Replace `account-id` and `user-id` with your actual identifiers. This allows reading one user, not every user in the account:
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "quyan:ram:ReadUser",
+      "Resource": "acs:quyan:*:account-id:user/user-id",
+      "Condition": { "Bool": { "acs:SecureTransport": true } }
+    }
+  ]
+}
+```
+
+Only `*` is a wildcard. `user/*` is broader than one user; an `account` ARN is a distinct target, not shorthand for all account resources. Action and Resource must both match and be compatible in the catalog. Conditions combine operators and keys with AND, and values of one key with OR; the server supplies condition context, not client headers or arbitrary JSON. A matching explicit Deny overrides every Allow; without a matching Allow the default is rejection. Trust uses the separate Principal syntax described below and also requires an identity Allow for AssumeRole.
+
+### Fix diagnostics without widening access
+
+- JSON syntax errors: use the returned line/column and path to fix quotes, commas or unfinished condition values. Keep the original intended scope.
+- Unknown Action or incompatible ARN: select the actual catalog Action and its registered resource template. Never guess an operation name or replace a failing resource with `*`.
+- Unknown/unsupported condition: consult the condition catalog and the Action's compatible keys/operators. Do not remove a security condition merely to pass validation.
+- Delegation denied: your effective grants must cover every delegated Allow and scope, with equivalent or stricter conditions. Request an authorized administrator to review an unprovable subset; diagnostics and AI suggestions cannot bypass this boundary.
+
+The standalone `quyan:ram:GeneratePolicyDraft` Action has been removed. Existing custom policies and audit history are not automatically rewritten. If a custom policy still references this Action, remove that entry and diagnose the entire updated document before saving; do not replace it with a broader wildcard.
 
 ## Simulate an unpublished draft
 
@@ -325,7 +350,7 @@ Creating refreshes the relation list. Revocation requires confirmation and still
 
 In enforce mode, the final effective-permission list shares IAM evaluation with the user-permission API. Only legacy actions allowed on the account target project to global Permission; specific-resource Allow is never broadened. Explicit Deny removes the corresponding projected permission. Inspecting yourself uses the current authenticated identity and role session; inspecting another principal does not borrow the operator’s session. AccessKey principal-type conditions also affect the current identity’s projection. Source arrays remain historical explanations and may omit JSON-only grants; use simulation to check a particular ARN. Legacy/shadow historical display remains compatible.
 
-The role list provides a “Role trust policy” editor for separate trust JSON, trust Schema downloads, original-text diagnostics and trust-kind AI drafts. Applying AI output only edits the draft. Publication first diagnoses trust, then confirms its impact on new-session admission and sends the role’s existing trustPolicyHash to detect concurrent changes. Syntax checks do not prove publication permission: the server still checks real same-account principals, dedicated UpdateRoleTrustPolicy, AssumeRole delegation and effective role grants. Failures retain the draft for review; reload a role after a version conflict. Existing sessions require separate revocation.
+The role list provides a “Role trust policy” editor for separate trust JSON, trust Schema downloads, original-text diagnostics. Publication first diagnoses trust, then confirms its impact on new-session admission and sends the role’s existing trustPolicyHash to detect concurrent changes. Syntax checks do not prove publication permission: the server still checks real same-account principals, dedicated UpdateRoleTrustPolicy, AssumeRole delegation and effective role grants. Failures retain the draft for review; reload a role after a version conflict. Existing sessions require separate revocation.
 
 When granting legacy Permission to a user or group under enforce, the server expands it to all registered resource scopes inside the account and proves the operator can delegate that complete scope. An account-target menu Allow does not prove authority over every concrete resource. Removing a permissionRemoves Deny or clearing the configuration may restore denied capabilities, so the restored permissions also require delegation proof. Account and recovery-identity checks remain server-side; legacy/shadow retain migration compatibility.
 

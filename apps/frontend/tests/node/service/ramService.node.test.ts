@@ -183,25 +183,8 @@ describe('RAM service IAM document operations', () => {
       undefined,
     )
   })
-  it('requests a billed AI draft through the generated replay-protected descriptor only', async () => {
-    const body = { instruction: 'Read one user', model: 'model-id', relayTokenId: 'token-id' }
-    const data = {
-      explanation: [],
-      diagnostics: [],
-      missingInformation: [],
-      riskLevel: 'high',
-      delegation: 'not-evaluated',
-    }
-    requestMock.post.mockResolvedValueOnce({ code: CustomCode.OK, data })
-    expect(await ramService.generatePolicyDraft(body)).toEqual(data)
-    expect(requestMock.post).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'RamControllerGeneratePolicyDraft' }),
-      { body },
-      undefined,
-    )
-    expect(requestMock.put).not.toHaveBeenCalled()
-    requestMock.post.mockResolvedValueOnce({ code: CustomCode.PERMISSION_DENIED })
-    await expect(ramService.generatePolicyDraft(body)).rejects.toThrow()
+  it('has no dedicated AI policy generation method', () => {
+    expect(ramService).not.toHaveProperty('generatePolicyDraft')
   })
   it('loads the catalog and simulates through generated descriptors', async () => {
     requestMock.get.mockResolvedValueOnce({ code: CustomCode.OK, data: ['quyan:ram:ReadUser'] })
