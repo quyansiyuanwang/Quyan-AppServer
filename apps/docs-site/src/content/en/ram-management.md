@@ -167,9 +167,43 @@ Creating, updating, switching defaults, and attaching JSON policies requires the
 
 ### Deployment and migration boundaries
 
-`IAM_AUTHORIZATION_MODE` defaults to `legacy`, preserving legacy enforcement. `shadow` also enforces legacy permissions while auditing IAM differences. `enforce` uses IAM only for checks with an explicitly declared server Action and Resource Resolver, and never falls back on authorization-data failure. Undeclared legacy checks return 403 even if a policy allows `Action: "*"` and `Resource: "*"`; the server does not guess an account resource for these endpoints. Unsupported authorization modes also reject requests. Explicit IAM middleware endpoints, including simulation, always enforce IAM. **Not every JWT endpoint has completed explicit Action/Resource migration; enabling enforce does not establish complete coverage.**
+`IAM_AUTHORIZATION_MODE` defaults to `legacy`, preserving legacy enforcement. `shadow` also enforces legacy permissions while auditing IAM differences. `enforce` uses IAM only for checks with an explicitly declared server Action and Resource Resolver, and never falls back on authorization-data failure. Undeclared legacy checks return 403 even if a policy allows `Action: "*"` and `Resource: "*"`; the server does not guess an account resource for these endpoints. Unsupported authorization modes also reject requests. Explicit IAM middleware endpoints, including simulation, always enforce IAM. Current JWT routes declare server-controlled Actions and resource resolvers. Route coverage is not a substitute for validating real deployment data; complete backfill and difference checks before enabling enforce.
 
-Legacy-to-IAM conversion preserves legacy fields for configuration rollback without removing version data. New JSON-only policies do not acquire legacy grants when rolled back. Decisions are uncached; subsequent requests reread bindings, disabled policies, and revoked sessions. Collection filtering, per-resource batch authorization, and ownership checks cannot be replaced by account-level authorization; complete these integrations and shadow comparisons before full rollout.
+Legacy-to-IAM conversion preserves legacy fields for configuration rollback without removing version data. New JSON-only policies do not acquire legacy grants when rolled back. Decisions are uncached; subsequent requests reread bindings, disabled policies, and revoked sessions. Collection filtering, per-resource batch authorization, and ownership checks cannot be replaced by account-level authorization; complete real-account migration checks and shadow comparisons before full rollout.
+
+### One-time deployment migration (operators)
+
+The production bundle includes `dist/iam-migrate.cjs`; servers do not need TypeScript or development dependencies. Migration never changes `IAM_AUTHORIZATION_MODE` or invents trust policies for legacy roles.
+
+In the existing Build and Deploy workflow, enable **iam-migration** and **iam-backup-confirmed**. Confirmation means you have verified a database backup, arranged a maintenance window, and paused writers on other nodes or jobs; the workflow does not create a backup for you. Alternatively, dispatch the release branch:
+
+```bash
+gh workflow run deploy.yml --ref master \
+  -f deploy-backend=true \
+  -f iam-migration=true \
+  -f iam-backup-confirmed=true
+```
+
+The workflow applies schema migrations, then runs a read-only IAM preflight. After preflight succeeds it stops the existing PM2 `backend` process, migrates policies and authorizations by account, verifies the results, and reloads the backend only on success. This is a maintenance-window option for an existing deployment, not a zero-downtime release. Preflight failure does not actively stop the backend; failure after stopping leaves it stopped rather than serving unverified authorization data. Fix reported issues and rerun safely; completed records are not duplicated. Push deployments do not enable this business-data backfill by default.
+
+For manual operation from the deployed backend root:
+
+```bash
+# Prerequisite: prisma migrate deploy has succeeded. This command is read-only.
+NODE_ENV=production bun ./dist/iam-migrate.cjs --all-accounts
+
+# With a backup and other writers paused: preflight → stop → backfill and verify
+bash ./scripts/deploy-iam.sh
+
+# Reload only after the preceding command succeeds
+pm2 startOrReload ./ecosystem.config.cjs --env production --update-env
+```
+
+For a single account, replace `--all-accounts` with `--account-owner-id <id>`. Only explicit `--apply` writes data. Credentials are read from the deployment `.env`; use `ENV_FILE_PATH` for a custom file. Never put database passwords in command-line arguments.
+
+Preflight checks user permission additions/removals, group permissions, legacy policies and attachments, and hashes of migrated default versions. Unknown permissions, corrupted versions, cross-account bindings, or concurrent source changes prevent completion. Backfill commits individual record transactions, not one database-wide transaction; repair and rerun after an interruption. Legacy fields and attachments remain available for rollback.
+
+The report's `rolesRequiringTrustPolicy` counts legacy roles without trust policies. Legacy/shadow deployments can migrate other data first. If deployment configuration already uses enforce, preflight rejects roles without trust policies: an administrator must explicitly configure trusted principals rather than bypassing the requirement with automatically generated broad trust. Successful migration does not enable enforce or certify every production business scenario.
 
 ## Related pages
 

@@ -165,9 +165,43 @@ IAM 文档的创建、更新、默认版本切换和绑定要求拥有相应操�
 
 ### 部署与迁移边界
 
-`IAM_AUTHORIZATION_MODE` 默认为 `legacy`：保持旧权限强制。`shadow` 仍由旧权限强制，只比较并审计 IAM 差异；`enforce` 对明确声明服务端 Action 和 Resource Resolver 的权限检查使用 IAM，授权数据异常时不退回旧逻辑。缺少端点声明的旧检查返回 403，即使策略允许 `Action: "*"`、`Resource: "*"` 也不能放行；服务端不会替这些接口猜测账户级资源。未知授权模式同样拒绝请求。明确采用 IAM 中间件的接口（例如模拟器）始终强制 IAM。**当前并非全部 JWT 接口都完成了独立 Action/Resource 迁移，不能仅打开 enforce 就视为全量覆盖。**
+`IAM_AUTHORIZATION_MODE` 默认为 `legacy`：保持旧权限强制。`shadow` 仍由旧权限强制，只比较并审计 IAM 差异；`enforce` 对明确声明服务端 Action 和 Resource Resolver 的权限检查使用 IAM，授权数据异常时不退回旧逻辑。缺少端点声明的旧检查返回 403，即使策略允许 `Action: "*"`、`Resource: "*"` 也不能放行；服务端不会替这些接口猜测账户级资源。未知授权模式同样拒绝请求。明确采用 IAM 中间件的接口（例如模拟器）始终强制 IAM。当前 JWT 路由已声明服务端 Action 和资源解析方式；路由覆盖检查不等于真实数据迁移验收，启用 enforce 前仍需完成回填和差异检查。
 
-旧策略转换时保留旧权限字段，回滚配置无需删除版本数据；新建纯 JSON 策略在 legacy 模式下不会凭空获得旧权限。授权结果不使用缓存，策略解绑、禁用和会话撤销在后续请求中重新读取。列表行过滤、批量操作逐资源检查和业务归属检查不能被账户级授权替代；全量路由切换前应逐个完成迁移与差异校验。
+旧策略转换时保留旧权限字段，回滚配置无需删除版本数据；新建纯 JSON 策略在 legacy 模式下不会凭空获得旧权限。授权结果不使用缓存，策略解绑、禁用和会话撤销在后续请求中重新读取。列表行过滤、批量操作逐资源检查和业务归属检查不能被账户级授权替代；正式切换前仍应完成真实账户的迁移与差异校验。
+
+### 一次性部署迁移（运维）
+
+生产运行包包含 `dist/iam-migrate.cjs`，服务器无需安装 TypeScript 或开发依赖。迁移不会更改 `IAM_AUTHORIZATION_MODE`，也不会凭空为旧角色生成信任策略。
+
+使用已有 Build and Deploy 工作流时，勾选 **iam-migration** 和 **iam-backup-confirmed**。后者表示已验证数据库备份、安排维护窗口，并暂停其他节点或任务的写入；工作流不会代替你创建备份。也可以在发布分支执行：
+
+```bash
+gh workflow run deploy.yml --ref master \
+  -f deploy-backend=true \
+  -f iam-migration=true \
+  -f iam-backup-confirmed=true
+```
+
+工作流会执行数据库结构迁移，再运行 IAM 只读预检；预检通过后停止现有 PM2 `backend` 进程，按账户迁移策略和授权关系并重新校验，全部通过才重载后端。此选项用于已有部署的维护窗口，不是零停机发布。预检失败不会主动停止后端；停止后迁移失败则保持停止，避免提供未校验的授权数据。修复报告中的问题后可重新运行，已完成记录不会重复创建。自动推送部署默认不执行这项业务回填。
+
+也可在已部署的后端根目录手动执行：
+
+```bash
+# 前提：已运行 prisma migrate deploy；以下默认只读
+NODE_ENV=production bun ./dist/iam-migrate.cjs --all-accounts
+
+# 已备份并暂停写入后：预检 → 停止后端 → 回填与校验
+bash ./scripts/deploy-iam.sh
+
+# 仅当前一步成功后重载
+pm2 startOrReload ./ecosystem.config.cjs --env production --update-env
+```
+
+指定账户时，用 `--account-owner-id <id>` 替代 `--all-accounts`；只有显式指定 `--apply` 才写入。读取部署目录的 `.env`，自定义路径使用 `ENV_FILE_PATH`，不要将数据库密码放在命令行。
+
+预检覆盖用户附加/移除权限、用户组权限、旧策略和绑定，以及已迁移版本的 hash。未知权限、损坏版本、跨账户绑定或迁移中数据变化都会阻止完成。回填按记录事务提交，不是全库单个事务；中途失败可修复后重跑，旧字段和绑定保留用于回滚。
+
+报告中的 `rolesRequiringTrustPolicy` 表示尚无信任策略的旧角色数量。legacy/shadow 模式允许先迁移其余数据；若部署配置已为 enforce，预检会拒绝缺失信任策略的角色，需先由管理员明确配置可信主体，不能通过自动生成宽泛信任来绕过。迁移成功不代表已启用 enforce，也不代表所有业务场景都已通过生产验收。
 
 ## 相关页面
 

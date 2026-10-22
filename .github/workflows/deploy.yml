@@ -16,6 +16,14 @@ on:
         description: 'Deploy backend'
         type: boolean
         default: true
+      iam-migration:
+        description: 'Migrate legacy IAM data (maintenance window; backend is stopped during apply)'
+        type: boolean
+        default: false
+      iam-backup-confirmed:
+        description: 'I have a verified database backup and have paused all other backend writers'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -65,6 +73,12 @@ jobs:
           echo "[deploy] latest commit:" 
           git log -1 --pretty=format:'[deploy] commit=%H%n[deploy] short_commit=%h%n[deploy] subject=%s%n[deploy] author=%an%n[deploy] commit_time=%cI'
 
+      - name: Validate IAM migration confirmation
+        if: ${{ inputs.iam-migration && !inputs.iam-backup-confirmed }}
+        run: |
+          echo "IAM migration requires a verified backup and a maintenance window."
+          exit 1
+
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v5
@@ -109,6 +123,8 @@ jobs:
           pnpm --filter @quyan/backend deploy --prod --legacy "$bundle_dir"
           mkdir -p "$bundle_dir/dist"
           cp -a apps/backend/dist/. "$bundle_dir/dist/"
+          test -s "$bundle_dir/dist/iam-migrate.cjs"
+          test -s "$bundle_dir/scripts/deploy-iam.sh"
 
       - name: Log generated build info
         run: |
@@ -188,6 +204,18 @@ jobs:
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
             "cd '$REMOTE_BACKEND_PATH' && ./node_modules/.bin/prisma migrate deploy --schema ./prisma/schema.prisma"
+
+      - name: Migrate legacy IAM data and verify
+        if: ${{ inputs.iam-migration }}
+        env:
+          REMOTE_BACKEND_PATH: ${{ secrets.REMOTE_BACKEND_PATH }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "cd '$REMOTE_BACKEND_PATH' && bash ./scripts/deploy-iam.sh"
 
       - name: Reload PM2
         env:

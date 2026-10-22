@@ -421,6 +421,23 @@ pm2 startOrReload ecosystem.config.cjs --env production --update-env
 
 服务器不执行 `pnpm install`，不执行 `prisma generate`，也不执行 bcrypt/sharp 的编译。`.env` 和 `logs` 保留在部署根目录，不随运行包覆盖。
 
+### 首次启用 IAM：一次性业务回填
+
+数据库结构迁移不会自动转换旧权限数据。已有部署可在 `workflow_dispatch` 中勾选 `iam-migration` 和 `iam-backup-confirmed`，或执行：
+
+```bash
+gh workflow run deploy.yml --ref master \
+  -f deploy-backend=true \
+  -f iam-migration=true \
+  -f iam-backup-confirmed=true
+```
+
+确认前必须验证数据库备份，并安排维护窗口，暂停其他节点及后台任务写入。工作流依次执行：数据库迁移 → IAM 全账户只读预检 → 停止 PM2 `backend` → 策略与授权回填 → 完整性及幂等状态校验 → PM2 reload。预检失败不主动停止服务；停止后失败保持停止，修复数据后重跑。此步骤默认关闭，不会随每次 push 自动回填；它不承诺零停机或自动备份。
+
+运行包中的 `dist/iam-migrate.cjs` 支持 `--all-accounts` 或 `--account-owner-id <id>`，默认只读，显式 `--apply` 才写入。可在部署根目录先执行 `NODE_ENV=production bun ./dist/iam-migrate.cjs --all-accounts`，或使用 `bash ./scripts/deploy-iam.sh` 执行同一维护步骤；后者成功后再运行上述 PM2 reload 命令。它读取 `.env` 或 `ENV_FILE_PATH`，不会修改授权模式或密钥。
+
+回填可重入，按记录事务提交，保留旧权限字段与绑定，不是全库原子操作。无法识别的权限、版本损坏、跨账户绑定及源数据变化均阻止完成。报告中的 `rolesRequiringTrustPolicy` 必须在切换 enforce 前解决；enforce 配置下缺失角色信任策略会导致预检失败，不会自动补宽泛信任。先使用 legacy/shadow 完成数据审查，再决定 enforce 切换。
+
 当前服务器环境为 x86_64 glibc Linux + OpenSSL 3.x，适用于 `debian-openssl-3.0.x` Prisma Query Engine。Alpine/musl、ARM 或旧 OpenSSL 环境必须先调整 CI 构建目标。
 
 ## 2 核 2 GB：AI 资源预算
