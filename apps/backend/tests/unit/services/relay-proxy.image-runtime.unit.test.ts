@@ -193,6 +193,10 @@ const createMultipartImageRequest = (body: Buffer) => {
   req.headers = {
     "content-type": "multipart/form-data; boundary=----test-boundary",
     "content-length": String(body.length),
+    "openai-beta": "images=fixture",
+    "openai-project": "proj-fixture",
+    "x-client-request-id": "image-fixture",
+    cookie: "session=fixture",
   };
   req.ip = "127.0.0.1";
   req.connection = { remoteAddress: "127.0.0.1" };
@@ -288,6 +292,14 @@ describe("RelayProxyService image runtime", () => {
     expect(forwardedBody.toString("utf8")).toContain("fake-image-two");
     expect(forwardedBody.toString("utf8")).toContain("fake-image-three");
     expect(axiosConfig.headers["Content-Length"]).toBe(forwardedBody.length);
+    expect(axiosConfig.headers).toMatchObject({
+      "content-type": "multipart/form-data; boundary=----test-boundary",
+      "openai-beta": "images=fixture",
+      "openai-project": "proj-fixture",
+      "x-client-request-id": "image-fixture",
+      Authorization: "Bearer channel-primary-key",
+    });
+    expect(axiosConfig.headers).not.toHaveProperty("cookie");
     expect(usageChargeService.chargeUsage).toHaveBeenCalledWith(
       expect.objectContaining({
         relayTokenId: "token-1",

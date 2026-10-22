@@ -1,3 +1,4 @@
+import { buildRelayUpstreamHeaders } from "./utils/relay-upstream-headers.util";
 import { projectRelayCompositionCatalog } from "./utils/relay-composition-catalog.util";
 import {
   projectRelayAvailableModels,
@@ -3473,25 +3474,7 @@ export class RelayProxyService {
               fullUpstreamUrl += `${separator}key=${upstreamApiKey}`;
             }
 
-            const ALLOWED_HEADERS = [
-              "content-type",
-              "accept",
-              "accept-encoding",
-              "user-agent",
-              "anthropic-version",
-              "anthropic-beta",
-              "openai-organization",
-              "x-request-id",
-            ];
-            const headers: any = {};
-            for (const key of ALLOWED_HEADERS) if (req.headers[key]) headers[key] = req.headers[key];
-
-            if (requestFormat === "gemini") headers["x-goog-api-key"] = upstreamApiKey;
-            else if (this.isOpenAIRequestFormat(requestFormat)) headers["Authorization"] = `Bearer ${upstreamApiKey}`;
-            else {
-              headers["x-api-key"] = upstreamApiKey;
-              headers["anthropic-version"] = "2023-06-01";
-            }
+            const headers = buildRelayUpstreamHeaders(req.headers, requestFormat, upstreamApiKey);
 
             let sourceForwardedBody = this.buildForwardBody(req.body, clientRequestFormat, selectedModelId);
             if (

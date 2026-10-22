@@ -26,6 +26,19 @@ curl "https://relay.example.com/v1/chat/completions" \
 
 OpenAI Responses 格式使用 `/v1/responses` 和 `input` 字段。渠道、模型、请求格式、令牌状态、额度窗口和 IP 白名单都会影响调用结果。
 
+## 请求头转发
+
+转发使用请求头白名单，而不是原样透传所有字段。普通请求、流式请求和图片请求使用相同规则：
+
+- 通用字段：`Content-Type`、`Accept`、`Accept-Encoding`、`User-Agent`、`X-Request-Id`、`X-Client-Request-Id`、`Idempotency-Key`。
+- OpenAI 格式额外保留：`OpenAI-Organization`、`OpenAI-Project`、`OpenAI-Beta`。
+- Anthropic 格式额外保留：`anthropic-version`、`anthropic-beta`。未指定版本时才补充默认值 `2023-06-01`，不会覆盖调用者指定的版本。
+- Gemini 格式额外保留：`X-Goog-Api-Client`。
+
+这些字段是否被接受、对应功能和幂等语义是否生效，由上游服务决定。格式转换时，以实际发送给上游的格式选择协议字段，不会把另一协议的专用字段一并转发。
+
+用于认证本平台的 `Authorization`、`X-Api-Key` 等凭据不会作为上游凭据透传，而是替换为所选渠道的凭据。`Cookie`、`Host`、连接级字段、`Connection` 指定的字段、代理来源字段和其他未列出的自定义请求头（包括 SDK 的 `X-Stainless-*` 元数据）不会转发。`Content-Length` 根据实际发送的请求体重新计算。不要依赖自定义请求头控制渠道、计费或平台权限。
+
 ## 常见问题
 
 - `401`：确认使用的是中转令牌，且 `Authorization` 头为 `Bearer <relay_token>`。

@@ -373,6 +373,102 @@ describe("中转 AI 集成测试（插件化模拟上游）", () => {
     if (testGroupId) await prisma.group.deleteMany({ where: { id: testGroupId } });
   });
 
+  it.each([
+    { path: "chat/completions", stream: false },
+    { path: "chat/completions", stream: true },
+    { path: "responses", stream: false },
+    { path: "responses", stream: true },
+  ])("forwards OpenAI request headers to the physical upstream ($path, stream=$stream)", async ({ path, stream }) => {
+    const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: openaiRelayTokenId } });
+    const clientId = `headers-${path}-${stream}`;
+    const response = await request(app)
+      .post(`/relay/proxy/v1/${path}`)
+      .set("Authorization", `Bearer ${openaiRelayTokenValue}`)
+      .set("X-Api-Key", "caller-header-fixture")
+      .set("X-Goog-Api-Key", "caller-header-fixture")
+      .set("OpenAI-Beta", "responses=fixture")
+      .set("OpenAI-Project", "proj-fixture")
+      .set("X-Client-Request-Id", clientId)
+      .set("Idempotency-Key", clientId)
+      .set("Cookie", "session=fixture")
+      .set("X-Internal-Control", "must-not-leak")
+      .send({
+        model: openaiRelayModelId,
+        ...(path === "responses"
+          ? { input: "request header fixture" }
+          : { messages: [{ role: "user", content: "request header fixture" }] }),
+        stream,
+      });
+    expect(response.status).toBe(200);
+    const upstream = [...observedUpstreamRequests]
+      .reverse()
+      .find((ctx) => ctx.headers["x-client-request-id"] === clientId);
+    expect(upstream?.headers).toMatchObject({
+      "openai-beta": "responses=fixture",
+      "openai-project": "proj-fixture",
+      "idempotency-key": clientId,
+      authorization: "Bearer test-openai-key",
+    });
+    for (const name of ["cookie", "x-api-key", "x-goog-api-key", "x-internal-control"])
+      expect(upstream?.headers).not.toHaveProperty(name);
+    await getLatestUsage(openaiRelayTokenId, beforeUsageCount + 1);
+  });
+
+  it.each([false, true])("preserves Anthropic request headers at the physical upstream (stream=%s)", async (stream) => {
+    const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: anthropicRelayTokenId } });
+    const clientId = `headers-anthropic-${stream}`;
+    const response = await request(app)
+      .post("/relay/proxy/v1/messages")
+      .set("Authorization", `Bearer ${anthropicRelayTokenValue}`)
+      .set("Anthropic-Version", "2099-01-01")
+      .set("Anthropic-Beta", "fixture-beta")
+      .set("X-Client-Request-Id", clientId)
+      .set("Cookie", "session=fixture")
+      .send({
+        model: anthropicRelayModelId,
+        max_tokens: 64,
+        messages: [{ role: "user", content: "request header fixture" }],
+        stream,
+      });
+    expect(response.status).toBe(200);
+    const upstream = [...observedUpstreamRequests]
+      .reverse()
+      .find((ctx) => ctx.headers["x-client-request-id"] === clientId);
+    expect(upstream?.headers).toMatchObject({
+      "anthropic-version": "2099-01-01",
+      "anthropic-beta": "fixture-beta",
+      "x-api-key": "test-anthropic-key",
+    });
+    expect(upstream?.headers).not.toHaveProperty("authorization");
+    expect(upstream?.headers).not.toHaveProperty("cookie");
+    await getLatestUsage(anthropicRelayTokenId, beforeUsageCount + 1);
+  });
+
+  it.each([false, true])("preserves Gemini request headers at the physical upstream (stream=%s)", async (stream) => {
+    const beforeUsageCount = await prisma.relayUsage.count({ where: { relayTokenId: geminiRelayTokenId } });
+    const clientId = `headers-gemini-${stream}`;
+    const operation = stream ? "streamGenerateContent" : "generateContent";
+    const response = await request(app)
+      .post(`/relay/proxy/v1/models/${geminiRelayModelId}:${operation}`)
+      .set("Authorization", `Bearer ${geminiRelayTokenValue}`)
+      .set("X-Goog-Api-Key", "caller-header-fixture")
+      .set("X-Goog-Api-Client", "test-sdk/1.0")
+      .set("X-Client-Request-Id", clientId)
+      .set("Cookie", "session=fixture")
+      .send({ contents: [{ parts: [{ text: "request header fixture" }] }] });
+    expect(response.status).toBe(200);
+    const upstream = [...observedUpstreamRequests]
+      .reverse()
+      .find((ctx) => ctx.headers["x-client-request-id"] === clientId);
+    expect(upstream?.headers).toMatchObject({
+      "x-goog-api-client": "test-sdk/1.0",
+      "x-goog-api-key": "test-gemini-key",
+    });
+    expect(upstream?.headers).not.toHaveProperty("authorization");
+    expect(upstream?.headers).not.toHaveProperty("cookie");
+    await getLatestUsage(geminiRelayTokenId, beforeUsageCount + 1);
+  });
+
   it(
     "OpenAI 非流式中转返回模拟输出并记录 usage",
     async () => {

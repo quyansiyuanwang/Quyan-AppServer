@@ -26,6 +26,19 @@ curl "https://relay.example.com/v1/chat/completions" \
 
 OpenAI Responses uses `/v1/responses` and an `input` field. Channels, models, request formats, token status, quota windows, and IP allowlists can affect whether a request succeeds.
 
+## Request header forwarding
+
+The relay uses a request-header allowlist rather than forwarding every field unchanged. Regular, streaming, and image requests follow the same rules:
+
+- Common fields: `Content-Type`, `Accept`, `Accept-Encoding`, `User-Agent`, `X-Request-Id`, `X-Client-Request-Id`, and `Idempotency-Key`.
+- OpenAI formats additionally preserve `OpenAI-Organization`, `OpenAI-Project`, and `OpenAI-Beta`.
+- Anthropic additionally preserves `anthropic-version` and `anthropic-beta`. The default version `2023-06-01` is supplied only when omitted; an explicitly requested version is not overwritten.
+- Gemini additionally preserves `X-Goog-Api-Client`.
+
+Acceptance of these fields, their features, and idempotency semantics depend on the upstream provider. During format conversion, protocol-specific headers are selected for the actual upstream format, not forwarded across unrelated protocols.
+
+Credentials such as `Authorization` and `X-Api-Key` used to authenticate to this platform are replaced with the selected channel's credentials, not passed through as upstream credentials. `Cookie`, `Host`, hop-by-hop fields, fields named by `Connection`, proxy-origin fields, and other unlisted custom headers (including SDK `X-Stainless-*` metadata) are not forwarded. `Content-Length` is recalculated from the actual outgoing body. Do not use custom request headers to control channels, billing, or platform permissions.
+
 ## Common issues
 
 - `401`: confirm that the credential is a Relay Token and the header is `Bearer <relay_token>`.
