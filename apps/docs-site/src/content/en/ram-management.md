@@ -283,7 +283,7 @@ Legacy Permission grants retain their account-wide meaning through registered re
 
 The visual and JSON editors share one identity-policy draft. Filter service actions by Read, Write and List, add/duplicate/remove statements, insert current-account ARN templates using resource IDs, and choose supported condition keys and operators. Templates never default to all resources; explicitly selecting `*` shows a broad-grant warning. Enter condition values as JSON, such as `"203.0.113.0/24"`, `true` or an array, to retain scalar types.
 
-Switching from JSON to visual editing first runs server diagnosis. Syntax errors, unknown fields and structures the visual editor cannot preserve block the switch. Incomplete visual drafts cannot be saved or reuse an earlier validation result. ARN templates are disabled without account information; refresh user information to restore them. Drafts still require server catalog, resource, condition and delegation checks before publication.
+Switching from JSON to visual editing first runs server diagnosis. Syntax errors, unknown fields and structures the visual editor cannot preserve block the switch. You can return to JSON even while the visual draft is incomplete: current statements, actions, resources and raw condition input are preserved. Missing fields are never expanded to `*`. Incomplete or invalid drafts still cannot be saved or reuse an earlier validation result. ARN templates are disabled without account information; refresh user information to restore them. Drafts still require server catalog, resource, condition and delegation checks before publication.
 
 ## AI policy drafts
 

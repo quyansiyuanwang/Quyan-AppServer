@@ -221,6 +221,45 @@ export function exportVisualPolicy(statements: VisualStatement[]): IamPolicyDocu
   })
   return { Version: '1', Statement: result }
 }
+/** Draft text is intentionally allowed to be invalid: never discard unfinished condition input. */
+export function serializeVisualPolicyDraft(statements: VisualStatement[]): string {
+  try {
+    return JSON.stringify(exportVisualPolicy(statements), null, 2)
+  } catch {
+    const quote = (value: unknown) => JSON.stringify(value)
+    const rows = statements.map((statement) => {
+      const fields = [
+        ...(statement.sid ? [`"Sid": ${quote(statement.sid)}`] : []),
+        `"Effect": ${quote(statement.effect)}`,
+        `"Action": ${quote(statement.actions)}`,
+        `"Resource": ${quote(
+          statement.resourcesText
+            .split(/\r?\n/)
+            .map((value) => value.trim())
+            .filter(Boolean),
+        )}`,
+      ]
+      // Preserve duplicate keys and invalid/empty JSON fragments so server diagnosis can reject them.
+      // Replacing these with strings or dropping them could silently broaden the policy.
+      const operators = new Map<string, string[]>()
+      for (const condition of statement.conditions) {
+        const entries = operators.get(condition.operator) ?? []
+        entries.push(`${quote(condition.key)}: ${condition.valuesText}`)
+        operators.set(condition.operator, entries)
+      }
+      if (operators.size)
+        fields.push(
+          `"Condition": {${[...operators].map(([operator, entries]) => `${quote(operator)}: {${entries.join(',\n')}}`).join(',\n')}}`,
+        )
+      return `{${fields.join(',\n')}}`
+    })
+    return `{
+"Version": "1",
+"Statement": [${rows.join(',\n')}]
+}`
+  }
+}
+
 /** Identifier fields come from the registered ARN path, including user/pass/subject and ancestor segments. */
 export function visualResourceIdentifierFields(typeId: string): string[] {
   const type = IAM_RESOURCE_TYPE_CATALOG.find((type) => type.id === typeId)

@@ -14,7 +14,7 @@
     <div class="editor-mode-row">
       <el-button
         data-test="json-mode"
-        :disabled="submitting || (policyEditorMode === 'visual' && !visualPolicyValid)"
+        :disabled="submitting || switchingEditor"
         @click="policyEditorMode = 'json'"
         >{{ i18ns.t('RamManagement.visualJsonMode') }}</el-button
       >
@@ -31,7 +31,7 @@
       :document="visualDocument"
       :account-owner-id="iamAccountOwnerId ?? ''"
       :disabled="submitting"
-      @document="applyVisualDocument"
+      @draft="applyVisualDraft"
       @validity="visualPolicyValid = $event"
     />
     <el-select
@@ -149,6 +149,7 @@ const {
   iamSimulationUseDraft,
   iamSimulationVisible,
   policyEditorMode,
+  policyEditorGeneration,
   visualPolicyValid,
   iamActions,
   iamActionsLoading,
@@ -162,6 +163,7 @@ const {
   hasPolicyDeny,
   validatePolicyDocument,
   getValidatedPolicyDocument,
+  cancelPolicyValidation,
   submitting,
 } = useRamManagementContext()
 const openDraftSimulation = () => {
@@ -180,34 +182,56 @@ watch(
 const documentInput = ref<InputInstance>()
 const visualDocument = ref<IamPolicyDocument>()
 const switchingEditor = ref(false)
+let switchSequence = 0
+watch(
+  policyEditorGeneration,
+  () => {
+    switchSequence++
+    switchingEditor.value = false
+    visualDocument.value = undefined
+  },
+  { flush: 'sync' },
+)
 const openVisualEditor = async () => {
+  if (disposed || submitting.value || switchingEditor.value) return
+  const sequence = ++switchSequence
+  const text = policyDocumentText.value
   switchingEditor.value = true
   try {
     const document = policyDocumentText.value.trim()
       ? await getValidatedPolicyDocument()
       : undefined
-    if (policyDocumentText.value.trim() && !document) return
+    if (
+      disposed ||
+      sequence !== switchSequence ||
+      policyDocumentText.value !== text ||
+      submitting.value
+    )
+      return
+    if (text.trim() && !document) return
     if (document) importVisualPolicy(document)
     visualDocument.value = document
     visualPolicyValid.value = false
     policyEditorMode.value = 'visual'
   } catch {
-    policyValidationFailed.value = true
+    if (!disposed && sequence === switchSequence) policyValidationFailed.value = true
   } finally {
-    switchingEditor.value = false
+    if (sequence === switchSequence) switchingEditor.value = false
   }
 }
 const applyAiDraft = (text: string) => {
   policyEditorMode.value = 'json'
   policyDocumentText.value = text
 }
-const applyVisualDocument = (document: IamPolicyDocument) => {
-  policyDocumentText.value = JSON.stringify(document, null, 2)
+const applyVisualDraft = (text: string) => {
+  policyDocumentText.value = text
 }
 
 let disposed = false
 onBeforeUnmount(() => {
   disposed = true
+  switchSequence++
+  cancelPolicyValidation()
 })
 const schemaDownloading = ref(false)
 const schemaDownloadFailed = ref(false)

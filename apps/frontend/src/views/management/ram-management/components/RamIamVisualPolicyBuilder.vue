@@ -34,7 +34,12 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import type { IamPolicyDocument } from '@quyan/shared'
-import { exportVisualPolicy, importVisualPolicy, newVisualStatement } from '../iam-visual-policy'
+import {
+  exportVisualPolicy,
+  importVisualPolicy,
+  newVisualStatement,
+  serializeVisualPolicyDraft,
+} from '../iam-visual-policy'
 import RamIamVisualStatement from './RamIamVisualStatement.vue'
 import { i18ns } from '@/locales'
 const props = defineProps<{
@@ -42,7 +47,11 @@ const props = defineProps<{
   accountOwnerId: string
   disabled: boolean
 }>()
-const emit = defineEmits<{ document: [document: IamPolicyDocument]; validity: [valid: boolean] }>()
+const emit = defineEmits<{
+  document: [document: IamPolicyDocument]
+  draft: [text: string]
+  validity: [valid: boolean]
+}>()
 let nextId = 0
 const rows = ref(
   (props.document ? importVisualPolicy(props.document) : [newVisualStatement()]).map(
@@ -61,6 +70,7 @@ const duplicateStatement = (index: number) => {
 watch(
   rows,
   () => {
+    emit('draft', serializeVisualPolicyDraft(rows.value.map((row) => row.statement)))
     try {
       const document = exportVisualPolicy(rows.value.map((row) => row.statement))
       valid.value = true

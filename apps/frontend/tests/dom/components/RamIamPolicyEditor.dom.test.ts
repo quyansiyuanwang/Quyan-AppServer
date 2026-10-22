@@ -140,9 +140,103 @@ describe('IAM policy editor controls and warnings', () => {
     await wrapper.get('[data-test="validate-policy"]').trigger('click')
     expect(diagnosePolicy).not.toHaveBeenCalled()
     expect(await context.getValidatedPolicyDocument()).toBeUndefined()
-    expect(wrapper.get('[data-test="json-mode"]').attributes()).toHaveProperty('disabled')
+    expect(wrapper.get('[data-test="json-mode"]').attributes()).not.toHaveProperty('disabled')
+    await wrapper.get('[data-test="json-mode"]').trigger('click')
+    expect(context.policyEditorMode.value).toBe('json')
+    expect(JSON.parse(context.policyDocumentText.value).Statement[0]).toMatchObject({
+      Action: [],
+      Resource: [],
+    })
+    await wrapper.get('[data-test="validate-policy"]').trigger('click')
+    await flushPromises()
+    expect(context.policyValidation.value).toBeNull()
     wrapper.unmount()
   })
+  it('does not enter visual mode after closing, resetting, or changing the source during diagnosis', async () => {
+    for (const event of ['close', 'reset', 'edit'] as const) {
+      context = {
+        ...useIamPolicyEditor(),
+        ...useIamPolicyTools(),
+        submitting: ref(false),
+        canReadPolicies: ref(false),
+      }
+      context.policyDocumentText.value = '{source}'
+      let finish!: (value: object) => void
+      diagnosePolicy.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+      )
+      const wrapper = mount(RamIamPolicyEditor, {
+        global: { stubs: { RamIamPolicyAiDraft: true, 'el-button': buttonStub } },
+      })
+      await wrapper.get('[data-test="visual-mode"]').trigger('click')
+      if (event === 'close') wrapper.unmount()
+      else if (event === 'reset') context.initializePolicyEditor()
+      else context.policyDocumentText.value = '{newer}'
+      finish({
+        valid: true,
+        diagnostics: [],
+        documentHash: 'fixture',
+        document: {
+          Version: '1',
+          Statement: [{ Effect: 'Allow', Action: ['quyan:ram:ReadUser'], Resource: ['*'] }],
+        },
+      })
+      await flushPromises()
+      expect(context.policyEditorMode.value).toBe('json')
+      expect(context.policyValidation.value).toBeNull()
+      expect(context.policyDocumentText.value).toBe(
+        event === 'edit' ? '{newer}' : event === 'reset' ? '' : '{source}',
+      )
+      if (event !== 'close') wrapper.unmount()
+    }
+  })
+
+  it('switches an unfinished visual condition back to JSON without losing edits or reusing validation', async () => {
+    context = {
+      ...useIamPolicyEditor(),
+      ...useIamPolicyTools(),
+      submitting: ref(false),
+      canReadPolicies: ref(false),
+    }
+    const wrapper = mount(RamIamPolicyEditor, {
+      global: {
+        stubs: {
+          RamIamPolicyAiDraft: true,
+          'el-button': buttonStub,
+          'el-input': inputStub,
+          RamIamVisualStatement: defineComponent({
+            name: 'RamIamVisualStatement',
+            props: ['statement'],
+            emits: ['update:statement'],
+            template: '<div />',
+          }),
+        },
+      },
+    })
+    await wrapper.get('[data-test="visual-mode"]').trigger('click')
+    const row = wrapper.findComponent({ name: 'RamIamVisualStatement' })
+    row.vm.$emit('update:statement', {
+      ...row.props('statement'),
+      sid: 'CurrentEdit',
+      actions: ['quyan:ram:ReadUser'],
+      resourcesText: 'acs:quyan:*:owner:user/user_1',
+      conditions: [
+        { operator: 'StringEquals', key: 'quyan:PrincipalId', valuesText: '"unfinished' },
+      ],
+    })
+    await flushPromises()
+    expect(context.visualPolicyValid.value).toBe(false)
+    await wrapper.get('[data-test="json-mode"]').trigger('click')
+    expect(wrapper.get('textarea').element.value).toContain('CurrentEdit')
+    expect(context.policyDocumentText.value).toContain('user_1')
+    expect(context.policyDocumentText.value).toContain('"unfinished')
+    expect(() => JSON.parse(context.policyDocumentText.value)).toThrow()
+    expect(context.policyValidation.value).toBeNull()
+    wrapper.unmount()
+  })
+
   it('loads and inserts static catalog Actions without account policy-read permission', async () => {
     getIamActions.mockResolvedValue(['quyan:ram:CreateUser'])
     context = {

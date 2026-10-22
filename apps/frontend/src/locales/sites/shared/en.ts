@@ -656,7 +656,7 @@ const en = {
     visualDuplicate: "Duplicate",
     visualRemoveStatement: "Remove statement",
     visualAddStatement: "Add statement",
-    visualIncomplete: "Complete the actions, resource ARNs and valid JSON condition values before saving or switching to JSON.",
+    visualIncomplete: "Complete the actions, resource ARNs and valid JSON condition values before saving. You can return to JSON at any time; unfinished input is preserved for correction.",
     title: 'RAM Access Control',
     overview: 'RAM Overview',
     overviewDescription:

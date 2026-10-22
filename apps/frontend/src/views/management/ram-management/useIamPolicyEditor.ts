@@ -22,6 +22,7 @@ export function policyAuthorizationPayload(
 }
 
 export function useIamPolicyEditor() {
+  const policyEditorGeneration = ref(0)
   const policyFormat = ref<'legacy' | 'iam'>('legacy')
   const policyEditorMode = ref<'json' | 'visual'>('json')
   const visualPolicyValid = ref(true)
@@ -51,8 +52,17 @@ export function useIamPolicyEditor() {
       (item) => item.Effect === 'Deny',
     )
   })
+  const cancelPolicyValidation = () => {
+    requestSequence++
+    revision++
+    validatingPolicy.value = false
+    policyValidation.value = null
+    policyDiagnostics.value = []
+    policyValidationFailed.value = false
+  }
   const initializePolicyEditor = (policy?: RamPolicyDto) => {
     requestSequence++
+    policyEditorGeneration.value++
     policyEditorMode.value = 'json'
     visualPolicyValid.value = true
     validatingPolicy.value = false
@@ -113,6 +123,7 @@ export function useIamPolicyEditor() {
   }
 
   return {
+    policyEditorGeneration,
     policyFormat,
     policyEditorMode,
     visualPolicyValid,
@@ -123,6 +134,7 @@ export function useIamPolicyEditor() {
     policyValidationFailed,
     hasPolicyDeny,
     initializePolicyEditor,
+    cancelPolicyValidation,
     validatePolicyDocument,
     getValidatedPolicyDocument,
   }

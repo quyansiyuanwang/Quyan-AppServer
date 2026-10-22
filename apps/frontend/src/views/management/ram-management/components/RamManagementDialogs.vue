@@ -318,7 +318,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item v-if="policyFormat === 'iam'" :label="i18ns.t('RamManagement.iamDocument')">
-        <RamIamPolicyEditor />
+        <RamIamPolicyEditor v-if="policyDialogVisible" />
       </el-form-item>
       <el-form-item v-else :label="i18ns.t('RamManagement.permissions')" prop="permissions">
         <div class="permission-tree-container">

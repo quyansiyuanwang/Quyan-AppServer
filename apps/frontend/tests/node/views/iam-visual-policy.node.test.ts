@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   exportVisualPolicy,
+  serializeVisualPolicyDraft,
   importVisualPolicy,
   newVisualStatement,
   visualConditionKeys,
@@ -417,5 +418,48 @@ describe('catalog authorization dependency guidance', () => {
         scope: 'conditional',
       }),
     )
+  })
+})
+
+describe('lossless visual draft serialization', () => {
+  it('serializes complete policies identically and permits repeated round trips', () => {
+    let rows = importVisualPolicy(document)
+    for (let i = 0; i < 3; i++) {
+      const text = serializeVisualPolicyDraft(rows)
+      expect(JSON.parse(text)).toEqual(exportVisualPolicy(rows))
+      rows = importVisualPolicy(JSON.parse(text))
+    }
+  })
+  it('preserves incomplete, duplicated and removed statements without inventing wildcards', () => {
+    const first = { ...newVisualStatement(), sid: 'First', actions: ['quyan:ram:ReadUser'] }
+    const rows = [
+      first,
+      { ...newVisualStatement(), sid: 'Second', resourcesText: 'acs:quyan:*:owner:user/user_1' },
+    ]
+    rows.push({ ...rows[1]!, sid: 'Copy' })
+    rows.splice(0, 1)
+    expect(JSON.parse(serializeVisualPolicyDraft(rows)).Statement).toEqual([
+      { Sid: 'Second', Effect: 'Allow', Action: [], Resource: ['acs:quyan:*:owner:user/user_1'] },
+      { Sid: 'Copy', Effect: 'Allow', Action: [], Resource: ['acs:quyan:*:owner:user/user_1'] },
+    ])
+  })
+  it('retains invalid and duplicate condition fragments rather than coercing or dropping them', () => {
+    for (const value of ['', '"unfinished', '{', 'true', '42', '["value"]']) {
+      const row = {
+        ...newVisualStatement(),
+        conditions: [
+          { operator: 'StringEquals' as const, key: 'quyan:PrincipalId', valuesText: value },
+        ],
+      }
+      const text = serializeVisualPolicyDraft([row])
+      expect(text).toContain('"quyan:PrincipalId": ' + value)
+      if (['', '"unfinished', '{'].includes(value)) expect(() => JSON.parse(text)).toThrow()
+      else
+        expect(JSON.parse(text).Statement[0].Condition.StringEquals['quyan:PrincipalId']).toEqual(
+          JSON.parse(value),
+        )
+      row.conditions.push({ ...row.conditions[0]! })
+      expect(serializeVisualPolicyDraft([row]).match(/"quyan:PrincipalId":/g)).toHaveLength(2)
+    }
   })
 })

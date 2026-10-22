@@ -611,7 +611,7 @@ const emoji = {
     visualDuplicate: "🔐 Duplicate",
     visualRemoveStatement: "🔐 Remove statement",
     visualAddStatement: "🔐 Add statement",
-    visualIncomplete: "🔐 Complete the actions, resource ARNs and valid JSON condition values before saving or switching to JSON.",
+    visualIncomplete: "🔐 Complete the policy before saving. Return to JSON at any time; unfinished input is preserved.",
     title: '🔐 👥',
     overview: '🔐 📋',
     overviewDescription: '👤 + 🛂 + 🕒',

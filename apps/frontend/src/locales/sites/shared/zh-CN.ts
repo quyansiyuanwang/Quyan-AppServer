@@ -626,7 +626,7 @@ const zhCN = {
     visualDuplicate: "复制",
     visualRemoveStatement: "删除 Statement",
     visualAddStatement: "添加 Statement",
-    visualIncomplete: "请补全操作、资源 ARN 和合法 JSON 条件值，再保存或切换至 JSON。",
+    visualIncomplete: "保存前请补全操作、资源 ARN 和合法 JSON 条件值。随时可返回 JSON，未完成的输入会保留供修正。",
     title: 'RAM 访问控制',
     overview: 'RAM 概览',
     overviewDescription: '按身份、权限和会话职责管理 RAM 资源。',
