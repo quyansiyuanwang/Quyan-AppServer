@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, Permission, actionForPermission, type IamPrincipal } from "@quyan/shared";
 import { prisma } from "@/config/database";
 import { IamAuthorizationService } from "@/iam/iam-authorization.service";
-import { IamDeploymentMigration } from "@/iam/migration/deployment-migration";
+import { IamDeploymentMigration } from "../../../migrations/20261023-iam-policy-authorization/migration";
 import { LegacyPolicyBackfillService } from "@/iam/migration/legacy-policy-backfill.service";
 import { LegacyAuthorizationBackfillService } from "@/iam/migration/legacy-authorization-backfill.service";
 import { IamDeploymentMigrationRepository } from "@/store/users/iam-deployment-migration.repository";
@@ -63,7 +63,7 @@ async function decisions(subject = principal()) {
     }),
   );
 }
-describe("single-command deployment migration", { timeout: 60000 }, () => {
+describe("versioned single-command IAM data migration", { timeout: 60000 }, () => {
   it("preserves direct/group/role grants, explicit removals and role-session decisions through apply and rerun", async () => {
     const group = await prisma.group.create({
       data: {

@@ -421,22 +421,46 @@ pm2 startOrReload ecosystem.config.cjs --env production --update-env
 
 服务器不执行 `pnpm install`，不执行 `prisma generate`，也不执行 bcrypt/sharp 的编译。`.env` 和 `logs` 保留在部署根目录，不随运行包覆盖。
 
-### 首次启用 IAM：一次性业务回填
+### 首次启用 IAM：独立的一次性数据迁移
 
-数据库结构迁移不会自动转换旧权限数据。已有部署可在 `workflow_dispatch` 中勾选 `iam-migration` 和 `iam-backup-confirmed`，或执行：
+标准 `deploy.yml` 只运行原有 Prisma 结构迁移和 PM2 reload，不再提供 IAM 专用输入、确认或数据回填步骤。IAM 回填也不属于默认后端编译。数据库结构迁移不会自动转换旧权限数据；已有账户需在**首次启用 IAM 前单独安排维护窗口**。后续普通发布无需重复执行。
+
+迁移位于 `apps/backend/migrations/20261023-iam-policy-authorization/`。有源码环境从仓库根目录执行：
 
 ```bash
-gh workflow run deploy.yml --ref master \
-  -f deploy-backend=true \
-  -f iam-migration=true \
-  -f iam-backup-confirmed=true
+# 默认只读预检；两种范围互斥，必须明确选择一种
+pnpm --filter @quyan/backend run migration:iam -- --all-accounts
+# 或仅预检一个明确账户：
+pnpm --filter @quyan/backend run migration:iam -- --account-owner-id <account-owner-id>
+
+# 仅在备份、暂停写入、结构迁移及预检完成后执行
+pnpm --filter @quyan/backend run migration:iam -- --all-accounts --apply
 ```
 
-确认前必须验证数据库备份，并安排维护窗口，暂停其他节点及后台任务写入。工作流依次执行：数据库迁移 → IAM 全账户只读预检 → 停止 PM2 `backend` → 策略与授权回填 → 完整性及幂等状态校验 → PM2 reload。预检失败不主动停止服务；停止后失败保持停止，修复数据后重跑。此步骤默认关闭，不会随每次 push 自动回填；它不承诺零停机或自动备份。
+`iam:migrate` 保留为 `migration:iam` 的兼容别名。命令从当前工作目录读取 `.env`，也可用 `ENV_FILE_PATH` 指定已有环境文件；使用 pnpm filter 时工作目录为 `apps/backend/`。不要在命令行粘贴数据库密码。预检与 apply 必须使用相同范围和环境。
 
-运行包中的 `dist/iam-migrate.cjs` 支持 `--all-accounts` 或 `--account-owner-id <id>`，默认只读，显式 `--apply` 才写入。可在部署根目录先执行 `NODE_ENV=production bun ./dist/iam-migrate.cjs --all-accounts`，或使用 `bash ./scripts/deploy-iam.sh` 执行同一维护步骤；后者成功后再运行上述 PM2 reload 命令。它读取 `.env` 或 `ENV_FILE_PATH`，不会修改授权模式或密钥。
+生产无源码环境先在与发布对应的可信构建环境**单独打包**，不修改标准 deploy：
 
-回填可重入，按记录事务提交，保留旧权限字段与绑定，不是全库原子操作。无法识别的权限、版本损坏、跨账户绑定及源数据变化均阻止完成。报告中的 `rolesRequiringTrustPolicy` 必须在切换 enforce 前解决；enforce 配置下缺失角色信任策略会导致预检失败，不会自动补宽泛信任。先使用 legacy/shadow 完成数据审查，再决定 enforce 切换。
+```bash
+pnpm --filter @quyan/backend run migration:iam:bundle
+# 独立产物：apps/backend/.tmp/migrations/20261023-iam-policy-authorization/runner.cjs
+```
+
+将该 runner 单独上传到已部署后端根目录下的 `migrations/20261023-iam-policy-authorization/runner.cjs`，与该版本的生产依赖、Prisma Client 和目标平台 Query Engine 配套使用，不要求上传 TypeScript 源码。从后端部署根目录执行：
+
+```bash
+# 先完成备份、维护窗口暂停所有写入与标准 Prisma 结构迁移
+./node_modules/.bin/prisma migrate deploy --schema ./prisma/schema.prisma
+NODE_ENV=production node ./migrations/20261023-iam-policy-authorization/runner.cjs --all-accounts
+# 上一命令成功、人工审阅报告后再 apply；成功时包含 verify 及 verified: true
+NODE_ENV=production node ./migrations/20261023-iam-policy-authorization/runner.cjs --all-accounts --apply
+```
+
+运维顺序固定为：**验证备份 → 维护窗口暂停全部写入（含其他节点、后台任务和管理操作）→ 标准 Prisma 结构迁移 → IAM 数据只读预检 → apply 与完整性验证 → 审阅报告并恢复业务**。可以在暂停写入期间按标准流程部署，但须由运维保证工作流 reload 不会提前对外放开写入。runner 本身不停止/启动 PM2、不改变授权模式或密钥、不自动备份，也不会向 Prisma 迁移表登记 TypeScript 回填。不要使用 `deploy-iam.sh` 或已移除的工作流输入。
+
+预检、源数据漂移、回填或验证失败均非零退出，不得恢复写入或自动切换模式。回填按记录事务提交，保留旧权限字段与绑定，可幂等重跑和逐记录恢复，**不是全库原子事务**。中途失败时保留维护窗口，先定位并修复报告中的记录，再使用相同范围重跑预检与 apply；不要手写“已迁移”标记或修改历史 SQL。
+
+无法识别的权限、损坏版本、跨账户绑定及源数据变化均阻止完成。报告中的 `rolesRequiringTrustPolicy` 必须在切换 enforce 前解决；enforce 配置下缺失角色信任策略会导致预检失败，不会自动补宽泛信任。先在 legacy/shadow 完成数据与授权等价性审查，再单独决定 enforce 切换。恢复业务仍使用标准运维/PM2 流程；本命令不保证零停机。
 
 当前服务器环境为 x86_64 glibc Linux + OpenSSL 3.x，适用于 `debian-openssl-3.0.x` Prisma Query Engine。Alpine/musl、ARM 或旧 OpenSSL 环境必须先调整 CI 构建目标。
 

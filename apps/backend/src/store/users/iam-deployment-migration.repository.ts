@@ -1,6 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
-import type { IamDeploymentMigrationStore } from "@/iam/migration/deployment-migration";
 import { IAM_BACKFILL_BATCH_SIZE } from "@/iam/migration/legacy-policy-backfill";
 import { parseLegacyPermissions } from "@/iam/legacy-policy";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
@@ -16,7 +15,7 @@ export interface IamMigrationSourceDiagnostic {
 }
 
 /** Explicit client injection: the deployment runner never connects to an implicit application database. */
-export class IamDeploymentMigrationRepository implements IamDeploymentMigrationStore {
+export class IamDeploymentMigrationRepository {
   readonly rolesWithoutTrust = new Set<string>();
   constructor(
     private readonly client: PrismaClient,

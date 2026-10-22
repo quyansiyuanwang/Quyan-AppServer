@@ -73,20 +73,6 @@ await esbuild.build({
   metafile: isProduction, // 生产环境生成元数据用于分析
 });
 
-// Ship a standalone administrative runner in the production bundle; no tsx/TypeScript tooling on servers.
-await esbuild.build({
-  entryPoints: ["./scripts/migrate-iam-deployment.ts"],
-  outfile: "./dist/iam-migrate.cjs",
-  bundle: true,
-  platform: "node",
-  target: "node20",
-  format: "cjs",
-  minify: isProduction,
-  sourcemap: !isProduction,
-  external: ["@prisma/client", ".prisma/client", "sharp", "bcrypt", "jsonc-parser"],
-  logLevel: "error",
-});
-
 // esbuild-plugin-copy resolves globs relative to its cwd. Prisma's generated
 // client lives in pnpm's virtual store, so copy it explicitly from the path
 // resolved by Node instead of guessing node_modules/.prisma.

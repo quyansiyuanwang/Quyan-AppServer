@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { IamDeploymentMigration, parseIamDeploymentMigrationArgs } from "@/iam/migration/deployment-migration";
+import {
+  IamDeploymentMigration,
+  parseIamDeploymentMigrationArgs,
+} from "../../../migrations/20261023-iam-policy-authorization/migration";
 const empty = () => ({ planned: 0, migrated: 0, invalid: 0, changed: 0 });
 const store = { listAccounts: vi.fn(), validateSources: vi.fn() };
 const policies = { run: vi.fn() },
@@ -13,7 +16,7 @@ beforeEach(() => {
   policies.run.mockImplementation(async () => empty());
   authorizations.run.mockImplementation(async () => empty());
 });
-describe("deployment IAM migration orchestration", () => {
+describe("versioned one-time IAM migration orchestration", () => {
   it("requires explicit mutually exclusive scope, defaults to dry-run and rejects unknown options", () => {
     expect(parseIamDeploymentMigrationArgs(["--", "--all-accounts"])).toEqual(scope);
     expect(parseIamDeploymentMigrationArgs(["--account-owner-id", "owner", "--apply"])).toEqual({

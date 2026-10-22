@@ -1,10 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import dotenv from "dotenv";
-import {
-  IamDeploymentMigration,
-  IamDeploymentMigrationError,
-  parseIamDeploymentMigrationArgs,
-} from "../src/iam/migration/deployment-migration";
+import { IamDeploymentMigration, IamDeploymentMigrationError, parseIamDeploymentMigrationArgs } from "./migration";
 
 // Load only deployment credentials here. Never print configuration or raw database exceptions.
 dotenv.config({ path: process.env.ENV_FILE_PATH || ".env", quiet: true });
@@ -22,11 +18,11 @@ async function run() {
     { IamPolicyMigrationRepository },
     { IamAuthorizationMigrationRepository },
   ] = await Promise.all([
-    import("../src/store/users/iam-deployment-migration.repository"),
-    import("../src/iam/migration/legacy-policy-backfill.service"),
-    import("../src/iam/migration/legacy-authorization-backfill.service"),
-    import("../src/store/users/iam-policy-migration.repository"),
-    import("../src/store/users/iam-authorization-migration.repository"),
+    import("../../src/store/users/iam-deployment-migration.repository"),
+    import("../../src/iam/migration/legacy-policy-backfill.service"),
+    import("../../src/iam/migration/legacy-authorization-backfill.service"),
+    import("../../src/store/users/iam-policy-migration.repository"),
+    import("../../src/store/users/iam-authorization-migration.repository"),
   ]);
   const sources = new IamDeploymentMigrationRepository(prisma, {
     requireTrustPolicies: process.env.IAM_AUTHORIZATION_MODE === "enforce",
