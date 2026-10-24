@@ -11,8 +11,10 @@ const config = JSON.parse(fs.readFileSync(path.join(backendRoot, "tsoa.json"), "
 const project = new Project({ skipAddingFilesFromTsConfig: true });
 const sources = project.addSourceFilesAtPaths(config.controllerPathGlobs.map((glob) => path.join(backendRoot, glob)));
 const catalog = actionRouteCatalog(collectIamRoutes(sources, backendRoot));
+const outputFile = path.join(backendRoot, "src/build/iam-action-routes.ts");
+fs.mkdirSync(path.dirname(outputFile), { recursive: true });
 fs.writeFileSync(
-  path.join(backendRoot, "src/build/iam-action-routes.ts"),
+  outputFile,
   "// Generated from Controller authorization metadata. Do not edit.\nexport const IAM_ACTION_ROUTES: Readonly<Record<string, readonly string[]>> = " +
     JSON.stringify(catalog, null, 2) +
     ";\n",

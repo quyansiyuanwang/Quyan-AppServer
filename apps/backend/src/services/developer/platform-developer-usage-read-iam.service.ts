@@ -95,13 +95,11 @@ export class PlatformDeveloperUsageReadIamService {
     dates: readonly Date[],
   ): DeveloperProductUsageDto {
     this.same(data.account, target);
-    const parsed = updateProductAccountBodySchema
-      .strict()
-      .safeParse({
-        dailyFreeQuota: data.account.dailyFreeQuota,
-        overageEnabled: data.account.overageEnabled,
-        instanceLimit: data.account.instanceLimit,
-      });
+    const parsed = updateProductAccountBodySchema.strict().safeParse({
+      dailyFreeQuota: data.account.dailyFreeQuota,
+      overageEnabled: data.account.overageEnabled,
+      instanceLimit: data.account.instanceLimit,
+    });
     const config = configValues.safeParse({
       defaultDailyQuota: data.config?.defaultDailyQuota ?? 0,
       overagePrice: Number(data.config?.overagePrice ?? 0),
