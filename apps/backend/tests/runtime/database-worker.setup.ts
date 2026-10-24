@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach } from "vitest";
+import { afterEach, beforeAll } from "vitest";
 import { createConnection, type RowDataPacket } from "mysql2/promise";
 import Redis from "ioredis";
 import {
@@ -17,7 +17,7 @@ const workerUrl = workerDatabaseUrl(baseDatabaseUrl || "", workerIndex);
 process.env[TEST_DATABASE_URL_ENV] = workerUrl;
 process.env[TEST_REDIS_DB_ENV] = String(getRedisDatabaseBase() + workerIndex - 1);
 
-beforeEach(() => {
+afterEach(() => {
   clearRequestContext();
 });
 
