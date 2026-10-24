@@ -45,9 +45,13 @@ export function useRemoteTerminalInventory(source: InventorySource, identity: ()
     clear()
     loading.value = true
     sections.devices = sections.sessions = sections.usage = 'loading'
-    const load = async <T>(section: Section, fetch: () => Promise<T>, apply: (data: T) => void) => {
+    const load = async <T>(
+      section: Section,
+      loadData: () => Promise<T>,
+      apply: (data: T) => void,
+    ) => {
       try {
-        const data = await fetch()
+        const data = await loadData()
         if (!current()) return
         apply(data)
         sections[section] = 'ready'

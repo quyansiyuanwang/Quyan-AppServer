@@ -34,7 +34,11 @@
       :closable="false"
     />
     <el-table v-loading="iamVersionsLoading" :data="iamVersions" border>
-      <el-table-column prop="version" :label="i18ns.t('RamManagement.iamVersionNumber')" width="90" />
+      <el-table-column
+        prop="version"
+        :label="i18ns.t('RamManagement.iamVersionNumber')"
+        width="90"
+      />
       <el-table-column :label="i18ns.t('RamManagement.iamDefaultVersion')" width="100">
         <template #default="{ row }"
           ><el-tag v-if="row.isDefault">{{

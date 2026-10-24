@@ -1,9 +1,11 @@
 import { beforeEach } from "vitest";
+import { clearRequestContext } from "@/util/request-context";
 
 /**
  * 每个测试文件运行前的设置
  */
 beforeEach(async () => {
+  clearRequestContext();
   // 可以在这里添加每个测试前的初始化逻辑
 });
 

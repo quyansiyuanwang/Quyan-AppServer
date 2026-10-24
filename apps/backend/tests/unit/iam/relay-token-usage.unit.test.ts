@@ -227,7 +227,7 @@ describe("batch usage and switch inspection admission", () => {
     });
     await summaries(["second", "first"]);
     expect(project).toHaveBeenCalledWith([{ id: "second" }, { id: "first" }]);
-    expect(repository.assertTargets).toHaveBeenCalledOnce();
+    expect(repository.assertTargets).toHaveBeenCalledTimes(2);
     expect(iam.authorizeMany).toHaveBeenCalledTimes(2);
   });
   it("discards batch projections if a contributing decision changes", async () => {

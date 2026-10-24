@@ -21,6 +21,7 @@ export function isGeneratedLegacyPolicyDocument(
     const account = [...allowedResources].find((resource) => resource.endsWith(":account"));
     if (!account || source.some((permission) => !actions.has(actionForPermission(permission)))) return false;
     return (
+      document.Statement.length === generated.Statement.length &&
       document.Statement.some((statement) => statement.Resource.includes(account)) &&
       document.Statement.every(
         (statement) =>
