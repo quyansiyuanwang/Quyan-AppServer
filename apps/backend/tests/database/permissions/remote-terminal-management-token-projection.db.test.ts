@@ -1,12 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Permission } from "@quyan/shared";
+import type { TypedRequest } from "@/types/express";
 import { prisma } from "@/config/database";
 import { env } from "@/config/env";
 import { RemoteTerminalProductService } from "@/services/remote-terminal/remote-terminal-product.service";
 const mode = env.security.iamAuthorizationMode,
   service = RemoteTerminalProductService.getInstance();
-let owner: string, other: string, entitlementId: string, secret: string;
+let owner: string, other: string, entitlementId: string, secret: string, groupId: string;
+const request = () =>
+  ({
+    user: { userId: owner },
+    authContext: { principalUserId: owner, accountOwnerId: owner, subjectType: "root" },
+    headers: {},
+    secure: true,
+    ip: "127.0.0.1",
+  }) as unknown as TypedRequest;
 beforeEach(async () => {
+  env.security.iamAuthorizationMode = "legacy";
   owner = (
     await prisma.user.create({
       data: {
@@ -27,6 +38,16 @@ beforeEach(async () => {
       },
     })
   ).id;
+  groupId = (
+    await prisma.group.create({
+      data: {
+        username: "token-projection-management-" + randomUUID(),
+        accountOwnerId: null,
+        permissions: [Permission.REMOTE_TERMINAL_ASSIGNMENT_READ],
+      },
+    })
+  ).id;
+  await prisma.user.update({ where: { id: owner }, data: { groupId, userType: "root" } });
   secret = "fixture-only-registration-secret-" + randomUUID();
   const data = {
     name: "Fixture entitlement",
@@ -46,6 +67,7 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await prisma.user.deleteMany({ where: { id: { in: [owner, other].filter(Boolean) } } });
+  await prisma.group.deleteMany({ where: { id: groupId } });
   env.security.iamAuthorizationMode = mode;
 });
 describe("terminal registration credential response boundary", () => {
@@ -53,7 +75,7 @@ describe("terminal registration credential response boundary", () => {
     "masks credentials in %s management list projections",
     async (mode) => {
       env.security.iamAuthorizationMode = mode;
-      const result = await service.listEntitlements(1, 20);
+      const result = await service.listEntitlements(1, 20, undefined, undefined, undefined, request());
       expect(result.total).toBe(2);
       expect(result.records.every((row) => row.registrationToken && !("token" in row.registrationToken))).toBe(true);
       expect(result.records.find((row) => row.id === entitlementId)?.registrationToken).toMatchObject({
@@ -64,7 +86,7 @@ describe("terminal registration credential response boundary", () => {
     },
   );
   it("cannot expose the credential by supplying the same user filter as the personal endpoint", async () => {
-    const result = await service.listEntitlements(1, 20, owner);
+    const result = await service.listEntitlements(1, 20, owner, undefined, undefined, request());
     expect(result.total).toBe(1);
     expect(result.records[0]?.registrationToken).not.toHaveProperty("token");
   });

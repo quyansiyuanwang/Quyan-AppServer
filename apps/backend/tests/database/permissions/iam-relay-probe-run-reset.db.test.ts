@@ -169,7 +169,8 @@ describe("probe reset resource authorization and queue coordination", () => {
     expect(await redis().get(slot(pool, member))).toBeNull();
     expect(await redis().get(slot())).toBe(latestStandalone);
   });
-  it("scans and authorizes more than one batch of active runs before cancellation", async () => {
+  // Real 500+ resource reads/writes and authorization rechecks need a bounded CI database budget.
+  it("scans and authorizes more than one batch of active runs before cancellation", { timeout: 30_000 }, async () => {
     const ids = Array.from({ length: 501 }, () => randomUUID());
     await prisma.relayChannelProbeRun.createMany({
       data: ids.map((id) => ({

@@ -9,6 +9,8 @@ import { JWTAccessIns } from "@/util/auth";
 import { RamService } from "@/services/users/ram.service";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { withReplayProtection } from "../util/replay-protection-test-helper";
+import { ImpersonationService } from "@/services/users/impersonation.service";
+import type { TypedRequest } from "@/types/express";
 import { Permission } from "@quyan/shared";
 const mode = env.security.iamAuthorizationMode,
   ram = RamService.getInstance(),
@@ -139,17 +141,25 @@ describe("generated personal profile IAM routes", () => {
   });
   it("preserves view-only impersonation despite an update Allow", async () => {
     await grant();
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: actor } });
-    const auth = JWTAccessIns.generateToken(
-      {
-        userId: actor,
-        updatedAt: user.updateTime.toISOString(),
-        status: user.status,
-        impersonatorId: owner,
-        impersonationMode: "view",
+    const group = await prisma.group.create({
+      data: {
+        username: "profile-view-issuer-" + randomUUID(),
+        accountOwnerId: null,
+        level: 0,
+        permissions: [Permission.USER_IMPERSONATE_VIEW],
       },
-      60,
-    );
+    });
+    await prisma.user.update({ where: { id: owner }, data: { groupId: group.id } });
+    // Issue a real IAM-bound impersonation token, not legacy manually forged claims.
+    const issued = await ImpersonationService.getInstance().startImpersonation(owner, actor, {
+      user: { userId: owner },
+      authContext: { principalUserId: owner, accountOwnerId: owner, subjectType: "root" },
+      headers: {},
+      secure: true,
+      ip: "127.0.0.1",
+    } as unknown as TypedRequest);
+    expect(issued.mode).toBe("view");
+    const auth = issued.access_token;
     await request(app)
       .get(readPath)
       .set("Authorization", "Bearer " + auth)

@@ -39,12 +39,7 @@ beforeEach(async () => {
       name: "Permission CAS fixture",
       accountOwnerId: owner,
       level: 1,
-      permissions: [
-        Permission.PERMISSION_ADD,
-        Permission.GROUP_PERMISSION_ADD,
-        Permission.USER_READ,
-        Permission.RAM_USER_READ,
-      ],
+      permissions: [Permission.PERMISSION_ADD, Permission.GROUP_PERMISSION_ADD, Permission.RAM_USER_READ],
     },
   });
   targetGroup = (
@@ -82,7 +77,7 @@ beforeEach(async () => {
         parentUserId: owner,
         groupId: targetGroup,
         permissionAdds: [],
-        permissionRemoves: [Permission.USER_READ],
+        permissionRemoves: [Permission.RAM_USER_READ],
       },
     })
   ).id;
@@ -97,7 +92,7 @@ const run = <T>(operation: (request: TypedRequest) => Promise<T>) =>
     const request = {
       user: { userId: actor },
       params: { groupId: targetGroup },
-      body: { permissions: [Permission.USER_READ] },
+      body: { permissions: [Permission.RAM_USER_READ] },
       headers: {},
       secure: true,
       ip: "127.0.0.1",
@@ -123,7 +118,7 @@ describe.each(["legacy", "shadow", "enforce"] as const)("permission snapshots in
       await prisma.user.update({
         where: { id: target },
         data: {
-          permissionRemoves: [Permission.USER_READ, Permission.USER_CREATE],
+          permissionRemoves: [Permission.RAM_USER_READ, Permission.RAM_USER_CREATE],
           updateTime: expected.updateTime,
         },
       });
@@ -131,8 +126,8 @@ describe.each(["legacy", "shadow", "enforce"] as const)("permission snapshots in
     });
     await expect(mutate()).rejects.toMatchObject({ statusCode: 409 });
     expect((await prisma.user.findUniqueOrThrow({ where: { id: target } })).permissionRemoves).toEqual([
-      Permission.USER_READ,
-      Permission.USER_CREATE,
+      Permission.RAM_USER_READ,
+      Permission.RAM_USER_CREATE,
     ]);
     expect(BusinessLogService.getInstance().logOperation).not.toHaveBeenCalled();
   });
@@ -145,12 +140,12 @@ describe.each(["legacy", "shadow", "enforce"] as const)("permission snapshots in
       await prisma.group.update({
         where: { id: targetGroup },
         data: {
-          permissions: [Permission.USER_READ, Permission.USER_CREATE],
+          permissions: [Permission.RAM_USER_READ, Permission.RAM_USER_CREATE],
         },
       });
       return original(...args);
     });
-    const body = { permissions: [Permission.USER_READ] };
+    const body = { permissions: [Permission.RAM_USER_READ] };
     await expect(
       run((request) =>
         entry === "permissions"
@@ -159,8 +154,8 @@ describe.each(["legacy", "shadow", "enforce"] as const)("permission snapshots in
       ),
     ).rejects.toMatchObject({ statusCode: 409 });
     expect((await prisma.group.findUniqueOrThrow({ where: { id: targetGroup } })).permissions).toEqual([
-      Permission.USER_READ,
-      Permission.USER_CREATE,
+      Permission.RAM_USER_READ,
+      Permission.RAM_USER_CREATE,
     ]);
     expect(BusinessLogService.getInstance().logOperation).not.toHaveBeenCalled();
   });
@@ -171,8 +166,10 @@ describe("repository permission compare-and-set", () => {
     const snapshot = await users.findByIdWithGroup(target);
     if (!snapshot) throw new Error("Missing fixture");
     const results = await Promise.all([
-      users.compareAndSetPermissions(snapshot, { permissionAdds: [Permission.USER_READ] }),
-      users.compareAndSetPermissions(snapshot, { permissionRemoves: [Permission.USER_READ, Permission.USER_CREATE] }),
+      users.compareAndSetPermissions(snapshot, { permissionAdds: [Permission.RAM_USER_READ] }),
+      users.compareAndSetPermissions(snapshot, {
+        permissionRemoves: [Permission.RAM_USER_READ, Permission.RAM_USER_CREATE],
+      }),
     ]);
     expect(results.filter(Boolean)).toHaveLength(1);
     const after = await users.findByIdWithGroup(target);
@@ -187,8 +184,8 @@ describe("repository permission compare-and-set", () => {
       const snapshot = await groups.findById(targetGroup);
       if (!snapshot) throw new Error("Missing fixture");
       const results = await Promise.all([
-        groups.compareAndSetPermissions(snapshot, [Permission.USER_READ]),
-        groups.compareAndSetPermissions(snapshot, [Permission.USER_CREATE]),
+        groups.compareAndSetPermissions(snapshot, [Permission.RAM_USER_READ]),
+        groups.compareAndSetPermissions(snapshot, [Permission.RAM_USER_CREATE]),
       ]);
       expect(results.filter(Boolean)).toHaveLength(1);
       expect(await groups.compareAndSetPermissions(snapshot, [])).toBe(false);
@@ -199,7 +196,7 @@ describe("repository permission compare-and-set", () => {
     const snapshot = await users.findByIdWithGroup(target);
     if (!snapshot) throw new Error("Missing fixture");
     await prisma.group.update({ where: { id: targetGroup }, data: { level: 1 } });
-    expect(await users.compareAndSetPermissions(snapshot, { permissionAdds: [Permission.USER_READ] })).toBe(false);
+    expect(await users.compareAndSetPermissions(snapshot, { permissionAdds: [Permission.RAM_USER_READ] })).toBe(false);
   });
 
   it("rejects ownership changes without trusting a same-timestamp snapshot", async () => {
@@ -209,15 +206,15 @@ describe("repository permission compare-and-set", () => {
       where: { id: target },
       data: { accountOwnerId: actor, updateTime: snapshot.updateTime },
     });
-    expect(await users.compareAndSetPermissions(snapshot, { permissionAdds: [Permission.USER_READ] })).toBe(false);
+    expect(await users.compareAndSetPermissions(snapshot, { permissionAdds: [Permission.RAM_USER_READ] })).toBe(false);
   });
 
   it("accepts a fresh snapshot after a conflict instead of retrying unchecked state", async () => {
     const snapshot = await groups.findById(targetGroup);
     if (!snapshot) throw new Error("Missing fixture");
-    expect(await groups.compareAndSetPermissions(snapshot, [Permission.USER_READ])).toBe(true);
+    expect(await groups.compareAndSetPermissions(snapshot, [Permission.RAM_USER_READ])).toBe(true);
     expect(await groups.compareAndSetPermissions(snapshot, [])).toBe(false);
     const fresh = await groups.findById(targetGroup);
-    expect(await groups.compareAndSetPermissions(fresh!, [Permission.USER_CREATE])).toBe(true);
+    expect(await groups.compareAndSetPermissions(fresh!, [Permission.RAM_USER_CREATE])).toBe(true);
   });
 });

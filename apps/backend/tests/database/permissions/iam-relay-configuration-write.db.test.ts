@@ -414,7 +414,8 @@ describe("atomic relay configuration writes", () => {
     expect((await savedConfig()).maxConcurrency).toBe(5);
     expect(await prisma.modelPricing.count()).toBe(0);
   });
-  it("batches and admits every one of more than 500 omitted prices", async () => {
+  // Real 500+ resource reads/writes and authorization rechecks need a bounded CI database budget.
+  it("batches and admits every one of more than 500 omitted prices", { timeout: 30_000 }, async () => {
     await group();
     await prisma.modelPricing.createMany({
       data: Array.from({ length: 501 }, (_, index) => ({

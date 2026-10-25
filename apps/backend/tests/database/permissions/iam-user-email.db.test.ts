@@ -188,7 +188,8 @@ describe("personal email resources and transactional authorization", () => {
     await grant();
     const input = data();
     vi.mocked(EmailService.getInstance().verifyCode).mockImplementation(async () => {
-      await prisma.user.update({ where: { id: peer }, data: { email: input.newEmail } });
+      // A different account can occupy the email without changing this actor's authorization revision.
+      await prisma.user.update({ where: { id: foreign }, data: { email: input.newEmail } });
       return true;
     });
     await expect(service.changeEmail(actor, input, request())).rejects.toMatchObject({ statusCode: 400 });

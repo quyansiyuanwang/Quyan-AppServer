@@ -303,7 +303,18 @@ describe("persisted platform terminal device projections", () => {
     });
   });
   it("preserves the separate personal view instead of dispatching to platform administration", async () => {
-    const result = await RemoteTerminalProductService.getInstance().listCurrentUserDevices(customer, 1, 20);
+    const personalRequest = {
+      ...request(),
+      user: { userId: customer },
+      authContext: { principalUserId: customer, accountOwnerId: customer, subjectType: "root" },
+    } as TypedRequest;
+    const result = await RemoteTerminalProductService.getInstance().listCurrentUserDevices(
+      customer,
+      1,
+      20,
+      undefined,
+      personalRequest,
+    );
     expect(result.total).toBe(2);
     expect(result.records.every((row) => row.userId === customer)).toBe(true);
   });

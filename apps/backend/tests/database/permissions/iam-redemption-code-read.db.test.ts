@@ -253,7 +253,8 @@ describe("persisted redemption resource reads", () => {
     req.authContext!.roleSessionId = session.id;
     await expect(service.list(req)).rejects.toMatchObject({ statusCode: 403 });
   });
-  it("does not truncate metadata at the 500-resource boundary", async () => {
+  // Real 500+ resource reads/writes and authorization rechecks need a bounded CI database budget.
+  it("does not truncate metadata at the 500-resource boundary", { timeout: 30_000 }, async () => {
     await prisma.redemptionCode.createMany({
       data: Array.from({ length: 501 }, (_, i) => ({
         code: "fixture-only-" + randomUUID(),
