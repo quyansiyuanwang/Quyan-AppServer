@@ -2,6 +2,8 @@ import { getAIResourceConfig } from "@/services/infrastructure/ai-resource-confi
 import { aiResourceGuard } from "./middleware/ai-resource-guard";
 import { ChinaHolidayCalendarService } from "./services/relay/china-holiday-calendar.service";
 import express from "express";
+import type { TypedRequest } from "@/types/express";
+import { runWithRequestContext } from "./util/request-context";
 import cors from "cors";
 import helmet from "helmet";
 import { loggingMiddleware } from "./middleware/logging";
@@ -48,6 +50,8 @@ export function createApp() {
   const app = express();
   const requestSizeLimitConfig = env.runtime.requestSizeLimits;
   app.set("trust proxy", env.runtime.trustProxyHops);
+  // Scope even unauthenticated/failed requests; authentication enriches this same request in place.
+  app.use((request, _response, next) => runWithRequestContext(request as TypedRequest, next));
   app.use(requestIdMiddleware);
   app.use(earlyAIRequestAuditMiddleware);
 

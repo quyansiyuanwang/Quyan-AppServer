@@ -6,6 +6,7 @@ import { createApp } from "@/app";
 import { prisma } from "@/config/database";
 import { env } from "@/config/env";
 import { JWTAccessIns } from "@/util/auth";
+import { getRequestContext } from "@/util/request-context";
 import { RamService } from "@/services/users/ram.service";
 import BusinessLogService from "@/services/system/businesslog.service";
 import { accessKeyArn } from "@/iam/resources/accesskey-resources";
@@ -85,11 +86,13 @@ describe("generated resource-filtered AccessKey list routes", () => {
       expect(JSON.stringify(response.body)).not.toContain(secret);
   });
   it("returns an empty authorized list under implicit or explicit Deny, not a blanket collection error", async () => {
+    const callerContext = getRequestContext();
     const own = await key();
     const denied = await list()
       .set("Authorization", "Bearer " + (await token()))
       .expect(200);
     expect(denied.body.data.items).toEqual([]);
+    expect(getRequestContext()).toBe(callerContext);
     await grant("*");
     await grant(accessKeyArn(owner, actor, own.id), "Deny");
     const explicit = await list()
