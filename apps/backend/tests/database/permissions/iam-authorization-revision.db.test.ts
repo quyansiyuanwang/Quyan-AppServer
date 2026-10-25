@@ -96,3 +96,73 @@ describe("persisted IAM transaction revision", () => {
     expect(await revision()).toBe(before);
   });
 });
+
+const imageSelect = { id: true, status: true, groupId: true, updateTime: true } as const;
+describe("expected user post-image authorization revisions", () => {
+  it("normalizes only the intended status, group and timestamp changes", async () => {
+    const group = await prisma.group.create({
+      data: {
+        username: "revision-group-" + randomUUID(),
+        name: "fixture",
+        permissions: [],
+        level: 10,
+      },
+    });
+    await prisma.$transaction(async (tx) => {
+      const revision = await readIamAuthorizationRevision(tx, owner);
+      const before = await tx.user.findUniqueOrThrow({ where: { id: actor }, select: imageSelect });
+      const after = await tx.user.update({
+        where: { id: actor },
+        data: { status: 0, groupId: group.id },
+        select: imageSelect,
+      });
+      expect(await readIamAuthorizationRevision(tx, owner)).not.toBe(revision);
+      expect(await readIamAuthorizationRevision(tx, owner, { before, after })).toBe(revision);
+      // Unexpected permission changes on the same user must not be hidden by normalization.
+      await tx.user.update({
+        where: { id: actor },
+        data: {
+          permissionAdds: [Permission.RAM_USER_READ],
+          updateTime: after.updateTime,
+        },
+      });
+      expect(await readIamAuthorizationRevision(tx, owner, { before, after })).not.toBe(revision);
+    });
+  });
+  it("still detects changes to another identity and its group permissions", async () => {
+    const group = await prisma.group.create({
+      data: {
+        username: "revision-owner-group-" + randomUUID(),
+        name: "fixture",
+        permissions: [],
+        level: 10,
+      },
+    });
+    await prisma.user.update({ where: { id: owner }, data: { groupId: group.id } });
+    await prisma.$transaction(async (tx) => {
+      const revision = await readIamAuthorizationRevision(tx, owner);
+      const before = await tx.user.findUniqueOrThrow({ where: { id: actor }, select: imageSelect });
+      const after = await tx.user.update({ where: { id: actor }, data: { name: "Expected" }, select: imageSelect });
+      expect(await readIamAuthorizationRevision(tx, owner, { before, after })).toBe(revision);
+      await tx.group.update({ where: { id: group.id }, data: { permissions: [Permission.RAM_USER_READ] } });
+      expect(await readIamAuthorizationRevision(tx, owner, { before, after })).not.toBe(revision);
+      await tx.user.update({ where: { id: owner }, data: { permissionRemoves: [Permission.RAM_USER_READ] } });
+      expect(await readIamAuthorizationRevision(tx, owner, { before, after })).not.toBe(revision);
+    });
+  });
+  it("rejects a mismatched post-image or identity instead of normalizing it", async () => {
+    const before = await prisma.user.findUniqueOrThrow({ where: { id: actor }, select: imageSelect });
+    await expect(
+      readIamAuthorizationRevision(prisma, owner, {
+        before,
+        after: { ...before, status: 0 },
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+    await expect(
+      readIamAuthorizationRevision(prisma, owner, {
+        before,
+        after: { ...before, id: owner },
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+});

@@ -1,5 +1,17 @@
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
+import { iamAccountDenied } from "./iam-account-principal";
+
+export interface IamAuthorizationUserImage {
+  id: string;
+  status: number;
+  groupId: string | null;
+  updateTime: Date;
+}
+export interface IamAuthorizationUserUpdate {
+  before: IamAuthorizationUserImage;
+  after: IamAuthorizationUserImage;
+}
 type Client = Pick<
   Prisma.TransactionClient,
   | "user"
@@ -21,7 +33,11 @@ const metadata = { id: true, status: true, updateTime: true } as const;
  * Caller holds actor/owner/global-group identity locks and re-evaluates grants before commit.
  * Never select role tokens, credential values, full policy documents or descriptions.
  */
-export async function readIamAuthorizationRevision(client: Client, accountOwnerId: string): Promise<string> {
+export async function readIamAuthorizationRevision(
+  client: Client,
+  accountOwnerId: string,
+  userUpdate?: IamAuthorizationUserUpdate,
+): Promise<string> {
   const where = { accountOwnerId },
     orderBy = { id: "asc" } as const;
   // Keep read order stable across transactions. Do not parallelize Prisma transaction reads.
@@ -32,6 +48,21 @@ export async function readIamAuthorizationRevision(client: Client, accountOwnerI
     orderBy,
     select: { ...metadata, accountOwnerId: true, groupId: true, permissionAdds: true, permissionRemoves: true },
   });
+  if (userUpdate) {
+    const { before, after } = userUpdate;
+    const current = users.find((user) => user.id === before.id);
+    if (
+      before.id !== after.id ||
+      !current ||
+      current.status !== after.status ||
+      current.groupId !== after.groupId ||
+      current.updateTime.getTime() !== after.updateTime.getTime()
+    )
+      throw iamAccountDenied();
+    // Only the locked target's intended write is normalized. All other identities,
+    // permissions and policy/binding revisions must still match the pre-write hash.
+    Object.assign(current, before);
+  }
   const groupIds = [
     ...new Set(users.flatMap((user) => (typeof user.groupId === "string" ? [user.groupId] : []))),
   ].sort();

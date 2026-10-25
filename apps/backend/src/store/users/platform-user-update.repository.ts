@@ -9,7 +9,7 @@ import { ConflictError } from "@/util/errors";
 import { platformManagementGroupSnapshot } from "./platform-management-principal";
 import { iamAccountDenied } from "./iam-account-principal";
 import { assertIamAccountUserMutation } from "./iam-account-user-mutation";
-import { readIamAuthorizationRevision } from "./iam-authorization-revision";
+import { readIamAuthorizationRevision, type IamAuthorizationUserUpdate } from "./iam-authorization-revision";
 import { readPlatformUserTargets, samePlatformUserTargets } from "./platform-user-snapshot";
 import { PLATFORM_USER_VIEW_SELECT } from "./platform-user-read.store";
 import type {
@@ -120,10 +120,19 @@ export class PlatformUserUpdateRepository implements PlatformUserUpdateStore {
   destination(principal: IamPrincipal, target: PlatformUserUpdateTarget, id: string) {
     return this.readDestination(principal, target, id, prisma);
   }
-  private async revision(principal: IamPrincipal, targetAccountOwnerId: string, tx: Prisma.TransactionClient) {
+  private async revision(
+    principal: IamPrincipal,
+    targetAccountOwnerId: string,
+    tx: Prisma.TransactionClient,
+    userUpdate?: IamAuthorizationUserUpdate,
+  ) {
     const revisions: string[] = [];
     for (const owner of [...new Set([principal.accountOwnerId, targetAccountOwnerId])].sort())
-      revisions.push(owner + ":" + (await readIamAuthorizationRevision(tx, owner)));
+      revisions.push(
+        owner +
+          ":" +
+          (await readIamAuthorizationRevision(tx, owner, owner === targetAccountOwnerId ? userUpdate : undefined)),
+      );
     return createHash("sha256").update(JSON.stringify(revisions)).digest("hex");
   }
   async authorizationRevision(principal: IamPrincipal, targetAccountOwnerId: string) {
@@ -154,13 +163,18 @@ export class PlatformUserUpdateRepository implements PlatformUserUpdateStore {
     this.same(await this.target(principal, target.resource.id), target);
     if (destination) this.sameGroup(await this.destination(principal, target, destination.id), destination);
   }
-  private async identity(tx: Prisma.TransactionClient, guard: PlatformUserUpdateGuard) {
+  private async identity(
+    tx: Prisma.TransactionClient,
+    guard: PlatformUserUpdateGuard,
+    userUpdate?: IamAuthorizationUserUpdate,
+  ) {
     await assertIamAccountUserMutation(tx, guard.users, guard.users.principal.subjectUserId);
     const group = await this.qualify(guard.users.principal, tx);
     if (
       group.id !== guard.group.id ||
       group.updateTime.getTime() !== guard.group.updateTime.getTime() ||
-      (await this.revision(guard.users.principal, guard.target.accountOwnerId, tx)) !== guard.authorizationRevision
+      (await this.revision(guard.users.principal, guard.target.accountOwnerId, tx, userUpdate)) !==
+        guard.authorizationRevision
     )
       throw iamAccountDenied();
   }
@@ -214,7 +228,15 @@ export class PlatformUserUpdateRepository implements PlatformUserUpdateStore {
               ),
             },
           };
-          await this.identity(tx, postGuard);
+          await this.identity(tx, postGuard, {
+            before: {
+              id,
+              status: guard.target.resource.status,
+              groupId: guard.target.group.id,
+              updateTime: guard.target.resource.updateTime,
+            },
+            after: row,
+          });
           await guard.users.recheck();
           if (
             row.id !== id ||
