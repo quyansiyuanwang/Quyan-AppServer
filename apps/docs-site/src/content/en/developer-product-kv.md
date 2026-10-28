@@ -8,7 +8,7 @@ Reads require the KV read action; writes and deletion require KV write. Keys may
 
 ## API
 
-Authenticate every request with `Authorization: Bearer sk-dpk-...`:
+Product API requests use `Authorization: Bearer sk-dpk-...`. Call the API from a trusted backend and protect the key. To provide configuration to a browser, have your backend authorize the request and return only the needed data; do not embed the product key in frontend code or browser storage.
 
 ```http
 POST /v1/products/kv/entries/ui.theme
@@ -20,7 +20,7 @@ Content-Type: application/json
 
 `GET /v1/products/kv/entries` lists keys, `GET /v1/products/kv/entries/{key}` reads one value, and `DELETE /v1/products/kv/entries/{key}` removes it. Writes are upserts and return `version`, `updateTime`, and an optional `expiresAt`. Each write sets the expiry again; omitting TTL removes the expiry. The version can show that a value changed, but the write API has no conditional update by version: concurrent read-modify-write operations can overwrite one another, so coordinate concurrency in your application for counters and similar uses. Product API calls count toward usage; quota and overage charges depend on the current product configuration.
 
-Do not put API keys or other credentials in KV. Use the Secret Vault product for credentials managed by the platform.
+Do not put API keys or other credentials in KV. Use [Secret Vault]({{DOCS_BASE_URL}}/en/developer-product-secret) for credentials managed by the platform.
 
 ## JWT project management
 

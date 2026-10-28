@@ -8,7 +8,7 @@ KV 存储适用于前端配置、轻量计数器、功能开关和短期 JSON �
 
 ## API
 
-所有请求使用 `Authorization: Bearer sk-dpk-...`：
+产品 API 请求使用 `Authorization: Bearer sk-dpk-...`，请在可信服务端调用并保护 Key。向浏览器提供前端配置时，由自己的后端按业务权限读取并返回所需数据，不要把产品 Key 放入前端代码或浏览器存储。
 
 ```http
 POST /v1/products/kv/entries/ui.theme
@@ -20,7 +20,7 @@ Content-Type: application/json
 
 `GET /v1/products/kv/entries` 返回键列表，`GET /v1/products/kv/entries/{key}` 读取单个值，`DELETE /v1/products/kv/entries/{key}` 删除条目。写入为 upsert，响应包含 `version`、`updateTime` 与可选的 `expiresAt`。每次写入都会重新设置过期时间；不提供 TTL 时，条目不再设置过期时间。`version` 可用于展示变化，但写入接口没有按版本条件更新：并发的读后写可能互相覆盖，计数器等场景需要在应用侧协调并发。产品 API 调用计入用量，额度和超额费用以当前产品配置为准。
 
-不要将 API Key 或其他机密直接作为 KV 值保存；需要由平台代管的凭据请使用密钥托管产品。
+不要将 API Key 或其他机密直接作为 KV 值保存；需要由平台代管的凭据请使用[密钥托管]({{DOCS_BASE_URL}}/zh-CN/developer-product-secret)。
 
 ## JWT 项目管理接口
 
