@@ -19,7 +19,7 @@ The invitation page does not guess order details before acceptance. After signin
 1. Choose a published package in **My carpools** and create a carpool.
 2. Review the formation deadline, member count, and estimated full-car equal split.
 3. The owner generates an invitation link from the order detail and chooses how long the link remains valid. An invitation cannot outlive the order formation deadline.
-4. Send the link to trusted members. Historical invitation links are never displayed again in the order timeline.
+4. Send the link to a trusted member. Each invitation can be accepted once; generate a separate link for each member. Historical invitation links are not displayed again in the order timeline.
 
 The invitation page explains the next action after joining. It also explains why joining is unavailable when a link is expired or used, the order is full, or the order is closed.
 
@@ -32,13 +32,13 @@ The owner may open **advanced custom allocation** and set payment and quota rati
 Before the deadline:
 
 - Each member confirms their own share; the system reserves that member's payable amount.
-- An unconfirmed member may leave, which releases their reservation.
+- A non-owner member who has not confirmed may leave. A confirmed member cannot leave directly; ask the owner to adjust the allocation first, resetting confirmations and releasing reservations, then leave.
 - Only the owner may cancel an open carpool; cancellation releases all amounts that have not been charged.
 - After the formation deadline, an unsubmitted order closes automatically and releases reservations.
 
 ## Submit and delivery
 
-Once every active member has confirmed and the package member requirement is met, the owner can submit the carpool. Operations then accepts the order and purchases and delivers it; the page shows the current stage and next step.
+Once every active member has confirmed and both the payment and quota ratios total 100%, the owner can submit the carpool. Submission deducts each reserved share from the member’s balance. If a balance has changed and the deduction cannot be made, submission fails; follow the displayed instructions. Operations then accepts the order and purchases and delivers it; the page shows the current stage and next step.
 
 After delivery, members can use their normal monthly-pass and Relay Token secure entry points. The carpool page shows only a channel or delivery summary; it **never displays the Relay token in plaintext**.
 
