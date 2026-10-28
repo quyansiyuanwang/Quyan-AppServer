@@ -30,7 +30,7 @@ The list supports table and chart views. Expand a record to inspect available mo
 
 ## Notes
 
-- Request count, TPM, and RPM are calculated from loaded API usage records, excluding zero-charge upstream errors. The averages use the time span between the first and last records (at least one minute); they are not server-side rate-limit settings.
+- Request count, TPM, and RPM use loaded API usage records, excluding zero-charge upstream errors from their totals. TPM sums input and output tokens only. The averages use the time span between the first and last loaded API usage records, including those zero-charge errors, with a minimum of one minute. These averages are not server-side rate-limit settings.
 - Open Account balance to reconcile funding, transfers, or refunds.
 - A larger loaded range can take longer to fetch the first time.
 
