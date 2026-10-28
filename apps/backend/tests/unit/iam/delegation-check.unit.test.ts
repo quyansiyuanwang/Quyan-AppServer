@@ -49,6 +49,32 @@ describe("conservative delegation proofs", () => {
         issues: [{ code: "explicit-deny-overlap" }],
       });
   });
+  it.each([
+    ["StringNotEquals", "quyan:PrincipalId", ["a", "b", "c"]],
+    ["StringNotEqualsIgnoreCase", "quyan:PrincipalId", ["a", "b", "c"]],
+    ["StringNotLike", "acs:UserAgent", ["a*", "b*", "c*"]],
+    ["NumericNotEquals", "quyan:EpochTime", [1, 2, 3]],
+    ["DateNotEquals", "acs:CurrentTime", ["2026-10-29T00:00:00Z", "2026-10-30T00:00:00Z", "2026-10-31T00:00:00Z"]],
+    ["NotIpAddress", "acs:SourceIp", ["10.0.0.0/8", "192.168.0.0/16", "198.51.100.0/24"]],
+    ["NotIpAddressIncludeBorder", "acs:SourceIp", ["10.0.0.0/8", "192.168.0.0/16", "198.51.100.0/24"]],
+  ] as const)("%s delegation cannot remove exclusions", (operator, key, values) => {
+    const parent = { [operator]: { [key]: [...values.slice(0, 2)] } };
+    const weaker = { [operator]: { [key]: values[0] } };
+    const stronger = { [operator]: { [key]: [...values] } };
+    expect(isProvenConditionSubset(parent, parent)).toBe(true);
+    expect(isProvenConditionSubset(weaker, parent)).toBe(false);
+    expect(isProvenConditionSubset(stronger, parent)).toBe(true);
+    expect(
+      checkIamDelegation(policy(undefined, undefined, undefined, weaker), [
+        policy(undefined, undefined, undefined, parent),
+      ]).allowed,
+    ).toBe(false);
+    expect(
+      checkIamDelegation(policy(undefined, undefined, undefined, stronger), [
+        policy(undefined, undefined, undefined, parent),
+      ]).allowed,
+    ).toBe(true);
+  });
   it("proves disjoint exact targets while rejecting unknown wildcard intersections", () => {
     expect(
       checkIamDelegation(policy(), [policy(undefined, "*"), policy(undefined, "acs:quyan:*:owner:user/other", "Deny")])

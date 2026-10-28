@@ -53,7 +53,7 @@ describe("IAM typed Condition evaluation", () => {
       }),
     ).toBe(result);
   });
-  it("ANDs keys/operators, ORs values and treats absent keys explicitly with Null", () => {
+  it("ANDs keys/operators, ORs positive values and treats absent keys explicitly with Null", () => {
     const clause = {
       StringEquals: { "quyan:PrincipalId": ["alice", "bob"], "quyan:PrincipalType": "sub_user" },
       Bool: { "acs:SecureTransport": "true" },
@@ -65,6 +65,81 @@ describe("IAM typed Condition evaluation", () => {
     expect(evaluateIamCondition(condition("Null", "acs:SourceIp", false), { "acs:SourceIp": "127.0.0.1" })).toBe(true);
     expect(() => evaluateIamCondition(condition("StringNotEquals", "quyan:PrincipalId", "blocked"), {})).toThrow();
   });
+  it.each([
+    {
+      operator: "StringNotEquals",
+      key: "quyan:PrincipalId",
+      values: ["blocked-a", "blocked-b"],
+      blocked: "blocked-a",
+      allowed: "other",
+    },
+    {
+      operator: "StringNotEqualsIgnoreCase",
+      key: "quyan:PrincipalId",
+      values: ["BLOCKED-A", "blocked-b"],
+      blocked: "blocked-a",
+      allowed: "other",
+    },
+    {
+      operator: "StringNotLike",
+      key: "acs:UserAgent",
+      values: ["blocked-*", "unsafe-?"],
+      blocked: "blocked-client",
+      allowed: "safe-client",
+    },
+    { operator: "NumericNotEquals", key: "quyan:EpochTime", values: [1, "2"], blocked: 1, allowed: 3 },
+    {
+      operator: "DateNotEquals",
+      key: "acs:CurrentTime",
+      values: ["2026-10-29T00:00:00Z", "2026-10-30T00:00:00Z"],
+      blocked: "2026-10-29T08:00:00+08:00",
+      allowed: "2026-10-31T00:00:00Z",
+    },
+    {
+      operator: "NotIpAddress",
+      key: "acs:SourceIp",
+      values: ["10.0.0.0/8", "192.168.0.0/16"],
+      blocked: "10.1.2.3",
+      allowed: "198.51.100.1",
+    },
+    {
+      operator: "NotIpAddressIncludeBorder",
+      key: "acs:SourceIp",
+      values: ["10.0.0.0/8", "2001:db8::/32"],
+      blocked: "2001:db8::",
+      allowed: "2001:db9::1",
+    },
+  ])(
+    "$operator excludes all listed values in Allow and Deny statements",
+    ({ operator, key, values, blocked, allowed }) => {
+      const clause = condition(operator, key, values);
+      expect(evaluateIamCondition(clause, { [key]: blocked })).toBe(false);
+      expect(evaluateIamCondition(clause, { [key]: allowed })).toBe(true);
+      expect(() => evaluateIamCondition(clause, {})).toThrow();
+      const policy = (Effect: "Allow" | "Deny", Condition?: IamCondition) => ({
+        policyId: Effect,
+        document: parseIamPolicy({
+          Version: "1",
+          Statement: { Effect, Action: "quyan:ram:ReadUser", Resource: "*", ...(Condition ? { Condition } : {}) },
+        }).document,
+      });
+      const request = { action: "quyan:ram:ReadUser", resource: "*" };
+      expect(evaluatePolicies([policy("Allow", clause)], { ...request, context: { [key]: blocked } }).decision).toBe(
+        "ImplicitDeny",
+      );
+      expect(evaluatePolicies([policy("Allow", clause)], { ...request, context: { [key]: allowed } }).decision).toBe(
+        "Allow",
+      );
+      expect(
+        evaluatePolicies([policy("Allow"), policy("Deny", clause)], { ...request, context: { [key]: blocked } })
+          .decision,
+      ).toBe("Allow");
+      expect(
+        evaluatePolicies([policy("Allow"), policy("Deny", clause)], { ...request, context: { [key]: allowed } })
+          .decision,
+      ).toBe("ExplicitDeny");
+    },
+  );
   it("supports IPv4/IPv6 CIDR and makes network borders explicit", () => {
     expect(matchesIpCondition("192.0.2.1", "192.0.2.0/24", false)).toBe(true);
     expect(matchesIpCondition("192.0.2.0", "192.0.2.0/24", false)).toBe(false);

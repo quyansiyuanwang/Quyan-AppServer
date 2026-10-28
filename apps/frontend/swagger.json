@@ -41703,6 +41703,13 @@
 						},
 						"type": "array",
 						"description": "最终有效权限列表"
+					},
+					"uiPermissions": {
+						"items": {
+							"$ref": "#/components/schemas/Permission"
+						},
+						"type": "array",
+						"description": "仅供页面、菜单、按钮展示；实际操作仍须服务端逐资源授权，不可用于执行或委派检查"
 					}
 				},
 				"required": [
