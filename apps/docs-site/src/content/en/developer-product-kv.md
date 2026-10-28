@@ -4,7 +4,7 @@ KV storage is intended for frontend configuration, lightweight counters, feature
 
 ## Permissions and limits
 
-Reads require the KV read action; writes and deletion require KV write. Keys may contain letters, digits, dots, underscores, colons, and hyphens and are limited to 191 characters. TTL is capped at 30 days. Expired values behave as absent.
+Reads require the KV read action; writes and deletion require KV write. Keys may contain letters, digits, dots, underscores, colons, and hyphens and are limited to 191 characters. A serialized JSON value is limited to 64 KiB, and each instance to 1,000 entries. TTL ranges from 1 second to 30 days. Expired values behave as absent.
 
 ## API
 
@@ -18,7 +18,7 @@ Content-Type: application/json
 { "value": { "mode": "dark" }, "ttlSeconds": 86400 }
 ```
 
-`GET /v1/products/kv/entries` lists keys, `GET /v1/products/kv/entries/{key}` reads one value, and `DELETE /v1/products/kv/entries/{key}` removes it. Writes are upserts and return `version`, `updateTime`, and an optional `expiresAt` for client-side display or conflict handling.
+`GET /v1/products/kv/entries` lists keys, `GET /v1/products/kv/entries/{key}` reads one value, and `DELETE /v1/products/kv/entries/{key}` removes it. Writes are upserts and return `version`, `updateTime`, and an optional `expiresAt`. Each write sets the expiry again; omitting TTL removes the expiry. The version can show that a value changed, but the write API has no conditional update by version: concurrent read-modify-write operations can overwrite one another, so coordinate concurrency in your application for counters and similar uses. Product API calls count toward usage; quota and overage charges depend on the current product configuration.
 
 Do not put API keys or other credentials in KV. Use the Secret Vault product for credentials managed by the platform.
 
