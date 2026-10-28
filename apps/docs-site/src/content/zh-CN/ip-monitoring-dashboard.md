@@ -34,18 +34,6 @@
 - 新增和移除操作。
 - 操作者启用 2FA 时，写入可能触发二次验证；有效的受信任窗口可按当前安全规则通过。
 
-## 白名单读取权限
-
-启用 IAM 强制授权时，白名单管理读取需要实际部署全局组中的 `IP_WHITELIST_READ`。列表使用 `quyan:ip_whitelist:ListEntries`，状态查询使用 `quyan:ip_whitelist:GetStatus`；两者的资源格式均为 `acs:platform:*:platform:ip-whitelist/<记录 ID>`。IPv4 / IPv6 地址用于查找已有记录，资源 ID 始终来自数据库，不从地址或客户端提供的账号拼接。
-
-列表先按记录检查权限，再分页；`total` 只统计已授权记录。状态查询读取记录的当前有效期，已存在但过期的记录返回 `false`。不存在、被删除或未获授权的记录无法安全解析授权资源，在强制模式下返回 403。权限、角色会话或记录在读取期间失效时，结果不会返回。服务端自动防滥用检查仍使用其内部白名单读取流程。
-
-## 白名单写入权限
-
-IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREATE` 资格，以及 `quyan:ip_whitelist:CreateEntry` 对 `acs:platform:*:platform:ip-whitelist-control/default` 的授权。事务提交前还会检查实际记录 `acs:platform:*:platform:ip-whitelist/<record-id>`。移除记录需要真实全局组中的 `IP_WHITELIST_DELETE` 资格，以及 `quyan:ip_whitelist:DeleteEntry` 对该记录 ARN 的授权。账户所有者和账户内自建组不能授予平台资格。写入仍受二次验证和重放保护规则约束。
-
-输入必须为有效 IPv4 或 IPv6 地址。已存在的有效记录返回 409；重新加入已删除地址会恢复原记录 ID，保留资源级 Deny 的约束。强制模式下，目标不存在或没有移除权限时返回 403。事务内会再次校验身份、用户组、记录和策略，校验失败时整批回滚。自动封禁使用的白名单查询会用数据库确认缓存中的允许结果，过期或删除的记录不会因旧缓存继续豁免。
-
 ## 错误权重与衰减机制
 
 错误权重是封禁系统的核心：
@@ -61,7 +49,7 @@ IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREA
 
 1. 先查询可疑 IP，查看其当前等级、权重和封禁剩余时间。
 2. 查看错误类型明细，了解该 IP 被标记的原因。
-3. 如果封禁是误判，重置错误权重并删除黑名单记录。
+3. 如果封禁是误判，按需重置错误权重，并在黑名单中解封。重置权重不会自动解封；解封也不会清除错误权重。
 4. 如果 IP 确实存在恶意行为，手动创建或编辑黑名单记录并填写原因。
 5. 将可信基础设施 IP 添加到白名单，防止其触发自动封禁。
 6. 调整服务端配置中的阈值后，重新查询受影响的 IP 确认新等级生效。
@@ -73,11 +61,17 @@ IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREA
 - 三级封禁机制提供了渐进式响应：一级应对短暂异常，三级应对持续滥用。
 - 建议与服务端配置（调整阈值和权重）和系统日志（查看该 IP 的请求记录）配合使用。
 
-## 相关页面
+## 白名单读取权限
 
-- [服务端配置]({{DOCS_BASE_URL}}/zh-CN/server-configuration)
-- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)
-- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)
+启用 IAM 强制授权时，白名单管理读取需要实际部署全局组中的 `IP_WHITELIST_READ`。列表使用 `quyan:ip_whitelist:ListEntries`，状态查询使用 `quyan:ip_whitelist:GetStatus`；两者的资源格式均为 `acs:platform:*:platform:ip-whitelist/<记录 ID>`。IPv4 / IPv6 地址用于查找已有记录，资源 ID 始终来自数据库，不从地址或客户端提供的账号拼接。
+
+列表先按记录检查权限，再分页；`total` 只统计已授权记录。状态查询读取记录的当前有效期，已存在但过期的记录返回 `false`。不存在、被删除或未获授权的记录无法安全解析授权资源，在强制模式下返回 403。权限、角色会话或记录在读取期间失效时，结果不会返回。服务端自动防滥用检查仍使用其内部白名单读取流程。
+
+## 白名单写入权限
+
+IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREATE` 资格，以及 `quyan:ip_whitelist:CreateEntry` 对 `acs:platform:*:platform:ip-whitelist-control/default` 的授权。事务提交前还会检查实际记录 `acs:platform:*:platform:ip-whitelist/<record-id>`。移除记录需要真实全局组中的 `IP_WHITELIST_DELETE` 资格，以及 `quyan:ip_whitelist:DeleteEntry` 对该记录 ARN 的授权。账户所有者和账户内自建组不能授予平台资格。写入仍受二次验证和重放保护规则约束。
+
+输入必须为有效 IPv4 或 IPv6 地址。已存在的有效记录返回 409；重新加入已删除地址会恢复原记录 ID，保留资源级 Deny 的约束。强制模式下，目标不存在或没有移除权限时返回 403。事务内会再次校验身份、用户组、记录和策略，校验失败时整批回滚。自动封禁使用的白名单查询会用数据库确认缓存中的允许结果，过期或删除的记录不会因旧缓存继续豁免。
 
 ## 指定 IP 的 IAM 查询权限
 
@@ -128,3 +122,9 @@ IAM `enforce` 模式下，面板使用独立的 `quyan:system:ip_blacklist:GetMo
 面板先排除没有 Allow 或命中 Deny 的 IP，再计算有效封禁总数、等级和类型分布、24 小时与 7 天活动总数。最近封禁最多展示 20 条；时间线和 Top IP 基于最近 7 天内最多 1000 条已授权事件，Top IP 最多展示 10 个。活动总数统计全部已授权事件，因此事件很多时可以高于时间线采样数量。Top IP 的当前状态也仅根据已授权的有效封禁判断。
 
 有效封禁摘要沿用现有到期时间规则：过期记录和到期时间为空的记录不计入该摘要；系统手动永久封禁使用的长期到期时间仍可计入。查询固定时间截止点，若影响结果的记录、事件或授权在读取中变化，则拒绝返回这次结果。无法安全确认事件对应的 IP 时也会拒绝请求，不会扩大到全部资源。`legacy` 和 `shadow` 保留原有聚合行为，`shadow` 另外记录 IAM 诊断。
+
+## 相关页面
+
+- [服务端配置]({{DOCS_BASE_URL}}/zh-CN/server-configuration)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)

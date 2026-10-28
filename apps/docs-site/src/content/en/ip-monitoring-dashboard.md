@@ -34,18 +34,6 @@ Use this page to review IP risk data, blacklist state, and whitelist controls.
 - Add and remove entries.
 - When the operator has 2FA enabled, writes may trigger a step-up challenge; a valid trusted window can satisfy the current security rules.
 
-## Whitelist read permissions
-
-With IAM enforcement, whitelist management reads require `IP_WHITELIST_READ` in an actual deployment-wide group. Listing uses `quyan:ip_whitelist:ListEntries`, and status checks use `quyan:ip_whitelist:GetStatus`. Both use `acs:platform:*:platform:ip-whitelist/<record-id>`. IPv4/IPv6 addresses locate an existing record; its resource ID always comes from the database, never from the address or a caller-supplied account.
-
-Authorization is applied per record before pagination, and `total` counts only authorized records. Status checks read the current expiry; an existing expired record returns `false`. Missing, deleted, or unauthorized records cannot be safely resolved for authorization and return 403 in enforce mode. Results are withheld if grants, role sessions, or records become invalid during a read. Automatic anti-abuse checks retain their internal whitelist read flow.
-
-## Whitelist write permissions
-
-With IAM enforcement, creating entries requires deployment-wide `IP_WHITELIST_CREATE` eligibility and `quyan:ip_whitelist:CreateEntry` on `acs:platform:*:platform:ip-whitelist-control/default`. The transaction also authorizes the actual `acs:platform:*:platform:ip-whitelist/<record-id>` before committing. Removing an entry requires deployment-wide `IP_WHITELIST_DELETE` eligibility and `quyan:ip_whitelist:DeleteEntry` on that entry's actual ARN. Account ownership and account-created groups cannot grant deployment-wide eligibility. Two-factor verification and replay protection rules still apply.
-
-IPv4 and IPv6 inputs must be valid addresses. An active duplicate returns 409. Re-adding a deleted address restores its original record ID, preserving resource-scoped Deny rules. Missing or unauthorized removal targets return 403 in enforce mode. Identity, group, record and policy checks run again inside the transaction; a failed check rolls back the entire change. Cached positive whitelist status is checked against the database, so expiry or deletion cannot leave an automatic ban exemption active.
-
 ## Error weights and decay
 
 Error weights are the core of the IP ban system:
@@ -61,7 +49,7 @@ Use the page to review an IP’s error status and adjust its accumulated weight.
 
 1. Query a suspicious IP to see its current tier, weight, and active ban expiry.
 2. Check the error breakdown to understand why the IP was flagged.
-3. If the ban was triggered by a false positive, reset the error weight and remove the blacklist entry.
+3. If the ban was a false positive, reset the error weight as needed and unban the IP in the blacklist. Resetting the weight does not remove an existing ban, and unbanning does not clear the weight.
 4. If the IP is genuinely malicious, manually create or edit a blacklist entry with an explicit reason.
 5. Add IPs of known-trusted infrastructure to the whitelist to prevent them from being auto-banned.
 6. After adjusting thresholds in server configuration, re-query affected IPs to confirm the new levels.
@@ -73,11 +61,17 @@ Use the page to review an IP’s error status and adjust its accumulated weight.
 - Three ban tiers give graduated responses: tier 1 for transient issues, tier 3 for persistent abuse.
 - This page works best when combined with server-configuration (to tune thresholds and weights) and system-logs (to see what requests the IP was making).
 
-## Related pages
+## Whitelist read permissions
 
-- [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)
-- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
-- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)
+With IAM enforcement, whitelist management reads require `IP_WHITELIST_READ` in an actual deployment-wide group. Listing uses `quyan:ip_whitelist:ListEntries`, and status checks use `quyan:ip_whitelist:GetStatus`. Both use `acs:platform:*:platform:ip-whitelist/<record-id>`. IPv4/IPv6 addresses locate an existing record; its resource ID always comes from the database, never from the address or a caller-supplied account.
+
+Authorization is applied per record before pagination, and `total` counts only authorized records. Status checks read the current expiry; an existing expired record returns `false`. Missing, deleted, or unauthorized records cannot be safely resolved for authorization and return 403 in enforce mode. Results are withheld if grants, role sessions, or records become invalid during a read. Automatic anti-abuse checks retain their internal whitelist read flow.
+
+## Whitelist write permissions
+
+With IAM enforcement, creating entries requires deployment-wide `IP_WHITELIST_CREATE` eligibility and `quyan:ip_whitelist:CreateEntry` on `acs:platform:*:platform:ip-whitelist-control/default`. The transaction also authorizes the actual `acs:platform:*:platform:ip-whitelist/<record-id>` before committing. Removing an entry requires deployment-wide `IP_WHITELIST_DELETE` eligibility and `quyan:ip_whitelist:DeleteEntry` on that entry's actual ARN. Account ownership and account-created groups cannot grant deployment-wide eligibility. Two-factor verification and replay protection rules still apply.
+
+IPv4 and IPv6 inputs must be valid addresses. An active duplicate returns 409. Re-adding a deleted address restores its original record ID, preserving resource-scoped Deny rules. Missing or unauthorized removal targets return 403 in enforce mode. Identity, group, record and policy checks run again inside the transaction; a failed check rolls back the entire change. Cached positive whitelist status is checked against the database, so expiry or deletion cannot leave an automatic ban exemption active.
 
 ## IAM permissions for a specific IP
 
@@ -128,3 +122,9 @@ In IAM `enforce` mode, the dashboard uses the independent `quyan:system:ip_black
 The dashboard excludes IPs without Allow or with a matching Deny before computing active-ban totals, level/type distributions and 24-hour/7-day activity totals. Recent bans show up to 20 records. The timeline and Top IP list sample up to 1000 authorized events from the last 7 days; Top IP shows up to 10 addresses. Activity totals count all authorized events and can therefore exceed the timeline sample. Each Top IP's current status is also based only on authorized active bans.
 
 The active-ban summary preserves the existing expiry rules: expired records and records with a null expiry are excluded, while the long-term expiry used for manual permanent bans still qualifies. Each query fixes its time cutoff. If records, events or authorization affecting the result change during the read, the result is denied. An event whose IP cannot be safely identified also denies the request without falling back to all resources. `legacy` and `shadow` retain previous aggregate behavior, with IAM diagnostics also recorded in `shadow`.
+
+## Related pages
+
+- [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)
