@@ -66,13 +66,13 @@ Signed-in users can view their own inbox and mark messages as read. In IAM enfor
 
 - Event list with enable / disable toggles.
 - Threshold fields for alerts that depend on counts or balance limits.
-- New users have all events subscribed by default (configurable by admins in server configuration).
+- Initial subscriptions and thresholds follow the server configuration when notification preferences are first created.
 
 ### Webhooks and delivery logs
 
-- Webhook list (URL, status, last-delivery time).
+- Webhook list (name, URL, format, and enabled status).
 - Add, edit, and test webhook actions.
-- Paginated delivery log to investigate failed deliveries.
+- Paginated delivery log showing event, channel, status, time, and error message.
 
 ### Admin: global notification config
 
@@ -83,7 +83,7 @@ Admins can change the following global defaults via the **server configuration**
 | `defaultSubscribedEvents` | Default event subscriptions for new users      |
 | `defaultThresholds`       | Default balance alert thresholds for new users |
 
-Changes to global defaults only affect newly created accounts, not existing users.
+These defaults initialize preferences that have not yet been created; they do not directly overwrite saved preferences. Subscriptions for newly introduced events may also be synchronized on a later read.
 
 ## Common actions
 
@@ -91,13 +91,13 @@ Changes to global defaults only affect newly created accounts, not existing user
 2. Enable only the events you actually need to avoid notification fatigue.
 3. Add webhooks for automation or external monitoring tools.
 4. Use the test action before relying on a new delivery target.
-5. Review delivery logs when alerts do not arrive — they show the status code and response body.
+5. When alerts do not arrive, check the status and error message in delivery logs, as well as the destination email or webhook.
 
 ## Notes
 
 - Webhooks should point to endpoints you control.
 - Event subscription changes take effect immediately with no restart required.
-- Delivery logs help separate content issues from destination issues.
+- Filter inbox messages by unread status, mark messages individually or mark all as read. Use the confirmation action to mark email-opened messages as read in bulk.
 
 ## Related pages
 
