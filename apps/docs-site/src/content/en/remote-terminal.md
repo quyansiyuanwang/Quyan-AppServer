@@ -51,10 +51,6 @@ The main area is a multi-tab terminal. Each tab maps to one device session and s
 - Sessions use WebSocket; you can reconnect manually or automatically after a network drop.
 - The number of concurrent terminals is capped by your entitlement. Purchase a plan or ask an admin to assign one if you need more capacity.
 
-## Related pages
-
-- [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes)
-
 ## Device-scoped authorization
 
 When IAM enforcement is enabled, device listing, probing, directory browsing, and preference operations use separate Actions:
@@ -111,3 +107,7 @@ With IAM enforcement, `quyan:remote_terminal:ConnectSession` separately authoriz
 Connection conditions use the actual WebSocket connection's source IP, transport and user agent. Proxy information is accepted according to the server's configured proxy trust, rather than copied from the earlier creation request. The server checks current authorization and credential state before starting the terminal and before forwarding terminal input or output. Idle sessions are checked periodically as well. Revocation, credential rotation, account or entitlement expiry, or unavailable authorization data stops further forwarding and closes the session. Revoking access cannot undo commands already sent to the device.
 
 Malformed frames, frames targeting a different session, and excessive queued data close the originating connection. Browser messages cannot invoke device preference or directory operations; those operations require their own API permissions.
+
+## Related pages
+
+- [My remote terminal products]({{DOCS_BASE_URL}}/en/my-remote-terminal-products)
