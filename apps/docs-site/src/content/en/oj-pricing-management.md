@@ -40,7 +40,16 @@ Each pricing record has three multipliers applied on top of the base input/outpu
 - **Cache-creation multiplier** — applied to tokens written into the provider's prompt cache for the first time (default `1.25`, i.e. 25% more expensive than a normal input token). Creating a cache entry costs slightly more than a regular request.
 - **Cache-read multiplier** — applied to tokens served from an existing prompt cache (default `0.1`, i.e. 90% cheaper than a normal input token). Reusing cached content is billed as substantially discounted.
 
-A request's final cost is calculated as `input tokens x input price x multiplier + output tokens x output price x multiplier + cache-creation tokens x input price x cache-creation multiplier + cache-read tokens x input price x cache-read multiplier`.
+The server treats input and output prices as **曲 per million tokens** (the page currently labels the unit as 曲/token). A request's cost is:
+
+```text
+(input tokens × input price × multiplier
+ + output tokens × output price × multiplier
+ + cache-creation tokens × input price × cache-creation multiplier
+ + cache-read tokens × input price × cache-read multiplier) / 1,000,000
+```
+
+The result is rounded down to four decimal places. Cache charges use their own multipliers and are not multiplied again by the general multiplier; actual cache token counts depend on the upstream usage response.
 
 ## IAM pricing read access
 
@@ -56,7 +65,7 @@ A matching Deny blocks the entire operation. If identity, eligibility, policies,
 
 ## Notes
 
-- Pricing changes can affect cost reporting and any user-visible estimates.
+- Pricing changes affect later request calculations. Existing usage records retain their recorded cost and are not recalculated using new prices.
 - Review usage statistics after large pricing updates to confirm outputs look reasonable.
 - Permissions may restrict who can add or edit pricing.
 
