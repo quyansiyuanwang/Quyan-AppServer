@@ -10,6 +10,51 @@ Use this page to manage how the system contacts you about important events, and 
 - Review delivery history.
 - (Admins) Adjust global default subscribed events and balance thresholds.
 
+## What you will see
+
+### Email settings
+
+- Notification email preference (can differ from the account email).
+- Send test-email action.
+- Cooldown controls to prevent repeated alerts in a short window.
+
+### Event subscriptions
+
+- Event list with enable / disable toggles.
+- Threshold fields for alerts that depend on counts or balance limits.
+- Initial subscriptions and thresholds follow the server configuration when notification preferences are first created.
+
+### Webhooks and delivery logs
+
+- Webhook list (name, URL, format, and enabled status).
+- Add, edit, and test webhook actions.
+- Paginated delivery log showing event, channel, status, time, and error message.
+
+### Admin: global notification config
+
+Admins can change the following global defaults via the **server configuration** page (stored under `CONFIG_KEYS.NOTIFICATION`):
+
+| Setting                   | Meaning                                        |
+| ------------------------- | ---------------------------------------------- |
+| `defaultSubscribedEvents` | Default event subscriptions for new users      |
+| `defaultThresholds`       | Default balance alert thresholds for new users |
+
+These defaults initialize preferences that have not yet been created; they do not directly overwrite saved preferences. Subscriptions for newly introduced events may also be synchronized on a later read.
+
+## Common actions
+
+1. Enter the notification email address, select the events you need, and set thresholds and a cooldown as appropriate.
+2. Select **Save Preferences** (**Save** on mobile); changes in the form are not saved automatically.
+3. To send notifications to an automated system, add and save a webhook.
+4. Use the test action to check the saved email or webhook. A test sends a real notification, so save a changed destination first.
+5. When alerts do not arrive, check the status and error message in delivery logs, as well as the destination email or webhook.
+
+## Notes
+
+- Webhooks should point to endpoints you control.
+- Event subscription changes take effect after a successful save; no restart is required.
+- Filter inbox messages by unread status, mark messages individually or mark all as read. Use the confirmation action to mark email-opened messages as read in bulk.
+
 ## Permissions and availability
 
 - In legacy permission mode, notification preferences still require notification-management permission; signing in alone does not grant access.
@@ -53,51 +98,6 @@ Signed-in users can view their own inbox and mark messages as read. In IAM enfor
 - Each log resource is `acs:notification:*:<accountId>:delivery-log/<userId>/<logId>`. Queries are limited to the executing user's records. Even a wildcard policy does not allow callers to change the target by supplying another user.
 - Logs are authorized individually before pagination, and totals include only authorized records. Explicit Deny can restrict individual logs or logs in a resource group. A list with no visible records is empty.
 - The event catalog uses `quyan:notification:ListEvents` on the executing user's own `acs:quyan:*:<accountId>:user/<userId>` resource. Authenticated identities retain a default grant to view event types, which explicit Deny can restrict. This action does not grant subscription changes, log access, or test delivery.
-
-## What you will see
-
-### Email settings
-
-- Notification email preference (can differ from the account email).
-- Send test-email action.
-- Cooldown controls to prevent repeated alerts in a short window.
-
-### Event subscriptions
-
-- Event list with enable / disable toggles.
-- Threshold fields for alerts that depend on counts or balance limits.
-- Initial subscriptions and thresholds follow the server configuration when notification preferences are first created.
-
-### Webhooks and delivery logs
-
-- Webhook list (name, URL, format, and enabled status).
-- Add, edit, and test webhook actions.
-- Paginated delivery log showing event, channel, status, time, and error message.
-
-### Admin: global notification config
-
-Admins can change the following global defaults via the **server configuration** page (stored under `CONFIG_KEYS.NOTIFICATION`):
-
-| Setting                   | Meaning                                        |
-| ------------------------- | ---------------------------------------------- |
-| `defaultSubscribedEvents` | Default event subscriptions for new users      |
-| `defaultThresholds`       | Default balance alert thresholds for new users |
-
-These defaults initialize preferences that have not yet been created; they do not directly overwrite saved preferences. Subscriptions for newly introduced events may also be synchronized on a later read.
-
-## Common actions
-
-1. Confirm the email address that should receive alerts.
-2. Enable only the events you actually need to avoid notification fatigue.
-3. Add webhooks for automation or external monitoring tools.
-4. Use the test action before relying on a new delivery target.
-5. When alerts do not arrive, check the status and error message in delivery logs, as well as the destination email or webhook.
-
-## Notes
-
-- Webhooks should point to endpoints you control.
-- Event subscription changes take effect immediately with no restart required.
-- Filter inbox messages by unread status, mark messages individually or mark all as read. Use the confirmation action to mark email-opened messages as read in bulk.
 
 ## Related pages
 
