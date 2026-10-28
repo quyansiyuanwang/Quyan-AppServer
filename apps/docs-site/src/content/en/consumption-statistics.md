@@ -37,6 +37,12 @@ Time, user, model, and channel filters only change the report contents; they do 
 - Model table.
 - User table.
 
+## How the report is calculated
+
+- The report uses API usage charges and monthly-pass coverage records within the selected dates, grouped by their associated usage record. Transactions without an associated usage record are excluded. The request count reflects these grouped records and is not necessarily the total number of relay requests.
+- Total cost includes both balance charges and amounts covered by monthly passes, so it is not the same as the amount deducted from balances. Use balance management to review individual charges when reconciling totals.
+- The daily chart shows cost, requests, and other data. The channel chart shows the eight channels with the highest cost; the model and user charts each show the top ten by cost. Use the detail tables below for the full breakdown.
+
 ## Common actions
 
 1. Start with a date range that matches the incident or billing period.
