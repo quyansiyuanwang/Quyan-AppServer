@@ -9,7 +9,7 @@ import { PlatformDeveloperUsageReadRepository } from "@/store/developer/platform
 import { platformDeveloperAccountArn } from "@/iam/resources/platform-developer-account-resources";
 import { parseIamPolicy } from "@/iam/parser/policy-parser";
 import { RamPolicyRepository } from "@/store/users/ram-policy.repository";
-import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
+import { toDatabaseDate, toLegacyDatabaseDate, localDayStartForDatabaseDate } from "@/util/database-date";
 import type { TypedRequest } from "@/types/express";
 let owner: string, actor: string;
 const originalMode = env.security.iamAuthorizationMode,
@@ -186,6 +186,34 @@ describe("platform product usage resource reads database", () => {
     await usage(row.id, 70, toLegacyDatabaseDate());
     expect(await service.usage(request(), "kv", { accountId: row.id })).toMatchObject({ requestCount: 70 });
     expect(await prisma.developerProductQuotaUsage.count()).toBe(1);
+  });
+
+  it("does not expose an earlier day's normalized counter as today's usage", async () => {
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "Asia/Shanghai";
+    try {
+      await group();
+      const row = await create();
+      await config();
+      const canonical = toDatabaseDate(),
+        legacy = toLegacyDatabaseDate();
+      expect(canonical.getTime()).not.toBe(legacy.getTime());
+      const counter = await usage(row.id, 70, legacy);
+      await prisma.developerProductQuotaUsage.update({
+        where: { id: counter.id },
+        data: {
+          updateTime: new Date(localDayStartForDatabaseDate(canonical).getTime() - 1),
+        },
+      });
+      expect(await service.usage(request(), "kv", { accountId: row.id })).toMatchObject({ requestCount: 0 });
+      expect(await prisma.developerProductQuotaUsage.findUniqueOrThrow({ where: { id: counter.id } })).toMatchObject({
+        requestCount: 70,
+        usageDate: legacy,
+      });
+    } finally {
+      if (previousTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimezone;
+    }
   });
   it("preserves zero-price unlimited and missing configuration semantics without provisioning", async () => {
     await group();

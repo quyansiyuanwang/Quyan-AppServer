@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Permission, actionForPermission } from "@quyan/shared";
+import { ALL_PERMISSIONS, Permission, actionForPermission } from "@quyan/shared";
 import { mockDeep } from "vitest-mock-extended";
+import { evaluatePolicyRequests } from "@/iam/evaluator/policy-evaluator";
 import { planLegacyPolicy, parseIamBackfillArgs } from "@/iam/migration/legacy-policy-backfill";
 import type { IamPolicyMigrationStore } from "@/store/users/iam-policy-migration.store";
 vi.mock("@/store/users/iam-policy-migration.repository", () => ({
@@ -45,6 +46,26 @@ describe("legacy policy backfill planning", () => {
       "acs:quyan:*:owner:group/*",
       "acs:quyan:*:owner:user/*",
     ]);
+  });
+  it.each(ALL_PERMISSIONS)("preserves shared native action grants for legacy permission %s", (permission) => {
+    expect(planLegacyPolicy({ ...candidate, permissions: [permission] }).kind).toBe("migrate");
+  });
+  it("does not turn a shared native action into an unrelated legacy permission grant", () => {
+    const plan = planLegacyPolicy({ ...candidate, permissions: [Permission.USER_CREATE] });
+    expect(plan.kind).toBe("migrate");
+    if (plan.kind !== "migrate") throw Error("Expected migration");
+    const decisions = evaluatePolicyRequests(
+      [{ policyId: candidate.id, document: plan.parsed.document }],
+      [
+        { action: "quyan:user:AssignUserGroup", resource: "acs:platform:*:platform:user/target" },
+        { action: actionForPermission(Permission.USER_CREATE), resource: "acs:quyan:*:owner:account" },
+        { action: actionForPermission(Permission.USER_UPDATE), resource: "acs:quyan:*:owner:account" },
+      ],
+    );
+    expect(decisions.map((decision) => decision.decision)).toEqual(["Allow", "Allow", "ImplicitDeny"]);
+  });
+  it("preserves the union of native actions for a multi-permission policy", () => {
+    expect(planLegacyPolicy({ ...candidate, permissions: ALL_PERMISSIONS }).kind).toBe("migrate");
   });
   it.each([["unknown:permission"], ["user:read", 12], null, "invalid-json"])(
     "reports unmapped/corrupt permissions without dropping them %#",

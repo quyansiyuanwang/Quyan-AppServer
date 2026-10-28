@@ -23,7 +23,7 @@ import {
   updateProductAccountBodySchema,
   updateProductConfigBodySchema,
 } from "@/api/schema/developer/product-platform.schema";
-import { toDatabaseDate, toLegacyDatabaseDate } from "@/util/database-date";
+import { toDatabaseDate, toLegacyDatabaseDate, localDayStartForDatabaseDate } from "@/util/database-date";
 import type { TypedRequest } from "@/types/express";
 import type { DeveloperProductUsageDto } from "@/api/dto/developer/product-platform.dto";
 const configValues = updateProductConfigBodySchema.pick({ defaultDailyQuota: true, overagePrice: true });
@@ -129,7 +129,13 @@ export class PlatformDeveloperUsageReadIamService {
     )
       throw iamAccountDenied();
     const usage = dates
-      .map((date) => data.usages.find((row) => row.usageDate.getTime() === date.getTime()))
+      .map((date, index) =>
+        data.usages.find(
+          (row) =>
+            row.usageDate.getTime() === date.getTime() &&
+            (index === 0 || row.updateTime >= localDayStartForDatabaseDate(dates[0]!)),
+        ),
+      )
       .find(Boolean);
     const dailyFreeQuota = parsed.data.dailyFreeQuota ?? config.data.defaultDailyQuota,
       requestCount = usage?.requestCount ?? 0,

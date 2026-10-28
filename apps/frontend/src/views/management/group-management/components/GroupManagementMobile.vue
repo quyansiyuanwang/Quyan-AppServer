@@ -110,16 +110,22 @@
             :has-next="hasMore"
             :loading="loading"
             @previous="
-              pagination.page--
-              handlePageChange()
+              () => {
+                pagination.page--
+                handlePageChange()
+              }
             "
             @next="
-              pagination.page++
-              handlePageChange()
+              () => {
+                pagination.page++
+                handlePageChange()
+              }
             "
             @size="
-              pagination.pageSize = $event
-              handlePageSizeChange()
+              (size) => {
+                pagination.pageSize = size
+                handlePageSizeChange()
+              }
             "
           />
           <el-pagination
