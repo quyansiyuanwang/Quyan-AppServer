@@ -1,10 +1,10 @@
 # Two-factor authentication & passkeys
 
-Two-factor authentication (2FA) adds an extra layer of security to your account. After enabling 2FA, signing in requires both your password and a time-based one-time code. Passkeys provide passwordless authentication using biometrics or device PINs.
+Two-factor authentication (2FA) adds an extra layer of security to your account. After enabling 2FA, sign-in may require additional verification; trusted devices and passkey policy affect the requirement. Passkeys provide passwordless authentication using biometrics or device PINs.
 
 ## 2FA overview
 
-The system supports TOTP-based 2FA using authenticator apps (Google Authenticator, Authy, 1Password, etc.). Each code is valid for 30 seconds.
+The system supports TOTP-based 2FA using authenticator apps (Google Authenticator, Authy, 1Password, etc.). The code period defaults to 30 seconds and depends on the server configuration.
 
 ### Enabling 2FA
 
@@ -16,7 +16,7 @@ The system supports TOTP-based 2FA using authenticator apps (Google Authenticato
 
 ### Recovery codes
 
-When you enable 2FA, 10 recovery codes are generated. Each code can be used **once** to bypass 2FA if you lose access to your authenticator device.
+When you enable 2FA, a set of recovery codes is generated (10 by default, depending on server configuration). Each code can be used **once** to bypass 2FA if you lose access to your authenticator device.
 
 - Store recovery codes offline (print or write them down).
 - Do not store them on the same device as your authenticator app.
@@ -44,29 +44,29 @@ Passkeys let you sign in without a password using your device's biometric sensor
 4. Remove passkeys you no longer use.
 5. Optionally toggle "require 2FA even for passkey login" for stricter security.
 
-See `passkey-management` for the full field reference and notes on backed-up passkeys.
+See [Passkey management]({{DOCS_BASE_URL}}/en/passkey-management) for the full field reference and notes on backed-up passkeys.
 
 ## Trusted devices
 
-After a successful login with 2FA, you can mark the current browser as trusted. For the configured trust window (default 24 hours), 2FA challenges will be skipped on that device for regular operations.
+After a successful 2FA login, the system can record the current browser as trusted. For the configured trust window (default 24 hours), 2FA challenges will be skipped on that device for regular operations.
 
 ### Trusted device behavior
 
-| Operation type                                                               | Trusted device honored?             |
-| ---------------------------------------------------------------------------- | ----------------------------------- |
-| Normal login                                                                 | Yes                                 |
-| Standard step-up challenges (email change, profile edits)                    | Yes                                 |
-| High-risk operations (delete access keys, delete RAM users, detach policies) | **No** — always requires fresh 2FA  |
-| Disable 2FA                                                                  | No — requires code or recovery code |
+| Operation type                                                               | Trusted device honored?                                  |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Normal login                                                                 | Yes                                                      |
+| Standard step-up challenges (such as email changes)                          | Yes                                                      |
+| High-risk operations (delete access keys, delete RAM users, detach policies) | **No** — requires fresh verification when 2FA is enabled |
+| Disable 2FA                                                                  | No — requires code or recovery code                      |
 
 ### Managing trusted devices
 
 1. Go to Account Settings → Security → Trusted devices.
 2. View the list of devices currently within the trust window.
 3. Remove any device you do not recognize.
-4. Clear all trusted devices if you suspect account compromise.
+4. If you suspect account compromise, check all pages and remove suspicious devices individually.
 
-See `trusted-device-management` for the full device list fields and how the trust window interacts with high-risk operations.
+See [Trusted devices]({{DOCS_BASE_URL}}/en/trusted-device-management) for the device list and how the trust window interacts with high-risk operations.
 
 ## Security notes
 
@@ -77,11 +77,7 @@ See `trusted-device-management` for the full device list fields and how the trus
 
 ## Permission requirements
 
-| Action                 | Required permission |
-| ---------------------- | ------------------- |
-| Manage own 2FA         | None (all users)    |
-| Manage own passkeys    | None (all users)    |
-| Manage trusted devices | None (all users)    |
+You must sign in to manage account security settings. Actions are also subject to your account’s permission policies. If an action is denied, contact your account administrator to check your authorization.
 
 ## Related pages
 
