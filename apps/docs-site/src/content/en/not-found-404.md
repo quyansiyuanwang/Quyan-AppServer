@@ -1,38 +1,13 @@
 # 404 not found
 
-This fallback page appears when the requested route does not exist.
+This page may appear when the requested path does not exist or the current hostname is not recognized by the site.
 
-## Page purpose
+## What to do
 
-- Explain that the target page was not found.
-- Offer a clear way back to a working page.
-- Provide a lightweight visual recovery experience.
-
-## What you will see
-
-### Main state
-
-- Animated 404 display.
-- Error title and short description.
-- Go-home button.
-- Go-back button.
-
-### Decorative elements
-
-- Floating visual effects.
-- Optional seasonal mini-game or easter egg when enabled.
-
-## Common actions
-
-1. Use **Go home** to return to the main entry page.
-2. Use **Go back** if you only took a wrong navigation step.
-3. If the error came from an old bookmark, reopen the correct page from the docs or menu.
-
-## Notes
-
-- A 404 page usually means the URL is wrong or the page has moved.
-- Seasonal mini-games do not affect your account or data.
-- If a valid menu link leads here repeatedly, it may indicate a routing issue.
+1. Check the hostname and path. If you used an old bookmark, reopen the page from the menu or documentation.
+2. Select **Go back** to return to the previous browser history entry. If there is no previous entry, you will be taken to the public site's home page.
+3. Alternatively, select **Go home** to open the public site's home page directly.
+4. If a valid menu link repeatedly leads here, or the page says the hostname is not recognized, ask an administrator to check the site configuration and link.
 
 ## Related pages
 
