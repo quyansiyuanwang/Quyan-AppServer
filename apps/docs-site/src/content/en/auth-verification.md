@@ -22,20 +22,19 @@ When login, registration, security changes, or high-risk actions require 2FA, a 
 
 Before registration, sending verification codes, password recovery, or password reset, the system may require a captcha challenge:
 
-- Supports reCAPTCHA and Turnstile providers (configured by admins on the server-configuration page).
-- Once verified, the system skips further captcha prompts within the configured trust window.
-- Call `GET /auth/captcha/trust-status` to check whether the current session is still within the trust window.
+- The standalone verification page uses Turnstile. Follow the on-screen instructions to complete the challenge.
+- After verification, the system may skip repeated captcha challenges within the configured trust window.
 
 ### Rate limiting
 
-The system applies per-IP and per-email rate limits to the following operations:
+The system rate-limits the following operations. The dimensions and wait times depend on the operation and server configuration:
 
 - Registration email verification code sends.
 - Password-reset code sends.
 - 2FA code verification (checked per IP and per challenge token).
 - 2FA email code sends.
 
-Exceeding a limit returns a `429 Too Many Requests` error with a suggested retry-after delay.
+If you reach a limit, wait as directed on the page before trying again.
 
 ### Action area
 
@@ -56,7 +55,7 @@ Exceeding a limit returns a `429 Too Many Requests` error with a suggested retry
 - After a refresh, the overlay reappears if a verification challenge is still pending; unsaved page data and pending original requests do not survive the refresh. Restart the original action after verification or if the challenge has expired.
 - Recovery codes should be stored offline; each code can only be used once.
 - If policy consent is shown here, finish reading it before continuing.
-- Replay protection is enabled on all sensitive forms — refresh the page to obtain a fresh signing session if a submission fails with a replay error.
+- If verification fails, check the code and your device clock. If the challenge expires, restart the original action.
 
 ## Related pages
 
