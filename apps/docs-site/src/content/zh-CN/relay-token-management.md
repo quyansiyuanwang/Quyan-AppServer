@@ -19,139 +19,6 @@
 - 到期时间、状态与额度使用情况。
 - 分页模式或全部展示模式。
 
-### 资源级访问与凭据披露
-
-启用 IAM 强制模式后，列表使用 `quyan:relay:ListTokens`，单个 Token 查询使用 `quyan:relay:GetToken`。服务端逐项评估 Token 资源 `acs:relay:*:<accountId>:token/<userId>/<tokenId>`，没有读取权限的记录不会出现在当前页或总数中；知道 Token ID 不代表获得访问权限。已停用但获准读取的 Token 仍可见，已删除的 Token 不可见。
-
-允许读取 Token 元数据不等于允许获取凭据。这两个读取接口只有在同一资源也获准执行 `quyan:relay:RevealToken` 时才返回 `token` 字段；显式 Deny 优先于 Allow。没有披露权限时，页面仍可展示获准读取的用量和配置，但凭据位置显示不可用提示。复制凭据、打开余额脚本、导入受支持客户端都需要接口实际返回凭据。批量复制凭据时，只要任一选中项没有凭据就停止，不会用 Token ID 替代，也不会悄悄漏掉部分选中项。
-
-读取其他用户的 Token（包括同账户内其他用户）还需要平台管理资格，以及目标用户和 Token 资源上的 `ListManagedTokens` / `GetManagedToken` 授权；披露凭据另需 `RevealManagedToken`。账户策略中的 `"*"` 不能自行赋予平台管理资格。OAuth 访问还受应用和访问令牌当前的 scope、有效期与撤销状态限制。
-
-导出要求每个选中 Token 同时获准执行 `quyan:relay:ExportTokens` 和 `RevealToken`。管理其他用户的导出，还需平台管理资格、当前用户的接口准入，以及目标平台资源上的 `ExportManagedTokens` / `RevealManagedToken`。显式选中 ID 时按提交顺序导出；未指定时导出已启用的 Token，`includeDisabled: true` 可同时包含停用项，但不会包含已删除项。任一指定 Token 不存在或未获准，或组合 Token 引用的成员无法导出，整个请求都会失败，不会静默生成不完整的备份。导出的组合配置保留获准的成员引用，但只有成员本身也被选中且获准披露时才导出其凭据。
-
-以上披露规则覆盖创建、导入、配置复制、列表、单个 Token 读取、导出，以及下文说明的单个启停、刷新、主渠道更新和完整配置更新。其他修改仍属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
-
-### 创建资源级 Token
-
-启用 IAM 强制执行后，创建 Token 同时需要当前用户创建范围 `acs:quyan:*:<accountId>:user/<userId>` 和新 Token 资源 `acs:relay:*:<accountId>:token/<userId>/<tokenId>` 上的 `quyan:relay:CreateToken`。Token ID 由服务端分配，客户端不能指定；策略可用 `token/<userId>/*` 授予该用户未来 Token 的创建权限，而不扩展到其他用户。创建响应还需要新资源上的 `GetToken`；只有 `RevealToken` 也允许该资源时才返回凭据，否则创建成功但仅返回元数据，没有可复制的凭据。
-
-所有有序渠道（含备用渠道）都需要其 `acs:relay:*:<accountId>:channel-selection/<channelId>` 资源上的 `SelectTokenChannel`，且渠道必须持续启用并对你可见。自动代理池需要所选池根资源的同一权限、有效拓扑，以及屏蔽后至少一条可用路径。创建组合 Token 时，需要整个引用子树上的 `ReferenceToken` 和 `GetToken`，包括禁用的成员绑定；不能引用其他用户的 Token。
-
-传入自定义凭据还需要新 Token 上独立的 `SetTokenCredential` 和 `RevealToken`，普通创建权限不会自动授予这些能力。服务端当前的自定义凭据开关、用户数量限制与设置频率限制仍然适用，除非独立的 `BypassTokenCredentialLimits` 允许跳过。为其他用户创建还需要持久化的平台管理资格、目标用户及 Token 资源上的 `CreateManagedToken` 和 `GetManagedToken`，以及个人入口权限；托管凭据、引用与限额跳过使用对应的 `Managed` 操作，仅指定托管用户不会使自定义凭据变为无限制。OAuth 的创建和响应读取作用域必须在应用与访问令牌两侧持续有效。
-
-创建、关联配置、响应权限与最终授权复核处于同一回滚边界，后置拒绝不会留下新 Token。legacy 与 shadow 模式保留旧创建结果；shadow 预评估不会多插入一个 Token，也不会多消耗一次自定义凭据设置尝试。
-
-### 导入资源级 Token
-
-启用 IAM 强制执行后，`POST /v1/relay/tokens/import` 每次接受 1–200 项。当前用户创建范围及每个新 Token 都必须允许 `quyan:relay:ImportTokens` 和 `CreateToken`，每个新资源还必须允许 `GetToken`。仅有创建权限不能代替导入权限。服务端逐项分配 ID；条目中的 ID、操作名或目标用户不能覆盖服务端授权，整批目标由顶层 `targetUserId` 确定。只有允许 `RevealToken` 的条目才返回凭据，其余返回元数据。
-
-导入保留流式与内容安全配置，以及上文创建操作的全部渠道、组合引用和自定义凭据限制。自定义数量限制同时计算本批计划新增项，而不是分别忽略其他新条目。普通凭据和具有独立限额豁免的凭据可以混合导入，但每项仍须分别满足自己的资格；为其他用户导入还需要平台管理资格及目标用户和每个 Token 上的 `ImportManagedTokens`、`CreateManagedToken`、`GetManagedToken`，敏感操作使用对应托管权限。
-
-现有 Token 不会被覆盖。名称去除首尾空白后若与目标用户已有的启用/禁用 Token 或本批前项重名，添加“（副本）”“（副本2）”等后缀；名称大小写不同不视为重名。`enabled: false` 创建禁用条目，省略时启用。兼容格式凭据会规范化；如果凭据或旧别名已被占用（包括本批前项），服务端生成新凭据且不接管已占用别名，请以返回结果为准。
-
-强制执行时，所有条目的配置、配额、引用和响应授权处于同一回滚边界。任一条目校验失败、拒绝授权或执行期间权限失效，整批都不会留下新增 Token。失败的自定义凭据设置尝试仍可能计入频率限制。legacy/shadow 模式仍只执行一次原有导入；shadow 预检不额外创建条目或消耗设置次数。
-
-### 复制资源级 Token
-
-启用 IAM 强制执行后，单个复制和批量复制使用 `quyan:relay:DuplicateToken`。当前用户创建范围必须允许 `DuplicateToken` 和 `CreateToken`；每个来源 Token 需要 `DuplicateToken` 和 `GetToken`，每个服务端新建的 Token 需要 `CreateToken` 和 `GetToken`。批量复制接受 1–200 个不重复的 ID，并按提交顺序返回；任一来源不存在、已删除、归属不符或未获授权都会使整批失败，不会跳过无权项。
-
-复制只读取获准来源的配置，不读取、保留或复用其凭据、旧别名、上游密钥、自定义凭据标记和用量。每个副本使用新 ID、新凭据、清零的用量并默认启用，即使来源处于停用状态。来源上的 `RevealToken` 被拒绝不妨碍复制配置；但副本只有独立获准 `RevealToken` 时才返回新凭据，否则仅返回元数据。复制不是导出，也不是设置自定义凭据，不要求来源凭据披露或自定义凭据设置权限。
-
-自动生成名称始终使用可用的“（副本）”“（副本2）”等后缀，并避开已有启用/停用条目和本批新增名称；无名称的来源仍无名称。单个复制可显式覆盖名称。渠道、配额、有效期、流式和内容安全等配置保留；所有渠道选择、自动池拓扑与完整组合引用子树仍按创建规则重新授权，包含禁用的成员绑定。不会因能读取来源而自动获得使用其渠道或引用其成员的权限。
-
-为其他用户复制还需要持续有效的平台管理资格、个人入口权限，以及目标用户和来源上的 `DuplicateManagedToken` / `GetManagedToken`、目标用户和副本上的 `CreateManagedToken` / `GetManagedToken`；新凭据披露和成员引用使用对应的托管操作。单个复制可在省略目标用户时由服务端确认来源所有者；批量复制仅接受指定目标用户（省略时为当前用户）的来源，不执行跨用户搬运。
-
-强制模式下，所有副本及其关联配置处于同一回滚边界。来源归属、状态、关联配置、策略、会话或渠道准入在执行期间变化时，整个请求会失败且不留下部分副本。OAuth 的 CREATE 和 READ 必须在应用及访问令牌两侧持续有效；重放保护和二次验证仍适用。legacy/shadow 保留一次原有复制，shadow 预检不会多写副本。
-
-### 更新完整 Token 配置
-
-启用 IAM 强制模式后，编辑 Token 需要该 Token 上的 `quyan:relay:UpdateToken` 和独立的 `GetToken` 权限；只有同时允许 `RevealToken`，响应才返回凭据。名称、有效期、总额度、额度窗口、模型规则、协议转换、整流、内容安全和流式配置一起保存，任一资源、身份或授权检查失败都会回滚整个变更。
-
-- 更新后的完整有序渠道列表，包括未改变的备用渠道，都需要各自 `acs:relay:*:<accountId>:channel-selection/<channelId>` 上的 `quyan:relay:SelectTokenChannel`。自动池模式检查所选池的同一权限及业务可见性。屏蔽支持可达的直接和嵌套成员，以有效池关系为准，并且必须留下至少一条可用路由。被拒绝、隐藏、停用或提供方已停服的渠道不能借 Token 更新恢复可选状态。
-- 将普通 Token 转为组合时，需要同一归属用户下每个被引用后代上的 `quyan:relay:ReferenceToken` 和 `GetToken`，包括停用的引用。能够查看候选或预览模型不等于可以保存引用，深度、规模和环路限制仍然生效。此编辑接口不修改已经是组合模式的 Token。
-- 修改凭据还需要 `SetTokenCredential` **和** `RevealToken`；把密钥改成已知值也不能绕过显式披露拒绝。除非独立获准 `BypassTokenCredentialLimits`，仍受自定义密钥开关、用户数量和尝试频率限制。OAuth 的当前令牌和应用必须同时委派相应的普通或不限额自定义密钥 scope。指定其他管理对象不构成自动豁免，即使数据库变更回滚，失败尝试也可能计入频率限制。
-- 旧格式凭据会转换为规范前缀，但保留原密钥后缀。若首选凭据或其别名已被使用，服务端生成不同的凭据，不会占用已有别名；请使用成功响应实际返回的凭据。
-
-管理其他用户 Token 时，还需要平台写入和读取资格、当前用户的接口准入，以及目标平台用户和 Token 上的 `UpdateManagedToken` / `GetManagedToken`。修改凭据和组合引用分别使用 `SetManagedTokenCredential`、`RevealManagedToken`、`ReferenceManagedToken`，限额豁免使用 `BypassManagedTokenCredentialLimits`。设置其他用户的凭据还需要部署管理组的自定义密钥资格，管理限额豁免另需该组的不限额自定义密钥资格；账号策略不能制造这些资格。Token 配置、额度规则、引用变更和获准返回的响应处于同一提交边界，接口仍要求重放保护和二次验证。上述资源级保证适用于 enforce；legacy / shadow 仍只执行一次原业务修改，shadow 比较不会额外消耗自定义密钥尝试次数。
-
-### 组合候选的资源边界
-
-在 IAM 强制模式下，组合候选列表逐个使用 `quyan:relay:ListTokenCompositionCandidates` 检查 Token ARN，不要求额外授予 `GetToken` 或 `RevealToken`。候选的完整引用子树必须全部获准，包括停用的成员引用；如果任何后代被拒绝、已删除、不属于所选用户，或图中存在循环及超限路径，父候选不会展示，也不会计入总数。不会返回删减后的成员数或残缺的成员引用，以免泄露不可见 Token 的存在。
-
-名称搜索、分页与选中项保留都仅在完整可见的候选中生效。显式指定的 `selectedIds` 如有未获准或不完整的候选，整个查询失败；编辑目标本身未获准时也失败。`selectedIds` 非空时须为最多 200 个互不重复的逗号分隔 ID，不能包含空段。候选会标记自己及会产生循环的已授权祖先为不可选；已停用或过期但未删除的 Token 仍可供配置检查，这不会恢复调用资格。
-
-管理其他用户的候选仍需平台管理读取资格、当前用户接口准入，以及目标平台用户与每个 Token 上的 `ListManagedTokenCompositionCandidates`。即使属于同一账户，也不能省略平台边界。返回前会复核引用图、Token、身份和授权状态。查询不读取 Token 凭据、上游配置或物理渠道。该规则只覆盖候选选择，不替代组合预览、写入或调用的独立授权；legacy / shadow 保留原有行为，shadow 不额外加载候选拓扑。
-
-### 模型目录发现权限
-
-在 IAM 强制模式下，模型名称目录使用 `quyan:relay:ListAvailableModels`，逐个评估 `acs:relay:*:<accountId>:model-catalog-entry/<modelRecordId>`。响应的可选 `modelResourceArns` 按可见模型名称提供准确 ARN。被拒绝的条目不出现在名称列表、模型 ID、别名映射或资源映射中；同一上游 ID 对应多个名称时，唯一／一对多映射仅根据获准条目计算。没有获准条目时返回空目录。
-
-这是当前账户对公共模型目录的发现权限，不是平台模型价格管理权，不要求全局价格管理资格，也不返回成本、计价规则或渠道配置。它不修改 Token 的允许模型列表、不赋予模型调用权，也不代替单个 Token 的可用模型查询。OAuth 沿用此接口原有的 `relay:channel:read` scope，而不是改为 Token 读取 scope。返回前会复核身份、策略、发布状态和模型别名；若发生变化，拒绝返回过期结果。legacy / shadow 保留原有目录行为，shadow 不额外读取模型名称。
-
-### 单个启停与凭据刷新
-
-在 IAM 强制模式下，单个启停使用 `quyan:relay:SetTokenStatus`，刷新使用 `quyan:relay:RefreshToken`，均在目标 Token ARN 上授权。这两个接口返回 Token 配置，因此还必须有相同资源的 `GetToken` 元数据读取权限；没有读取权限时，在写入前拒绝，不会先修改再返回读取错误。仅需写入、不需读取配置时，可使用批量启停接口。
-
-启停响应仅在另有 `RevealToken` 时包含凭据，没有披露权限则只返回元数据。刷新必须同时有 `RevealToken`，否则不轮换，避免生成调用者无法取得的新凭据。刷新成功后，旧凭据及旧格式别名不再有效；Token ID、配置、状态、到期时间、用量和组合引用保持不变。刷新已停用或过期的 Token 不会使它恢复可用。
-
-管理其他用户时，还需平台管理的读取和写入资格、当前用户接口准入，以及目标平台用户和 Token 上的 `SetManagedTokenStatus` / `RefreshManagedToken`、`GetManagedToken` 授权；披露使用 `RevealManagedToken`。管理写入资格不能自动赋予读取和披露资格。OAuth 应用和访问令牌也必须保有读取与更新 scope。
-
-写入、响应配置读取及最终授权复核位于同一事务边界内。若身份、策略、资源或披露授权发生变化，或响应构造失败，整个操作回滚，不会在响应构造或授权失败后仍提交轮换。这不能保证网络交付；若事务提交后网络中断，可在获准后重新刷新。两个接口继续要求重放保护和二次验证。legacy / shadow 仍执行原有业务逻辑，不具有上述 enforce 保证。
-
-### 更改有序渠道的主渠道
-
-在 IAM enforce 模式下，主渠道更新接口要求对目标 Token 具有 `quyan:relay:UpdateTokenChannel` 和 `quyan:relay:GetToken`，并对**更新后的全部有序渠道**具有 `quyan:relay:SelectTokenChannel`，包括保留的备用渠道。渠道选择 ARN 为 `acs:relay:*:<操作者账户ID>:channel-selection/<渠道ID>`；这不代表平台渠道管理权限，也不允许读取上游凭据。
-
-渠道必须保持启用、提供服务，并满足业务可见性规则；隐藏渠道不能被选择。策略 Allow 不能覆盖业务可见性限制。选择已有渠道会将其移到首位；选择新渠道会保留原渠道作为备用，但不能超过有序渠道数量上限。此接口不能把组合 Token 或自动混池 Token 隐式转换为有序路由。
-
-返回配置需要元数据读取权限；仅在另有 Reveal 权限时返回令牌字符串。更新其他用户的 Token 还需要对应的 `UpdateManagedTokenChannel`、`GetManagedToken` 授权和平台管理资格；渠道选择仍使用操作者账户的选择 ARN。写入、响应读取和最终授权校验处于同一事务：拒绝或响应构造失败时，主渠道和备用列表一起回滚。原有 OAuth scope、重放保护和二次验证仍然有效。legacy、shadow 模式保留原有授权行为。
-
-### 单个 Token 用量与明细
-
-启用 IAM 强制模式后，单个 Token 的用量统计和用量明细使用独立的 `quyan:relay:GetTokenUsage`，在同一个 Token ARN 上授权。不需要同时授予 `GetToken` 或 `RevealToken`，这两个用量接口也不返回 Token 凭据或上游密钥。已停用或过期但未删除的 Token 仍可在获准后查询。
-
-查看其他用户（包括同账户内其他用户）的用量还需平台管理读取资格、当前用户接口准入，以及目标平台用户和 Token 上的 `GetManagedTokenUsage`。仅有管理写入资格不代表能够读取用量。服务端在汇总完成后再次检查身份、授权和目标资源；途中撤销访问时，不会返回已计算的结果。
-
-组合调用的归属用量仍按所选 Token 展示，不因查询而获得其他成员 Token 的访问权；明细中的 Token 标识使用获准查询的 Token ID。这些规则适用于单个用量及明细接口；批量用量和切换日志的规则见下文，平台诊断和路由跟踪具有下文说明的独立授权要求。
-
-### 批量用量汇总与切换日志
-
-IAM 强制模式下，批量用量汇总同样逐 Token 检查 `quyan:relay:GetTokenUsage`；管理其他用户时使用 `GetManagedTokenUsage`，并要求平台管理读取资格和目标用户授权。不传 `tokenIds` 时只汇总获准访问的 Token，不返回被拒绝的记录。显式传入 ID 时，最多 200 个非空、互不重复的 ID，响应保持请求顺序；任一 ID 不存在、已删除、不属于选定用户或没有授权，整个请求失败，不会静默返回部分汇总。已停用或过期但未删除的 Token 仍可在获准后查询。
-
-不指定时间范围时，保留累计用量语义；指定范围时，只对获准资源执行该时间范围的汇总。汇总完成后再次复核身份、目标资源及各项原始授权决定，期间撤销访问不会释放已计算的数据。显式空列表、重复项和逗号分隔中的空项会被拒绝，不会意外变成“查询全部”。
-
-切换日志使用独立的 `quyan:relay:GetTokenSwitchLogs`，管理其他用户使用 `GetManagedTokenSwitchLogs`，不要求额外授予 `GetToken` 或 `RevealToken`。原生响应只提供展示渠道标识、状态码、尝试次数等必要日志信息，不读取或返回底层物理渠道 ID、密钥及未经审查的原始上游错误文本。每次最多查询 100 条，授权在数据查询后再次验证。这些资源级、筛选和日志披露规则适用于 enforce 模式；legacy / shadow 仍执行原有查询。
-
-### 删除与批量删除
-
-启用 IAM 强制模式后，单个和批量删除均逐资源检查 `quyan:relay:DeleteToken`。删除不要求额外拥有读取或凭据披露权限；删除响应也不返回凭据。管理其他用户的 Token（包括同账户内其他用户）还需平台管理资格、当前用户的删除接口准入，以及目标平台用户和每个 Token 上的 `quyan:relay:DeleteManagedToken`。仅有管理读取资格不足以删除。
-
-批量删除最多接受 200 个互不重复的 Token ID。任一目标不存在、已删除、不属于选定用户、被拒绝授权，或执行期间身份、授权或资源状态发生变化，整个请求失败，不会留下部分删除。已停用或过期的 Token 仍可在获准后删除。单个删除同样受这些检查约束。
-
-删除会使 Token 不再可用，不会删除组合 Token 中已有的成员引用或历史用量。引用该 Token 的组合分支随后不可用，需另行编辑组合配置。删除接口保留重放保护和二次验证要求。在 legacy / shadow 模式下，仍执行原有删除逻辑；上述资源级和整批原子性保证适用于 enforce 模式。
-
-### 批量启停与内容安全配置
-
-启用 IAM 强制模式后，批量启停逐项检查 `quyan:relay:SetTokenStatus`，批量内容安全配置逐项检查 `quyan:relay:SetTokenContentSafety`。这两个操作不额外要求读取或披露凭据权限，也不返回 Token 凭据。管理其他用户时，仍需平台管理写入资格、当前用户接口准入，以及目标平台用户和各 Token 上对应的 `SetManagedTokenStatus` / `SetManagedTokenContentSafety`；管理读取资格不能替代写入资格。
-
-每批最多 200 个互不重复的 ID，所有目标须属于选定用户且未删除。任一资源被拒绝、缺失或执行期间授权与资源发生变化，整批不生效。启停只改变状态，不刷新凭据、不重置额度，也不恢复已删除的 Token。API 的 `enabled` 必须使用 JSON 布尔值 `true` / `false`，不能传入字符串 `"false"`。
-
-内容安全的“快照”把目标用户当时的有效内容安全设置保存为所选 Token 的覆盖；管理其他用户时不会错误使用操作者的设置。“清除”移除 Token 覆盖，后续请求重新继承用户和系统设置。这两个操作均不修改用户或系统策略，仍受请求执行时的系统安全约束。接口保留重放保护和二次验证；上述资源级、整批原子性保证适用于 enforce 模式，legacy / shadow 仍执行原有业务逻辑。
-
-### 平台请求诊断与路由追踪
-
-在 IAM 强制模式下，请求诊断属于平台运维能力，不是个人 Token 用量查询。操作者必须保有部署管理的全局用户组诊断资格；普通账户或账户自建用户组中的通配符策略不能自行获得该资格。OAuth 继续使用原有 `relay:usage:read` 准入 scope，并检查应用与访问令牌当前的 scope、状态、有效期和撤销状态。
-
-诊断列表逐项检查 `quyan:relay:ListRequestDiagnostics`。资源为 `acs:platform:*:platform:relay-request/<logicalRequestId>`，响应的可选 `resourceArn` 字段提供准确 ARN；不要用外部请求标签或 Token ID 替换其中的逻辑请求 ID。未获准的记录不计入分页或总数，也不会读取其展示详情。日期、结果类型、请求标签及关键字筛选仍可使用。历史诊断可能包含已停用或删除的 Token；它不授予恢复或使用该 Token 的权限。
-
-路由追踪还需：
-
-- 保有全局用户组的路由追踪及池元数据读取资格，三项资格缺一不可。
-- 在同一逻辑请求资源上同时获准 `ListRequestDiagnostics` 和 `quyan:relay:GetRequestRouteTrace`。
-- 对每个实际执行渠道的 `acs:platform:*:platform:relay-channel/<channelId>` 获准 `quyan:relay:ReadChannelPoolMetadata`，才能取得物理执行渠道 ID 和名称。
-
-诊断列表不包含物理执行渠道、访问 IP、上游配置或凭据。追踪仅增加获准的执行渠道 ID 和名称，不增加密钥或上游连接配置。同一请求标签存在权威根记录时，不能通过改查子记录绕过根记录的拒绝；无法唯一确定记录、任一渠道未获准，或返回前授权、身份、数据发生变化时，整个请求失败，不返回部分追踪。上述资源级保证适用于 enforce；legacy / shadow 仍使用原有运维检查，shadow 不额外读取追踪详情。
-
 ### 额度窗口（Quota Windows）
 
 每个 Token 可配置一到多个滚动时间窗口限制，例如每分钟、每小时或每天的最大用量：
@@ -293,6 +160,141 @@ Content-Type: application/json
 组合令牌可以直接作为一个 Router Profile：先创建组合令牌，再运行 `quyan router profile add --token-id <组合令牌ID> --yes`，刷新模型目录即可。修改服务端组合成员和优先级无需重启已接入本地 Router 的 Agent；模型目录变更后使用 `quyan router models --refresh` 更新本地缓存。
 
 复制组合令牌保留同一用户的合法成员引用；导入只接受目标用户已经存在且能验证的成员 ID，不按名称猜测或自动创建缺失成员。
+
+## 资源级访问与管理权限
+
+### 资源级访问与凭据披露
+
+启用 IAM 强制模式后，列表使用 `quyan:relay:ListTokens`，单个 Token 查询使用 `quyan:relay:GetToken`。服务端逐项评估 Token 资源 `acs:relay:*:<accountId>:token/<userId>/<tokenId>`，没有读取权限的记录不会出现在当前页或总数中；知道 Token ID 不代表获得访问权限。已停用但获准读取的 Token 仍可见，已删除的 Token 不可见。
+
+允许读取 Token 元数据不等于允许获取凭据。这两个读取接口只有在同一资源也获准执行 `quyan:relay:RevealToken` 时才返回 `token` 字段；显式 Deny 优先于 Allow。没有披露权限时，页面仍可展示获准读取的用量和配置，但凭据位置显示不可用提示。复制凭据、打开余额脚本、导入受支持客户端都需要接口实际返回凭据。批量复制凭据时，只要任一选中项没有凭据就停止，不会用 Token ID 替代，也不会悄悄漏掉部分选中项。
+
+读取其他用户的 Token（包括同账户内其他用户）还需要平台管理资格，以及目标用户和 Token 资源上的 `ListManagedTokens` / `GetManagedToken` 授权；披露凭据另需 `RevealManagedToken`。账户策略中的 `"*"` 不能自行赋予平台管理资格。OAuth 访问还受应用和访问令牌当前的 scope、有效期与撤销状态限制。
+
+导出要求每个选中 Token 同时获准执行 `quyan:relay:ExportTokens` 和 `RevealToken`。管理其他用户的导出，还需平台管理资格、当前用户的接口准入，以及目标平台资源上的 `ExportManagedTokens` / `RevealManagedToken`。显式选中 ID 时按提交顺序导出；未指定时导出已启用的 Token，`includeDisabled: true` 可同时包含停用项，但不会包含已删除项。任一指定 Token 不存在或未获准，或组合 Token 引用的成员无法导出，整个请求都会失败，不会静默生成不完整的备份。导出的组合配置保留获准的成员引用，但只有成员本身也被选中且获准披露时才导出其凭据。
+
+以上披露规则覆盖创建、导入、配置复制、列表、单个 Token 读取、导出，以及下文说明的单个启停、刷新、主渠道更新和完整配置更新。其他修改仍属于独立操作，具有各自的授权要求；不能因为只授予了元数据读取，就假定其他已授予的操作不会返回凭据。在 legacy 或 shadow 模式下，原有权限检查仍决定是否放行，shadow 对比本身不会启用 IAM 强制授权。
+
+### 创建资源级 Token
+
+启用 IAM 强制执行后，创建 Token 同时需要当前用户创建范围 `acs:quyan:*:<accountId>:user/<userId>` 和新 Token 资源 `acs:relay:*:<accountId>:token/<userId>/<tokenId>` 上的 `quyan:relay:CreateToken`。Token ID 由服务端分配，客户端不能指定；策略可用 `token/<userId>/*` 授予该用户未来 Token 的创建权限，而不扩展到其他用户。创建响应还需要新资源上的 `GetToken`；只有 `RevealToken` 也允许该资源时才返回凭据，否则创建成功但仅返回元数据，没有可复制的凭据。
+
+所有有序渠道（含备用渠道）都需要其 `acs:relay:*:<accountId>:channel-selection/<channelId>` 资源上的 `SelectTokenChannel`，且渠道必须持续启用并对你可见。自动代理池需要所选池根资源的同一权限、有效拓扑，以及屏蔽后至少一条可用路径。创建组合 Token 时，需要整个引用子树上的 `ReferenceToken` 和 `GetToken`，包括禁用的成员绑定；不能引用其他用户的 Token。
+
+传入自定义凭据还需要新 Token 上独立的 `SetTokenCredential` 和 `RevealToken`，普通创建权限不会自动授予这些能力。服务端当前的自定义凭据开关、用户数量限制与设置频率限制仍然适用，除非独立的 `BypassTokenCredentialLimits` 允许跳过。为其他用户创建还需要持久化的平台管理资格、目标用户及 Token 资源上的 `CreateManagedToken` 和 `GetManagedToken`，以及个人入口权限；托管凭据、引用与限额跳过使用对应的 `Managed` 操作，仅指定托管用户不会使自定义凭据变为无限制。OAuth 的创建和响应读取作用域必须在应用与访问令牌两侧持续有效。
+
+创建、关联配置、响应权限与最终授权复核处于同一回滚边界，后置拒绝不会留下新 Token。legacy 与 shadow 模式保留旧创建结果；shadow 预评估不会多插入一个 Token，也不会多消耗一次自定义凭据设置尝试。
+
+### 导入资源级 Token
+
+启用 IAM 强制执行后，`POST /v1/relay/tokens/import` 每次接受 1–200 项。当前用户创建范围及每个新 Token 都必须允许 `quyan:relay:ImportTokens` 和 `CreateToken`，每个新资源还必须允许 `GetToken`。仅有创建权限不能代替导入权限。服务端逐项分配 ID；条目中的 ID、操作名或目标用户不能覆盖服务端授权，整批目标由顶层 `targetUserId` 确定。只有允许 `RevealToken` 的条目才返回凭据，其余返回元数据。
+
+导入保留流式与内容安全配置，以及上文创建操作的全部渠道、组合引用和自定义凭据限制。自定义数量限制同时计算本批计划新增项，而不是分别忽略其他新条目。普通凭据和具有独立限额豁免的凭据可以混合导入，但每项仍须分别满足自己的资格；为其他用户导入还需要平台管理资格及目标用户和每个 Token 上的 `ImportManagedTokens`、`CreateManagedToken`、`GetManagedToken`，敏感操作使用对应托管权限。
+
+现有 Token 不会被覆盖。名称去除首尾空白后若与目标用户已有的启用/禁用 Token 或本批前项重名，添加“（副本）”“（副本2）”等后缀；名称大小写不同不视为重名。`enabled: false` 创建禁用条目，省略时启用。兼容格式凭据会规范化；如果凭据或旧别名已被占用（包括本批前项），服务端生成新凭据且不接管已占用别名，请以返回结果为准。
+
+强制执行时，所有条目的配置、配额、引用和响应授权处于同一回滚边界。任一条目校验失败、拒绝授权或执行期间权限失效，整批都不会留下新增 Token。失败的自定义凭据设置尝试仍可能计入频率限制。legacy/shadow 模式仍只执行一次原有导入；shadow 预检不额外创建条目或消耗设置次数。
+
+### 复制资源级 Token
+
+启用 IAM 强制执行后，单个复制和批量复制使用 `quyan:relay:DuplicateToken`。当前用户创建范围必须允许 `DuplicateToken` 和 `CreateToken`；每个来源 Token 需要 `DuplicateToken` 和 `GetToken`，每个服务端新建的 Token 需要 `CreateToken` 和 `GetToken`。批量复制接受 1–200 个不重复的 ID，并按提交顺序返回；任一来源不存在、已删除、归属不符或未获授权都会使整批失败，不会跳过无权项。
+
+复制只读取获准来源的配置，不读取、保留或复用其凭据、旧别名、上游密钥、自定义凭据标记和用量。每个副本使用新 ID、新凭据、清零的用量并默认启用，即使来源处于停用状态。来源上的 `RevealToken` 被拒绝不妨碍复制配置；但副本只有独立获准 `RevealToken` 时才返回新凭据，否则仅返回元数据。复制不是导出，也不是设置自定义凭据，不要求来源凭据披露或自定义凭据设置权限。
+
+自动生成名称始终使用可用的“（副本）”“（副本2）”等后缀，并避开已有启用/停用条目和本批新增名称；无名称的来源仍无名称。单个复制可显式覆盖名称。渠道、配额、有效期、流式和内容安全等配置保留；所有渠道选择、自动池拓扑与完整组合引用子树仍按创建规则重新授权，包含禁用的成员绑定。不会因能读取来源而自动获得使用其渠道或引用其成员的权限。
+
+为其他用户复制还需要持续有效的平台管理资格、个人入口权限，以及目标用户和来源上的 `DuplicateManagedToken` / `GetManagedToken`、目标用户和副本上的 `CreateManagedToken` / `GetManagedToken`；新凭据披露和成员引用使用对应的托管操作。单个复制可在省略目标用户时由服务端确认来源所有者；批量复制仅接受指定目标用户（省略时为当前用户）的来源，不执行跨用户搬运。
+
+强制模式下，所有副本及其关联配置处于同一回滚边界。来源归属、状态、关联配置、策略、会话或渠道准入在执行期间变化时，整个请求会失败且不留下部分副本。OAuth 的 CREATE 和 READ 必须在应用及访问令牌两侧持续有效；重放保护和二次验证仍适用。legacy/shadow 保留一次原有复制，shadow 预检不会多写副本。
+
+### 更新完整 Token 配置
+
+启用 IAM 强制模式后，编辑 Token 需要该 Token 上的 `quyan:relay:UpdateToken` 和独立的 `GetToken` 权限；只有同时允许 `RevealToken`，响应才返回凭据。名称、有效期、总额度、额度窗口、模型规则、协议转换、整流、内容安全和流式配置一起保存，任一资源、身份或授权检查失败都会回滚整个变更。
+
+- 更新后的完整有序渠道列表，包括未改变的备用渠道，都需要各自 `acs:relay:*:<accountId>:channel-selection/<channelId>` 上的 `quyan:relay:SelectTokenChannel`。自动池模式检查所选池的同一权限及业务可见性。屏蔽支持可达的直接和嵌套成员，以有效池关系为准，并且必须留下至少一条可用路由。被拒绝、隐藏、停用或提供方已停服的渠道不能借 Token 更新恢复可选状态。
+- 将普通 Token 转为组合时，需要同一归属用户下每个被引用后代上的 `quyan:relay:ReferenceToken` 和 `GetToken`，包括停用的引用。能够查看候选或预览模型不等于可以保存引用，深度、规模和环路限制仍然生效。此编辑接口不修改已经是组合模式的 Token。
+- 修改凭据还需要 `SetTokenCredential` **和** `RevealToken`；把密钥改成已知值也不能绕过显式披露拒绝。除非独立获准 `BypassTokenCredentialLimits`，仍受自定义密钥开关、用户数量和尝试频率限制。OAuth 的当前令牌和应用必须同时委派相应的普通或不限额自定义密钥 scope。指定其他管理对象不构成自动豁免，即使数据库变更回滚，失败尝试也可能计入频率限制。
+- 旧格式凭据会转换为规范前缀，但保留原密钥后缀。若首选凭据或其别名已被使用，服务端生成不同的凭据，不会占用已有别名；请使用成功响应实际返回的凭据。
+
+管理其他用户 Token 时，还需要平台写入和读取资格、当前用户的接口准入，以及目标平台用户和 Token 上的 `UpdateManagedToken` / `GetManagedToken`。修改凭据和组合引用分别使用 `SetManagedTokenCredential`、`RevealManagedToken`、`ReferenceManagedToken`，限额豁免使用 `BypassManagedTokenCredentialLimits`。设置其他用户的凭据还需要部署管理组的自定义密钥资格，管理限额豁免另需该组的不限额自定义密钥资格；账号策略不能制造这些资格。Token 配置、额度规则、引用变更和获准返回的响应处于同一提交边界，接口仍要求重放保护和二次验证。上述资源级保证适用于 enforce；legacy / shadow 仍只执行一次原业务修改，shadow 比较不会额外消耗自定义密钥尝试次数。
+
+### 组合候选的资源边界
+
+在 IAM 强制模式下，组合候选列表逐个使用 `quyan:relay:ListTokenCompositionCandidates` 检查 Token ARN，不要求额外授予 `GetToken` 或 `RevealToken`。候选的完整引用子树必须全部获准，包括停用的成员引用；如果任何后代被拒绝、已删除、不属于所选用户，或图中存在循环及超限路径，父候选不会展示，也不会计入总数。不会返回删减后的成员数或残缺的成员引用，以免泄露不可见 Token 的存在。
+
+名称搜索、分页与选中项保留都仅在完整可见的候选中生效。显式指定的 `selectedIds` 如有未获准或不完整的候选，整个查询失败；编辑目标本身未获准时也失败。`selectedIds` 非空时须为最多 200 个互不重复的逗号分隔 ID，不能包含空段。候选会标记自己及会产生循环的已授权祖先为不可选；已停用或过期但未删除的 Token 仍可供配置检查，这不会恢复调用资格。
+
+管理其他用户的候选仍需平台管理读取资格、当前用户接口准入，以及目标平台用户与每个 Token 上的 `ListManagedTokenCompositionCandidates`。即使属于同一账户，也不能省略平台边界。返回前会复核引用图、Token、身份和授权状态。查询不读取 Token 凭据、上游配置或物理渠道。该规则只覆盖候选选择，不替代组合预览、写入或调用的独立授权；legacy / shadow 保留原有行为，shadow 不额外加载候选拓扑。
+
+### 模型目录发现权限
+
+在 IAM 强制模式下，模型名称目录使用 `quyan:relay:ListAvailableModels`，逐个评估 `acs:relay:*:<accountId>:model-catalog-entry/<modelRecordId>`。响应的可选 `modelResourceArns` 按可见模型名称提供准确 ARN。被拒绝的条目不出现在名称列表、模型 ID、别名映射或资源映射中；同一上游 ID 对应多个名称时，唯一／一对多映射仅根据获准条目计算。没有获准条目时返回空目录。
+
+这是当前账户对公共模型目录的发现权限，不是平台模型价格管理权，不要求全局价格管理资格，也不返回成本、计价规则或渠道配置。它不修改 Token 的允许模型列表、不赋予模型调用权，也不代替单个 Token 的可用模型查询。OAuth 沿用此接口原有的 `relay:channel:read` scope，而不是改为 Token 读取 scope。返回前会复核身份、策略、发布状态和模型别名；若发生变化，拒绝返回过期结果。legacy / shadow 保留原有目录行为，shadow 不额外读取模型名称。
+
+### 单个启停与凭据刷新
+
+在 IAM 强制模式下，单个启停使用 `quyan:relay:SetTokenStatus`，刷新使用 `quyan:relay:RefreshToken`，均在目标 Token ARN 上授权。这两个接口返回 Token 配置，因此还必须有相同资源的 `GetToken` 元数据读取权限；没有读取权限时，在写入前拒绝，不会先修改再返回读取错误。仅需写入、不需读取配置时，可使用批量启停接口。
+
+启停响应仅在另有 `RevealToken` 时包含凭据，没有披露权限则只返回元数据。刷新必须同时有 `RevealToken`，否则不轮换，避免生成调用者无法取得的新凭据。刷新成功后，旧凭据及旧格式别名不再有效；Token ID、配置、状态、到期时间、用量和组合引用保持不变。刷新已停用或过期的 Token 不会使它恢复可用。
+
+管理其他用户时，还需平台管理的读取和写入资格、当前用户接口准入，以及目标平台用户和 Token 上的 `SetManagedTokenStatus` / `RefreshManagedToken`、`GetManagedToken` 授权；披露使用 `RevealManagedToken`。管理写入资格不能自动赋予读取和披露资格。OAuth 应用和访问令牌也必须保有读取与更新 scope。
+
+写入、响应配置读取及最终授权复核位于同一事务边界内。若身份、策略、资源或披露授权发生变化，或响应构造失败，整个操作回滚，不会在响应构造或授权失败后仍提交轮换。这不能保证网络交付；若事务提交后网络中断，可在获准后重新刷新。两个接口继续要求重放保护和二次验证。legacy / shadow 仍执行原有业务逻辑，不具有上述 enforce 保证。
+
+### 更改有序渠道的主渠道
+
+在 IAM enforce 模式下，主渠道更新接口要求对目标 Token 具有 `quyan:relay:UpdateTokenChannel` 和 `quyan:relay:GetToken`，并对**更新后的全部有序渠道**具有 `quyan:relay:SelectTokenChannel`，包括保留的备用渠道。渠道选择 ARN 为 `acs:relay:*:<操作者账户ID>:channel-selection/<渠道ID>`；这不代表平台渠道管理权限，也不允许读取上游凭据。
+
+渠道必须保持启用、提供服务，并满足业务可见性规则；隐藏渠道不能被选择。策略 Allow 不能覆盖业务可见性限制。选择已有渠道会将其移到首位；选择新渠道会保留原渠道作为备用，但不能超过有序渠道数量上限。此接口不能把组合 Token 或自动混池 Token 隐式转换为有序路由。
+
+返回配置需要元数据读取权限；仅在另有 Reveal 权限时返回令牌字符串。更新其他用户的 Token 还需要对应的 `UpdateManagedTokenChannel`、`GetManagedToken` 授权和平台管理资格；渠道选择仍使用操作者账户的选择 ARN。写入、响应读取和最终授权校验处于同一事务：拒绝或响应构造失败时，主渠道和备用列表一起回滚。原有 OAuth scope、重放保护和二次验证仍然有效。legacy、shadow 模式保留原有授权行为。
+
+### 单个 Token 用量与明细
+
+启用 IAM 强制模式后，单个 Token 的用量统计和用量明细使用独立的 `quyan:relay:GetTokenUsage`，在同一个 Token ARN 上授权。不需要同时授予 `GetToken` 或 `RevealToken`，这两个用量接口也不返回 Token 凭据或上游密钥。已停用或过期但未删除的 Token 仍可在获准后查询。
+
+查看其他用户（包括同账户内其他用户）的用量还需平台管理读取资格、当前用户接口准入，以及目标平台用户和 Token 上的 `GetManagedTokenUsage`。仅有管理写入资格不代表能够读取用量。服务端在汇总完成后再次检查身份、授权和目标资源；途中撤销访问时，不会返回已计算的结果。
+
+组合调用的归属用量仍按所选 Token 展示，不因查询而获得其他成员 Token 的访问权；明细中的 Token 标识使用获准查询的 Token ID。这些规则适用于单个用量及明细接口；批量用量和切换日志的规则见下文，平台诊断和路由跟踪具有下文说明的独立授权要求。
+
+### 批量用量汇总与切换日志
+
+IAM 强制模式下，批量用量汇总同样逐 Token 检查 `quyan:relay:GetTokenUsage`；管理其他用户时使用 `GetManagedTokenUsage`，并要求平台管理读取资格和目标用户授权。不传 `tokenIds` 时只汇总获准访问的 Token，不返回被拒绝的记录。显式传入 ID 时，最多 200 个非空、互不重复的 ID，响应保持请求顺序；任一 ID 不存在、已删除、不属于选定用户或没有授权，整个请求失败，不会静默返回部分汇总。已停用或过期但未删除的 Token 仍可在获准后查询。
+
+不指定时间范围时，保留累计用量语义；指定范围时，只对获准资源执行该时间范围的汇总。汇总完成后再次复核身份、目标资源及各项原始授权决定，期间撤销访问不会释放已计算的数据。显式空列表、重复项和逗号分隔中的空项会被拒绝，不会意外变成“查询全部”。
+
+切换日志使用独立的 `quyan:relay:GetTokenSwitchLogs`，管理其他用户使用 `GetManagedTokenSwitchLogs`，不要求额外授予 `GetToken` 或 `RevealToken`。原生响应只提供展示渠道标识、状态码、尝试次数等必要日志信息，不读取或返回底层物理渠道 ID、密钥及未经审查的原始上游错误文本。每次最多查询 100 条，授权在数据查询后再次验证。这些资源级、筛选和日志披露规则适用于 enforce 模式；legacy / shadow 仍执行原有查询。
+
+### 删除与批量删除
+
+启用 IAM 强制模式后，单个和批量删除均逐资源检查 `quyan:relay:DeleteToken`。删除不要求额外拥有读取或凭据披露权限；删除响应也不返回凭据。管理其他用户的 Token（包括同账户内其他用户）还需平台管理资格、当前用户的删除接口准入，以及目标平台用户和每个 Token 上的 `quyan:relay:DeleteManagedToken`。仅有管理读取资格不足以删除。
+
+批量删除最多接受 200 个互不重复的 Token ID。任一目标不存在、已删除、不属于选定用户、被拒绝授权，或执行期间身份、授权或资源状态发生变化，整个请求失败，不会留下部分删除。已停用或过期的 Token 仍可在获准后删除。单个删除同样受这些检查约束。
+
+删除会使 Token 不再可用，不会删除组合 Token 中已有的成员引用或历史用量。引用该 Token 的组合分支随后不可用，需另行编辑组合配置。删除接口保留重放保护和二次验证要求。在 legacy / shadow 模式下，仍执行原有删除逻辑；上述资源级和整批原子性保证适用于 enforce 模式。
+
+### 批量启停与内容安全配置
+
+启用 IAM 强制模式后，批量启停逐项检查 `quyan:relay:SetTokenStatus`，批量内容安全配置逐项检查 `quyan:relay:SetTokenContentSafety`。这两个操作不额外要求读取或披露凭据权限，也不返回 Token 凭据。管理其他用户时，仍需平台管理写入资格、当前用户接口准入，以及目标平台用户和各 Token 上对应的 `SetManagedTokenStatus` / `SetManagedTokenContentSafety`；管理读取资格不能替代写入资格。
+
+每批最多 200 个互不重复的 ID，所有目标须属于选定用户且未删除。任一资源被拒绝、缺失或执行期间授权与资源发生变化，整批不生效。启停只改变状态，不刷新凭据、不重置额度，也不恢复已删除的 Token。API 的 `enabled` 必须使用 JSON 布尔值 `true` / `false`，不能传入字符串 `"false"`。
+
+内容安全的“快照”把目标用户当时的有效内容安全设置保存为所选 Token 的覆盖；管理其他用户时不会错误使用操作者的设置。“清除”移除 Token 覆盖，后续请求重新继承用户和系统设置。这两个操作均不修改用户或系统策略，仍受请求执行时的系统安全约束。接口保留重放保护和二次验证；上述资源级、整批原子性保证适用于 enforce 模式，legacy / shadow 仍执行原有业务逻辑。
+
+### 平台请求诊断与路由追踪
+
+在 IAM 强制模式下，请求诊断属于平台运维能力，不是个人 Token 用量查询。操作者必须保有部署管理的全局用户组诊断资格；普通账户或账户自建用户组中的通配符策略不能自行获得该资格。OAuth 继续使用原有 `relay:usage:read` 准入 scope，并检查应用与访问令牌当前的 scope、状态、有效期和撤销状态。
+
+诊断列表逐项检查 `quyan:relay:ListRequestDiagnostics`。资源为 `acs:platform:*:platform:relay-request/<logicalRequestId>`，响应的可选 `resourceArn` 字段提供准确 ARN；不要用外部请求标签或 Token ID 替换其中的逻辑请求 ID。未获准的记录不计入分页或总数，也不会读取其展示详情。日期、结果类型、请求标签及关键字筛选仍可使用。历史诊断可能包含已停用或删除的 Token；它不授予恢复或使用该 Token 的权限。
+
+路由追踪还需：
+
+- 保有全局用户组的路由追踪及池元数据读取资格，三项资格缺一不可。
+- 在同一逻辑请求资源上同时获准 `ListRequestDiagnostics` 和 `quyan:relay:GetRequestRouteTrace`。
+- 对每个实际执行渠道的 `acs:platform:*:platform:relay-channel/<channelId>` 获准 `quyan:relay:ReadChannelPoolMetadata`，才能取得物理执行渠道 ID 和名称。
+
+诊断列表不包含物理执行渠道、访问 IP、上游配置或凭据。追踪仅增加获准的执行渠道 ID 和名称，不增加密钥或上游连接配置。同一请求标签存在权威根记录时，不能通过改查子记录绕过根记录的拒绝；无法唯一确定记录、任一渠道未获准，或返回前授权、身份、数据发生变化时，整个请求失败，不返回部分追踪。上述资源级保证适用于 enforce；legacy / shadow 仍使用原有运维检查，shadow 不额外读取追踪详情。
 
 ## 相关页面
 
