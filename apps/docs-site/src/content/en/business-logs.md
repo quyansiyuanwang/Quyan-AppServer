@@ -14,7 +14,7 @@ Use this page to inspect business-level audit records.
 
 - Operation type and category.
 - Actor, target, status, and IP filters.
-- Date range.
+- Date range: the selected interval can span at most 30 days. Without a date range, historical records can be queried.
 
 ### Log list
 
@@ -22,6 +22,11 @@ Use this page to inspect business-level audit records.
 - Success or failure tags.
 - Pagination.
 - Mobile-friendly card layout where needed.
+
+### Desktop statistics
+
+- Summary counts and charts by date, operation type, category, and status.
+- Statistics use the current filters. The statistics section is not shown on mobile.
 
 ### Detail area
 
@@ -33,20 +38,15 @@ Use this page to inspect business-level audit records.
 
 1. Filter by operation type or actor first.
 2. Open failed records to inspect the error details.
-3. Expand changes when you need to see before-and-after values.
-4. Use the date range to isolate incidents or audit windows.
+3. Expand a record to inspect its changes, metadata, or request ID when available. Fields depend on the record.
+4. Use a date range to isolate an incident. For a period longer than 30 days, query separate intervals or clear the date range to query historical records.
 
 ## Notes
 
+- Changing filters reloads both the list and statistics. The top **Refresh** button reloads only the current list, not the charts. To update statistics, change the filters or reload the page. List and statistics load separately; watch for errors, as previous data may remain visible after a failure.
 - This page is closer to audit and business activity than raw infrastructure logging.
 - Use it when you need to know who changed something, not only whether a request happened.
 - Combine it with user, permission, or balance pages for complete incident tracing.
-
-## Related pages
-
-- [User management]({{DOCS_BASE_URL}}/en/user-management)
-- [Balance management]({{DOCS_BASE_URL}}/en/balance-management)
-- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
 
 ## Filter catalog permissions
 
@@ -67,3 +67,9 @@ List access does not grant statistics or filter catalog access. Change details a
 In IAM `enforce` mode, statistics use the independent `quyan:system:business_log:GetLogStatistics` Action, authorizing each `acs:platform:*:platform:business-log/<log ID>` before including it. The list's `ListLogs` permission cannot replace statistics access; statistics also require `SYSTEM_BUSINESS_LOG_READ` in an active global group.
 
 Totals, successes/failures, distinct actors, targets and IPs, and daily/operation/category distributions include only allowed records. Explicit Deny takes precedence; without a matching Allow, the aggregate is empty. Queries without a date filter can include historical records; requested date ranges retain the existing boundaries and percentage calculations. If authorization or contributing records change during the read, the result is denied. `legacy` and `shadow` retain the previous statistics behavior, with additional IAM decisions recorded in `shadow`.
+
+## Related pages
+
+- [User management]({{DOCS_BASE_URL}}/en/user-management)
+- [Balance management]({{DOCS_BASE_URL}}/en/balance-management)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
