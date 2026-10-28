@@ -4,7 +4,7 @@ Content safety is managed from dedicated AI console pages instead of being embed
 
 ## Actions and inheritance
 
-Rule or AI matches can allow content, replace sensitive text (`blackhole`), or block with an error (`unreachable`). “Maximum action” is the direction-level safety cap; the effective action can never exceed it. System, user, and token scopes use the strictest value in `allow < blackhole < unreachable` order. User and token settings can inherit the parent scope, keep its cap, or tighten it, but cannot loosen the system cap.
+Rule or AI matches can allow content, replace sensitive text (`blackhole`), or block with an error (`unreachable`). “Maximum action” is the direction-level safety cap; the effective action can never exceed it. The effective cap is the lowest configured value across system, user, and token scopes in `allow < blackhole < unreachable` order. User and token settings can inherit the parent cap; a lower value further limits the final action, while a higher value cannot exceed the parent cap. For example, if the system cap is `blackhole`, a user cap of `unreachable` still permits at most `blackhole`, while a user cap of `allow` limits matches to allowing content.
 
 Use the batch “set to allow for observation” action to keep recording matches without replacing or blocking content while you observe normal usage. System rules are changed through personal enable/disable overrides; private user rules support full editing. Batch operations skip system rules that are not editable in the current scope.
 
