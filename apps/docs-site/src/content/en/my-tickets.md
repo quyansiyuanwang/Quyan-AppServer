@@ -20,8 +20,8 @@ Sign in to use the ticket page. Submitting, viewing your own tickets, editing, a
 - Type selector: suggestion, bug, or other.
 - Contact info field for optional follow-up contact.
 - Title and description (required).
-- Source page — note which page you were on.
-- Reproduce steps — detailed steps to reproduce the issue.
+- Source page (optional) — note which page you were on.
+- Reproduce steps (optional) — explain how to reproduce the issue.
 
 ### Ticket list
 
@@ -39,14 +39,14 @@ Sign in to use the ticket page. Submitting, viewing your own tickets, editing, a
 
 ## Common actions
 
-1. Fill in the form and submit a new ticket or bug report.
-2. Search or filter the list to find a specific item.
-3. Click a ticket item to view its full detail and reply history.
-4. Edit a ticket entry if you need to add more information.
-5. Post a comment to communicate with the reviewer.
+1. Choose a type and enter a title and description. Add contact information, the source page, and reproduction steps if needed, then submit.
+2. Search or filter the list and select **View detail** to see the reply history.
+3. To update a ticket, select edit in the list or select **Load this item into the editor** in the detail drawer. The page fills the form at the top; make your changes and select **Save changes**, or cancel editing.
+4. Write and submit a reply in the detail drawer to communicate with the reviewer.
 
 ## Notes
 
+- The title and contact information can each contain up to 200 characters, and the source page up to 500. The description, reproduction steps, and each reply can each contain up to 5000 characters.
 - Tickets in **rejected** or **completed** status cannot be edited or replied to.
 - Public comments are visible to the submitter and reviewers authorized to view the ticket. Internal review notes are not shown to the submitter. Avoid including unnecessary private information in comments.
 
