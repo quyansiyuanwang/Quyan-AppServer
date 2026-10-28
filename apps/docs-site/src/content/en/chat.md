@@ -2,9 +2,11 @@
 
 This section explains how to use conversations on desktop and mobile.
 
-## Page in this section
+## Start a conversation
 
-- `ChatView.vue`
+1. Create a conversation and enter a name, or select one from the conversation list.
+2. Select an available relay token and model, then enter and send your message.
+3. You can stop a response while it is generating. The conversation list also lets you rename or delete conversations.
 
 ## Conversation list
 
@@ -33,9 +35,9 @@ This section explains how to use conversations on desktop and mobile.
 ### Selecting a model and billing
 
 - Pick a relay token first; the available model list is automatically filtered to that token's "allowed models" configuration — different tokens can be scoped to different models.
-- Switching tokens automatically switches to the first model allowed by the new token if the currently selected model is not in its allowed list.
+- When switching tokens, the first model in the new token’s list is selected if the current model is unavailable. If the list is empty, you cannot send a message; check the token’s model configuration.
 - Usage from sent messages is billed against the selected token's pricing rules and counted toward that token's quota — this is the same usage data shown on the [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management) page.
-- Your last-selected token and model are saved locally in the browser and restored automatically next time you open the chat page.
+- Your last-selected token and model are stored locally in the browser. If they are no longer available, the page selects currently available options.
 
 ## Mobile notes
 
