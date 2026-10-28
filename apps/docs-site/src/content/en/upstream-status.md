@@ -45,15 +45,17 @@ Concurrency data is sampled live; leases that expire during sampling are not cou
 
 ## Common actions
 
-1. Refresh the page when investigating a current outage.
-2. Look at the overall indicator first.
-3. Open the affected category and inspect heartbeat bars.
-4. Compare latency and uptime trends before escalating.
+1. Select **Refresh** to fetch the latest status when investigating an outage.
+2. Check the overall indicator, then find the relevant monitor in the category list.
+3. Hover over a heartbeat bar to see its status, time, and latency.
+4. Use the uptime percentage, heartbeat history, and system logs together to investigate.
 
 ## Notes
 
 - A service can be reachable but still degraded because of high latency.
-- Heartbeat visuals are best for spotting intermittent failures.
+- Upstream latency comes from the corresponding heartbeat. User-to-server latency is measured when the page loads or refreshes; it is not a historical measurement for each heartbeat. A failed measurement displays `N/A`.
+- A failed refresh displays an error and may leave the previous overall indicator visible. Use the result of a successful refresh.
+- Heartbeat visuals can help identify intermittent failures.
 - When users report relay problems, compare this page with relay tokens and system logs.
 
 ## Related pages
