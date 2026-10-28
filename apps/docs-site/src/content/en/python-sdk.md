@@ -284,29 +284,34 @@ print("balance history =>", history.data)
 
 ## Retry and idempotency guidance
 
-The helper above does not retry automatically — for production scripts, add a small retry layer on top rather than looping inside `call_appserver`:
+The helper above does not retry automatically. This example only retries GET requests after connection errors, timeouts, or HTTP 5xx responses; it does not refresh tokens:
 
 ```python
 import time
+import requests
 
-def call_with_retry(*, max_attempts: int = 2, backoff_seconds: float = 1.0, **kwargs) -> "AppServerResult":
-    last_error: AppServerApiError | None = None
+
+def get_with_retry(*, max_attempts: int = 2, backoff_seconds: float = 1.0, **kwargs) -> "AppServerResult":
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1")
+    if kwargs.get("method", "GET").upper() != "GET":
+        raise ValueError("This retry helper only supports GET requests")
+
     for attempt in range(max_attempts):
         try:
             return call_appserver(**kwargs)
         except AppServerApiError as exc:
-            last_error = exc
-            # Only retry on transient conditions: network/HTTP 5xx, or a token
-            # that just expired (code 1006/1013). Do not retry validation (1002),
-            # not-found (1003), or permission (1004) errors — the request itself
-            # would fail identically every time.
-            if exc.code not in (1006, 1013) and exc.status < 500:
+            if exc.status < 500 or attempt == max_attempts - 1:
                 raise
-            time.sleep(backoff_seconds * (attempt + 1))
-    raise last_error  # type: ignore[misc]
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == max_attempts - 1:
+                raise
+        time.sleep(backoff_seconds * (attempt + 1))
+
+    raise RuntimeError("Unreachable")
 ```
 
-- GET requests are naturally safe to retry. For POST/PUT requests that create or mutate data, only retry when you know the operation is idempotent on the server side (e.g. re-submitting after a token refresh, before the original request reached the server) — otherwise a retry after a network timeout risks double-submitting.
+- For `1006`, authenticate again. For `1013`, retry only after successfully refreshing credentials; authenticate again if refresh fails. When a network failure leaves a write outcome unknown, check the result or use an idempotency mechanism supported by the endpoint to avoid duplicate submissions.
 - Keep retry counts small (1-2 extra attempts) and always back off between attempts instead of retrying immediately.
 
 ## Recommended follow-up reading
