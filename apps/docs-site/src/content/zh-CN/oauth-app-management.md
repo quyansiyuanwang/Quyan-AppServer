@@ -244,131 +244,14 @@ Scope 不是“登录成功就自动拥有全部权限”，而是“授权成�
 3. 如果系统下发了客户端密钥，请立即复制并保存。
 4. 如怀疑密钥泄露，请立即轮换密钥。
 
-## 具体怎么调用
+## 接入授权码流程
 
-如果你是第一次接入，可以直接把流程理解成 4 步：
+1. 创建应用并完成审核，记录 Client ID；机密应用还需要将 Client Secret 保存在服务端。
+2. 使用认证站的 `/oauth/authorize` 页面发起授权，携带回调地址、所需 scope、随机 `state` 和 PKCE challenge。
+3. 用户授权后，在回调中验证 `state`，再由服务端向 API 的 `/v1/oauth/token` 发送授权码和对应的 PKCE verifier。
+4. 使用获得的访问令牌调用有权访问的 API，例如具备 `profile` scope 时读取 `/v1/users/me`。
 
-1. 在“OAuth 应用管理”页面创建应用，拿到 `client_id`，如果是机密应用还会拿到 `client_secret`。
-2. 让用户跳转到授权地址 `/oauth/authorize`。
-3. 用户同意后，系统会把用户带回你登记过的回调地址，并附带一个临时 `code`。
-4. 你的服务端再把这个 `code` 发给 `/oauth/token`，换取 `access_token`。
-
-### 第一步：拼授权地址
-
-授权地址示例：
-
-```text
-GET /oauth/authorize
-  ?response_type=code
-  &client_id=oc_live_example123
-  &redirect_uri=https%3A%2F%2Fexample.com%2Foauth%2Fcallback
-  &scope=profile%20email
-  &state=csrf-token-123
-  &code_challenge=BASE64URL_ENCODED_CHALLENGE
-  &code_challenge_method=S256
-```
-
-关键参数说明：
-
-- `response_type=code`：使用授权码模式。
-- `client_id`：你在本页创建应用后拿到的客户端 ID。
-- `redirect_uri`：必须与已登记回调地址完全一致。
-- `scope`：空格分隔的权限范围列表。
-- `state`：强烈建议携带，用于防 CSRF。
-- `code_challenge` / `code_challenge_method`：推荐开启 PKCE，尤其是公开应用。
-
-### 第二步：用户同意授权后接收回调
-
-授权成功后，系统会把用户带回你的回调地址，例如：
-
-```text
-https://example.com/oauth/callback?code=returned_code&state=csrf-token-123
-```
-
-这时你要做两件事：
-
-1. 校验 `state` 是否与你发起授权时保存的一致。
-2. 把 `code` 发送给你的后端，由后端换取 token。
-
-### 第三步：后端换取 access token
-
-```bash
-curl -X POST "https://api.qysyw.cn/oauth/token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "grant_type": "authorization_code",
-    "client_id": "oc_live_example123",
-    "client_secret": "oc_secret_example456",
-    "code": "returned_code",
-    "redirect_uri": "https://example.com/oauth/callback",
-    "code_verifier": "pkce-verifier"
-  }'
-```
-
-### 第四步：携带 access token 调业务接口
-
-```bash
-curl -X GET "https://api.qysyw.cn/users/profile" \
-  -H "Authorization: Bearer <oauth_access_token>"
-```
-
-## TypeScript 最小 Demo
-
-```ts
-const API_BASE_URL = 'https://api.qysyw.cn'
-
-export function buildAuthorizeUrl() {
-  const url = new URL('/oauth/authorize', API_BASE_URL)
-  url.searchParams.set('response_type', 'code')
-  url.searchParams.set('client_id', 'oc_live_example123')
-  url.searchParams.set('redirect_uri', 'https://example.com/oauth/callback')
-  url.searchParams.set('scope', 'profile email')
-  url.searchParams.set('state', crypto.randomUUID())
-  url.searchParams.set('code_challenge', 'pkce-challenge')
-  url.searchParams.set('code_challenge_method', 'S256')
-  return url.toString()
-}
-
-export async function exchangeToken(code: string, codeVerifier: string) {
-  const response = await fetch(`${API_BASE_URL}/oauth/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      grant_type: 'authorization_code',
-      client_id: 'oc_live_example123',
-      client_secret: 'oc_secret_example456',
-      code,
-      redirect_uri: 'https://example.com/oauth/callback',
-      code_verifier: codeVerifier,
-    }),
-  })
-
-  return response.json()
-}
-```
-
-## Python Demo
-
-```python
-import requests
-
-payload = {
-    "grant_type": "authorization_code",
-    "client_id": "oc_live_example123",
-    "client_secret": "oc_secret_example456",
-    "code": "returned_code",
-    "redirect_uri": "https://example.com/oauth/callback",
-    "code_verifier": "pkce-verifier",
-}
-
-response = requests.post(
-    "https://api.qysyw.cn/oauth/token",
-    json=payload,
-    timeout=15,
-)
-response.raise_for_status()
-print(response.json())
-```
+可运行示例及安全注意事项见 [OAuth 授权码示例](/zh-CN/oauth-demo)。
 
 ## 审核流转说明
 
@@ -392,7 +275,7 @@ print(response.json())
 
 ## Redirect URI 配置建议
 
-建议把这一部分写得非常具体，因为这是 OAuth 接入最容易出问题的地方。
+回调地址必须与登记地址完全一致，包括协议、域名、端口、路径和末尾斜杠。
 
 ### 推荐做法
 
@@ -407,6 +290,12 @@ print(response.json())
 - 域名写错
 - 测试环境和生产环境混用
 - 前端页面地址和后端回调处理地址不一致
+
+## 令牌生命周期与访问权限
+
+API 站点的令牌接口为 `POST /v1/oauth/token`。如果响应包含刷新令牌，可以使用 `refresh_token` 授权类型获取新的访问令牌。不再需要令牌时，使用 `POST /v1/oauth/revoke` 撤销；请求字段和客户端认证要求以 API 参考为准。
+
+获得 scope 不会绕过账户权限、资源授权或其他安全检查。请安全保存客户端密钥和令牌，不要将机密客户端密钥放在发布给用户的浏览器或桌面代码中。
 
 ## 相关页面
 

@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'oauth-demo',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Reference',
     'zh-CN': '参考',
@@ -13,8 +14,8 @@ export default defineDocsPage({
     'zh-CN': 'OAuth Demo',
   },
   summary: {
-    en: 'Authorization-code flow diagrams and copy-ready Node/Python OAuth demos.',
-    'zh-CN': '提供授权码流程图与可直接复制的 Node/Python OAuth Demo。',
+    en: 'Run an authorization-code flow with PKCE using a Node.js example.',
+    'zh-CN': '使用 Node.js 示例体验授权码与 PKCE 流程。',
   },
   tags: ['oauth', 'demo', 'sequence', 'node', 'python'],
   content: {
