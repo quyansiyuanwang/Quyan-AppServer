@@ -44,6 +44,7 @@ export function planLegacyPolicy(candidate: LegacyPolicyCandidate): LegacyPolicy
       path: "account",
     });
     const grants = new Set(permissions);
+    const grantedActions = new Set(permissions.flatMap(iamActionsForLegacyPermission));
     const checks = ALL_PERMISSIONS.map((permission) => ({
       action: actionForPermission(permission),
       resource,
@@ -59,7 +60,10 @@ export function planLegacyPolicy(candidate: LegacyPolicyCandidate): LegacyPolicy
             resource: type.arnTemplate
               .replace("{accountId}", candidate.accountOwnerId)
               .replace(/\{[^}]+\}/g, "migration-fixture"),
-            expected: grants.has(permission),
+            // Several legacy permissions may grant the same native action.
+            // Compare against their union, while compatibility actions above
+            // still prove that unrelated legacy permission keys stay denied.
+            expected: grantedActions.has(action),
           });
       }
     const decisions = evaluatePolicyRequests([{ policyId: candidate.id, document: parsed.document }], checks);
