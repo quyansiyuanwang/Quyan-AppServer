@@ -563,12 +563,33 @@ const pageMarkdown = computed(() =>
   interpolateDocsContent(`${currentPage.value.content[locale.value]}${glossaryMarkdown.value}`),
 )
 
-const renderedContent = computed(() =>
-  renderMarkdownWithAnchors(pageMarkdown.value, {
+const renderedContent = computed(() => {
+  const html = renderMarkdownWithAnchors(pageMarkdown.value, {
     linkGlossaryTerms: true,
     glossaryEntries: currentGlossaryEntries.value,
-  }),
-)
+  })
+  if (!isEmbedded.value || typeof window === 'undefined') return html
+
+  // Relative links need the current route as their base when the page changes.
+  const base = new URL(route.fullPath, window.location.origin)
+  const container = document.createElement('div')
+  container.innerHTML = html
+  for (const link of container.querySelectorAll<HTMLAnchorElement>('a[href]')) {
+    const href = link.getAttribute('href')
+    if (!href || href.startsWith('#') || link.hasAttribute('download') || link.target) continue
+    let destination: URL
+    try {
+      destination = new URL(href, base)
+    } catch {
+      continue
+    }
+    const match = /^\/(?:zh-CN|en)\/([^/]+)\/?$/.exec(destination.pathname)
+    if (destination.origin !== base.origin || !match || !docsRegistry.hasPage(match[1])) continue
+    destination.searchParams.set('embed', '1')
+    link.setAttribute('href', `${destination.pathname}${destination.search}${destination.hash}`)
+  }
+  return container.innerHTML
+})
 
 const tocItems = computed<TocItem[]>(() => {
   const content = pageMarkdown.value
@@ -587,13 +608,14 @@ const tocItems = computed<TocItem[]>(() => {
 })
 
 const openPage = async (slug: DocsSlug) => {
-  await router.push({ name: 'docs', params: { locale: locale.value, slug } })
+  await router.push({ name: 'docs', params: { locale: locale.value, slug }, query: route.query })
 }
 
 const switchLocale = async (nextLocale: DocsLocale) => {
   await router.push({
     name: 'docs',
     params: { locale: nextLocale, slug: currentSlug.value },
+    query: route.query,
   })
 }
 
@@ -630,6 +652,7 @@ watch(
       void router.replace({
         name: 'docs',
         params: { locale: locale.value, slug: docsRegistry.defaultSlug },
+        query: route.query,
       })
     }
   },
