@@ -25,6 +25,14 @@ export const IAM_CONDITION_OPERATORS = Object.freeze([
   'Null',
 ] as const)
 export type IamConditionOperator = (typeof IAM_CONDITION_OPERATORS)[number]
+/** Negative operators exclude every listed value (NOR), rather than offering OR alternatives. */
+export function isNegativeIamConditionOperator(operator: string): boolean {
+  return (
+    operator.startsWith('StringNot') ||
+    operator.endsWith('NotEquals') ||
+    operator.startsWith('NotIpAddress')
+  )
+}
 export type IamConditionScalar = string | number | boolean
 export interface IamCondition {
   [operator: string]: { [key: string]: IamConditionScalar | IamConditionScalar[] }

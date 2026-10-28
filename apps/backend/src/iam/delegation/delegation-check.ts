@@ -1,5 +1,5 @@
 import type { IamCondition, IamDelegationIssue, IamDelegationResult, NormalizedIamPolicyDocument } from "@quyan/shared";
-import { IAM_ACTION_CATALOG, matchIamPattern } from "@quyan/shared";
+import { IAM_ACTION_CATALOG, isNegativeIamConditionOperator, matchIamPattern } from "@quyan/shared";
 import { parseIamPolicy } from "../parser/policy-parser";
 /** A sufficient subset proof only. Any wildcard relationship we cannot establish is denied. */
 export function isProvenPatternSubset(child: string, parent: string): boolean {
@@ -20,9 +20,12 @@ export function isProvenConditionSubset(child?: IamCondition, parent?: IamCondit
     Object.entries(keys).every(([key, parentValues]) => {
       const childValues = child[operator]?.[key];
       if (childValues === undefined) return false;
-      const allowed = new Set([parentValues].flat().map((value) => JSON.stringify(value)));
-      // Same operator/key and fewer OR alternatives; additional clauses only restrict the child.
-      return [childValues].flat().every((value) => allowed.has(JSON.stringify(value)));
+      const parentSet = new Set([parentValues].flat().map((value) => JSON.stringify(value)));
+      const childSet = new Set([childValues].flat().map((value) => JSON.stringify(value)));
+      // Positive OR clauses narrow by removing alternatives; negative NOR clauses narrow by adding exclusions.
+      return isNegativeIamConditionOperator(operator)
+        ? [...parentSet].every((value) => childSet.has(value))
+        : [...childSet].every((value) => parentSet.has(value));
     }),
   );
 }

@@ -80,6 +80,8 @@ export interface UserFullPermissionsDTO {
   removedPermissions: Permission[];
   /** 最终有效权限列表 */
   effectivePermissions: Permission[];
+  /** 仅供页面、菜单、按钮展示；实际操作仍须服务端逐资源授权，不可用于执行或委派检查 */
+  uiPermissions?: Permission[];
 }
 
 /**

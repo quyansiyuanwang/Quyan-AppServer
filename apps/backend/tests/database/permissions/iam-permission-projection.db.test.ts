@@ -9,6 +9,7 @@ import { PermissionService } from "@/services/users/permission.service";
 import { setRequestContext } from "@/util/request-context";
 import type { TypedRequest } from "@/types/express";
 import { Permission, type IamPolicyDocument } from "@quyan/shared";
+import { IamAuthorizationService } from "@/iam/iam-authorization.service";
 const ram = RamService.getInstance(),
   permissions = PermissionService.getInstance();
 const mode = env.security.iamAuthorizationMode;
@@ -93,6 +94,26 @@ describe("effective-permission IAM projection", () => {
       Permission.RAM_USER_READ,
     );
   });
+  it("exposes UI admission for resource grants while keeping global and peer authority denied", async () => {
+    const resource = "acs:quyan:*:" + owner + ":user/" + other;
+    await grant(child, statement("quyan:ram:ReadUser", resource));
+    const projection = await run({}, () => permissions.getUserFullPermissions(child));
+    expect(projection!.uiPermissions).toContain(Permission.RAM_USER_READ);
+    expect(projection!.effectivePermissions).not.toContain(Permission.RAM_USER_READ);
+    expect(await permissions.hasPermission(child, Permission.RAM_USER_READ)).toBe(false);
+    const principal = {
+      subjectUserId: child,
+      principalUserId: child,
+      accountOwnerId: owner,
+      subjectType: "sub_user" as const,
+    };
+    const authorize = (resource: string) =>
+      IamAuthorizationService.getInstance().authorize({ principal, action: "quyan:ram:ReadUser", resource });
+    expect((await authorize(resource)).decision).toBe("Allow");
+    expect((await authorize("acs:quyan:*:" + owner + ":user/" + owner)).decision).not.toBe("Allow");
+    await grant(child, statement("quyan:ram:ReadUser", "*", "Deny"));
+    expect((await permissions.getUserFullPermissions(child))!.uiPermissions).not.toContain(Permission.RAM_USER_READ);
+  });
   it("uses authenticated AccessKey identity attributes for the current user but not an inspected target", async () => {
     await grant(child, {
       Version: "1",
@@ -141,6 +162,8 @@ describe("effective-permission IAM projection", () => {
     const result = await run(context, () => permissions.getUserFullPermissions(child));
     expect(result!.effectivePermissions).toContain(Permission.RAM_USER_READ);
     expect(result!.effectivePermissions).not.toContain(Permission.RAM_USER_DELETE);
+    expect(result!.uiPermissions).toContain(Permission.RAM_USER_READ);
+    expect(result!.uiPermissions).not.toContain(Permission.RAM_USER_DELETE);
     const overview = await run(context, () => ram.getUserEffectivePermissions(child, child));
     expect(overview.effectivePermissions).toEqual(result!.effectivePermissions);
     await prisma.ramRoleSession.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
@@ -155,5 +178,6 @@ describe("effective-permission IAM projection", () => {
       Permission.RAM_USER_READ,
     );
     expect((await ram.getUserEffectivePermissions(owner, child)).authorizationMode).toBe("legacy");
+    expect((await permissions.getUserFullPermissions(child))!.uiPermissions).toBeUndefined();
   });
 });

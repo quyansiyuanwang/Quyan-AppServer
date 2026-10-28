@@ -1,5 +1,5 @@
 import { isIP } from "node:net";
-import { getIamConditionKey } from "@quyan/shared";
+import { getIamConditionKey, isNegativeIamConditionOperator } from "@quyan/shared";
 import type { IamCondition, IamConditionContext, IamConditionScalar } from "@quyan/shared";
 import { matchIamPattern } from "../evaluator/wildcard-matcher";
 import {
@@ -98,7 +98,12 @@ export function evaluateIamCondition(condition: IamCondition | undefined, contex
         results.push([expected].flat().some((value) => conditionBoolean(value) === (actual === undefined)));
       else {
         if (actual === undefined) throw new MissingIamConditionContextError();
-        results.push([expected].flat().some((value) => matches(operator, actual, value)));
+        const values = [expected].flat();
+        results.push(
+          isNegativeIamConditionOperator(operator)
+            ? values.every((value) => matches(operator, actual, value))
+            : values.some((value) => matches(operator, actual, value)),
+        );
       }
     }
   return results.every(Boolean);

@@ -838,7 +838,7 @@ const availableSiteProfiles = computed(() =>
   currentSiteProfile.id === 'rejected'
     ? []
     : permissionsResolved.value
-      ? getAccessibleSiteProfiles(currentSiteProfile, permissionStore.effectivePermissions)
+      ? getAccessibleSiteProfiles(currentSiteProfile, permissionStore.uiPermissions)
       : getAccessibleSiteProfiles(currentSiteProfile, Object.values(Permission)),
 )
 

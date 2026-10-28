@@ -133,7 +133,7 @@ const visibleMenuNodes = computed(() =>
   filterNavigationNodes(
     navigationMenuDefinition,
     permissionsResolved.value
-      ? permissionStore.effectivePermissions
+      ? permissionStore.uiPermissions
       : (Object.values(Permission) as string[]),
     (route) => hasFeatureRoute(currentSiteProfile, route),
   ),
@@ -148,7 +148,7 @@ const isDebugVisible = computed(
     filterNavigationNodes(
       [debugNavigationNode],
       permissionsResolved.value
-        ? permissionStore.effectivePermissions
+        ? permissionStore.uiPermissions
         : (Object.values(Permission) as string[]),
       (route) => hasFeatureRoute(currentSiteProfile, route),
     ).length > 0,

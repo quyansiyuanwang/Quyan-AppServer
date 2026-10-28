@@ -1,6 +1,7 @@
 import { checkIamDelegation } from "@/iam/delegation/delegation-check";
 import { legacyPermissionsToPolicy } from "@/iam/legacy-policy";
-import { principalConditionContext } from "@/iam/request/condition-context";
+import { principalConditionContext, requestConditionContext } from "@/iam/request/condition-context";
+import { projectIamUiPermissions } from "@/iam/evaluator/ui-permission-projection";
 import { accountEntityResourceResolver } from "@/iam/request/resource-resolvers";
 import type { TypedRequest } from "@/types/express";
 import { getIamPrincipal } from "@/iam/request/principal-context";
@@ -344,7 +345,8 @@ export class PermissionService {
       (permission) =>
         evaluatePolicies(policies, { action: actionForPermission(permission), resource, context }).decision === "Allow",
     );
-    return { ...legacy, effectivePermissions };
+    const uiContext = currentPrincipal && request ? requestConditionContext(request, principal) : context;
+    return { ...legacy, effectivePermissions, uiPermissions: projectIamUiPermissions(policies, uiContext) };
   }
 
   /**
