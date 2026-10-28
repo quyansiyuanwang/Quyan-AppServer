@@ -22,7 +22,7 @@ Narrow the results by:
 - Start and end date.
 - Loaded range: 1 day, 7 days, 30 days, or all records.
 
-Filters affect the consumption list and chart view only. Use Clear filters to reset every condition at once.
+Filters affect the consumption list and chart view only. Use Clear filters to clear the type, token, channel, model, and date conditions; adjust the loaded range separately.
 
 ## Review details
 
@@ -30,7 +30,7 @@ The list supports table and chart views. Expand a record to inspect available mo
 
 ## Notes
 
-- TPM and RPM are throughput metrics calculated from the currently loaded records; they are not server-side rate-limit settings.
+- Request count, TPM, and RPM are calculated from loaded API usage records, excluding zero-charge upstream errors. The averages use the time span between the first and last records (at least one minute); they are not server-side rate-limit settings.
 - Open Account balance to reconcile funding, transfers, or refunds.
 - A larger loaded range can take longer to fetch the first time.
 

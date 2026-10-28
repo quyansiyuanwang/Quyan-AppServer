@@ -29,7 +29,7 @@ Time, user, model, and channel filters only change the report contents; they do 
 - Daily trend chart.
 - Channel distribution chart.
 - Model distribution chart.
-- User distribution chart.
+- User distribution chart. On mobile, only the daily trend chart is shown.
 
 ### Detail tables
 
@@ -43,7 +43,7 @@ Time, user, model, and channel filters only change the report contents; they do 
 2. Narrow the results using user, model, channel, or relay-token filters.
 3. Review summary cards before diving into detail tables.
 4. Compare chart distributions to identify concentration or anomalies.
-5. When investigating a model family, enter a regex in the model filter (e.g. `gpt-4.*`) to match all variants at once.
+5. To investigate a model family, enter a regex in the model filter (e.g. `gpt-4.*`), select the matching options, and click **Apply filters**. Search narrows the choices; it does not select them automatically.
 
 ## Notes
 
