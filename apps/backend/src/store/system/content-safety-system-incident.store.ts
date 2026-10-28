@@ -18,7 +18,7 @@ export type ContentSafetySystemIncidentView = Prisma.ContentSafetyIncidentGetPay
 };
 export interface ContentSafetySystemIncidentWhere {
   predicate: Prisma.Sql;
-  ordering: Prisma.Sql;
+  rank: Prisma.Sql;
 }
 export interface ContentSafetySystemIncidentStore
   extends PlatformCollectionStore<

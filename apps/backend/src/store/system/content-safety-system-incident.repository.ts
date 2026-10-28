@@ -1,3 +1,4 @@
+import { platformSqlRowNumber } from "./platform-sql-row-number";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/config/database";
 import { IAM_AUTHORIZATION_LIMITS } from "@/iam/authorization-limits";
@@ -80,9 +81,21 @@ export class ContentSafetySystemIncidentRepository implements ContentSafetySyste
     const sort = query.sortBy ?? "createTime",
       order = query.sortOrder ?? "desc";
     if (!Object.hasOwn(sortColumns, sort) || !["asc", "desc"].includes(order)) throw invalid();
+    const predicate = Prisma.join(conditions, " AND ");
+    // Ranking needs relation lookups only when a relation-name filter is active.
+    // Do not repeat revision-only joins for every candidate in the correlated count.
+    const rankJoins = Prisma.sql`
+      ${query.relayTokenName?.trim() ? Prisma.sql`LEFT JOIN relay_tokens t ON t.id=i.relayTokenId` : Prisma.empty}
+      ${query.channelName?.trim() ? Prisma.sql`LEFT JOIN relay_channels c ON c.id=i.channelId` : Prisma.empty}`;
     return {
-      predicate: Prisma.join(conditions, " AND "),
-      ordering: Prisma.sql`${sortColumns[sort]} ${order === "asc" ? Prisma.sql`ASC` : Prisma.sql`DESC`},i.id DESC`,
+      predicate,
+      rank: platformSqlRowNumber(
+        Prisma.sql`SELECT i.id,${sortColumns[sort]} AS sortValue FROM content_safety_incidents i ${rankJoins} WHERE ${predicate}`,
+        [
+          { column: "sortValue", current: sortColumns[sort], direction: order },
+          { column: "id", current: Prisma.sql`i.id`, direction: "desc" },
+        ],
+      ),
     };
   }
   private async metadata(
@@ -94,8 +107,7 @@ export class ContentSafetySystemIncidentRepository implements ContentSafetySyste
     const rows = await prisma.$queryRaw<
       (Omit<ContentSafetySystemIncidentTarget, "sortRank"> & { sortRank: bigint })[]
     >(Prisma.sql`
-      WITH ranked AS (SELECT i.id,i.status,i.createTime,i.updateTime,i.ruleId,r.ownerUserId AS ruleOwnerUserId,r.status AS ruleStatus,${revision} AS revision,ROW_NUMBER() OVER (ORDER BY ${where.ordering}) AS sortRank FROM content_safety_incidents i ${joins} WHERE ${where.predicate})
-      SELECT * FROM ranked WHERE 1=1
+      SELECT * FROM (SELECT i.id,i.status,i.createTime,i.updateTime,i.ruleId,r.ownerUserId AS ruleOwnerUserId,r.status AS ruleStatus,${revision} AS revision,${where.rank} AS sortRank FROM content_safety_incidents i ${joins} WHERE ${where.predicate}) ranked WHERE 1=1
       ${after ? Prisma.sql`AND (createTime<${after.createTime} OR (createTime=${after.createTime} AND id<${after.id}))` : Prisma.empty}
       ${boundary ? Prisma.sql`AND (createTime<${boundary.createTime} OR (createTime=${boundary.createTime} AND id<=${boundary.id}))` : Prisma.empty}
       ${ids ? Prisma.sql`AND id IN (${Prisma.join([...ids])})` : Prisma.empty}
