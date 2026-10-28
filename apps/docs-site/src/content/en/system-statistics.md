@@ -21,8 +21,8 @@ Authorization is checked before loading data and before returning it. Explicit D
 
 - Server timing and uptime.
 - Application-level counters.
-- Memory usage.
-- CPU usage.
+- Memory used by the service process.
+- Cumulative CPU time spent by the service process in user and system modes.
 
 ### Environment summary
 
@@ -33,19 +33,20 @@ Authorization is checked before loading data and before returning it. Explicit D
 ### Controls
 
 - Refresh-all button.
-- Auto-refresh interval selector.
+- Auto-refresh interval input.
 - Auto-refresh state indicator.
 
 ## Common actions
 
-1. Refresh all metrics before comparing values.
-2. Enable auto-refresh during active incident observation.
-3. Compare memory and CPU trends when performance looks abnormal.
-4. Inspect infrastructure summary before escalating service-health issues.
+1. Use **Refresh all** to fetch current data.
+2. To keep observing, enter an auto-refresh interval in seconds (0–3600). The default is 0, which disables auto-refresh. Auto-refresh stops when you leave the page.
+3. When investigating resource issues, record memory and CPU values at different times and inspect the infrastructure summary.
 
 ## Notes
 
-- Auto-refresh is useful during incidents but may not be necessary for routine checks.
+- CPU values are cumulative time consumed since the process started, not CPU utilization; an increasing value alone does not indicate abnormal load. Memory metrics also describe the service process; operating system memory is shown separately in runtime information. In a multi-process deployment, different requests may be handled by different processes, so check the process ID when comparing values.
+- If an automatic refresh fails, the page may retain the previous values. The auto-refresh indicator does not guarantee a successful update. To confirm, refresh manually and look for an error message.
+- The mobile view shows less information than the desktop view.
 - A normal uptime value does not always mean all subsystems are healthy.
 - Pair this page with logs and consumption statistics for deeper diagnosis.
 
