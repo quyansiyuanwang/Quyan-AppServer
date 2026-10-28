@@ -1,49 +1,24 @@
 # Debug
 
-Use this page for diagnostics, testing, and support-side troubleshooting actions.
+The debug page provides build information and troubleshooting tools, primarily for users with debug access. Viewing backend build information requires `DEBUG_ACCESS`. Check the active environment and account before using the tools.
 
-## Page purpose
+## Inspect information and authentication
 
-- Inspect frontend and backend build information.
-- Trigger test actions for auth or relay flows.
-- Open related docs quickly.
-- Run environment-specific debug utilities.
+- Build information shows frontend and backend versions, branches, commits, and build times to help identify a deployment.
+- The authentication test fetches the current user again. Loading permissions refreshes the current user's permissions, and displaying them opens the loaded list. Clearing permissions removes the browser's permission state; it does not change server-side grants.
+- **Clear trusted window** appears only in development mode. It clears the current two-factor trusted window and related device cookie; a later sensitive action may require verification again.
+- The OpenAPI buttons use the backend address and documentation path entered on the page to open the API reference or JSON description.
 
-## What you will see
+## Test a relay request
 
-### Information area
+Enter a compatible Base URL, API key, model, and message. The test sends a real request from the browser to `Base URL + /chat/completions` and displays the response or error. It sends the key as a Bearer credential to the entered destination and may consume quota or incur charges. Verify the destination is trusted and avoid sending sensitive content. Browser cross-origin restrictions can also cause a request to fail.
 
-- Frontend build info.
-- Backend build info.
-- Quick links to docs or OpenAPI references.
+## April preview
 
-### Test and utility actions
-
-- Auth test actions.
-- Trusted-window clear action.
-- Permission load, display, and clear actions.
-- Relay test form.
-- Generic utility buttons.
-
-### Seasonal or preview tools
-
-- **April preview** — controls for the April Fools' Day easter egg system (a seasonal, non-serious feature). "Simulate" previews the egg sequence outside of April without waiting for the date, "open" shows its panel, and "close" dismisses it. These controls only appear when the easter-egg system is enabled and have no effect on billing, security, or core functionality.
-
-## Common actions
-
-1. Check build information before comparing environments.
-2. Use the smallest necessary test action to reproduce a problem.
-3. Clear temporary windows or permission state when debugging session issues.
-4. Follow links from this page into the main docs or API references.
-
-## Notes
-
-- This page is mainly for advanced users, support staff, or developers.
-- Avoid running unrelated test actions in production sessions.
-- Debug results often need confirmation from logs or monitoring pages.
+The preview button enables local preview and opens the home page; simulate starts the preview sequence; close disables the local preview switch. These controls can be used to inspect the interface outside April.
 
 ## Related pages
 
 - [Script manager]({{DOCS_BASE_URL}}/en/script-manager)
-- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
+- [Two-factor authentication]({{DOCS_BASE_URL}}/en/two-factor-authentication)
 - [API documentation]({{DOCS_BASE_URL}}/en/api-documentation)
