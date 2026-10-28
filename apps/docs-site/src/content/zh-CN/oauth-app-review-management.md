@@ -23,7 +23,7 @@
 
 - 应用名称
 - 所有者用户名
-- 与该应用有关的其他可搜索资料
+- `clientId`
 
 ### 审核列表
 
@@ -37,7 +37,7 @@
 - 提交时间
 - 审核时间
 
-如果一个应用有多个回调地址，列表通常只先显示前几项，并提示还有更多条目。
+列表最多显示前两个回调地址，超过时只提示剩余数量；审核弹窗不展示完整地址列表。审核前如需核对其余地址，请向应用所有者确认。
 
 ### 操作区
 
@@ -147,13 +147,13 @@ OAuth 应用会经历以下状态：
 
 ## 说明
 
-- 本页是审核端页面，不替代应用所有者使用的 `oauth-app-management`。
+- 本页是审核端页面，不替代应用所有者使用的[OAuth 应用管理](/zh-CN/oauth-app-management)。
 - 审核重点不只是“能不能创建”，而是“资料是否足以支持安全、可追踪的 OAuth 接入”。
 - 审核意见应面向整改，尽量避免只写过于简短的结论。
 
 ## 相关页面
 
-- [`oauth-app-management`](/zh-CN/oauth-app-management)
-- [`auth-center-client-review-management`](/zh-CN/auth-center-client-review-management)
-- [`business-logs`](/zh-CN/business-logs)
-- [`api-documentation`](/zh-CN/api-documentation)
+- [OAuth 应用管理](/zh-CN/oauth-app-management)
+- [认证中心客户端审核](/zh-CN/auth-center-client-review-management)
+- [业务日志](/zh-CN/business-logs)
+- [API 文档](/zh-CN/api-documentation)

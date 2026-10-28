@@ -23,7 +23,7 @@ The keyword search is generally used to find:
 
 - app name
 - owner username
-- other searchable app-related fields
+- `clientId`
 
 ### Review list
 
@@ -37,7 +37,7 @@ The table usually shows:
 - submitted time
 - reviewed time
 
-If an app has multiple redirect URIs, the list usually shows only a short summary first.
+The list shows at most two redirect URIs and displays only a count for the rest. The review dialog does not show the full list. Ask the app owner to confirm any remaining URIs before completing your review.
 
 ### Action area
 
@@ -147,13 +147,13 @@ Without read permission, the review list is typically unavailable. Without updat
 
 ## Notes
 
-- This is a reviewer page and does not replace `oauth-app-management` for app owners.
+- This reviewer page does not replace [OAuth app management](/en/oauth-app-management) for app owners.
 - The review goal is not only “can this app be created,” but “is this record safe and traceable enough for OAuth integration.”
 - Review comments should be useful for remediation, not just a short verdict.
 
 ## Related pages
 
-- [`oauth-app-management`](/en/oauth-app-management)
-- [`auth-center-client-review-management`](/en/auth-center-client-review-management)
-- [`business-logs`](/en/business-logs)
-- [`api-documentation`](/en/api-documentation)
+- [OAuth app management](/en/oauth-app-management)
+- [Auth Center client review](/en/auth-center-client-review-management)
+- [Business logs](/en/business-logs)
+- [API documentation](/en/api-documentation)
