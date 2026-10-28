@@ -40,6 +40,6 @@
 
 ## 相关页面
 
-- `two-factor-authentication`
-- `trusted-device-management`
-- `account-settings`
+- [两步验证与通行密钥]({{DOCS_BASE_URL}}/zh-CN/two-factor-authentication)
+- [受信任设备管理]({{DOCS_BASE_URL}}/zh-CN/trusted-device-management)
+- [设置]({{DOCS_BASE_URL}}/zh-CN/account-settings)

@@ -54,6 +54,6 @@
 
 ## 相关页面
 
-- `balance-management`
-- `system-statistics`
-- `business-logs`
+- [余额管理]({{DOCS_BASE_URL}}/zh-CN/balance-management)
+- [系统统计]({{DOCS_BASE_URL}}/zh-CN/system-statistics)
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)

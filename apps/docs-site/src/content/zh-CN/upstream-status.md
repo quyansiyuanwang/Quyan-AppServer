@@ -58,6 +58,6 @@ IAM 强制模式下，页面使用 `quyan:relay:GetUptimeStatus`。认证主体�
 
 ## 相关页面
 
-- `relay-token-management`
-- `relay-settings`
-- `system-logs`
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
+- [转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)

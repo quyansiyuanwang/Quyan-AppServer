@@ -44,6 +44,6 @@ Use this page for diagnostics, testing, and support-side troubleshooting actions
 
 ## Related pages
 
-- `script-manager`
-- `system-logs`
-- `api-documentation`
+- [Script manager]({{DOCS_BASE_URL}}/en/script-manager)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
+- [API documentation]({{DOCS_BASE_URL}}/en/api-documentation)

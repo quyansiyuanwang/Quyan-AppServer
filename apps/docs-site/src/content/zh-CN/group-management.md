@@ -66,5 +66,5 @@ enforce 模式下，查看列表需要账户目标的 quyan:group:Read；每个�
 
 ## 相关页面
 
-- `user-management`
-- `permission-management`
+- [用户管理]({{DOCS_BASE_URL}}/zh-CN/user-management)
+- [权限管理]({{DOCS_BASE_URL}}/zh-CN/permission-management)

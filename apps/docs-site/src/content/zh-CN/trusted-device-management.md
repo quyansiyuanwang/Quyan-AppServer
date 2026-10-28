@@ -41,7 +41,7 @@
 
 ## 相关页面
 
-- `two-factor-authentication`
-- `passkey-management`
-- `auth-verification`
-- `account-settings`
+- [两步验证与通行密钥]({{DOCS_BASE_URL}}/zh-CN/two-factor-authentication)
+- [通行密钥管理]({{DOCS_BASE_URL}}/zh-CN/passkey-management)
+- [验证页面]({{DOCS_BASE_URL}}/zh-CN/auth-verification)
+- [设置]({{DOCS_BASE_URL}}/zh-CN/account-settings)

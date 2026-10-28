@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'notification-settings',
-  updatedAt: '2026-10-10',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Account',
     'zh-CN': '账号',

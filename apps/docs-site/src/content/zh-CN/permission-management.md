@@ -65,7 +65,7 @@
 
 ## 相关页面
 
-- `user-management`
-- `group-management`
+- [用户管理]({{DOCS_BASE_URL}}/zh-CN/user-management)
+- [群组管理]({{DOCS_BASE_URL}}/zh-CN/group-management)
 - `ram-management`（角色）
-- `legal-policy-management`
+- [法律政策管理]({{DOCS_BASE_URL}}/zh-CN/legal-policy-management)

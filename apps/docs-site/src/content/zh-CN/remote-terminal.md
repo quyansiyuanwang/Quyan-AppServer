@@ -53,7 +53,7 @@
 
 ## 相关页面
 
-- `my-monthly-passes`
+- [我的月卡]({{DOCS_BASE_URL}}/zh-CN/my-monthly-passes)
 
 ## 按设备授权
 

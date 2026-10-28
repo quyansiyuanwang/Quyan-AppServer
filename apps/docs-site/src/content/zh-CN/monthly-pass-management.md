@@ -79,5 +79,5 @@
 
 ## 相关页面
 
-- `my-monthly-passes`
-- `redemption-code-management`
+- [我的月卡]({{DOCS_BASE_URL}}/zh-CN/my-monthly-passes)
+- [兑换码管理]({{DOCS_BASE_URL}}/zh-CN/redemption-code-management)

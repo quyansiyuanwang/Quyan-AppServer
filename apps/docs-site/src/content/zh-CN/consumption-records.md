@@ -36,6 +36,6 @@
 
 ## 相关页面
 
-- `balance-history`
-- `relay-token-management`
-- `my-monthly-passes`
+- [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
+- [我的月卡]({{DOCS_BASE_URL}}/zh-CN/my-monthly-passes)

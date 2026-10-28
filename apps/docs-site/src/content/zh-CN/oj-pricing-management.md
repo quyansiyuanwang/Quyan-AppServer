@@ -62,5 +62,5 @@ IAM 强制模式下，管理读取需要真实部署全局组中的 `OJ_PRICING_
 
 ## 相关页面
 
-- `oj-api-key-management`
-- `oj-usage-statistics`
+- [OJ API Key 管理]({{DOCS_BASE_URL}}/zh-CN/oj-api-key-management)
+- [OJ 用量统计]({{DOCS_BASE_URL}}/zh-CN/oj-usage-statistics)

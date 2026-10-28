@@ -89,5 +89,5 @@ API clients should use `GET /v1/accesskeys/page?page=1&pageSize=50`. The respons
 
 ## Related pages
 
-- `account-settings`
-- `api-documentation`
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)
+- [API documentation]({{DOCS_BASE_URL}}/en/api-documentation)

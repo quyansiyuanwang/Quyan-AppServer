@@ -81,5 +81,5 @@ IAM 强制模式下，读取与更新分配规则分别使用 `quyan:ticket:GetA
 
 ## 相关页面
 
-- `user-management`
-- `business-logs`
+- [用户管理]({{DOCS_BASE_URL}}/zh-CN/user-management)
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)

@@ -117,5 +117,5 @@ Review state, configuration, provider changes and the safe response share one tr
 
 ## Related pages
 
-- `relay-settings`
-- `balance-history`
+- [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings)
+- [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history)

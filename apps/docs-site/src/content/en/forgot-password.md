@@ -38,5 +38,5 @@ Use this page when you can identify your account but can no longer sign in with 
 
 ## Related pages
 
-- `login-register`
-- `auth-verification`
+- [Login / Register]({{DOCS_BASE_URL}}/en/login-register)
+- [Verification]({{DOCS_BASE_URL}}/en/auth-verification)

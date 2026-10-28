@@ -50,6 +50,6 @@ Use this page to review and adjust user balances from an administrator perspecti
 
 ## Related pages
 
-- `balance-history`
-- `business-logs`
-- `consumption-statistics`
+- [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history)
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)
+- [Consumption statistics]({{DOCS_BASE_URL}}/en/consumption-statistics)

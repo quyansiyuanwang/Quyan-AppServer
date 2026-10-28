@@ -383,7 +383,7 @@ The full list lives in `CustomCode` (`packages/shared/src/custom-code.ts`) and g
 
 ## Related pages
 
-- `oauth-app-management`
-- `access-key-management`
-- `relay-token-management`
-- `json-endpoint-management`
+- [OAuth app management]({{DOCS_BASE_URL}}/en/oauth-app-management)
+- [Access key management]({{DOCS_BASE_URL}}/en/access-key-management)
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
+- [JSON endpoint management]({{DOCS_BASE_URL}}/en/json-endpoint-management)

@@ -296,6 +296,6 @@ Content-Type: application/json
 
 ## 相关页面
 
-- `api-documentation`
-- `relay-settings`
-- `upstream-status`
+- [API 文档]({{DOCS_BASE_URL}}/zh-CN/api-documentation)
+- [转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)
+- [上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)

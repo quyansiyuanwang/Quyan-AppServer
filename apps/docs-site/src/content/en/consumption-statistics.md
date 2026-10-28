@@ -54,6 +54,6 @@ Time, user, model, and channel filters only change the report contents; they do 
 
 ## Related pages
 
-- `balance-management`
-- `system-statistics`
-- `business-logs`
+- [Balance management]({{DOCS_BASE_URL}}/en/balance-management)
+- [System statistics]({{DOCS_BASE_URL}}/en/system-statistics)
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)

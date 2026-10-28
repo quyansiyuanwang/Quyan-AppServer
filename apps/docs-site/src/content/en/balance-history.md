@@ -43,6 +43,6 @@ Account transactions help you reconcile balance changes. Use the date and loaded
 
 ## Related pages
 
-- `consumption-records`
-- `my-monthly-passes`
-- `relay-token-management`
+- [Consumption records]({{DOCS_BASE_URL}}/en/consumption-records)
+- [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes)
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)

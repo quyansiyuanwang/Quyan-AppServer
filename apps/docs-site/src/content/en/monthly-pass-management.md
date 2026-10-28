@@ -79,5 +79,5 @@ Unauthorized filter options are omitted. Existing hidden, private and whitelist 
 
 ## Related pages
 
-- `my-monthly-passes`
-- `redemption-code-management`
+- [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes)
+- [Redemption code management]({{DOCS_BASE_URL}}/en/redemption-code-management)

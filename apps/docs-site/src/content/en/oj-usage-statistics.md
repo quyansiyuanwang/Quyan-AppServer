@@ -41,5 +41,5 @@ Use this page to review request volume, token usage, and cost details for OJ sub
 
 ## Related pages
 
-- `oj-api-key-management`
-- `oj-pricing-management`
+- [OJ API key management]({{DOCS_BASE_URL}}/en/oj-api-key-management)
+- [OJ pricing management]({{DOCS_BASE_URL}}/en/oj-pricing-management)

@@ -75,9 +75,9 @@ To view or change the per-error-type weights, use `GET /ip-blacklist/error-statu
 
 ## Related pages
 
-- `server-configuration`
-- `system-logs`
-- `business-logs`
+- [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)
 
 ## IAM permissions for a specific IP
 

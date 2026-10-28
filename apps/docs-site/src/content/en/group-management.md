@@ -66,5 +66,5 @@ Groups carry a numeric level field. Operations are subject to the following cons
 
 ## Related pages
 
-- `user-management`
-- `permission-management`
+- [User management]({{DOCS_BASE_URL}}/en/user-management)
+- [Permission management]({{DOCS_BASE_URL}}/en/permission-management)

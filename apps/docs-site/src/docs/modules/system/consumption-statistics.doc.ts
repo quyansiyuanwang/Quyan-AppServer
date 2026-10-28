@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'consumption-statistics',
+  updatedAt: '2026-10-29',
   category: {
     en: 'System',
     'zh-CN': '系统',

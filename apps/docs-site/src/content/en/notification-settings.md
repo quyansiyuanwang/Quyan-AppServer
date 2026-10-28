@@ -101,6 +101,6 @@ Changes to global defaults only affect newly created accounts, not existing user
 
 ## Related pages
 
-- `account-settings`
-- `server-configuration`
-- `system-logs`
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)
+- [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)

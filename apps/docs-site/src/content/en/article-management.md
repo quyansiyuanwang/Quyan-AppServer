@@ -130,5 +130,5 @@ Submit each article ID only once and provide a nonnegative integer order within 
 
 ## Related pages
 
-- `home-articles`
-- `legal-policy-management`
+- [Home / Articles]({{DOCS_BASE_URL}}/en/home-articles)
+- [Legal policy management]({{DOCS_BASE_URL}}/en/legal-policy-management)

@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'script-manager',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Tools',
     'zh-CN': '工具',

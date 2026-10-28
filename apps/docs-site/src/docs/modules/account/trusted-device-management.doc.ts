@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'trusted-device-management',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Account',
     'zh-CN': '账户',

@@ -133,6 +133,6 @@ The directory is checked first. The transaction generates a real ID and then che
 
 ## Related pages
 
-- `group-management`
-- `permission-management`
-- `business-logs`
+- [Group management]({{DOCS_BASE_URL}}/en/group-management)
+- [Permission management]({{DOCS_BASE_URL}}/en/permission-management)
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)

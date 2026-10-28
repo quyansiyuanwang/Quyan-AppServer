@@ -69,9 +69,9 @@ In enforcement mode, reading or updating `notification.ticketAssignmentRules` th
 
 ## Related pages
 
-- `ip-monitoring-dashboard`
-- `notification-settings`
-- `relay-settings`
+- [IP monitoring dashboard]({{DOCS_BASE_URL}}/en/ip-monitoring-dashboard)
+- [Notification settings]({{DOCS_BASE_URL}}/en/notification-settings)
+- [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings)
 
 ## AI resource protection (advanced)
 

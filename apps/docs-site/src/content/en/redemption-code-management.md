@@ -62,5 +62,5 @@ Deletion uses `quyan:redemption_code:DeleteCode`, requires deployment-managed gl
 
 ## Related pages
 
-- `balance-history`
-- `balance-management`
+- [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history)
+- [Balance management]({{DOCS_BASE_URL}}/en/balance-management)

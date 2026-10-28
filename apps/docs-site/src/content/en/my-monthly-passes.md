@@ -41,5 +41,5 @@ With IAM enforcement enabled, My Monthly Passes authorizes each `acs:monthly-pas
 
 ## Related pages
 
-- `balance-history`
-- `monthly-pass-management`
+- [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history)
+- [Monthly pass management]({{DOCS_BASE_URL}}/en/monthly-pass-management)

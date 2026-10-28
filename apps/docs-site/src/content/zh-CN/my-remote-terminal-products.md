@@ -70,6 +70,6 @@ IAM 强制模式下，购买及续期使用 `quyan:remote_terminal:ClaimPublishe
 
 ## 相关页面
 
-- `remote-terminal`
-- `remote-terminal-management`
-- `balance-history`
+- [远程终端]({{DOCS_BASE_URL}}/zh-CN/remote-terminal)
+- [远程终端管理]({{DOCS_BASE_URL}}/zh-CN/remote-terminal-management)
+- [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)

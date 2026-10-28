@@ -43,6 +43,6 @@
 
 ## 相关页面
 
-- `consumption-records`
-- `my-monthly-passes`
-- `relay-token-management`
+- [消费记录]({{DOCS_BASE_URL}}/zh-CN/consumption-records)
+- [我的月卡]({{DOCS_BASE_URL}}/zh-CN/my-monthly-passes)
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)

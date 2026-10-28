@@ -44,6 +44,6 @@
 
 ## 相关页面
 
-- `script-manager`
-- `system-logs`
-- `api-documentation`
+- [脚本管理]({{DOCS_BASE_URL}}/zh-CN/script-manager)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)
+- [API 文档]({{DOCS_BASE_URL}}/zh-CN/api-documentation)

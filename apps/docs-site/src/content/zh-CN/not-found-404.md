@@ -36,5 +36,5 @@
 
 ## 相关页面
 
-- `getting-started`
-- `home-articles`
+- [用户手册]({{DOCS_BASE_URL}}/zh-CN/getting-started)
+- [首页 / 文章]({{DOCS_BASE_URL}}/zh-CN/home-articles)

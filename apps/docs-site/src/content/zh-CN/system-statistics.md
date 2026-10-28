@@ -51,6 +51,6 @@
 
 ## 相关页面
 
-- `consumption-statistics`
-- `system-logs`
-- `upstream-status`
+- [消耗统计]({{DOCS_BASE_URL}}/zh-CN/consumption-statistics)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)
+- [上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)

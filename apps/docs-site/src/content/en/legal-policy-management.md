@@ -83,5 +83,5 @@ Publishing checks the target and the current version it replaces. Unpublishing a
 
 ## Related pages
 
-- `login-register`
-- `auth-verification`
+- [Login / Register]({{DOCS_BASE_URL}}/en/login-register)
+- [Verification]({{DOCS_BASE_URL}}/en/auth-verification)

@@ -43,5 +43,5 @@ This page is the main reading area for public or internal articles and knowledge
 
 ## Related pages
 
-- `article-management`
-- `json-endpoint-management`
+- [Article management]({{DOCS_BASE_URL}}/en/article-management)
+- [JSON endpoint management]({{DOCS_BASE_URL}}/en/json-endpoint-management)

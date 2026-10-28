@@ -89,5 +89,5 @@ API 客户端建议使用 `GET /v1/accesskeys/page?page=1&pageSize=50`，响应�
 
 ## 相关页面
 
-- `account-settings`
-- `api-documentation`
+- [设置]({{DOCS_BASE_URL}}/zh-CN/account-settings)
+- [API 文档]({{DOCS_BASE_URL}}/zh-CN/api-documentation)

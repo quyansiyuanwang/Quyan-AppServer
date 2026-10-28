@@ -43,6 +43,6 @@ API 请求为 `POST /v1/monthly-passes/me/claim`，请求体只需 `{ "templateI
 
 ## 相关页面
 
-- `my-monthly-passes`
-- `balance-history`
-- `monthly-pass-management`
+- [我的月卡]({{DOCS_BASE_URL}}/zh-CN/my-monthly-passes)
+- [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)
+- [月卡管理]({{DOCS_BASE_URL}}/zh-CN/monthly-pass-management)

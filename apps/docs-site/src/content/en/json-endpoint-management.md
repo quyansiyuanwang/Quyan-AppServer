@@ -178,5 +178,5 @@ console.log(await response.json())
 
 ## Related pages
 
-- `api-documentation`
-- `article-management`
+- [API documentation]({{DOCS_BASE_URL}}/en/api-documentation)
+- [Article management]({{DOCS_BASE_URL}}/en/article-management)

@@ -69,9 +69,9 @@ IAM 强制授权下，SMTP 密码、中继 API Key、社交登录 Client Secret 
 
 ## 相关页面
 
-- `ip-monitoring-dashboard`
-- `notification-settings`
-- `relay-settings`
+- [IP 监控面板]({{DOCS_BASE_URL}}/zh-CN/ip-monitoring-dashboard)
+- [通知设置]({{DOCS_BASE_URL}}/zh-CN/notification-settings)
+- [转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)
 
 ## AI 资源保护（高级配置）
 

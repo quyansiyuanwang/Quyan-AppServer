@@ -58,6 +58,6 @@ Concurrency data is sampled live; leases that expire during sampling are not cou
 
 ## Related pages
 
-- `relay-token-management`
-- `relay-settings`
-- `system-logs`
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
+- [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)

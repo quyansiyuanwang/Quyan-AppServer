@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'analytics',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Analytics',
     'zh-CN': '数据分析',

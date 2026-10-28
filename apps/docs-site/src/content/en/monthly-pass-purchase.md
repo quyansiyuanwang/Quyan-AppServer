@@ -43,6 +43,6 @@ Viewing plans uses `quyan:monthly_pass:ListPublishedTemplates` and evaluates eac
 
 ## Related pages
 
-- `my-monthly-passes`
-- `balance-history`
-- `monthly-pass-management`
+- [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes)
+- [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history)
+- [Monthly pass management]({{DOCS_BASE_URL}}/en/monthly-pass-management)

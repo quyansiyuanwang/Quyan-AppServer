@@ -70,6 +70,6 @@ Each renewal or upgrade debits only the amount for that operation. The entitleme
 
 ## Related pages
 
-- `remote-terminal`
-- `remote-terminal-management`
-- `balance-history`
+- [Remote terminal]({{DOCS_BASE_URL}}/en/remote-terminal)
+- [Remote terminal management]({{DOCS_BASE_URL}}/en/remote-terminal-management)
+- [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history)

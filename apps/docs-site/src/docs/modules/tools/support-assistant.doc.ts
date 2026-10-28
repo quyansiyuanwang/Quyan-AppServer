@@ -3,7 +3,7 @@ import contentZh from '@/content/zh-CN/support-assistant.md?raw'
 import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
-  updatedAt: '2026-10-10',
+  updatedAt: '2026-10-29',
   slug: 'support-assistant',
   category: {
     en: 'Tools',

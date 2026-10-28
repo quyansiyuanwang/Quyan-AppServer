@@ -178,5 +178,5 @@ console.log(await response.json())
 
 ## 相关页面
 
-- `api-documentation`
-- `article-management`
+- [API 文档]({{DOCS_BASE_URL}}/zh-CN/api-documentation)
+- [文章管理]({{DOCS_BASE_URL}}/zh-CN/article-management)

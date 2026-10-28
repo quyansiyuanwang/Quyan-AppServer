@@ -50,6 +50,6 @@
 
 ## 相关页面
 
-- `balance-history`
-- `business-logs`
-- `consumption-statistics`
+- [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)
+- [消耗统计]({{DOCS_BASE_URL}}/zh-CN/consumption-statistics)

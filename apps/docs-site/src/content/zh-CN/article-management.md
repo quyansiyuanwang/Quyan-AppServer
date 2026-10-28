@@ -130,5 +130,5 @@ enforce 模式下，排序请求中的**每一篇**文章都必须具备 `quyan:
 
 ## 相关页面
 
-- `home-articles`
-- `legal-policy-management`
+- [首页 / 文章]({{DOCS_BASE_URL}}/zh-CN/home-articles)
+- [法律政策管理]({{DOCS_BASE_URL}}/zh-CN/legal-policy-management)

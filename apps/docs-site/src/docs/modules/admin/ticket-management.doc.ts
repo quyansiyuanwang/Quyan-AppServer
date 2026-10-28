@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'ticket-management',
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Admin',
     'zh-CN': '管理',

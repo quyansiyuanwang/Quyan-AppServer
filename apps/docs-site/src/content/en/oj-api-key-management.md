@@ -40,5 +40,5 @@ Use this page to maintain API keys for OJ submitter workflows.
 
 ## Related pages
 
-- `oj-usage-statistics`
-- `oj-pricing-management`
+- [OJ usage statistics]({{DOCS_BASE_URL}}/en/oj-usage-statistics)
+- [OJ pricing management]({{DOCS_BASE_URL}}/en/oj-pricing-management)

@@ -62,5 +62,5 @@ A matching Deny blocks the entire operation. If identity, eligibility, policies,
 
 ## Related pages
 
-- `oj-api-key-management`
-- `oj-usage-statistics`
+- [OJ API key management]({{DOCS_BASE_URL}}/en/oj-api-key-management)
+- [OJ usage statistics]({{DOCS_BASE_URL}}/en/oj-usage-statistics)

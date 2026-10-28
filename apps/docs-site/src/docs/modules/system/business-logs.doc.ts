@@ -4,7 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'business-logs',
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-29',
   category: {
     en: 'System',
     'zh-CN': '系统',

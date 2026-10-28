@@ -36,6 +36,6 @@ The list supports table and chart views. Expand a record to inspect available mo
 
 ## Related pages
 
-- `balance-history`
-- `relay-token-management`
-- `my-monthly-passes`
+- [Account balance & transfers]({{DOCS_BASE_URL}}/en/balance-history)
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
+- [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes)

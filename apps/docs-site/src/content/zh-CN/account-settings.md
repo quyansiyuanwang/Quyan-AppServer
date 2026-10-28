@@ -79,8 +79,8 @@
 
 ## 相关页面
 
-- `access-key-management`
-- `passkey-management`
-- `trusted-device-management`
-- `notification-settings`
-- `auth-verification`
+- [访问密钥管理]({{DOCS_BASE_URL}}/zh-CN/access-key-management)
+- [通行密钥管理]({{DOCS_BASE_URL}}/zh-CN/passkey-management)
+- [受信任设备管理]({{DOCS_BASE_URL}}/zh-CN/trusted-device-management)
+- [通知设置]({{DOCS_BASE_URL}}/zh-CN/notification-settings)
+- [验证页面]({{DOCS_BASE_URL}}/zh-CN/auth-verification)

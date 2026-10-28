@@ -41,5 +41,5 @@
 
 ## 相关页面
 
-- `oj-api-key-management`
-- `oj-pricing-management`
+- [OJ API Key 管理]({{DOCS_BASE_URL}}/zh-CN/oj-api-key-management)
+- [OJ 价格管理]({{DOCS_BASE_URL}}/zh-CN/oj-pricing-management)

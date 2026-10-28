@@ -60,5 +60,5 @@
 
 ## 相关页面
 
-- `login-register`
-- `account-settings`
+- [登录 / 注册]({{DOCS_BASE_URL}}/zh-CN/login-register)
+- [设置]({{DOCS_BASE_URL}}/zh-CN/account-settings)

@@ -60,5 +60,5 @@ Exceeding a limit returns a `429 Too Many Requests` error with a suggested retry
 
 ## Related pages
 
-- `login-register`
-- `account-settings`
+- [Login / Register]({{DOCS_BASE_URL}}/en/login-register)
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)

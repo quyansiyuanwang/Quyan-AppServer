@@ -17,7 +17,7 @@ export default defineDocsPage({
     'zh-CN': '说明兑换码的创建、发放和状态追踪。',
   },
   tags: ['redemption', 'code', 'balance', 'iam'],
-  updatedAt: '2026-10-14',
+  updatedAt: '2026-10-29',
   content: {
     en: contentEn,
     'zh-CN': contentZh,

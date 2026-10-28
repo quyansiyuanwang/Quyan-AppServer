@@ -85,8 +85,8 @@
 
 ## 相关页面
 
-- `auth-verification`
-- `passkey-management`
-- `trusted-device-management`
-- `notification-settings`
-- `account-settings`
+- [验证页面]({{DOCS_BASE_URL}}/zh-CN/auth-verification)
+- [通行密钥管理]({{DOCS_BASE_URL}}/zh-CN/passkey-management)
+- [受信任设备管理]({{DOCS_BASE_URL}}/zh-CN/trusted-device-management)
+- [通知设置]({{DOCS_BASE_URL}}/zh-CN/notification-settings)
+- [设置]({{DOCS_BASE_URL}}/zh-CN/account-settings)

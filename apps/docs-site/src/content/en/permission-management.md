@@ -65,7 +65,7 @@ Changing a group's permission set additionally requires a fresh 2FA step-up chal
 
 ## Related pages
 
-- `user-management`
-- `group-management`
+- [User management]({{DOCS_BASE_URL}}/en/user-management)
+- [Group management]({{DOCS_BASE_URL}}/en/group-management)
 - `ram-management` (roles)
-- `legal-policy-management`
+- [Legal policy management]({{DOCS_BASE_URL}}/en/legal-policy-management)

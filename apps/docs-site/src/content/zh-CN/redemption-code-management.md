@@ -62,5 +62,5 @@ IAM 强制模式下，列表接口 `GET /v1/redemption-codes/list` 使用 `quyan
 
 ## 相关页面
 
-- `balance-history`
-- `balance-management`
+- [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)
+- [余额管理]({{DOCS_BASE_URL}}/zh-CN/balance-management)

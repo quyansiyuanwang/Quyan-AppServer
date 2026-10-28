@@ -101,6 +101,6 @@
 
 ## 相关页面
 
-- `account-settings`
-- `server-configuration`
-- `system-logs`
+- [设置]({{DOCS_BASE_URL}}/zh-CN/account-settings)
+- [服务端配置]({{DOCS_BASE_URL}}/zh-CN/server-configuration)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)

@@ -51,6 +51,6 @@ Authorization is checked before loading data and before returning it. Explicit D
 
 ## Related pages
 
-- `consumption-statistics`
-- `system-logs`
-- `upstream-status`
+- [Consumption statistics]({{DOCS_BASE_URL}}/en/consumption-statistics)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
+- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)

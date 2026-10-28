@@ -92,5 +92,5 @@ These are deployment-level aggregate reports. Date, page and event filters selec
 
 ## Related pages
 
-- `system-configuration`
-- `debug-tools`
+- [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)
+- [Debug]({{DOCS_BASE_URL}}/en/debug-tools)

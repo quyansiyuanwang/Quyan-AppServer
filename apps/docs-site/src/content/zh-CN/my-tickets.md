@@ -49,5 +49,5 @@
 
 ## 相关页面
 
-- `ticket-management`
-- `account-settings`
+- [工单管理]({{DOCS_BASE_URL}}/zh-CN/ticket-management)
+- [设置]({{DOCS_BASE_URL}}/zh-CN/account-settings)

@@ -41,7 +41,7 @@ A card per trusted device, showing:
 
 ## Related pages
 
-- `two-factor-authentication`
-- `passkey-management`
-- `auth-verification`
-- `account-settings`
+- [2FA & passkeys]({{DOCS_BASE_URL}}/en/two-factor-authentication)
+- [Passkey management]({{DOCS_BASE_URL}}/en/passkey-management)
+- [Verification]({{DOCS_BASE_URL}}/en/auth-verification)
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)

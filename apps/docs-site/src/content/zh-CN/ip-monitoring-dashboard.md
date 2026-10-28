@@ -75,9 +75,9 @@ IAM 强制模式下，新增记录需要真实全局组中的 `IP_WHITELIST_CREA
 
 ## 相关页面
 
-- `server-configuration`
-- `system-logs`
-- `business-logs`
+- [服务端配置]({{DOCS_BASE_URL}}/zh-CN/server-configuration)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)
 
 ## 指定 IP 的 IAM 查询权限
 

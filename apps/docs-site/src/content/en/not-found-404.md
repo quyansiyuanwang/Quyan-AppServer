@@ -36,5 +36,5 @@ This fallback page appears when the requested route does not exist.
 
 ## Related pages
 
-- `getting-started`
-- `home-articles`
+- [User manual]({{DOCS_BASE_URL}}/en/getting-started)
+- [Home / Articles]({{DOCS_BASE_URL}}/en/home-articles)

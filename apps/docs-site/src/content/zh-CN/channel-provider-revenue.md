@@ -117,5 +117,5 @@
 
 ## 相关页面
 
-- `relay-settings`
-- `balance-history`
+- [转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)
+- [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)

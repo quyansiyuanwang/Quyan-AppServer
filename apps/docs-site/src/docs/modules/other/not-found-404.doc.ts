@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'not-found-404',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Other',
     'zh-CN': '其他',

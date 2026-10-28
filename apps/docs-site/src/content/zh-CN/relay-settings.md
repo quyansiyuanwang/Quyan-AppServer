@@ -492,9 +492,9 @@ IAM 强制模式下，定价导出需要真实全局组中的 `MODEL_PRICING_REA
 
 ## 相关页面
 
-- `relay-token-management`
-- `upstream-status`
-- `server-configuration`
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
+- [上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)
+- [服务端配置]({{DOCS_BASE_URL}}/zh-CN/server-configuration)
 
 ## 服务器资源保护与审计正文
 

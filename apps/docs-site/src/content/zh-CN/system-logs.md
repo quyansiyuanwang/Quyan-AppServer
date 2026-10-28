@@ -54,9 +54,9 @@
 
 ## 相关页面
 
-- `business-logs`
-- `upstream-status`
-- `ip-monitoring-dashboard`
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)
+- [上游状态]({{DOCS_BASE_URL}}/zh-CN/upstream-status)
+- [IP 监控面板]({{DOCS_BASE_URL}}/zh-CN/ip-monitoring-dashboard)
 
 ## 服务端日志的资源权限
 

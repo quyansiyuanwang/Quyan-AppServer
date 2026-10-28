@@ -54,9 +54,9 @@ Use this page to inspect API logs, log statistics, and server log files.
 
 ## Related pages
 
-- `business-logs`
-- `upstream-status`
-- `ip-monitoring-dashboard`
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)
+- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)
+- [IP monitoring dashboard]({{DOCS_BASE_URL}}/en/ip-monitoring-dashboard)
 
 ## Server log resource permissions
 

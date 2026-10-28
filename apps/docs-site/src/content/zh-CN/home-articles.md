@@ -43,5 +43,5 @@
 
 ## 相关页面
 
-- `article-management`
-- `json-endpoint-management`
+- [文章管理]({{DOCS_BASE_URL}}/zh-CN/article-management)
+- [JSON 端点管理]({{DOCS_BASE_URL}}/zh-CN/json-endpoint-management)

@@ -492,9 +492,9 @@ Before reading saved keys, before sending and before disclosing results, the ser
 
 ## Related pages
 
-- `relay-token-management`
-- `upstream-status`
-- `server-configuration`
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
+- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)
+- [Server configuration]({{DOCS_BASE_URL}}/en/server-configuration)
 
 ## Server resource protection and audit bodies
 

@@ -49,5 +49,5 @@ Use this page to submit suggestions, report bugs, and track the review status of
 
 ## Related pages
 
-- `ticket-management`
-- `account-settings`
+- [Ticket management]({{DOCS_BASE_URL}}/en/ticket-management)
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)

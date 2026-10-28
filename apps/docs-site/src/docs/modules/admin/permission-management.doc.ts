@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'permission-management',
+  updatedAt: '2026-10-29',
   category: {
     en: 'Admin',
     'zh-CN': '管理',

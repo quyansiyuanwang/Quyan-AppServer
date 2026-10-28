@@ -81,5 +81,5 @@ A save can contain at most 100 rules and each rule at most 50 assignee IDs. Dupl
 
 ## Related pages
 
-- `user-management`
-- `business-logs`
+- [User management]({{DOCS_BASE_URL}}/en/user-management)
+- [Business logs]({{DOCS_BASE_URL}}/en/business-logs)

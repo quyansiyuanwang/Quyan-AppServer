@@ -53,7 +53,7 @@ The main area is a multi-tab terminal. Each tab maps to one device session and s
 
 ## Related pages
 
-- `my-monthly-passes`
+- [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes)
 
 ## Device-scoped authorization
 

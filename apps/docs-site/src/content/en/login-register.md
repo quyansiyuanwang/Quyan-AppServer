@@ -42,9 +42,9 @@ Sign-in, registration, password recovery, social-login callbacks, two-factor ver
 
 ## Related pages
 
-- `forgot-password`
-- `auth-verification`
-- `account-settings`
+- [Forgot password]({{DOCS_BASE_URL}}/en/forgot-password)
+- [Verification]({{DOCS_BASE_URL}}/en/auth-verification)
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)
 
 ## Trouble signing in: check and repair
 

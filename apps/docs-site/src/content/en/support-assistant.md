@@ -47,9 +47,9 @@ With IAM enforcement enabled, configuration reads and updates require `quyan:sup
 
 ## Related pages
 
-- `relay-token-management`
-- `ai-relay-quickstart`
-- `my-tickets`
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)
+- [AI relay quick start]({{DOCS_BASE_URL}}/en/ai-relay-quickstart)
+- [My tickets]({{DOCS_BASE_URL}}/en/my-tickets)
 
 ## Service capacity and stream failures
 

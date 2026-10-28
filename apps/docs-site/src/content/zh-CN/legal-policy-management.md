@@ -83,5 +83,5 @@ IAM 强制模式下，管理列表和详情 API 需要真实部署全局组中�
 
 ## 相关页面
 
-- `login-register`
-- `auth-verification`
+- [登录 / 注册]({{DOCS_BASE_URL}}/zh-CN/login-register)
+- [验证页面]({{DOCS_BASE_URL}}/zh-CN/auth-verification)

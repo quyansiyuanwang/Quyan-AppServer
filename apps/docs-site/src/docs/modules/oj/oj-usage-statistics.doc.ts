@@ -4,6 +4,7 @@ import { defineDocsPage } from '@/docs/defineDocsPage'
 
 export default defineDocsPage({
   slug: 'oj-usage-statistics',
+  updatedAt: '2026-10-29',
   category: {
     en: 'OJ',
     'zh-CN': 'OJ',

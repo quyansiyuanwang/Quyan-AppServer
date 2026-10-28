@@ -88,5 +88,5 @@ Assigning an entitlement uses `quyan:remote_terminal:AssignEntitlement` and requ
 
 ## Related pages
 
-- `relay-settings`
-- `user-management`
+- [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings)
+- [User management]({{DOCS_BASE_URL}}/en/user-management)

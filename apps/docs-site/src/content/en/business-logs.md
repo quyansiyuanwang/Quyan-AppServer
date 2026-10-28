@@ -44,9 +44,9 @@ Use this page to inspect business-level audit records.
 
 ## Related pages
 
-- `user-management`
-- `balance-management`
-- `system-logs`
+- [User management]({{DOCS_BASE_URL}}/en/user-management)
+- [Balance management]({{DOCS_BASE_URL}}/en/balance-management)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)
 
 ## Filter catalog permissions
 

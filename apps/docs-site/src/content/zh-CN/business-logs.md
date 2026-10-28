@@ -44,9 +44,9 @@
 
 ## 相关页面
 
-- `user-management`
-- `balance-management`
-- `system-logs`
+- [用户管理]({{DOCS_BASE_URL}}/zh-CN/user-management)
+- [余额管理]({{DOCS_BASE_URL}}/zh-CN/balance-management)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)
 
 ## 筛选目录权限
 

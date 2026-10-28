@@ -79,8 +79,8 @@ Authorization and user state are checked again before sending a code or committi
 
 ## Related pages
 
-- `access-key-management`
-- `passkey-management`
-- `trusted-device-management`
-- `notification-settings`
-- `auth-verification`
+- [Access key management]({{DOCS_BASE_URL}}/en/access-key-management)
+- [Passkey management]({{DOCS_BASE_URL}}/en/passkey-management)
+- [Trusted devices]({{DOCS_BASE_URL}}/en/trusted-device-management)
+- [Notification settings]({{DOCS_BASE_URL}}/en/notification-settings)
+- [Verification]({{DOCS_BASE_URL}}/en/auth-verification)

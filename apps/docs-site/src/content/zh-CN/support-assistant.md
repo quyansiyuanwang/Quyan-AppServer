@@ -47,9 +47,9 @@ AI 只能提供指引，不能替你修改账户、权限、计费或基础设�
 
 ## 相关页面
 
-- `relay-token-management`
-- `ai-relay-quickstart`
-- `my-tickets`
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
+- [调用 AI 快速开始]({{DOCS_BASE_URL}}/zh-CN/ai-relay-quickstart)
+- [我的工单]({{DOCS_BASE_URL}}/zh-CN/my-tickets)
 
 ## 服务容量与流式失败
 

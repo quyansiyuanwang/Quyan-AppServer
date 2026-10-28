@@ -46,5 +46,5 @@
 
 ## 相关页面
 
-- `my-monthly-passes`
-- `relay-token-management`
+- [我的月卡]({{DOCS_BASE_URL}}/zh-CN/my-monthly-passes)
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)

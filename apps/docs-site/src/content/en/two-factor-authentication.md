@@ -85,8 +85,8 @@ See `trusted-device-management` for the full device list fields and how the trus
 
 ## Related pages
 
-- `auth-verification`
-- `passkey-management`
-- `trusted-device-management`
-- `notification-settings`
-- `account-settings`
+- [Verification]({{DOCS_BASE_URL}}/en/auth-verification)
+- [Passkey management]({{DOCS_BASE_URL}}/en/passkey-management)
+- [Trusted devices]({{DOCS_BASE_URL}}/en/trusted-device-management)
+- [Notification settings]({{DOCS_BASE_URL}}/en/notification-settings)
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)

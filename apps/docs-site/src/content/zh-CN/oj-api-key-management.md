@@ -40,5 +40,5 @@
 
 ## 相关页面
 
-- `oj-usage-statistics`
-- `oj-pricing-management`
+- [OJ 用量统计]({{DOCS_BASE_URL}}/zh-CN/oj-usage-statistics)
+- [OJ 价格管理]({{DOCS_BASE_URL}}/zh-CN/oj-pricing-management)

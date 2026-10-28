@@ -133,6 +133,6 @@ IAM 强制模式下，创建用户需要 `quyan:user:CreateUser` 同时覆盖两
 
 ## 相关页面
 
-- `group-management`
-- `permission-management`
-- `business-logs`
+- [群组管理]({{DOCS_BASE_URL}}/zh-CN/group-management)
+- [权限管理]({{DOCS_BASE_URL}}/zh-CN/permission-management)
+- [业务日志]({{DOCS_BASE_URL}}/zh-CN/business-logs)

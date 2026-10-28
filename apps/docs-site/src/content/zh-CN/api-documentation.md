@@ -383,7 +383,7 @@ try {
 
 ## 相关页面
 
-- `oauth-app-management`
-- `access-key-management`
-- `relay-token-management`
-- `json-endpoint-management`
+- [OAuth 应用管理]({{DOCS_BASE_URL}}/zh-CN/oauth-app-management)
+- [访问密钥管理]({{DOCS_BASE_URL}}/zh-CN/access-key-management)
+- [转发 Token 管理]({{DOCS_BASE_URL}}/zh-CN/relay-token-management)
+- [JSON 端点管理]({{DOCS_BASE_URL}}/zh-CN/json-endpoint-management)

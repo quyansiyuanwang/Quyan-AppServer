@@ -46,5 +46,5 @@ If delivery fails, the system records a reason and refunds through the order's f
 
 ## Related pages
 
-- `my-monthly-passes`
-- `relay-token-management`
+- [My monthly passes]({{DOCS_BASE_URL}}/en/my-monthly-passes)
+- [Relay token management]({{DOCS_BASE_URL}}/en/relay-token-management)

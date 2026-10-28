@@ -58,6 +58,6 @@
 
 ## 相关页面
 
-- `forgot-password`
-- `auth-verification`
-- `account-settings`
+- [找回密码]({{DOCS_BASE_URL}}/zh-CN/forgot-password)
+- [验证页面]({{DOCS_BASE_URL}}/zh-CN/auth-verification)
+- [设置]({{DOCS_BASE_URL}}/zh-CN/account-settings)

@@ -88,5 +88,5 @@ IAM 强制模式下，修改权益使用 `quyan:remote_terminal:UpdateEntitlemen
 
 ## 相关页面
 
-- `relay-settings`
-- `user-management`
+- [转发设置]({{DOCS_BASE_URL}}/zh-CN/relay-settings)
+- [用户管理]({{DOCS_BASE_URL}}/zh-CN/user-management)

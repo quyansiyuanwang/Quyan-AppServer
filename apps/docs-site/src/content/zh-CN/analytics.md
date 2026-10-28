@@ -92,5 +92,5 @@ JWT 查询 API 需要 `ANALYTICS_READ`。IAM 强制模式下，这一资格必�
 
 ## 相关页面
 
-- `system-configuration`
-- `debug-tools`
+- [服务端配置]({{DOCS_BASE_URL}}/zh-CN/server-configuration)
+- [调试页]({{DOCS_BASE_URL}}/zh-CN/debug-tools)

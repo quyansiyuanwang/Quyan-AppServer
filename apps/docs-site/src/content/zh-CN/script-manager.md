@@ -57,5 +57,5 @@
 
 ## 相关页面
 
-- `debug-tools`
-- `system-logs`
+- [调试页]({{DOCS_BASE_URL}}/zh-CN/debug-tools)
+- [系统日志]({{DOCS_BASE_URL}}/zh-CN/system-logs)

@@ -40,6 +40,6 @@ A table (or card list on mobile) of registered passkeys, each showing:
 
 ## Related pages
 
-- `two-factor-authentication`
-- `trusted-device-management`
-- `account-settings`
+- [2FA & passkeys]({{DOCS_BASE_URL}}/en/two-factor-authentication)
+- [Trusted devices]({{DOCS_BASE_URL}}/en/trusted-device-management)
+- [Settings]({{DOCS_BASE_URL}}/en/account-settings)

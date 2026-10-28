@@ -41,5 +41,5 @@
 
 ## 相关页面
 
-- `balance-history`
-- `monthly-pass-management`
+- [账户余额与转出]({{DOCS_BASE_URL}}/zh-CN/balance-history)
+- [月卡管理]({{DOCS_BASE_URL}}/zh-CN/monthly-pass-management)

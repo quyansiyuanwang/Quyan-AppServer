@@ -57,5 +57,5 @@ Scripts are not provided by admins — any user can write and save their own scr
 
 ## Related pages
 
-- `debug-tools`
-- `system-logs`
+- [Debug]({{DOCS_BASE_URL}}/en/debug-tools)
+- [System logs]({{DOCS_BASE_URL}}/en/system-logs)

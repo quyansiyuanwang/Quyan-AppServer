@@ -296,6 +296,6 @@ Copying preserves valid same-owner references. Import accepts only existing, ver
 
 ## Related pages
 
-- `api-documentation`
-- `relay-settings`
-- `upstream-status`
+- [API documentation]({{DOCS_BASE_URL}}/en/api-documentation)
+- [Relay settings]({{DOCS_BASE_URL}}/en/relay-settings)
+- [Upstream status]({{DOCS_BASE_URL}}/en/upstream-status)
