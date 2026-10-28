@@ -6,7 +6,7 @@ Use this page to review submitted Auth Center apps. It is a reviewer-facing page
 
 - Review pending or historical Auth Center app submissions.
 - Filter by keyword and review status.
-- Inspect key fields such as `clientType`, `grantTypes`, redirect URIs, and token lifetimes.
+- Inspect the displayed client type, grant types, and redirect URI summary.
 - Approve or reject apps in `pending`.
 - Delete invalid or unnecessary records when needed.
 
@@ -19,7 +19,7 @@ Common filters include:
 - keyword
 - review status
 
-This helps reviewers quickly locate a target app by name, owner, or other searchable metadata.
+Keywords search the app name, owner username, or `clientId`.
 
 ### Review list
 
@@ -35,7 +35,7 @@ The table usually shows:
 - submitted time
 - reviewed time
 
-Compared with standard OAuth review, this page puts more emphasis on whether the client type, grant types, PKCE rules, and token model make sense together.
+The list shows at most two redirect URIs and only a count for the rest. The review dialog does not show the full URI list, token lifetimes, or PKCE settings. Ask the app owner to confirm information not shown before completing your review.
 
 ### Action area
 
@@ -137,7 +137,7 @@ If the record still has remediation value, rejecting with a clear comment is usu
 ## Common actions
 
 1. Filter to the target app by keyword or status.
-2. Inspect `clientType`, `grantTypes`, redirect URIs, and token lifetimes.
+2. Inspect the displayed `clientType`, `grantTypes`, and redirect URI summary; ask the owner to confirm remaining URIs, token lifetimes, and PKCE settings.
 3. Open the review dialog for `pending` apps.
 4. Write a clear comment and approve or reject.
 5. Use delete only for clearly invalid records.
@@ -153,16 +153,9 @@ Read permission allows access to the page and list. Update permission is needed 
 
 ## Notes
 
-- This is the reviewer side for Auth Center apps and does not replace `auth-center-client-management` for owners.
+- This is the reviewer side for Auth Center apps and does not replace [Auth Center client management](/en/auth-center-client-management) for owners.
 - Review is not only about completeness, but also about whether token model, client type, PKCE, and grant types align.
 - Review comments should be concrete enough to support revision and re-review.
-
-## Related pages
-
-- [`auth-center-client-management`](/en/auth-center-client-management)
-- [`auth-center-app-management`](/en/auth-center-app-management)
-- [`oauth-app-review-management`](/en/oauth-app-review-management)
-- [`business-logs`](/en/business-logs)
 
 ## IAM review resource scope
 
@@ -175,3 +168,10 @@ Review responses show owner and reviewer names, a secret preview, and whether a 
 Approving or rejecting an application requires `quyan:auth_center:ReviewClient`; deleting it from the review page requires `quyan:auth_center:DeleteReviewedClient`. Both actions use the review ARN above and require the platform global group's review-maintenance permission. List permission and own-application edit/delete permission do not grant these actions.
 
 Only pending applications can be reviewed. The server assigns the reviewer and review time; requests cannot change the owner, application configuration, credentials, or approval metadata. If the application, reviewer identity, group, role session, or authorization changes during a review or deletion, the write is denied or rolled back. A successful review does not expose a credential hash or raw secret.
+
+## Related pages
+
+- [Auth Center client management](/en/auth-center-client-management)
+- [Auth Center integration](/en/auth-center-app-management)
+- [OAuth app review](/en/oauth-app-review-management)
+- [Business logs](/en/business-logs)

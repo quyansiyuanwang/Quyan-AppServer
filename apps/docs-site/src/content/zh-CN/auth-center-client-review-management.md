@@ -6,7 +6,7 @@
 
 - 查看待审核或历史审核的认证中心应用。
 - 按关键字和审核状态筛选目标记录。
-- 检查 `clientType`、`grantTypes`、回调地址和令牌有效期等关键资料。
+- 检查列表中展示的客户端类型、授权类型和回调地址摘要。
 - 对 `pending` 应用执行通过或拒绝。
 - 在必要时删除无效或不应保留的应用记录。
 
@@ -19,7 +19,7 @@
 - 关键字
 - 审核状态
 
-这让审核人员可以按应用名称、所有者或其他可搜索资料快速定位目标。
+关键字可搜索应用名称、所有者用户名或 `clientId`。
 
 ### 审核列表
 
@@ -35,7 +35,7 @@
 - 提交时间
 - 审核时间
 
-和普通 OAuth 审核相比，这里会更强调“客户端类型、授权类型、PKCE 和令牌模型是否合理”。
+列表最多显示前两个回调地址，超过时只提示剩余数量；审核弹窗不展示完整地址列表、令牌有效期或 PKCE 设置。审核前请向应用所有者确认页面未展示的资料。
 
 ### 操作区
 
@@ -137,7 +137,7 @@
 ## 常见操作
 
 1. 用关键字或状态筛出目标应用。
-2. 检查 `clientType`、`grantTypes`、回调地址和令牌有效期。
+2. 检查列表中的 `clientType`、`grantTypes` 和回调地址摘要；向应用所有者确认其余地址、令牌有效期和 PKCE 设置。
 3. 对 `pending` 应用打开审核弹窗。
 4. 写清审核意见后选择通过或拒绝。
 5. 对明显无效记录再考虑删除。
@@ -153,16 +153,9 @@
 
 ## 说明
 
-- 本页是认证中心应用的审核端，不替代应用所有者使用的 `auth-center-client-management`。
+- 本页是认证中心应用的审核端，不替代应用所有者使用的[认证中心客户端管理](/zh-CN/auth-center-client-management)。
 - 审核重点不仅是资料齐不齐，更包括令牌模型、客户端类型、PKCE 与授权类型是否彼此匹配。
 - 审核意见应尽量具体，方便后续整改和复核。
-
-## 相关页面
-
-- [`auth-center-client-management`](/zh-CN/auth-center-client-management)
-- [`auth-center-app-management`](/zh-CN/auth-center-app-management)
-- [`oauth-app-review-management`](/zh-CN/oauth-app-review-management)
-- [`business-logs`](/zh-CN/business-logs)
 
 ## IAM 审核资源范围
 
@@ -175,3 +168,10 @@
 通过或拒绝应用需要 `quyan:auth_center:ReviewClient`；在审核页面删除应用需要 `quyan:auth_center:DeleteReviewedClient`。两项操作均使用上述审核 ARN，并要求平台全局用户组提供审核维护资格。列表权限和用户自有应用的编辑、删除权限不包含这两项能力。
 
 仅待审核应用可被通过或拒绝。服务端填写审核者及审核时间，请求不能修改所有者、应用配置、凭据或其他审批字段。审核或删除过程中若应用、审核者身份、用户组、角色会话或授权发生变化，写入会被拒绝或回滚；成功审核不会返回密钥或其哈希。
+
+## 相关页面
+
+- [认证中心客户端管理](/zh-CN/auth-center-client-management)
+- [认证中心应用接入](/zh-CN/auth-center-app-management)
+- [OAuth 应用审核](/zh-CN/oauth-app-review-management)
+- [业务日志](/zh-CN/business-logs)
