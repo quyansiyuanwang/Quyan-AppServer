@@ -23,6 +23,21 @@ Use this page to review the health and availability of upstream services.
 - Heartbeat bars over time.
 - Tooltips for upstream and user-to-server latency.
 
+## Common actions
+
+1. Select **Refresh** to fetch the latest status when investigating an outage.
+2. Check the overall indicator, then find the relevant monitor in the category list.
+3. Hover over a heartbeat bar to see its status, time, and latency.
+4. Use the uptime percentage, heartbeat history, and system logs together to investigate.
+
+## Notes
+
+- A service can be reachable but still degraded because of high latency.
+- Upstream latency comes from the corresponding heartbeat. User-to-server latency is measured when the page loads or refreshes; it is not a historical measurement for each heartbeat. A failed measurement displays `N/A`.
+- A failed refresh displays an error and may leave the previous overall indicator visible. Use the result of a successful refresh.
+- Heartbeat visuals can help identify intermittent failures.
+- When users report relay problems, compare this page with relay tokens and system logs.
+
 ## Access and resource scope
 
 In IAM enforcement mode, the page uses `quyan:relay:GetUptimeStatus`. The authenticated subject must belong to an active deployment-managed global group with `UPSTREAM_STATUS_READ`. A personal addition, a private group, or account-owner identity does not replace that eligibility. The collection requires an Allow for `acs:platform:*:platform:relay-uptime-control/default`.
@@ -42,21 +57,6 @@ User records use `acs:platform:*:platform:relay-concurrency-user/<user ID>`; the
 Enforcement mode supports `page` and `pageSize`: pages start at 1 and cannot exceed 10000; the default page size is 50 and the maximum is 100. `items` contains the current authorized page, `total` counts all authorized aggregate records, `totals` covers all authorized records, and `hasNext` indicates another page. Legacy and shadow modes retain the original response behavior.
 
 Concurrency data is sampled live; leases that expire during sampling are not counted as active records. An unavailable backend returns 503 rather than successful zero values. Reading does not create configuration. Changes to eligibility, policies, sessions, resource ownership, or configuration during a request cause it to fail.
-
-## Common actions
-
-1. Select **Refresh** to fetch the latest status when investigating an outage.
-2. Check the overall indicator, then find the relevant monitor in the category list.
-3. Hover over a heartbeat bar to see its status, time, and latency.
-4. Use the uptime percentage, heartbeat history, and system logs together to investigate.
-
-## Notes
-
-- A service can be reachable but still degraded because of high latency.
-- Upstream latency comes from the corresponding heartbeat. User-to-server latency is measured when the page loads or refreshes; it is not a historical measurement for each heartbeat. A failed measurement displays `N/A`.
-- A failed refresh displays an error and may leave the previous overall indicator visible. Use the result of a successful refresh.
-- Heartbeat visuals can help identify intermittent failures.
-- When users report relay problems, compare this page with relay tokens and system logs.
 
 ## Related pages
 
