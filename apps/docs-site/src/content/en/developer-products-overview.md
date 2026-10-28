@@ -1,6 +1,6 @@
 # Developer products
 
-Developer products provide separate instance, permission, quota, and audit boundaries for KV storage, short links, secret vaults, status monitoring, verification, IP geolocation, and push aggregation. Each product has a Console for daily work, Operations for account usage and capacity, and Product configuration for platform-wide settings.
+Developer products provide separate instance, permission, quota, and audit boundaries for KV storage, short links, secret vaults, status monitoring, verification, IP geolocation, push aggregation, and JSON endpoints. Each product has a Console for daily work, Operations for account usage and capacity, and Product configuration for platform-wide settings.
 
 ## Get started
 
@@ -19,11 +19,11 @@ The raw key is shown once after creation. Store it in deployment-time secret man
 
 ## Instance states and responses
 
-Disabling an instance immediately rejects external calls with `403`: the resource exists but is unavailable. It is not reported as `404`. Authentication failures are reserved for revoked, deleted, malformed, or otherwise invalid keys. Deleting an instance permanently removes its resources and keys.
+Disabling an instance prevents external calls. Requests using a product API key receive `403`; public short links and status pages may return other errors. Revoked, expired, or invalid keys fail authentication, and insufficient permissions can also block calls. Deleting an instance removes its resources and revokes its keys; it cannot be restored.
 
 ## Quota and billing
 
-Daily free quota is aggregated per account and product, so creating extra instances cannot increase it. Calls above quota continue only when overage billing is enabled in Operations and the account has sufficient balance. Validation failures, private-IP lookups, and verification messages that were not delivered are not billed.
+Daily free quota is aggregated per account and product, so creating extra instances cannot increase it. When the product overage price is zero, calls are free and unrestricted by that quota, though usage is still recorded. When the price is positive, calls beyond the free quota require overage billing to be enabled and sufficient account balance. Validation failures, private-IP lookups, and failed verification sends do not result in a charge. A successful send means the channel accepted the request, not that final delivery is guaranteed. See each product guide for its metering and limits.
 
 Refer to each product page for request details and use the least-privileged RAM action for every integration.
 
